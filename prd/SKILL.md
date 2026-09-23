@@ -72,6 +72,51 @@ wo er sie ändern kann.
 
 ---
 
+## Die Statuslabels
+
+KIBO zeigt den Zustand eines offenen Tickets aus drei Labels (KIBO ADR-0002). Der Lauf setzt und
+entfernt sie **an den Stellen, an denen er ohnehin schreibt**, damit kein eigener Weg entsteht, der
+vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter: KIBO liest sie über alle
+Repositorys hinweg.
+
+| Label | heißt |
+|---|---|
+| `status/in-arbeit` | ein Lauf hat das Ticket angefasst und ist noch nicht fertig |
+| `status/blockiert` | das Ticket wartet auf ein anderes Ticket |
+| `status/haengt` | ein Lauf hat es aufgegeben; ohne einen Menschen geht es nicht weiter |
+
+- **Sie steuern nichts.** Ob der Lauf ein Ticket nimmt, entscheidet allein das Freigabelabel. Ein
+  Statuslabel wird nie als Sperre gelesen, auch nicht ein fremdes.
+- **Höchstens eines je Ticket.** Wer eines setzt, nimmt die beiden anderen ab.
+- **Wann:**
+
+  | Stelle | an | Label |
+  |---|---|---|
+  | Eröffnung (2d), Modus `spec` ohne Kinder | die Spec | `+ in-arbeit` |
+  | Übersprungenes Kind (2d), **wenn der Grund ein blockierendes Ticket ist** | das Kind | `+ blockiert` |
+  | Implementer startet (4a) | das Paket-Ticket | `+ in-arbeit` |
+  | Kommentar nach dem Merge (5, Punkt 4) | das Kind | `− in-arbeit`; ab jetzt trägt der offene Pull Request den Stand |
+  | Zurücklassen (5) | das Ticket | `+ haengt` |
+  | Nachfolger eines zurückgelassenen Pakets (5) | der Nachfolger | `+ blockiert` |
+  | Glut-Punkt der Lauftafel, der zu einem Ticket gehört | das Ticket | `+ haengt` |
+  | Abschluss (6), Modus `spec` ohne Kinder | die Spec | `− in-arbeit` |
+  | Abbruch | jedes laufende Paket | `− in-arbeit` |
+
+  Ein Kind, das wegen eines fehlenden Labels, einer fehlenden Abnahmeliste oder eines fehlenden
+  Verifikationswegs übersprungen wird, bekommt **kein** Statuslabel: es wartet auf keinen anderen,
+  sondern auf eine Klärung — das zeigt KIBO über das Freigabelabel.
+- **Beim Start (0a) aufräumen:** `status/in-arbeit` an Tickets dieses Epics, das ein früherer,
+  abgebrochener Lauf hinterlassen hat, nimmt der Lauf ab; `status/blockiert` an Kindern, deren
+  Blocker inzwischen geschlossen ist, ebenso. Ein Ticket, das der Lauf wieder aufgreift, verliert
+  `status/haengt` beim Start seines Implementers.
+- **Fehlt ein Label im Repository**, legt der Lauf es an — mit den Farben und Beschreibungen aus
+  `references/forge.md`, damit KIBO in allen Projekten gleich aussieht.
+- Jede Label-Änderung zählt in der Forge als Änderung und setzt den Stillstand des Tickets auf null.
+  Das ist gewollt: am Ticket ist etwas geschehen.
+- Befehle je Forge: `references/forge.md`, „Statuslabels".
+
+---
+
 ## Phase 0 — Rüsten
 
 ### 0a — Zugang und Adapter
@@ -85,6 +130,8 @@ wo er sie ändern kann.
   wegwerfen, nie mitcommitten.
 - `git worktree list`: nur das Hauptverzeichnis. Reste eines früheren Laufs melden, nicht
   entfernen — dort kann Arbeit liegen.
+- **Statuslabels aufräumen**, die ein früherer Lauf an Tickets dieses Epics hinterlassen hat
+  („Die Statuslabels"); fehlende Labels im Repository anlegen.
 
 ### 0b — Basis und Messung
 
@@ -240,12 +287,14 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   das ist ein gültiger Zustand.
 - **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
   nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
-  Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ein Grund, der nur im
+  Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ist der Grund ein
+  blockierendes Ticket, bekommt das Kind im selben Zug `status/blockiert`. Ein Grund, der nur im
   Chat steht, führt zu einem vergessenen Ticket oder einem in falscher Reihenfolge.
 - **Kanten nachtragen:** bei `write_back_dependencies` jede aus `header` gelesene Kante, aus `body`
   nur nach Adapter oder Antwort am Tor, in die Abhängigkeiten der Forge eintragen
   (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
   auf GitHub nichts (`references/adapter.md`, „Auslegung").
+- Im Modus `spec` ohne Kinder bekommt die Spec mit dem Eröffnungskommentar `status/in-arbeit`.
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
   Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
   Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
@@ -290,7 +339,8 @@ quadratisch.
 ### 4a — Implementer-Subagent
 
 Ein Subagent je Paket (`Agent`, `subagent_type: general-purpose`, `run_in_background: true`;
-mehrere Starts in **einer** Nachricht). Er hat deinen Kontext nicht; sein Auftrag enthält alles
+mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
+(im Modus `spec` ohne Kinder trägt es die Spec schon). Er hat deinen Kontext nicht; sein Auftrag enthält alles
 **ausgeschrieben**:
 
 - Den absoluten Pfad seines Worktrees und die Arbeitsweise darin nach „Der Subagent im Worktree"
@@ -385,7 +435,8 @@ bereits auf ihm.
    `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
    echter Ausgabe und den Zahlen gegen Phase 0, was der Reviewer selbst korrigiert hat, was das
-   Issue vermerkt haben will, die offenen Punkte.
+   Issue vermerkt haben will, die offenen Punkte. Mit dem Kommentar verliert das Kind
+   `status/in-arbeit`.
 5. **Lauftafel fortschreiben** nach `references/lauftafel.md`: Zustand, Merge-Commit und Runden
    des Pakets, neu gestartete Pakete, Teststand, Abweichungen vom Plan, offene Punkte. Die
    Fortschreibung gehört an **diese** Stelle — die Tafel ist der einzige Ort, an dem der Stand für
@@ -409,10 +460,11 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - Branch bleibt stehen; der Worktree wird entfernt, ein schmutziger bleibt stehen und wird
   gemeldet.
 - Kommentar an das Ticket (wie Punkt 4): was fehlt, wo sein Branch liegt. Nach einem Revert
-  zusätzlich der Revert-Commit und der Hinweis „zurückholen = Revert des Reverts".
+  zusätzlich der Revert-Commit und der Hinweis „zurückholen = Revert des Reverts". Das Ticket
+  bekommt `status/haengt` statt `status/in-arbeit`.
 - Tafel: Zustand „nicht abgenommen", der Grund als Glut-Punkt beim Menschen.
-- Jeder Nachfolger im Graphen wird **blockiert**, auf der Tafel so markiert und sofort
-  kommentiert, mit Nennung des blockierenden Pakets.
+- Jeder Nachfolger im Graphen wird **blockiert**, auf der Tafel so markiert, sofort
+  kommentiert, mit Nennung des blockierenden Pakets, und bekommt `status/blockiert`.
 
 ## Phase 6 — Abschluss
 
@@ -439,9 +491,12 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
   Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
   Epic noch offen lässt.
+- Im Modus `spec` ohne Kinder verliert die Spec mit dem Abschlusskommentar `status/in-arbeit`.
 - **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremdes Epic, jedes Kind, jedes
-  übersprungene und blockierte Ticket — prüfen, dass der Kommentar wirklich steht
-  (`references/forge.md`). Ein `POST` kann fehlgeschlagen sein.
+  übersprungene und blockierte Ticket — prüfen, dass der Kommentar wirklich steht **und das
+  Statuslabel dem Endstand entspricht**: kein `status/in-arbeit` mehr im ganzen Lauf, `status/haengt`
+  an jedem zurückgelassenen, `status/blockiert` an jedem blockierten Ticket (`references/forge.md`).
+  Ein `POST` kann fehlgeschlagen sein.
 - `git worktree list`: nur das Hauptverzeichnis, plus gemeldete schmutzige Worktrees.
 - **Bericht an den Menschen:** Reihenfolge und warum; je Paket bzw. Story abgenommen oder nicht,
   mit Beleg; zurückgelassene Pakete mit Branch; übersprungene Tickets mit Grund; Reviewer-Funde
@@ -465,8 +520,9 @@ laufen weiter.
 **Wird der Lauf trotzdem abgebrochen** — durch den Menschen, die Sitzung, den Verlust der Forge —,
 wird **nichts weggeworfen**: der Epic-Branch bleibt, die fertigen Merges bleiben, zurückgelassene
 Branches bleiben. Der Stand kommt in die Forge (Kommentar am Zielissue und an den laufenden Paketen)
-und auf die Tafel: laufende Pakete verlieren „in Arbeit", der Abbruchgrund steht als Glut-Punkt beim
-Menschen. Ein Abbruch, der nur im Chat steht, ist von „noch nicht angefangen" nicht zu
+und auf die Tafel: laufende Pakete verlieren „in Arbeit" **auf der Tafel und als Label**, der
+Abbruchgrund steht als Glut-Punkt beim Menschen. Ein `status/in-arbeit`, das nach einem Abbruch
+stehen bleibt, lügt wie eine Tafel, die stehen bleibt. Ein Abbruch, der nur im Chat steht, ist von „noch nicht angefangen" nicht zu
 unterscheiden; eine Tafel, die drei Pakete als „in Arbeit" stehen lässt, behauptet, es liefe noch
 etwas.
 
@@ -476,10 +532,10 @@ etwas.
 
 | Issue | Kommentar | Zustand danach |
 |---|---|---|
-| jedes gemergte Paket-Ticket (Kind, in beiden Modi) | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen — schließt über `Closes` |
-| jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, unverändert |
-| jedes blockierte Ticket | das blockierende Paket | offen, unverändert |
-| jedes übersprungene Kind | Grund und was es freischaltet | offen, unverändert |
+| jedes gemergte Paket-Ticket (Kind, in beiden Modi) | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen, ohne Statuslabel — schließt über `Closes` |
+| jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
+| jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
+| jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
 | das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen — schließt über `Closes` (nur `spec`, nur bei allen Stories) oder ein Mensch |
 | ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
