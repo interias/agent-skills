@@ -107,6 +107,9 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 Festgelegt am 23.09.2026 nach dem ersten Entwurf von Skill und Referenzen. Die Regeln gelten für
 alle drei Skills.
 
+- **Die Statuslabels** (`status/in-arbeit`, `status/blockiert`, `status/haengt`) sind kein
+  Adapterschlüssel. Namen, Farben und Setzpunkte stehen im Skill („Die Statuslabels"), damit KIBO
+  sie in jedem Repository gleich liest. Ein Adapter kann sie weder umbenennen noch abschalten.
 - **Das Zielissue ist immer das Epic**, auch wenn es `epic_label` nicht trägt. Trägt im Repository
   **kein** Issue das Label, gilt jede Kante vom Zielissue als Kind, so wie vor dieser Fassung.
 - **Kante Kind → fremdes Epic** (ein Kind ist von einem Epic blockiert, das nicht das Zielissue ist):

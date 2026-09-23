@@ -101,6 +101,35 @@ Eröffnungskommentar genannt. Eine Kante in ein anderes Repository (`"owner"`/`"
 wird **nicht** nachgetragen: Ob die Instanz solche Kanten annimmt, ist nicht belegt
 (`adapter.md`, Auslegung). Sie bleibt Text in der Kopfzeile, und der Plan sagt das.
 
+## Statuslabels
+
+Namen, Farben und Beschreibungen sind in allen Repositorys gleich, damit KIBO überall gleich aussieht
+(die Farben sind die Zustandsfarben von KIBO):
+
+| Name | Farbe | Beschreibung |
+|---|---|---|
+| `status/in-arbeit` | `#00f0ff` | Zustand für KIBO: ein Lauf hat das Ticket angefasst und ist noch nicht fertig. Steuert nichts. |
+| `status/blockiert` | `#ff3b5c` | Zustand für KIBO: das Ticket wartet auf ein anderes Ticket. Steuert nichts. |
+| `status/haengt` | `#fcee0a` | Zustand für KIBO: ein Lauf hat das Ticket aufgegeben, ohne einen Menschen geht es nicht weiter. Steuert nichts. |
+
+- **Gitea:** Beim Setzen nimmt die API Label-**IDs**, beim Entfernen ebenfalls. Die IDs einmal je
+  Lauf aus `GET $API/labels?limit=50` lesen; fehlt ein Label, `POST $API/labels` mit
+  `{"name","color","description"}`.
+  ```bash
+  # setzen (die beiden anderen vorher entfernen, siehe unten)
+  curl -s -X POST -H "Authorization: token $GITEA_TOKEN" -H "Content-Type: application/json" \
+    -d '{"labels":[<id>]}' "$API/issues/<nr>/labels"
+  # entfernen: 204, oder 404, wenn es nicht gesetzt war — beides ist in Ordnung
+  curl -s -o /dev/null -w "%{http_code}" -X DELETE -H "Authorization: token $GITEA_TOKEN" "$API/issues/<nr>/labels/<id>"
+  ```
+- **GitHub:** `gh issue edit <nr> --add-label status/in-arbeit --remove-label status/blockiert,status/haengt`;
+  fehlende Labels mit `gh label create`.
+- **GitLab:** `PUT /projects/:id/issues/:iid` mit `add_labels` und `remove_labels`.
+- **Nachzählen:** `GET $API/issues?state=open&type=issues&labels=status/in-arbeit` muss am Ende des
+  Laufs leer sein, soweit es Tickets dieses Laufs betrifft. **Vorsicht:** Gitea ignoriert einen
+  Label-Filter auf ein Label, das es im Repository nicht gibt, und liefert dann **alle** offenen
+  Issues — erst prüfen, dass das Label existiert.
+
 ## Stolperstellen
 
 - **Paginierung.** Issue-Listen sind serverseitig gedeckelt (Gitea: siehe oben). Immer paginieren,

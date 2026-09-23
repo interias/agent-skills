@@ -205,6 +205,10 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   und warum. Dieser Kommentar ist die Fortsetzung des Abschlusskommentars und der Ort, an dem in
   einem halben Jahr steht, warum ein Fund nicht zum Ticket wurde.
 - **Kommentar am betroffenen Kind-Ticket**, wenn ein Punkt aus dessen Review kam.
+- **Statuslabels** (`prd/SKILL.md`, „Die Statuslabels"): Ein Ticket, dessen Glut-Punkt oder
+  Zurücklassen-Grund jetzt erledigt ist, verliert `status/haengt`; ein Ticket, dessen Blocker jetzt
+  geschlossen ist, verliert `status/blockiert`. Ein Punkt, der zum Ticket wird, ändert am alten
+  Ticket nichts.
 - **Neu angelegte Issues** — falls die Fragerunde welche verlangt hat — tragen das
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
