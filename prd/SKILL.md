@@ -9,8 +9,9 @@ Du bist der **Host-Orchestrator**: Planner und Merger in einer Person. Die Paket
 du **nicht selbst**, sondern über Subagenten (Implementer + Reviewer). Du schneidest, prüfst nach,
 mergst und schreibst zurück in die Forge.
 
-Zielvorgabe ist das Argument des Aufrufs: eine Issue-Nummer (`#41`, `41`) oder eine PRD-Nummer,
-die der Adapter über `issue_offset` umrechnet.
+Zielvorgabe ist das Argument des Aufrufs. `#41` ist immer die Issue-Nummer. `PRD 41` oder eine
+nackte Zahl ist eine PRD-Nummer, wenn `issue_offset` gesetzt ist, und wird damit umgerechnet;
+ohne `issue_offset` ist die nackte Zahl die Issue-Nummer.
 
 **Zwei Modi** (`issue_form`), ein Ablauf. Überall, wo unten *Paket* steht, ist im Modus `prd` ein
 Kind-Ticket gemeint, im Modus `spec` ein von dir geschnittenes Stück der Spec:
@@ -22,8 +23,8 @@ Kind-Ticket gemeint, im Modus `spec` ein von dir geschnittenes Stück der Spec:
 | Abnahmeliste | `acceptance_section` des Kindes | die User Stories der Spec |
 | Freigabe (`ready_label`) | am Kind | an der Spec |
 
-**Die Basis** ist `base_branch`, im Folgenden `<basis>`. Der Epic-Branch zweigt von ihr ab, der
-Pull Request geht auf sie zurück.
+**Der Hauptzweig** ist `main_branch`. **Die Basis** ist `base_branch`, im Folgenden `<basis>`,
+Standard der Hauptzweig. Der Epic-Branch zweigt von ihr ab, der Pull Request geht auf sie zurück.
 
 ## Der Projektadapter
 
@@ -72,14 +73,23 @@ wo er sie ändern kann.
 
 ## Phase 0 — Rüsten
 
-- Adapter lesen. Forge-Zugang herstellen und **einmal verifizieren** (ein Lesezugriff auf das
-  Zielissue): `references/forge.md`.
+### 0a — Zugang und Adapter
+
+- Adapter lesen. Forge-Zugang herstellen und **einmal verifizieren** (`references/forge.md`): ein
+  Lesezugriff auf das Zielissue und `GET /repos/{owner}/{repo}` mit `permissions.push == true`.
+  Fehlt das Schreibrecht, ist es ein Tor-Punkt — es zeigt sich sonst erst beim
+  Eröffnungskommentar, nach dem Tor. Der Lauf benutzt **ausschließlich** das Token aus
+  `token_env` (geladen aus `token_file`), nie ein anderes, das im Repository liegt.
 - `git status` muss **leer** sein. Jede Änderung ist fremde Arbeit — anhalten und fragen, nie
   wegwerfen, nie mitcommitten.
 - `git worktree list`: nur das Hauptverzeichnis. Reste eines früheren Laufs melden, nicht
   entfernen — dort kann Arbeit liegen.
-- `git switch <basis> && git pull --ff-only <push_remote> <basis>`. Steht `base_branch` auf
-  `from-issue`, erst Phase 1 bis zur Basis lesen.
+
+### 0b — Basis und Messung
+
+Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis bestimmt hat.
+
+- `git switch <basis> && git pull --ff-only <push_remote> <basis>`.
 - **Leseprotokoll:** `must_read` ganz, `glossary` ganz, aus `adr_dir` alle Dateien bei
   `read_all_adrs`, sonst die im Issue genannten; das README der betroffenen Module.
 - `pre_commit_checks` prüfen (etwa `git config core.hooksPath`): was nicht von allein läuft, fährst
@@ -88,7 +98,8 @@ wo er sie ändern kann.
   notieren, `known_red` mit Namen. Nicht aus dem README abschreiben — dort steht der Stand vom
   letzten Mal. Die Messung liefert die Vergleichszahlen für jeden Auftrag und beantwortet vorab,
   ob der Verifikationsweg fahrbar ist; ein fehlendes Abhängigkeitsverzeichnis fällt hier auf und
-  nicht beim dritten Paket.
+  nicht beim dritten Paket. Legt ein Paket eine Suite erst an, ist ihr Ausgangsstand 0 Suiten; ab
+  dem Merge dieses Pakets wird sie gefahren und verglichen.
 - **Das Fenster bestimmen:** `window`, Standard 1. Drei Plätze nur mit `test_isolation_env` oder
   `isolation: none-needed` samt Begründung. Setzt der Adapter mehr Plätze ohne beides, ist das
   eine Lockerung und ein Tor-Punkt.
@@ -100,14 +111,15 @@ wo er sie ändern kann.
   **User Stories** (Abnahmeliste im Modus `spec`), **Implementation Decisions** (Vorgaben *samt
   Begründung* — der Grund, warum ein Implementer nicht frei wählt), **Testing Decisions**
   (Verifikationsweg, benanntes Vorbild), **Out of Scope** (Verbote), **Further Notes**.
-- **Modus bestimmen:** `issue_form` aus dem Adapter; fehlt er, aus der Form — Kinder → `prd`,
-  sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die Ableitung steht im Plan.
 - **Kanten lesen** nach `dependency_source` (`api`, `header`, `body`; mehrere möglich), Befehle in
   `references/forge.md`. `epic_label` trennt die Bedeutung: eine Kante vom Zielissue zu einem
   anderen **Epic** heißt *Reihenfolge* (Vorbedingung), eine Kante zu einem **Nicht-Epic** heißt
   *Kind*. Das Zielissue gilt als Epic, auch wenn es das Label nicht trägt. Bei `header` nennt die
   Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die Kinder, alle übrigen
   Nummern dort sind Reihenfolge.
+- **Modus bestimmen** — erst jetzt, weil er die Kinder braucht: `issue_form` aus dem Adapter; fehlt
+  er, aus der Form — Kinder → `prd`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
+  Ableitung steht im Plan.
 - **Vorbedingung prüfen:** Ist ein vorausgesetztes Epic offen, gilt:
   - Hängen **alle** Pakete an noch nicht gemergten Tickets dieses Epics und steht `transitive:
     true`, werden diese Tickets im selben Lauf mitbearbeitet — ein Epic-Branch, ein Pull Request.
@@ -121,8 +133,9 @@ wo er sie ändern kann.
 - **Kinder einsammeln** (Modus `prd`, und `spec` mit Kindern): je Kind Body, Labels, State,
   Kanten. Bearbeitet wird nur, was offen ist und die Freigabe trägt. Übersprungen wird ein Kind
   mit einem der `skip_labels`, ohne `ready_label`, mit Kante in ein fremdes offenes Epic (ohne
-  transitive Auflösung) oder im Modus `prd` ohne `verification_section` — ohne Verifikationsweg
-  ist der Reviewer blind.
+  transitive Auflösung) oder im Modus `prd` ohne `acceptance_section` oder ohne
+  `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
+  Reviewer blind.
 - **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
   Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt. Bodys
   altern. Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt.
@@ -194,43 +207,55 @@ Vorzulegen ist:
 6. Das Issue widerspricht einem ADR oder einem Out-of-Scope-Eintrag.
 7. Eine Behauptung im Body ist gegen den Arbeitsbaum nicht haltbar, und ein Paket hängt daran.
 8. Die Ausgangsmessung aus Phase 0 ist nicht fahrbar, oder die Testisolation greift nicht.
-9. Jeder Punkt aus `gate_approvals`, den ein Paket berührt. Vorzulegen: was es beantwortet, was es
-   kostet, was die harte Grenze ist.
+9. Der Verifikationsweg eines Pakets ist nicht fahrbar: Werkzeug, Zugang oder Ablage fehlt (etwa
+   kein Docker, kein Lesetoken im Worktree, keine Ablage für Bildschirmfotos). Empfehlung dazu,
+   wie mit dem nicht fahrbaren Teil umgegangen wird — etwa: er wird offener Punkt, der Pull
+   Request bekommt `WIP:`.
+10. Der Forge-Zugang hat kein Schreibrecht (Phase 0a).
+11. Kanten wurden aus `body` gelesen, und der Adapter setzt `write_back_dependencies` für sie
+    nicht: nachtragen oder nicht.
+12. Jeder Punkt aus `gate_approvals`, den ein Paket berührt. Vorzulegen: was es beantwortet, was es
+    kostet, was die harte Grenze ist.
+
+**Fehlt der Adapter,** legt das Tor die abgeleiteten Werte immer als eigene Liste vor, auch wenn
+sonst nichts zu melden ist.
 
 Ist nichts zu melden, sag das in einem Satz und lauf los. Sonst Liste vorlegen und **einmal**
-warten.
+warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Runde gefragt.
 
 ### 2d — Plan, Lauftafel, Eröffnung
 
 - **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen, Graph,
   Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
   wird, die Lesart des Adapters.
-- Je Paket eine Task anlegen (`TaskCreate`), in Reihenfolge.
-- **Lauftafel** bauen und veröffentlichen, bevor das erste Paket startet (bei `plan_artifact:
-  publish`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau,
-  Zustände, offene Punkte und Prüfung vor der Veröffentlichung in `references/lauftafel.md`. Die
+- Je Paket eine Task anlegen (Task-Werkzeug der Sitzung, falls vorhanden), in Reihenfolge.
+- **Lauftafel** bauen, bevor das erste Paket startet; bei `plan_artifact: publish` veröffentlichen,
+  bei `file` nur schreiben (ein alter Wert `off` gilt als `file`). Sie wird **kopiert, nicht
+  entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
+  vor der Veröffentlichung in `references/lauftafel.md`. Die
   Datei liegt in deinem Scratchpad, nicht im Repository. Ihre URL ändert sich über den ganzen Lauf
   nicht — jede Fortschreibung geht auf denselben Dateipfad. Den Graphen zeigt die Pakettabelle
   mit den Modulen je Paket als Spalte, keine Figur. Am Anfang stehen alle Pakete auf „wartend";
   das ist ein gültiger Zustand.
 - **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
-  nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlender
-  Verifikationsweg) und **was es freischaltet**. Ein Grund, der nur im Chat steht, führt zu einem
-  vergessenen Ticket oder einem in falscher Reihenfolge.
-- **Kanten nachtragen:** bei `write_back_dependencies` jede aus `header` oder `body` gelesene Kante
-  in die Abhängigkeiten der Forge eintragen (`references/forge.md`), damit andere Werkzeuge sie
-  sehen.
+  nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
+  Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ein Grund, der nur im
+  Chat steht, führt zu einem vergessenen Ticket oder einem in falscher Reihenfolge.
+- **Kanten nachtragen:** bei `write_back_dependencies` jede aus `header` gelesene Kante, aus `body`
+  nur nach Adapter oder Antwort am Tor, in die Abhängigkeiten der Forge eintragen
+  (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
+  auf GitHub nichts (`references/adapter.md`, „Auslegung").
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
-  Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, im Modus `spec` die Zuordnungstabelle, der
-  Link auf die Lauftafel. Kommentare gehen **aus einer Datei**, nie aus einer Shell-Zeichenkette
-  (`references/forge.md`).
+  Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
+  Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
+  einer Datei**, nie aus einer Shell-Zeichenkette (`references/forge.md`).
 
 Danach **ohne Rückfrage** losarbeiten.
 
 ## Phase 3 — Epic-Branch und Worktrees
 
-- Branchname `epic/<nr>-<slug>`. Slug aus dem Issue-Titel: klein, ASCII, höchstens vier Wörter,
-  Umlaute transliteriert (ä→ae, ö→oe, ü→ue, ß→ss).
+- Branchname `epic/<nr>-<slug>`. Slug aus dem Issue-Titel ohne Präfixe wie `Epic:` oder `Spec:`:
+  klein, ASCII, höchstens vier Wörter, Umlaute transliteriert (ä→ae, ö→oe, ü→ue, ß→ss).
 - `git switch -c epic/… <basis>`. Existiert der Branch schon: wiederverwenden (`git switch`, bei
   vorhandenem Remote `git pull --ff-only`). Nie neu anlegen, nie `--force`, nie zurücksetzen —
   dort kann Arbeit eines früheren Laufs liegen.
@@ -328,7 +353,8 @@ im Bericht, ohne Issues anzulegen oder vorzuschlagen (Regel 3).
 
 Fahre den Verifikationsweg selbst im Worktree des Pakets; glaub ihn nicht dem Bericht. Bei einem
 Wächter oder Tor fährst du auch die Gegenprobe. Bekannt rote Suiten (`known_red`) sind kein Grund,
-neues Rot zu akzeptieren.
+neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket berührt, wird nicht
+ignoriert.
 
 **Vergleiche gegen die Ausgangszahlen aus Phase 0.** Grün allein genügt nicht: **eine gesunkene
 Suiten- oder Testzahl ist ein Befund, auch wenn alles grün ist.** Ein Agent, der „alle Suiten
@@ -350,8 +376,10 @@ bereits auf ihm.
 
 1. Im Hauptverzeichnis: `git switch epic/<…>` und `git merge --no-ff agent/<nr>-<slug>`.
 2. Die betroffenen Suiten auf dem Epic-Branch fahren. Rot heißt: nicht weiterrücken — den Merge
-   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen.
-3. Worktree und Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei.
+   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann
+   wird nur der Worktree abgeräumt, der Branch bleibt: er gilt als gemergt, `git branch -d`
+   gelänge, und ein erneuter Merge brächte die Änderung nicht zurück.
+3. Sonst Worktree und Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei.
 4. **Kommentar an das gemergte Ticket** — im Modus `prd` und `spec` mit Kindern das Kind, im Modus
    `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
@@ -379,7 +407,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 
 - Branch bleibt stehen; der Worktree wird entfernt, ein schmutziger bleibt stehen und wird
   gemeldet.
-- Kommentar an das Ticket (wie Punkt 4): was fehlt, wo sein Branch liegt.
+- Kommentar an das Ticket (wie Punkt 4): was fehlt, wo sein Branch liegt. Nach einem Revert
+  zusätzlich der Revert-Commit und der Hinweis „zurückholen = Revert des Reverts".
 - Tafel: Zustand „nicht abgenommen", der Grund als Glut-Punkt beim Menschen.
 - Jeder Nachfolger im Graphen wird **blockiert**, auf der Tafel so markiert und sofort
   kommentiert, mit Nennung des blockierenden Pakets.
@@ -395,19 +424,20 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
     zurückgelassen oder blockiert, ein Verifikationsweg nicht fahrbar, eine Freigabe offen.
   - **Body:** je Paket eine Zeile mit Ergebnis; Link auf die Lauftafel; die Stil-Checkliste des
-    Reviewers; die offenen Punkte; ein Hinweis, wenn ein Ticket noch offene Blocker hat (dann
-    scheitert sein Schließen beim Merge).
-  - **`Closes`, nur englische Schließwörter:** Modus `prd` → `Closes #<kind>` je vollständig
-    abgenommenem Kind; Modus `spec` → `Closes #<spec>` nur, wenn **alle** User Stories abgenommen
-    sind, und hat die Spec Kinder, zusätzlich `Closes #<kind>` je vollständig abgenommenem Kind.
-    Ein fremdes Epic aus transitiver Auflösung nie.
+    Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz „schließt sich ggf. nicht
+    automatisch (412), dann von Hand".
+  - **`Closes`, nur englische Schließwörter, in der Reihenfolge des Graphen:** Modus `prd` →
+    `Closes #<kind>` je vollständig abgenommenem Kind; Modus `spec` → `Closes #<spec>` nur, wenn
+    **alle** User Stories abgenommen sind, und hat die Spec Kinder, zusätzlich `Closes #<kind>` je
+    vollständig abgenommenem Kind. Ein fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Das ist der Schritt, der am
   leichtesten ausfällt, weil sich der Lauf nach dem Pull Request fertig anfühlt. Hinein: Link auf
   Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden; tatsächliche gegen geplante
   Belegung und woran Abweichungen lagen; übersprungene und blockierte Tickets mit Grund und dem,
   was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
-  Migration enthält; und **was das Epic noch offen lässt**.
+  Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
+  Epic noch offen lässt.
 - **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremdes Epic, jedes Kind, jedes
   übersprungene und blockierte Ticket — prüfen, dass der Kommentar wirklich steht
   (`references/forge.md`). Ein `POST` kann fehlgeschlagen sein.
@@ -425,7 +455,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 
 - Das Arbeitsverzeichnis ist nicht sauber, oder es liegen Worktrees eines früheren Laufs herum
   (Phase 0).
-- Das Vorab-Tor hat Punkte (2c). Einmal, als eine Liste.
+- Das Vorab-Tor hat Punkte (2c). Einmal, als eine Liste; nur neue Punkte aus den Antworten in
+  einer zweiten Runde.
 
 **Im Lauf wird nicht angehalten.** Was schiefgeht, lässt ein Paket zurück (Phase 5), die übrigen
 laufen weiter.
