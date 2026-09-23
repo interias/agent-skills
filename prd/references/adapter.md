@@ -101,6 +101,33 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 | `gate_approvals` | zusätzliche Punkte fürs Vorab-Tor, etwa bezahlte Läufe oder Blindsatz | keine |
 | `no_access` | Systeme, auf die ein Lauf keinen Zugriff hat. Ein Paket, das sie braucht, ist ein Tor-Punkt | keine |
 
+## Auslegung
+
+Festgelegt am 23.09.2026 nach dem ersten Entwurf von Skill und Referenzen. Die Regeln gelten für
+alle drei Skills.
+
+- **Das Zielissue ist immer das Epic**, auch wenn es `epic_label` nicht trägt. Trägt im Repository
+  **kein** Issue das Label, gilt jede Kante vom Zielissue als Kind, so wie vor dieser Fassung.
+- **Kante Kind → fremdes Epic** (ein Kind ist von einem Epic blockiert, das nicht das Zielissue ist):
+  Das ist eine Kante aus dem Epic hinaus. Mit `transitive: true` wird aufgelöst, sonst wird das Kind
+  übersprungen und kommentiert.
+- **`ready_label`** prüft im Modus `prd` nur die Kinder, im Modus `spec` die Spec.
+- **`window` > 1 ohne `test_isolation_env` und ohne `isolation: none-needed`** lockert die Regel und
+  ist ein Punkt fürs Vorab-Tor.
+- **`base_branch` nach einem Lauf:** Maßgeblich ist die `base` des Pull Requests, der Adapterwert
+  ist nur der Standard für den nächsten Lauf. Das gilt für `prd-nacharbeit` und `prd-aufraeumen`.
+- **`always_link` nennt nur Verzeichnisse.** Eine Datei, die jedes Paket braucht (etwa
+  `server/.env`), steht in `env_files` und wird kopiert.
+- **`write_back_dependencies`** gilt nur auf Forges mit Abhängigkeits-API (Gitea, GitLab). Auf
+  GitHub wird nichts nachgetragen; die gelesenen Kanten stehen im Plan. Nachgetragen werden nur
+  Kanten **innerhalb desselben Repositorys**. Ob die Instanz Kanten über Repositorys hinweg annimmt,
+  ist nicht belegt; solche Kanten bleiben Text.
+- **`plan_artifact: off`** heißt: keine Lauftafel. Der Stand steht dann nur in den Kommentaren der
+  Forge. Die Tafel liegt bei `publish` im Scratchpad der Sitzung und wird als Artifact
+  veröffentlicht, nie im Repository.
+- **Branches:** Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`. `<nr>` ist die
+  Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>`. Slug klein, ASCII, ä→ae, ö→oe, ü→ue, ß→ss.
+
 ## Referenzdateien des Skills
 
 `SKILL.md` verweist auf genau diese Dateien. Ein Name, der hier nicht steht, existiert nicht.

@@ -39,6 +39,19 @@ Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
 - **Anonyme Aufrufe liefern 404 statt 401.** Ein 404 auf ein Issue, das es geben muss, heißt
   zuerst: Token fehlt oder ist nicht geladen. Es ist kein Beleg, dass das Issue nicht existiert.
 
+Ohne Token, mit Basic Auth aus dem Git-Credential-Speicher (spill): Zugangsdaten einmal holen und
+nie ausgeben.
+
+```bash
+CRED=$(printf 'url=http://mb-vsv-cast:3003
+
+' | git credential fill)
+GU=$(printf '%s
+' "$CRED" | sed -n 's/^username=//p'); GP=$(printf '%s
+' "$CRED" | sed -n 's/^password=//p')
+curl -s -u "$GU:$GP" "$API/issues/41"
+```
+
 ## Abhängigkeiten lesen
 
 - **Gitea:** `GET /issues/<nr>/dependencies` liefert die Issues, von denen `<nr>` **blockiert

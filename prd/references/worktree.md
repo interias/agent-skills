@@ -15,6 +15,8 @@ und es braucht keine Ignoriereinträge. Der Pfad enthält **kein Punktverzeichni
 git worktree add <worktree_root>/<nr> -b agent/<nr>-<slug> epic/<issue-nr>-<slug>
 ```
 
+`<nr>` ist die Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>` (`prd/SKILL.md`, Phase 3).
+
 **Nimm absolute Pfade, keine relativen.** Das Arbeitsverzeichnis der Shell wandert im Lauf: Ein
 `cd server && npm test` lässt sie in `server/` stehen, und ein relativer Worktree-Pfad zeigt danach
 ins Leere. `git worktree remove` antwortet dann *„is not a working tree"*, obwohl

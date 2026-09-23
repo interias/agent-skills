@@ -68,10 +68,9 @@ hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der
   aber — sobald der Pull Request existiert — dessen eigene `base`. Ein Epic kann von einem anderen
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
 - **Spec-Modus erkennen** (`issue_form: spec`): Das PRD-Issue ist dann das Spec-Issue und hat
-  keine Kind-Tickets. Paket-Branches heißen nicht nach Kind-Issues; angenommen wird das Schema aus
-  `prd/SKILL.md`: Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>` (Slug mit
-  ä→ae). Diese Annahme gehört in den Bericht, falls `prd/SKILL.md` inzwischen ein anderes Schema
-  festlegt.
+  keine Kind-Tickets. Paket-Branches heißen nicht nach Kind-Issues. Das Schema aus
+  `prd/SKILL.md` (Phase 3): Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`, im
+  Modus `spec` ohne Kinder `agent/<spec>-p<k>-<slug>` (Slug mit ä→ae).
 - `git worktree list` prüfen. Reste eines früheren Laufs melden, nicht löschen — dafür ist
   `/prd-aufraeumen` da.
 - Vokabulardatei lesen, und das Verzeichnis für bewusst Verworfenes, falls der Adapter eines

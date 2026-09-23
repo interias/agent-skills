@@ -137,9 +137,9 @@ Erst wenn das bestätigt ist, darf gelöscht werden. Alles Weitere hängt daran.
 Erst zählen, dann löschen. Trage vier Listen zusammen:
 
 1. **Der Epic-Branch des Laufs**, lokal und in der Forge.
-2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` — angenommenes Schema aus `prd/SKILL.md`,
-   Slug mit ä→ae; im PRD-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** (`issue_form:
-   spec`, keine Kind-Tickets) die Paketnummer aus der Lauftafel). Bei einem ordentlich verlaufenen
+2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` nach `prd/SKILL.md` Phase 3, Slug mit ä→ae;
+   im PRD-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** ohne Kind-Tickets
+   `<spec>-p<k>`, also Spec-Nummer und Paketnummer der Lauftafel). Bei einem ordentlich verlaufenen
    Lauf sind sie schon weg — `/prd` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
    einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
    Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
