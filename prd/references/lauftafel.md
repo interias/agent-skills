@@ -5,8 +5,9 @@ lesen: was gerade läuft, was geklappt hat, wo es hakt. Alles steht auf **einer 
 (ausgelegt auf 1440p, ohne Scrollen), in vier Blöcken, ohne Graphfigur. Alles Weitere steht im
 Issue.
 
-Mit `plan_artifact: publish` (Standard) wird die Tafel als Artifact veröffentlicht, und ihre URL
-geht in den Eröffnungskommentar. Mit `off` wird die Datei nur geschrieben und ihr Pfad genannt.
+Die Tafel liegt immer im Scratchpad der Sitzung, nie im Repository. Mit `plan_artifact: publish`
+(Standard) wird sie als Artifact veröffentlicht, und ihre URL geht in den Eröffnungskommentar. Mit
+`file` wird die Datei nur geschrieben und ihr Pfad genannt. Ein alter Wert `off` gilt als `file`.
 
 ## Die Vorlage
 
@@ -25,7 +26,8 @@ Die Vorlage trägt die Musterdaten eines erfundenen Laufs (Epic #942) und zeigt 
 einmal: alle fünf Paketzustände, ein exklusives Paket, beide Sorten offener Punkte, eine Kennzahl
 unter Ziel. Das ist eine Formenlehre, kein Anfangszustand. Im Anfangszustand stehen alle Pakete auf
 „wartend", die Zeitleiste ist leer, und unter „Offene Punkte" steht die eine Zeile `Nichts offen.`
-Ein leerer Block bleibt stehen, denn weggelassen sieht er aus wie vergessen.
+nach dem auskommentierten Muster im Block. Ein leerer Block bleibt stehen, denn weggelassen sieht
+er aus wie vergessen.
 
 Anzupassen sind außerdem `<title>` (`Lauftafel #<nr>`) und der Name des Repositorys im
 Marken-SVG.
@@ -43,6 +45,19 @@ liegt beim Menschen.*
    Reviewer-Befund bei mehreren Runden, das blockierende Paket bei blockierten.
 3. **Belegung der Plätze**: die Zeitleiste, darunter die Abweichungszeile.
 4. **Offene Punkte**: der Abschluss, in Spalten nebeneinander.
+
+## Laufzustand
+
+Über den Blöcken steht in `.stamp` zuerst der Zustand des ganzen Laufs, dann Stand und
+Fortschreibung. Drei Werte, je mit eigener Klasse:
+
+| Laufzustand | Markup | wann |
+|---|---|---|
+| Lauf im Gang | `<b class="lauf live">Lauf im Gang</b>` | ab der ersten Veröffentlichung bis zum Pull Request |
+| Beendet | `<b class="lauf done">Beendet</b>` | die letzte Fortschreibung vor dem Pull Request |
+| Abgebrochen | `<b class="lauf fail">Abgebrochen</b>` | der Lauf endet vor dem Pull Request; der Grund steht als Glut-Punkt unter „Offene Punkte" |
+
+Ohne diesen Wert sieht eine liegengebliebene Tafel aus wie eine laufende.
 
 ## Was ein Paket ist
 
@@ -71,10 +86,13 @@ laufen dürfen. Sieht der Lauf das selbst, gehört es in die Abweichungszeile.
 | wartend | `.state.wait` | `.pip.wait` | harte Vorgänger nicht gemergt, oder kein Platz frei |
 | in Arbeit | `.state.live` | `.pip.live` | Subagent läuft; der Untertitel nennt Platz und Runde seit wann |
 | abgenommen | `.state.done` | `.pip.done` | in den Epic-Branch gemergt; der Merge-Commit steht in der Zeile |
-| nicht abgenommen | `.state.fail` | `.pip.fail` | `max_rounds` erschöpft, nicht mechanischer Konflikt, oder Worktree nicht sauber entfernbar |
+| nicht abgenommen | `.state.fail` | `.pip.fail` | `max_rounds` erschöpft, nicht mechanischer Konflikt, Worktree nicht sauber entfernbar, Epic-Branch nach dem Merge rot (Merge per Revert zurückgenommen), oder im Lauf zeigt sich ein Zugriff oder eine Freigabe, die am Tor nicht vorlag |
 | blockiert | `.state.block` | `.pip.block` | ein Vorgänger ist nicht abgenommen; der Untertitel nennt ihn |
 
-Punkt und Umriss tragen die Aussage mit, nicht nur die Farbe. Glut (`--ember`) markiert
+Die **Form** trägt die Aussage, die Farbe bestätigt sie nur: wartend ein leerer Kreis, in Arbeit
+ein voller, glühender Punkt, abgenommen ein voller Punkt, nicht abgenommen ein Kreuz, blockiert
+ein leeres Quadrat. In der Segmentleiste ist „nicht abgenommen" gestreift, „in Arbeit" voll und
+glühend. So bleiben Glut und Rot auch ohne Farbsehen unterscheidbar. Glut (`--ember`) markiert
 ausschließlich „läuft gerade" und die Punkte, die auf den Menschen warten.
 
 Die Segmentleiste im Kopf (`.pips`) hat **genau so viele Segmente wie Pakete**, in der Reihenfolge
@@ -141,7 +159,7 @@ Leser finden ihre Registerkarte daran. Ein `label` je Fortschreibung (`stand-nac
 Fortgeschrieben wird bei **jedem** Merge und ein letztes Mal vor dem Pull Request. Nachzuziehen
 sind jedes Mal:
 
-- Stand-Zeitstempel und Nummer der Fortschreibung in `.stamp`
+- Laufzustand, Stand-Zeitstempel und Nummer der Fortschreibung in `.stamp`
 - Zustände, Merge-Commits, Runden und Untertitel in der Tabelle; die Segmentleiste samt
   `aria-label`
 - Teststand und Kennzahl samt Basis
@@ -153,7 +171,8 @@ sieht aktuell aus.
 
 ## Vor der ersten Veröffentlichung prüfen
 
-- Der Musterstempel `<span class="demo">Musterbelegung</span>` ist entfernt.
+- Der Musterstempel `<span class="demo">Musterbelegung</span>` ist entfernt, der Laufzustand
+  steht auf `Lauf im Gang`.
 - Keine Musterdaten mehr auf der Seite. Die Ausgabe muss leer sein:
   ```bash
   grep -n "Musterbelegung\|Beispielrepo\|Auftragsliste\|1&nbsp;438\|#9[45][0-9]\|release/9.4\|epic/942-\|agent/949-\|1a2b3c4\|5d6e7f8\|9a0b1c2\|export_legacy\|Exporte unter 2 s\|n = 318\|22.09.2026, 14:05" "<scratchpad>/lauftafel-<nr>.html"

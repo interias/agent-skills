@@ -126,6 +126,11 @@
     letter-spacing: 0.02em;
   }
   .stamp b { color: var(--foreground); font-weight: 500; }
+  /* Laufzustand des ganzen Laufs: im Gang = Glut, beendet = Stahl, abgebrochen = Rot */
+  .stamp .lauf { text-transform: uppercase; letter-spacing: 0.06em; margin-right: 0.3rem; }
+  .stamp .lauf.live { color: var(--ember-strong); }
+  .stamp .lauf.done { color: var(--steel); }
+  .stamp .lauf.fail { color: var(--destructive); }
   .stamp .demo {
     color: var(--steel);
     border: 1px dashed color-mix(in oklab, var(--steel) 45%, var(--border));
@@ -269,7 +274,8 @@
   .pip { width: 1.4rem; height: 5px; border-radius: 1px; background: var(--track); }
   .pip.done { background: var(--steel); }
   .pip.live { background: var(--ember); box-shadow: 0 0 6px var(--ember); }
-  .pip.fail { background: var(--destructive); }
+  /* nicht abgenommen = gestreift, damit es neben dem vollen Glut-Segment nicht verschwimmt */
+  .pip.fail { background: repeating-linear-gradient(-45deg, var(--destructive) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--destructive); }
   /* wartend = Umriss, blockiert = roter Umriss — wie die Zustands-Chips */
   .pip.wait { background: none; box-shadow: inset 0 0 0 1px var(--muted-foreground); }
   .pip.block { box-shadow: inset 0 0 0 1px var(--destructive); }
@@ -339,6 +345,13 @@
     border-color: color-mix(in oklab, var(--destructive) 40%, var(--border));
     background: color-mix(in oklab, var(--destructive) 7%, var(--card));
   }
+  /* nicht abgenommen = Kreuz statt Punkt */
+  .state.fail::before {
+    width: 9px; height: 9px; border-radius: 0;
+    background:
+      linear-gradient(45deg, transparent 40%, currentColor 40% 60%, transparent 60%),
+      linear-gradient(-45deg, transparent 40%, currentColor 40% 60%, transparent 60%);
+  }
   .state.block { color: var(--muted-foreground); }
   .state.block::before { background: none; border-radius: 1px; box-shadow: inset 0 0 0 1.5px var(--destructive); }
 
@@ -402,6 +415,7 @@
     gap: 0.2rem 0.8rem;
   }
   .item .meta b { color: var(--foreground); font-weight: 500; }
+  .items .none { margin: 0; font-size: 0.78rem; color: var(--muted-foreground); }
 
   /* --- 4 · Zeitleiste ---------------------------------------------- */
   .tl-scroll { overflow-x: auto; padding: 0.85rem 0.95rem 0.95rem; }
@@ -501,7 +515,7 @@
     <svg viewBox="0 0 280 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Beispielrepo">
       <text x="0" y="46" font-family="Geist, 'Helvetica Neue', Arial, sans-serif" font-size="29" font-weight="600" letter-spacing="0.5" fill="currentColor">Beispielrepo</text>
     </svg>
-    <div class="stamp"><span class="demo">Musterbelegung</span>Lauftafel · Stand <b>22.09.2026, 14:05</b> · Fortschreibung 5</div>
+    <div class="stamp"><span class="demo">Musterbelegung</span><b class="lauf live">Lauf im Gang</b> · Lauftafel · Stand <b>22.09.2026, 14:05</b> · Fortschreibung 5</div>
   </div>
 
   <!-- ===== 1 · Kopfzeile ========================================== -->
@@ -715,6 +729,10 @@
     </div>
 
     <div class="items">
+      <!-- Ist nichts offen, ersetzt diese eine Zeile alle Punkte; die Kopfzahl lautet dann
+           "0 warten auf dich", die Kachel "Wartet auf dich" zeigt 0 und darunter "keine offenen Punkte".
+      <p class="none">Nichts offen.</p>
+      -->
       <div class="item you">
         <div class="line1">
           <h3>#949 nicht abgenommen</h3>

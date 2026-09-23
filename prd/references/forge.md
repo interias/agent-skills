@@ -19,6 +19,10 @@ API=http://host:3003/api/v1/repos/Owner/Repo
 curl -s -H "Authorization: token $GITEA_TOKEN" "$API/issues/41"
 ```
 
+`$GITEA_TOKEN` steht in allen Beispielen dieser Datei für die Variable aus `token_env`, geladen
+aus `token_file`. Nennt der Adapter eine andere Variable, wird sie eingesetzt. Ein anderes Token,
+das im Repository liegt, wird nie benutzt (`adapter.md`, „Zwei Tokens").
+
 ## Diese Gitea-Instanz (`mb-vsv-cast:3003`)
 
 Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
@@ -30,7 +34,10 @@ Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
   beim Eröffnen des Pull Requests. Deshalb gehört in den PR-Body, welches geschlossene Issue noch
   offene Blocker hat. Das betrifft auch ein Epic: Die API führt seine Kinder als Blocker. Ob Gitea
   beim Merge die Kinder vor dem Epic schließt, ist nicht belegt. Der PR-Body sagt darum, dass das
-  Epic von Hand zu schließen ist, falls es offen bleibt.
+  Epic von Hand zu schließen ist, falls es offen bleibt. Dasselbe gilt für Ketten unter den
+  Kindern: Ob Gitea die `Closes`-Zeilen der Reihe nach abarbeitet, ist ebenfalls nicht belegt. Die
+  `Closes`-Zeilen stehen darum in der Reihenfolge des Graphen, Vorgänger zuerst, und im PR-Body
+  steht je Kind mit Blocker der Satz „schließt sich ggf. nicht automatisch (412), dann von Hand".
 - **Listen sind bei 50 Einträgen gedeckelt**, auch wenn `limit` größer gesetzt ist. Mit
   `?limit=50&page=<n>` weiterblättern, bis eine Seite weniger als 50 Einträge liefert.
 - **Ein Titel mit `WIP:` macht einen Pull Request zu `draft`.** Das Präfix ist also der Schalter:
@@ -43,12 +50,8 @@ Ohne Token, mit Basic Auth aus dem Git-Credential-Speicher (spill): Zugangsdaten
 nie ausgeben.
 
 ```bash
-CRED=$(printf 'url=http://mb-vsv-cast:3003
-
-' | git credential fill)
-GU=$(printf '%s
-' "$CRED" | sed -n 's/^username=//p'); GP=$(printf '%s
-' "$CRED" | sed -n 's/^password=//p')
+CRED=$(printf 'url=http://mb-vsv-cast:3003\n\n' | git credential fill)
+GU=$(printf '%s\n' "$CRED" | sed -n 's/^username=//p'); GP=$(printf '%s\n' "$CRED" | sed -n 's/^password=//p')
 curl -s -u "$GU:$GP" "$API/issues/41"
 ```
 

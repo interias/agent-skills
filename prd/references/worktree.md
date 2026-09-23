@@ -100,12 +100,15 @@ entfernt den Git-Eintrag und die verfolgten Dateien, die Junctions bleiben liege
    hat (`link_dirs` des Pakets und `always_link`):
 
    ```powershell
-   Remove-Item -LiteralPath C:\…\<repo>-worktrees\<nr>\server\node_modules -Force
+   # recursive=false kann nicht durch die Junction laufen: entweder der Verweis verschwindet,
+   # oder der Aufruf wirft. Das Ziel bleibt in jedem Fall unberührt.
+   [System.IO.Directory]::Delete('C:\…\<repo>-worktrees\<nr>\server\node_modules', $false)
    ```
 
-   Ohne `-Recurse` entfernt `Remove-Item` nur den Verweis. Verweigert es das mit einer Rückfrage
-   nach Kindelementen, entfernt `cmd /c rmdir "<pfad>"` (ohne `/s`) ebenfalls nur den Verweis. Aus
-   Git Bash heraus wird nichts davon gelöscht, auch kein `rm -rf`.
+   **Nicht `Remove-Item -Force` für die Junction.** PowerShell 5.1 sieht den Inhalt hinter dem
+   Verweis und fragt nach, ob es die Kindelemente löschen soll. Im nicht-interaktiven Modus scheitert
+   der Aufruf daran, für jeden Verweis, und räumt nichts auf. `Directory.Delete` mit `$false` stellt
+   die Frage nicht. Aus Git Bash heraus wird nichts davon gelöscht, auch kein `rm -rf`.
 3. **Nach Reparse-Points suchen.** Die Ausgabe muss leer sein:
 
    ```powershell
@@ -118,15 +121,22 @@ entfernt den Git-Eintrag und die verfolgten Dateien, die Junctions bleiben liege
 
    ```bash
    git worktree remove <worktree_root>/<nr>     # ohne --force
-   git branch -d agent/<nr>-<slug>              # nur nach erfolgreichem Merge
+   git branch -d agent/<nr>-<slug>              # nur nach erfolgreichem Merge ohne Revert
    ```
 
 5. **Hülle prüfen.** Steht das Verzeichnis danach noch, wird Schritt 3 wiederholt. Erst wenn die
    Suche leer bleibt, darf die Hülle rekursiv weg:
-   `Remove-Item -LiteralPath <pfad> -Recurse -Force`.
+   `Remove-Item -LiteralPath <pfad> -Recurse -Force -Confirm:$false`.
 
 Der Branch eines nicht abgenommenen Pakets bleibt stehen und wird im Abschlusskommentar mit Pfad
 genannt.
+
+**Nach einem Revert bleibt der Branch ebenfalls stehen.** Wurde der Sofortmerge mit
+`git revert -m 1` zurückgenommen, wird nur der Worktree abgeräumt (Schritte 1–3 und 5, aus Schritt 4
+nur `git worktree remove`). `git branch -d` würde gelingen, weil der Branch gemergt ist, und damit
+die Arbeit verlieren: Ein erneuter Merge bringt die Änderung nicht zurück, dafür braucht es den
+Revert des Reverts. Der Kommentar am Paket nennt den Revert-Commit und den Satz „zurückholen =
+Revert des Reverts".
 
 Am Ende des Laufs prüfen: `git worktree list` zeigt nur das Hauptverzeichnis, und unter
 `worktree_root` liegt kein Verzeichnis dieses Laufs mehr, außer denen, die als nicht abgenommen
