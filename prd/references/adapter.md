@@ -48,12 +48,13 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 | `skip_labels` | Tickets damit werden übersprungen (mit Kommentar) | `needs-triage`, `needs-info`, `wontfix` |
 | `epic_label` | kennzeichnet Epics. Eine Kante zwischen zwei Epics heißt **Reihenfolge**, eine Kante von einem Epic zu einem Nicht-Epic heißt **Kind** | `epic` |
 | `dependency_source` | `api` (Gitea-Abhängigkeiten), `header` (Kopfzeile `> **Reihenfolge:** …`), `body` (Abschnitt `## Blocked by`). Mehrfachnennung erlaubt | `api` |
-| `write_back_dependencies` | Kanten, die aus `header` oder `body` gelesen wurden, trägt der Lauf in die Gitea-Abhängigkeiten nach | `true`, wenn `dependency_source` nicht nur `api` ist |
+| `write_back_dependencies` | Kanten, die aus `header` oder `body` gelesen wurden, trägt der Lauf in die Gitea-Abhängigkeiten nach | `true` für Kanten aus `header`; für Kanten aus `body` nur, wenn der Adapter es setzt, sonst ein Tor-Punkt |
 | `transitive` | hängen alle Kinder an Tickets einer anderen offenen Spec, werden diese im selben Lauf mitbearbeitet | `false` |
-| `acceptance_section` | Abschnitt mit der Abnahmeliste | `prd`: `## Abnahmekriterien`; `spec`: `## User Stories` |
+| `acceptance_section` | Abschnitt mit der Abnahmeliste. Fehlt er an einem Kind, wird es übersprungen und kommentiert | `prd`: der erste vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`; `spec`: `## User Stories` |
 | `verification_section` | Abschnitt mit dem Verifikationsweg. Fehlt er an einem Kind, wird es nicht bearbeitet | `prd`: `## Verifikationsweg`; `spec`: `## Testing Decisions` |
 | `modules_section` | Abschnitt mit den berührten Modulen. Das Wort `Exklusiv` darin heißt: läuft allein | `## Betroffene Module` |
-| `base_branch` | Basis des Epic-Branches und Ziel des Pull Requests. `from-issue` = aus Kopfzeile oder Further Notes, sonst aus `git log --merges` | `main` |
+| `base_branch` | Basis des Epic-Branches und Ziel des Pull Requests. `from-issue` = aus Kopfzeile oder Further Notes, sonst aus `git log --merges` | der Hauptzweig |
+| `main_branch` | **Hauptzweig** des Repositorys: nie Ziel eines Merges durch den Lauf (alter Name, KOKOS) | `git symbolic-ref refs/remotes/<push_remote>/HEAD`, ersatzweise `main` |
 
 ### Wissen des Projekts
 
@@ -86,7 +87,7 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 |---|---|---|
 | `worktree_root` | Ablage der Worktrees, **ohne Punktverzeichnis im Pfad** | `../<repo>-worktrees` |
 | `env_files` | gitignorierte Dateien, die jeder Worktree braucht. Sie werden **kopiert**, nie verlinkt | keine |
-| `link_dirs` | Abhängigkeitsverzeichnisse, die als Junction verlinkt statt installiert werden. Nur für Pakete, die sie berühren | keine |
+| `link_dirs` | Abhängigkeitsverzeichnisse, die als Junction verlinkt statt installiert werden. Nur für Pakete, die sie berühren: berührt heißt, ein Modul des Pakets liegt unter dem Elternpfad des Verzeichnisses. Im Zweifel verlinken | keine |
 | `always_link` | Verzeichnisse, die jedes Paket braucht, auch wenn es sie nicht berührt | keine |
 | `port_env` | Variable für den Port eines Worktree-Servers | keine |
 
@@ -97,7 +98,7 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 | `commit_style` | Conventional Commits mit Scope oder ohne | aus `git log` |
 | `commit_language` | `de` / `en` | aus `git log` |
 | `commit_umlauts` | `keep` / `transliterate` | aus `git log` |
-| `plan_artifact` | `publish` (Lauftafel als Artifact) oder `off` | `publish` |
+| `plan_artifact` | `publish` (Lauftafel als Artifact veröffentlicht) oder `file` (Lauftafel nur als Datei, Pfad im Eröffnungskommentar) | `publish` |
 | `gate_approvals` | zusätzliche Punkte fürs Vorab-Tor, etwa bezahlte Läufe oder Blindsatz | keine |
 | `no_access` | Systeme, auf die ein Lauf keinen Zugriff hat. Ein Paket, das sie braucht, ist ein Tor-Punkt | keine |
 
@@ -109,8 +110,8 @@ alle drei Skills.
 - **Das Zielissue ist immer das Epic**, auch wenn es `epic_label` nicht trägt. Trägt im Repository
   **kein** Issue das Label, gilt jede Kante vom Zielissue als Kind, so wie vor dieser Fassung.
 - **Kante Kind → fremdes Epic** (ein Kind ist von einem Epic blockiert, das nicht das Zielissue ist):
-  Das ist eine Kante aus dem Epic hinaus. Mit `transitive: true` wird aufgelöst, sonst wird das Kind
-  übersprungen und kommentiert.
+  Das ist eine Kante aus dem Epic hinaus. Aufgelöst wird nur mit `transitive: true` **und** wenn
+  alle Pakete daran hängen (`SKILL.md`, Phase 1). Sonst wird das Kind übersprungen und kommentiert.
 - **`ready_label`** prüft im Modus `prd` nur die Kinder, im Modus `spec` die Spec.
 - **`window` > 1 ohne `test_isolation_env` und ohne `isolation: none-needed`** lockert die Regel und
   ist ein Punkt fürs Vorab-Tor.
@@ -122,9 +123,20 @@ alle drei Skills.
   GitHub wird nichts nachgetragen; die gelesenen Kanten stehen im Plan. Nachgetragen werden nur
   Kanten **innerhalb desselben Repositorys**. Ob die Instanz Kanten über Repositorys hinweg annimmt,
   ist nicht belegt; solche Kanten bleiben Text.
-- **`plan_artifact: off`** heißt: keine Lauftafel. Der Stand steht dann nur in den Kommentaren der
-  Forge. Die Tafel liegt bei `publish` im Scratchpad der Sitzung und wird als Artifact
-  veröffentlicht, nie im Repository.
+- **`plan_artifact`:** Die Tafel liegt immer im Scratchpad der Sitzung, nie im Repository. Bei
+  `publish` wird sie als Artifact veröffentlicht, bei `file` nur geschrieben. Ein alter Wert `off`
+  wird als `file` gelesen.
+- **Alte Schreibweisen:** „Abnahmeabschnitt" in einem alten Adapter meint `verification_section`,
+  wenn dort ein Verifikationsweg steht (spill). `test_isolation_env` mit einem Wert wie „keine" oder
+  „keine nötig" plus Begründung ist `isolation: none-needed`; die Begründung ist die Begründung.
+  „Fensterbreite" ist `window`. „Abbruchbedingung" in Adapter-Prosa ist ein Tor-Punkt, wenn sie vor
+  dem Lauf feststellbar ist, sonst ein Grund zum Zurücklassen. Im Lauf wird nie angehalten.
+- **Ein neu abgelegter Adapter** wird über einen eigenen Branch und Pull Request eingecheckt,
+  `token_file` vorher in `.gitignore`. Ein unversionierter Adapter macht `git status` unsauber, und
+  der nächste Lauf hält in Phase 0 an.
+- **Zwei Tokens:** Liegt im Repository auch das Token eines Dienstes (etwa ein Lesetoken in
+  `.env`), benutzt der Lauf ausschließlich `token_env`. Der Lauf braucht Schreibrecht, und das prüft
+  er in Phase 0.
 - **Kinder aus der Kopfzeile** (`dependency_source: header`): Die Aufzählung `Kinder: #a, #b` in
   `> **Reihenfolge:**` sind Kanten Epic → Kind, alle übrigen Nummern der Zeile sind Reihenfolge. Mit
   `write_back_dependencies` gehen sie in die API.
