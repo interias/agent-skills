@@ -20,7 +20,8 @@ Request liefert Gitea als `head.ref` die Referenz `refs/pull/<nr>/head` — ein 
 und beim Ermitteln des zu löschenden Branches.
 
 Der Projektadapter ist derselbe wie bei `/prd`: **`.claude/prd.md`** — er nennt Forge,
-Hauptzweig und `worktree_root`.
+`base_branch` als Standardwert und `worktree_root`. Maßgeblich für das Löschen ist trotzdem immer
+die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
 ---
 
@@ -136,11 +137,13 @@ Erst wenn das bestätigt ist, darf gelöscht werden. Alles Weitere hängt daran.
 Erst zählen, dann löschen. Trage vier Listen zusammen:
 
 1. **Der Epic-Branch des Laufs**, lokal und in der Forge.
-2. **Ticket-Branches des Laufs** (`agent/…` oder was der Lauf verwendet hat). Bei einem
-   ordentlich verlaufenen Lauf sind sie schon weg — `/prd` löscht sie nach dem Sofortmerge. Was
-   übrig ist, gehört zu einem **nicht abgenommenen** Ticket und trägt Arbeit, die im Basiszweig
-   *nicht* liegt. Solche Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Nummer
-   ihres Tickets.
+2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` — angenommenes Schema aus `prd/SKILL.md`,
+   Slug mit ä→ae; im PRD-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** (`issue_form:
+   spec`, keine Kind-Tickets) die Paketnummer aus der Lauftafel). Bei einem ordentlich verlaufenen
+   Lauf sind sie schon weg — `/prd` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
+   einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
+   Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
+   Ticketnummer im PRD-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
 3. **Worktrees:** `git worktree list` — und getrennt davon der Inhalt von `worktree_root` auf der
    Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
    was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest (siehe die
@@ -203,8 +206,9 @@ scheitert still genug, um übersehen zu werden.
 - `git branch -vv` — die verbliebenen Branches, und je Eintrag ein Wort, warum er steht.
 
 Bericht: was gelöscht wurde (mit dem Nachweis, der es erlaubte), was **nicht** gelöscht wurde und
-warum, und was ein Mensch entscheiden muss. Nicht abgenommene Ticket-Branches namentlich, mit der
-Nummer ihres Tickets — sie sind der Grund, warum dieser Ablauf nicht einfach alles wegwirft.
+warum, und was ein Mensch entscheiden muss. Nicht abgenommene Paket-Branches namentlich, mit der
+Kennung ihres Pakets — Ticketnummer im PRD-Modus, Paketbezeichnung im Spec-Modus — sie sind der
+Grund, warum dieser Ablauf nicht einfach alles wegwirft.
 
 Dieser Ablauf schreibt **nicht** in die Forge. Er verändert keinen Zustand, den ein Leser in einem
 halben Jahr braucht; er räumt eine Arbeitskopie auf. Nur wenn ein nicht abgenommenes Ticket einen
