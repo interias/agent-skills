@@ -133,6 +133,23 @@ done
 Die Zahl muss je Nummer um die Kommentare dieses Laufs gewachsen sein, gemessen am Stand vor dem
 Eröffnungskommentar.
 
+## Schreibrecht prüfen
+
+Phase 0 prüft nicht nur das Lesen, sondern ob das Token schreiben darf. Kommentare und Pull Request
+kommen erst nach dem Tor, und dort hält der Lauf nicht mehr an.
+
+| Forge | Aufruf | schreibberechtigt, wenn |
+|---|---|---|
+| Gitea, GitHub | `GET /repos/<owner>/<repo>` | `permissions.push == true` |
+| GitLab | `GET /projects/<url-encoded-path>` | `permissions.project_access.access_level >= 30` (Developer) oder dasselbe unter `group_access` |
+
+```bash
+curl -s -H "Authorization: token $GITEA_TOKEN" "${API%/}"   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).permissions?.push===true))'
+```
+
+`false` oder ein Fehler ist ein Punkt fürs Vorab-Tor, nicht ein Grund, ein anderes Token im
+Repository zu nehmen.
+
 ## Pull Request
 
 Der Body geht denselben Weg wie ein Kommentar, aus einer Datei:

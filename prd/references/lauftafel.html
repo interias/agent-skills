@@ -479,8 +479,12 @@
     box-shadow: inset 2px 0 0 var(--ember);
   }
   .bar.fail {
-    background: color-mix(in oklab, var(--destructive) 11%, var(--card));
-    border-color: color-mix(in oklab, var(--destructive) 40%, var(--border));
+    /* striped like .pip.fail: form, not only hue, separates it from .bar.live */
+    background: repeating-linear-gradient(135deg,
+      color-mix(in oklab, var(--destructive) 16%, var(--card)) 0 5px,
+      var(--card) 5px 10px);
+    border-style: dashed;
+    border-color: color-mix(in oklab, var(--destructive) 55%, var(--border));
     color: var(--destructive);
   }
 

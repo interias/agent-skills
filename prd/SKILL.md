@@ -66,7 +66,8 @@ wo er sie ändern kann.
    was passiert ist und warum.
 9. **Ein Paket — ein Branch, ein Worktree, ein Testbett.** Der Epic-Branch ist Merge-Ziel, nicht
    Arbeitsfläche.
-10. **Im Lauf wird nicht angehalten.** Gefragt wird einmal, am Vorab-Tor. Was danach schiefgeht,
+10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
+    aus den Antworten der ersten entstehen. Was danach schiefgeht,
     lässt ein Paket zurück, nicht den Lauf (siehe „Wann angehalten wird").
 
 ---
@@ -233,8 +234,8 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   bei `file` nur schreiben (ein alter Wert `off` gilt als `file`). Sie wird **kopiert, nicht
   entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
   vor der Veröffentlichung in `references/lauftafel.md`. Die
-  Datei liegt in deinem Scratchpad, nicht im Repository. Ihre URL ändert sich über den ganzen Lauf
-  nicht — jede Fortschreibung geht auf denselben Dateipfad. Den Graphen zeigt die Pakettabelle
+  Datei liegt in deinem Scratchpad, nicht im Repository. Bei `publish` ändert sich ihre URL über den
+  ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad. Den Graphen zeigt die Pakettabelle
   mit den Modulen je Paket als Spalte, keine Figur. Am Anfang stehen alle Pakete auf „wartend";
   das ist ein gültiger Zustand.
 - **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
