@@ -24,6 +24,10 @@ voraus und verweisen im Text aufeinander. Alle drei kennen beide Modi (`prd` mit
 `.claude/prd.md`. Der verbindliche Vertrag für deren Schlüssel — welche es gibt, was sie
 bedeuten, was gilt, wenn einer fehlt — steht in [`prd/references/adapter.md`](prd/references/adapter.md).
 
+Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
+`mattpocock-skills`) liegt hier keine Kopie, sondern die Einrichtung für unser Gitea:
+[`mattpocock-skills/`](mattpocock-skills/README.md).
+
 ## Aufbau
 
 ```
@@ -34,6 +38,7 @@ prd-nacharbeit/
   SKILL.md
 prd-aufraeumen/
   SKILL.md
+mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
 install.ps1
 ```
 
