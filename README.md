@@ -6,9 +6,10 @@ am lokalen Ordner.
 
 ## Enthaltene Skills
 
-- **prd** — Ein PRD-Issue samt Kind-Tickets auf einem Epic-Branch abarbeiten: Graph planen, bis
-  zu drei Tickets parallel in eigenen Worktrees umsetzen, jedes abgenommene Ticket sofort in den
-  Epic-Branch mergen, mit offenem Pull Request enden. Für Gitea, GitHub und GitLab.
+- **prd** — Ein PRD-Issue samt Kind-Tickets, oder ein Spec-Issue mit sieben Abschnitten
+  (`issue_form: prd` / `spec`), auf einem Epic-Branch abarbeiten: Graph planen, bis zu drei Pakete
+  parallel in eigenen Worktrees umsetzen, jedes abgenommene Paket sofort in den Epic-Branch
+  mergen, mit offenem Pull Request enden. Für Gitea, GitHub und GitLab.
 - **prd-nacharbeit** — Die offenen Punkte eines abgeschlossenen `/prd`-Laufs abarbeiten:
   Fragerunden im Frontier-Verfahren, je Punkt entscheiden ob er in diese Sitzung passt oder ein
   Ticket braucht, dann umsetzen und nachdokumentieren. Legt keine Issues ohne ausdrückliche
@@ -18,8 +19,10 @@ am lokalen Ordner.
   nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 
 Die drei Skills gehören zusammen: `prd-nacharbeit` und `prd-aufraeumen` setzen einen `/prd`-Lauf
-voraus und verweisen im Text aufeinander. Alle drei erwarten im jeweiligen Zielrepo eine
-projektlokale Adapterdatei `.claude/prd.md`.
+voraus und verweisen im Text aufeinander. Alle drei kennen beide Modi (`prd` mit Kind-Tickets,
+`spec` mit oder ohne Kinder) und erwarten im jeweiligen Zielrepo eine projektlokale Adapterdatei
+`.claude/prd.md`. Der verbindliche Vertrag für deren Schlüssel — welche es gibt, was sie
+bedeuten, was gilt, wenn einer fehlt — steht in [`prd/references/adapter.md`](prd/references/adapter.md).
 
 ## Aufbau
 

@@ -67,8 +67,9 @@ hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der
 - **Den Basis-Branch feststellen:** `base_branch` aus dem Adapter ist der Standard, maßgeblich
   aber — sobald der Pull Request existiert — dessen eigene `base`. Ein Epic kann von einem anderen
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
-- **Spec-Modus erkennen** (`issue_form: spec`): Das PRD-Issue ist dann das Spec-Issue und hat
-  keine Kind-Tickets. Paket-Branches heißen nicht nach Kind-Issues. Das Schema aus
+- **Spec-Modus erkennen** (`issue_form: spec`): Nur **ohne** Kind-Tickets liegt alles am
+  Spec-Issue selbst, und die Paket-Branches heißen nicht nach Kind-Issues. Hat das Spec-Issue
+  Kinder, gilt derselbe Weg wie im Modus `prd` — die Kinder sind die Pakete. Das Schema aus
   `prd/SKILL.md` (Phase 3): Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`, im
   Modus `spec` ohne Kinder `agent/<spec>-p<k>-<slug>` (Slug mit ä→ae).
 - `git worktree list` prüfen. Reste eines früheren Laufs melden, nicht löschen — dafür ist
@@ -84,14 +85,16 @@ hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der
 
 Aus **drei** Quellen, und keine davon reicht allein:
 
-1. **Der Abschlusskommentar am PRD-Issue.** Sein Abschnitt „Was das PRD offen lässt" ist die
-   Hauptquelle. Lies auch die Kommentare an den Kind-Tickets — dort stehen die Punkte, die nur
-   ein einzelnes Ticket betreffen, und die im Abschlusskommentar zusammengefasst wurden. Kind ist
-   dabei jedes Issue, das der Adapter nicht über `epic_label` als Epic kennzeichnet; eine Kante
-   zwischen zwei Epics ist Reihenfolge, kein Kind, und bleibt hier außen vor. **Im Spec-Modus**
+1. **Der Abschlusskommentar am PRD-Issue.** Sein Abschnitt `### Was das Epic offen lässt` ist die
+   Hauptquelle (ältere Läufe schreiben noch „Was das PRD offen lässt" — such nach beiden). Lies
+   auch die Kommentare an den Kind-Tickets — dort stehen die Punkte, die nur ein einzelnes Ticket
+   betreffen, und die im Abschlusskommentar zusammengefasst wurden. Kind ist dabei jedes Issue,
+   das der Adapter nicht über `epic_label` als Epic kennzeichnet; eine Kante zwischen zwei Epics
+   ist Reihenfolge, kein Kind, und bleibt hier außen vor. **Im Spec-Modus ohne Kinder**
    (`issue_form: spec`) gibt es keine Kind-Tickets — alle Rückmeldungen zu den Paketen stehen als
-   Kommentare am Spec-Issue selbst. Ergänze hier die Lauftafel (`references/lauftafel.md`): jeder
-   dort verzeichnete Glut-Punkt (wartet auf den Menschen) gehört auf diese Liste.
+   Kommentare am Spec-Issue selbst; **mit Kindern** gilt derselbe Weg wie im Modus `prd`. Ergänze
+   hier die Lauftafel (`references/lauftafel.md`): jeder dort verzeichnete Glut-Punkt (wartet auf
+   den Menschen) gehört auf diese Liste.
 2. **Der Body des Pull Requests.** Dort steht, was beim Deploy passiert und welche Zusicherung
    nur gelesen und nicht gefahren wurde.
 3. **Der Stand im Repository.** Ein Punkt kann zwischenzeitlich erledigt worden sein — vom
@@ -206,10 +209,13 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
   vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
-- **Die Lauftafel des `/prd`-Laufs** (`references/lauftafel.md`), falls veröffentlicht: dieselbe
-  Datei ändern und mit demselben `file_path` erneut veröffentlichen, damit die URL bleibt. Ein
-  Abschnitt „Nacharbeit" mit den Entscheidungen, und jeder abgearbeitete Glut-Punkt wird darin als
-  erledigt markiert. Der Lauf ist damit nicht mehr „beendet", sondern „beendet, nachgearbeitet am
+- **Die Lauftafel des `/prd`-Laufs** (`references/lauftafel.md`), bei `plan_artifact: publish`
+  (ein alter Wert `off` gilt als `file`): Diese Sitzung hat ein anderes Scratchpad als der
+  ursprüngliche Lauf, ein lokaler `file_path` trägt hier also nicht mehr. Die URL steht im
+  Eröffnungskommentar am Zielissue — die Tafel darüber lesen (Artifact-Werkzeug, `action: read`),
+  ändern und mit derselben `url` erneut veröffentlichen, damit der Link bleibt. Ein Abschnitt
+  „Nacharbeit" mit den Entscheidungen, und jeder abgearbeitete Glut-Punkt wird darin als erledigt
+  markiert. Der Lauf ist damit nicht mehr „beendet", sondern „beendet, nachgearbeitet am
   <Datum>".
 
 Prüfe nach, dass die Kommentare angekommen sind — ein `POST` kann fehlgeschlagen sein.

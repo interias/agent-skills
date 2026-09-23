@@ -39,9 +39,9 @@ die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
    Aussage und kein Hindernis. Ein Branch, den `-d` verweigert, wird gemeldet und bleibt stehen.
 4. **Ein schmutziger Worktree wird nicht entfernt.** `git worktree remove` ohne `--force`. Bleibt
    Arbeit darin liegen, gehört sie einem Menschen.
-5. **Remote-Branches nur nach ausdrücklicher Zustimmung.** Ein `git push origin --delete` wirkt
-   nach außen und ist für andere sichtbar. Lokales Löschen ist reversibel, das hier nicht ohne
-   Weiteres.
+5. **Remote-Branches nur nach ausdrücklicher Zustimmung.** Ein `git push <push_remote> --delete`
+   wirkt nach außen und ist für andere sichtbar. Lokales Löschen ist reversibel, das hier nicht
+   ohne Weiteres.
 6. **Die Junctions unter den Worktrees werden nie rekursiv gelöscht.** Das ist die eine Stelle,
    an der ein Aufräumbefehl echten Schaden anrichtet — siehe unten.
 
@@ -169,6 +169,19 @@ git log --oneline <base>..<branch>  # leer heißt: kein eigener Commit
 sein Inhalt im Basiszweig, seine Commits aber nicht, und er erscheint als „nicht gemergt". Das ist
 der Fall, in dem `-d` verweigert und ein Mensch entscheiden muss — **nicht** der Fall für `-D`.
 
+`--merged` genügt auch dann nicht, wenn der Merge selbst zurückgenommen wurde: der Merge-Commit
+steht weiterhin im Basiszweig, seine Wirkung aber ist per `git revert -m 1` aufgehoben (Adapter,
+„Rot nach einem Sofortmerge"). Ein solcher Branch gilt hier **nicht** als gemergt, obwohl
+`--merged` ihn so führt. Prüfe je Kandidat:
+
+```bash
+git log <base> --grep '^Revert' --format='%H %B'
+```
+
+Steht darin ein Revert-Commit, dessen Text „This reverts commit <merge-commit-des-branches>"
+nennt, ist der Merge revertiert. Ein solcher Branch wird **gemeldet und nicht gelöscht** — mit dem
+Revert-Commit und dem Hinweis „zurückholen = Revert des Reverts".
+
 Ein Branch mit `origin/…: gone` ist **kein** Nachweis für irgendetwas. Er sagt nur, dass sein
 Gegenstück in der Forge weg ist; ob das nach einem Merge oder nach einem Verwerfen geschah, steht
 dort nicht. Der Nachweis bleibt derselbe Befehl.
@@ -186,10 +199,12 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
    ist es kein Rest, sondern liegengebliebene Arbeit.
 3. `git worktree prune` — räumt die Verwaltungseinträge zu Worktrees auf, deren Verzeichnis nicht
    mehr existiert.
-4. **Lokale Branches** mit `git branch -d`. Der Epic-Branch zuletzt, nachdem alles andere weg ist.
+4. **Lokale Branches** mit `git branch -d`. Ein Branch mit revertiertem Merge (siehe Merge-Nachweis
+   oben) wird übersprungen und gemeldet, nicht gelöscht. Der Epic-Branch zuletzt, nachdem alles
+   andere weg ist.
 5. **Remote-Branches** nur nach ausdrücklicher Zustimmung, und nur den Epic-Branch des gemergten
-   Laufs: `git push origin --delete <branch>`. Viele Forges tun das beim Merge selbst; prüfe
-   erst, ob überhaupt noch etwas da ist.
+   Laufs: `git push <push_remote> --delete <branch>`. Viele Forges tun das beim Merge selbst;
+   prüfe erst, ob überhaupt noch etwas da ist.
 
 Nach jedem Schritt den Erfolg prüfen, nicht annehmen. Ein `Remove-Item` auf einen offenen Pfad
 scheitert still genug, um übersehen zu werden.
