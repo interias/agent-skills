@@ -105,7 +105,9 @@ wo er sie ändern kann.
 - **Kanten lesen** nach `dependency_source` (`api`, `header`, `body`; mehrere möglich), Befehle in
   `references/forge.md`. `epic_label` trennt die Bedeutung: eine Kante vom Zielissue zu einem
   anderen **Epic** heißt *Reihenfolge* (Vorbedingung), eine Kante zu einem **Nicht-Epic** heißt
-  *Kind*. Das Zielissue gilt als Epic, auch wenn es das Label nicht trägt.
+  *Kind*. Das Zielissue gilt als Epic, auch wenn es das Label nicht trägt. Bei `header` nennt die
+  Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die Kinder, alle übrigen
+  Nummern dort sind Reihenfolge.
 - **Vorbedingung prüfen:** Ist ein vorausgesetztes Epic offen, gilt:
   - Hängen **alle** Pakete an noch nicht gemergten Tickets dieses Epics und steht `transitive:
     true`, werden diese Tickets im selben Lauf mitbearbeitet — ein Epic-Branch, ein Pull Request.
@@ -397,7 +399,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     scheitert sein Schließen beim Merge).
   - **`Closes`, nur englische Schließwörter:** Modus `prd` → `Closes #<kind>` je vollständig
     abgenommenem Kind; Modus `spec` → `Closes #<spec>` nur, wenn **alle** User Stories abgenommen
-    sind. Ein fremdes Epic aus transitiver Auflösung nie.
+    sind, und hat die Spec Kinder, zusätzlich `Closes #<kind>` je vollständig abgenommenem Kind.
+    Ein fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Das ist der Schritt, der am
   leichtesten ausfällt, weil sich der Lauf nach dem Pull Request fertig anfühlt. Hinein: Link auf
@@ -441,7 +444,7 @@ etwas.
 
 | Issue | Kommentar | Zustand danach |
 |---|---|---|
-| jedes gemergte Paket-Ticket | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen — schließt über `Closes` |
+| jedes gemergte Paket-Ticket (Kind, in beiden Modi) | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen — schließt über `Closes` |
 | jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, unverändert |
 | jedes blockierte Ticket | das blockierende Paket | offen, unverändert |
 | jedes übersprungene Kind | Grund und was es freischaltet | offen, unverändert |

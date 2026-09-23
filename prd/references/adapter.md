@@ -125,6 +125,14 @@ alle drei Skills.
 - **`plan_artifact: off`** heißt: keine Lauftafel. Der Stand steht dann nur in den Kommentaren der
   Forge. Die Tafel liegt bei `publish` im Scratchpad der Sitzung und wird als Artifact
   veröffentlicht, nie im Repository.
+- **Kinder aus der Kopfzeile** (`dependency_source: header`): Die Aufzählung `Kinder: #a, #b` in
+  `> **Reihenfolge:**` sind Kanten Epic → Kind, alle übrigen Nummern der Zeile sind Reihenfolge. Mit
+  `write_back_dependencies` gehen sie in die API.
+- **Rot nach einem Sofortmerge:** Der Merge wird mit `git revert -m 1` als eigener Commit
+  zurückgenommen, das Paket bleibt zurück, der Lauf geht weiter. So bleibt der Epic-Branch grün, und
+  der Lauf hält nicht an.
+- **`Closes` bei einer Spec mit Kindern:** `Closes #<kind>` je vollständig abgenommenem Kind, `Closes
+  #<spec>` nur, wenn alle User Stories abgenommen sind.
 - **Branches:** Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`. `<nr>` ist die
   Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>`. Slug klein, ASCII, ä→ae, ö→oe, ü→ue, ß→ss.
 

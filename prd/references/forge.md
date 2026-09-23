@@ -95,8 +95,8 @@ curl -s -H "Authorization: token $GITEA_TOKEN" "$API/issues/12/dependencies" \
 
 `false` heißt eintragen, `true` heißt überspringen. Jede nachgetragene Kante wird im
 Eröffnungskommentar genannt. Eine Kante in ein anderes Repository (`"owner"`/`"repo"` weichen ab)
-wird nur eingetragen, wenn die Instanz das annimmt. Lehnt sie ab, steht die Kante weiter nur in
-der Kopfzeile, und der Plan sagt das.
+wird **nicht** nachgetragen: Ob die Instanz solche Kanten annimmt, ist nicht belegt
+(`adapter.md`, Auslegung). Sie bleibt Text in der Kopfzeile, und der Plan sagt das.
 
 ## Stolperstellen
 
