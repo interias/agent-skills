@@ -1,0 +1,764 @@
+<title>Lauftafel #942</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  /* ===================================================================
+     "Stahlblau Thermik" — das Design der Lauftafel fuer alle Projekte.
+     Die Tokens stammen 1:1 aus dem BRIQNET-Designsystem
+     (client/app/globals.css) und sind hier eingefroren; die Vorlage
+     braucht keine Datei eines Zielprojekts.
+     Chrome bleibt stahlblau; Hitze erscheint NUR in der Kennzahlkachel.
+     =================================================================== */
+  :root {
+    --radius: 0.5rem;
+    --background: oklch(0.985 0.004 250);
+    --foreground: oklch(0.21 0.03 255);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.21 0.03 255);
+    --secondary: oklch(0.955 0.008 250);
+    --muted: oklch(0.955 0.006 70);
+    --muted-foreground: oklch(0.5 0.02 70);
+    --accent: oklch(0.93 0.02 250);
+    --accent-foreground: oklch(0.32 0.06 252);
+    --destructive: oklch(0.55 0.2 25);
+    --border: oklch(0.91 0.008 250);
+    --ring: oklch(0.38 0.09 252);
+
+    --steel: oklch(0.38 0.09 252);
+    --steel-deep: oklch(0.3 0.07 254);
+    --ember: oklch(0.66 0.2 35);
+    --ember-strong: oklch(0.58 0.22 28);
+
+    --heat-0: oklch(0.62 0.12 235);
+    --heat-1: oklch(0.66 0.13 210);
+    --heat-2: oklch(0.72 0.13 180);
+    --heat-3: oklch(0.78 0.14 110);
+    --heat-4: oklch(0.8 0.16 75);
+    --heat-5: oklch(0.74 0.18 50);
+    --heat-6: oklch(0.66 0.2 35);
+    --heat-7: oklch(0.58 0.22 28);
+
+    --shadow-card: 0 1px 2px 0 oklch(0.38 0.09 252 / 0.06), 0 1px 3px 0 oklch(0.38 0.09 252 / 0.05);
+
+    --track: oklch(0.955 0.008 250);
+    --zebra: oklch(0.985 0.004 250);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --background: oklch(0.2 0.02 255);
+      --foreground: oklch(0.97 0.004 250);
+      --card: oklch(0.24 0.025 255);
+      --card-foreground: oklch(0.97 0.004 250);
+      --secondary: oklch(0.3 0.03 255);
+      --muted: oklch(0.3 0.03 255);
+      --muted-foreground: oklch(0.72 0.02 254);
+      --accent: oklch(0.34 0.04 252);
+      --accent-foreground: oklch(0.96 0.004 250);
+      --destructive: oklch(0.62 0.2 25);
+      --border: oklch(1 0 0 / 12%);
+      --ring: oklch(0.62 0.12 250);
+      --steel: oklch(0.62 0.12 250);
+      --steel-deep: oklch(0.5 0.1 252);
+      --shadow-card: 0 1px 2px 0 oklch(0 0 0 / 0.3), 0 1px 3px 0 oklch(0 0 0 / 0.2);
+      --track: oklch(0.28 0.025 255);
+      --zebra: oklch(0.255 0.025 255);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --background: oklch(0.2 0.02 255);
+    --foreground: oklch(0.97 0.004 250);
+    --card: oklch(0.24 0.025 255);
+    --card-foreground: oklch(0.97 0.004 250);
+    --secondary: oklch(0.3 0.03 255);
+    --muted: oklch(0.3 0.03 255);
+    --muted-foreground: oklch(0.72 0.02 254);
+    --accent: oklch(0.34 0.04 252);
+    --accent-foreground: oklch(0.96 0.004 250);
+    --destructive: oklch(0.62 0.2 25);
+    --border: oklch(1 0 0 / 12%);
+    --ring: oklch(0.62 0.12 250);
+    --steel: oklch(0.62 0.12 250);
+    --steel-deep: oklch(0.5 0.1 252);
+    --shadow-card: 0 1px 2px 0 oklch(0 0 0 / 0.3), 0 1px 3px 0 oklch(0 0 0 / 0.2);
+    --track: oklch(0.28 0.025 255);
+    --zebra: oklch(0.255 0.025 255);
+  }
+
+  /* 15px Wurzelgroesse wie im Ursprungsdesign. */
+  html { font-size: 15px; }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 0.867rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 88rem;
+    margin: 0 auto;
+    padding-inline: 1.25rem;
+    padding-block: 1.1rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  /* --- Marke ------------------------------------------------------- */
+  .brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .brand svg { height: 1.5rem; width: auto; color: var(--foreground); display: block; }
+  .stamp {
+    font-family: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+    letter-spacing: 0.02em;
+  }
+  .stamp b { color: var(--foreground); font-weight: 500; }
+  .stamp .demo {
+    color: var(--steel);
+    border: 1px dashed color-mix(in oklab, var(--steel) 45%, var(--border));
+    border-radius: 0.25rem;
+    padding: 0.05rem 0.4rem;
+    margin-right: 0.5rem;
+  }
+
+  /* --- Bausteine --------------------------------------------------- */
+  .card {
+    background: var(--card);
+    color: var(--card-foreground);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    min-width: 0;
+  }
+  /* 2px Stahlschiene — nur der Kopfblock traegt sie */
+  .card-accent { position: relative; overflow: hidden; }
+  .card-accent::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--steel);
+  }
+
+  .block-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.7rem 0.95rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .block-head h2 {
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .block-head .note { font-size: 0.74rem; color: var(--muted-foreground); }
+  .block-head .count {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 0.74rem;
+    color: var(--ember-strong);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- 1 · Kopfzeile ----------------------------------------------- */
+  .head-body {
+    padding: 0.9rem 0.95rem;
+    display: grid;
+    grid-template-columns: minmax(18rem, 1fr) auto;
+    gap: 0.9rem 1.6rem;
+    align-items: start;
+  }
+  .issue { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+  .issue .no {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--steel);
+    letter-spacing: 0.04em;
+  }
+  .issue h1 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.1rem;
+    font-size: 0.74rem;
+    color: var(--muted-foreground);
+    margin-top: 0.2rem;
+  }
+  .refs span { display: inline-flex; gap: 0.35rem; align-items: baseline; }
+  .refs code {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    color: var(--foreground);
+    background: var(--muted);
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+  }
+
+  .tiles { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .tile {
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    padding: 0.55rem 0.7rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 11.5rem;
+    flex: 1 1 11.5rem;
+  }
+  .tile .label {
+    font-size: 0.68rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    font-weight: 500;
+  }
+  .tile .value {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 1.15rem;
+    font-weight: 500;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+  .tile .value .was { font-size: 0.75rem; color: var(--muted-foreground); font-weight: 400; }
+  .tile .value .unit { font-size: 0.75rem; color: var(--muted-foreground); font-weight: 400; font-family: "Geist", sans-serif; }
+  .tile .basis { font-size: 0.68rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .tile.alarm .value { color: var(--ember-strong); }
+
+  /* Hitze nur hier: die Kennzahlkachel traegt die Skala ihres Werts. */
+  .meter { position: relative; height: 5px; border-radius: 99px; background: var(--track); overflow: hidden; }
+  .meter > i { position: absolute; inset-block: 0; left: 0; border-radius: 99px; background: var(--tint, var(--steel)); display: block; }
+  .meter > u { position: absolute; inset-block: -2px; width: 2px; background: var(--foreground); opacity: 0.55; text-decoration: none; }
+
+  .progress-line {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.74rem;
+    color: var(--muted-foreground);
+    flex-wrap: wrap;
+  }
+  .pips { display: flex; gap: 3px; }
+  .pip { width: 1.4rem; height: 5px; border-radius: 1px; background: var(--track); }
+  .pip.done { background: var(--steel); }
+  .pip.live { background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+  .pip.fail { background: var(--destructive); }
+  /* wartend = Umriss, blockiert = roter Umriss — wie die Zustands-Chips */
+  .pip.wait { background: none; box-shadow: inset 0 0 0 1px var(--muted-foreground); }
+  .pip.block { box-shadow: inset 0 0 0 1px var(--destructive); }
+
+  @media (max-width: 68rem) {
+    .head-body { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* --- 2 · Standtabelle -------------------------------------------- */
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 38rem; }
+  thead th {
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    padding: 0.45rem 0.95rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td { padding: 0.5rem 0.95rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:nth-child(even) { background: var(--zebra); }
+  .c-no {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--muted-foreground);
+  }
+  .c-goal .t { display: block; }
+  .c-goal .sub { display: block; font-size: 0.72rem; color: var(--muted-foreground); margin-top: 0.1rem; }
+  .c-num { font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .c-num .cap { color: var(--muted-foreground); }
+  .c-merge { font-family: "Geist Mono", ui-monospace, monospace; font-size: 0.76rem; white-space: nowrap; }
+  .c-merge.none { color: var(--muted-foreground); }
+  /* Module je Paket: daran sieht man eine fehlende Kollisionskante */
+  .c-mod { font-family: "Geist Mono", ui-monospace, monospace; font-size: 0.72rem; color: var(--muted-foreground); }
+  .c-mod b { color: var(--destructive); font-weight: 500; font-family: "Geist", sans-serif; }
+
+  /* Zustands-Chip: Form UND Farbe tragen die Aussage. */
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    white-space: nowrap;
+    font-size: 0.74rem;
+    font-weight: 500;
+    padding: 0.1rem 0.45rem 0.1rem 0.35rem;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+  .state::before { content: ""; width: 7px; height: 7px; border-radius: 99px; background: currentColor; flex: 0 0 auto; }
+  .state.wait { color: var(--muted-foreground); }
+  .state.wait::before { background: none; box-shadow: inset 0 0 0 1.5px currentColor; }
+  .state.live {
+    color: var(--ember-strong);
+    border-color: color-mix(in oklab, var(--ember) 45%, var(--border));
+    background: color-mix(in oklab, var(--ember) 8%, var(--card));
+  }
+  .state.live::before { background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+  .state.done { color: var(--steel); border-color: color-mix(in oklab, var(--steel) 35%, var(--border)); }
+  .state.fail {
+    color: var(--destructive);
+    border-color: color-mix(in oklab, var(--destructive) 40%, var(--border));
+    background: color-mix(in oklab, var(--destructive) 7%, var(--card));
+  }
+  .state.block { color: var(--muted-foreground); }
+  .state.block::before { background: none; border-radius: 1px; box-shadow: inset 0 0 0 1.5px var(--destructive); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .state.live::before, .pip.live { animation: glut 2.4s ease-in-out infinite; }
+  }
+  @keyframes glut { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+  tr.is-blocked td { color: var(--muted-foreground); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+    padding: 0.6rem 0.95rem;
+    border-top: 1px solid var(--border);
+  }
+  .legend .state { font-size: 0.7rem; }
+
+  /* --- 4 · Offene Punkte -------------------------------------------
+     Linke 3px-Schiene statt Kartenrahmen:
+     Glut = wartet auf den Menschen, Stahl = der Lauf haelt es selbst. */
+  .items {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    gap: 0.9rem 1.4rem;
+    padding: 0.9rem 0.95rem;
+  }
+  .item {
+    border-left: 3px solid var(--border);
+    padding-left: 0.7rem;
+    min-width: 0;
+  }
+  .item.you { border-left-color: var(--ember); }
+  .item.run { border-left-color: var(--steel); }
+  .item .line1 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .item h3 { margin: 0; font-size: 0.85rem; font-weight: 600; letter-spacing: -0.005em; }
+  .owner {
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .item.you .owner { color: var(--ember-strong); }
+  .item.run .owner { color: var(--steel); }
+  .item p { margin: 0.25rem 0 0; font-size: 0.78rem; color: var(--muted-foreground); }
+  .item .meta {
+    margin-top: 0.3rem;
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    font-family: "Geist Mono", ui-monospace, monospace;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.8rem;
+  }
+  .item .meta b { color: var(--foreground); font-weight: 500; }
+
+  /* --- 4 · Zeitleiste ---------------------------------------------- */
+  .tl-scroll { overflow-x: auto; padding: 0.85rem 0.95rem 0.95rem; }
+  .tl {
+    min-width: 42rem;
+    display: grid;
+    grid-template-columns: 4.2rem repeat(12, minmax(2.4rem, 1fr));
+    row-gap: 0.35rem;
+    align-items: stretch;
+  }
+  .tl .axis, .tl .lane { grid-column: 2 / -1; display: grid; grid-template-columns: subgrid; }
+  @supports not (grid-template-columns: subgrid) {
+    .tl .axis, .tl .lane { grid-template-columns: repeat(12, minmax(2.4rem, 1fr)); }
+  }
+  .tl .axis {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 0.66rem;
+    color: var(--muted-foreground);
+    padding-bottom: 0.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .tl .axis span { border-left: 1px solid var(--border); padding-left: 0.28rem; }
+  .tl .lane-label {
+    grid-column: 1;
+    align-self: center;
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+    letter-spacing: 0.04em;
+    padding-right: 0.5rem;
+    white-space: nowrap;
+  }
+  .tl .lane {
+    background: repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px calc(100% / 12));
+    background-size: calc(100% / 12) 100%;
+    border-radius: 3px;
+    min-height: 1.7rem;
+  }
+  .bar {
+    align-self: center;
+    margin: 0.12rem 2px;
+    padding: 0.18rem 0.45rem;
+    border-radius: 3px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .bar b { font-family: "Geist Mono", ui-monospace, monospace; font-weight: 500; opacity: 0.75; margin-right: 0.3rem; }
+  .bar.done {
+    background: color-mix(in oklab, var(--steel) 14%, var(--card));
+    border-color: color-mix(in oklab, var(--steel) 34%, var(--border));
+    color: var(--steel);
+  }
+  .bar.live {
+    background: color-mix(in oklab, var(--ember) 13%, var(--card));
+    border-color: color-mix(in oklab, var(--ember) 45%, var(--border));
+    color: var(--ember-strong);
+    box-shadow: inset 2px 0 0 var(--ember);
+  }
+  .bar.fail {
+    background: color-mix(in oklab, var(--destructive) 11%, var(--card));
+    border-color: color-mix(in oklab, var(--destructive) 40%, var(--border));
+    color: var(--destructive);
+  }
+
+  .deviations {
+    padding: 0.6rem 0.95rem;
+    font-size: 0.76rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted-foreground);
+  }
+  .deviations b { color: var(--foreground); font-weight: 500; }
+
+  footer {
+    font-size: 0.72rem;
+    color: var(--muted-foreground);
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 34rem) {
+    .issue h1 { font-size: 1.15rem; }
+    .head-body, .block-head, .legend, .deviations { padding-inline: 0.8rem; }
+    thead th, tbody td { padding-inline: 0.8rem; }
+  }
+</style>
+
+<div class="sheet">
+
+  <div class="brand">
+    <!-- Name des Repositorys, als Text. Breite des viewBox an die Wortlaenge anpassen. -->
+    <svg viewBox="0 0 280 72" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Beispielrepo">
+      <text x="0" y="46" font-family="Geist, 'Helvetica Neue', Arial, sans-serif" font-size="29" font-weight="600" letter-spacing="0.5" fill="currentColor">Beispielrepo</text>
+    </svg>
+    <div class="stamp"><span class="demo">Musterbelegung</span>Lauftafel · Stand <b>22.09.2026, 14:05</b> · Fortschreibung 5</div>
+  </div>
+
+  <!-- ===== 1 · Kopfzeile ========================================== -->
+  <section class="card card-accent">
+    <div class="head-body">
+      <div class="issue">
+        <div class="no">Epic #942</div>
+        <h1>Auftragsliste als CSV exportieren</h1>
+        <div class="refs">
+          <span>Basis <code>release/9.4</code></span>
+          <span>Epic <code>epic/942-auftragsliste-als-csv</code></span>
+          <span>Pull Request <code>—</code></span>
+        </div>
+      </div>
+
+      <div class="tiles">
+        <div class="tile">
+          <div class="label">Tests</div>
+          <div class="value">1&nbsp;438 <span class="was">← 1&nbsp;412</span></div>
+          <div class="basis">alle grün · server + client · 14:05</div>
+        </div>
+
+        <!-- Optional: nur wenn das Issue eine Kennzahl nennt. Sonst die ganze Kachel entfernen. -->
+        <div class="tile">
+          <div class="label">Exporte unter 2 s</div>
+          <div class="value">88,7 <span class="unit">%</span> <span class="was">← 87,3</span></div>
+          <div class="meter" style="--tint: var(--heat-5)">
+            <i style="width: 88.7%"></i>
+            <u style="left: 90%"></u>
+          </div>
+          <div class="basis">n = 318 Exporte · Anteil unter 2 s · Ziel 90 %</div>
+        </div>
+
+        <div class="tile alarm">
+          <div class="label">Wartet auf dich</div>
+          <div class="value">2</div>
+          <div class="basis">von 3 offenen Punkten · 1 hebt der Lauf</div>
+        </div>
+      </div>
+
+      <div class="progress-line">
+        <span class="pips" role="img" aria-label="3 von 8 Paketen abgenommen, 2 in Arbeit, 1 wartend, 1 nicht abgenommen, 1 blockiert">
+          <i class="pip done"></i><i class="pip done"></i><i class="pip done"></i>
+          <i class="pip live"></i><i class="pip live"></i>
+          <i class="pip wait"></i><i class="pip fail"></i><i class="pip block"></i>
+        </span>
+        <span>3 von 8 Paketen abgenommen · 2 in Arbeit · 1 wartend · 1 nicht abgenommen · 1 blockiert</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 2 · Standtabelle ======================================= -->
+  <section class="card">
+    <div class="block-head">
+      <h2>Stand der Pakete</h2>
+      <div class="note">Reihenfolge nach Abhängigkeiten</div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Nr.</th>
+            <th scope="col">Ziel</th>
+            <th scope="col">Module</th>
+            <th scope="col">Zustand</th>
+            <th scope="col">Runden</th>
+            <th scope="col">Merge</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="c-no">#943</td>
+            <td class="c-goal"><span class="t">Der Server liefert die Auftragsliste als CSV mit Kopfzeile.</span></td>
+            <td class="c-mod">server/export</td>
+            <td><span class="state done">abgenommen</span></td>
+            <td class="c-num">1</td>
+            <td class="c-merge">1a2b3c4</td>
+          </tr>
+          <tr>
+            <td class="c-no">#944</td>
+            <td class="c-goal">
+              <span class="t">Die Spalten folgen der Sortierung der Ansicht.</span>
+              <span class="sub">Runde 2 nach Reviewer-Befund: leere Felder verschoben die Spalten</span>
+            </td>
+            <td class="c-mod">server/list</td>
+            <td><span class="state done">abgenommen</span></td>
+            <td class="c-num">2</td>
+            <td class="c-merge">5d6e7f8</td>
+          </tr>
+          <tr>
+            <td class="c-no">#945</td>
+            <td class="c-goal"><span class="t">Die Hilfe beschreibt den Export.</span></td>
+            <td class="c-mod">docs</td>
+            <td><span class="state done">abgenommen</span></td>
+            <td class="c-num">1</td>
+            <td class="c-merge">9a0b1c2</td>
+          </tr>
+          <tr>
+            <td class="c-no">#946</td>
+            <td class="c-goal">
+              <span class="t">Die Liste hat einen Knopf „Als CSV".</span>
+              <span class="sub">Platz 1 · Runde 2 seit 13:20</span>
+            </td>
+            <td class="c-mod">client/list</td>
+            <td><span class="state live">in Arbeit</span></td>
+            <td class="c-num">2 <span class="cap">/ 3</span></td>
+            <td class="c-merge none">—</td>
+          </tr>
+          <tr>
+            <td class="c-no">#947</td>
+            <td class="c-goal">
+              <span class="t">Große Listen werden gestreamt statt gepuffert.</span>
+              <span class="sub">Platz 2 · Runde 1 seit 13:35</span>
+            </td>
+            <td class="c-mod">server/export</td>
+            <td><span class="state live">in Arbeit</span></td>
+            <td class="c-num">1 <span class="cap">/ 3</span></td>
+            <td class="c-merge none">—</td>
+          </tr>
+          <tr>
+            <td class="c-no">#948</td>
+            <td class="c-goal">
+              <span class="t">Die Exportbibliothek wird auf die neue Hauptversion gehoben.</span>
+              <span class="sub">Startet, sobald ein Platz frei ist und kein anderes Paket läuft</span>
+            </td>
+            <td class="c-mod">server <b>exklusiv</b></td>
+            <td><span class="state wait">wartend</span></td>
+            <td class="c-num">0</td>
+            <td class="c-merge none">—</td>
+          </tr>
+          <tr>
+            <td class="c-no">#949</td>
+            <td class="c-goal">
+              <span class="t">Der alte Export-Endpunkt entfällt.</span>
+              <span class="sub">Abgebrochen nach drei Runden — siehe offene Punkte</span>
+            </td>
+            <td class="c-mod">server/export, server/routes</td>
+            <td><span class="state fail">nicht abgenommen</span></td>
+            <td class="c-num">3 <span class="cap">/ 3</span></td>
+            <td class="c-merge none">—</td>
+          </tr>
+          <tr class="is-blocked">
+            <td class="c-no">#950</td>
+            <td class="c-goal">
+              <span class="t">Die Integrationstests prüfen den Export ohne alten Endpunkt.</span>
+              <span class="sub">Blockiert durch #949</span>
+            </td>
+            <td class="c-mod">server/test</td>
+            <td><span class="state block">blockiert</span></td>
+            <td class="c-num">0</td>
+            <td class="c-merge none">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="legend">
+      <span class="state wait">wartend</span>
+      <span class="state live">in Arbeit</span>
+      <span class="state done">abgenommen</span>
+      <span class="state fail">nicht abgenommen</span>
+      <span class="state block">blockiert</span>
+    </div>
+  </section>
+
+  <!-- ===== 3 · Belegung der Plaetze =============================== -->
+  <section class="card">
+    <div class="block-head">
+      <h2>Belegung der Plätze</h2>
+      <div class="note">Ein gleitendes Fenster mit 3 Plätzen — ein leerer Platz ist kein Fehler</div>
+    </div>
+
+    <div class="tl-scroll">
+      <div class="tl">
+        <div class="axis" aria-hidden="true">
+          <span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span>
+          <span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span>
+        </div>
+
+        <div class="lane-label">Platz 1</div>
+        <div class="lane">
+          <div class="bar done" style="grid-column: 1 / 4"><b>#943</b>CSV-Endpunkt</div>
+          <div class="bar fail" style="grid-column: 4 / 8"><b>#949</b>Alter Endpunkt</div>
+          <div class="bar live" style="grid-column: 8 / 11"><b>#946</b>Knopf</div>
+        </div>
+
+        <div class="lane-label">Platz 2</div>
+        <div class="lane">
+          <div class="bar done" style="grid-column: 1 / 6"><b>#944</b>Spaltenfolge</div>
+          <div class="bar live" style="grid-column: 9 / 11"><b>#947</b>Streaming</div>
+        </div>
+
+        <div class="lane-label">Platz 3</div>
+        <div class="lane">
+          <div class="bar done" style="grid-column: 2 / 5"><b>#945</b>Hilfetext</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="deviations">
+      <b>Abweichung vom Plan:</b> #949 lief vorgezogen auf Platz 1, weil #946 erst nach dem Merge von #944 startbereit wurde. Platz 3 bleibt seit 11:30 leer — #950 ist durch #949 blockiert, und das exklusive #948 wartet, bis nichts anderes läuft.
+    </div>
+  </section>
+
+  <!-- ===== 4 · Offene Punkte ======================================= -->
+  <section class="card">
+    <div class="block-head">
+      <h2>Offene Punkte</h2>
+      <div class="count">2 warten auf dich</div>
+    </div>
+
+    <div class="items">
+      <div class="item you">
+        <div class="line1">
+          <h3>#949 nicht abgenommen</h3>
+          <span class="owner">Entscheidung</span>
+        </div>
+        <p>Der Verifikationsweg bricht vor dem ersten Test ab, nicht am Code — der Reviewer konnte die Abnahme dreimal nicht fahren. Der Branch bleibt liegen, der Worktree ist sauber entfernt.</p>
+        <div class="meta">
+          <span>seit <b>12:40</b></span>
+          <span>Branch <b>agent/949-alter-endpunkt</b></span>
+          <span>blockiert <b>#950</b></span>
+        </div>
+      </div>
+
+      <div class="item you">
+        <div class="line1">
+          <h3>Freigabe für die Datenmigration</h3>
+          <span class="owner">Freigabe</span>
+        </div>
+        <p>Die Migration aus #944 entfernt die Spalte <code>export_legacy</code> aus 1&nbsp;204 Zeilen. Nicht ausgeführt — Datenmigrationen führt ein Mensch aus.</p>
+        <div class="meta">
+          <span>seit <b>11:05</b></span>
+          <span>Umfang <b>1 204 Zeilen</b></span>
+          <span>hält <b>PR auf WIP</b></span>
+        </div>
+      </div>
+
+      <div class="item run">
+        <div class="line1">
+          <h3>Exporte unter 2 s unter Ziel</h3>
+          <span class="owner">im Lauf</span>
+        </div>
+        <p>88,7 % gegen 90 % Ziel. #947 soll die Lücke schließen; ist #947 abgenommen und die Zahl steht weiter darunter, wird daraus ein Punkt für dich.</p>
+        <div class="meta">
+          <span>gemessen <b>13:50</b></span>
+          <span>n = <b>318</b></span>
+          <span>wartet auf <b>#947</b></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Diese Seite wird über den ganzen Lauf unter derselben Adresse fortgeschrieben.</span>
+    <span>Kennzahlen mit Basis: n, Satz, Datum, Einheit</span>
+  </footer>
+
+</div>
