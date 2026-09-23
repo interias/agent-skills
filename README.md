@@ -39,6 +39,7 @@ prd-nacharbeit/
 prd-aufraeumen/
   SKILL.md
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
+assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
 install.ps1
 ```
 
