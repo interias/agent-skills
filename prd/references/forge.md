@@ -1,8 +1,8 @@
 # Forge-Zugriff
 
-Welche Forge gilt, steht im Projektadapter; ohne Adapter aus `git remote get-url origin`
-ableiten. Bevorzugt das CLI, wenn es installiert ist — es kümmert sich um Auth und Paginierung.
-Ist es das nicht, geht alles über `curl` gegen die API.
+Welche Forge gilt, steht im Projektadapter (`forge`, `api`). Ohne Adapter wird sie aus
+`git remote get-url origin` abgeleitet. Ist das CLI installiert, wird es bevorzugt, denn es kümmert
+sich um Auth und Paginierung. Ist es das nicht, geht alles über `curl` gegen die API.
 
 | | CLI | API-Basis | Token |
 |---|---|---|---|
@@ -10,30 +10,103 @@ Ist es das nicht, geht alles über `curl` gegen die API.
 | GitHub | `gh` | `https://api.github.com/repos/<owner>/<repo>` | `gh auth` oder `Authorization: Bearer $TOKEN` |
 | GitLab | `glab` | `<host>/api/v4/projects/<url-encoded-path>` | Header `PRIVATE-TOKEN: $TOKEN` |
 
-Liegt das Token in einer gitignorierten Datei (Adapterschlüssel `token_file`), im Bash-Werkzeug
-laden — nicht im PowerShell-Werkzeug, dort gilt andere Syntax:
+Liegt das Token in einer gitignorierten Datei (`token_file`), wird es im Bash-Werkzeug geladen,
+nicht im PowerShell-Werkzeug, dort gilt andere Syntax:
 
 ```bash
-set -a && . .sandcastle/.env && set +a
+set -a && . <token_file> && set +a
 API=http://host:3003/api/v1/repos/Owner/Repo
 curl -s -H "Authorization: token $GITEA_TOKEN" "$API/issues/41"
+```
+
+`$GITEA_TOKEN` steht in allen Beispielen dieser Datei für die Variable aus `token_env`, geladen
+aus `token_file`. Nennt der Adapter eine andere Variable, wird sie eingesetzt. Ein anderes Token,
+das im Repository liegt, wird nie benutzt (`adapter.md`, „Zwei Tokens").
+
+## Diese Gitea-Instanz (`mb-vsv-cast:3003`)
+
+Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
+
+- **Nur englische Schließwörter.** `Closes #n` schließt beim Merge, „Schließt #n" oder „Behebt #n"
+  greift nicht. Das gilt für PR-Body und Commit-Nachrichten.
+- **Ein Issue mit offenen Blockern lässt sich nicht schließen.** Der Server antwortet mit
+  **HTTP 412**. Das fällt erst beim Merge auf, wenn Gitea die `Closes`-Zeilen abarbeitet, nicht
+  beim Eröffnen des Pull Requests. Deshalb gehört in den PR-Body, welches geschlossene Issue noch
+  offene Blocker hat. Das betrifft auch ein Epic: Die API führt seine Kinder als Blocker. Ob Gitea
+  beim Merge die Kinder vor dem Epic schließt, ist nicht belegt. Der PR-Body sagt darum, dass das
+  Epic von Hand zu schließen ist, falls es offen bleibt. Dasselbe gilt für Ketten unter den
+  Kindern: Ob Gitea die `Closes`-Zeilen der Reihe nach abarbeitet, ist ebenfalls nicht belegt. Die
+  `Closes`-Zeilen stehen darum in der Reihenfolge des Graphen, Vorgänger zuerst, und im PR-Body
+  steht je Kind mit Blocker der Satz „schließt sich ggf. nicht automatisch (412), dann von Hand".
+- **Listen sind bei 50 Einträgen gedeckelt**, auch wenn `limit` größer gesetzt ist. Mit
+  `?limit=50&page=<n>` weiterblättern, bis eine Seite weniger als 50 Einträge liefert.
+- **Ein Titel mit `WIP:` macht einen Pull Request zu `draft`.** Das Präfix ist also der Schalter:
+  Solange etwas für einen Menschen offen ist, trägt der Titel `WIP: `. Wird der PR fertig, entfernt
+  `PATCH /pulls/<nr>` mit neuem `title` das Präfix und damit den Entwurfsstatus.
+- **Anonyme Aufrufe liefern 404 statt 401.** Ein 404 auf ein Issue, das es geben muss, heißt
+  zuerst: Token fehlt oder ist nicht geladen. Es ist kein Beleg, dass das Issue nicht existiert.
+
+Ohne Token, mit Basic Auth aus dem Git-Credential-Speicher (spill): Zugangsdaten einmal holen und
+nie ausgeben.
+
+```bash
+CRED=$(printf 'url=http://mb-vsv-cast:3003\n\n' | git credential fill)
+GU=$(printf '%s\n' "$CRED" | sed -n 's/^username=//p'); GP=$(printf '%s\n' "$CRED" | sed -n 's/^password=//p')
+curl -s -u "$GU:$GP" "$API/issues/41"
 ```
 
 ## Abhängigkeiten lesen
 
 - **Gitea:** `GET /issues/<nr>/dependencies` liefert die Issues, von denen `<nr>` **blockiert
-  wird**. Für ein PRD sind das seine Kinder, für ein Kind seine Vorgänger.
-- **GitHub:** kennt keine Issue-Abhängigkeiten. Die Kanten stehen im Body — Aufgabenlisten des
-  PRDs für die Kinder, Zeilen wie `Blocked by #53` für die harten Kanten. Beides parsen und im
-  Plan offenlegen, damit ein Mensch eine Fehldeutung sieht.
+  wird**. Was eine Kante bedeutet, entscheidet das Label `epic_label` (Standard `epic`) an beiden
+  Enden:
+
+  | `<nr>` | blockierendes Issue | Bedeutung |
+  |---|---|---|
+  | Epic | Epic | **Reihenfolge**: das andere Epic muss vorher fertig sein |
+  | Epic | kein Epic | **Kind** des Epics |
+  | kein Epic | kein Epic | harter Vorgänger des Kindes |
+
+  Trägt im Repository kein Issue das `epic_label`, gilt jede Kante vom PRD aus als Kind, wie vor
+  der Einführung des Labels. Die Lesart gehört in den Plan.
+- **GitHub:** kennt keine Issue-Abhängigkeiten. Die Kanten stehen im Body, als Aufgabenlisten des
+  PRDs für die Kinder und als Zeilen wie `Blocked by #53` für die harten Kanten. Beides parsen und
+  im Plan offenlegen, damit ein Mensch eine Fehldeutung sieht.
 - **GitLab:** `GET /issues/<iid>/links` (Typ `blocks` / `is_blocked_by`).
+
+## Abhängigkeiten nachtragen (Gitea)
+
+Mit `write_back_dependencies` trägt der Lauf jede Kante, die er aus `header` oder `body` gelesen
+hat, in die Gitea-Abhängigkeiten ein. So sieht jedes Werkzeug, das nur die API liest, denselben
+Graphen wie der Lauf.
+
+```
+POST /repos/{owner}/{repo}/issues/{index}/dependencies
+{"owner": "<owner>", "repo": "<repo>", "index": <nr>}
+```
+
+Gelesen wird das so: **`{index}` in der URL ist blockiert von dem Issue im Body.** „#12 wartet auf
+#10" ist also `POST …/issues/12/dependencies` mit `"index": 10`. Vertauscht, wartet der Vorgänger
+auf seinen Nachfolger.
+
+Vor jedem `POST` prüfen, ob die Kante schon existiert:
+
+```bash
+curl -s -H "Authorization: token $GITEA_TOKEN" "$API/issues/12/dependencies" \
+  | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).some(i=>i.number===10)))'
+```
+
+`false` heißt eintragen, `true` heißt überspringen. Jede nachgetragene Kante wird im
+Eröffnungskommentar genannt. Eine Kante in ein anderes Repository (`"owner"`/`"repo"` weichen ab)
+wird **nicht** nachgetragen: Ob die Instanz solche Kanten annimmt, ist nicht belegt
+(`adapter.md`, Auslegung). Sie bleibt Text in der Kopfzeile, und der Plan sagt das.
 
 ## Stolperstellen
 
-- **Paginierung.** Issue-Listen sind serverseitig gedeckelt (Gitea: 50). Immer paginieren, nie
-  die erste Seite für die ganze Liste halten.
-- **Kommentare aus einer Datei schicken, nie aus einer Bash-Zeichenkette.** Beim Bauen des
-  JSON-Bodys inline zerlegt die Shell Code-Zäune und Backticks, und zwar still:
+- **Paginierung.** Issue-Listen sind serverseitig gedeckelt (Gitea: siehe oben). Immer paginieren,
+  nie die erste Seite für die ganze Liste halten.
+- **Kommentare und PR-Bodys aus einer Datei schicken, nie aus einer Bash-Zeichenkette.** Beim
+  Bauen des JSON-Bodys inline zerlegt die Shell Code-Zäune und Backticks, und zwar still:
 
   ```bash
   node -e 'fetch(process.argv[1],{method:"POST",headers:{Authorization:"token "+process.env.GITEA_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({body:require("fs").readFileSync(process.argv[2],"utf8")})}).then(r=>r.text()).then(console.log)' \
@@ -44,7 +117,10 @@ curl -s -H "Authorization: token $GITEA_TOKEN" "$API/issues/41"
 
 ## Nachzählen statt annehmen
 
-Am Ende des Laufs für jede berührte Nummer prüfen, dass der Kommentar wirklich ankam:
+Am Ende des Laufs für **jede berührte Nummer** prüfen, dass der Kommentar wirklich ankam. Berührt
+sind das PRD bzw. die Spec, jedes Kind, auch jedes übersprungene, und jede transitiv
+mitbearbeitete fremde Spec samt ihrer Kinder. Ein `POST` kann fehlgeschlagen sein, ohne dass es
+im Lauf auffiel.
 
 ```bash
 for n in <alle berührten Nummern>; do
@@ -54,12 +130,33 @@ for n in <alle berührten Nummern>; do
 done
 ```
 
-## Pull Request
+Die Zahl muss je Nummer um die Kommentare dieses Laufs gewachsen sein, gemessen am Stand vor dem
+Eröffnungskommentar.
+
+## Schreibrecht prüfen
+
+Phase 0 prüft nicht nur das Lesen, sondern ob das Token schreiben darf. Kommentare und Pull Request
+kommen erst nach dem Tor, und dort hält der Lauf nicht mehr an.
+
+| Forge | Aufruf | schreibberechtigt, wenn |
+|---|---|---|
+| Gitea, GitHub | `GET /repos/<owner>/<repo>` | `permissions.push == true` |
+| GitLab | `GET /projects/<url-encoded-path>` | `permissions.project_access.access_level >= 30` (Developer) oder dasselbe unter `group_access` |
 
 ```bash
-curl -s -X POST -H "Authorization: token $GITEA_TOKEN" -H "Content-Type: application/json" \
-  -d '{"head":"epic/41-…","base":"main","title":"…","body":"…"}' "$API/pulls"
+curl -s -H "Authorization: token $GITEA_TOKEN" "${API%/}"   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).permissions?.push===true))'
 ```
 
-Bei langem Body denselben Weg über eine Datei nehmen wie beim Kommentar. GitHub:
-`gh pr create --base main --head epic/… --title "…" --body-file pr.md`.
+`false` oder ein Fehler ist ein Punkt fürs Vorab-Tor, nicht ein Grund, ein anderes Token im
+Repository zu nehmen.
+
+## Pull Request
+
+Der Body geht denselben Weg wie ein Kommentar, aus einer Datei:
+
+```bash
+node -e 'const[u,h,b,t,f]=process.argv.slice(1);fetch(u,{method:"POST",headers:{Authorization:"token "+process.env.GITEA_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({head:h,base:b,title:t,body:require("fs").readFileSync(f,"utf8")})}).then(r=>r.text()).then(console.log)' \
+  "$API/pulls" "epic/41-…" "<base_branch>" "WIP: …" pr.md
+```
+
+GitHub: `gh pr create --base <base_branch> --head epic/… --title "…" --body-file pr.md`.

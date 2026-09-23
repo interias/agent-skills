@@ -15,10 +15,11 @@ Pull Requests. Ohne Argument nimmst du den letzten `/prd`-Lauf des Repositorys �
 Epic-Branch mit offenem Pull Request.
 
 Der Projektadapter ist derselbe wie bei `/prd`: **`.claude/prd.md`**. Lies ihn als Erstes; er
-nennt Forge, Vokabulardatei, ADR-Pfad, Testbefehle und Commit-Konvention. Die Regeln von `/prd`
-gelten hier weiter, insbesondere: **der Hauptzweig ist niemals das Ziel**, Datenmigration ist
-Handarbeit, keine Testsuite wird durch Löschen von Tests grün, Fachsprache aus der
-Vokabulardatei.
+nennt Forge, Vokabulardatei, ADR-Pfad, Testbefehle, Commit-Konvention und `base_branch`. Die
+Regeln von `/prd` gelten hier weiter, insbesondere: **der Basis-Branch — `base_branch` aus dem
+Adapter, nach einem Lauf maßgeblich die `base` des Pull Requests — ist niemals direktes Ziel eines
+Commits**, Datenmigration ist Handarbeit, keine Testsuite wird durch Löschen von Tests grün,
+Fachsprache aus der Vokabulardatei.
 
 ---
 
@@ -63,6 +64,14 @@ hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der
 - Feststellen, auf welchem Branch du stehst und wie der Pull Request des Laufs steht. **Der
   Epic-Branch des Laufs ist die Arbeitsfläche, solange sein Pull Request offen ist** — dort
   gehört die Nacharbeit hin, wenn sie denselben Gegenstand betrifft (siehe Phase 3).
+- **Den Basis-Branch feststellen:** `base_branch` aus dem Adapter ist der Standard, maßgeblich
+  aber — sobald der Pull Request existiert — dessen eigene `base`. Ein Epic kann von einem anderen
+  Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
+- **Spec-Modus erkennen** (`issue_form: spec`): Nur **ohne** Kind-Tickets liegt alles am
+  Spec-Issue selbst, und die Paket-Branches heißen nicht nach Kind-Issues. Hat das Spec-Issue
+  Kinder, gilt derselbe Weg wie im Modus `prd` — die Kinder sind die Pakete. Das Schema aus
+  `prd/SKILL.md` (Phase 3): Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`, im
+  Modus `spec` ohne Kinder `agent/<spec>-p<k>-<slug>` (Slug mit ä→ae).
 - `git worktree list` prüfen. Reste eines früheren Laufs melden, nicht löschen — dafür ist
   `/prd-aufraeumen` da.
 - Vokabulardatei lesen, und das Verzeichnis für bewusst Verworfenes, falls der Adapter eines
@@ -76,9 +85,16 @@ hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der
 
 Aus **drei** Quellen, und keine davon reicht allein:
 
-1. **Der Abschlusskommentar am PRD-Issue.** Sein Abschnitt „Was das PRD offen lässt" ist die
-   Hauptquelle. Lies auch die Kommentare an den Kind-Tickets — dort stehen die Punkte, die nur
-   ein einzelnes Ticket betreffen, und die im Abschlusskommentar zusammengefasst wurden.
+1. **Der Abschlusskommentar am PRD-Issue.** Sein Abschnitt `### Was das Epic offen lässt` ist die
+   Hauptquelle (ältere Läufe schreiben noch „Was das PRD offen lässt" — such nach beiden). Lies
+   auch die Kommentare an den Kind-Tickets — dort stehen die Punkte, die nur ein einzelnes Ticket
+   betreffen, und die im Abschlusskommentar zusammengefasst wurden. Kind ist dabei jedes Issue,
+   das der Adapter nicht über `epic_label` als Epic kennzeichnet; eine Kante zwischen zwei Epics
+   ist Reihenfolge, kein Kind, und bleibt hier außen vor. **Im Spec-Modus ohne Kinder**
+   (`issue_form: spec`) gibt es keine Kind-Tickets — alle Rückmeldungen zu den Paketen stehen als
+   Kommentare am Spec-Issue selbst; **mit Kindern** gilt derselbe Weg wie im Modus `prd`. Ergänze
+   hier die Lauftafel (`references/lauftafel.md`): jeder dort verzeichnete Glut-Punkt (wartet auf
+   den Menschen) gehört auf diese Liste.
 2. **Der Body des Pull Requests.** Dort steht, was beim Deploy passiert und welche Zusicherung
    nur gelesen und nicht gefahren wurde.
 3. **Der Stand im Repository.** Ein Punkt kann zwischenzeitlich erledigt worden sein — vom
@@ -171,8 +187,10 @@ Zwei Dinge dabei, und beide sind leicht zu vergessen:
   die sie nie hatte.
 
 Ist der Pull Request schon gemergt, oder betrifft die Nacharbeit einen anderen Gegenstand: eigener
-Branch, eigener Pull Request, Namensschema `nacharbeit/<prd-nr>-<slug>`. **Nie auf den
-Hauptzweig**, auch nicht für einen Einzeiler in einer Textdatei — der Merge dorthin deployt.
+Branch, eigener Pull Request, Namensschema `nacharbeit/<prd-nr>-<slug>`, als Ziel derselbe
+Basis-Branch wie beim ursprünglichen Lauf (`base_branch` aus dem Adapter, bei bereits gemergtem
+Pull Request dessen `base`). **Nie direkt auf den Basis-Branch committen**, auch nicht für einen
+Einzeiler in einer Textdatei — der Merge dorthin kann deployen.
 
 Nach jeder Änderung, die Code berührt: **den Testbefehl des Projekts fahren** und gegen den in
 Phase 0 gemessenen Stand vergleichen. Auch dann, wenn du nur einen Kommentar geändert hast; eine
@@ -191,10 +209,14 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
   vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
-- **Das Laufartefakt des `/prd`-Laufs**, falls es eines gibt: dieselbe Datei ändern und mit
-  demselben `file_path` erneut veröffentlichen, damit die URL bleibt. Ein Abschnitt „Nacharbeit"
-  mit den Entscheidungen. Der Lauf ist damit nicht mehr „beendet", sondern „beendet, nachgearbeitet
-  am <Datum>".
+- **Die Lauftafel des `/prd`-Laufs** (`references/lauftafel.md`), bei `plan_artifact: publish`
+  (ein alter Wert `off` gilt als `file`): Diese Sitzung hat ein anderes Scratchpad als der
+  ursprüngliche Lauf, ein lokaler `file_path` trägt hier also nicht mehr. Die URL steht im
+  Eröffnungskommentar am Zielissue — die Tafel darüber lesen (Artifact-Werkzeug, `action: read`),
+  ändern und mit derselben `url` erneut veröffentlichen, damit der Link bleibt. Ein Abschnitt
+  „Nacharbeit" mit den Entscheidungen, und jeder abgearbeitete Glut-Punkt wird darin als erledigt
+  markiert. Der Lauf ist damit nicht mehr „beendet", sondern „beendet, nachgearbeitet am
+  <Datum>".
 
 Prüfe nach, dass die Kommentare angekommen sind — ein `POST` kann fehlgeschlagen sein.
 

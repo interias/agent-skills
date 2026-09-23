@@ -20,7 +20,8 @@ Request liefert Gitea als `head.ref` die Referenz `refs/pull/<nr>/head` — ein 
 und beim Ermitteln des zu löschenden Branches.
 
 Der Projektadapter ist derselbe wie bei `/prd`: **`.claude/prd.md`** — er nennt Forge,
-Hauptzweig und `worktree_root`.
+`base_branch` als Standardwert und `worktree_root`. Maßgeblich für das Löschen ist trotzdem immer
+die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
 ---
 
@@ -38,9 +39,9 @@ Hauptzweig und `worktree_root`.
    Aussage und kein Hindernis. Ein Branch, den `-d` verweigert, wird gemeldet und bleibt stehen.
 4. **Ein schmutziger Worktree wird nicht entfernt.** `git worktree remove` ohne `--force`. Bleibt
    Arbeit darin liegen, gehört sie einem Menschen.
-5. **Remote-Branches nur nach ausdrücklicher Zustimmung.** Ein `git push origin --delete` wirkt
-   nach außen und ist für andere sichtbar. Lokales Löschen ist reversibel, das hier nicht ohne
-   Weiteres.
+5. **Remote-Branches nur nach ausdrücklicher Zustimmung.** Ein `git push <push_remote> --delete`
+   wirkt nach außen und ist für andere sichtbar. Lokales Löschen ist reversibel, das hier nicht
+   ohne Weiteres.
 6. **Die Junctions unter den Worktrees werden nie rekursiv gelöscht.** Das ist die eine Stelle,
    an der ein Aufräumbefehl echten Schaden anrichtet — siehe unten.
 
@@ -136,11 +137,13 @@ Erst wenn das bestätigt ist, darf gelöscht werden. Alles Weitere hängt daran.
 Erst zählen, dann löschen. Trage vier Listen zusammen:
 
 1. **Der Epic-Branch des Laufs**, lokal und in der Forge.
-2. **Ticket-Branches des Laufs** (`agent/…` oder was der Lauf verwendet hat). Bei einem
-   ordentlich verlaufenen Lauf sind sie schon weg — `/prd` löscht sie nach dem Sofortmerge. Was
-   übrig ist, gehört zu einem **nicht abgenommenen** Ticket und trägt Arbeit, die im Basiszweig
-   *nicht* liegt. Solche Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Nummer
-   ihres Tickets.
+2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` nach `prd/SKILL.md` Phase 3, Slug mit ä→ae;
+   im PRD-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** ohne Kind-Tickets
+   `<spec>-p<k>`, also Spec-Nummer und Paketnummer der Lauftafel). Bei einem ordentlich verlaufenen
+   Lauf sind sie schon weg — `/prd` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
+   einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
+   Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
+   Ticketnummer im PRD-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
 3. **Worktrees:** `git worktree list` — und getrennt davon der Inhalt von `worktree_root` auf der
    Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
    was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest (siehe die
@@ -166,6 +169,19 @@ git log --oneline <base>..<branch>  # leer heißt: kein eigener Commit
 sein Inhalt im Basiszweig, seine Commits aber nicht, und er erscheint als „nicht gemergt". Das ist
 der Fall, in dem `-d` verweigert und ein Mensch entscheiden muss — **nicht** der Fall für `-D`.
 
+`--merged` genügt auch dann nicht, wenn der Merge selbst zurückgenommen wurde: der Merge-Commit
+steht weiterhin im Basiszweig, seine Wirkung aber ist per `git revert -m 1` aufgehoben (Adapter,
+„Rot nach einem Sofortmerge"). Ein solcher Branch gilt hier **nicht** als gemergt, obwohl
+`--merged` ihn so führt. Prüfe je Kandidat:
+
+```bash
+git log <base> --grep '^Revert' --format='%H %B'
+```
+
+Steht darin ein Revert-Commit, dessen Text „This reverts commit <merge-commit-des-branches>"
+nennt, ist der Merge revertiert. Ein solcher Branch wird **gemeldet und nicht gelöscht** — mit dem
+Revert-Commit und dem Hinweis „zurückholen = Revert des Reverts".
+
 Ein Branch mit `origin/…: gone` ist **kein** Nachweis für irgendetwas. Er sagt nur, dass sein
 Gegenstück in der Forge weg ist; ob das nach einem Merge oder nach einem Verwerfen geschah, steht
 dort nicht. Der Nachweis bleibt derselbe Befehl.
@@ -183,10 +199,12 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
    ist es kein Rest, sondern liegengebliebene Arbeit.
 3. `git worktree prune` — räumt die Verwaltungseinträge zu Worktrees auf, deren Verzeichnis nicht
    mehr existiert.
-4. **Lokale Branches** mit `git branch -d`. Der Epic-Branch zuletzt, nachdem alles andere weg ist.
+4. **Lokale Branches** mit `git branch -d`. Ein Branch mit revertiertem Merge (siehe Merge-Nachweis
+   oben) wird übersprungen und gemeldet, nicht gelöscht. Der Epic-Branch zuletzt, nachdem alles
+   andere weg ist.
 5. **Remote-Branches** nur nach ausdrücklicher Zustimmung, und nur den Epic-Branch des gemergten
-   Laufs: `git push origin --delete <branch>`. Viele Forges tun das beim Merge selbst; prüfe
-   erst, ob überhaupt noch etwas da ist.
+   Laufs: `git push <push_remote> --delete <branch>`. Viele Forges tun das beim Merge selbst;
+   prüfe erst, ob überhaupt noch etwas da ist.
 
 Nach jedem Schritt den Erfolg prüfen, nicht annehmen. Ein `Remove-Item` auf einen offenen Pfad
 scheitert still genug, um übersehen zu werden.
@@ -203,8 +221,9 @@ scheitert still genug, um übersehen zu werden.
 - `git branch -vv` — die verbliebenen Branches, und je Eintrag ein Wort, warum er steht.
 
 Bericht: was gelöscht wurde (mit dem Nachweis, der es erlaubte), was **nicht** gelöscht wurde und
-warum, und was ein Mensch entscheiden muss. Nicht abgenommene Ticket-Branches namentlich, mit der
-Nummer ihres Tickets — sie sind der Grund, warum dieser Ablauf nicht einfach alles wegwirft.
+warum, und was ein Mensch entscheiden muss. Nicht abgenommene Paket-Branches namentlich, mit der
+Kennung ihres Pakets — Ticketnummer im PRD-Modus, Paketbezeichnung im Spec-Modus — sie sind der
+Grund, warum dieser Ablauf nicht einfach alles wegwirft.
 
 Dieser Ablauf schreibt **nicht** in die Forge. Er verändert keinen Zustand, den ein Leser in einem
 halben Jahr braucht; er räumt eine Arbeitskopie auf. Nur wenn ein nicht abgenommenes Ticket einen

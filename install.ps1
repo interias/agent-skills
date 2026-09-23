@@ -11,8 +11,8 @@
     Before overwriting an existing target folder, it is backed up to
     $env:USERPROFILE\.claude\skills-backup\<name>-<yyyyMMdd-HHmmss>\. The target folder is
     only cleared after the backup is verified complete (file count comparison). Before
-    clearing, the target is checked for reparse points (junctions/symlinks); if any are
-    found, the script aborts without touching the folder.
+    clearing, the script checks whether the target itself is a reparse point (junction/symlink),
+    and whether it contains any; if either is true, it aborts without touching the folder.
 
 .PARAMETER Skill
     Optional. Install only this one skill (folder name) instead of all skills in the repo.
@@ -80,6 +80,14 @@ foreach ($skillDir in $skillsToInstall) {
         } else {
             Write-Host "[DryRun] Would create target and copy files."
         }
+        continue
+    }
+
+    # Refuse to touch a target that is itself a reparse point (junction/symlink): clearing it
+    # would delete through the link into whatever it points at, not the target folder itself.
+    $targetItem = Get-Item -Path $target -Force
+    if ($targetItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        Write-Host "ABORT: $target is itself a reparse point (junction/symlink) — refusing to touch it." -ForegroundColor Red
         continue
     }
 
