@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<title>agent-skills</title>
+<defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<polygon points="24,24 408,24 488,104 488,488 104,488 24,408" fill="#0d0620" stroke="#00f0ff" stroke-width="20"/>
+<g filter="url(#glow)">
+<polyline points="104,168 216,256 104,344" fill="none" stroke="#00f0ff" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="248" y="320" width="144" height="40" fill="#7cff4f"/>
+<polygon points="376,88 392,128 432,144 392,160 376,200 360,160 320,144 360,128" fill="#fcee0a"/>
+</g>
+</svg>
