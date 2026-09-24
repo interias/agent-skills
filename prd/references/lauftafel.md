@@ -49,7 +49,10 @@ liegt beim Menschen.*
 ## Laufzustand
 
 Über den Blöcken steht in `.stamp` zuerst der Zustand des ganzen Laufs, dann Stand und
-Fortschreibung. Drei Werte, je mit eigener Klasse:
+Fortschreibung. **Jede Uhrzeit auf der Tafel stammt aus einem Aufruf der Systemuhr unmittelbar vor
+dem Rendern** (`date`, `Get-Date`) und wird nie geschätzt oder aus dem Verlauf hochgerechnet; die
+Zeitzone steht dabei. Das gilt auch für die Uhrzeit in der Kachel „Tests" und die Zeitleiste.
+Drei Werte, je mit eigener Klasse:
 
 | Laufzustand | Markup | wann |
 |---|---|---|

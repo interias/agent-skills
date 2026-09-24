@@ -148,6 +148,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   ob der Verifikationsweg fahrbar ist; ein fehlendes Abhängigkeitsverzeichnis fällt hier auf und
   nicht beim dritten Paket. Legt ein Paket eine Suite erst an, ist ihr Ausgangsstand 0 Suiten; ab
   dem Merge dieses Pakets wird sie gefahren und verglichen.
+- **Den Lint-Stand messen:** je Modul aus `lint_commands` die Zahl der Fehler und Warnungen, aus der
+  Ausgabe gezählt, nicht aus dem Exit-Code. Fehlt `lint_commands`, sagt der Plan, dass der
+  Lint-Vergleich entfällt.
 - **Das Fenster bestimmen:** `window`, Standard 1. Drei Plätze nur mit `test_isolation_env` oder
   `isolation: none-needed` samt Begründung. Setzt der Adapter mehr Plätze ohne beides, ist das
   eine Lockerung und ein Tor-Punkt.
@@ -363,7 +366,9 @@ mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `
   branchen** — das macht der Host.
 - Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable.
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
-  Verifikation mit echter Ausgabe; was er nicht konnte und warum.
+  Verifikation mit echter Ausgabe; was er nicht konnte und warum. **Übernimmt er bestehende
+  Arbeit** (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
+  Original-Hash) und Autor. Ein fremder Autor im Pull Request sieht sonst nach einem Fehler aus.
 
 Verlangt ein Paket, dass etwas „im Issue vermerkt" wird, notiert der Implementer den Text — das
 Kommentieren machst du in Phase 5.
@@ -383,6 +388,12 @@ den Bericht des Implementers und den Diff, und prüft zwei Achsen getrennt:
 **Ein Wächter oder ein Tor wird gegen sich selbst geprüft: Positivprobe und Gegenprobe.** Ein
 Wächter ohne Nachweis, dass er feuern kann, ist schlimmer als keiner.
 
+**Führt ein Paket eine Schreibsperre, einen Update-Schutz oder eine neue Validierung ein, sucht der
+Reviewer jeden anderen Schreiber derselben Felder**: Migration, Import, Skripte, Hintergrundjobs,
+andere Endpunkte, dazu die Pfade aus `writers` im Adapter. Je Schreiber belegt er, dass er
+durchkommt, oder er meldet ihn als Befund. Ein Schreiber, den nur ein Trockenlauf abdeckt, gilt
+als nicht geprüft — ein Trockenlauf sieht die schreibenden Aufrufe nicht.
+
 Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
 
 - **Den Diff-Befehl `git -C <worktree> diff HEAD`** und den Epic-Kopf, auf dem sein Worktree steht.
@@ -390,6 +401,7 @@ Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
   der Reviewer sucht Fehler in fremdem Code.
 - **Die neuen Dateien namentlich**, mit der Anweisung, sie direkt zu lesen. Sie stehen in keinem
   Diff; eine neue Kernfunktion, die er nie sieht, nimmt er ungeprüft ab.
+- **Die Lint-Basis der betroffenen Module** aus Phase 0, mit dem Auftrag, die Differenz zu melden.
 - **Steht das Paket in einer Kette, hält er die Schnittstelle fest**: was tatsächlich dasteht —
   Signatur, Merkmale der Ausgabe, jede Abweichung vom Vorgänger. Der Implementer beschreibt, was
   er bauen wollte; dieser Abschnitt geht wörtlich in den Auftrag des Nachfolgers.
@@ -410,6 +422,16 @@ ignoriert.
 **Vergleiche gegen die Ausgangszahlen aus Phase 0.** Grün allein genügt nicht: **eine gesunkene
 Suiten- oder Testzahl ist ein Befund, auch wenn alles grün ist.** Ein Agent, der „alle Suiten
 grün" meldet, hat nichts über die Vollzähligkeit gesagt.
+
+Dasselbe gilt für den **Lint-Stand**: Fehler und Warnungen je betroffenem Modul vor und nach dem
+Paket, mit `lint_commands` gemessen. **Neue Befunde in geänderten Dateien sind ein Befund**, auch
+wenn der Lint-Befehl mit 0 endet.
+
+**Sichtprüfung ohne gezeichnetes Fenster.** Zeichnet das Browserfenster nicht (Screenshot und
+Klick auf Koordinaten scheitern), gehen Klicks per Skript und der Text aus dem Seitenbaum weiter.
+Was so nicht erreichbar ist — etwa Zeilen eines virtualisierten Grids, die ohne Zeichnen nicht
+entstehen —, wird über vorhandene oder neue Tests belegt und in der Abnahmeliste als **„per Test
+belegt, nicht gesichtet"** gekennzeichnet. Stillschweigend als gesichtet abhaken ist ausgeschlossen.
 
 ### 4d — Commit auf dem Paket-Branch
 
@@ -476,7 +498,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - **Pull Request** eröffnen (`references/forge.md`), `base: <basis>`, `head: epic/…`:
   - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
     zurückgelassen oder blockiert, ein Verifikationsweg nicht fahrbar, eine Freigabe offen.
-  - **Body:** je Paket eine Zeile mit Ergebnis; Link auf die Lauftafel; die Stil-Checkliste des
+  - **Body:** je Paket eine Zeile mit Ergebnis — hat ein Paket bestehende Arbeit übernommen, mit
+    „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz „schließt sich ggf. nicht
     automatisch (412), dann von Hand".
   - **`Closes`, nur englische Schließwörter, in der Reihenfolge des Graphen:** Modus `prd` →
