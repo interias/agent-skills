@@ -46,7 +46,7 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 | `issue_form` | `prd` (Epic mit Kind-Tickets) oder `spec` (ein Issue mit sieben Abschnitten, der Orchestrator zerlegt) | **aus der Form abgeleitet**: hat das Issue Kinder → `prd`; sieben Abschnitte ohne Kinder → `spec`; sonst Vorab-Tor |
 | `ready_label` | Freigabelabel: nur Tickets damit werden bearbeitet | `ready-for-agent` |
 | `skip_labels` | Tickets damit werden übersprungen (mit Kommentar) | `needs-triage`, `needs-info`, `wontfix` |
-| `epic_label` | kennzeichnet Epics. Eine Kante zwischen zwei Epics heißt **Reihenfolge**, eine Kante von einem Epic zu einem Nicht-Epic heißt **Kind** | `epic` |
+| `epic_label` | kennzeichnet Epics. Eine Kante zwischen zwei Epics heißt **Reihenfolge**, eine Kante von einem Epic zu einem Nicht-Epic heißt **Kind**. Der Lauf setzt es an ein Zielissue mit Kindern | `epic` |
 | `dependency_source` | `api` (Gitea-Abhängigkeiten), `header` (Kopfzeile `> **Reihenfolge:** …`), `body` (Abschnitt `## Blocked by`). Mehrfachnennung erlaubt | `api` |
 | `write_back_dependencies` | Kanten, die aus `header` oder `body` gelesen wurden, trägt der Lauf in die Gitea-Abhängigkeiten nach | `true` für Kanten aus `header`; für Kanten aus `body` nur, wenn der Adapter es setzt, sonst ein Tor-Punkt |
 | `transitive` | hängen alle Kinder an Tickets einer anderen offenen Spec, werden diese im selben Lauf mitbearbeitet | `false` |
@@ -142,14 +142,21 @@ alle drei Skills.
 - **Zwei Tokens:** Liegt im Repository auch das Token eines Dienstes (etwa ein Lesetoken in
   `.env`), benutzt der Lauf ausschließlich `token_env`. Der Lauf braucht Schreibrecht, und das prüft
   er in Phase 0.
-- **Kinder aus der Kopfzeile** (`dependency_source: header`): Die Aufzählung `Kinder: #a, #b` in
-  `> **Reihenfolge:**` sind Kanten Epic → Kind, alle übrigen Nummern der Zeile sind Reihenfolge. Mit
-  `write_back_dependencies` gehen sie in die API.
+- **Kinder aus der Kopfzeile** (`dependency_source: header`): In der Standardlesart sind die
+  Aufzählung `Kinder: #a, #b` in `> **Reihenfolge:**` Kanten Epic → Kind, alle übrigen Nummern der
+  Zeile sind Reihenfolge. Ein Adapter darf in Prosa eine **eigene Lesart seiner Kopfzeilen**
+  festlegen: weitere Wörter für Kinder, harte Kanten in den Kopfzeilen der Kinder, Wörter, die keine
+  Kante sind. Das ist eine Lesart, keine Lockerung, und braucht keinen Schlüssel; der Plan legt sie
+  offen. Mit `write_back_dependencies` gehen die Kanten in die API.
 - **Rot nach einem Sofortmerge:** Der Merge wird mit `git revert -m 1` als eigener Commit
   zurückgenommen, das Paket bleibt zurück, der Lauf geht weiter. So bleibt der Epic-Branch grün, und
   der Lauf hält nicht an.
-- **`Closes` bei einer Spec mit Kindern:** `Closes #<kind>` je vollständig abgenommenem Kind, `Closes
-  #<spec>` nur, wenn alle User Stories abgenommen sind.
+- **`Closes` und das Epic:** `Closes #<kind>` je vollständig abgenommenem Kind. Ein Zielissue mit
+  Kindern bekommt nie `Closes`, in keinem Modus: Gitea führt die Kinder als Blocker und antwortet
+  beim Merge mit HTTP 412. Es schließt `/prd-nacharbeit`. `Closes #<spec>` nur bei einer Spec ohne
+  Kinder, wenn alle User Stories abgenommen sind.
+- **Der Epic-Branch** lebt im Worktree `<worktree_root>/epic-<nr>`, das Hauptverzeichnis wird nie
+  umgeschaltet (`SKILL.md`, Regel 11). Das ist kein Schlüssel und lässt sich nicht abschalten.
 - **Branches:** Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`. `<nr>` ist die
   Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>`. Slug klein, ASCII, ä→ae, ö→oe, ü→ue, ß→ss.
 

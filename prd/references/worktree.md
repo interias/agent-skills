@@ -138,6 +138,7 @@ die Arbeit verlieren: Ein erneuter Merge bringt die Änderung nicht zurück, daf
 Revert des Reverts. Der Kommentar am Paket nennt den Revert-Commit und den Satz „zurückholen =
 Revert des Reverts".
 
-Am Ende des Laufs prüfen: `git worktree list` zeigt nur das Hauptverzeichnis, und unter
-`worktree_root` liegt kein Verzeichnis dieses Laufs mehr, außer denen, die als nicht abgenommen
-berichtet sind.
+Am Ende des Laufs prüfen: `git worktree list` zeigt das Hauptverzeichnis und den Epic-Worktree, und
+unter `worktree_root` liegt kein Verzeichnis dieses Laufs mehr, außer `epic-<nr>` und denen, die
+als nicht abgenommen berichtet sind. Den Epic-Worktree räumt `/prd-aufraeumen` nach dem Merge des
+Pull Requests ab.

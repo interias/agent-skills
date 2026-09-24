@@ -69,6 +69,9 @@ wo er sie ändern kann.
 10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
     aus den Antworten der ersten entstehen. Was danach schiefgeht,
     lässt ein Paket zurück, nicht den Lauf (siehe „Wann angehalten wird").
+11. **Das Hauptverzeichnis wird nie umgeschaltet.** Kein `git switch`, kein `git checkout` dort. Im
+    selben Klon kann eine zweite Sitzung laufen, und ein Wechsel zöge ihr den Arbeitsstand weg. Der
+    Epic-Branch lebt in einem eigenen Worktree (Phase 3).
 
 ---
 
@@ -131,13 +134,15 @@ Repositorys hinweg.
 - `git worktree list`: nur das Hauptverzeichnis. Reste eines früheren Laufs melden, nicht
   entfernen — dort kann Arbeit liegen.
 - **Statuslabels aufräumen**, die ein früherer Lauf an Tickets dieses Epics hinterlassen hat
-  („Die Statuslabels"); fehlende Labels im Repository anlegen.
+  („Die Statuslabels"); fehlende Labels im Repository anlegen, `epic_label` eingeschlossen.
 
 ### 0b — Basis und Messung
 
 Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis bestimmt hat.
 
-- `git switch <basis> && git pull --ff-only <push_remote> <basis>`.
+- `git fetch <push_remote> <basis>` und den **Epic-Worktree** anlegen (Phase 3). Das
+  Hauptverzeichnis bleibt, wo es steht (Regel 11). Leseprotokoll, Messung und jede spätere
+  Verifikation laufen im Epic-Worktree. Endet der Lauf am Tor, wird er wieder abgeräumt.
 - **Leseprotokoll:** `must_read` ganz, `glossary` ganz, aus `adr_dir` alle Dateien bei
   `read_all_adrs`, sonst die im Issue genannten; das README der betroffenen Module.
 - `pre_commit_checks` prüfen (etwa `git config core.hooksPath`): was nicht von allein läuft, fährst
@@ -165,9 +170,10 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 - **Kanten lesen** nach `dependency_source` (`api`, `header`, `body`; mehrere möglich), Befehle in
   `references/forge.md`. `epic_label` trennt die Bedeutung: eine Kante vom Zielissue zu einem
   anderen **Epic** heißt *Reihenfolge* (Vorbedingung), eine Kante zu einem **Nicht-Epic** heißt
-  *Kind*. Das Zielissue gilt als Epic, auch wenn es das Label nicht trägt. Bei `header` nennt die
-  Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die Kinder, alle übrigen
-  Nummern dort sind Reihenfolge.
+  *Kind*. Das Zielissue gilt als Epic, auch wenn es das Label nicht trägt. Bei `header` nennt in
+  der Standardlesart die Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die
+  Kinder, alle übrigen Nummern dort sind Reihenfolge. Legt der Adapter eine eigene Lesart seiner
+  Kopfzeilen fest, gilt sie (`references/adapter.md`, Auslegung); der Plan legt sie offen.
 - **Modus bestimmen** — erst jetzt, weil er die Kinder braucht: `issue_form` aus dem Adapter; fehlt
   er, aus der Form — Kinder → `prd`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
   Ableitung steht im Plan.
@@ -298,6 +304,8 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
   auf GitHub nichts (`references/adapter.md`, „Auslegung").
 - Im Modus `spec` ohne Kinder bekommt die Spec mit dem Eröffnungskommentar `status/in-arbeit`.
+- **Hat das Zielissue Kinder, bekommt es `epic_label`**, falls es fehlt. KIBO gruppiert danach, und
+  ein späterer Lauf unterscheidet daran Kind und Reihenfolge.
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
   Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
   Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
@@ -309,9 +317,14 @@ Danach **ohne Rückfrage** losarbeiten.
 
 - Branchname `epic/<nr>-<slug>`. Slug aus dem Issue-Titel ohne Präfixe wie `Epic:` oder `Spec:`:
   klein, ASCII, höchstens vier Wörter, Umlaute transliteriert (ä→ae, ö→oe, ü→ue, ß→ss).
-- `git switch -c epic/… <basis>`. Existiert der Branch schon: wiederverwenden (`git switch`, bei
-  vorhandenem Remote `git pull --ff-only`). Nie neu anlegen, nie `--force`, nie zurücksetzen —
-  dort kann Arbeit eines früheren Laufs liegen.
+- **Der Epic-Branch lebt in einem eigenen Worktree** `<worktree_root>/epic-<nr>`, angelegt in 0b:
+  `git worktree add <worktree_root>/epic-<nr> -b epic/<nr>-<slug> <push_remote>/<basis>`. Existiert
+  der Branch schon: wiederverwenden (`git worktree add <pfad> epic/<nr>-<slug>`, bei vorhandenem
+  Remote darin `git pull --ff-only`). Nie neu anlegen, nie `--force`, nie zurücksetzen — dort kann
+  Arbeit eines früheren Laufs liegen.
+- Der Epic-Worktree bekommt **alle** `link_dirs` und `env_files`, weil dort die Ausgangsmessung und
+  die Verifikation nach jedem Merge über alle Suiten laufen. Er bleibt bis zum Merge des Pull
+  Requests stehen; abgeräumt wird er von `/prd-aufraeumen`.
 - Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` in einem eigenen Worktree unter
   `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer, im Modus `spec`
   ohne Kinder `<spec>-p<k>`. Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
@@ -447,12 +460,14 @@ Sobald ein Paket abgenommen ist, wandert es **sofort** in den Epic-Branch, nicht
 Der Paket-Branch lebt Minuten statt Stunden neben dem Epic-Branch, und jedes spätere Paket beginnt
 bereits auf ihm.
 
-1. Im Hauptverzeichnis: `git switch epic/<…>` und `git merge --no-ff agent/<nr>-<slug>`.
+1. Im Epic-Worktree: `git merge --no-ff agent/<nr>-<slug>`.
 2. Die betroffenen Suiten auf dem Epic-Branch fahren. Rot heißt: nicht weiterrücken — den Merge
    mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann
    wird nur der Worktree abgeräumt, der Branch bleibt: er gilt als gemergt, `git branch -d`
    gelänge, und ein erneuter Merge brächte die Änderung nicht zurück.
 3. Sonst Worktree und Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei.
+   `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
+   und verweigert.
 4. **Kommentar an das gemergte Ticket** — im Modus `prd` und `spec` mit Kindern das Kind, im Modus
    `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
@@ -490,8 +505,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 
 ## Phase 6 — Abschluss
 
-- Gesamtlauf über alle `test_commands`, gegen Phase 0 gestellt; `git log --oneline
-  <basis>..HEAD` als Übersicht.
+- Gesamtlauf über alle `test_commands` im Epic-Worktree, gegen Phase 0 gestellt; `git log
+  --oneline <push_remote>/<basis>..HEAD` als Übersicht.
 - **Lauftafel ein letztes Mal fortschreiben**, bevor du den Pull Request eröffnest: alle Zustände
   endgültig, tatsächliche Belegung gegen geplante, Teststand vorher/nachher, offene Punkte.
 - `git push -u <push_remote> epic/<nr>-<slug>`.
@@ -502,10 +517,12 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz „schließt sich ggf. nicht
     automatisch (412), dann von Hand".
-  - **`Closes`, nur englische Schließwörter, in der Reihenfolge des Graphen:** Modus `prd` →
-    `Closes #<kind>` je vollständig abgenommenem Kind; Modus `spec` → `Closes #<spec>` nur, wenn
-    **alle** User Stories abgenommen sind, und hat die Spec Kinder, zusätzlich `Closes #<kind>` je
-    vollständig abgenommenem Kind. Ein fremdes Epic aus transitiver Auflösung nie.
+  - **`Closes`, nur englische Schließwörter, in der Reihenfolge des Graphen:** `Closes #<kind>` je
+    vollständig abgenommenem Kind, in beiden Modi. **Ein Zielissue mit Kindern nie**: Auf Gitea
+    führt die API die Kinder als Blocker, und das Schließen scheitert beim Merge mit HTTP 412. Das
+    Epic schließt `/prd-nacharbeit`, sobald alle Kinder zu und alle User Stories erfüllt sind.
+    `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
+    fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Das ist der Schritt, der am
   leichtesten ausfällt, weil sich der Lauf nach dem Pull Request fertig anfühlt. Hinein: Link auf
@@ -520,7 +537,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   Statuslabel dem Endstand entspricht**: kein `status/in-arbeit` mehr im ganzen Lauf, `status/haengt`
   an jedem zurückgelassenen, `status/blockiert` an jedem blockierten Ticket (`references/forge.md`).
   Ein `POST` kann fehlgeschlagen sein.
-- `git worktree list`: nur das Hauptverzeichnis, plus gemeldete schmutzige Worktrees.
+- `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
+  Worktrees.
 - **Bericht an den Menschen:** Reihenfolge und warum; je Paket bzw. Story abgenommen oder nicht,
   mit Beleg; zurückgelassene Pakete mit Branch; übersprungene Tickets mit Grund; Reviewer-Funde
   außerhalb (höchstens drei) als Vorschlag zur Entscheidung; Links auf Pull Request und Tafel, mit
@@ -559,7 +577,7 @@ etwas.
 | jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
 | jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
 | jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
-| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen — schließt über `Closes` (nur `spec`, nur bei allen Stories) oder ein Mensch |
+| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, mit `epic_label`, wenn es Kinder hat — schließt über `Closes` nur als Spec ohne Kinder bei allen Stories, sonst `/prd-nacharbeit` |
 | ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
 Die Lauftafel steht auf dem Endstand. Prüfe die Tabelle nach, statt sie anzunehmen.
