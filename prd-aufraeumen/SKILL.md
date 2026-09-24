@@ -1,6 +1,6 @@
 ---
 name: prd-aufraeumen
-description: Nach dem Merge des Pull Requests eines /prd-Laufs aufräumen — zurück auf den Basiszweig des Pull Requests, ziehen, dann Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
+description: Nach dem Merge des Pull Requests eines /prd-Laufs aufräumen — den Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree, Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 ---
 
 # PRD aufräumen
