@@ -14,9 +14,9 @@ am lokalen Ordner.
   Fragerunden im Frontier-Verfahren, je Punkt entscheiden ob er in diese Sitzung passt oder ein
   Ticket braucht, dann umsetzen und nachdokumentieren. Legt keine Issues ohne ausdrückliche
   Entscheidung an.
-- **prd-aufraeumen** — Nach dem Merge des Pull Requests eines `/prd`-Laufs aufräumen: zurück auf
-  den Basiszweig des Pull Requests, ziehen, dann Epic- und Ticket-Branches sowie Worktree-Reste
-  nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
+- **prd-aufraeumen** — Nach dem Merge des Pull Requests eines `/prd`-Laufs aufräumen: den
+  Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree,
+  Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 
 Die drei Skills gehören zusammen: `prd-nacharbeit` und `prd-aufraeumen` setzen einen `/prd`-Lauf
 voraus und verweisen im Text aufeinander. Alle drei kennen beide Modi (`prd` mit Kind-Tickets,
