@@ -73,6 +73,8 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 |---|---|---|
 | `test_commands` | Befehle je Suite | aus `package.json` / `pyproject.toml` |
 | `known_red` | Tests, die auf der Basis bekannt rot sind, mit Namen | keine |
+| `lint_commands` | Lint-Befehl je Modul; gezählt werden Fehler und Warnungen aus der Ausgabe, nicht der Exit-Code | keine — dann entfällt der Lint-Vergleich, und der Plan sagt das |
+| `writers` | Pfade der Schreiber ohne Oberfläche (Migration, Import, Jobs), die der Reviewer bei jeder neuen Schreibsperre prüft | keine |
 | `test_isolation_env` | Variable, die jedem Worktree ein eigenes Testbett gibt | keine |
 | `isolation` | `none-needed` mit **Begründung**, wenn parallele Läufe sich nachweislich nichts teilen | nicht gesetzt |
 | `window` | Zahl der gleichzeitigen Plätze, höchstens 3 | **1**, außer `test_isolation_env` oder `isolation: none-needed` ist gesetzt, dann 3 |
