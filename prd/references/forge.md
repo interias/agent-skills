@@ -32,10 +32,9 @@ Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
 - **Ein Issue mit offenen Blockern lässt sich nicht schließen.** Der Server antwortet mit
   **HTTP 412**. Das fällt erst beim Merge auf, wenn Gitea die `Closes`-Zeilen abarbeitet, nicht
   beim Eröffnen des Pull Requests. Deshalb gehört in den PR-Body, welches geschlossene Issue noch
-  offene Blocker hat. Das betrifft auch ein Epic: Die API führt seine Kinder als Blocker. Ob Gitea
-  beim Merge die Kinder vor dem Epic schließt, ist nicht belegt. Der PR-Body sagt darum, dass das
-  Epic von Hand zu schließen ist, falls es offen bleibt. Dasselbe gilt für Ketten unter den
-  Kindern: Ob Gitea die `Closes`-Zeilen der Reihe nach abarbeitet, ist ebenfalls nicht belegt. Die
+  offene Blocker hat. Ein Epic betrifft das immer, weil die API seine Kinder als Blocker führt: Der
+  Pull Request trägt darum nie `Closes #<epic>`, das Epic schließt `/prd-nacharbeit`
+  (`SKILL.md`, Phase 6). Für Ketten unter den Kindern gilt: Ob Gitea die `Closes`-Zeilen der Reihe nach abarbeitet, ist ebenfalls nicht belegt. Die
   `Closes`-Zeilen stehen darum in der Reihenfolge des Graphen, Vorgänger zuerst, und im PR-Body
   steht je Kind mit Blocker der Satz „schließt sich ggf. nicht automatisch (412), dann von Hand".
 - **Listen sind bei 50 Einträgen gedeckelt**, auch wenn `limit` größer gesetzt ist. Mit
@@ -111,6 +110,10 @@ Namen, Farben und Beschreibungen sind in allen Repositorys gleich, damit KIBO ü
 | `status/in-arbeit` | `#00f0ff` | Zustand für KIBO: ein Lauf hat das Ticket angefasst und ist noch nicht fertig. Steuert nichts. |
 | `status/blockiert` | `#ff3b5c` | Zustand für KIBO: das Ticket wartet auf ein anderes Ticket. Steuert nichts. |
 | `status/haengt` | `#fcee0a` | Zustand für KIBO: ein Lauf hat das Ticket aufgegeben, ohne einen Menschen geht es nicht weiter. Steuert nichts. |
+
+Das Label für Epics (`epic_label`, Standard `epic`) wird auf demselben Weg angelegt: Farbe `#ff2bd6`,
+Beschreibung „Epic: wartet auf seine Kinder (gesetzt von /prd, gelesen von KIBO)". Es ist kein
+Statuslabel und bleibt am Epic, bis es geschlossen ist.
 
 - **Gitea:** Beim Setzen nimmt die API Label-**IDs**, beim Entfernen ebenfalls. Die IDs einmal je
   Lauf aus `GET $API/labels?limit=50` lesen; fehlt ein Label, `POST $API/labels` mit
