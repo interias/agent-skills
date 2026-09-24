@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- Source of prozess.png in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Prozessbild agent-skills</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; width: 1200px; height: auto; }
+  /* Transparent ground: every label sits on a white plate, so it reads on a light and a dark README theme. */
+</style>
+<svg viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Schienenplan des agent-skills-Prozesses">
+        <!-- legend -->
+        <g class="plate-all" font-family="Figtree" font-size="14" fill="#5b6475">
+          <circle cx="905" cy="56" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="922" y="61">Skill</text>
+          <circle cx="985" cy="56" r="11" fill="#fff" stroke="#e8590c" stroke-width="5"/><text x="1004" y="61">du entscheidest</text>
+          <line x1="905" y1="86" x2="935" y2="86" stroke="#7c8699" stroke-width="2" stroke-dasharray="4 4"/><text x="945" y="91">Spur in Gitea / KIBO</text>
+        </g>
+        <!-- main line -->
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M70 250 H180 C215 250 225 170 260 170 H320 C355 170 365 250 400 250 H1130" stroke="#3949ab" stroke-width="12"/>
+          <path d="M180 250 C215 250 225 330 260 330 H320 C355 330 365 250 400 250" stroke="#3949ab" stroke-width="12"/>
+        </g>
+        <!-- drops to traces -->
+        <g stroke="#7c8699" stroke-width="2" stroke-dasharray="4 5">
+          <line x1="290" y1="345" x2="290" y2="440"/>
+          <line x1="490" y1="266" x2="490" y2="440"/>
+          <line x1="745" y1="272" x2="745" y2="440"/>
+          <line x1="900" y1="266" x2="900" y2="440"/>
+          <line x1="1020" y1="264" x2="1020" y2="440"/>
+        </g>
+        <!-- stations -->
+        <g>
+          <circle cx="70" cy="250" r="12" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+          <circle cx="290" cy="170" r="11" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+          <circle cx="290" cy="330" r="11" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+          <circle cx="490" cy="250" r="15" fill="#fff" stroke="#e8590c" stroke-width="6"/>
+          <circle cx="610" cy="250" r="15" fill="#fff" stroke="#e8590c" stroke-width="6"/>
+          <rect x="700" y="232" width="90" height="36" rx="18" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+          <circle cx="900" cy="250" r="15" fill="#fff" stroke="#e8590c" stroke-width="6"/>
+          <circle cx="1020" cy="250" r="11" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+          <rect x="1118" y="230" width="24" height="40" rx="4" fill="#3949ab"/>
+        </g>
+        <!-- station labels -->
+        <g class="plates" font-family="Figtree" fill="#1d2330">
+          <text x="40" y="206" font-family="JetBrains Mono" font-weight="700" font-size="17">grill-with-docs</text>
+          <text x="40" y="226" font-size="14" fill="#5b6475">Plan und Fachsprache</text>
+
+          <text x="290" y="128" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="17">to-spec</text>
+          <text x="290" y="148" text-anchor="middle" font-size="14" fill="#5b6475">eine Spec, 7 Abschnitte</text>
+          <text x="290" y="370" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="17">to-tickets</text>
+          <text x="290" y="390" text-anchor="middle" font-size="14" fill="#5b6475">Epic + Kind-Tickets</text>
+
+          <text x="490" y="206" text-anchor="middle" font-weight="700" font-size="17" fill="#c2410c">Freigeben</text>
+          <text x="490" y="226" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#5b6475">ready-for-agent</text>
+
+          <text x="610" y="296" text-anchor="middle" font-weight="700" font-size="17" fill="#c2410c">Vorab-Tor</text>
+          <text x="610" y="316" text-anchor="middle" font-size="14" fill="#5b6475">einmal fragen,</text>
+          <text x="610" y="334" text-anchor="middle" font-size="14" fill="#5b6475">dann unbeaufsichtigt</text>
+
+          <text x="745" y="206" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="17">/prd</text>
+          <text x="745" y="226" text-anchor="middle" font-size="14" fill="#5b6475">Pakete · Implementer · Reviewer</text>
+
+          <text x="900" y="296" text-anchor="middle" font-weight="700" font-size="17" fill="#c2410c">Mergen</text>
+          <text x="900" y="316" text-anchor="middle" font-size="14" fill="#5b6475">Pull Request prüfen</text>
+
+          <text x="1020" y="206" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="17">/prd-nacharbeit</text>
+          <text x="1020" y="226" text-anchor="middle" font-size="14" fill="#5b6475">schließen, Lehren</text>
+
+          <text x="1160" y="296" text-anchor="end" font-family="JetBrains Mono" font-weight="700" font-size="17">/prd-aufraeumen</text>
+          <text x="1160" y="316" text-anchor="end" font-size="14" fill="#5b6475">Worktrees, Branches</text>
+        </g>
+        <!-- traces -->
+        <text class="plate" x="40" y="418" font-family="JetBrains Mono" font-size="12" letter-spacing="1.5" fill="#7c8699">SPUREN · GITEA UND KIBO</text>
+        <g font-family="Figtree" fill="#1d2330">
+          <rect x="155" y="440" width="190" height="62" rx="6" fill="#fff" stroke="#c9ced8"/>
+          <text x="250" y="465" text-anchor="middle" font-weight="700" font-size="15">Issue in Gitea</text>
+          <text x="250" y="486" text-anchor="middle" font-size="14" fill="#5b6475">Label epic · needs-triage</text>
+
+          <rect x="375" y="440" width="180" height="62" rx="6" fill="#fff" stroke="#c9ced8"/>
+          <text x="465" y="465" text-anchor="middle" font-weight="700" font-size="15">KIBO: Zu klären</text>
+          <text x="465" y="486" text-anchor="middle" font-size="14" fill="#5b6475">dann Backlog nach Epic</text>
+
+          <rect x="585" y="440" width="230" height="82" rx="6" fill="#fff" stroke="#c9ced8"/>
+          <text x="700" y="465" text-anchor="middle" font-weight="700" font-size="15">Statuslabels → KIBO</text>
+          <text x="700" y="486" text-anchor="middle" font-size="14" fill="#5b6475">In Arbeit · Blockiert · Hängt</text>
+          <text x="700" y="506" text-anchor="middle" font-size="14" fill="#5b6475">Kommentare · Lauftafel</text>
+
+          <rect x="840" y="440" width="150" height="62" rx="6" fill="#fff" stroke="#c9ced8"/>
+          <text x="915" y="465" text-anchor="middle" font-weight="700" font-size="15">main · Deploy</text>
+          <text x="915" y="486" text-anchor="middle" font-size="14" fill="#5b6475">Kinder erledigt</text>
+
+          <rect x="1000" y="440" width="180" height="62" rx="6" fill="#fff" stroke="#c9ced8"/>
+          <text x="1090" y="465" text-anchor="middle" font-weight="700" font-size="15">Epic geschlossen</text>
+          <text x="1090" y="486" text-anchor="middle" font-size="14" fill="#5b6475">Labels und Worktrees weg</text>
+        </g>
+      </svg>
+<script>
+  // Plates behind the labels: texts of one station (same x, at most 24 px apart) share one plate.
+  const NS = 'http://www.w3.org/2000/svg';
+  const plate = (parent, before, box) => {
+    const r = document.createElementNS(NS, 'rect');
+    for (const [k, v] of Object.entries({ x: box.x - 9, y: box.y - 5, width: box.width + 18, height: box.height + 10, rx: 6, fill: '#ffffff', stroke: '#c9ced8' })) r.setAttribute(k, v);
+    parent.insertBefore(r, before);
+  };
+  const union = (els) => els.map((e) => e.getBBox()).reduce((a, b) => {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
+  });
+  document.fonts.ready.then(() => {
+    const groups = [];
+    for (const t of document.querySelectorAll('g.plates text')) {
+      const last = groups.at(-1);
+      const prev = last?.at(-1);
+      if (prev && prev.getAttribute('x') === t.getAttribute('x') && t.getAttribute('y') - prev.getAttribute('y') <= 24) last.push(t);
+      else groups.push([t]);
+    }
+    for (const g of groups) plate(g[0].parentNode, g[0], union(g));
+    const legend = document.querySelector('g.plate-all');
+    plate(legend, legend.firstChild, union([...legend.children]));
+    const lone = document.querySelector('text.plate');
+    plate(lone.parentNode, lone, lone.getBBox());
+  });
+</script>

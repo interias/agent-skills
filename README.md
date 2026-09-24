@@ -4,6 +4,14 @@ Dieses Repository ist die versionierte Quelle für Claude-Code-Skills, die bishe
 unter `~/.claude/skills` lagen. Änderungen laufen ab jetzt über dieses Repo, nicht mehr direkt
 am lokalen Ordner.
 
+## Der Ablauf
+
+![Schienenplan: grill-with-docs klärt Plan und Fachsprache; to-spec oder to-tickets schneiden daraus ein Epic; du gibst es mit ready-for-agent frei, beantwortest am Vorab-Tor einmal alle Fragen und mergst am Ende den Pull Request; dazwischen setzt /prd die Pakete um; danach schließen /prd-nacharbeit und /prd-aufraeumen ab. Darunter die Spuren in Gitea und KIBO: Labels, Statuslabels, Kommentare, Lauftafel, erledigte Tickets.](assets/prozess/prozess.png)
+
+Die orangen Halte sind die drei Stellen, an denen ein Mensch entscheidet. Dazwischen läuft alles
+ohne Rückfrage; den Stand zeigen Gitea und KIBO. Quelle und Rendern des Bildes:
+[`assets/prozess/`](assets/prozess/README.md).
+
 ## Enthaltene Skills
 
 - **prd** — Ein PRD-Issue samt Kind-Tickets, oder ein Spec-Issue mit sieben Abschnitten
@@ -40,6 +48,7 @@ prd-aufraeumen/
   SKILL.md
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
+assets/prozess/        Prozessbild im README (prozess.png) und seine Quelle
 install.ps1
 ```
 
