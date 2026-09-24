@@ -61,9 +61,10 @@ hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der
 - `.claude/prd.md` lesen, Forge-Zugang herstellen und **einmal verifizieren** (ein Lesezugriff).
 - `git status` muss sauber sein. Ist das Arbeitsverzeichnis nicht sauber: **abbrechen und
   fragen.** Niemals fremde Änderungen wegwerfen oder mitcommitten.
-- Feststellen, auf welchem Branch du stehst und wie der Pull Request des Laufs steht. **Der
-  Epic-Branch des Laufs ist die Arbeitsfläche, solange sein Pull Request offen ist** — dort
-  gehört die Nacharbeit hin, wenn sie denselben Gegenstand betrifft (siehe Phase 3).
+- Feststellen, wie der Pull Request des Laufs steht. **Der Epic-Branch des Laufs ist die
+  Arbeitsfläche, solange sein Pull Request offen ist** — dort gehört die Nacharbeit hin, wenn sie
+  denselben Gegenstand betrifft (siehe Phase 3). Er liegt im Worktree `<worktree_root>/epic-<nr>`;
+  das Hauptverzeichnis wird nie umgeschaltet (`prd/SKILL.md`, Regel 11).
 - **Den Basis-Branch feststellen:** `base_branch` aus dem Adapter ist der Standard, maßgeblich
   aber — sobald der Pull Request existiert — dessen eigene `base`. Ein Epic kann von einem anderen
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
@@ -205,6 +206,11 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   und warum. Dieser Kommentar ist die Fortsetzung des Abschlusskommentars und der Ort, an dem in
   einem halben Jahr steht, warum ein Fund nicht zum Ticket wurde.
 - **Kommentar am betroffenen Kind-Ticket**, wenn ein Punkt aus dessen Review kam.
+- **Das Epic schließen**, wenn der Pull Request gemergt ist, jedes Kind geschlossen ist und keine
+  User Story mehr offen ist — `/prd` schließt es nie per `Closes` (`prd/SKILL.md`, Phase 6). Vorher
+  die Kinder, deren `Closes` an HTTP 412 gescheitert ist, von Hand schließen, Vorgänger zuerst. Dazu
+  ein Kommentar am Epic: die Kinder mit ihren Merge-Commits. Bleibt eine Story offen, bleibt das
+  Epic offen, und der Kommentar sagt, welche und warum.
 - **Statuslabels** (`prd/SKILL.md`, „Die Statuslabels"): Ein Ticket, dessen Glut-Punkt oder
   Zurücklassen-Grund jetzt erledigt ist, verliert `status/haengt`; ein Ticket, dessen Blocker jetzt
   geschlossen ist, verliert `status/blockiert`. Ein Punkt, der zum Ticket wird, ändert am alten

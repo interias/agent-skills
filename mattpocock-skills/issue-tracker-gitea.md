@@ -89,7 +89,7 @@ Ein Gitea-Issue anlegen.
   Ohne `## Verifikationsweg` fasst `/prd` das Ticket nicht an. Tickets in Abhängigkeitsreihenfolge
   anlegen, dann die Kanten eintragen (Kind → Vorgänger, Epic → Kind). Label `ready-for-agent`.
 - **Epic:** ein Issue mit den sieben Abschnitten der Spec-Vorlage und der Kopfzeile
-  `> **Reihenfolge:** … Kinder: #a, #b.` Die Kinder hängen per Abhängigkeit daran.
+  `> **Reihenfolge:** … Kinder: #a, #b.`, Label `epic`. Die Kinder hängen per Abhängigkeit daran.
 
 ## Wenn ein Skill „fetch the relevant ticket" sagt
 

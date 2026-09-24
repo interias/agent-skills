@@ -113,13 +113,16 @@ solange der Link darin liegt), dann das Verzeichnis. `find <pfad> -type l` liste
 - `git fetch --prune` — das hält die Fernverfolgung aktuell und markiert die Branches, deren
   Gegenstück in der Forge schon weg ist.
 
-## Phase 1 — Zurück auf den Basiszweig
+## Phase 1 — Den Basiszweig holen
+
+Das Hauptverzeichnis wird nicht umgeschaltet (`prd/SKILL.md`, Regel 11): Im selben Klon kann eine
+zweite Sitzung laufen. Geprüft wird gegen den Fernzweig.
 
 ```bash
-git switch <base aus dem Pull Request>
-git pull --ff-only
+git fetch <push_remote> <base aus dem Pull Request>
 ```
 
+Steht das Hauptverzeichnis ohnehin auf dem Basiszweig, zusätzlich `git pull --ff-only`.
 **`--ff-only`, nicht `git pull`.** Lässt sich der Basiszweig nicht vorspulen, liegt lokal etwas,
 was nicht in der Forge ist. Das ist eine Aussage über deinen Arbeitsstand und kein Anlass für
 einen Merge-Commit: melden und fragen.
@@ -127,7 +130,7 @@ einen Merge-Commit: melden und fragen.
 Prüfe danach, dass der Merge-Commit des Pull Requests wirklich im Basiszweig liegt:
 
 ```bash
-git merge-base --is-ancestor <merge-commit> HEAD && echo "drin"
+git merge-base --is-ancestor <merge-commit> <push_remote>/<base> && echo "drin"
 ```
 
 Erst wenn das bestätigt ist, darf gelöscht werden. Alles Weitere hängt daran.
@@ -144,7 +147,8 @@ Erst zählen, dann löschen. Trage vier Listen zusammen:
    einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
    Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
    Ticketnummer im PRD-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
-3. **Worktrees:** `git worktree list` — und getrennt davon der Inhalt von `worktree_root` auf der
+3. **Worktrees:** `git worktree list`, darunter der Epic-Worktree `<worktree_root>/epic-<nr>` — und
+   getrennt davon der Inhalt von `worktree_root` auf der
    Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
    was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest (siehe die
    Junction-Falle).
@@ -211,7 +215,8 @@ scheitert still genug, um übersehen zu werden.
 
 ## Phase 4 — Nachsehen und berichten
 
-- `git worktree list` — nur das Hauptverzeichnis darf übrig sein, und es steht auf dem Basiszweig.
+- `git worktree list` — nur das Hauptverzeichnis darf übrig sein, auf dem Zweig, auf dem es vorher
+  stand.
 - Der Inhalt von `worktree_root` — leer oder nicht mehr vorhanden.
 - `git status` — sauber.
 - **`node_modules` im Hauptverzeichnis prüfen.** Das ist die Gegenprobe zur Junction-Falle: eine
