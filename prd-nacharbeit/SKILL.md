@@ -213,8 +213,9 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   Epic offen, und der Kommentar sagt, welche und warum.
 - **Statuslabels** (`prd/SKILL.md`, „Die Statuslabels"): Ein Ticket, dessen Glut-Punkt oder
   Zurücklassen-Grund jetzt erledigt ist, verliert `status/haengt`; ein Ticket, dessen Blocker jetzt
-  geschlossen ist, verliert `status/blockiert`. Ein Punkt, der zum Ticket wird, ändert am alten
-  Ticket nichts.
+  geschlossen ist, verliert `status/blockiert`. Ein Kind, das nach dem Merge des Pull Requests
+  offen bleibt (etwa weil `Closes` an HTTP 412 scheiterte und es noch nicht von Hand zu ist),
+  verliert `status/in-arbeit`. Ein Punkt, der zum Ticket wird, ändert am alten Ticket nichts.
 - **Neu angelegte Issues** — falls die Fragerunde welche verlangt hat — tragen das
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
