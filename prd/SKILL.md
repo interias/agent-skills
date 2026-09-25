@@ -95,15 +95,20 @@ Repositorys hinweg.
 
   | Stelle | an | Label |
   |---|---|---|
-  | Eröffnung (2d), Modus `spec` ohne Kinder | die Spec | `+ in-arbeit` |
+  | Eröffnung (2d), in allen Modi | das Zielissue | `+ in-arbeit` |
   | Übersprungenes Kind (2d), **wenn der Grund ein blockierendes Ticket ist** | das Kind | `+ blockiert` |
-  | Implementer startet (4a) | das Paket-Ticket | `+ in-arbeit` |
-  | Kommentar nach dem Merge (5, Punkt 4) | das Kind | `− in-arbeit`; ab jetzt trägt der offene Pull Request den Stand |
+  | Implementer startet (4a) — auch jeder Nachrücker (5, Punkt 3) | das Paket-Ticket | `+ in-arbeit` |
+  | Kommentar nach dem Merge (5, Punkt 4) | das Kind | bleibt `in-arbeit`, bis der Pull Request gemergt ist und `Closes` es schließt |
   | Zurücklassen (5) | das Ticket | `+ haengt` |
   | Nachfolger eines zurückgelassenen Pakets (5) | der Nachfolger | `+ blockiert` |
   | Glut-Punkt der Lauftafel, der zu einem Ticket gehört | das Ticket | `+ haengt` |
-  | Abschluss (6), Modus `spec` ohne Kinder | die Spec | `− in-arbeit` |
-  | Abbruch | jedes laufende Paket | `− in-arbeit` |
+  | Abschluss (6), in allen Modi | das Zielissue | `− in-arbeit` |
+  | Abbruch | das Zielissue, jedes laufende und jedes gemergte Paket-Ticket | `− in-arbeit` |
+
+  **Jedes Setzen wird sofort nachgelesen** (`GET` der Labels des Tickets, `references/forge.md`).
+  Fehlt das Label, noch einmal setzen; scheitert es wieder, ist das ein Glut-Punkt auf der Tafel.
+  Ein `POST`, der still fehlschlägt, fällt sonst erst beim Nachzählen in Phase 6 auf — oder nie,
+  weil dort nur geprüft wird, was fehlen soll.
 
   Ein Kind, das wegen eines fehlenden Labels, einer fehlenden Abnahmeliste oder eines fehlenden
   Verifikationswegs übersprungen wird, bekommt **kein** Statuslabel: es wartet auf keinen anderen,
@@ -303,7 +308,8 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   nur nach Adapter oder Antwort am Tor, in die Abhängigkeiten der Forge eintragen
   (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
   auf GitHub nichts (`references/adapter.md`, „Auslegung").
-- Im Modus `spec` ohne Kinder bekommt die Spec mit dem Eröffnungskommentar `status/in-arbeit`.
+- Das Zielissue bekommt mit dem Eröffnungskommentar `status/in-arbeit`, in allen Modi. Ein
+  fremdes Epic aus transitiver Auflösung nicht: es gehört nicht diesem Lauf.
 - **Hat das Zielissue Kinder, bekommt es `epic_label`**, falls es fehlt. KIBO gruppiert danach, und
   ein späterer Lauf unterscheidet daran Kind und Reihenfolge.
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
@@ -356,7 +362,9 @@ quadratisch.
 
 Ein Subagent je Paket (`Agent`, `subagent_type: general-purpose`, `run_in_background: true`;
 mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
-(im Modus `spec` ohne Kinder trägt es die Spec schon). Er hat deinen Kontext nicht; sein Auftrag enthält alles
+und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
+Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
+aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen Kontext nicht; sein Auftrag enthält alles
 **ausgeschrieben**:
 
 - Den absoluten Pfad seines Worktrees und die Arbeitsweise darin nach „Der Subagent im Worktree"
@@ -465,15 +473,16 @@ bereits auf ihm.
    mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann
    wird nur der Worktree abgeräumt, der Branch bleibt: er gilt als gemergt, `git branch -d`
    gelänge, und ein erneuter Merge brächte die Änderung nicht zurück.
-3. Sonst Worktree und Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei.
+3. Sonst Worktree und Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei: das nächste
+   startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
    `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
    und verweigert.
 4. **Kommentar an das gemergte Ticket** — im Modus `prd` und `spec` mit Kindern das Kind, im Modus
    `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
    echter Ausgabe und den Zahlen gegen Phase 0, was der Reviewer selbst korrigiert hat, was das
-   Issue vermerkt haben will, die offenen Punkte. Mit dem Kommentar verliert das Kind
-   `status/in-arbeit`.
+   Issue vermerkt haben will, die offenen Punkte. Das Kind **behält** `status/in-arbeit`:
+   gemergt ist es erst im Epic-Branch, nicht auf der Basis.
 5. **Lauftafel fortschreiben** nach `references/lauftafel.md`: Zustand, Merge-Commit und Runden
    des Pakets, neu gestartete Pakete, Teststand, Abweichungen vom Plan, offene Punkte. Die
    Fortschreibung gehört an **diese** Stelle — die Tafel ist der einzige Ort, an dem der Stand für
@@ -531,10 +540,11 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
   Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
   Epic noch offen lässt.
-- Im Modus `spec` ohne Kinder verliert die Spec mit dem Abschlusskommentar `status/in-arbeit`.
+- Das Zielissue verliert mit dem Abschlusskommentar `status/in-arbeit`, in allen Modi.
 - **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremdes Epic, jedes Kind, jedes
   übersprungene und blockierte Ticket — prüfen, dass der Kommentar wirklich steht **und das
-  Statuslabel dem Endstand entspricht**: kein `status/in-arbeit` mehr im ganzen Lauf, `status/haengt`
+  Statuslabel dem Endstand entspricht**: `status/in-arbeit` an **jedem** gemergten Kind und sonst
+  nirgends im Lauf (auch nicht am Zielissue), `status/haengt`
   an jedem zurückgelassenen, `status/blockiert` an jedem blockierten Ticket (`references/forge.md`).
   Ein `POST` kann fehlgeschlagen sein.
 - `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
@@ -561,7 +571,9 @@ laufen weiter.
 **Wird der Lauf trotzdem abgebrochen** — durch den Menschen, die Sitzung, den Verlust der Forge —,
 wird **nichts weggeworfen**: der Epic-Branch bleibt, die fertigen Merges bleiben, zurückgelassene
 Branches bleiben. Der Stand kommt in die Forge (Kommentar am Zielissue und an den laufenden Paketen)
-und auf die Tafel: laufende Pakete verlieren „in Arbeit" **auf der Tafel und als Label**, der
+und auf die Tafel: laufende Pakete verlieren „in Arbeit" **auf der Tafel und als Label**; das
+Zielissue und die gemergten Kinder verlieren das Label ebenfalls, denn kein Pull Request trägt
+ihren Stand. Der
 Abbruchgrund steht als Glut-Punkt beim Menschen. Ein `status/in-arbeit`, das nach einem Abbruch
 stehen bleibt, lügt wie eine Tafel, die stehen bleibt. Ein Abbruch, der nur im Chat steht, ist von „noch nicht angefangen" nicht zu
 unterscheiden; eine Tafel, die drei Pakete als „in Arbeit" stehen lässt, behauptet, es liefe noch
@@ -573,11 +585,11 @@ etwas.
 
 | Issue | Kommentar | Zustand danach |
 |---|---|---|
-| jedes gemergte Paket-Ticket (Kind, in beiden Modi) | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen, ohne Statuslabel — schließt über `Closes` |
+| jedes gemergte Paket-Ticket (Kind, in beiden Modi) | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen, `status/in-arbeit` — schließt über `Closes` |
 | jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
 | jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
 | jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
-| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, mit `epic_label`, wenn es Kinder hat — schließt über `Closes` nur als Spec ohne Kinder bei allen Stories, sonst `/prd-nacharbeit` |
+| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label`, wenn es Kinder hat — schließt über `Closes` nur als Spec ohne Kinder bei allen Stories, sonst `/prd-nacharbeit` |
 | ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
 Die Lauftafel steht auf dem Endstand. Prüfe die Tabelle nach, statt sie anzunehmen.

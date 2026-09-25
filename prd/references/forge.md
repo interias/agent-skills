@@ -128,8 +128,11 @@ Statuslabel und bleibt am Epic, bis es geschlossen ist.
 - **GitHub:** `gh issue edit <nr> --add-label status/in-arbeit --remove-label status/blockiert,status/haengt`;
   fehlende Labels mit `gh label create`.
 - **GitLab:** `PUT /projects/:id/issues/:iid` mit `add_labels` und `remove_labels`.
+- **Nachlesen nach jedem Setzen:** `GET $API/issues/<nr>/labels` (GitHub: `gh issue view <nr>
+  --json labels`) muss das gesetzte Label enthalten und keines der beiden anderen.
 - **Nachzählen:** `GET $API/issues?state=open&type=issues&labels=status/in-arbeit` muss am Ende des
-  Laufs leer sein, soweit es Tickets dieses Laufs betrifft. **Vorsicht:** Gitea ignoriert einen
+  Laufs von den Tickets dieses Laufs genau die gemergten Kinder liefern — kein Zielissue, kein
+  zurückgelassenes, kein fehlendes gemergtes Kind. **Vorsicht:** Gitea ignoriert einen
   Label-Filter auf ein Label, das es im Repository nicht gibt, und liefert dann **alle** offenen
   Issues — erst prüfen, dass das Label existiert.
 
