@@ -53,6 +53,8 @@ neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen C
 - **Laufende Chats** mit `/prd` übernimmt er, statt sie neu zu starten: er überwacht sie,
   antwortet und stößt Nacharbeit und Aufräumen dort an. Dafür gibst du ihn in jedem Chat einmal
   selbst frei.
+- **Flottenlogbuch:** Den Stand schreibt der Admiral zusätzlich in ein dauerhaft offenes Issue mit
+  dem Label `flotte`. KIBO zeigt daraus Flottenabzeichen, Flottenband, Entscheidungen und Erfolge.
 - **Verbrauchsbremse:** Der Admiral liest das 5-Stunden- und das Wochenlimit und rechnet hoch.
   Bei Gelb startet er nichts Neues, bei Rot pausieren die Läufe nach der laufenden Welle bis zum
   Reset. Dafür melden sich die Läufe nach jeder Welle mit `FLOTTE-WELLE`.

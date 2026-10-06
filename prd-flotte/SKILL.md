@@ -169,6 +169,7 @@ mindestens Stufe mittel.
 
 - **Flottenplan ausgeben:** Name, Kandidaten, Kollisionsstufe je Paar mit Beleg, Belegung, die
   wartenden Epics und worauf sie warten.
+- **Flottenlogbuch** öffnen oder anlegen und auf „Einsatz läuft" setzen (siehe „Flottenlogbuch").
 - **Flottentafel** anlegen: dieselbe Vorlage wie die Lauftafel (`prd/references/lauftafel.html`,
   Regeln in `lauftafel.md`), ein **Paket ist hier ein Epic-Lauf**, die Spalte „Module" zeigt die
   berührten Module, dazu je Zeile die Agent-ID, der Link auf die Lauftafel des Laufs und der Pull
@@ -220,6 +221,7 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
   (`SendMessage`), ob er fortsetzen kann. Kommt kein Block zurück, ist der Lauf abgebrochen: Stand
   am Zielissue kommentieren, Statuslabels nach `prd/SKILL.md` („Wird der Lauf trotzdem
   abgebrochen") richten, Glut-Punkt auf der Flottentafel.
+- **Flottenlogbuch fortschreiben** bei jedem Ereignis, im selben Zug wie die Flottentafel.
 - **Flottentafel fortschreiben** bei jedem Ereignis: Zustand je Epic, Wartende, Entscheidungen mit
   Herkunft, was beim Menschen liegt.
 
@@ -243,6 +245,7 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
 
 Wenn kein Epic mehr startbereit ist und kein Lauf mehr läuft:
 
+- Flottenlogbuch auf den Endstand: `active: false`, Zähler in `history` fortgeschrieben.
 - Flottentafel auf den Endstand: je Epic Ergebnis, PR, Merge-Zustand, Nacharbeit, Aufräumen.
 - **Bericht:** Verbrauch und Schwellen-Befund mit Vorschlag für `references/verbrauch.md`
   („Verbrauchsbremse"); Belegung geplant gegen tatsächlich, je Epic das Ergebnis, alle eigenen
@@ -282,6 +285,52 @@ und auf die Flottentafel unter „Entscheidungen". Der Mensch kann jede übersti
 Entscheidung, die sich nicht folgenlos aufheben ließe, gehört deshalb in die rechte Spalte.
 
 ---
+
+## Flottenlogbuch
+
+Die Flottentafel ist ein Artefakt und für KIBO und das Team unsichtbar. Den Stand der Flotte schreibst
+du deshalb auch nach Gitea, in **ein dauerhaft offenes Issue je Repository** mit dem Label `flotte`
+(Titel `Flottenlogbuch`). KIBO liest es und zeigt daraus Flottenabzeichen, Flottenband und Erfolge
+(KIBO ADR-0017); es zählt dort nirgends als Ticket.
+
+- **Finden oder anlegen:** offenes Issue mit Label `flotte`. Fehlt das Label, legst du es an (Farbe
+  `#00f0ff`, Beschreibung „Flottenlogbuch von /prd-flotte, kein Ticket"). Es gibt höchstens eines.
+- **Nie schließen**, auch nach dem Einsatz nicht: Ein geschlossenes zählte in KIBO als erledigt. Am Ende
+  steht `active: false`.
+- **Body:** oben ein Satz für Menschen, dann die Marke und der Block. Du ersetzt den ganzen Body (PATCH
+  aus einer Datei, `prd/references/forge.md`), bei jedem Ereignis, in dem du die Flottentafel
+  fortschreibst, und liest ihn danach einmal nach.
+
+````
+Stand der Flotte von /prd-flotte. Wird automatisch fortgeschrieben; KIBO liest den Block.
+
+<!-- kibo:flotte -->
+```json
+{
+  "version": 1,
+  "active": true,
+  "admiral": "Pike",
+  "brake": "gelb",
+  "epics": [
+    { "number": 21, "stage": "packages", "wave": 3, "carrier": "chat", "paused": false, "note": "" }
+  ],
+  "questions": [ { "number": 15, "text": "Frage, die nur der Mensch entscheidet" } ],
+  "history": { "deployments": 0, "max_runs": 4, "all_green": 0 }
+}
+```
+````
+
+| Feld | Inhalt |
+|---|---|
+| `brake` | Stufe der Verbrauchsbremse: `gruen`, `gelb`, `rot`. **Nur die Stufe, nie Prozente** — das Planlimit sind Kontodaten einer Person, Gitea liest das Team |
+| `epics[].stage` | Etappe: `waiting`, `gate`, `packages`, `pr`, `followup` (Nacharbeit), `merge` (wartet auf den Merge des Menschen), `cleanup`, `done` |
+| `epics[].carrier` | `agent` (dein Lauf-Agent) oder `chat` (übernommener Chat) |
+| `epics[].paused` | `true` während einer Pause der Verbrauchsbremse |
+| `epics[].wave`, `note` | laufende Welle; ein kurzer Satz, etwa worauf ein wartendes Epic wartet |
+| `questions` | was nach dem Entscheidungsrecht beim Menschen liegt und offen ist; erledigt → raus |
+| `history` | über alle Einsätze: `deployments` +1 beim Abschluss, `max_runs` die höchste Zahl gleichzeitiger Läufe, `all_green` +1, wenn ein Einsatz die Bremse nie verlassen hat |
+
+Ein Epic, das fertig ist (`done`), bleibt bis zum Ende des Einsatzes im Block; danach leerst du `epics`.
 
 ## Verbrauchsbremse
 
