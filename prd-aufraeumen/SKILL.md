@@ -152,6 +152,10 @@ Erst zählen, dann löschen. Trage vier Listen zusammen:
    Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
    was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest (siehe die
    Junction-Falle).
+   **Laufende Läufe anderer Epics** sind kein Befund: `epic-<andere nr>`, ihre Paket-Worktrees und
+   Paket-Branches gehören einem Lauf, dessen Zielissue `status/in-arbeit` trägt oder den
+   `/prd-flotte` nennt. Sie stehen auf keiner Liste und werden nicht angefasst, auch nicht als
+   Altlast.
 4. **Altlasten**, wenn der Nutzer sie einbezogen hat: lokale Branches, deren Gegenstück in der
    Forge gelöscht ist (`git branch -vv` zeigt sie als `origin/…: gone`), und Worktree-Reste
    früherer Läufe.
@@ -216,8 +220,9 @@ scheitert still genug, um übersehen zu werden.
 ## Phase 4 — Nachsehen und berichten
 
 - `git worktree list` — nur das Hauptverzeichnis darf übrig sein, auf dem Zweig, auf dem es vorher
-  stand.
-- Der Inhalt von `worktree_root` — leer oder nicht mehr vorhanden.
+  stand, dazu die Worktrees laufender Läufe anderer Epics.
+- Der Inhalt von `worktree_root` — leer oder nicht mehr vorhanden, bis auf laufende Läufe anderer
+  Epics.
 - `git status` — sauber.
 - **`node_modules` im Hauptverzeichnis prüfen.** Das ist die Gegenprobe zur Junction-Falle: eine
   Stichprobe, dass die Abhängigkeiten noch dastehen. Fehlen sie, hat ein rekursives Löschen durch
@@ -246,4 +251,6 @@ Branch behält, gehört das an dessen Issue — falls `/prd` es dort nicht schon
 - Ein Worktree lässt sich nicht ohne `--force` entfernen.
 - Ein Worktree-Rest enthält mehr als die Verweise auf die Abhängigkeiten.
 - Ein zu löschender Branch ist gerade in einem anderen Worktree ausgecheckt.
-- Es läuft noch ein `/prd`-Lauf auf demselben Repository — dann sind „Reste" keine Reste.
+- Es läuft noch ein `/prd`-Lauf oder eine Nacharbeit **auf demselben Epic** — dann sind „Reste"
+  keine Reste. Läufe anderer Epics halten das Aufräumen nicht an; ihre Worktrees und Branches
+  bleiben außen vor (Phase 2).

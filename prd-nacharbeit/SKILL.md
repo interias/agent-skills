@@ -54,6 +54,12 @@ Lösung.
 Die Umkehrung gilt genauso: **ein Punkt, der nicht in diese Sitzung passt, wird nicht
 hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der Entscheidung.
 
+**Unter `/prd-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer: Du beendest
+deinen Zug mit dem Frageblock aus `prd-flotte/SKILL.md` und setzt mit seiner Antwort fort. Eine
+Entscheidung, die er im Rahmen seines Entscheidungsrechts trifft und in der Forge vermerkt, ist
+eine ausdrückliche Entscheidung im Sinn dieser Regel; was dort dem Menschen vorbehalten ist, legt
+er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er.
+
 ---
 
 ## Phase 0 — Rüsten
