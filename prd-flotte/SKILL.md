@@ -30,6 +30,13 @@ Mit diesem Namen stellst du dich vor, er steht auf der Flottentafel und unter je
 Forge-Kommentar, den du selbst schreibst: `— /prd-flotte (Admiral <Name>)`. Läufe, die du
 startest, unterschreiben weiter als sie selbst.
 
+**Chattitel.** Direkt nach der Ziehung benennst du deinen Chat um (`set_session_title`, Sitzung
+`self`): `Flotte <Repo> · Admiral <Name>`. Jeden übernommenen Chat (siehe „Laufende Chats
+übernehmen") benennst du nach seiner Freigabe um: `<alter Titel> · Flotte <Name>`, damit die
+Seitenleiste zeigt, wer zur Flotte gehört. Hat der Mensch einen Titel selbst vergeben, fragt die
+App nach; lehnt er ab, bleibt der Titel. Fehlt das Werkzeug (etwa im Terminal), nennst du dem
+Menschen den Titel für `/rename`.
+
 ## Die Regeln, die nicht verhandelbar sind
 
 1. **Du mergst nie einen Pull Request** und pushst nie auf eine Basis. Jeder Epic-PR wartet auf
