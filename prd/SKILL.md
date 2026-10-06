@@ -42,6 +42,12 @@ Punkt fürs Vorab-Tor.
 stammt: *Skill*, *Adapter* oder der ADR, in dem sie steht. Wer eine Regel anzweifelt, muss wissen,
 wo er sie ändern kann.
 
+**Unter `/prd-flotte`.** Sagt der Auftrag, dass der Lauf unter `/prd-flotte` läuft, bist du ein
+Subagent und kannst niemanden fragen: Wo dieser Skill fragt oder wartet (Vorab-Tor, Anhalten vor
+dem Lauf), beendest du deinen Zug mit dem Frageblock aus `prd-flotte/SKILL.md` („Wie ein Lauf
+unter dir läuft"), und Implementer und Reviewer startest du im Vordergrund statt mit
+`run_in_background` (Phase 4a). Alles andere gilt unverändert.
+
 ---
 
 ## Die Regeln, die nicht verhandelbar sind
@@ -136,8 +142,10 @@ Repositorys hinweg.
   `token_env` (geladen aus `token_file`), nie ein anderes, das im Repository liegt.
 - `git status` muss **leer** sein. Jede Änderung ist fremde Arbeit — anhalten und fragen, nie
   wegwerfen, nie mitcommitten.
-- `git worktree list`: nur das Hauptverzeichnis. Reste eines früheren Laufs melden, nicht
-  entfernen — dort kann Arbeit liegen.
+- `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
+  Epics (`epic-<andere nr>` und ihre Paket-Worktrees). Laufend heißt: ihr Zielissue trägt
+  `status/in-arbeit`, oder der Auftrag nennt sie (`/prd-flotte`). Sie fasst der Lauf nicht an.
+  Alles andere sind Reste eines früheren Laufs: melden, nicht entfernen — dort kann Arbeit liegen.
 - **Statuslabels aufräumen**, die ein früherer Lauf an Tickets dieses Epics hinterlassen hat
   („Die Statuslabels"); fehlende Labels im Repository anlegen, `epic_label` eingeschlossen.
 
@@ -360,8 +368,8 @@ quadratisch.
 
 ### 4a — Implementer-Subagent
 
-Ein Subagent je Paket (`Agent`, `subagent_type: general-purpose`, `run_in_background: true`;
-mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
+Ein Subagent je Paket (`Agent`, `subagent_type: general-purpose`, `run_in_background: true`,
+unter `/prd-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
 aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen Kontext nicht; sein Auftrag enthält alles
@@ -548,7 +556,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   an jedem zurückgelassenen, `status/blockiert` an jedem blockierten Ticket (`references/forge.md`).
   Ein `POST` kann fehlgeschlagen sein.
 - `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
-  Worktrees.
+  Worktrees und die Worktrees anderer laufender Läufe (Phase 0a).
 - **Bericht an den Menschen:** Reihenfolge und warum; je Paket bzw. Story abgenommen oder nicht,
   mit Beleg; zurückgelassene Pakete mit Branch; übersprungene Tickets mit Grund; Reviewer-Funde
   außerhalb (höchstens drei) als Vorschlag zur Entscheidung; Links auf Pull Request und Tafel, mit

@@ -26,11 +26,41 @@ ohne Rückfrage; den Stand zeigen Gitea und KIBO. Quelle und Rendern des Bildes:
   Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree,
   Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 
+- **prd-flotte** *(optional)* — Leitstand über den drei anderen: wählt die Epics, die
+  gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die
+  Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines
+  Entscheidungsrechts selbst und stößt danach Nacharbeit und Aufräumen an. Mergt nie.
+
 Die drei Skills gehören zusammen: `prd-nacharbeit` und `prd-aufraeumen` setzen einen `/prd`-Lauf
 voraus und verweisen im Text aufeinander. Alle drei kennen beide Modi (`prd` mit Kind-Tickets,
 `spec` mit oder ohne Kinder) und erwarten im jeweiligen Zielrepo eine projektlokale Adapterdatei
 `.claude/prd.md`. Der verbindliche Vertrag für deren Schlüssel — welche es gibt, was sie
 bedeuten, was gilt, wenn einer fehlt — steht in [`prd/references/adapter.md`](prd/references/adapter.md).
+
+## Mehrere Epics gleichzeitig: `/prd-flotte`
+
+![Flottenbild: /prd-flotte, der Admiral mit Zufallsnamen, startet drei /prd-Läufe A bis C nebeneinander; ein vierter wartet, bis ein Platz frei wird. Jeder Lauf fragt am Vorab-Tor den Admiral, endet mit offenem Pull Request, durchläuft /prd-nacharbeit, wartet auf deinen Merge und endet mit /prd-aufraeumen. Darunter die Kollisionsstufen (keine 4, klein 3–4, mittel 2, groß 1 gleichzeitig) und das Entscheidungsrecht des Admirals (selbst, mit Präzedenz, immer du).](assets/flotte/flotte.png)
+
+Optional, für den Fall, dass mehrere freigegebene Epics bereitliegen, etwa beim Aufsetzen eines
+neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen Chat.
+
+- **Der Admiral** zieht zu Beginn per Zufall einen Namen aus der Sternenflotte und unterschreibt
+  damit seine Forge-Kommentare. Er implementiert nicht und mergt nie.
+- **Läufe sind Subagenten**, keine Chats. Fragen beantworten sie nicht selbst, sondern beenden
+  ihren Zug mit einem `FLOTTE-FRAGE`-Block; der Admiral antwortet und sie setzen fort. Ihre
+  Implementer laufen im Vordergrund, in Wellen statt im gleitenden Fenster, weil ein Subagent die
+  Fertig-Meldung eigener Hintergrund-Agenten nicht hört.
+- **Laufende Chats** mit `/prd` übernimmt er, statt sie neu zu starten: er überwacht sie,
+  antwortet und stößt Nacharbeit und Aufräumen dort an. Dafür gibst du ihn in jedem Chat einmal
+  selbst frei.
+- **Wie viele gleichzeitig**, entscheidet die Kollisionsstufe des schlechtesten Paares, höchstens
+  vier. Die Grenzen zwischen den Stufen sind noch Entwurf.
+- **Entscheidungsrecht:** Der Admiral entscheidet selbst, was eine Herkunft hat (Empfehlung des
+  Skills, Präzedenz in diesem oder einem anderen Projekt) und folgenlos aufhebbar ist. Jede solche
+  Entscheidung steht mit Herkunft in der Forge. Regeln lockern, Produktivdaten, fehlende Zugänge,
+  Merge und Remote-Löschungen bleiben bei dir.
+
+Quelle und Rendern des Bildes: [`assets/flotte/`](assets/flotte/README.md).
 
 Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 `mattpocock-skills`) liegt hier keine Kopie, sondern die Einrichtung für unser Gitea:
@@ -46,9 +76,12 @@ prd-nacharbeit/
   SKILL.md
 prd-aufraeumen/
   SKILL.md
+prd-flotte/            optional: mehrere Epics gleichzeitig
+  SKILL.md
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
 assets/prozess/        Prozessbild im README (prozess.png) und seine Quelle
+assets/flotte/         Flottenbild im README (flotte.png) und seine Quelle
 install.ps1
 ```
 

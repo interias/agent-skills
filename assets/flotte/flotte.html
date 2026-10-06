@@ -1,0 +1,178 @@
+<!doctype html>
+<!-- Source of flotte.png in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Flottenbild prd-flotte</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; width: 1200px; height: auto; }
+  /* Transparent ground: every label sits on a white plate, so it reads on a light and a dark README theme. */
+</style>
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flottenbild: der Admiral führt mehrere /prd-Läufe gleichzeitig">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#7c8699"/>
+          </marker>
+        </defs>
+        <!-- legend -->
+        <g class="plate-all" font-family="Figtree" font-size="14" fill="#5b6475">
+          <circle cx="815" cy="40" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="832" y="45">Skill</text>
+          <rect x="884" y="33" width="14" height="14" transform="rotate(45 891 40)" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="908" y="45">Admiral entscheidet</text>
+          <circle cx="1060" cy="40" r="11" fill="#fff" stroke="#e8590c" stroke-width="5"/><text x="1079" y="45">du entscheidest</text>
+        </g>
+
+        <!-- question loop: lanes ask the admiral -->
+        <path d="M500 146 C500 80 175 80 175 196" fill="none" stroke="#7c8699" stroke-width="2" stroke-dasharray="4 5" marker-end="url(#arrow)"/>
+        <g class="plates" font-family="Figtree" fill="#1d2330">
+          <text x="338" y="76" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="14">FLOTTE-FRAGE</text>
+          <text x="338" y="96" text-anchor="middle" font-size="13" fill="#5b6475">entscheidet selbst oder legt dir gebündelt vor</text>
+        </g>
+
+        <!-- lanes -->
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M250 262 C285 262 280 160 315 160 H1130" stroke="#3949ab" stroke-width="10"/>
+          <path d="M250 262 C285 262 280 230 315 230 H1130" stroke="#3949ab" stroke-width="10"/>
+          <path d="M250 262 C285 262 280 300 315 300 H1130" stroke="#3949ab" stroke-width="10"/>
+          <path d="M250 262 C285 262 280 370 315 370 H330" stroke="#9fa8da" stroke-width="10"/>
+        </g>
+
+        <!-- admiral -->
+        <rect x="30" y="200" width="220" height="124" rx="14" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+        <g font-family="Figtree" fill="#1d2330" text-anchor="middle">
+          <text x="140" y="232" font-family="JetBrains Mono" font-weight="700" font-size="18">/prd-flotte</text>
+          <text x="140" y="254" font-size="14" font-style="italic" fill="#3949ab">Admiral &lt;Zufallsname&gt;</text>
+          <text x="140" y="278" font-size="13" fill="#5b6475">Flottenplan · Flottentafel</text>
+          <text x="140" y="296" font-size="13" fill="#5b6475">Lauftafeln im Browser</text>
+          <text x="140" y="314" font-size="13" fill="#5b6475">Platz frei → neu belegen</text>
+        </g>
+
+        <!-- stations, lanes 1–3 -->
+        <g font-family="JetBrains Mono" font-size="14" font-weight="700" fill="#1d2330" text-anchor="middle">
+          <rect x="330" y="144" width="104" height="32" rx="16" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="382" y="165">/prd · A</text>
+          <rect x="330" y="214" width="104" height="32" rx="16" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="382" y="235">/prd · B</text>
+          <rect x="330" y="284" width="104" height="32" rx="16" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="382" y="305">/prd · C</text>
+          <rect x="330" y="354" width="104" height="32" rx="16" fill="#fff" stroke="#9fa8da" stroke-width="4" stroke-dasharray="6 5"/><text x="382" y="375" fill="#7c8699">/prd · D</text>
+        </g>
+        <g>
+          <!-- Vorab-Tor: admiral decides -->
+          <rect x="493" y="153" width="14" height="14" transform="rotate(45 500 160)" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <rect x="493" y="223" width="14" height="14" transform="rotate(45 500 230)" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <rect x="493" y="293" width="14" height="14" transform="rotate(45 500 300)" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <!-- Pull Request -->
+          <circle cx="620" cy="160" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <circle cx="620" cy="230" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <circle cx="620" cy="300" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <!-- Nacharbeit -->
+          <circle cx="750" cy="160" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <circle cx="750" cy="230" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <circle cx="750" cy="300" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <!-- Merge: human -->
+          <circle cx="870" cy="160" r="12" fill="#fff" stroke="#e8590c" stroke-width="5"/>
+          <circle cx="870" cy="230" r="12" fill="#fff" stroke="#e8590c" stroke-width="5"/>
+          <circle cx="870" cy="300" r="12" fill="#fff" stroke="#e8590c" stroke-width="5"/>
+          <!-- Aufräumen -->
+          <circle cx="1010" cy="160" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <circle cx="1010" cy="230" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <circle cx="1010" cy="300" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/>
+          <!-- line ends -->
+          <rect x="1118" y="144" width="20" height="32" rx="4" fill="#3949ab"/>
+          <rect x="1118" y="214" width="20" height="32" rx="4" fill="#3949ab"/>
+          <rect x="1118" y="284" width="20" height="32" rx="4" fill="#3949ab"/>
+        </g>
+
+        <!-- column guides down to the labels -->
+        <g stroke="#c9ced8" stroke-width="1.5" stroke-dasharray="3 5">
+          <line x1="500" y1="312" x2="500" y2="404"/>
+          <line x1="620" y1="312" x2="620" y2="404"/>
+          <line x1="750" y1="312" x2="750" y2="404"/>
+          <line x1="870" y1="315" x2="870" y2="404"/>
+          <line x1="1010" y1="312" x2="1010" y2="404"/>
+        </g>
+
+        <!-- labels -->
+        <g class="plates" font-family="Figtree" fill="#1d2330">
+          <text x="448" y="375" font-size="14" fill="#5b6475">wartet: Reihenfolge-Kante oder Kollisionsstufe — startet, sobald ein Platz frei wird</text>
+
+          <text x="500" y="428" text-anchor="middle" font-weight="700" font-size="15">Vorab-Tor</text>
+          <text x="500" y="447" text-anchor="middle" font-size="13" fill="#5b6475">fragt den Admiral</text>
+
+          <text x="620" y="428" text-anchor="middle" font-weight="700" font-size="15">Pull Request</text>
+          <text x="620" y="447" text-anchor="middle" font-size="13" fill="#5b6475">bleibt offen</text>
+
+          <text x="750" y="428" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="15">/prd-nacharbeit</text>
+          <text x="750" y="447" text-anchor="middle" font-size="13" fill="#5b6475">Fragen → Admiral</text>
+
+          <text x="870" y="428" text-anchor="middle" font-weight="700" font-size="15" fill="#c2410c">Mergen</text>
+          <text x="870" y="447" text-anchor="middle" font-size="13" fill="#5b6475">nur du</text>
+
+          <text x="1010" y="428" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="15">/prd-aufraeumen</text>
+          <text x="1010" y="447" text-anchor="middle" font-size="13" fill="#5b6475">nach dem Merge</text>
+        </g>
+
+        <!-- collision levels -->
+        <g font-family="Figtree" fill="#1d2330">
+          <rect x="30" y="486" width="400" height="128" rx="8" fill="#fff" stroke="#c9ced8"/>
+          <text x="48" y="512" font-family="JetBrains Mono" font-size="12" letter-spacing="1.5" fill="#7c8699">KOLLISIONSSTUFE → GLEICHZEITIG</text>
+          <g text-anchor="middle">
+            <rect x="48" y="526" width="84" height="56" rx="6" fill="#e8eaf6"/>
+            <text x="90" y="552" font-weight="700" font-size="20" fill="#3949ab">4</text><text x="90" y="572" font-size="13" fill="#5b6475">keine</text>
+            <rect x="140" y="526" width="84" height="56" rx="6" fill="#e8eaf6"/>
+            <text x="182" y="552" font-weight="700" font-size="20" fill="#3949ab">3–4</text><text x="182" y="572" font-size="13" fill="#5b6475">klein</text>
+            <rect x="232" y="526" width="84" height="56" rx="6" fill="#fff3e0"/>
+            <text x="274" y="552" font-weight="700" font-size="20" fill="#c2410c">2</text><text x="274" y="572" font-size="13" fill="#5b6475">mittel</text>
+            <rect x="324" y="526" width="84" height="56" rx="6" fill="#fde2d4"/>
+            <text x="366" y="552" font-weight="700" font-size="20" fill="#c2410c">1</text><text x="366" y="572" font-size="13" fill="#5b6475">groß</text>
+          </g>
+          <text x="48" y="602" font-size="12" fill="#5b6475">maßgeblich ist das schlechteste Paar · Grenzen noch Entwurf</text>
+        </g>
+
+        <!-- decision rights -->
+        <g font-family="Figtree" fill="#1d2330">
+          <rect x="450" y="486" width="720" height="128" rx="8" fill="#fff" stroke="#c9ced8"/>
+          <text x="468" y="512" font-family="JetBrains Mono" font-size="12" letter-spacing="1.5" fill="#7c8699">ENTSCHEIDUNGSRECHT DES ADMIRALS · JEDE ENTSCHEIDUNG STEHT IN DER FORGE</text>
+
+          <text x="468" y="540" font-weight="700" font-size="15" fill="#3949ab">selbst</text>
+          <text x="468" y="560" font-size="13" fill="#5b6475">Empfehlung des Skills</text>
+          <text x="468" y="578" font-size="13" fill="#5b6475">Belegung, Kanten nachtragen</text>
+          <text x="468" y="596" font-size="13" fill="#5b6475">Sitzung oder Ticket (Volumen)</text>
+
+          <line x1="700" y1="528" x2="700" y2="600" stroke="#e3e6ec"/>
+          <text x="716" y="540" font-weight="700" font-size="15" fill="#3949ab">mit Präzedenz</text>
+          <text x="716" y="560" font-size="13" fill="#5b6475">dieses Projekt: ADR, frühere Tore</text>
+          <text x="716" y="578" font-size="13" fill="#5b6475">andere Projekte, verlinkt</text>
+          <text x="716" y="596" font-size="13" fill="#5b6475">nur wenn aufhebbar</text>
+
+          <line x1="948" y1="528" x2="948" y2="600" stroke="#e3e6ec"/>
+          <text x="964" y="540" font-weight="700" font-size="15" fill="#c2410c">immer du</text>
+          <text x="964" y="560" font-size="13" fill="#5b6475">Regel lockern, Produktivdaten</text>
+          <text x="964" y="578" font-size="13" fill="#5b6475">no_access, gate_approvals</text>
+          <text x="964" y="596" font-size="13" fill="#5b6475">Merge, Remote-Branch löschen</text>
+        </g>
+      </svg>
+<script>
+  // Plates behind the labels: texts of one station (same x, at most 24 px apart) share one plate.
+  const NS = 'http://www.w3.org/2000/svg';
+  const plate = (parent, before, box) => {
+    const r = document.createElementNS(NS, 'rect');
+    for (const [k, v] of Object.entries({ x: box.x - 9, y: box.y - 5, width: box.width + 18, height: box.height + 10, rx: 6, fill: '#ffffff', stroke: '#c9ced8' })) r.setAttribute(k, v);
+    parent.insertBefore(r, before);
+  };
+  const union = (els) => els.map((e) => e.getBBox()).reduce((a, b) => {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
+  });
+  document.fonts.ready.then(() => {
+    for (const g of document.querySelectorAll('g.plates')) {
+      const groups = [];
+      for (const t of g.querySelectorAll('text')) {
+        const last = groups.at(-1);
+        const prev = last?.at(-1);
+        if (prev && prev.getAttribute('x') === t.getAttribute('x') && t.getAttribute('y') - prev.getAttribute('y') <= 24) last.push(t);
+        else groups.push([t]);
+      }
+      for (const grp of groups) plate(grp[0].parentNode, grp[0], union(grp));
+    }
+    const legend = document.querySelector('g.plate-all');
+    plate(legend, legend.firstChild, union([...legend.children]));
+  });
+</script>
