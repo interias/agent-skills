@@ -86,6 +86,12 @@ STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
 
+**Nach jeder Welle** — alle Pakete der Welle gemergt oder zurückgelassen, Tafel fortgeschrieben,
+die nächste Welle noch nicht gestartet — beendet er seinen Zug ebenfalls, mit
+`FLOTTE-WELLE <epic>`, den Paketen der Welle mit Ergebnis und der geplanten nächsten Welle. Das
+ist dein Prüfpunkt für die Verbrauchsbremse. Du antwortest `weiter` oder `Pause bis <Zeit>`; bei
+einer Pause startet er nichts mehr und wartet auf `weiter`.
+
 ## Laufende Chats übernehmen
 
 Läufe, die schon in eigenen Chats laufen (`/prd`, `/prd-nacharbeit` von Hand gestartet), führst du
@@ -173,6 +179,8 @@ mindestens Stufe mittel.
 
 ## Phase 2 — Starten
 
+Vor jedem Start die Verbrauchsbremse prüfen: gestartet wird nur bei Grün.
+
 Je Epic der Belegung ein Lauf-Agent, alle Starts in **einer** Nachricht. Sein Auftrag enthält
 ausgeschrieben:
 
@@ -190,7 +198,11 @@ den Link nennen.
 
 ## Phase 3 — Überwachen
 
-Du wirst geweckt, wenn ein Lauf-Agent seinen Zug beendet. Dazwischen pollst du nicht.
+Du wirst geweckt, wenn ein Lauf-Agent seinen Zug beendet. Dazwischen pollst du nicht. Bei jedem
+Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
+
+- **`FLOTTE-WELLE`:** Stufe bestimmen und `weiter` oder `Pause bis <Reset>` antworten; die Wahl
+  steht auf der Flottentafel.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
   entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Agenten. Den Rest
@@ -232,7 +244,8 @@ Du wirst geweckt, wenn ein Lauf-Agent seinen Zug beendet. Dazwischen pollst du n
 Wenn kein Epic mehr startbereit ist und kein Lauf mehr läuft:
 
 - Flottentafel auf den Endstand: je Epic Ergebnis, PR, Merge-Zustand, Nacharbeit, Aufräumen.
-- **Bericht:** Belegung geplant gegen tatsächlich, je Epic das Ergebnis, alle eigenen
+- **Bericht:** Verbrauch und Schwellen-Befund mit Vorschlag für `references/verbrauch.md`
+  („Verbrauchsbremse"); Belegung geplant gegen tatsächlich, je Epic das Ergebnis, alle eigenen
   Entscheidungen mit Herkunft (zum Überstimmen), was beim Menschen liegt, welche PRs auf den Merge
   warten.
 
@@ -269,6 +282,47 @@ und auf die Flottentafel unter „Entscheidungen". Der Mensch kann jede übersti
 Entscheidung, die sich nicht folgenlos aufheben ließe, gehört deshalb in die rechte Spalte.
 
 ---
+
+## Verbrauchsbremse
+
+Die Flotte verbraucht das Planlimit des Kontos, und Zusatzverbrauch ist meist abgeschaltet: Ein
+volles Limit bricht einen Lauf mitten im Paket ab. Eine Pause an einem sauberen Punkt ist billiger.
+
+**Messen:** `get_usage` liefert je Fenster (5 Stunden, Woche) den Verbrauch in Prozent und die Zeit
+bis zum Reset. Die **Hochrechnung** ist `verbraucht ÷ verstrichener Anteil des Fensters` — bei 48 %
+nach 2 von 5 Stunden also 120 %. In den ersten 30 Minuten eines Fensters zählt nur der Verbrauch,
+die Hochrechnung schwankt dort zu stark.
+
+| Stufe | 5-Stunden-Fenster | Was du tust |
+|---|---|---|
+| **Grün** | Hochrechnung unter 90 % | normal |
+| **Gelb** | Hochrechnung 90–120 %, oder verbraucht über 60 % | keine neuen Epics, keine neuen Wellen außer in Läufen, die vor ihrem letzten Paket stehen; Nacharbeit und Aufräumen laufen weiter |
+| **Rot** | Hochrechnung über 120 %, oder verbraucht über 85 % | jede `FLOTTE-WELLE` bekommt `Pause bis <Reset>`; nichts Neues |
+
+**Wochenfenster:** Liegt die Hochrechnung der Woche über 100 %, sinkt die Obergrenze der Flotte
+auf 2, über 130 % auf 1 — unabhängig von der Kollisionsstufe.
+
+**Fortsetzen:** Nach dem Reset antwortest du den pausierten Läufen `weiter`. Hast du ein Werkzeug,
+das dich zu einer Uhrzeit weckt, stellst du es auf den Reset; sonst sagst du dem Menschen, ab wann
+er dich mit „weiter" anstoßen soll.
+
+**Übernommene Chats** lassen sich nicht an einem Wellenende anhalten: Deine Nachricht wartet, bis
+ihr Zug vorbei ist. Bei Rot legst du dem Menschen vor, welcher Chat gerade was verbraucht, mit
+Empfehlung; gestoppt wird ein Chat nur auf seinen Wunsch.
+
+**Aus Erfahrung schätzen.** Was ein Paket kostet, ist nicht vorhersagbar, aber messbar. Bei jeder
+Messung notierst du den Zuwachs seit der letzten und die Pakete, die dazwischen liefen (mit
+Runden): **Kosten je Paket ≈ Zuwachs ÷ Pakete**. Den Startwert liefern die Erfahrungswerte
+früherer Einsätze in `references/verbrauch.md`. Vor einem `weiter` oder Start rechnest du: Stand +
+geschätzte Kosten der nächsten Welle; läge das über 100 % vor dem Reset, gilt Rot für diese Welle,
+auch wenn die Stufe sonst Gelb wäre.
+
+Stufe, beide Fenster und der Reset stehen als eigene Zeile auf der Flottentafel. Die Schwellen
+sind ein **Entwurf** wie die Kollisionsstufen und werden an echten Einsätzen geschärft: Im
+Abschlussbericht (Phase 5) stehen die gemessenen Kosten je Paket (Mittel und Spanne, getrennt
+nach Implementer-Runden) und ob eine Schwelle zu früh oder zu spät gegriffen hat. Daraus
+schlägst du eine Zeile für `references/verbrauch.md` vor; sie kommt per Pull Request ins
+Skill-Repository, nicht von dir direkt.
 
 ## Wann angehalten wird
 

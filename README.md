@@ -53,6 +53,9 @@ neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen C
 - **Laufende Chats** mit `/prd` übernimmt er, statt sie neu zu starten: er überwacht sie,
   antwortet und stößt Nacharbeit und Aufräumen dort an. Dafür gibst du ihn in jedem Chat einmal
   selbst frei.
+- **Verbrauchsbremse:** Der Admiral liest das 5-Stunden- und das Wochenlimit und rechnet hoch.
+  Bei Gelb startet er nichts Neues, bei Rot pausieren die Läufe nach der laufenden Welle bis zum
+  Reset. Dafür melden sich die Läufe nach jeder Welle mit `FLOTTE-WELLE`.
 - **Wie viele gleichzeitig**, entscheidet die Kollisionsstufe des schlechtesten Paares, höchstens
   vier. Die Grenzen zwischen den Stufen sind noch Entwurf.
 - **Entscheidungsrecht:** Der Admiral entscheidet selbst, was eine Herkunft hat (Empfehlung des
