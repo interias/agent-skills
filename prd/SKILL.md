@@ -46,7 +46,8 @@ wo er sie ändern kann.
 Subagent und kannst niemanden fragen: Wo dieser Skill fragt oder wartet (Vorab-Tor, Anhalten vor
 dem Lauf), beendest du deinen Zug mit dem Frageblock aus `prd-flotte/SKILL.md` („Wie ein Lauf
 unter dir läuft"), und Implementer und Reviewer startest du im Vordergrund statt mit
-`run_in_background` (Phase 4a). Alles andere gilt unverändert.
+`run_in_background` (Phase 4a). Nach jeder Welle meldest du dich mit `FLOTTE-WELLE` und startest
+die nächste erst auf `weiter`. Alles andere gilt unverändert.
 
 ---
 
