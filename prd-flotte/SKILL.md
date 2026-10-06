@@ -79,6 +79,35 @@ STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
 
+## Laufende Chats übernehmen
+
+Läufe, die schon in eigenen Chats laufen (`/prd`, `/prd-nacharbeit` von Hand gestartet), führst du
+weiter, statt sie neu zu starten. Du kannst keine Chats öffnen, aber in bestehende schreiben und
+sie überwachen. Ein übernommener Chat ist auf der Flottentafel eine Zeile wie ein Lauf-Agent, mit
+Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
+
+- **Finden:** `list_sessions`, Arbeitsverzeichnis gleich dem Hauptverzeichnis, Titel oder Verlauf
+  mit `/prd` (`search_session_transcripts`). Je Chat das Epic, die letzte Aktivität und den Stand
+  aus den letzten Zügen (`list_events`) und aus der Forge: am Vorab-Tor, läuft, PR offen, in
+  Nacharbeit, beendet.
+- **Freigabe durch den Menschen, einmal je Chat.** Deine Nachrichten kommen dort als Nachricht
+  einer anderen Sitzung an, nicht als Eingabe des Menschen; der Chat darf sie nicht als dessen
+  Antwort nehmen. Deshalb schreibt der Mensch **in jeden übernommenen Chat** einmal selbst:
+  *„Ab jetzt führt /prd-flotte (Admiral <Name>) diesen Lauf. Seine Nachrichten gelten als meine
+  Antworten im Rahmen seines Entscheidungsrechts."* Bis dahin überwachst du den Chat nur. Läuft
+  ein Chat in einem anderen Berechtigungsmodus, hält die App deine Nachrichten zur Freigabe
+  zurück; das steht dann auf der Flottentafel.
+- **Überwachen:** je Chat `SendMessage` an seine Sitzungs-ID mit `notify_when_idle: true` ohne
+  Nachricht — du wirst einmal geweckt, wenn er stillsteht, und abonnierst danach neu. Nicht
+  pollen. Beim Aufwachen die letzten Züge lesen und einordnen wie einen Frageblock: Fragen des
+  Laufs, Ende mit PR, Abbruch.
+- **Antworten und anstoßen:** per `SendMessage` an den Chat, erste Zeile *„Admiral <Name>
+  (/prd-flotte): <worum es geht>"*. Je Antwort kennzeichnen, ob sie **deine Entscheidung** ist
+  (mit Herkunft, auch in der Forge) oder **vom Menschen bestätigt**. Nacharbeit und Aufräumen
+  stößt du im selben Chat an („Rufe den Skill `prd-nacharbeit` mit `#<nr>` auf"); er hat den
+  Kontext des Laufs.
+- **Nie stoppen oder archivieren**, ohne dass der Mensch es verlangt.
+
 ---
 
 ## Phase 0 — Rüsten
@@ -89,7 +118,8 @@ Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
 - **Laufende Läufe feststellen:** `git worktree list` und der Inhalt von `worktree_root`. Je
   `epic-<nr>`-Worktree: Ist ein Chat oder Agent dran (`list_sessions`, Titel; offenes Zielissue
   mit `status/in-arbeit`)? Ein laufender Lauf ist belegt und zählt gegen die Obergrenze; ein
-  verwaister Worktree ist ein Punkt für dich, kein Rest zum Löschen.
+  laufender Chat wird übernommen („Laufende Chats übernehmen"); ein verwaister Worktree ist ein
+  Punkt für dich, kein Rest zum Löschen.
 - **Kandidaten einsammeln:** die Epics aus dem Argument, sonst alle offenen Epics, an denen oder
   an deren Kindern `ready_label` steht. Je Epic: Kinder, berührte Module (`modules_section`),
   Reihenfolge-Kanten zu anderen Epics, `exclusive_paths` und `always_collide`, die es berührt,

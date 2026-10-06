@@ -50,6 +50,9 @@ neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen C
   ihren Zug mit einem `FLOTTE-FRAGE`-Block; der Admiral antwortet und sie setzen fort. Ihre
   Implementer laufen im Vordergrund, in Wellen statt im gleitenden Fenster, weil ein Subagent die
   Fertig-Meldung eigener Hintergrund-Agenten nicht hört.
+- **Laufende Chats** mit `/prd` übernimmt er, statt sie neu zu starten: er überwacht sie,
+  antwortet und stößt Nacharbeit und Aufräumen dort an. Dafür gibst du ihn in jedem Chat einmal
+  selbst frei.
 - **Wie viele gleichzeitig**, entscheidet die Kollisionsstufe des schlechtesten Paares, höchstens
   vier. Die Grenzen zwischen den Stufen sind noch Entwurf.
 - **Entscheidungsrecht:** Der Admiral entscheidet selbst, was eine Herkunft hat (Empfehlung des
