@@ -15,7 +15,7 @@ Die Tafel liegt immer im Scratchpad der Sitzung, nie im Repository. Mit `plan_ar
 gilt für alle Projekte. Die Vorlage wird kopiert, nicht nachgebaut:
 
 ```bash
-cp ~/.claude/skills/prd/references/lauftafel.html "<scratchpad>/lauftafel-<nr>.html"
+cp ~/.claude/skills/epic/references/lauftafel.html "<scratchpad>/lauftafel-<nr>.html"
 ```
 
 **Der `<style>`-Block wird nicht angefasst.** Er *ist* das einheitliche Aussehen. Seine Tokens
@@ -68,7 +68,7 @@ Das hängt an `issue_form`:
 
 | Modus | Kopf `.no` | Paket | Nr.-Spalte | Zielsatz | Module |
 |---|---|---|---|---|---|
-| `prd` | `Epic #<nr>` | ein Kind-Ticket | Issue-Nummer, `#943` | Titel des Kindes | aus seinem `modules_section` |
+| `tickets` | `Epic #<nr>` | ein Kind-Ticket | Issue-Nummer, `#943` | Titel des Kindes | aus seinem `modules_section` |
 | `spec` | `Spec #<nr>` | ein vom Orchestrator geschnittenes Paket | `P1`, `P2`, … | Ziel aus dem Schnitt | aus dem Schnitt |
 
 Übersprungene Kinder stehen nicht in der Tabelle. Sie gehören in den Eröffnungskommentar.

@@ -1,7 +1,7 @@
 {
   "fachbereich": "entwicklung",
   "reifegrad": "produktiv",
-  "beschreibung": "Versionierte Claude-Code-Skills (/prd, /prd-nacharbeit, /prd-aufraeumen, /prd-flotte) für agentische Entwicklung gegen Gitea.",
+  "beschreibung": "Versionierte Claude-Code-Skills (/epic, /epic-nacharbeit, /epic-aufraeumen, /epic-flotte) für agentische Entwicklung gegen Gitea.",
   "dienste": [
     "gitea"
   ]

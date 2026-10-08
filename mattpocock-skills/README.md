@@ -12,17 +12,17 @@ Geprüft gegen Plugin-Version **1.2.3** (23.09.2026).
 ## Die Kette
 
 ```
-grill-with-docs ─→ to-spec ──────────────→ /prd (Modus spec)
+grill-with-docs ─→ to-spec ──────────────→ /epic (Modus spec)
   (CONTEXT.md,      oder                     │
-   ADRs)          to-tickets ─→ Epic+Kinder ─→ /prd (Modus prd)
+   ADRs)          to-tickets ─→ Epic+Kinder ─→ /epic (Modus tickets)
                                              │
-                                  PR gemergt ─→ /prd-nacharbeit, /prd-aufraeumen
+                                  PR gemergt ─→ /epic-nacharbeit, /epic-aufraeumen
 ```
 
 - **`grill-with-docs`** klärt Plan und Fachsprache und schreibt `CONTEXT.md` und `docs/adr/`.
   `grill-me` und `grilling` sind dieselbe Befragung ohne Dokumente.
-- **`to-spec`** schreibt eine Spec mit sieben Abschnitten, `/prd` zerlegt sie selbst.
-- **`to-tickets`** zerlegt in Kind-Tickets, `/prd` arbeitet sie als Epic ab.
+- **`to-spec`** schreibt eine Spec mit sieben Abschnitten, `/epic` zerlegt sie selbst.
+- **`to-tickets`** zerlegt in Kind-Tickets, `/epic` arbeitet sie als Epic ab.
 
 Welcher der beiden: `to-tickets`, wenn die Pakete schon beim Klären sichtbar sind und ein Mensch
 sie einzeln freigeben will; `to-spec`, wenn der Schnitt Sache des Orchestrators bleiben soll.
@@ -34,7 +34,7 @@ sie einzeln freigeben will; `to-spec`, wenn der Schnitt Sache des Orchestrators 
 | Abschnitt | Antwort |
 |---|---|
 | A — Issue tracker | **Other.** Statt einer Beschreibung [`issue-tracker-gitea.md`](issue-tracker-gitea.md) nach `docs/agents/issue-tracker.md` kopieren und `<owner>/<repo>` einsetzen. |
-| B — Triage labels | **Standard behalten** (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). Das sind dieselben Namen wie `ready_label` und `skip_labels` im `/prd`-Adapter. |
+| B — Triage labels | **Standard behalten** (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). Das sind dieselben Namen wie `ready_label` und `skip_labels` im `/epic`-Adapter. |
 | C — Domain docs | **single-context**: `CONTEXT.md` und `docs/adr/` im Wurzelverzeichnis. |
 
 **Der Block `## Agent skills` gehört in `AGENTS.md`, nicht in `CLAUDE.md`.** Das Plugin bevorzugt
@@ -45,14 +45,14 @@ sie einzeln freigeben will; `to-spec`, wenn der Schnitt Sache des Orchestrators 
 ## Warum die Gitea-Vorlage mehr verlangt als das Plugin
 
 Die Ticketvorlage von `to-tickets` hat `Parent`, `What to build`, `Acceptance criteria` und
-`Blocked by`. `/prd` braucht an jedem Kind zusätzlich einen **Verifikationsweg**, ohne ihn
+`Blocked by`. `/epic` braucht an jedem Kind zusätzlich einen **Verifikationsweg**, ohne ihn
 überspringt es das Ticket, weil der Reviewer sonst nichts hat, woran er prüft
-(`prd/SKILL.md`, Phase 1). Die Abschnittsnamen kommen aus dem Adapter (`acceptance_section`,
+(`epic/SKILL.md`, Phase 1). Die Abschnittsnamen kommen aus dem Adapter (`acceptance_section`,
 `verification_section`, `modules_section`). Die Vorlage schreibt sie deshalb vor, statt dass
-`/prd` sie später vermisst. Vorbild sind die Kinder von Breuckmann/KIBO#1.
+`/epic` sie später vermisst. Vorbild sind die Kinder von Breuckmann/KIBO#1.
 
 Auch die Kanten schreibt die Vorlage vor: Gitea führt die Kinder eines Epics als dessen Blocker. Legt
-`to-tickets` die Kante Epic → Kind nicht an, findet `/prd` die Kinder nicht.
+`to-tickets` die Kante Epic → Kind nicht an, findet `/epic` die Kinder nicht.
 
 ## Bei einem Plugin-Update
 

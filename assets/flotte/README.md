@@ -5,7 +5,7 @@ Auflösung, transparenter Grund. Gestaltung wie beim [Prozessbild](../prozess/RE
 Beschriftung auf einem weißen Schild, Schilder beim Rendern aus den echten Textmaßen bemessen,
 Schriften von Google Fonts (das Rendern braucht Netz).
 
-Ändert sich `prd-flotte`, erst `flotte.html` anpassen, dann neu rendern (Git Bash, aus diesem
+Ändert sich `epic-flotte`, erst `flotte.html` anpassen, dann neu rendern (Git Bash, aus diesem
 Ordner):
 
 ```bash

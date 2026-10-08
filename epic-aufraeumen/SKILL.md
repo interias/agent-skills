@@ -1,16 +1,16 @@
 ---
-name: prd-aufraeumen
-description: Nach dem Merge des Pull Requests eines /prd-Laufs aufräumen — den Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree, Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
+name: epic-aufraeumen
+description: Nach dem Merge des Pull Requests eines /epic-Laufs aufräumen — den Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree, Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 ---
 
-# PRD aufräumen
+# Epic aufräumen
 
-Ein `/prd`-Lauf endet mit einem offenen Pull Request und lässt bewusst alles stehen: den
+Ein `/epic`-Lauf endet mit einem offenen Pull Request und lässt bewusst alles stehen: den
 Epic-Branch, die Ticket-Branches nicht abgenommener Tickets, die Worktrees. Sobald ein Mensch den
 Pull Request gemergt hat, räumt dieser Ablauf auf.
 
 Zielvorgabe ist das Argument des Aufrufs: die Nummer des gemergten Pull Requests, ersatzweise die
-des PRD-Issues oder der Name des Epic-Branches. Ohne Argument suchst du den jüngsten gemergten
+des Epics oder der Name des Epic-Branches. Ohne Argument suchst du den jüngsten gemergten
 Pull Request, dessen Quellzweig auf ein `epic/…`-Muster passt, und legst ihn zur Bestätigung vor.
 
 **Der Branchname steht in `head.label`, nicht in `head.ref`.** Bei einem *geschlossenen* Pull
@@ -19,7 +19,7 @@ Request liefert Gitea als `head.ref` die Referenz `refs/pull/<nr>/head` — ein 
 `head.label` trägt weiterhin `epic/<nr>-<slug>`. Das gilt für beide Wege: beim Suchen des Laufs
 und beim Ermitteln des zu löschenden Branches.
 
-Der Projektadapter ist derselbe wie bei `/prd`: **`.claude/prd.md`** — er nennt Forge,
+Der Projektadapter ist derselbe wie bei `/epic`: **`.claude/epic.md`** — er nennt Forge,
 `base_branch` als Standardwert und `worktree_root`. Maßgeblich für das Löschen ist trotzdem immer
 die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
@@ -51,7 +51,7 @@ die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
 Der wichtigste Absatz dieses Ablaufs.
 
-`/prd` verlinkt die Abhängigkeitsverzeichnisse eines Worktrees als Verzeichnis-Junction auf das
+`/epic` verlinkt die Abhängigkeitsverzeichnisse eines Worktrees als Verzeichnis-Junction auf das
 Hauptverzeichnis, statt sie zu installieren (`link_dirs` im Adapter). Ein `rm -rf` auf einen
 Worktree-Rest folgt dieser Junction und löscht **das echte `node_modules` im Hauptverzeichnis** —
 das Repository, an dem gerade gearbeitet wird. Der Schaden fällt nicht sofort auf: `git status`
@@ -102,7 +102,7 @@ solange der Link darin liegt), dann das Verzeichnis. `find <pfad> -type l` liste
 
 ## Phase 0 — Feststellen, was gilt
 
-- `.claude/prd.md` lesen, Forge-Zugang herstellen und verifizieren.
+- `.claude/epic.md` lesen, Forge-Zugang herstellen und verifizieren.
 - **Den Pull Request holen und prüfen, dass er wirklich gemergt ist** (`merged`, nicht nur
   `state: closed` — ein geschlossener Pull Request kann verworfen worden sein, und dann ist der
   Epic-Branch das einzige Exemplar seiner Arbeit). Notiere aus ihm: `base`, `head`, den
@@ -115,7 +115,7 @@ solange der Link darin liegt), dann das Verzeichnis. `find <pfad> -type l` liste
 
 ## Phase 1 — Den Basiszweig holen
 
-Das Hauptverzeichnis wird nicht umgeschaltet (`prd/SKILL.md`, Regel 11): Im selben Klon kann eine
+Das Hauptverzeichnis wird nicht umgeschaltet (`epic/SKILL.md`, Regel 11): Im selben Klon kann eine
 zweite Sitzung laufen. Geprüft wird gegen den Fernzweig.
 
 ```bash
@@ -140,13 +140,13 @@ Erst wenn das bestätigt ist, darf gelöscht werden. Alles Weitere hängt daran.
 Erst zählen, dann löschen. Trage vier Listen zusammen:
 
 1. **Der Epic-Branch des Laufs**, lokal und in der Forge.
-2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` nach `prd/SKILL.md` Phase 3, Slug mit ä→ae;
-   im PRD-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** ohne Kind-Tickets
+2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` nach `epic/SKILL.md` Phase 3, Slug mit ä→ae;
+   im Tickets-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** ohne Kind-Tickets
    `<spec>-p<k>`, also Spec-Nummer und Paketnummer der Lauftafel). Bei einem ordentlich verlaufenen
-   Lauf sind sie schon weg — `/prd` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
+   Lauf sind sie schon weg — `/epic` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
    einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
    Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
-   Ticketnummer im PRD-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
+   Ticketnummer im Tickets-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
 3. **Worktrees:** `git worktree list`, darunter der Epic-Worktree `<worktree_root>/epic-<nr>` — und
    getrennt davon der Inhalt von `worktree_root` auf der
    Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
@@ -154,7 +154,7 @@ Erst zählen, dann löschen. Trage vier Listen zusammen:
    Junction-Falle).
    **Laufende Läufe anderer Epics** sind kein Befund: `epic-<andere nr>`, ihre Paket-Worktrees und
    Paket-Branches gehören einem Lauf, dessen Zielissue `status/in-arbeit` trägt oder den
-   `/prd-flotte` nennt. Sie stehen auf keiner Liste und werden nicht angefasst, auch nicht als
+   `/epic-flotte` nennt. Sie stehen auf keiner Liste und werden nicht angefasst, auch nicht als
    Altlast.
 4. **Altlasten**, wenn der Nutzer sie einbezogen hat: lokale Branches, deren Gegenstück in der
    Forge gelöscht ist (`git branch -vv` zeigt sie als `origin/…: gone`), und Worktree-Reste
@@ -232,12 +232,12 @@ scheitert still genug, um übersehen zu werden.
 
 Bericht: was gelöscht wurde (mit dem Nachweis, der es erlaubte), was **nicht** gelöscht wurde und
 warum, und was ein Mensch entscheiden muss. Nicht abgenommene Paket-Branches namentlich, mit der
-Kennung ihres Pakets — Ticketnummer im PRD-Modus, Paketbezeichnung im Spec-Modus — sie sind der
+Kennung ihres Pakets — Ticketnummer im Tickets-Modus, Paketbezeichnung im Spec-Modus — sie sind der
 Grund, warum dieser Ablauf nicht einfach alles wegwirft.
 
 Dieser Ablauf schreibt **nicht** in die Forge. Er verändert keinen Zustand, den ein Leser in einem
 halben Jahr braucht; er räumt eine Arbeitskopie auf. Nur wenn ein nicht abgenommenes Ticket einen
-Branch behält, gehört das an dessen Issue — falls `/prd` es dort nicht schon vermerkt hat.
+Branch behält, gehört das an dessen Issue — falls `/epic` es dort nicht schon vermerkt hat.
 
 ---
 
@@ -251,6 +251,6 @@ Branch behält, gehört das an dessen Issue — falls `/prd` es dort nicht schon
 - Ein Worktree lässt sich nicht ohne `--force` entfernen.
 - Ein Worktree-Rest enthält mehr als die Verweise auf die Abhängigkeiten.
 - Ein zu löschender Branch ist gerade in einem anderen Worktree ausgecheckt.
-- Es läuft noch ein `/prd`-Lauf oder eine Nacharbeit **auf demselben Epic** — dann sind „Reste"
+- Es läuft noch ein `/epic`-Lauf oder eine Nacharbeit **auf demselben Epic** — dann sind „Reste"
   keine Reste. Läufe anderer Epics halten das Aufräumen nicht an; ihre Worktrees und Branches
   bleiben außen vor (Phase 2).
