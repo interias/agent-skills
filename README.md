@@ -6,7 +6,7 @@ am lokalen Ordner.
 
 ## Der Ablauf
 
-![Schienenplan: grill-with-docs klärt Plan und Fachsprache; to-spec oder to-tickets schneiden daraus ein Epic; du gibst es mit ready-for-agent frei, beantwortest am Vorab-Tor einmal alle Fragen und mergst am Ende den Pull Request; dazwischen setzt /prd die Pakete um; danach schließen /prd-nacharbeit und /prd-aufraeumen ab. Darunter die Spuren in Gitea und KIBO: Labels, Statuslabels, Kommentare, Lauftafel, erledigte Tickets.](assets/prozess/prozess.png)
+![Schienenplan: grill-with-docs klärt Plan und Fachsprache; to-spec oder to-tickets schneiden daraus ein Epic; du gibst es mit ready-for-agent frei, beantwortest am Vorab-Tor einmal alle Fragen und mergst am Ende den Pull Request; dazwischen setzt /epic die Pakete um; danach schließen /epic-nacharbeit und /epic-aufraeumen ab. Darunter die Spuren in Gitea und KIBO: Labels, Statuslabels, Kommentare, Lauftafel, erledigte Tickets.](assets/prozess/prozess.png)
 
 Die orangen Halte sind die drei Stellen, an denen ein Mensch entscheidet. Dazwischen läuft alles
 ohne Rückfrage; den Stand zeigen Gitea und KIBO. Quelle und Rendern des Bildes:
@@ -14,32 +14,36 @@ ohne Rückfrage; den Stand zeigen Gitea und KIBO. Quelle und Rendern des Bildes:
 
 ## Enthaltene Skills
 
-- **prd** — Ein PRD-Issue samt Kind-Tickets, oder ein Spec-Issue mit sieben Abschnitten
-  (`issue_form: prd` / `spec`), auf einem Epic-Branch abarbeiten: Graph planen, bis zu drei Pakete
+- **epic** — Ein Epic samt Kind-Tickets, oder ein Spec-Issue mit sieben Abschnitten
+  (`issue_form: tickets` / `spec`), auf einem Epic-Branch abarbeiten: Graph planen, bis zu drei Pakete
   parallel in eigenen Worktrees umsetzen, jedes abgenommene Paket sofort in den Epic-Branch
   mergen, mit offenem Pull Request enden. Für Gitea, GitHub und GitLab.
-- **prd-nacharbeit** — Die offenen Punkte eines abgeschlossenen `/prd`-Laufs abarbeiten:
+- **epic-nacharbeit** — Die offenen Punkte eines abgeschlossenen `/epic`-Laufs abarbeiten:
   Fragerunden im Frontier-Verfahren, je Punkt entscheiden ob er in diese Sitzung passt oder ein
   Ticket braucht, dann umsetzen und nachdokumentieren. Legt keine Issues ohne ausdrückliche
   Entscheidung an.
-- **prd-aufraeumen** — Nach dem Merge des Pull Requests eines `/prd`-Laufs aufräumen: den
+- **epic-aufraeumen** — Nach dem Merge des Pull Requests eines `/epic`-Laufs aufräumen: den
   Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree,
   Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 
-- **prd-flotte** *(optional)* — Leitstand über den drei anderen: wählt die Epics, die
+- **epic-flotte** *(optional)* — Leitstand über den drei anderen: wählt die Epics, die
   gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die
   Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines
   Entscheidungsrechts selbst und stößt danach Nacharbeit und Aufräumen an. Mergt nie.
 
-Die drei Skills gehören zusammen: `prd-nacharbeit` und `prd-aufraeumen` setzen einen `/prd`-Lauf
-voraus und verweisen im Text aufeinander. Alle drei kennen beide Modi (`prd` mit Kind-Tickets,
+Die drei Skills gehören zusammen: `epic-nacharbeit` und `epic-aufraeumen` setzen einen `/epic`-Lauf
+voraus und verweisen im Text aufeinander. Alle drei kennen beide Modi (`tickets` mit Kind-Tickets,
 `spec` mit oder ohne Kinder) und erwarten im jeweiligen Zielrepo eine projektlokale Adapterdatei
-`.claude/prd.md`. Der verbindliche Vertrag für deren Schlüssel — welche es gibt, was sie
-bedeuten, was gilt, wenn einer fehlt — steht in [`prd/references/adapter.md`](prd/references/adapter.md).
+`.claude/epic.md`. Der verbindliche Vertrag für deren Schlüssel — welche es gibt, was sie
+bedeuten, was gilt, wenn einer fehlt — steht in [`epic/references/adapter.md`](epic/references/adapter.md).
 
-## Mehrere Epics gleichzeitig: `/prd-flotte`
+Bis Oktober 2026 hießen die Skills `prd`, `prd-nacharbeit`, `prd-aufraeumen` und `prd-flotte`, die
+Adapterdatei `.claude/prd.md` und der Modus `tickets` hieß `prd`. Die alten Adapter werden
+weiter gelesen; das Vorab-Tor erinnert ans Umbenennen. Die Begriffe stehen in [`CONTEXT.md`](CONTEXT.md).
 
-![Flottenbild: /prd-flotte, der Admiral mit Zufallsnamen, startet drei /prd-Läufe A bis C nebeneinander; ein vierter wartet, bis ein Platz frei wird. Jeder Lauf fragt am Vorab-Tor den Admiral, endet mit offenem Pull Request, durchläuft /prd-nacharbeit, wartet auf deinen Merge und endet mit /prd-aufraeumen. Darunter die Kollisionsstufen (keine 4, klein 3–4, mittel 2, groß 1 gleichzeitig) und das Entscheidungsrecht des Admirals (selbst, mit Präzedenz, immer du).](assets/flotte/flotte.png)
+## Mehrere Epics gleichzeitig: `/epic-flotte`
+
+![Flottenbild: /epic-flotte, der Admiral mit Zufallsnamen, startet drei /epic-Läufe A bis C nebeneinander; ein vierter wartet, bis ein Platz frei wird. Jeder Lauf fragt am Vorab-Tor den Admiral, endet mit offenem Pull Request, durchläuft /epic-nacharbeit, wartet auf deinen Merge und endet mit /epic-aufraeumen. Darunter die Kollisionsstufen (keine 4, klein 3–4, mittel 2, groß 1 gleichzeitig) und das Entscheidungsrecht des Admirals (selbst, mit Präzedenz, immer du).](assets/flotte/flotte.png)
 
 Optional, für den Fall, dass mehrere freigegebene Epics bereitliegen, etwa beim Aufsetzen eines
 neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen Chat.
@@ -50,7 +54,7 @@ neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen C
   ihren Zug mit einem `FLOTTE-FRAGE`-Block; der Admiral antwortet und sie setzen fort. Ihre
   Implementer laufen im Vordergrund, in Wellen statt im gleitenden Fenster, weil ein Subagent die
   Fertig-Meldung eigener Hintergrund-Agenten nicht hört.
-- **Laufende Chats** mit `/prd` übernimmt er, statt sie neu zu starten: er überwacht sie,
+- **Laufende Chats** mit `/epic` übernimmt er, statt sie neu zu starten: er überwacht sie,
   antwortet und stößt Nacharbeit und Aufräumen dort an. Dafür gibst du ihn in jedem Chat einmal
   selbst frei.
 - **Flottenlogbuch:** Den Stand schreibt der Admiral zusätzlich in ein dauerhaft offenes Issue mit
@@ -74,14 +78,14 @@ Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 ## Aufbau
 
 ```
-prd/
+epic/
   SKILL.md
   references/
-prd-nacharbeit/
+epic-nacharbeit/
   SKILL.md
-prd-aufraeumen/
+epic-aufraeumen/
   SKILL.md
-prd-flotte/            optional: mehrere Epics gleichzeitig
+epic-flotte/            optional: mehrere Epics gleichzeitig
   SKILL.md
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
@@ -109,13 +113,15 @@ powershell -File install.ps1
 Nur einen einzelnen Skill installieren:
 
 ```powershell
-powershell -File install.ps1 -Skill prd
+powershell -File install.ps1 -Skill epic
 ```
 
 Das Skript kopiert die Skill-Ordner nach `~/.claude/skills/<name>`. Ein vorhandener Zielordner
 wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert; erst wenn die
 Sicherung nachweislich vollständig ist (Dateizahl geprüft), wird der Zielordner geleert und neu
-befüllt.
+befüllt. Ordner unter den alten Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`, `prd-flotte`)
+werden auf dieselbe Weise gesichert und dann entfernt, damit nicht alter und neuer Name zugleich
+auslösen.
 
 ## Warum Kopie statt Junction/Symlink
 

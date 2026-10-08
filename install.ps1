@@ -14,6 +14,10 @@
     clearing, the script checks whether the target itself is a reparse point (junction/symlink),
     and whether it contains any; if either is true, it aborts without touching the folder.
 
+    Skills that were renamed (prd -> epic, 2026-10) are retired: an installed folder under an
+    old name is backed up the same way and then removed, so the old and the new name do not
+    both trigger.
+
 .PARAMETER Skill
     Optional. Install only this one skill (folder name) instead of all skills in the repo.
 
@@ -24,7 +28,7 @@
     powershell -File install.ps1 -DryRun
 
 .EXAMPLE
-    powershell -File install.ps1 -Skill prd
+    powershell -File install.ps1 -Skill epic
 #>
 [CmdletBinding()]
 param(
@@ -37,6 +41,46 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $skillsTarget = Join-Path $env:USERPROFILE '.claude\skills'
 $backupRoot = Join-Path $env:USERPROFILE '.claude\skills-backup'
+
+# Old skill name -> new name. An installed old folder is backed up and removed.
+$renamedSkills = [ordered]@{
+    'prd'            = 'epic'
+    'prd-nacharbeit' = 'epic-nacharbeit'
+    'prd-aufraeumen' = 'epic-aufraeumen'
+    'prd-flotte'     = 'epic-flotte'
+}
+
+# A target that is a reparse point or contains one must not be cleared: the delete would follow
+# the link into whatever it points at. Returns $true when the folder is safe to clear.
+function Test-SafeToClear([string]$path) {
+    $item = Get-Item -Path $path -Force
+    if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        Write-Host "ABORT: $path is itself a reparse point (junction/symlink) — refusing to touch it." -ForegroundColor Red
+        return $false
+    }
+    $reparsePoints = Get-ChildItem -Path $path -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue
+    if ($reparsePoints) {
+        Write-Host "ABORT: reparse points (junction/symlink) found under $path — refusing to touch it:" -ForegroundColor Red
+        $reparsePoints | ForEach-Object { Write-Host "  $($_.FullName)" -ForegroundColor Red }
+        return $false
+    }
+    return $true
+}
+
+# Copies $path to <backupRoot>\<name>-<timestamp> and verifies the file count; throws on mismatch.
+function Backup-Folder([string]$path, [string]$name) {
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $backupDir = Join-Path $backupRoot "$name-$timestamp"
+    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+    Copy-Item -Path (Join-Path $path '*') -Destination $backupDir -Recurse -Force
+
+    $expected = (Get-ChildItem -Path $path -Recurse -Force -File).Count
+    $backupCount = (Get-ChildItem -Path $backupDir -Recurse -Force -File).Count
+    if ($backupCount -ne $expected) {
+        throw "Backup verification failed for '$name': expected $expected file(s), backup has $backupCount. Aborting before touching target."
+    }
+    Write-Host "Backed up $backupCount file(s) to $backupDir"
+}
 
 # Discover skill folders in the repo: any top-level directory containing a SKILL.md.
 $allSkills = Get-ChildItem -Path $repoRoot -Directory | Where-Object {
@@ -83,43 +127,18 @@ foreach ($skillDir in $skillsToInstall) {
         continue
     }
 
-    # Refuse to touch a target that is itself a reparse point (junction/symlink): clearing it
-    # would delete through the link into whatever it points at, not the target folder itself.
-    $targetItem = Get-Item -Path $target -Force
-    if ($targetItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-        Write-Host "ABORT: $target is itself a reparse point (junction/symlink) — refusing to touch it." -ForegroundColor Red
-        continue
-    }
-
-    # Refuse to touch a target that contains reparse points (junctions/symlinks).
-    $reparsePoints = Get-ChildItem -Path $target -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue
-    if ($reparsePoints) {
-        Write-Host "ABORT: reparse points (junction/symlink) found under $target — refusing to touch it:" -ForegroundColor Red
-        $reparsePoints | ForEach-Object { Write-Host "  $($_.FullName)" -ForegroundColor Red }
-        continue
-    }
-
-    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-    $backupDir = Join-Path $backupRoot "$name-$timestamp"
+    if (-not (Test-SafeToClear $target)) { continue }
 
     if ($DryRun) {
         $existingCount = (Get-ChildItem -Path $target -Recurse -Force -File).Count
-        Write-Host "[DryRun] Would back up $existingCount file(s) from $target to $backupDir"
+        Write-Host "[DryRun] Would back up $existingCount file(s) from $target to $backupRoot\$name-<timestamp>"
         Write-Host "[DryRun] Would verify backup file count, then clear $target"
         Write-Host "[DryRun] Would copy $source to $target"
         continue
     }
 
     # Backup first.
-    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-    Copy-Item -Path (Join-Path $target '*') -Destination $backupDir -Recurse -Force
-
-    $sourceCountForBackupCheck = (Get-ChildItem -Path $target -Recurse -Force -File).Count
-    $backupCount = (Get-ChildItem -Path $backupDir -Recurse -Force -File).Count
-    if ($backupCount -ne $sourceCountForBackupCheck) {
-        throw "Backup verification failed for '$name': expected $sourceCountForBackupCheck file(s), backup has $backupCount. Aborting before touching target."
-    }
-    Write-Host "Backed up $backupCount file(s) to $backupDir"
+    Backup-Folder $target $name
 
     # Only now clear the target — backup is verified complete.
     Get-ChildItem -Path $target -Force | Remove-Item -Recurse -Force
@@ -127,6 +146,24 @@ foreach ($skillDir in $skillsToInstall) {
     # Copy fresh contents from the repo.
     Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
     Write-Host "Installed to $target" -ForegroundColor Green
+}
+
+# Retire installed folders under an old name whose new name was installed in this run.
+foreach ($oldName in $renamedSkills.Keys) {
+    if ($skillsToInstall.Name -notcontains $renamedSkills[$oldName]) { continue }
+    $oldTarget = Join-Path $skillsTarget $oldName
+    if (-not (Test-Path $oldTarget)) { continue }
+
+    Write-Host ""
+    Write-Host "== $oldName (renamed to $($renamedSkills[$oldName])) =="
+    if (-not (Test-SafeToClear $oldTarget)) { continue }
+    if ($DryRun) {
+        Write-Host "[DryRun] Would back up $oldTarget to $backupRoot\$oldName-<timestamp>, then remove it"
+        continue
+    }
+    Backup-Folder $oldTarget $oldName
+    Remove-Item -Path $oldTarget -Recurse -Force
+    Write-Host "Removed $oldTarget" -ForegroundColor Green
 }
 
 Write-Host ""

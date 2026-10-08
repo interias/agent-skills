@@ -1,8 +1,8 @@
 # Der Projektadapter
 
-Alles Projektspezifische steht in `.claude/prd.md` des Zielrepositorys. Diese Datei legt fest,
+Alles Projektspezifische steht in `.claude/epic.md` des Zielrepositorys. Diese Datei legt fest,
 **welche Schlüssel es gibt, was sie bedeuten und was gilt, wenn einer fehlt**. Sie ist der Vertrag
-zwischen `SKILL.md`, den Referenzen und `prd-nacharbeit` / `prd-aufraeumen`: Ein Name, der hier
+zwischen `SKILL.md`, den Referenzen und `epic-nacharbeit` / `epic-aufraeumen`: Ein Name, der hier
 nicht steht, ist kein Adapterschlüssel.
 
 ## Form
@@ -21,10 +21,14 @@ lockern**. Ein Eintrag, der eine Regel des Skills aufheben würde, ist ein Punkt
 Ableiten, was ableitbar ist: Forge aus `git remote get-url origin`, Testbefehle aus
 `package.json` bzw. `pyproject.toml`, Commit-Stil aus `git log`. Die Ableitung wird im Plan
 offengelegt, und der Lauf fragt nach dem Rest am Vorab-Tor, statt zu raten. Danach bietet er an,
-das Ergebnis als `.claude/prd.md` abzulegen.
+das Ergebnis als `.claude/epic.md` abzulegen.
 
 **Alte Adapter bleiben gültig.** Jeder Schlüssel unten hat einen Standardwert, und ein Adapter
 aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
+
+**Alter Name.** Bis zur Umbenennung hieß die Datei `.claude/prd.md` und der Modus `tickets` hieß
+`prd`. Fehlt `.claude/epic.md`, liest der Lauf `.claude/prd.md`; `issue_form: prd` gilt als
+`tickets`. Beides nennt das Vorab-Tor als Hinweis „Adapter umbenennen“ — ein Hinweis, kein Halt.
 
 ## Schlüssel
 
@@ -37,21 +41,21 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 | `token_env` / `token_file` | Variable und gitignorierte Datei mit dem Token. Alternativ Basic Auth über `git credential fill` (spill) | `GITEA_TOKEN`, keine Datei |
 | `push_remote` | das einzige Remote, auf das gepusht wird | `origin` |
 | `forbidden_remotes` | Remotes, auf die nie gepusht wird | keine |
-| `issue_offset` | PRD `n` ist Issue `#(offset+n)` | keine Umrechnung |
+| `issue_offset` | externe Nummer `n` (etwa `PRD 41`) ist Issue `#(offset+n)` | keine Umrechnung |
 
 ### Issues
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `issue_form` | `prd` (Epic mit Kind-Tickets) oder `spec` (ein Issue mit sieben Abschnitten, der Orchestrator zerlegt) | **aus der Form abgeleitet**: hat das Issue Kinder → `prd`; sieben Abschnitte ohne Kinder → `spec`; sonst Vorab-Tor |
+| `issue_form` | `tickets` (Epic mit Kind-Tickets) oder `spec` (ein Issue mit sieben Abschnitten, der Orchestrator zerlegt) | **aus der Form abgeleitet**: hat das Issue Kinder → `tickets`; sieben Abschnitte ohne Kinder → `spec`; sonst Vorab-Tor |
 | `ready_label` | Freigabelabel: nur Tickets damit werden bearbeitet | `ready-for-agent` |
 | `skip_labels` | Tickets damit werden übersprungen (mit Kommentar) | `needs-triage`, `needs-info`, `wontfix` |
 | `epic_label` | kennzeichnet Epics. Eine Kante zwischen zwei Epics heißt **Reihenfolge**, eine Kante von einem Epic zu einem Nicht-Epic heißt **Kind**. Der Lauf setzt es an ein Zielissue mit Kindern | `epic` |
 | `dependency_source` | `api` (Gitea-Abhängigkeiten), `header` (Kopfzeile `> **Reihenfolge:** …`), `body` (Abschnitt `## Blocked by`). Mehrfachnennung erlaubt | `api` |
 | `write_back_dependencies` | Kanten, die aus `header` oder `body` gelesen wurden, trägt der Lauf in die Gitea-Abhängigkeiten nach | `true` für Kanten aus `header`; für Kanten aus `body` nur, wenn der Adapter es setzt, sonst ein Tor-Punkt |
 | `transitive` | hängen alle Kinder an Tickets einer anderen offenen Spec, werden diese im selben Lauf mitbearbeitet | `false` |
-| `acceptance_section` | Abschnitt mit der Abnahmeliste. Fehlt er an einem Kind, wird es übersprungen und kommentiert | `prd`: der erste vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`; `spec`: `## User Stories` |
-| `verification_section` | Abschnitt mit dem Verifikationsweg. Fehlt er an einem Kind, wird es nicht bearbeitet | `prd`: `## Verifikationsweg`; `spec`: `## Testing Decisions` |
+| `acceptance_section` | Abschnitt mit der Abnahmeliste. Fehlt er an einem Kind, wird es übersprungen und kommentiert | `tickets`: der erste vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`; `spec`: `## User Stories` |
+| `verification_section` | Abschnitt mit dem Verifikationsweg. Fehlt er an einem Kind, wird es nicht bearbeitet | `tickets`: `## Verifikationsweg`; `spec`: `## Testing Decisions` |
 | `modules_section` | Abschnitt mit den berührten Modulen. Das Wort `Exklusiv` darin heißt: läuft allein | `## Betroffene Module` |
 | `base_branch` | Basis des Epic-Branches und Ziel des Pull Requests. `from-issue` = aus Kopfzeile oder Further Notes, sonst aus `git log --merges` | der Hauptzweig |
 | `main_branch` | **Hauptzweig** des Repositorys: nie Ziel eines Merges durch den Lauf (alter Name, KOKOS) | `git symbolic-ref refs/remotes/<push_remote>/HEAD`, ersatzweise `main` |
@@ -117,11 +121,11 @@ alle drei Skills.
 - **Kante Kind → fremdes Epic** (ein Kind ist von einem Epic blockiert, das nicht das Zielissue ist):
   Das ist eine Kante aus dem Epic hinaus. Aufgelöst wird nur mit `transitive: true` **und** wenn
   alle Pakete daran hängen (`SKILL.md`, Phase 1). Sonst wird das Kind übersprungen und kommentiert.
-- **`ready_label`** prüft im Modus `prd` nur die Kinder, im Modus `spec` die Spec.
+- **`ready_label`** prüft im Modus `tickets` nur die Kinder, im Modus `spec` die Spec.
 - **`window` > 1 ohne `test_isolation_env` und ohne `isolation: none-needed`** lockert die Regel und
   ist ein Punkt fürs Vorab-Tor.
 - **`base_branch` nach einem Lauf:** Maßgeblich ist die `base` des Pull Requests, der Adapterwert
-  ist nur der Standard für den nächsten Lauf. Das gilt für `prd-nacharbeit` und `prd-aufraeumen`.
+  ist nur der Standard für den nächsten Lauf. Das gilt für `epic-nacharbeit` und `epic-aufraeumen`.
 - **`always_link` nennt nur Verzeichnisse.** Eine Datei, die jedes Paket braucht (etwa
   `server/.env`), steht in `env_files` und wird kopiert.
 - **`write_back_dependencies`** gilt nur auf Forges mit Abhängigkeits-API (Gitea, GitLab). Auf
@@ -153,7 +157,7 @@ alle drei Skills.
   der Lauf hält nicht an.
 - **`Closes` und das Epic:** `Closes #<kind>` je vollständig abgenommenem Kind. Ein Zielissue mit
   Kindern bekommt nie `Closes`, in keinem Modus: Gitea führt die Kinder als Blocker und antwortet
-  beim Merge mit HTTP 412. Es schließt `/prd-nacharbeit`. `Closes #<spec>` nur bei einer Spec ohne
+  beim Merge mit HTTP 412. Es schließt `/epic-nacharbeit`. `Closes #<spec>` nur bei einer Spec ohne
   Kinder, wenn alle User Stories abgenommen sind.
 - **Der Epic-Branch** lebt im Worktree `<worktree_root>/epic-<nr>`, das Hauptverzeichnis wird nie
   umgeschaltet (`SKILL.md`, Regel 11). Das ist kein Schlüssel und lässt sich nicht abschalten.

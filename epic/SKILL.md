@@ -1,6 +1,6 @@
 ---
-name: prd
-description: Ein Epic aus der Forge auf einem Epic-Branch abarbeiten — Modus prd (Epic mit Kind-Tickets) oder spec (ein Issue mit sieben Abschnitten, das der Orchestrator selbst in Pakete zerlegt). Vorab-Tor, bis zu drei Pakete parallel in eigenen Worktrees, Sofortmerge jedes abgenommenen Pakets, Ende mit offenem Pull Request auf die Basis.
+name: epic
+description: Ein Epic aus der Forge auf einem Epic-Branch abarbeiten — Modus tickets (Epic mit Kind-Tickets) oder spec (ein Issue mit sieben Abschnitten, das der Orchestrator selbst in Pakete zerlegt). Vorab-Tor, bis zu drei Pakete parallel in eigenen Worktrees, Sofortmerge jedes abgenommenen Pakets, Ende mit offenem Pull Request auf die Basis.
 ---
 
 # Epic abarbeiten — Host-Orchestrator
@@ -9,14 +9,14 @@ Du bist der **Host-Orchestrator**: Planner und Merger in einer Person. Die Paket
 du **nicht selbst**, sondern über Subagenten (Implementer + Reviewer). Du schneidest, prüfst nach,
 mergst und schreibst zurück in die Forge.
 
-Zielvorgabe ist das Argument des Aufrufs. `#41` ist immer die Issue-Nummer. `PRD 41` oder eine
-nackte Zahl ist eine PRD-Nummer, wenn `issue_offset` gesetzt ist, und wird damit umgerechnet;
-ohne `issue_offset` ist die nackte Zahl die Issue-Nummer.
+Zielvorgabe ist das Argument des Aufrufs. `#41` ist immer die Issue-Nummer. Eine nackte Zahl
+oder eine mit fremdem Präfix (`PRD 41`) ist eine **externe Nummer**, wenn `issue_offset` gesetzt
+ist, und wird damit umgerechnet; ohne `issue_offset` ist die nackte Zahl die Issue-Nummer.
 
-**Zwei Modi** (`issue_form`), ein Ablauf. Überall, wo unten *Paket* steht, ist im Modus `prd` ein
+**Zwei Modi** (`issue_form`), ein Ablauf. Überall, wo unten *Paket* steht, ist im Modus `tickets` ein
 Kind-Ticket gemeint, im Modus `spec` ein von dir geschnittenes Stück der Spec:
 
-| | `prd` | `spec` |
+| | `tickets` | `spec` |
 |---|---|---|
 | Form | Epic mit Kind-Tickets | ein Issue mit sieben Abschnitten, Kinder optional |
 | Pakete | die Kinder | ohne Kinder: dein Schnitt (Phase 2a); mit Kindern: die Kinder |
@@ -28,11 +28,12 @@ Standard der Hauptzweig. Der Epic-Branch zweigt von ihr ab, der Pull Request geh
 
 ## Der Projektadapter
 
-Alles Projektspezifische steht in **`.claude/prd.md`** des Zielrepositorys. Lies ihn als Erstes.
+Alles Projektspezifische steht in **`.claude/epic.md`** des Zielrepositorys. Lies ihn als Erstes.
 Welche Schlüssel es gibt, was sie bedeuten, was ohne Adapter gilt: **`references/adapter.md`** —
 das ist der Vertrag, ein Name, der dort nicht steht, ist kein Schlüssel. Seine Lesart legst du im
 Plan offen. Fehlt der Adapter, leitest du ab, was ableitbar ist, fragst den Rest am Vorab-Tor und
-bietest danach an, das Ergebnis als `.claude/prd.md` abzulegen.
+bietest danach an, das Ergebnis als `.claude/epic.md` abzulegen.
+Liegt nur der alte `.claude/prd.md` vor, gilt er (`references/adapter.md`, „Alter Name“).
 
 Der Fließtext des Adapters sind Projektregeln; sie gelten wie die Regeln unten. **Der Adapter darf
 verschärfen, nie lockern.** Ein Eintrag, der eine Regel dieses Skills aufheben würde, ist ein
@@ -42,9 +43,9 @@ Punkt fürs Vorab-Tor.
 stammt: *Skill*, *Adapter* oder der ADR, in dem sie steht. Wer eine Regel anzweifelt, muss wissen,
 wo er sie ändern kann.
 
-**Unter `/prd-flotte`.** Sagt der Auftrag, dass der Lauf unter `/prd-flotte` läuft, bist du ein
+**Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, bist du ein
 Subagent und kannst niemanden fragen: Wo dieser Skill fragt oder wartet (Vorab-Tor, Anhalten vor
-dem Lauf), beendest du deinen Zug mit dem Frageblock aus `prd-flotte/SKILL.md` („Wie ein Lauf
+dem Lauf), beendest du deinen Zug mit dem Frageblock aus `epic-flotte/SKILL.md` („Wie ein Lauf
 unter dir läuft"), und Implementer und Reviewer startest du im Vordergrund statt mit
 `run_in_background` (Phase 4a). Nach jeder Welle meldest du dich mit `FLOTTE-WELLE` und startest
 die nächste erst auf `weiter`. Alles andere gilt unverändert.
@@ -145,7 +146,7 @@ Repositorys hinweg.
   wegwerfen, nie mitcommitten.
 - `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
   Epics (`epic-<andere nr>` und ihre Paket-Worktrees). Laufend heißt: ihr Zielissue trägt
-  `status/in-arbeit`, oder der Auftrag nennt sie (`/prd-flotte`). Sie fasst der Lauf nicht an.
+  `status/in-arbeit`, oder der Auftrag nennt sie (`/epic-flotte`). Sie fasst der Lauf nicht an.
   Alles andere sind Reste eines früheren Laufs: melden, nicht entfernen — dort kann Arbeit liegen.
 - **Statuslabels aufräumen**, die ein früherer Lauf an Tickets dieses Epics hinterlassen hat
   („Die Statuslabels"); fehlende Labels im Repository anlegen, `epic_label` eingeschlossen.
@@ -189,7 +190,7 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   Kinder, alle übrigen Nummern dort sind Reihenfolge. Legt der Adapter eine eigene Lesart seiner
   Kopfzeilen fest, gilt sie (`references/adapter.md`, Auslegung); der Plan legt sie offen.
 - **Modus bestimmen** — erst jetzt, weil er die Kinder braucht: `issue_form` aus dem Adapter; fehlt
-  er, aus der Form — Kinder → `prd`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
+  er, aus der Form — Kinder → `tickets`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
   Ableitung steht im Plan.
 - **Vorbedingung prüfen:** Ist ein vorausgesetztes Epic offen, gilt:
   - Hängen **alle** Pakete an noch nicht gemergten Tickets dieses Epics und steht `transitive:
@@ -201,10 +202,10 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 - **Basis bestimmen**, wenn `base_branch: from-issue`: aus der Kopfzeile oder den Further Notes,
   sonst der Branch, von dem die vorausgesetzten Epics abgezweigt sind (`git log --merges`). Nicht
   raten.
-- **Kinder einsammeln** (Modus `prd`, und `spec` mit Kindern): je Kind Body, Labels, State,
+- **Kinder einsammeln** (Modus `tickets`, und `spec` mit Kindern): je Kind Body, Labels, State,
   Kanten. Bearbeitet wird nur, was offen ist und die Freigabe trägt. Übersprungen wird ein Kind
   mit einem der `skip_labels`, ohne `ready_label`, mit Kante in ein fremdes offenes Epic (ohne
-  transitive Auflösung) oder im Modus `prd` ohne `acceptance_section` oder ohne
+  transitive Auflösung) oder im Modus `tickets` ohne `acceptance_section` oder ohne
   `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
   Reviewer blind.
 - **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
@@ -217,7 +218,7 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 
 ### 2a — Die Pakete
 
-**Modus `prd`:** die bearbeitbaren Kinder. Berührte Module aus `modules_section`, sonst aus der
+**Modus `tickets`:** die bearbeitbaren Kinder. Berührte Module aus `modules_section`, sonst aus der
 Abnahmeliste erschlossen.
 
 **Modus `spec` ohne Kinder:** Ein Implementer, der das ganze Issue bekommt, liefert Matsch. Du
@@ -319,8 +320,9 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   auf GitHub nichts (`references/adapter.md`, „Auslegung").
 - Das Zielissue bekommt mit dem Eröffnungskommentar `status/in-arbeit`, in allen Modi. Ein
   fremdes Epic aus transitiver Auflösung nicht: es gehört nicht diesem Lauf.
-- **Hat das Zielissue Kinder, bekommt es `epic_label`**, falls es fehlt. KIBO gruppiert danach, und
-  ein späterer Lauf unterscheidet daran Kind und Reihenfolge.
+- **Das Zielissue bekommt `epic_label`**, falls es fehlt, in allen Modi — auch eine Spec ohne
+  Kinder ist ein Epic. KIBO gruppiert danach, und ein späterer Lauf unterscheidet daran Kind und
+  Reihenfolge.
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
   Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
   Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
@@ -339,7 +341,7 @@ Danach **ohne Rückfrage** losarbeiten.
   Arbeit eines früheren Laufs liegen.
 - Der Epic-Worktree bekommt **alle** `link_dirs` und `env_files`, weil dort die Ausgangsmessung und
   die Verifikation nach jedem Merge über alle Suiten laufen. Er bleibt bis zum Merge des Pull
-  Requests stehen; abgeräumt wird er von `/prd-aufraeumen`.
+  Requests stehen; abgeräumt wird er von `/epic-aufraeumen`.
 - Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` in einem eigenen Worktree unter
   `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer, im Modus `spec`
   ohne Kinder `<spec>-p<k>`. Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
@@ -370,7 +372,7 @@ quadratisch.
 ### 4a — Implementer-Subagent
 
 Ein Subagent je Paket (`Agent`, `subagent_type: general-purpose`, `run_in_background: true`,
-unter `/prd-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
+unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
 aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen Kontext nicht; sein Auftrag enthält alles
@@ -486,7 +488,7 @@ bereits auf ihm.
    startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
    `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
    und verweigert.
-4. **Kommentar an das gemergte Ticket** — im Modus `prd` und `spec` mit Kindern das Kind, im Modus
+4. **Kommentar an das gemergte Ticket** — im Modus `tickets` und `spec` mit Kindern das Kind, im Modus
    `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
    echter Ausgabe und den Zahlen gegen Phase 0, was der Reviewer selbst korrigiert hat, was das
@@ -538,7 +540,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   - **`Closes`, nur englische Schließwörter, in der Reihenfolge des Graphen:** `Closes #<kind>` je
     vollständig abgenommenem Kind, in beiden Modi. **Ein Zielissue mit Kindern nie**: Auf Gitea
     führt die API die Kinder als Blocker, und das Schließen scheitert beim Merge mit HTTP 412. Das
-    Epic schließt `/prd-nacharbeit`, sobald alle Kinder zu und alle User Stories erfüllt sind.
+    Epic schließt `/epic-nacharbeit`, sobald alle Kinder zu und alle User Stories erfüllt sind.
     `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
     fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
@@ -598,7 +600,7 @@ etwas.
 | jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
 | jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
 | jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
-| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label`, wenn es Kinder hat — schließt über `Closes` nur als Spec ohne Kinder bei allen Stories, sonst `/prd-nacharbeit` |
+| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — schließt über `Closes` nur als Spec ohne Kinder bei allen Stories, sonst `/epic-nacharbeit` |
 | ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
 Die Lauftafel steht auf dem Endstand. Prüfe die Tabelle nach, statt sie anzunehmen.

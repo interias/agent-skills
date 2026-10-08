@@ -15,7 +15,7 @@ und es braucht keine Ignoriereinträge. Der Pfad enthält **kein Punktverzeichni
 git worktree add <worktree_root>/<nr> -b agent/<nr>-<slug> epic/<issue-nr>-<slug>
 ```
 
-`<nr>` ist die Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>` (`prd/SKILL.md`, Phase 3).
+`<nr>` ist die Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>` (`epic/SKILL.md`, Phase 3).
 
 **Nimm absolute Pfade, keine relativen.** Das Arbeitsverzeichnis der Shell wandert im Lauf: Ein
 `cd server && npm test` lässt sie in `server/` stehen, und ein relativer Worktree-Pfad zeigt danach
@@ -140,5 +140,5 @@ Revert des Reverts".
 
 Am Ende des Laufs prüfen: `git worktree list` zeigt das Hauptverzeichnis und den Epic-Worktree, und
 unter `worktree_root` liegt kein Verzeichnis dieses Laufs mehr, außer `epic-<nr>` und denen, die
-als nicht abgenommen berichtet sind. Den Epic-Worktree räumt `/prd-aufraeumen` nach dem Merge des
+als nicht abgenommen berichtet sind. Den Epic-Worktree räumt `/epic-aufraeumen` nach dem Merge des
 Pull Requests ab.

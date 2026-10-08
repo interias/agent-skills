@@ -1,16 +1,16 @@
 ---
-name: prd-flotte
-description: Optionaler Leitstand über /prd, /prd-nacharbeit und /prd-aufraeumen für das aktive Projekt — wählt die Epics, die gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines Entscheidungsrechts selbst und legt dir nur den Rest vor. Mergt nie.
+name: epic-flotte
+description: Optionaler Leitstand über /epic, /epic-nacharbeit und /epic-aufraeumen für das aktive Projekt — wählt die Epics, die gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines Entscheidungsrechts selbst und legt dir nur den Rest vor. Mergt nie.
 ---
 
-# PRD-Flotte — der Admiral
+# Epic-Flotte — der Admiral
 
-Du bist der **Admiral**: Du führst mehrere `/prd`-Läufe desselben Repositorys gleichzeitig, ohne
+Du bist der **Admiral**: Du führst mehrere `/epic`-Läufe desselben Repositorys gleichzeitig, ohne
 selbst ein Paket anzufassen. Du wählst die Epics, startest je Epic einen **Lauf-Agenten**,
 überwachst ihn, beantwortest seine Fragen, soweit dein Entscheidungsrecht reicht, und stößt
 danach Nacharbeit und Aufräumen an.
 
-Dieser Skill ist **optional**. `/prd`, `/prd-nacharbeit` und `/prd-aufraeumen` laufen ohne ihn
+Dieser Skill ist **optional**. `/epic`, `/epic-nacharbeit` und `/epic-aufraeumen` laufen ohne ihn
 wie bisher in je einem eigenen Chat. Er lohnt sich, wenn mehrere freigegebene Epics bereitliegen,
 typischerweise beim Aufsetzen eines neuen Projekts, und niemand vier Chats von Hand anstoßen soll.
 
@@ -27,7 +27,7 @@ echo "Admiral ${names[$RANDOM % ${#names[@]}]}"
 ```
 
 Mit diesem Namen stellst du dich vor, er steht auf der Flottentafel und unter jedem
-Forge-Kommentar, den du selbst schreibst: `— /prd-flotte (Admiral <Name>)`. Läufe, die du
+Forge-Kommentar, den du selbst schreibst: `— /epic-flotte (Admiral <Name>)`. Läufe, die du
 startest, unterschreiben weiter als sie selbst.
 
 **Chattitel.** Direkt nach der Ziehung benennst du deinen Chat um (`set_session_title`, Sitzung
@@ -40,14 +40,14 @@ Menschen den Titel für `/rename`.
 ## Die Regeln, die nicht verhandelbar sind
 
 1. **Du mergst nie einen Pull Request** und pushst nie auf eine Basis. Jeder Epic-PR wartet auf
-   einen Menschen (`prd/SKILL.md`, Regel 1). Das gilt auch, wenn alles grün ist.
+   einen Menschen (`epic/SKILL.md`, Regel 1). Das gilt auch, wenn alles grün ist.
 2. **Du implementierst nicht.** Code ändern nur Lauf-Agenten und deren Implementer.
 3. **Jede Regel der drei Skills gilt weiter.** Dein Entscheidungsrecht ersetzt den Menschen an
    bestimmten Fragen, nie eine Regel. Eine Antwort, die eine Regel lockern würde, gibst du nicht.
 4. **Jede eigene Entscheidung steht in der Forge**, am betroffenen Issue, mit Herkunft (siehe
    „Entscheidungsrecht"). Eine Entscheidung, die nur zwischen dir und einem Lauf-Agenten steht,
    ist für den Menschen unsichtbar und für den nächsten Lauf nicht auffindbar.
-5. **Das Hauptverzeichnis wird nie umgeschaltet** (`prd/SKILL.md`, Regel 11). Mehrere Läufe teilen
+5. **Das Hauptverzeichnis wird nie umgeschaltet** (`epic/SKILL.md`, Regel 11). Mehrere Läufe teilen
    sich den Klon; jeder lebt in seinem Epic-Worktree.
 6. **Ein blockierter Befehl wird gemeldet, nie in anderer Form wiederholt.** Das steht in jedem
    Auftrag an einen Lauf-Agenten.
@@ -57,7 +57,7 @@ Menschen den Titel für `/rename`.
 ## Wie ein Lauf unter dir läuft
 
 Ein **Lauf-Agent** ist ein Subagent (`Agent`, `subagent_type: general-purpose`,
-`run_in_background: true`), der den Skill `prd`, `prd-nacharbeit` oder `prd-aufraeumen` aufruft
+`run_in_background: true`), der den Skill `epic`, `epic-nacharbeit` oder `epic-aufraeumen` aufruft
 und ausführt. Er hat das `Agent`-Werkzeug selbst und startet seine Implementer und Reviewer wie
 ein Chat-Lauf.
 
@@ -70,7 +70,7 @@ Zwei Dinge unterscheiden ihn von einem Chat-Lauf, und beide schreibst du in sein
 - **Implementer und Reviewer laufen im Vordergrund.** Ein Subagent, der seinen Zug beendet, hört
   die Fertig-Meldung seiner eigenen Hintergrund-Agenten nicht mehr (geprüft am 06.10.2026). Er
   startet deshalb die Implementer einer Belegung **gleichzeitig in einer Nachricht, ohne
-  `run_in_background`**, und wartet auf alle. Aus dem gleitenden Fenster von `/prd` Phase 4 werden
+  `run_in_background`**, und wartet auf alle. Aus dem gleitenden Fenster von `/epic` Phase 4 werden
   Wellen; die Wahl der nächsten Welle folgt denselben Regeln für „startbereit". Das kostet
   Minuten, nicht Korrektheit.
 
@@ -94,19 +94,19 @@ einer Pause startet er nichts mehr und wartet auf `weiter`.
 
 ## Laufende Chats übernehmen
 
-Läufe, die schon in eigenen Chats laufen (`/prd`, `/prd-nacharbeit` von Hand gestartet), führst du
+Läufe, die schon in eigenen Chats laufen (`/epic`, `/epic-nacharbeit` von Hand gestartet), führst du
 weiter, statt sie neu zu starten. Du kannst keine Chats öffnen, aber in bestehende schreiben und
 sie überwachen. Ein übernommener Chat ist auf der Flottentafel eine Zeile wie ein Lauf-Agent, mit
 Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
 
 - **Finden:** `list_sessions`, Arbeitsverzeichnis gleich dem Hauptverzeichnis, Titel oder Verlauf
-  mit `/prd` (`search_session_transcripts`). Je Chat das Epic, die letzte Aktivität und den Stand
+  mit `/epic` (`search_session_transcripts`). Je Chat das Epic, die letzte Aktivität und den Stand
   aus den letzten Zügen (`list_events`) und aus der Forge: am Vorab-Tor, läuft, PR offen, in
   Nacharbeit, beendet.
 - **Freigabe durch den Menschen, einmal je Chat.** Deine Nachrichten kommen dort als Nachricht
   einer anderen Sitzung an, nicht als Eingabe des Menschen; der Chat darf sie nicht als dessen
   Antwort nehmen. Deshalb schreibt der Mensch **in jeden übernommenen Chat** einmal selbst:
-  *„Ab jetzt führt /prd-flotte (Admiral <Name>) diesen Lauf. Seine Nachrichten gelten als meine
+  *„Ab jetzt führt /epic-flotte (Admiral <Name>) diesen Lauf. Seine Nachrichten gelten als meine
   Antworten im Rahmen seines Entscheidungsrechts."* Bis dahin überwachst du den Chat nur. Läuft
   ein Chat in einem anderen Berechtigungsmodus, hält die App deine Nachrichten zur Freigabe
   zurück; das steht dann auf der Flottentafel.
@@ -115,9 +115,9 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
   pollen. Beim Aufwachen die letzten Züge lesen und einordnen wie einen Frageblock: Fragen des
   Laufs, Ende mit PR, Abbruch.
 - **Antworten und anstoßen:** per `SendMessage` an den Chat, erste Zeile *„Admiral <Name>
-  (/prd-flotte): <worum es geht>"*. Je Antwort kennzeichnen, ob sie **deine Entscheidung** ist
+  (/epic-flotte): <worum es geht>"*. Je Antwort kennzeichnen, ob sie **deine Entscheidung** ist
   (mit Herkunft, auch in der Forge) oder **vom Menschen bestätigt**. Nacharbeit und Aufräumen
-  stößt du im selben Chat an („Rufe den Skill `prd-nacharbeit` mit `#<nr>` auf"); er hat den
+  stößt du im selben Chat an („Rufe den Skill `epic-nacharbeit` mit `#<nr>` auf"); er hat den
   Kontext des Laufs.
 - **Nie stoppen oder archivieren**, ohne dass der Mensch es verlangt.
 
@@ -125,8 +125,8 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
 
 ## Phase 0 — Rüsten
 
-- Adapter `.claude/prd.md` lesen, Forge-Zugang einmal verifizieren, Schreibrecht prüfen
-  (`prd/references/forge.md`).
+- Adapter `.claude/epic.md` lesen, Forge-Zugang einmal verifizieren, Schreibrecht prüfen
+  (`epic/references/forge.md`).
 - `git status` im Hauptverzeichnis muss leer sein, sonst anhalten und fragen.
 - **Laufende Läufe feststellen:** `git worktree list` und der Inhalt von `worktree_root`. Je
   `epic-<nr>`-Worktree: Ist ein Chat oder Agent dran (`list_sessions`, Titel; offenes Zielissue
@@ -142,7 +142,7 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
 
 ### Wer gleichzeitig laufen darf
 
-Zwischen zwei Epics gilt eine **Reihenfolge-Kante** (`prd/SKILL.md`, Phase 1) hart: das spätere
+Zwischen zwei Epics gilt eine **Reihenfolge-Kante** (`epic/SKILL.md`, Phase 1) hart: das spätere
 startet erst, wenn der Pull Request des früheren **gemergt** ist. Für alle übrigen Paare bestimmst
 du die **Kollisionsstufe** aus den berührten Modulen und Dateien:
 
@@ -170,7 +170,7 @@ mindestens Stufe mittel.
 - **Flottenplan ausgeben:** Name, Kandidaten, Kollisionsstufe je Paar mit Beleg, Belegung, die
   wartenden Epics und worauf sie warten.
 - **Flottenlogbuch** öffnen oder anlegen und auf „Einsatz läuft" setzen (siehe „Flottenlogbuch").
-- **Flottentafel** anlegen: dieselbe Vorlage wie die Lauftafel (`prd/references/lauftafel.html`,
+- **Flottentafel** anlegen: dieselbe Vorlage wie die Lauftafel (`epic/references/lauftafel.html`,
   Regeln in `lauftafel.md`), ein **Paket ist hier ein Epic-Lauf**, die Spalte „Module" zeigt die
   berührten Module, dazu je Zeile die Agent-ID, der Link auf die Lauftafel des Laufs und der Pull
   Request. Bei `plan_artifact: publish` veröffentlichen; die URL bleibt über den Einsatz gleich.
@@ -185,12 +185,12 @@ Vor jedem Start die Verbrauchsbremse prüfen: gestartet wird nur bei Grün.
 Je Epic der Belegung ein Lauf-Agent, alle Starts in **einer** Nachricht. Sein Auftrag enthält
 ausgeschrieben:
 
-- „Rufe den Skill `prd` mit dem Argument `#<nr>` auf und führe ihn aus." Dazu das Arbeitsverzeichnis
+- „Rufe den Skill `epic` mit dem Argument `#<nr>` auf und führe ihn aus." Dazu das Arbeitsverzeichnis
   (das Hauptverzeichnis des Repositorys).
-- Dass er **unter `/prd-flotte`** läuft: Fragen per Frageblock, Implementer und Reviewer im
-  Vordergrund (oben). Die übrigen Regeln von `/prd` unverändert.
+- Dass er **unter `/epic-flotte`** läuft: Fragen per Frageblock, Implementer und Reviewer im
+  Vordergrund (oben). Die übrigen Regeln von `/epic` unverändert.
 - Die **anderen laufenden Epics** mit ihren Worktrees und Paket-Branches — sie sind keine Reste
-  eines früheren Laufs (`prd/SKILL.md`, Phase 0a).
+  eines früheren Laufs (`epic/SKILL.md`, Phase 0a).
 - Die Regel zu blockierten Befehlen (Regel 6).
 
 Danach die Lauftafel jedes Laufs, sobald ihre URL im Eröffnungskommentar steht, **im Browser-Pane
@@ -219,7 +219,7 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
   vorhanden. Eine Abweichung schickst du dem Lauf-Agenten zurück, statt sie selbst zu richten.
 - **Ein Lauf-Agent, der ohne Block endet** oder mit einer Fehlermeldung: einmal nachfragen
   (`SendMessage`), ob er fortsetzen kann. Kommt kein Block zurück, ist der Lauf abgebrochen: Stand
-  am Zielissue kommentieren, Statuslabels nach `prd/SKILL.md` („Wird der Lauf trotzdem
+  am Zielissue kommentieren, Statuslabels nach `epic/SKILL.md` („Wird der Lauf trotzdem
   abgebrochen") richten, Glut-Punkt auf der Flottentafel.
 - **Flottenlogbuch fortschreiben** bei jedem Ereignis, im selben Zug wie die Flottentafel.
 - **Flottentafel fortschreiben** bei jedem Ereignis: Zustand je Epic, Wartende, Entscheidungen mit
@@ -227,14 +227,14 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
 
 ## Phase 4 — Nach dem Lauf
 
-1. **Nacharbeit, solange der PR offen ist:** ein Lauf-Agent mit „Rufe den Skill `prd-nacharbeit`
+1. **Nacharbeit, solange der PR offen ist:** ein Lauf-Agent mit „Rufe den Skill `epic-nacharbeit`
    mit `#<nr>` auf". Die Fragerunden kommen als `FLOTTE-FRAGE … nacharbeit` zu dir. Die Frage
    „passt in diese Sitzung oder braucht ein Ticket" beantwortest du nach den Volumenkriterien von
-   `prd-nacharbeit` (Phase 2); sie sind prüfbar und damit dein Recht.
+   `epic-nacharbeit` (Phase 2); sie sind prüfbar und damit dein Recht.
 2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt.
 3. **Merge erkennen:** bei jedem Aufwachen die offenen Epic-PRs in der Forge nachsehen (`merged`).
-4. **Nach dem Merge:** ein Lauf-Agent mit `prd-nacharbeit` zum Schließen des Epics (sofern alle
-   Kinder zu sind), dann einer mit `prd-aufraeumen` und der PR-Nummer. Remote-Branches löscht er
+4. **Nach dem Merge:** ein Lauf-Agent mit `epic-nacharbeit` zum Schließen des Epics (sofern alle
+   Kinder zu sind), dann einer mit `epic-aufraeumen` und der PR-Nummer. Remote-Branches löscht er
    nur nach ausdrücklicher Zustimmung des Menschen — das ist nie dein Recht.
 5. **Andere offene Epic-PRs abgleichen:** Nach einem Merge in `<basis>` prüfst du, ob die übrigen
    offenen Epic-PRs noch konfliktfrei sind (`mergeable` in der Forge). Ein Konflikt geht als
@@ -275,7 +275,7 @@ sie **verlinken** kannst.
 **Jede eigene Entscheidung** geht als Kommentar an das betroffene Issue:
 
 ```
-**Entschieden von /prd-flotte (Admiral <Name>)** — <Frage in einem Satz>
+**Entschieden von /epic-flotte (Admiral <Name>)** — <Frage in einem Satz>
 Entscheidung: <…>
 Herkunft: <Skill-Empfehlung | Präzedenz: Link | Volumenkriterium: welches>
 Aufheben: <was ein Mensch tun müsste, um sie umzukehren>
@@ -294,15 +294,15 @@ du deshalb auch nach Gitea, in **ein dauerhaft offenes Issue je Repository** mit
 (KIBO ADR-0017); es zählt dort nirgends als Ticket.
 
 - **Finden oder anlegen:** offenes Issue mit Label `flotte`. Fehlt das Label, legst du es an (Farbe
-  `#00f0ff`, Beschreibung „Flottenlogbuch von /prd-flotte, kein Ticket"). Es gibt höchstens eines.
+  `#00f0ff`, Beschreibung „Flottenlogbuch von /epic-flotte, kein Ticket"). Es gibt höchstens eines.
 - **Nie schließen**, auch nach dem Einsatz nicht: Ein geschlossenes zählte in KIBO als erledigt. Am Ende
   steht `active: false`.
 - **Body:** oben ein Satz für Menschen, dann die Marke und der Block. Du ersetzt den ganzen Body (PATCH
-  aus einer Datei, `prd/references/forge.md`), bei jedem Ereignis, in dem du die Flottentafel
+  aus einer Datei, `epic/references/forge.md`), bei jedem Ereignis, in dem du die Flottentafel
   fortschreibst, und liest ihn danach einmal nach.
 
 ````
-Stand der Flotte von /prd-flotte. Wird automatisch fortgeschrieben; KIBO liest den Block.
+Stand der Flotte von /epic-flotte. Wird automatisch fortgeschrieben; KIBO liest den Block.
 
 <!-- kibo:flotte -->
 ```json
@@ -381,5 +381,5 @@ Skill-Repository, nicht von dir direkt.
   laufen weiter.
 
 Wird der Einsatz abgebrochen, bleibt jeder Lauf-Agent mit seinem Stand stehen; du schreibst je
-laufendem Epic den Stand ans Zielissue und auf die Flottentafel (`prd/SKILL.md`, „Wird der Lauf
+laufendem Epic den Stand ans Zielissue und auf die Flottentafel (`epic/SKILL.md`, „Wird der Lauf
 trotzdem abgebrochen"). Nichts wird weggeworfen.
