@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Installs (copies) the skills in this repository into ~/.claude/skills.
+    Installs (copies) the skills in this repository into ~/.claude/skills and the agent
+    definitions under agents/ into ~/.claude/agents.
 
 .DESCRIPTION
     Copies each skill folder from this repo into $env:USERPROFILE\.claude\skills\<name>.
@@ -18,8 +19,12 @@
     old name is backed up the same way and then removed, so the old and the new name do not
     both trigger.
 
+    Agent definitions (agents/*.md) are copied file by file. An existing file that differs is
+    first backed up to $env:USERPROFILE\.claude\skills-backup\agents-<yyyyMMdd-HHmmss>\.
+
 .PARAMETER Skill
     Optional. Install only this one skill (folder name) instead of all skills in the repo.
+    The agent definitions are then left alone.
 
 .PARAMETER DryRun
     Show what would happen without copying, backing up, or deleting anything.
@@ -41,6 +46,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $skillsTarget = Join-Path $env:USERPROFILE '.claude\skills'
 $backupRoot = Join-Path $env:USERPROFILE '.claude\skills-backup'
+$agentsTarget = Join-Path $env:USERPROFILE '.claude\agents'
 
 # Old skill name -> new name. An installed old folder is backed up and removed.
 $renamedSkills = [ordered]@{
@@ -164,6 +170,44 @@ foreach ($oldName in $renamedSkills.Keys) {
     Backup-Folder $oldTarget $oldName
     Remove-Item -Path $oldTarget -Recurse -Force
     Write-Host "Removed $oldTarget" -ForegroundColor Green
+}
+
+# Agent definitions: one file each, backed up when an existing one differs.
+$agentFiles = @(Get-ChildItem -Path (Join-Path $repoRoot 'agents') -Filter '*.md' -File -ErrorAction SilentlyContinue)
+if (-not $Skill -and $agentFiles) {
+    Write-Host ""
+    Write-Host "== agents =="
+    Write-Host "Target: $agentsTarget"
+    $agentsBackup = Join-Path $backupRoot "agents-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    if (-not $DryRun) { New-Item -ItemType Directory -Path $agentsTarget -Force | Out-Null }
+
+    foreach ($file in $agentFiles) {
+        $target = Join-Path $agentsTarget $file.Name
+        if (Test-Path $target) {
+            if ((Get-Item -Path $target -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                Write-Host "ABORT: $target is a reparse point (symlink) — refusing to overwrite it." -ForegroundColor Red
+                continue
+            }
+            if ((Get-FileHash $target).Hash -eq (Get-FileHash $file.FullName).Hash) {
+                Write-Host "$($file.Name): unchanged"
+                continue
+            }
+            if ($DryRun) {
+                Write-Host "[DryRun] Would back up $target to $agentsBackup, then overwrite it"
+                continue
+            }
+            New-Item -ItemType Directory -Path $agentsBackup -Force | Out-Null
+            Copy-Item -Path $target -Destination $agentsBackup -Force
+            if (-not (Test-Path (Join-Path $agentsBackup $file.Name))) {
+                throw "Backup verification failed for agent '$($file.Name)'. Aborting before overwriting it."
+            }
+        } elseif ($DryRun) {
+            Write-Host "[DryRun] Would copy $($file.Name)"
+            continue
+        }
+        Copy-Item -Path $file.FullName -Destination $target -Force
+        Write-Host "$($file.Name): installed" -ForegroundColor Green
+    }
 }
 
 Write-Host ""

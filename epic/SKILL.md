@@ -133,6 +133,56 @@ Repositorys hinweg.
 
 ---
 
+## Modelle, Paketklasse, Kundschafter
+
+Nicht jede Arbeit braucht das stärkste Modell. Wer was macht, folgt einer festen Leiter; die
+Agent-Typen liegen im Skill-Repository unter `agents/` und werden mit den Skills installiert.
+
+| Rolle | Agent-Typ (`subagent_type`) | Modell, Denkstufe |
+|---|---|---|
+| Kundschafter | `epic-kundschafter` | Haiku, niedrig |
+| Implementer *mechanisch* | `epic-implementer-mechanisch` | Sonnet, niedrig |
+| Implementer *Standard* | `epic-implementer-standard` | Sonnet, mittel |
+| Implementer *Urteil* | `epic-implementer-urteil` | Opus, mittel |
+| Implementer nach Eskalation aus *Urteil* | `epic-implementer-urteil-hoch` | Opus, hoch |
+| Reviewer *mechanisch* und *Standard* | `epic-reviewer-standard` | Sonnet, hoch |
+| Reviewer *Urteil* | `epic-reviewer-urteil` | Opus, mittel |
+
+Der Reviewer ist nie schwächer als der Implementer. **Opus mit hoher Denkstufe gibt es nur als
+letzte Stufe einer Eskalation.** Fehlt ein Agent-Typ in der Sitzung, startest du
+`general-purpose` mit dem `model` aus der Tabelle (die Denkstufe erbt er dann von dir) und sagst
+das im Plan.
+
+**Paketklasse.** Jedes Paket bekommt beim Schneiden (2a) eine, in allen Modi:
+
+- *mechanisch* — die Änderung ist als Verschiebung lesbar: Massenumschreiben, Umbenennen,
+  Verschieben, das Löschpaket am Ende.
+- *Urteil* — das Paket ist ein Exklusivknoten, führt einen Wächter, ein Tor, eine Schreibsperre
+  oder einen Schema-Versionssprung ein, oder eine seiner Implementation Decisions ist gegen die
+  naheliegende Lösung geschrieben.
+- *Standard* — alles andere.
+
+Im Zweifel die höhere. Der Adapter darf hochstufen (`min_package_class`, oder Projektregeln wie
+„alles unter `server/auth` ist Urteil"), nie herab. Die Klasse steht im Plan und auf der Tafel.
+
+**Eskalation.** Meldet der Reviewer eine **strukturelle** Abweichung, läuft die nächste Runde eine
+Stufe höher: *mechanisch* → *Standard* → *Urteil* → `epic-implementer-urteil-hoch`; der Reviewer
+folgt der neuen Klasse. Ein verletzter Abnahmepunkt allein eskaliert nicht. Jede Eskalation steht
+auf der Tafel und im Abschlusskommentar — sie heißt, dass die Klasse falsch geschätzt war.
+
+**Kundschafter** lesen nur und liefern Fundstellen; sie schreiben keinen Code, nehmen nichts ab und
+schreiben nicht in die Forge. Einsatzstellen: Behauptungen im Body prüfen (Phase 1), andere
+Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
+
+- **Ein Kundschafter je unabhängiger Frage**, höchstens acht in einer Nachricht, **immer im
+  Vordergrund** — du brauchst die Antwort für den nächsten Schritt. Unter `/epic-flotte` nennt der
+  Admiral bei Gelb eine kleinere Zahl.
+- **„Nichts gefunden" übernimmst du ungeprüft.** Einen Fund prüfst du selbst nach, wenn daraus ein
+  Tor-Punkt, ein Befund oder eine Löschung folgt — sonst nicht.
+- Den Verifikationsweg (4c) und den Vergleich gegen die Ausgangszahlen machst du weiter selbst.
+
+---
+
 ## Phase 0 — Rüsten
 
 ### 0a — Zugang und Adapter
@@ -210,7 +260,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   Reviewer blind.
 - **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
   Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt. Bodys
-  altern. Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt.
+  altern. Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Bei mehr als
+  einer Handvoll Behauptungen gehen sie gebündelt an Kundschafter („Modelle, Paketklasse,
+  Kundschafter").
 - Widerspricht das Issue einem ADR oder einem Out-of-Scope-Eintrag, ist eines von beiden falsch —
   das entscheidet ein Mensch (Vorab-Tor).
 
@@ -244,6 +296,9 @@ schneidest nach diesen Regeln:
 
 **Modus `spec` mit Kindern:** die Kinder sind die Pakete; die Zuordnungstabelle ordnet jede Story
 einem Kind zu.
+
+**In allen Modi** bekommt jedes Paket seine **Paketklasse** („Modelle, Paketklasse, Kundschafter"),
+mit einem Halbsatz Begründung.
 
 ### 2b — Der Graph
 
@@ -297,7 +352,7 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 
 ### 2d — Plan, Lauftafel, Eröffnung
 
-- **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen, Graph,
+- **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen und Paketklasse, Graph,
   Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
   wird, die Lesart des Adapters.
 - Je Paket eine Task anlegen (Task-Werkzeug der Sitzung, falls vorhanden), in Reihenfolge.
@@ -371,7 +426,7 @@ quadratisch.
 
 ### 4a — Implementer-Subagent
 
-Ein Subagent je Paket (`Agent`, `subagent_type: general-purpose`, `run_in_background: true`,
+Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
 unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
@@ -407,7 +462,7 @@ Kommentieren machst du in Phase 5.
 
 ### 4b — Reviewer-Subagent
 
-Ein zweiter Subagent, im selben Worktree, nach dem Implementer. Er bekommt Paket, Issue-Auszug,
+Ein zweiter Subagent (`subagent_type` nach Paketklasse), im selben Worktree, nach dem Implementer. Er bekommt Paket, Issue-Auszug,
 den Bericht des Implementers und den Diff, und prüft zwei Achsen getrennt:
 
 - **Spec:** Ist jeder Abnahmepunkt erfüllt — nachweisbar, nicht behauptet? Ist etwas gebaut, was
@@ -424,7 +479,8 @@ Wächter ohne Nachweis, dass er feuern kann, ist schlimmer als keiner.
 Reviewer jeden anderen Schreiber derselben Felder**: Migration, Import, Skripte, Hintergrundjobs,
 andere Endpunkte, dazu die Pfade aus `writers` im Adapter. Je Schreiber belegt er, dass er
 durchkommt, oder er meldet ihn als Befund. Ein Schreiber, den nur ein Trockenlauf abdeckt, gilt
-als nicht geprüft — ein Trockenlauf sieht die schreibenden Aufrufe nicht.
+als nicht geprüft — ein Trockenlauf sieht die schreibenden Aufrufe nicht. Die Suche darf er an
+Kundschafter geben, einen je Schreiberart; hat er kein `Agent`-Werkzeug, sucht er selbst.
 
 Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
 
@@ -440,7 +496,8 @@ Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
 
 Er **korrigiert selbst, aber nur im Kleinen**: Benennung, Kommentar, ein fehlender Testfall, ein
 vergessener Rest. Eine strukturelle Abweichung oder einen verletzten Abnahmepunkt berichtet er
-strukturiert — dann schickst du den Implementer mit dem Befund erneut los. Nach **`max_rounds`**
+strukturiert — dann schickst du den Implementer mit dem Befund erneut los, bei einer strukturellen
+Abweichung eine Stufe höher (Eskalation, „Modelle, Paketklasse, Kundschafter"). Nach **`max_rounds`**
 Runden (Standard 3) wird das Paket zurückgelassen (Phase 5). Funde außerhalb des Pakets notiert er
 im Bericht, ohne Issues anzulegen oder vorzuschlagen (Regel 3).
 
@@ -546,7 +603,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - **Nicht mergen.**
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Das ist der Schritt, der am
   leichtesten ausfällt, weil sich der Lauf nach dem Pull Request fertig anfühlt. Hinein: Link auf
-  Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden; tatsächliche gegen geplante
+  Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden, Paketklasse und
+  Eskalationen; tatsächliche gegen geplante
   Belegung und woran Abweichungen lagen; übersprungene und blockierte Tickets mit Grund und dem,
   was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
   Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
@@ -557,7 +615,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   Statuslabel dem Endstand entspricht**: `status/in-arbeit` an **jedem** gemergten Kind und sonst
   nirgends im Lauf (auch nicht am Zielissue), `status/haengt`
   an jedem zurückgelassenen, `status/blockiert` an jedem blockierten Ticket (`references/forge.md`).
-  Ein `POST` kann fehlgeschlagen sein.
+  Ein `POST` kann fehlgeschlagen sein. Das Nachlesen geht an Kundschafter, je ein Bündel Nummern
+  mit dem erwarteten Endstand; jede gemeldete Abweichung prüfst du selbst nach und richtest sie.
 - `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
   Worktrees und die Worktrees anderer laufender Läufe (Phase 0a).
 - **Bericht an den Menschen:** Reihenfolge und warum; je Paket bzw. Story abgenommen oder nicht,

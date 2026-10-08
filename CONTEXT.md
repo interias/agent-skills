@@ -21,3 +21,20 @@ Ein Epic, das in sieben festen Abschnitten beschreibt, was gebaut wird. Hat es k
 schneidet der Lauf die Pakete selbst daraus.
 _Avoid_: PRD, Konzept
 
+### Arbeitsteilung
+
+**Paketklasse**:
+Die Einstufung eines Pakets beim Schneiden — *mechanisch*, *Standard* oder *Urteil* —, nach der
+sich Modell und Denkstufe von Implementer und Reviewer richten. Der Adapter darf sie nur hochstufen.
+_Avoid_: Schwierigkeit, Komplexität, Tier
+
+**Kundschafter**:
+Ein Subagent, der nur liest und Fundstellen liefert; er schreibt keinen Code, nimmt nichts ab und
+schreibt nicht in die Forge. Ein „nichts gefunden“ wird ungeprüft übernommen, ein Fund nur dann
+nachgeprüft, wenn ein Tor-Punkt, ein Befund oder eine Löschung daraus folgt.
+_Avoid_: Recherche-Agent, Scout, Helfer
+
+**Eskalation**:
+Die Wiederholung einer Implementer-Runde eine Paketklasse höher, nachdem der Reviewer einen
+strukturellen Befund gemeldet hat. Sie gilt als Hinweis, dass die Klasse falsch geschätzt war.
+_Avoid_: Retry, Upgrade
