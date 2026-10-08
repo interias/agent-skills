@@ -56,7 +56,8 @@ Menschen den Titel für `/rename`.
 
 ## Wie ein Lauf unter dir läuft
 
-Ein **Lauf-Agent** ist ein Subagent (`Agent`, `subagent_type: general-purpose`,
+Ein **Lauf-Agent** ist ein Subagent (`Agent`, `subagent_type: epic-lauf` — Opus, mittlere
+Denkstufe; fehlt der Typ, `general-purpose` mit `model: opus` —,
 `run_in_background: true`), der den Skill `epic`, `epic-nacharbeit` oder `epic-aufraeumen` aufruft
 und ausführt. Er hat das `Agent`-Werkzeug selbst und startet seine Implementer und Reviewer wie
 ein Chat-Lauf.
@@ -136,7 +137,8 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
 - **Kandidaten einsammeln:** die Epics aus dem Argument, sonst alle offenen Epics, an denen oder
   an deren Kindern `ready_label` steht. Je Epic: Kinder, berührte Module (`modules_section`),
   Reihenfolge-Kanten zu anderen Epics, `exclusive_paths` und `always_collide`, die es berührt,
-  geplante Migrationen.
+  geplante Migrationen. Das Einsammeln geht an Kundschafter, einen je Epic, nach den Regeln aus
+  `epic/SKILL.md` („Modelle, Paketklasse, Kundschafter").
 
 ## Phase 1 — Der Flottenplan
 
@@ -345,7 +347,7 @@ die Hochrechnung schwankt dort zu stark.
 | Stufe | 5-Stunden-Fenster | Was du tust |
 |---|---|---|
 | **Grün** | Hochrechnung unter 90 % | normal |
-| **Gelb** | Hochrechnung 90–120 %, oder verbraucht über 60 % | keine neuen Epics, keine neuen Wellen außer in Läufen, die vor ihrem letzten Paket stehen; Nacharbeit und Aufräumen laufen weiter |
+| **Gelb** | Hochrechnung 90–120 %, oder verbraucht über 60 % | keine neuen Epics, keine neuen Wellen außer in Läufen, die vor ihrem letzten Paket stehen; Nacharbeit und Aufräumen laufen weiter; dein `weiter` lautet `weiter, höchstens 3 Kundschafter` |
 | **Rot** | Hochrechnung über 120 %, oder verbraucht über 85 % | jede `FLOTTE-WELLE` bekommt `Pause bis <Reset>`; nichts Neues |
 
 **Wochenfenster:** Liegt die Hochrechnung der Woche über 100 %, sinkt die Obergrenze der Flotte
@@ -361,7 +363,8 @@ Empfehlung; gestoppt wird ein Chat nur auf seinen Wunsch.
 
 **Aus Erfahrung schätzen.** Was ein Paket kostet, ist nicht vorhersagbar, aber messbar. Bei jeder
 Messung notierst du den Zuwachs seit der letzten und die Pakete, die dazwischen liefen (mit
-Runden): **Kosten je Paket ≈ Zuwachs ÷ Pakete**. Den Startwert liefern die Erfahrungswerte
+Paketklasse, Runden und Eskalationen): **Kosten je Paket ≈ Zuwachs ÷ Pakete**, getrennt nach
+Paketklasse, sobald eine Welle nur eine Klasse enthält. Den Startwert liefern die Erfahrungswerte
 früherer Einsätze in `references/verbrauch.md`. Vor einem `weiter` oder Start rechnest du: Stand +
 geschätzte Kosten der nächsten Welle; läge das über 100 % vor dem Reset, gilt Rot für diese Welle,
 auch wenn die Stufe sonst Gelb wäre.
@@ -369,7 +372,8 @@ auch wenn die Stufe sonst Gelb wäre.
 Stufe, beide Fenster und der Reset stehen als eigene Zeile auf der Flottentafel. Die Schwellen
 sind ein **Entwurf** wie die Kollisionsstufen und werden an echten Einsätzen geschärft: Im
 Abschlussbericht (Phase 5) stehen die gemessenen Kosten je Paket (Mittel und Spanne, getrennt
-nach Implementer-Runden) und ob eine Schwelle zu früh oder zu spät gegriffen hat. Daraus
+nach Paketklasse und Implementer-Runden), die Eskalationen und ob eine Schwelle zu früh oder zu
+spät gegriffen hat. Daraus
 schlägst du eine Zeile für `references/verbrauch.md` vor; sie kommt per Pull Request ins
 Skill-Repository, nicht von dir direkt.
 

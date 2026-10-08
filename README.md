@@ -75,6 +75,24 @@ Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 `mattpocock-skills`) liegt hier keine Kopie, sondern die Einrichtung für unser Gitea:
 [`mattpocock-skills/`](mattpocock-skills/README.md).
 
+## Modelle und Denkstufen
+
+Opus macht nicht alles. Der Lauf stuft jedes Paket beim Schneiden in eine **Paketklasse** ein, und
+die Klasse wählt den Agent-Typ:
+
+| Rolle | Modell, Denkstufe |
+|---|---|
+| Kundschafter (liest nur, liefert Fundstellen) | Haiku, niedrig |
+| Implementer mechanisch / Standard / Urteil | Sonnet niedrig / Sonnet mittel / Opus mittel |
+| Reviewer mechanisch und Standard / Urteil | Sonnet hoch / Opus mittel |
+| Lauf-Agent unter `/epic-flotte` | Opus mittel |
+
+Opus mit hoher Denkstufe gibt es nur als letzte Stufe einer **Eskalation**: Meldet der Reviewer
+eine strukturelle Abweichung, läuft die nächste Runde eine Stufe höher. Kundschafter laufen zu
+mehreren gleichzeitig (höchstens acht), etwa um Behauptungen im Issue gegen den Code zu prüfen oder
+am Ende Kommentare und Labels nachzuzählen. Regeln: `epic/SKILL.md`, „Modelle, Paketklasse,
+Kundschafter"; Begriffe: [`CONTEXT.md`](CONTEXT.md).
+
 ## Aufbau
 
 ```
@@ -85,8 +103,9 @@ epic-nacharbeit/
   SKILL.md
 epic-aufraeumen/
   SKILL.md
-epic-flotte/            optional: mehrere Epics gleichzeitig
+epic-flotte/           optional: mehrere Epics gleichzeitig
   SKILL.md
+agents/                Agent-Typen der Modellstaffel (epic-kundschafter, epic-implementer-*, …)
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
 assets/prozess/        Prozessbild im README (prozess.png) und seine Quelle
@@ -122,6 +141,10 @@ Sicherung nachweislich vollständig ist (Dateizahl geprüft), wird der Zielordne
 befüllt. Ordner unter den alten Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`, `prd-flotte`)
 werden auf dieselbe Weise gesichert und dann entfernt, damit nicht alter und neuer Name zugleich
 auslösen.
+
+Die Agent-Typen aus `agents/` kopiert das Skript Datei für Datei nach `~/.claude/agents/`; eine
+vorhandene, abweichende Datei wird vorher nach `~/.claude/skills-backup/agents-<Zeitstempel>/`
+gesichert. Mit `-Skill` bleiben die Agent-Typen unberührt.
 
 ## Warum Kopie statt Junction/Symlink
 

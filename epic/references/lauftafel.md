@@ -77,6 +77,8 @@ Das hängt an `issue_form`:
 
 Sie nennt die Module, die ein Paket berührt, kurz und in der Schreibweise des Repositorys
 (`server/export`, `client/list`). Ein exklusives Paket trägt dahinter das Wort `<b>exklusiv</b>`.
+Am Ende steht die Paketklasse, `· mechanisch`, `· standard` oder `· urteil`; nach einer
+Eskalation beide, `· standard → urteil`.
 
 Die Spalte ersetzt den Graphen. Aus ihr liest ein Mensch, ob eine Kollisionskante fehlt: Zwei
 Pakete, die in der Zeitleiste gleichzeitig liegen und ein Modul teilen, hätten nicht nebeneinander

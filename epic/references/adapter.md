@@ -83,6 +83,7 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 | `isolation` | `none-needed` mit **Begründung**, wenn parallele Läufe sich nachweislich nichts teilen | nicht gesetzt |
 | `window` | Zahl der gleichzeitigen Plätze, höchstens 3 | **1**, außer `test_isolation_env` oder `isolation: none-needed` ist gesetzt, dann 3 |
 | `max_rounds` | Implementer-Runden je Paket, bevor es zurückbleibt | `3` |
+| `min_package_class` | Untergrenze der Paketklasse: `mechanisch`, `standard` oder `urteil`. Hebt nur an; ein Paket, das der Lauf höher einstuft, bleibt höher | keine Untergrenze |
 | `exclusive_paths` | Pfade, deren Änderung ein Paket exklusiv macht | Lockfiles, Abhängigkeitslisten, Migrationen |
 | `always_collide` | Dateien, die fast jedes Paket berührt (Patch-Notes, Versionsnummer). Zwei Pakete damit laufen nie gleichzeitig | keine |
 | `pre_commit_checks` | Prüfungen vor jedem Commit, etwa `core.hooksPath` gesetzt und Patch-Notes-Check | keine |
