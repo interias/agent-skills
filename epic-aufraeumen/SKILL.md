@@ -23,6 +23,9 @@ Der Projektadapter ist derselbe wie bei `/epic`: **`.claude/epic.md`** — er ne
 `base_branch` als Standardwert und `worktree_root`. Maßgeblich für das Löschen ist trotzdem immer
 die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
+Jede Rückfrage — Bestätigung des gefundenen Pull Requests, Zustimmung zum Löschen eines
+Remote-Branches, jede Abbruchbedingung — stellst du nach `epic/SKILL.md` („Wie gefragt wird").
+
 ---
 
 ## Die Regeln, die nicht verhandelbar sind

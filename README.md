@@ -67,7 +67,13 @@ neuen Projekts. Ohne ihn laufen die drei Skills wie bisher in je einem eigenen C
 - **Entscheidungsrecht:** Der Admiral entscheidet selbst, was eine Herkunft hat (Empfehlung des
   Skills, Präzedenz in diesem oder einem anderen Projekt) und folgenlos aufhebbar ist. Jede solche
   Entscheidung steht mit Herkunft in der Forge. Regeln lockern, Produktivdaten, fehlende Zugänge,
-  Merge und Remote-Löschungen bleiben bei dir.
+  Merge und Remote-Löschungen bleiben bei dir. Was sonst bei dir liegt, aber bis zum Merge
+  umkehrbar ist, entscheidet er **vorläufig** und lässt den Lauf weiterarbeiten; du bestätigst
+  oder kippst es, bis dahin trägt der PR `WIP:`.
+- **Rückfragen** kommen in allen Epic-Skills mit Antwortmöglichkeiten und Empfehlung, wo möglich
+  zum Anklicken (`AskUserQuestion`). Der Admiral fragt erst, wenn alle Läufe versorgt sind. Mit
+  `askUserQuestionTimeout` in deinen Einstellungen warten, während du weg bist, nur noch die Läufe
+  mit Fragen, die nie vorläufig entschieden werden dürfen.
 
 Quelle und Rendern des Bildes: [`assets/flotte/`](assets/flotte/README.md).
 

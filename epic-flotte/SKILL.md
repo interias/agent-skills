@@ -79,10 +79,16 @@ Der Frageblock, mit dem ein Lauf-Agent seinen Zug beendet:
 
 ```
 FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch>
-1. <Frage> — Empfehlung: <…> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
+1. <Frage> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
 2. …
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 ```
+
+Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen. Antwortet er
+`vorläufig: <Option>`, arbeitet der Lauf damit weiter wie mit jeder Antwort und öffnet den Pull
+Request mit `WIP:` (`epic/SKILL.md`, Phase 6). Ein späteres Veto des Menschen kommt als Antwort an
+einem Prüfpunkt, `veto: <Frage> → <neue Option>`: Der Lauf setzt es als Paket der nächsten Welle
+um, notfalls als zusätzliche Welle; liegt sein Pull Request schon offen, ist es ein Punkt für `/epic-nacharbeit`.
 
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
@@ -117,8 +123,11 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
   Laufs, Ende mit PR, Abbruch.
 - **Antworten und anstoßen:** per `SendMessage` an den Chat, erste Zeile *„Admiral <Name>
   (/epic-flotte): <worum es geht>"*. Je Antwort kennzeichnen, ob sie **deine Entscheidung** ist
-  (mit Herkunft, auch in der Forge) oder **vom Menschen bestätigt**. Nacharbeit und Aufräumen
-  stößt du im selben Chat an („Rufe den Skill `epic-nacharbeit` mit `#<nr>` auf"); er hat den
+  (mit Herkunft, auch in der Forge), **vorläufig** („Vorläufig mit Veto") oder **vom Menschen
+  bestätigt**. Die erste Nachricht sagt dem Chat, dass er ab jetzt nicht mehr mit
+  `AskUserQuestion` fragt, sondern als Text und seinen Zug beendet (`epic/SKILL.md`, „Wie gefragt
+  wird"). Ein Veto schickst du ihm, sobald er stillsteht. Nacharbeit und Aufräumen stößt du im
+  selben Chat an („Rufe den Skill `epic-nacharbeit` mit `#<nr>` auf"); er hat den
   Kontext des Laufs.
 - **Nie stoppen oder archivieren**, ohne dass der Mensch es verlangt.
 
@@ -129,6 +138,8 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
 - Adapter `.claude/epic.md` lesen, Forge-Zugang einmal verifizieren, Schreibrecht prüfen
   (`epic/references/forge.md`).
 - `git status` im Hauptverzeichnis muss leer sein, sonst anhalten und fragen.
+- `askUserQuestionTimeout` in den Einstellungen nachsehen (`~/.claude/settings.json`, sonst die
+  Projektebenen); fehlt er überall, siehe „Den Menschen fragen".
 - **Laufende Läufe feststellen:** `git worktree list` und der Inhalt von `worktree_root`. Je
   `epic-<nr>`-Worktree: Ist ein Chat oder Agent dran (`list_sessions`, Titel; offenes Zielissue
   mit `status/in-arbeit`)? Ein laufender Lauf ist belegt und zählt gegen die Obergrenze; ein
@@ -177,7 +188,7 @@ mindestens Stufe mittel.
   berührten Module, dazu je Zeile die Agent-ID, der Link auf die Lauftafel des Laufs und der Pull
   Request. Bei `plan_artifact: publish` veröffentlichen; die URL bleibt über den Einsatz gleich.
 - **Flotten-Tor:** Was vor dem Start nur ein Mensch entscheiden kann (siehe „Entscheidungsrecht",
-  Spalte *Mensch*), legst du jetzt vor, einmal, nummeriert, je mit Empfehlung. Ist nichts zu
+  Spalte *Mensch*), legst du jetzt vor, einmal, nach „Den Menschen fragen". Ist nichts zu
   melden, sag das in einem Satz und starte.
 
 ## Phase 2 — Starten
@@ -208,9 +219,12 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
   steht auf der Flottentafel.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
-  entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Agenten. Den Rest
-  sammelst du **über alle Läufe** und legst ihn dem Menschen gebündelt vor — eine Liste, je Frage
-  Epic, Empfehlung des Laufs, deine Empfehlung. Antworten gehen an den richtigen Agenten zurück.
+  entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Agenten. Was beim
+  Menschen liegt, aber vorläufig entschieden werden darf (siehe „Vorläufig mit Veto"),
+  entscheidest du vorläufig und antwortest `vorläufig: <Option>` — der Lauf arbeitet weiter. Den
+  Rest und die vorläufigen Entscheidungen sammelst du **über alle Läufe** und legst sie dem
+  Menschen gebündelt vor (siehe „Den Menschen fragen"). Antworten gehen an den richtigen Agenten
+  zurück.
 - **`FLOTTE-ENDE`:** den Pull Request in der Forge nachlesen (offen, Ziel `<basis>`, `Closes`
   stimmig, Abschlusskommentar steht), die Lauftafel nachlesen, die Flottentafel fortschreiben.
   Dann Phase 4 für dieses Epic, und der frei gewordene Platz geht nach Phase 1 an das nächste
@@ -233,7 +247,10 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
    mit `#<nr>` auf". Die Fragerunden kommen als `FLOTTE-FRAGE … nacharbeit` zu dir. Die Frage
    „passt in diese Sitzung oder braucht ein Ticket" beantwortest du nach den Volumenkriterien von
    `epic-nacharbeit` (Phase 2); sie sind prüfbar und damit dein Recht.
-2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt.
+2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt. Das
+   `WIP:` aus einer vorläufigen Entscheidung nimmst du selbst ab (Titel per Forge), wenn jede
+   vorläufige Entscheidung des Epics bestätigt oder nach dem Veto umgesetzt ist — und nur, wenn
+   kein anderer Grund aus `epic/SKILL.md` (Phase 6, Titel) bleibt.
 3. **Merge erkennen:** bei jedem Aufwachen die offenen Epic-PRs in der Forge nachsehen (`merged`).
 4. **Nach dem Merge:** ein Lauf-Agent mit `epic-nacharbeit` zum Schließen des Epics (sofern alle
    Kinder zu sind), dann einer mit `epic-aufraeumen` und der PR-Nummer. Remote-Branches löscht er
@@ -285,6 +302,48 @@ Aufheben: <was ein Mensch tun müsste, um sie umzukehren>
 
 und auf die Flottentafel unter „Entscheidungen". Der Mensch kann jede überstimmen; eine
 Entscheidung, die sich nicht folgenlos aufheben ließe, gehört deshalb in die rechte Spalte.
+
+### Vorläufig mit Veto
+
+Eine Frage aus der rechten Spalte hält ihren Lauf nicht an, wenn sie sich **bis zum Merge folgenlos
+umkehren** lässt — gemergt wird ohnehin nur vom Menschen. Du wendest deine Empfehlung vorläufig an,
+der Lauf arbeitet weiter, und der Mensch bestätigt oder kippt sie mit der nächsten Runde.
+
+- **Nie vorläufig:** Produktiv- oder Stammdaten, Zugriff aus `no_access`, fehlendes Schreibrecht,
+  `gate_approvals`, eine Antwort, die eine Regel lockert, PR mergen, Remote-Branch löschen, ein
+  Issue schließen, und alles nach dem Merge des Epic-PRs. Hier wartet der Lauf.
+- **Widerspruch zu ADR oder Out-of-Scope:** vorläufig nur in eine Richtung — der Lauf folgt der
+  bestehenden Entscheidung und lässt den widersprechenden Teil des Issues als offenen Punkt.
+- **Forge-Kommentar** wie oben, Kopfzeile **Vorläufig entschieden von /epic-flotte (Admiral
+  <Name>)**, dazu `Gilt bis: Bestätigung oder Veto; bis dahin trägt der Pull Request WIP:`.
+  Bestätigt der Mensch, ergänzt du am selben Issue „bestätigt vom Menschen", kippt er sie,
+  „gekippt vom Menschen: <neue Option>".
+- **`WIP:`** Ist der Pull Request schon offen, wenn du vorläufig antwortest, setzt du das Präfix
+  selbst (Titel per Forge); sonst setzt es der Lauf bei der Eröffnung.
+- **Veto:** Du schickst es dem Lauf an seinem nächsten Prüfpunkt als `veto: <Frage> → <neue
+  Option>` (übernommener Chat: sobald er stillsteht); liegt sein Pull Request schon offen, wird es
+  ein Punkt für `/epic-nacharbeit`. Das `WIP:` bleibt, bis es umgesetzt ist.
+
+## Den Menschen fragen
+
+Form nach `epic/SKILL.md` („Wie gefragt wird"). Je Frage dazu das Epic und, wenn sie abweichen, die
+Empfehlung des Laufs neben deiner. Eine vorläufig entschiedene Frage steht mit deiner Wahl als
+erster Option und dem Vermerk „vorläufig angewendet". Vor den Fragen stehen die Entscheidungen,
+die du seit der letzten Runde selbst getroffen hast, je eine Zeile `✔ <Entscheidung> — <Herkunft>`
+mit Link auf den Forge-Kommentar, damit der Mensch sie kippen kann.
+
+**Wann:** `AskUserQuestion` blockiert deinen Zug, bis der Mensch antwortet; Meldungen der Läufe
+bleiben solange liegen. Deshalb ist die Frage der **letzte Schritt eines Zugs**: zuerst jedem
+wartenden Lauf antworten (eigene und vorläufige Entscheidungen, `weiter` oder `Pause`), frei
+gewordene Plätze belegen, Tafel und Logbuch fortschreiben — dann fragen.
+
+**Ohne Antwort:** Kehrt die Frage nach dem Timeout unbeantwortet zurück (`askUserQuestionTimeout`
+in den Einstellungen des Menschen), gelten die vorläufigen Entscheidungen weiter, und Fragen, auf
+die ein Lauf wartet, bleiben offen. Ein Timeout ist nie eine Entscheidung. Die offenen Fragen
+stellst du beim nächsten Aufwachen erneut, gebündelt mit neuen. Ist der Timeout nicht gesetzt,
+wartet die Frage beliebig lange, und Läufe an ihren Prüfpunkten stehen solange; unter Remote
+Control läuft er nicht. Das sagst du dem Menschen in Phase 0 einmal in einem Satz, wenn der
+Schlüssel fehlt; die Einstellung setzt nur er.
 
 ---
 
@@ -381,8 +440,8 @@ Skill-Repository, nicht von dir direkt.
 
 - Das Hauptverzeichnis ist nicht sauber.
 - Das Flotten-Tor hat Punkte.
-- Fragen aus der rechten Spalte liegen vor — dann warten nur die betroffenen Läufe; die übrigen
-  laufen weiter.
+- Fragen aus der rechten Spalte liegen vor, die nicht vorläufig entschieden werden dürfen — dann
+  warten nur die betroffenen Läufe; die übrigen laufen weiter.
 
 Wird der Einsatz abgebrochen, bleibt jeder Lauf-Agent mit seinem Stand stehen; du schreibst je
 laufendem Epic den Stand ans Zielissue und auf die Flottentafel (`epic/SKILL.md`, „Wird der Lauf
