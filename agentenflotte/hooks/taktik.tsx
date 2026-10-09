@@ -183,7 +183,7 @@ export function registerTaktik(on: On) {
     // All five stations stay listed so the rows do not jump as agents come and go.
     return (
       <Box flexDirection="column">
-        <Svg source={svg.source} alt={svg.alt} width={SIZE} height={SIZE} isInteractive />
+        <Svg source={svg.source} alt={svg.alt} width={SIZE} height={SIZE} />
         <Text color={ALERT_COLOR[level]}>{`${ALERT_LABEL[level]} · Sternzeit ${stardate(now)}`}</Text>
         {STATIONS.map(station => (
           <Text key={station} dimColor={counts[station] === 0}>{`${station}: ${counts[station]}`}</Text>

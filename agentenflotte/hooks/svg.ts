@@ -1,6 +1,7 @@
-// The desktop drawing: one animated SVG (CSS keyframes, drawn by the Svg element with
-// isInteractive so animations and <title> tooltips run). Redrawn only when the fleet
-// changes; entry and exit animations take a negative delay so a redraw resumes them.
+// The desktop drawing: one animated SVG (CSS keyframes), drawn by the Svg element as an
+// image: the interactive frame keeps the iframe default of 300x150 on the desktop. Redrawn
+// only when the fleet changes; entry and exit animations take a negative delay so a redraw
+// resumes them.
 // A console frame: a cap on the left (alert color, data cascade), a bar on top, the sky
 // in the middle and a roster of pills, one per subagent, below.
 
