@@ -9,6 +9,7 @@ import { INITIAL, isOn, mirrored, setMirror } from './state'
 import { fleetSvg } from './svg'
 
 const fleet = atom({ plugin: 'agentenflotte', key: 'fleet' } as const, INITIAL.fleet)
+const alert = atom({ plugin: 'agentenflotte', key: 'alert' } as const, INITIAL.alert)
 const settings = atom({ plugin: 'agentenflotte', key: 'settings' } as const, INITIAL.settings)
 
 // The mounted terminal band the ticker repaints.
@@ -17,7 +18,7 @@ let site: { requestId: string; columns: number; isWorking: boolean } | null = nu
 async function paintTerminal($: EngineInterface) {
   if (!site) return
   const now = await $.clock.now()
-  const f = frame(mirrored(), now, site.columns, site.isWorking)
+  const f = frame(mirrored(), now, site.columns, site.isWorking, await read($, alert))
   const res = await $.ui.blit({ requestId: site.requestId, key: 'convoy', cells: f.cells, columns: site.columns, rows: ROWS })
   if (res.deny !== undefined) site = null
 }
@@ -36,12 +37,13 @@ export function registerBand(on: On) {
       return next(e)
     }
     const now = await $.clock.now()
+    const level = await read($, alert)
 
     if (e.surface === 'terminal') {
       const { Box, Raster, Text } = $.ui.resolve(e)
       const columns = Math.max(20, Math.min(512, e.props.bodyColumns))
       site = { requestId: e.requestId, columns, isWorking: e.props.isWorking }
-      const f = frame(ships, now, columns, e.props.isWorking)
+      const f = frame(ships, now, columns, e.props.isWorking, level)
       return (
         <Box flexDirection="column">
           <Raster key="convoy" columns={columns} rows={ROWS} cells={f.cells} />
@@ -51,7 +53,7 @@ export function registerBand(on: On) {
     }
 
     const { Svg } = $.ui.resolve(e)
-    const svg = fleetSvg(ships, now, e.props.isWorking)
+    const svg = fleetSvg(ships, now, e.props.isWorking, level)
     return <Svg source={svg.source} alt={svg.alt} isInteractive />
   })
 }
