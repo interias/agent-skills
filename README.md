@@ -77,6 +77,8 @@ Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 
 ## Plugin: `agentenflotte`
 
+![Agentenflotte über der Eingabezeile: rechts das Flaggschiff der Hauptsitzung, links davon in drei Spuren die Subagenten eines /epic-Laufs — Haiku-Shuttles als Kundschafter, Sonnet-Kreuzer als Implementer und Reviewer, Opus-Schiffe für Urteilspakete, eines mit Schild bei höchster Denkstufe. Ein Reviewer wartet mit gelbem Ausrufezeichen auf Freigabe.](assets/agentenflotte/vorschau.png)
+
 Ein Claude-Code-Mod, der laufende Subagenten als Pixel-Raumschiffkonvoi über der Eingabezeile
 zeigt, angeführt vom Flaggschiff der Hauptsitzung: Schiffsklasse = Modell, Warpfaktor =
 Denkstufe, gelber Alarm = wartet auf Freigabe, roter Alarm = fehlgeschlagen. `/flotte` blendet
@@ -125,6 +127,7 @@ agentenflotte/         Plugin (Mod): Subagenten als Konvoi über der Eingabezeil
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
 assets/prozess/        Prozessbild im README (prozess.png) und seine Quelle
 assets/flotte/         Flottenbild im README (flotte.png) und seine Quelle
+assets/agentenflotte/  Vorschaubild des Plugins (vorschau.png) und sein Generator
 install.ps1
 ```
 
@@ -162,8 +165,10 @@ vorhandene, abweichende Datei wird vorher nach `~/.claude/skills-backup/agents-<
 gesichert. Mit `-Skill` bleiben die Agent-Typen und Plugins unberührt.
 
 Die Plugins aus `.claude-plugin/marketplace.json` installiert das Skript über die `claude`-CLI im
-User-Scope (`claude plugin marketplace add/update`, `claude plugin install/update`). Claude Code
-legt davon eine Kopie im Plugin-Cache ab; nichts verlinkt zurück ins Repo.
+User-Scope (`claude plugin marketplace add/update`, `claude plugin install/update`). Weil der
+Marketplace ein lokaler Ordner ist, liest Claude Code das Plugin aus diesem Repo
+(`claude plugin list` zeigt `Read from: …\agent-skills\agentenflotte`); ein Branchwechsel hier
+ändert also den Mod der nächsten Sitzung. Eine Junction oder ein Symlink entsteht dabei nicht.
 
 ## Warum Kopie statt Junction/Symlink
 
