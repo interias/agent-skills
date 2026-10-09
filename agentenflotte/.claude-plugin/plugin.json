@@ -1,7 +1,7 @@
 {
   "name": "agentenflotte",
-  "version": "0.2.1",
-  "description": "A starship bridge for Claude Code: a fleet band for running subagents, bridge spinner and status line, log, ship's computer and a tactical display.",
+  "version": "0.3.0",
+  "description": "A starship bridge for Claude Code: bridge spinner, station labels and status line, alert levels, log, ship's computer and a tactical display.",
   "author": { "name": "interias" },
   "types": "./types/index.d.ts"
 }

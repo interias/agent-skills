@@ -1,18 +1,10 @@
 # Agentenflotte
 
-A Claude Code mod that turns the session into a starship bridge. Running subagents form a convoy above the prompt, led by the main session as the flagship, and the rest of the interface speaks the bridge's language (in German). Every part has its own switch.
-
-## Band
-
-Pixel ships above the prompt. The desktop app draws an animated SVG in a console frame: a cap on the left in the alert color with a data cascade (it runs while the session works), a bar on top, the convoy in the middle and a roster below with one pill per subagent. Hover a ship or pill for task, agent type, model, effort, warp and run time. The terminal draws half-block pixels.
-
-- **Ship class = model:** Haiku shuttle, Sonnet cruiser, Opus heavy cruiser, Fable science vessel; two variants each, picked per agent.
-- **Warp factor = effort:** low to max is warp 2, 4, 6, 8, 9.9: brighter nacelles, a longer warp trail, shields up at max.
-- New agents drop out of warp; finished ones jump away. Reduced motion stops the animation.
+A Claude Code mod that turns the session into a starship bridge: the interface speaks the bridge's language (in German), subagents are ships of the fleet, and the alert level shows what needs you. Every part has its own switch.
 
 ## Alert levels
 
-The cap, the status line and the spinner follow the alert. The highest applies.
+The status line, the spinner, the mode label and the radar frame follow the alert. The highest applies.
 
 | Level | When |
 |---|---|
@@ -25,6 +17,7 @@ The cap, the status line and the spinner follow the alert. The highest applies.
 - **Spinner:** the working words are bridge talk (`Warpkern kalibrieren`, `Kurs berechnen`); under an alert they change to `Autorisierung abwarten` and the like.
 - **Station labels** on tool rows: `Sensorscan` (Grep, Glob, web), `Archiv` (Read), `Shuttlestart` (Agent), `Maschinenraum` (Edit, Write), `Konsole` (Bash), `Transporter` (worktrees); a failed tool shows `Hüllenbruch`.
 - **Under-warp line** after a turn: `Unter Warp · 1 min 12 s`.
+- **Warp factor = effort:** low to max is warp 2, 4, 6, 8, 9.9.
 - **Status line:** stardate, warp factor of the main session, shields (context left), fleet size and the alert, e.g. `SZ 80769.9 · Warp 6 · Schilde 64 % · Flotte 3`.
 - **Mode label:** on an alert, `Alarmstufe Gelb|Rot|Blau` joins the session modes.
 - **Permission note:** a line under a permission dialog says who asks (`Alarmstufe Gelb · Maschinenraum erbittet Autorisierung`).
@@ -48,7 +41,7 @@ A message that starts with `Computer,` is answered tersely, numbers first, witho
 |---|---|
 | `/flotte` | main switch: hide or show the whole mod |
 | `/flotte status` | show the main switch and every part |
-| `/flotte <band\|bruecke\|logbuch\|computer> [an\|aus]` | switch one part, or toggle it without an argument |
+| `/flotte <bruecke\|logbuch\|computer> [an\|aus]` | switch one part, or toggle it without an argument |
 
 The switches persist across sessions. Defaults: everything on except the computer.
 

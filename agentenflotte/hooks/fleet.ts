@@ -5,7 +5,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, On } from 'claude-code'
 
 import type { Alert, Launch, Ship } from '../types'
-import { EXIT_MS, FAIL_LINGER_MS, effortIndex, modelOf, variantOf } from './sprites'
+import { EXIT_MS, FAIL_LINGER_MS, effortIndex, modelOf, variantOf } from './ships'
 import { INITIAL, MAIN_FAIL_MS, alertOf, mirrored, setMirror } from './state'
 
 const fleet = atom({ plugin: 'agentenflotte', key: 'fleet' } as const, INITIAL.fleet)
