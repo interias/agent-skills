@@ -39,6 +39,10 @@ declare module 'claude-code' {
       isCompacting: boolean
       /** The bridge's alert, kept by fleet.ts from the values above. */
       alert: Alert
+
+      // P5: taktik
+      /** Beats of the tactical display's ticker; the open pane reads it to draw again. */
+      taktikTick: number
     }
   }
 }
