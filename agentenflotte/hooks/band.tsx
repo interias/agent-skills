@@ -54,6 +54,6 @@ export function registerBand(on: On) {
 
     const { Svg } = $.ui.resolve(e)
     const svg = fleetSvg(ships, now, e.props.isWorking, level)
-    return <Svg source={svg.source} alt={svg.alt} isInteractive />
+    return <Svg source={svg.source} alt={svg.alt} />
   })
 }
