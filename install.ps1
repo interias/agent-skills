@@ -22,9 +22,12 @@
     Agent definitions (agents/*.md) are copied file by file. An existing file that differs is
     first backed up to $env:USERPROFILE\.claude\skills-backup\agents-<yyyyMMdd-HHmmss>\.
 
+    Plugins listed in .claude-plugin/marketplace.json are installed or updated at user scope
+    through the claude CLI, with this repo as the marketplace 'breuckmann-agent-skills'.
+
 .PARAMETER Skill
     Optional. Install only this one skill (folder name) instead of all skills in the repo.
-    The agent definitions are then left alone.
+    The agent definitions and plugins are then left alone.
 
 .PARAMETER DryRun
     Show what would happen without copying, backing up, or deleting anything.
@@ -207,6 +210,24 @@ if (-not $Skill -and $agentFiles) {
         }
         Copy-Item -Path $file.FullName -Destination $target -Force
         Write-Host "$($file.Name): installed" -ForegroundColor Green
+    }
+}
+
+# Plugins: this repo is the marketplace 'breuckmann-agent-skills' (.claude-plugin/marketplace.json).
+# Claude Code copies an installed plugin into its plugin cache; nothing links back to the repo.
+if (-not $Skill) {
+    Write-Host ""
+    Write-Host "== plugins =="
+    $plugins = (Get-Content (Join-Path $repoRoot '.claude-plugin\marketplace.json') -Raw | ConvertFrom-Json).plugins.name
+    if ($DryRun) {
+        Write-Host "[DryRun] Would add/update marketplace breuckmann-agent-skills and install/update: $($plugins -join ', ')"
+    } else {
+        claude plugin marketplace add $repoRoot
+        claude plugin marketplace update breuckmann-agent-skills
+        foreach ($plugin in $plugins) {
+            claude plugin install "$plugin@breuckmann-agent-skills" --scope user
+            claude plugin update "$plugin@breuckmann-agent-skills" --scope user
+        }
     }
 }
 

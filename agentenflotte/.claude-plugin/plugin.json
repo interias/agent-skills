@@ -1,0 +1,7 @@
+{
+  "name": "agentenflotte",
+  "version": "0.1.0",
+  "description": "Shows running subagents as a pixel starship convoy above the prompt, led by the main session's flagship.",
+  "author": { "name": "interias" },
+  "types": "./types/index.d.ts"
+}
