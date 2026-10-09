@@ -39,9 +39,14 @@ declare module 'claude-code' {
       isCompacting: boolean
       /** The bridge's alert, kept by fleet.ts from the values above. */
       alert: Alert
-      // p3: bruecke
+
+      // P3: bruecke
       /** The spinner verb period the clock is in, kept by bruecke.tsx so a spinner redraws as the verb moves. */
       verbSlot: number
+
+      // P5: taktik
+      /** Beats of the tactical display's ticker; the open pane reads it to draw again. */
+      taktikTick: number
     }
   }
 }
