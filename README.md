@@ -162,8 +162,10 @@ vorhandene, abweichende Datei wird vorher nach `~/.claude/skills-backup/agents-<
 gesichert. Mit `-Skill` bleiben die Agent-Typen und Plugins unberührt.
 
 Die Plugins aus `.claude-plugin/marketplace.json` installiert das Skript über die `claude`-CLI im
-User-Scope (`claude plugin marketplace add/update`, `claude plugin install/update`). Claude Code
-legt davon eine Kopie im Plugin-Cache ab; nichts verlinkt zurück ins Repo.
+User-Scope (`claude plugin marketplace add/update`, `claude plugin install/update`). Weil der
+Marketplace ein lokaler Ordner ist, liest Claude Code das Plugin aus diesem Repo
+(`claude plugin list` zeigt `Read from: …\agent-skills\agentenflotte`); ein Branchwechsel hier
+ändert also den Mod der nächsten Sitzung. Eine Junction oder ein Symlink entsteht dabei nicht.
 
 ## Warum Kopie statt Junction/Symlink
 

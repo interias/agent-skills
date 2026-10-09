@@ -214,7 +214,7 @@ if (-not $Skill -and $agentFiles) {
 }
 
 # Plugins: this repo is the marketplace 'breuckmann-agent-skills' (.claude-plugin/marketplace.json).
-# Claude Code copies an installed plugin into its plugin cache; nothing links back to the repo.
+# As a local-folder marketplace, Claude Code reads the plugin from this repo (no junction or symlink).
 if (-not $Skill) {
     Write-Host ""
     Write-Host "== plugins =="
