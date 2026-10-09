@@ -174,7 +174,7 @@ alle drei Skills.
 | `references/adapter.md` | diese Datei |
 | `references/forge.md` | Forge-Zugriff, Eigenheiten der Gitea-Instanz, Kommentare aus Dateien, Nachzählen, Pull Request |
 | `references/lauftafel.md` | Aufbau und Fortschreiben der Lauftafel |
-| `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Stahlblau Thermik". Wird kopiert, nicht nachgebaut |
+| `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Konsole". Wird kopiert, nicht nachgebaut; ihr gemeinsamer Block steht wortgleich in `epic-flotte/references/flottentafel.html` |
 | `references/worktree.md` | Worktrees rüsten und abräumen |
 
 `references/plan-artifact.md` entfällt und wird durch `lauftafel.md` ersetzt.

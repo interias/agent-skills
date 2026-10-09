@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lauftafel #942</title>
+<title>Flottentafel Beispielrepo</title>
 <style>
   /* ===== GEMEINSAMER BLOCK · Anfang ==================================
      Design "Konsole" der Lauftafel (/epic) und der Flottentafel (/epic-flotte).
@@ -114,14 +114,17 @@
   @keyframes glut-ring { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--live) 25%, transparent); } }
   @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .2; } }
   /* ===== GEMEINSAMER BLOCK · Ende ==================================== */
-  /* ===== Lauftafel: Konsolenrahmen und vier Blöcke ===================
-     Eine Bildschirmhöhe auf 1440p. Rahmenfarben aus --almond/--butter. */
+  /* ===== Flottentafel: fester Bildschirm, kein Scrollen ===============
+     Oben immer sichtbar: Kopf, Kennzahlen, Formation, Bremse, Stand der
+     Läufe, Beim Menschen. Unten blättern die Knöpfe der Seitenleiste
+     zwischen Belegung, Entscheidungen und Bremse. Rahmen: --violet/--lilac. */
+  html, body { height: 100%; }
   .board {
-    --c1: var(--almond); --c2: var(--butter);
-    max-width: 1480px; margin: 0 auto; padding: 14px 16px 0;
-    display: grid; grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: auto 1fr;
+    --c1: var(--violet); --c2: var(--lilac);
+    height: 100vh; height: 100dvh; max-width: 1480px; margin: 0 auto; padding: 14px 16px;
+    display: grid; grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
   }
-  /* Ellbogen: Seitenleiste und Kopfleiste als ein Stück */
   .elbow { grid-column: 1; grid-row: 1; background: var(--c1); border-top-left-radius: 56px; min-height: 96px; }
   .head { grid-column: 2; grid-row: 1; display: grid; grid-template-rows: 46px auto; position: relative; min-width: 0; }
   .head::before { content: ""; position: absolute; left: 0; top: 46px; width: 22px; height: 22px; background: radial-gradient(circle at 100% 100%, transparent 21.5px, var(--c1) 22px); }
@@ -130,69 +133,117 @@
   .topbar .t { flex: 1; display: flex; align-items: center; gap: 14px; padding: 0 16px; color: #000; min-width: 0; }
   .topbar .t b { font: 700 25px/1 var(--f-display); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
   .topbar .t span { font: 600 14px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .topbar i { width: 70px; background: var(--violet); }
-  .topbar u { width: 110px; background: var(--c2); border-radius: 0 23px 23px 0; }
+  .topbar i { width: 70px; background: var(--bluey); }
+  .topbar u { width: 110px; background: var(--almond); border-radius: 0 23px 23px 0; }
   .stamp { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; padding: 10px 0 0 32px; color: var(--dim); font: 12.5px/1.3 var(--f-mono); }
   .stamp b { color: var(--ink); font-weight: 500; }
-  .stamp .demo { color: var(--violet); border: 1px dashed var(--violet); border-radius: 99px; padding: 3px 10px; font: 600 12px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+  .stamp .demo { color: var(--almond); border: 1px dashed var(--almond); border-radius: 99px; padding: 3px 10px; font: 600 12px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
 
-  /* Seitenleiste: Kennzahlen als Kacheln */
-  .side { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 5px; padding-top: 5px; }
-  .read { padding: 10px 12px 9px; color: #000; display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 3px; background: var(--violet); }
+  /* Seitenleiste: Kennzahlen, dann die Blätterknöpfe */
+  .side { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 5px; padding-top: 5px; min-height: 0; }
+  .read { padding: 9px 12px 8px; color: #000; display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 3px; }
   .read .lbl { font-size: 12px; }
-  .read .v { font: 700 34px/1 var(--f-display); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+  .read .v { font: 700 32px/1 var(--f-display); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
   .read .v small { font-size: 16px; }
   .read .basis { font: 11px/1.3 var(--f-mono); opacity: .8; }
+  .read.a { background: var(--bluey); } .read.b { background: var(--almond); } .read.c { background: var(--butter); }
   .read.you { background: var(--you); }
-  /* Kennzahlkachel: die einzige Fläche mit Hitze-Tönung */
-  .read.metric { background: var(--tint); }
-  .meter { width: 100%; height: 6px; background: rgba(0,0,0,.25); position: relative; margin-top: 3px; }
-  .meter > i { position: absolute; inset: 0 auto 0 0; background: #000; }
-  .meter > u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #000; }
-  .side .fill { flex: 1; background: var(--c1); min-height: 40px; }
+  .pager { display: none; flex-direction: column; gap: 5px; margin-top: 10px; }
+  .js .pager { display: flex; }
+  .pager button { border: 0; cursor: pointer; padding: 12px 12px 10px; text-align: right; background: var(--c2); color: #000; font: 700 15px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+  .pager button[aria-selected="true"] { background: var(--almond); }
+  .pager button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .side .fill { flex: 1; background: var(--c1); min-height: 20px; }
   .side .cap { height: 22px; background: var(--c2); border-radius: 0 0 0 22px; }
 
-  .body { grid-column: 2; grid-row: 2; padding: 12px 0 0 22px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .body { grid-column: 2; grid-row: 2; padding: 12px 0 0 22px; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; gap: 12px; }
 
-  /* 1 · Kopfzeile */
-  .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; }
-  .meta .no { font: 700 15px/1 var(--f-display); letter-spacing: .1em; color: var(--almond); text-transform: uppercase; }
-  .meta h1 { margin: 0; font: 600 22px/1.2 var(--f-body); letter-spacing: -.005em; text-wrap: balance; flex: 1 1 100%; }
-  .kv { display: inline-flex; gap: 6px; align-items: baseline; min-width: 0; }
-  .kv .lbl { color: var(--faint); font-size: 11.5px; }
-  .kv .mono { font-size: 12.5px; overflow-wrap: anywhere; }
-  .pipline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-  .pipline .pips { flex: 1 1 320px; }
-  .pipline .s { color: var(--dim); font-size: 12.5px; }
+  /* Formation: wird vom Script aus der Tabelle "Stand der Läufe" gezeichnet */
+  .formation { height: 170px; border-radius: 10px; overflow: hidden; background:
+      radial-gradient(1px 1px at 8% 30%, #cfd6ff 50%, transparent 51%), radial-gradient(1px 1px at 23% 76%, #cfd6ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 47% 18%, #cfd6ff 50%, transparent 51%), radial-gradient(1px 1px at 66% 62%, #cfd6ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 91% 40%, #cfd6ff 50%, transparent 51%), radial-gradient(1px 1px at 35% 48%, #cfd6ff 50%, transparent 51%), #05071a; }
+  .formation svg { display: block; width: 100%; height: 100%; }
+  .formation .leer { margin: 0; padding: 70px 18px; color: var(--dim); font-size: 12.5px; }
+  .js .formation .leer { display: none; }
+  .formation text { font-family: var(--f-display); font-weight: 600; font-size: 13px; letter-spacing: 1.2px; text-transform: uppercase; }
+  .formation .z-live { fill: var(--live); color: var(--live); }
+  .formation .z-you { fill: var(--you); color: var(--you); }
+  .formation .z-done { fill: var(--done); color: var(--done); }
+  .formation .z-fail { fill: var(--fail); color: var(--fail); }
+  .formation .z-wait { fill: var(--wait); color: var(--wait); }
+  .formation .z-block { fill: var(--block); color: var(--block); }
+  .formation .z-flag { fill: var(--violet); }
+  /* Form vor Farbe: wartend Kreis, blockiert Quadrat (hohl), nicht abgenommen Kreuz */
+  .formation .hohl { fill: none; stroke: currentColor; stroke-width: 1.6; }
+  .formation .kreuz { fill: none; stroke: currentColor; stroke-width: 2; }
+  .formation .dock { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 6 5; }
+  .formation .t-dim { fill: var(--faint); }
+  .formation .t-ink { fill: var(--ink); }
 
-  /* Blöcke mit farbiger Schiene */
-  .blk { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 0 12px; }
+  /* Verbrauchsbremse als Leiste */
+  .brake { --brake: var(--dim); display: grid; grid-template-columns: auto repeat(2, minmax(150px, 1fr)) auto; gap: 8px 18px; align-items: center; background: var(--deck); border-radius: 10px; padding: 9px 14px; }
+  .brake.gruen { --brake: #5fd38a; } .brake.gelb { --brake: #e0c060; } .brake.rot { --brake: #ff5a3c; }
+  .brake .lvl { padding: 6px 14px; border-radius: 99px; color: #000; background: var(--brake); font: 700 13px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+  .gauge { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .gauge .g { height: 8px; background: var(--line); position: relative; }
+  .gauge .g b { position: absolute; inset: 0 auto 0 0; background: var(--brake); }
+  .gauge .gl { display: flex; justify-content: space-between; gap: 8px; color: var(--dim); font-size: 12px; flex-wrap: wrap; }
+  .brake .note { color: var(--dim); font-size: 12.5px; }
+  .brake .note b { color: var(--ink); font-weight: 500; }
+
+  /* Blöcke */
+  .mid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; min-height: 0; }
+  .blk { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 0 12px; min-height: 0; }
   .blk > .rail { background: var(--rc, var(--lilac)); border-radius: 5px 0 0 5px; }
+  .blk > div:last-child { min-width: 0; min-height: 0; }
   .blk h2 { margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; font: 700 16px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--almond); }
   .blk h2 small { font: 400 12.5px/1.3 var(--f-body); letter-spacing: 0; text-transform: none; color: var(--dim); }
   .blk h2 .count { font: 600 13px/1 var(--f-display); letter-spacing: .1em; color: var(--you); }
 
-  /* 2 · Stand der Pakete */
   .tblw { overflow-x: auto; }
-  table { width: 100%; border-collapse: separate; border-spacing: 0 3px; min-width: 760px; }
-  th { text-align: left; padding: 0 10px 2px; color: var(--faint); font: 600 11.5px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
-  td { padding: 6px 10px; background: var(--deck); vertical-align: top; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0 3px; }
+  th { text-align: left; padding: 0 9px 2px; color: var(--faint); font: 600 11.5px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+  td { padding: 6px 9px; background: var(--deck); vertical-align: top; }
   td:first-child { border-radius: 8px 0 0 8px; }
   td:last-child { border-radius: 0 8px 8px 0; }
   .c-no { font: 600 15px/1.25 var(--f-display); letter-spacing: .03em; color: var(--almond); white-space: nowrap; }
   .c-goal .sub { display: block; color: var(--dim); font-size: 12px; margin-top: 1px; }
-  /* Module je Paket: daran sieht man eine fehlende Kollisionskante */
   .c-mod { font: 12px/1.4 var(--f-mono); color: #cfc6d6; }
   .c-mod b { color: var(--fail); font: 600 12.5px/1 var(--f-display); letter-spacing: .08em; text-transform: uppercase; }
-  .c-mod .cls { color: var(--faint); }
-  .c-num, .c-merge { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .c-num .cap, .c-merge.none { color: var(--faint); }
+  .c-run, .c-pr { font: 12px/1.4 var(--f-mono); white-space: nowrap; }
+  .c-run .none, .c-pr .none { color: var(--faint); }
   tr.is-live td { background: #1a120a; }
   tr.is-fail td { background: #1b0c0a; }
-  tr.is-blocked td { color: var(--dim); }
-  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; }
+  a { color: var(--bluey); }
+  td a { text-decoration: none; border-bottom: 1px dotted currentColor; }
+  /* Mini-Segmentleiste: ein Segment je Paket des Laufs */
+  .pips.mini { display: inline-flex; height: 10px; gap: 2px; vertical-align: -1px; margin-right: 6px; }
+  .pips.mini .pip { flex: 0 0 9px; min-width: 0; }
+  .pips.mini .pip.fail { background: repeating-linear-gradient(135deg, var(--fail) 0 2px, transparent 2px 4px); }
+  .coll { display: inline-block; margin-top: 4px; font: 600 11.5px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+  .coll.keine { box-shadow: inset 0 0 0 1px var(--faint); color: var(--dim); }
+  .coll.klein { background: var(--bluey); color: #000; }
+  .coll.mittel { background: var(--almond); color: #000; }
+  .coll.gross { background: var(--butter); color: #000; }
 
-  /* 3 · Belegung der Plätze */
+  /* Beim Menschen: Glut = wartet auf dich, Blau = die Flotte hebt es selbst */
+  .items { display: grid; gap: 6px; }
+  .item { background: var(--deck); border-radius: 0 12px 12px 0; border-left: 8px solid var(--done); padding: 8px 12px 9px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .item.you { border-left-color: var(--you); background: #17130a; }
+  .item .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .item h3 { margin: 0; font: 600 14px/1.25 var(--f-body); }
+  .owner { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--done); white-space: nowrap; }
+  .item.you .owner { color: var(--you); }
+  .item.you .owner::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--you); }
+  .item p { margin: 0; color: #d6ccc4; font-size: 12.5px; }
+  .item .meta2 { font: 11.5px/1.4 var(--f-mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 2px 14px; }
+  .item .meta2 b { color: var(--ink); font-weight: 500; }
+  .items .none { margin: 0; color: var(--dim); }
+
+  /* Unterer Bereich: drei Seiten, eine sichtbar */
+  .seiten { min-height: 0; overflow: auto; }
+  [hidden] { display: none !important; }
   .tl { display: grid; grid-template-columns: 64px repeat(12, minmax(0, 1fr)); gap: 4px 0; min-width: 760px; }
   .tl .ax { color: var(--faint); font: 11px/1 var(--f-mono); padding: 0 0 2px 4px; border-left: 1px solid var(--line); }
   .tl .ax:first-child { border: 0; }
@@ -202,219 +253,308 @@
   .bar b { font: 700 12.5px/1 var(--f-display); letter-spacing: .06em; }
   .bar.done { background: var(--done); }
   .bar.live { background: var(--live); box-shadow: 0 0 10px color-mix(in srgb, var(--live) 45%, transparent); }
-  /* gestreift wie .pip.fail: die Form trennt es von .bar.live, nicht nur der Ton */
+  .bar.you { background: var(--you); }
   .bar.fail { background: repeating-linear-gradient(135deg, var(--fail) 0 6px, #ff8a70 6px 11px); }
   .dev { color: var(--dim); font-size: 12.5px; margin: 8px 0 0; max-width: 150ch; }
   .dev b { color: var(--ink); font-weight: 600; }
+  .dec { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 6px; }
+  .dec .d { background: var(--deck); border-radius: 0 10px 10px 0; border-left: 4px solid var(--violet); padding: 8px 12px; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 3px 12px; }
+  .dec .d.vorl { border-left-style: dashed; }
+  .dec .d .lbl { color: var(--violet); padding-top: 2px; }
+  .dec .d p { margin: 0; font-size: 13px; }
+  .dec .d .vk { font: 600 11.5px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--almond); margin-left: 6px; }
+  .dec .d .hard { grid-column: 2; font: 11.5px/1.4 var(--f-mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 2px 14px; }
+  .dec .d .hard b { color: var(--ink); font-weight: 500; }
+  #seite-bremse table { min-width: 640px; }
+  #seite-bremse td { font: 12.5px/1.3 var(--f-mono); font-variant-numeric: tabular-nums; }
+  .stufe { font: 700 12px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; color: #000; }
+  .stufe.gruen { background: #5fd38a; } .stufe.gelb { background: #e0c060; } .stufe.rot { background: #ff5a3c; }
 
-  /* 4 · Offene Punkte: Schiene links — Glut = wartet auf dich, Blau = der Lauf hebt es */
-  .items { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
-  .item { background: var(--deck); border-radius: 0 12px 12px 0; border-left: 8px solid var(--done); padding: 10px 14px 11px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-  .item.you { border-left-color: var(--you); background: #17130a; }
-  .item .top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
-  .item h3 { margin: 0; font: 600 14.5px/1.25 var(--f-body); }
-  .owner { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--done); white-space: nowrap; }
-  .item.you .owner { color: var(--you); }
-  .item.you .owner::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--you); }
-  .item p { margin: 0; color: #d6ccc4; font-size: 13px; }
-  .item .meta2 { font: 11.5px/1.4 var(--f-mono); color: var(--dim); display: flex; flex-wrap: wrap; gap: 2px 14px; }
-  .item .meta2 b { color: var(--ink); font-weight: 500; }
-  .items .none { margin: 0; color: var(--dim); }
-
-  footer { max-width: 1480px; margin: 0 auto; padding: 14px 16px 18px 188px; color: var(--dim); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 22px; }
+  footer { color: var(--faint); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 22px; }
 
   @media (max-width: 900px) {
-    .board { grid-template-columns: minmax(0, 1fr); }
+    html, body { height: auto; }
+    .board { height: auto; overflow: visible; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
     .elbow, .head::before, .side .fill, .side .cap, .topbar i, .topbar u { display: none; }
     .head, .side, .body { grid-column: 1; }
-    .head { grid-row: 1; } .side { grid-row: 2; flex-direction: row; flex-wrap: wrap; padding-top: 12px; } .body { grid-row: 3; padding-left: 0; }
+    .head { grid-row: 1; } .side { grid-row: 2; flex-direction: row; flex-wrap: wrap; padding-top: 12px; } .body { grid-row: 3; padding-left: 0; display: flex; flex-direction: column; }
     .topbar .t { border-radius: 23px; }
     .read { flex: 1 1 150px; align-items: flex-start; text-align: left; }
+    .js .pager { flex-direction: row; flex: 1 1 100%; flex-wrap: wrap; margin-top: 0; }
+    .pager button { flex: 1 1 100px; text-align: center; border-radius: 99px; }
     .stamp { padding-left: 0; }
-    footer { padding-left: 16px; }
+    .mid { grid-template-columns: minmax(0, 1fr); }
+    .brake { grid-template-columns: minmax(0, 1fr); }
+    .formation { height: auto; }
+    .formation svg { height: auto; }
+    #laeufe table { min-width: 780px; }
+    .seiten { overflow: visible; }
   }
   @media (max-width: 480px) {
     .topbar .t b { font-size: 21px; }
-    .meta h1 { font-size: 19px; }
   }
 </style>
 
 <div class="board">
   <div class="elbow"></div>
   <header class="head">
-    <!-- Name des Repositorys in der Kopfleiste. -->
-    <div class="topbar"><div class="t"><b>Lauftafel</b><span>Beispielrepo</span></div><i></i><u></u></div>
-    <div class="stamp"><span class="demo">Musterbelegung</span><b class="lauf live">Lauf im Gang</b><span>Stand <b>22.09.2026, 14:05 MESZ</b></span><span>Fortschreibung <b>5</b></span><span>Sternzeit <b>80724.8</b></span></div>
+    <!-- Name des Repositorys und des Admirals in der Kopfleiste; das Script liest den Admiral von hier. -->
+    <div class="topbar"><div class="t"><b>Flottentafel</b><span>Beispielrepo · <span id="admiral">Admiral Janeway</span></span></div><i></i><u></u></div>
+    <div class="stamp"><span class="demo">Musterbelegung</span><b class="lauf live">Einsatz läuft</b><span>Stand <b>22.09.2026, 14:10 MESZ</b></span><span>Fortschreibung <b>11</b></span><span>Sternzeit <b>80724.8</b></span></div>
   </header>
 
-  <aside class="side" aria-label="Kennzahlen">
-    <div class="read">
-      <span class="lbl">Tests</span>
-      <span class="v">1&nbsp;438</span>
-      <span class="basis">← 1&nbsp;412 · alle grün<br>server + client<br>14:05</span>
-    </div>
-
-    <!-- Optional: nur wenn das Issue eine Kennzahl nennt. Sonst die ganze Kachel entfernen. -->
-    <div class="read metric" style="--tint: var(--heat-5)">
-      <span class="lbl">Exporte unter 2 s</span>
-      <span class="v">88,7<small> %</small></span>
-      <span class="basis">← 87,3 · Ziel 90 %<br>n = 318 Exporte<br>Anteil unter 2 s</span>
-      <span class="meter" aria-hidden="true"><i style="width: 88.7%"></i><u style="left: 90%"></u></span>
-    </div>
-
-    <div class="read you">
-      <span class="lbl">Wartet auf dich</span>
-      <span class="v">2</span>
-      <span class="basis">von 3 offenen Punkten<br>1 hebt der Lauf</span>
+  <aside class="side" aria-label="Kennzahlen der Flotte">
+    <div class="read a"><span class="lbl">Läufe</span><span class="v">2<small> / 3</small></span><span class="basis">Plätze belegt<br>1 Epic im Dock</span></div>
+    <div class="read b"><span class="lbl">Pakete</span><span class="v">10<small> / 24</small></span><span class="basis">abgenommen<br>über alle Läufe</span></div>
+    <div class="read c"><span class="lbl">Selbst entschieden</span><span class="v">4</span><span class="basis">davon 1 vorläufig<br>alle in der Forge</span></div>
+    <div class="read you"><span class="lbl">Wartet auf dich</span><span class="v">3</span><span class="basis">von 4 offenen Punkten<br>1 hebt die Flotte</span></div>
+    <div class="pager" role="tablist" aria-label="Unterer Bereich">
+      <button role="tab" id="k-belegung" aria-controls="seite-belegung" aria-selected="true">Belegung</button>
+      <button role="tab" id="k-entscheidungen" aria-controls="seite-entscheidungen" aria-selected="false">Entscheidungen</button>
+      <button role="tab" id="k-bremse" aria-controls="seite-bremse" aria-selected="false">Bremse</button>
     </div>
     <div class="fill"></div>
     <div class="cap"></div>
   </aside>
 
   <main class="body">
-    <!-- ===== 1 · Kopfzeile ========================================== -->
-    <section class="meta" aria-label="Lauf">
-      <span class="no">Epic #942</span>
-      <h1>Auftragsliste als CSV exportieren</h1>
-      <span class="kv"><span class="lbl">Basis</span><span class="mono">release/9.4</span></span>
-      <span class="kv"><span class="lbl">Epic</span><span class="mono">epic/942-auftragsliste-als-csv</span></span>
-      <span class="kv"><span class="lbl">Pull Request</span><span class="mono">—</span></span>
+    <!-- Formation: nie von Hand zeichnen. Das Script am Ende erzeugt sie aus der Tabelle "Stand der Läufe". -->
+    <div class="formation" id="formation"><p class="leer">Die Formation zeichnet ein Script aus der Tabelle „Stand der Läufe"; ohne JavaScript steht der Stand nur dort.</p></div>
+
+    <!-- Verbrauchsbremse: Klasse gruen | gelb | rot an .brake und an .lvl-Text; Breite der Balken = verbraucht in %. -->
+    <section class="brake gelb" aria-label="Verbrauchsbremse">
+      <span class="lvl">Bremse gelb</span>
+      <div class="gauge"><span class="g" aria-hidden="true"><b style="width: 62%"></b></span><span class="gl"><span>5-Stunden-Fenster</span><span class="mono">62 % · hochgerechnet 101 %</span></span></div>
+      <div class="gauge"><span class="g" aria-hidden="true"><b style="width: 41%"></b></span><span class="gl"><span>Wochenfenster</span><span class="mono">41 % · hochgerechnet 88 %</span></span></div>
+      <span class="note">Reset <b class="mono">16:00</b> · nächste Welle ≈ <b class="mono">14 %</b></span>
     </section>
-    <div class="pipline">
-      <span class="pips" role="img" aria-label="3 von 8 Paketen abgenommen, 2 in Arbeit, 1 wartend, 1 nicht abgenommen, 1 blockiert">
-        <i class="pip done"></i><i class="pip done"></i><i class="pip done"></i><i class="pip live"></i><i class="pip live"></i><i class="pip wait"></i><i class="pip fail"></i><i class="pip block"></i>
-      </span>
-      <span class="s">3 von 8 Paketen abgenommen · 2 in Arbeit · 1 wartend · 1 nicht abgenommen · 1 blockiert</span>
+
+    <div class="mid">
+      <!-- ===== Stand der Läufe: je Epic eine Zeile, data-epic Pflicht ========= -->
+      <section class="blk" style="--rc: var(--violet)"><div class="rail"></div><div>
+        <h2>Stand der Läufe <small>ein Schiff je Lauf, ein Segment je Paket</small></h2>
+        <div class="tblw" id="laeufe"><table>
+          <thead><tr><th scope="col">Epic</th><th scope="col">Ziel</th><th scope="col">Module · Kollision</th><th scope="col">Zustand</th><th scope="col">Pakete</th><th scope="col">Lauf</th><th scope="col">PR</th></tr></thead>
+          <tbody>
+            <tr class="is-live" data-epic="942">
+              <td class="c-no">#942</td>
+              <td class="c-goal">Auftragsliste als CSV exportieren<span class="sub">Welle 3 · Platz 1 seit 09:02</span></td>
+              <td class="c-mod">server/export, client/list<br><span class="coll mittel">mittel zu #975</span></td>
+              <td><span class="state live">läuft</span></td>
+              <td><span class="pips mini" role="img" aria-label="3 von 8 abgenommen"><i class="pip done"></i><i class="pip done"></i><i class="pip done"></i><i class="pip live"></i><i class="pip live"></i><i class="pip wait"></i><i class="pip fail"></i><i class="pip block"></i></span><span class="mono">3/8</span></td>
+              <td class="c-run">a7f3e21 · <a href="#">Lauftafel</a></td>
+              <td class="c-pr"><span class="none">—</span></td>
+            </tr>
+            <tr data-epic="961">
+              <td class="c-no">#961</td>
+              <td class="c-goal">Rechnungen gesammelt drucken<span class="sub">Vorab-Tor: eine Frage liegt bei dir</span></td>
+              <td class="c-mod">server/print, client/invoice<br><span class="coll keine">keine</span></td>
+              <td><span class="state you">wartet auf dich</span></td>
+              <td><span class="pips mini" role="img" aria-label="0 von 4 abgenommen"><i class="pip wait"></i><i class="pip wait"></i><i class="pip wait"></i><i class="pip wait"></i></span><span class="mono">0/4</span></td>
+              <td class="c-run">c21e9d0 · <a href="#">Lauftafel</a></td>
+              <td class="c-pr"><span class="none">—</span></td>
+            </tr>
+            <tr class="is-fail" data-epic="966">
+              <td class="c-no">#966</td>
+              <td class="c-goal">Lieferscheine archivieren<span class="sub">Abgebrochen in Welle 2 — siehe Beim Menschen</span></td>
+              <td class="c-mod">server/archive<br><span class="coll klein">klein zu #942</span></td>
+              <td><span class="state fail">abgebrochen</span></td>
+              <td><span class="pips mini" role="img" aria-label="1 von 3 abgenommen"><i class="pip done"></i><i class="pip fail"></i><i class="pip block"></i></span><span class="mono">1/3</span></td>
+              <td class="c-run">5be8f13 · <a href="#">Lauftafel</a></td>
+              <td class="c-pr"><span class="none">—</span></td>
+            </tr>
+            <tr data-epic="970">
+              <td class="c-no">#970</td>
+              <td class="c-goal">Rollenrechte für Disponenten<span class="sub">Nacharbeit fertig · wartet auf deinen Merge</span></td>
+              <td class="c-mod">server/auth <b>exklusiv</b><br><span class="coll keine">keine</span></td>
+              <td><span class="state done">fertig</span></td>
+              <td><span class="pips mini" role="img" aria-label="6 von 6 abgenommen"><i class="pip done"></i><i class="pip done"></i><i class="pip done"></i><i class="pip done"></i><i class="pip done"></i><i class="pip done"></i></span><span class="mono">6/6</span></td>
+              <td class="c-run">9b04c77 · <a href="#">Lauftafel</a></td>
+              <td class="c-pr"><a href="#">#212</a></td>
+            </tr>
+            <tr data-epic="975" data-wartet="#942">
+              <td class="c-no">#975</td>
+              <td class="c-goal">Exportformat XLSX<span class="sub">Im Dock: wartet auf #942</span></td>
+              <td class="c-mod">server/export<br><span class="coll mittel">mittel zu #942</span></td>
+              <td><span class="state wait">im Dock</span></td>
+              <td><span class="pips mini" role="img" aria-label="0 von 3 abgenommen"><i class="pip wait"></i><i class="pip wait"></i><i class="pip wait"></i></span><span class="mono">0/3</span></td>
+              <td class="c-run"><span class="none">—</span></td>
+              <td class="c-pr"><span class="none">—</span></td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div></section>
+
+      <!-- ===== Beim Menschen ============================================ -->
+      <section class="blk" style="--rc: var(--you)"><div class="rail"></div><div>
+        <h2>Beim Menschen <span class="count">3 warten auf dich</span> <small>1 hebt die Flotte</small></h2>
+        <div class="items">
+          <!-- Ist nichts offen, ersetzt diese eine Zeile alle Punkte:
+          <p class="none">Nichts offen.</p>
+          -->
+          <article class="item you">
+            <div class="top"><h3>#961 Testkonto für den Druckdienst</h3><span class="owner blink-dot">Entscheidung</span></div>
+            <p>Vorläufig angewendet: Paket 3 als offener Punkt, PR mit WIP. Bestätigen oder kippen.</p>
+            <div class="meta2"><span>seit <b>13:25</b></span><span>Lauf <b>c21e9d0</b></span></div>
+          </article>
+          <article class="item you">
+            <div class="top"><h3>PR #212 mergen</h3><span class="owner blink-dot">Merge</span></div>
+            <p>#970 ist abgenommen und nachgearbeitet; danach räumt die Flotte auf.</p>
+            <div class="meta2"><span>seit <b>12:50</b></span><span>Basis <b>main</b></span></div>
+          </article>
+          <article class="item you">
+            <div class="top"><h3>#966 abgebrochen</h3><span class="owner blink-dot">Abbruch</span></div>
+            <p>Lauf endete ohne Frageblock, auch nach einer Nachfrage. Stand steht am Issue.</p>
+            <div class="meta2"><span>seit <b>11:20</b></span><span>Lauf <b>5be8f13</b></span></div>
+          </article>
+          <article class="item run">
+            <div class="top"><h3>Bremse gelb</h3><span class="owner">Flotte</span></div>
+            <p>Keine neuen Epics; #942 darf seine letzte Welle fahren.</p>
+            <div class="meta2"><span>gemessen <b>14:05</b></span></div>
+          </article>
+        </div>
+      </div></section>
     </div>
 
-    <!-- ===== 2 · Stand der Pakete =================================== -->
-    <section class="blk" style="--rc: var(--violet)"><div class="rail"></div><div>
-      <h2>Stand der Pakete <small>Reihenfolge nach Abhängigkeiten</small></h2>
-      <div class="tblw"><table>
-        <thead><tr><th scope="col">Nr.</th><th scope="col">Ziel</th><th scope="col">Module</th><th scope="col">Zustand</th><th scope="col">Runden</th><th scope="col">Merge</th></tr></thead>
-        <tbody>
-          <tr>
-            <td class="c-no">#943</td>
-            <td class="c-goal">Der Server liefert die Auftragsliste als CSV mit Kopfzeile.</td>
-            <td class="c-mod">server/export <span class="cls">· standard</span></td>
-            <td><span class="state done">abgenommen</span></td>
-            <td class="c-num">1</td>
-            <td class="c-merge">1a2b3c4</td>
-          </tr>
-          <tr>
-            <td class="c-no">#944</td>
-            <td class="c-goal">Die Spalten folgen der Sortierung der Ansicht.<span class="sub">Runde 2 nach Reviewer-Befund: leere Felder verschoben die Spalten</span></td>
-            <td class="c-mod">server/list <span class="cls">· standard</span></td>
-            <td><span class="state done">abgenommen</span></td>
-            <td class="c-num">2</td>
-            <td class="c-merge">5d6e7f8</td>
-          </tr>
-          <tr>
-            <td class="c-no">#945</td>
-            <td class="c-goal">Die Hilfe beschreibt den Export.</td>
-            <td class="c-mod">docs <span class="cls">· mechanisch</span></td>
-            <td><span class="state done">abgenommen</span></td>
-            <td class="c-num">1</td>
-            <td class="c-merge">9a0b1c2</td>
-          </tr>
-          <tr class="is-live">
-            <td class="c-no">#946</td>
-            <td class="c-goal">Die Liste hat einen Knopf „Als CSV".<span class="sub">Platz 1 · Runde 2 seit 13:20</span></td>
-            <td class="c-mod">client/list <span class="cls">· standard</span></td>
-            <td><span class="state live">in Arbeit</span></td>
-            <td class="c-num">2 <span class="cap">/ 3</span></td>
-            <td class="c-merge none">—</td>
-          </tr>
-          <tr class="is-live">
-            <td class="c-no">#947</td>
-            <td class="c-goal">Große Listen werden gestreamt statt gepuffert.<span class="sub">Platz 2 · Runde 1 seit 13:35</span></td>
-            <td class="c-mod">server/export <span class="cls">· urteil</span></td>
-            <td><span class="state live">in Arbeit</span></td>
-            <td class="c-num">1 <span class="cap">/ 3</span></td>
-            <td class="c-merge none">—</td>
-          </tr>
-          <tr>
-            <td class="c-no">#948</td>
-            <td class="c-goal">Die Exportbibliothek wird auf die neue Hauptversion gehoben.<span class="sub">Startet, sobald ein Platz frei ist und kein anderes Paket läuft</span></td>
-            <td class="c-mod">server <b>exklusiv</b> <span class="cls">· standard</span></td>
-            <td><span class="state wait">wartend</span></td>
-            <td class="c-num">0</td>
-            <td class="c-merge none">—</td>
-          </tr>
-          <tr class="is-fail">
-            <td class="c-no">#949</td>
-            <td class="c-goal">Der alte Export-Endpunkt entfällt.<span class="sub">Abgebrochen nach drei Runden — siehe offene Punkte</span></td>
-            <td class="c-mod">server/export, server/routes <span class="cls">· mechanisch → standard</span></td>
-            <td><span class="state fail">nicht abgenommen</span></td>
-            <td class="c-num">3 <span class="cap">/ 3</span></td>
-            <td class="c-merge none">—</td>
-          </tr>
-          <tr class="is-blocked">
-            <td class="c-no">#950</td>
-            <td class="c-goal">Die Integrationstests prüfen den Export ohne alten Endpunkt.<span class="sub">Blockiert durch #949</span></td>
-            <td class="c-mod">server/test <span class="cls">· standard</span></td>
-            <td><span class="state block">blockiert</span></td>
-            <td class="c-num">0</td>
-            <td class="c-merge none">—</td>
-          </tr>
-        </tbody>
-      </table></div>
-      <div class="legend"><span class="state wait">wartend</span><span class="state live">in Arbeit</span><span class="state done">abgenommen</span><span class="state fail">nicht abgenommen</span><span class="state block">blockiert</span></div>
-    </div></section>
+    <!-- ===== Unterer Bereich: Seiten, geblättert über die Seitenleiste ======= -->
+    <div class="seiten">
+      <section class="blk" id="seite-belegung" role="tabpanel" aria-labelledby="k-belegung" style="--rc: var(--bluey)"><div class="rail"></div><div>
+        <h2>Belegung der Läufe <small>3 Plätze nach Kollisionsstufe — ein leerer Platz ist kein Fehler</small></h2>
+        <div class="tblw"><div class="tl">
+          <span class="ax"></span><span class="ax">09</span><span class="ax">10</span><span class="ax">11</span><span class="ax">12</span><span class="ax">13</span><span class="ax">14</span><span class="ax">15</span><span class="ax">16</span><span class="ax">17</span><span class="ax">18</span><span class="ax">19</span><span class="ax">20</span>
+          <span class="tr">Platz 1</span>
+          <div class="lane"><span class="bar live" style="grid-column: 1 / 7"><b>#942</b>CSV-Export · Welle 3</span></div>
+          <span class="tr">Platz 2</span>
+          <div class="lane"><span class="bar done" style="grid-column: 1 / 4"><b>#970</b>Rollenrechte</span><span class="bar you" style="grid-column: 5 / 7"><b>#961</b>am Tor</span></div>
+          <span class="tr">Platz 3</span>
+          <div class="lane"><span class="bar fail" style="grid-column: 1 / 3"><b>#966</b>Lieferscheine</span></div>
+        </div></div>
+        <p class="dev"><b>Abweichung vom Plan:</b> #975 wartet trotz freiem Platz 3, weil es mit #942 in server/export kollidiert (Stufe mittel). Pause von 13:10 bis 13:25: Bremse gelb.</p>
+      </div></section>
 
-    <!-- ===== 3 · Belegung der Plätze ================================ -->
-    <section class="blk" style="--rc: var(--bluey)"><div class="rail"></div><div>
-      <h2>Belegung der Plätze <small>Ein gleitendes Fenster mit 3 Plätzen — ein leerer Platz ist kein Fehler</small></h2>
-      <div class="tblw"><div class="tl">
-        <span class="ax"></span><span class="ax">09</span><span class="ax">10</span><span class="ax">11</span><span class="ax">12</span><span class="ax">13</span><span class="ax">14</span><span class="ax">15</span><span class="ax">16</span><span class="ax">17</span><span class="ax">18</span><span class="ax">19</span><span class="ax">20</span>
-        <span class="tr">Platz 1</span>
-        <div class="lane">
-          <span class="bar done" style="grid-column: 1 / 4"><b>#943</b>CSV-Endpunkt</span>
-          <span class="bar fail" style="grid-column: 4 / 8"><b>#949</b>Alter Endpunkt</span>
-          <span class="bar live" style="grid-column: 8 / 11"><b>#946</b>Knopf</span>
+      <section class="blk" id="seite-entscheidungen" role="tabpanel" aria-labelledby="k-entscheidungen" style="--rc: var(--violet)" hidden><div class="rail"></div><div>
+        <h2>Entscheidungen des Admirals <small>alle, mit Herkunft — jede aufhebbar</small></h2>
+        <div class="dec">
+          <div class="d vorl"><span class="lbl">#961</span><p>Paket 3 als offener Punkt, PR mit WIP.<span class="vk">vorläufig</span></p><span class="hard"><span>Herkunft <b>Skill-Empfehlung, Tor-Punkt 9</b></span><span>Aufheben <b>Veto: Testkonto beschaffen</b></span><span><a href="#">Forge</a></span></span></div>
+          <div class="d"><span class="lbl">#942</span><p>Paket #947 läuft als Urteil statt Standard.</p><span class="hard"><span>Herkunft <b>Skill-Empfehlung</b></span><span>Aufheben <b>Klasse am Tor zurücksetzen</b></span><span><a href="#">Forge</a></span></span></div>
+          <div class="d"><span class="lbl">#970</span><p>Zwei Nacharbeitspunkte in diese Sitzung, kein Ticket.</p><span class="hard"><span>Herkunft <b>Volumenkriterium „ein Modul, ohne neues Verhalten"</b></span><span>Aufheben <b>Ticket anlegen</b></span><span><a href="#">Forge</a></span></span></div>
+          <div class="d"><span class="lbl">Flotte</span><p>#975 erst nach #942 starten.</p><span class="hard"><span>Herkunft <b>Kollisionsstufe mittel, Beleg server/export</b></span><span>Aufheben <b>Stufe senken, #975 startet</b></span><span><a href="#">Forge</a></span></span></div>
         </div>
-        <span class="tr">Platz 2</span>
-        <div class="lane">
-          <span class="bar done" style="grid-column: 1 / 6"><b>#944</b>Spaltenfolge</span>
-          <span class="bar live" style="grid-column: 9 / 11"><b>#947</b>Streaming</span>
-        </div>
-        <span class="tr">Platz 3</span>
-        <div class="lane">
-          <span class="bar done" style="grid-column: 2 / 5"><b>#945</b>Hilfetext</span>
-        </div>
-      </div></div>
-      <p class="dev"><b>Abweichung vom Plan:</b> #949 lief vorgezogen auf Platz 1, weil #946 erst nach dem Merge von #944 startbereit wurde. Platz 3 bleibt seit 11:30 leer — #950 ist durch #949 blockiert, und das exklusive #948 wartet, bis nichts anderes läuft.</p>
-    </div></section>
+      </div></section>
 
-    <!-- ===== 4 · Offene Punkte ====================================== -->
-    <section class="blk" style="--rc: var(--you)"><div class="rail"></div><div>
-      <h2>Offene Punkte <span class="count">2 warten auf dich</span> <small>1 hebt der Lauf</small></h2>
-      <div class="items">
-        <!-- Ist nichts offen, ersetzt diese eine Zeile alle Punkte; die Kopfzahl lautet dann
-             "0 warten auf dich", die Kachel "Wartet auf dich" zeigt 0 und darunter "keine offenen Punkte".
-        <p class="none">Nichts offen.</p>
-        -->
-        <article class="item you">
-          <div class="top"><h3>#949 nicht abgenommen</h3><span class="owner blink-dot">Entscheidung</span></div>
-          <p>Der Verifikationsweg bricht vor dem ersten Test ab, nicht am Code — der Reviewer konnte die Abnahme dreimal nicht fahren. Der Branch bleibt liegen, der Worktree ist sauber entfernt.</p>
-          <div class="meta2"><span>seit <b>12:40</b></span><span>Branch <b>agent/949-alter-endpunkt</b></span><span>blockiert <b>#950</b></span></div>
-        </article>
-        <article class="item you">
-          <div class="top"><h3>Freigabe für die Datenmigration</h3><span class="owner blink-dot">Freigabe</span></div>
-          <p>Die Migration aus #944 entfernt die Spalte <code>export_legacy</code> aus 1&nbsp;204 Zeilen. Nicht ausgeführt — Datenmigrationen führt ein Mensch aus.</p>
-          <div class="meta2"><span>seit <b>11:05</b></span><span>Umfang <b>1 204 Zeilen</b></span><span>hält <b>PR auf WIP</b></span></div>
-        </article>
-        <article class="item run">
-          <div class="top"><h3>Exporte unter 2 s unter Ziel</h3><span class="owner">im Lauf</span></div>
-          <p>88,7 % gegen 90 % Ziel. #947 soll die Lücke schließen; ist #947 abgenommen und die Zahl steht weiter darunter, wird daraus ein Punkt für dich.</p>
-          <div class="meta2"><span>gemessen <b>13:50</b></span><span>n = <b>318</b></span><span>wartet auf <b>#947</b></span></div>
-        </article>
-      </div>
-    </div></section>
+      <section class="blk" id="seite-bremse" role="tabpanel" aria-labelledby="k-bremse" style="--rc: var(--butter)" hidden><div class="rail"></div><div>
+        <h2>Verlauf der Bremse <small>je Messung: Stufe, Fenster, Zuwachs seit der letzten, Pakete dazwischen</small></h2>
+        <div class="tblw"><table>
+          <thead><tr><th scope="col">Zeit</th><th scope="col">Stufe</th><th scope="col">5 h verbraucht</th><th scope="col">hochgerechnet</th><th scope="col">Woche</th><th scope="col">Zuwachs</th><th scope="col">Pakete dazwischen</th></tr></thead>
+          <tbody>
+            <tr><td>11:05</td><td><span class="stufe gruen">grün</span></td><td>3 %</td><td>—</td><td>37 %</td><td>—</td><td>—</td></tr>
+            <tr><td>11:40</td><td><span class="stufe gruen">grün</span></td><td>9 %</td><td>68 %</td><td>38 %</td><td>+6 %</td><td>1 · mechanisch</td></tr>
+            <tr><td>12:30</td><td><span class="stufe gruen">grün</span></td><td>26 %</td><td>87 %</td><td>39 %</td><td>+17 %</td><td>2 · standard</td></tr>
+            <tr><td>13:10</td><td><span class="stufe gelb">gelb</span></td><td>41 %</td><td>95 %</td><td>40 %</td><td>+15 %</td><td>1 · urteil, 2 Runden</td></tr>
+            <tr><td>14:05</td><td><span class="stufe gelb">gelb</span></td><td>62 %</td><td>101 %</td><td>41 %</td><td>+21 %</td><td>3 · 2 standard, 1 urteil</td></tr>
+          </tbody>
+        </table></div>
+        <p class="dev"><b>Kosten je Paket bisher:</b> mechanisch 6 % · standard 8 % (Spanne 7–9) · urteil 15 % — Schätzung der nächsten Welle daraus.</p>
+      </div></section>
+    </div>
+
+    <footer><span>Flottenlogbuch in der Forge: Issue „Flottenlogbuch" (Label flotte).</span><span>Diese Seite wird über den ganzen Einsatz unter derselben Adresse fortgeschrieben.</span></footer>
   </main>
 </div>
 
-<footer>
-  <span>Diese Seite wird über den ganzen Lauf unter derselben Adresse fortgeschrieben.</span>
-  <span>Kennzahlen mit Basis: n, Satz, Datum, Einheit</span>
-</footer>
+<script>
+/* Formation und Blättern. Der Admiral pflegt nur die Tabelle "Stand der Läufe";
+   dieses Script nicht anfassen. */
+(function () {
+  var doc = document;
+  doc.documentElement.classList.add('js');
+  var NS = 'http://www.w3.org/2000/svg';
+  var ZUSTAENDE = ['live', 'you', 'done', 'fail', 'wait', 'block'];
+  function zustand(node) {
+    for (var i = 0; i < ZUSTAENDE.length; i++) if (node.classList.contains(ZUSTAENDE[i])) return ZUSTAENDE[i];
+    return 'wait';
+  }
+  function el(name, attrs, parent) {
+    var e = doc.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function text(s, attrs, parent) { var t = el('text', attrs, parent); t.textContent = s; return t; }
+
+  /* --- Formation ------------------------------------------------- */
+  var box = doc.getElementById('formation');
+  var schiffe = [], dock = [];
+  Array.prototype.forEach.call(doc.querySelectorAll('#laeufe tbody tr[data-epic]'), function (tr) {
+    var chip = tr.querySelector('.state');
+    var pakete = Array.prototype.map.call(tr.querySelectorAll('.pips .pip'), zustand);
+    var r = { nr: '#' + tr.getAttribute('data-epic'), z: chip ? zustand(chip) : 'wait', pakete: pakete, nach: tr.getAttribute('data-wartet') };
+    (r.z === 'wait' ? dock : schiffe).push(r);
+  });
+  var adm = doc.getElementById('admiral');
+  var W = 1200, H = 170;
+  var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid meet', role: 'img',
+    'aria-label': 'Formation: ' + schiffe.length + ' Läufe, ' + dock.length + ' im Dock' });
+
+  function schiff(x, y, s, cls, gross) {
+    var g = el('g', { transform: 'translate(' + x + ' ' + y + ') scale(' + s + ')', 'class': 'schiff ' + cls }, svg);
+    if (gross) {
+      el('ellipse', { cx: 62, cy: 0, rx: 30, ry: 11 }, g); el('rect', { x: 14, y: -4, width: 46, height: 9, rx: 4 }, g);
+      el('rect', { x: 0, y: -20, width: 46, height: 6, rx: 3 }, g); el('rect', { x: 0, y: 14, width: 46, height: 6, rx: 3 }, g);
+    } else {
+      el('ellipse', { cx: 46, cy: 0, rx: 22, ry: 8 }, g); el('rect', { x: 10, y: -3, width: 34, height: 6, rx: 3 }, g);
+      el('rect', { x: 0, y: -15, width: 32, height: 5, rx: 2.5 }, g); el('rect', { x: 0, y: 10, width: 32, height: 5, rx: 2.5 }, g);
+    }
+    return g;
+  }
+  function punkt(cx, cy, z) {
+    if (z === 'fail') return el('path', { d: 'M' + (cx - 4) + ' ' + (cy - 4) + 'l8 8m0 -8l-8 8', 'class': 'kreuz z-fail' }, svg);
+    if (z === 'block') return el('rect', { x: cx - 3.5, y: cy - 3.5, width: 7, height: 7, 'class': 'hohl z-block' }, svg);
+    if (z === 'wait') return el('circle', { cx: cx, cy: cy, r: 3.3, 'class': 'hohl z-wait' }, svg);
+    return el('circle', { cx: cx, cy: cy, r: 4, 'class': 'z-' + z + (z === 'live' ? ' glow' : '') }, svg);
+  }
+
+  /* Dock links: wartende Epics */
+  var dockH = Math.max(60, 40 + dock.length * 24);
+  el('rect', { x: 14, y: (H - dockH) / 2, width: 210, height: dockH, rx: 10, 'class': 'dock' }, svg);
+  text(dock.length ? 'Dock · wartet' : 'Dock · leer', { x: 28, y: (H - dockH) / 2 + 22, 'class': 't-dim' }, svg);
+  dock.forEach(function (r, j) {
+    var y = (H - dockH) / 2 + 44 + j * 24;
+    schiff(30, y, 0.5, 'z-wait');
+    text(r.nr + (r.nach ? ' nach ' + r.nach : ''), { x: 72, y: y + 5, 'class': 'z-wait' }, svg);
+  });
+
+  /* Läufe: ein Schiff je Lauf, dahinter je Paket ein Punkt */
+  var n = schiffe.length, abstand = H / (n + 1), s = Math.min(1, abstand / 34);
+  schiffe.forEach(function (r, i) {
+    var y = Math.round(abstand * (i + 1)), x = 820 - (i % 2) * 46;
+    var g = schiff(x, y, s, 'z-' + r.z + (r.z === 'live' ? ' glow' : r.z === 'you' ? ' blink' : ''));
+    r.pakete.forEach(function (z, k) { punkt(x - 14 - k * 14, y, z); });
+    var fertig = r.pakete.filter(function (z) { return z === 'done'; }).length;
+    text(r.nr + ' · ' + fertig + '/' + r.pakete.length, { x: x + 76 * s, y: y + 5, 'class': 'z-' + r.z }, svg);
+  });
+
+  /* Flaggschiff des Admirals */
+  schiff(1060, H / 2 - 4, 1, 'z-flag', true);
+  text(adm ? adm.textContent : 'Admiral', { x: 1092, y: H / 2 + 36, 'text-anchor': 'middle', 'class': 't-ink' }, svg);
+  box.appendChild(svg);
+
+  /* --- Blättern im unteren Bereich ------------------------------- */
+  var KEY = 'flottentafel-seite';
+  var tabs = doc.querySelectorAll('.pager [role="tab"]');
+  function zeige(id, merken) {
+    Array.prototype.forEach.call(tabs, function (t) {
+      var an = t.getAttribute('aria-controls') === id;
+      t.setAttribute('aria-selected', String(an));
+      doc.getElementById(t.getAttribute('aria-controls')).hidden = !an;
+    });
+    if (merken) { try { localStorage.setItem(KEY, id); } catch (e) { /* ohne Speicher bleibt die Standardseite */ } }
+  }
+  Array.prototype.forEach.call(tabs, function (t) {
+    t.addEventListener('click', function () { zeige(t.getAttribute('aria-controls'), true); });
+  });
+  var gemerkt = null;
+  try { gemerkt = localStorage.getItem(KEY); } catch (e) { gemerkt = null; }
+  if (gemerkt && doc.querySelector('.pager [aria-controls="' + gemerkt + '"]')) zeige(gemerkt, false);
+})();
+</script>

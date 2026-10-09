@@ -183,10 +183,12 @@ mindestens Stufe mittel.
 - **Flottenplan ausgeben:** Name, Kandidaten, Kollisionsstufe je Paar mit Beleg, Belegung, die
   wartenden Epics und worauf sie warten.
 - **Flottenlogbuch** öffnen oder anlegen und auf „Einsatz läuft" setzen (siehe „Flottenlogbuch").
-- **Flottentafel** anlegen: dieselbe Vorlage wie die Lauftafel (`epic/references/lauftafel.html`,
-  Regeln in `lauftafel.md`), ein **Paket ist hier ein Epic-Lauf**, die Spalte „Module" zeigt die
-  berührten Module, dazu je Zeile die Agent-ID, der Link auf die Lauftafel des Laufs und der Pull
-  Request. Bei `plan_artifact: publish` veröffentlichen; die URL bleibt über den Einsatz gleich.
+- **Flottentafel** anlegen: eigene Vorlage `references/flottentafel.html`, kopiert, nicht
+  nachgebaut; Aufbau, Formation, Bremse-Leiste, die drei Seiten und die Prüfung vor der
+  Veröffentlichung in `references/flottentafel.md`. Je Epic eine Zeile in „Stand der Läufe" mit
+  Mini-Segmentleiste der Pakete, Kollisionsstufe, Agent-ID, Link auf die Lauftafel des Laufs und
+  Pull Request; aus diesen Zeilen zeichnet die Vorlage die Formation. Bei `plan_artifact: publish`
+  veröffentlichen; die URL bleibt über den Einsatz gleich.
 - **Flotten-Tor:** Was vor dem Start nur ein Mensch entscheiden kann (siehe „Entscheidungsrecht",
   Spalte *Mensch*), legst du jetzt vor, einmal, nach „Den Menschen fragen". Ist nichts zu
   melden, sag das in einem Satz und starte.
@@ -238,7 +240,8 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
   am Zielissue kommentieren, Statuslabels nach `epic/SKILL.md` („Wird der Lauf trotzdem
   abgebrochen") richten, Glut-Punkt auf der Flottentafel.
 - **Flottenlogbuch fortschreiben** bei jedem Ereignis, im selben Zug wie die Flottentafel.
-- **Flottentafel fortschreiben** bei jedem Ereignis: Zustand je Epic, Wartende, Entscheidungen mit
+- **Flottentafel fortschreiben** bei jedem Ereignis nach `references/flottentafel.md`: Zustand
+  und Pakete je Epic, Wartende, jede Messung der Bremse als Zeile, jede eigene Entscheidung mit
   Herkunft, was beim Menschen liegt.
 
 ## Phase 4 — Nach dem Lauf
@@ -300,7 +303,8 @@ Herkunft: <Skill-Empfehlung | Präzedenz: Link | Volumenkriterium: welches>
 Aufheben: <was ein Mensch tun müsste, um sie umzukehren>
 ```
 
-und auf die Flottentafel unter „Entscheidungen". Der Mensch kann jede überstimmen; eine
+und als Zeile auf die Seite „Entscheidungen" der Flottentafel (`references/flottentafel.md`),
+mit Herkunft, „Aufheben" und Link auf den Kommentar. Der Mensch kann jede überstimmen; eine
 Entscheidung, die sich nicht folgenlos aufheben ließe, gehört deshalb in die rechte Spalte.
 
 ### Vorläufig mit Veto
@@ -428,7 +432,9 @@ früherer Einsätze in `references/verbrauch.md`. Vor einem `weiter` oder Start 
 geschätzte Kosten der nächsten Welle; läge das über 100 % vor dem Reset, gilt Rot für diese Welle,
 auch wenn die Stufe sonst Gelb wäre.
 
-Stufe, beide Fenster und der Reset stehen als eigene Zeile auf der Flottentafel. Die Schwellen
+Stufe, beide Fenster, der Reset und die Schätzung der nächsten Welle stehen als Leiste auf der
+Flottentafel; jede Messung mit Zuwachs und den Paketen dazwischen kommt als Zeile auf ihre Seite
+„Bremse" (`references/flottentafel.md`). Die Schwellen
 sind ein **Entwurf** wie die Kollisionsstufen und werden an echten Einsätzen geschärft: Im
 Abschlussbericht (Phase 5) stehen die gemessenen Kosten je Paket (Mittel und Spanne, getrennt
 nach Paketklasse und Implementer-Runden), die Eskalationen und ob eine Schwelle zu früh oder zu
