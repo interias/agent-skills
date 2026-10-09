@@ -1,7 +1,8 @@
 // The terminal drawing: half-block cells (two pixels per cell), the convoy in one lane
 // behind the admiral ship. Repainted by $.ui.blit on a timer.
 
-import type { Ship } from '../types'
+import type { Alert, Ship } from '../types'
+import { ALERT_COLOR, ALERT_LABEL, warpOf } from './lexicon'
 import {
   ENTRY_MS, EXIT_MS, GLOW, HULL, STRIPE, TRAIL, at, clip, leftmost, sprite, spriteKey, widthOf,
 } from './sprites'
@@ -11,6 +12,8 @@ export const ROWS = 6
 const PXH = ROWS * 2
 const DEFAULT = 0x01000000
 const GAP = 3
+const CAP = 2
+const MIN_SLOT = 19
 
 const hex = (c: string) => parseInt(c.slice(1), 16)
 
@@ -37,15 +40,15 @@ export function layout(fleet: readonly Ship[], columns: number): Slot[] {
   let right = columns - adm - 1 - GAP
   for (const ship of [...fleet].sort((a, b) => a.startedAt - b.startedAt)) {
     const w = widthOf(sprite(spriteKey(ship.model, ship.variant)))
-    const slotW = Math.max(w, 16)
-    if (right - slotW - at(TRAIL, ship.effort) < 0) break
+    const slotW = Math.max(w, MIN_SLOT)
+    if (right - slotW - at(TRAIL, ship.effort) < CAP) break
     slots.push({ ship, x: right - slotW + (slotW - w), width: slotW })
     right -= slotW + GAP
   }
   return slots
 }
 
-export function frame(fleet: readonly Ship[], now: number, columns: number, isWorking: boolean): RasterFrame {
+export function frame(fleet: readonly Ship[], now: number, columns: number, isWorking: boolean, alert: Alert = 'normal'): RasterFrame {
   const px: (number | null)[] = Array(PXH * columns).fill(null)
   const put = (x: number, y: number, c: number) => {
     if (x >= 0 && x < columns && y >= 0 && y < PXH) px[y * columns + x] = c
@@ -89,6 +92,13 @@ export function frame(fleet: readonly Ship[], now: number, columns: number, isWo
     })
   }
 
+  // The cap: the alert color down the left edge, rounded at both ends.
+  const cap = hex(ALERT_COLOR[alert])
+  for (let y = 0; y < PXH; y++) for (let x = 0; x < CAP; x++) {
+    if (x === 0 && (y === 0 || y === PXH - 1)) px[y * columns + x] = null
+    else put(x, y, cap)
+  }
+
   const words = new Uint32Array(columns * ROWS * 3)
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < columns; c++) {
@@ -104,11 +114,15 @@ export function frame(fleet: readonly Ship[], now: number, columns: number, isWo
   }
   const bytes = new Uint8Array(words.buffer) as unknown as { toBase64(): string }
 
-  let labels = ''
+  let labels = alert === 'normal' ? '' : `${ALERT_LABEL[alert]} `
   for (const slot of [...slots].reverse()) {
     const pad = Math.max(0, slot.x - labels.length)
-    const text = slot.ship
-      ? `${slot.ship.status === 'wait' ? '! ' : ''}${clip(slot.ship.desc, slot.width - 1)}`
+    const s = slot.ship
+    const text = s
+      ? (() => {
+          const head = s.status === 'wait' ? '! ' : '', tail = ` W${warpOf(s.effort)}`
+          return head + clip(s.desc, slot.width - 1 - head.length - tail.length) + tail
+        })()
       : '★ HAUPTSITZUNG'
     labels += ' '.repeat(pad) + text
   }

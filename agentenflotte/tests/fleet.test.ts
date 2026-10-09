@@ -64,6 +64,6 @@ test('the band shows the flagship alone while no subagent runs', async ($, on) =
   const desktop = await $.ui.mount({ plugin: 'agentenflotte', surface: 'desktop', ...BAND })
   const svg = await desktop.find({ type: 'Svg' })
   expect(String(svg?.props.source)).toContain('id="sp-admiral"')
-  expect(String(svg?.props.source)).toContain('width="960" height="184"')
+  expect(String(svg?.props.source)).toContain('width="960" height="240"')
   await desktop.unmount()
 })
