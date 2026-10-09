@@ -58,3 +58,12 @@ test('an Agent call followed by SubagentStart puts its ship in the band', async 
   const after = await $.ui.mount({ plugin: 'agentenflotte', surface: 'desktop', ...BAND })
   expect(String((await after.find({ type: 'Svg' }))?.props.source)).toContain('class="exit"')
 })
+
+test('the band shows the flagship alone while no subagent runs', async ($, on) => {
+  mock.clock(on, { now: 1000 })
+  const desktop = await $.ui.mount({ plugin: 'agentenflotte', surface: 'desktop', ...BAND })
+  const svg = await desktop.find({ type: 'Svg' })
+  expect(String(svg?.props.source)).toContain('id="sp-admiral"')
+  expect(String(svg?.props.source)).toContain('width="960" height="184"')
+  await desktop.unmount()
+})

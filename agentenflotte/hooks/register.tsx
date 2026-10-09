@@ -42,7 +42,7 @@ async function resume($: EngineInterface, id: string | undefined, level: string 
 }
 
 async function paintTerminal($: EngineInterface) {
-  if (!site || mirror.length === 0) return
+  if (!site) return
   const now = await $.clock.now()
   const f = frame(mirror, now, site.columns, site.isWorking)
   const res = await $.ui.blit({ requestId: site.requestId, key: 'convoy', cells: f.cells, columns: site.columns, rows: ROWS })
@@ -125,7 +125,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const ships = await read($, fleet)
     mirror = ships
-    if (e.props.hasSurvey || ships.length === 0 || (await read($, isHidden))) {
+    if (e.props.hasSurvey || (await read($, isHidden))) {
       site = null
       return next(e)
     }
