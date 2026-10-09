@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Installs (copies) the skills in this repository into ~/.claude/skills and the agent
     definitions under agents/ into ~/.claude/agents.
