@@ -9,7 +9,7 @@ import type { Alert, Ship } from '../types'
 import { ALERT_COLOR, ALERT_LABEL, COLOR, stardate, stationOf, warpOf } from './lexicon'
 import type { Station } from './lexicon'
 import { INITIAL } from './state'
-import { MODEL_LABEL, clip, fmtElapsed } from './sprites'
+import { MODEL_LABEL, clip, fmtElapsed } from './ships'
 
 const PANE = 'taktik'
 const TITLE = 'Taktisches Display'
@@ -19,7 +19,7 @@ const fleet = atom({ plugin: 'agentenflotte', key: 'fleet' } as const, INITIAL.f
 const alert = atom({ plugin: 'agentenflotte', key: 'alert' } as const, INITIAL.alert)
 const settings = atom({ plugin: 'agentenflotte', key: 'settings' } as const, INITIAL.settings)
 // Beats of the ticker. The drawing reads it, so each beat draws this pane again and nothing else
-// (`$.ui.invalidate('ui.render')` takes no matcher: it would draw the band again as well).
+// (`$.ui.invalidate('ui.render')` takes no matcher: it would draw every other drawing of the mod again as well).
 const tick = atom({ plugin: 'agentenflotte', key: 'taktikTick' } as const, 0)
 
 const STATIONS: readonly Station[] = ['Wissenschaft', 'Maschinenraum', 'Taktik', 'Navigation', 'Brücke']

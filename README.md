@@ -83,15 +83,11 @@ Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 
 ## Plugin: `agentenflotte`
 
-![Agentenflotte über der Eingabezeile in Alarmstufe Gelb: ein Konsolenrahmen mit gelber Kappe und Dienstliste, in der Mitte rechts das Flaggschiff der Hauptsitzung, links davon in drei Spuren die Subagenten eines /epic-Laufs — Haiku-Shuttles als Kundschafter, Sonnet-Kreuzer als Implementer und Reviewer, Opus-Schiffe für Urteilspakete, eines mit Schild bei höchster Denkstufe —, unten je Subagent eine Pille mit Station und Aufgabe. Ein Reviewer wartet mit gelbem Ausrufezeichen auf Freigabe.](assets/agentenflotte/vorschau.png)
-
-Ein Claude-Code-Mod, der die Sitzung zur Schiffsbrücke macht. Laufende Subagenten fahren als
-Pixel-Raumschiffkonvoi über der Eingabezeile, angeführt vom Flaggschiff der Hauptsitzung:
-Schiffsklasse = Modell, Warpfaktor = Denkstufe (Warp 2 bis 9,9). Übernommen aus
+Ein Claude-Code-Mod, der die Sitzung zur Schiffsbrücke macht: Subagenten sind Schiffe der Flotte,
+Warpfaktor = Denkstufe (Warp 2 bis 9,9), die Alarmstufe zeigt, was auf dich wartet. Übernommen aus
 [interias/agentenflotte](https://github.com/interias/agentenflotte); braucht Claude Code mit
 Mod-Unterstützung (getestet mit 2.1.293, die Desktop-App bringt sie mit).
 
-- **Band:** Konsolenrahmen mit Dienstliste und Datenkaskade; Alarmfarbe in der Kappe.
 - **Alarmstufen:** Gelb = ein Subagent wartet auf Freigabe, Rot = Fehler oder Ausfall, Blau =
   weniger als 20 % Kontext übrig oder Komprimierung.
 - **Brücke:** Spinner-Wörter, Stationsetiketten an Werkzeugzeilen (Sensorscan, Archiv,
@@ -110,7 +106,7 @@ Schalter (bleiben über Sitzungen erhalten):
 |---|---|
 | `/flotte` | Hauptschalter: ganzen Mod aus- oder einblenden |
 | `/flotte status` | Hauptschalter und alle Teile anzeigen |
-| `/flotte <band\|bruecke\|logbuch\|computer> [an\|aus]` | einen Teil schalten |
+| `/flotte <bruecke\|logbuch\|computer> [an\|aus]` | einen Teil schalten |
 
 Den ganzen Mod ausschalten: `/plugin`, agentenflotte wählen, Disable — oder
 `claude plugin disable agentenflotte@breuckmann-agent-skills`.
@@ -151,12 +147,11 @@ epic-flotte/           optional: mehrere Epics gleichzeitig
   SKILL.md
 agents/                Agent-Typen der Modellstaffel (epic-kundschafter, epic-implementer-*, …)
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
-agentenflotte/         Plugin (Mod): Subagenten als Konvoi über der Eingabezeile
+agentenflotte/         Plugin (Mod): Brücke mit Statuszeile, Logbuch und Taktik-Radar
 .claude-plugin/        macht das Repo zum Marketplace breuckmann-agent-skills
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
 assets/prozess/        Prozessbild im README (prozess.png) und seine Quelle
 assets/flotte/         Flottenbild im README (flotte.png) und seine Quelle
-assets/agentenflotte/  Vorschaubild des Plugins (vorschau.png) und sein Generator
 install.ps1
 ```
 

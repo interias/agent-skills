@@ -11,13 +11,12 @@ import type { Part } from './state'
 const settings = atom({ plugin: 'agentenflotte', key: 'settings' } as const, INITIAL.settings)
 
 export const PART_LABEL: Record<Part, string> = {
-  band: 'Band',
   bruecke: 'Brücke',
   logbuch: 'Logbuch',
   computer: 'Bordcomputer',
 }
 
-const HELP = 'Gültig: /flotte · /flotte status · /flotte <band|bruecke|logbuch|computer> [an|aus]'
+const HELP = 'Gültig: /flotte · /flotte status · /flotte <bruecke|logbuch|computer> [an|aus]'
 const onOff = (v: boolean) => (v ? 'an' : 'aus')
 
 /** What `/flotte <args>` does to the switches: the new switches (null when unchanged) and the reply. */
@@ -67,7 +66,7 @@ export function registerSettings(on: On) {
     await $.command.register({
       name: 'flotte',
       description: 'Agentenflotte ein- oder ausblenden, einzelne Teile schalten',
-      argumentHint: '[status | band|bruecke|logbuch|computer [an|aus]]',
+      argumentHint: '[status | bruecke|logbuch|computer [an|aus]]',
     })
     return next(e)
   })

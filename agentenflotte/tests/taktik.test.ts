@@ -172,7 +172,7 @@ test('a redraw keeps the phase of the sweep, the blink and the fade instead of s
   expect(at(NOW + 9_000)).toContain('class="fade" opacity=".35" style="animation-delay:-2s"') // the fade is over after two seconds
 })
 
-test('the ticker draws the open pane again every ten seconds, never the band, and stops once it is closed', async ($, on) => {
+test('the ticker draws the open pane again every ten seconds, never the other drawings, and stops once it is closed', async ($, on) => {
   const { clock, redraws } = await setup($, on)
   await launch($, 'a1')
   await $.command.run(cmd('taktik'))
@@ -186,6 +186,6 @@ test('the ticker draws the open pane again every ten seconds, never the band, an
   await $.command.run(cmd('taktik'))
   await clock.advance(30_000)
   expect(await text(terminal)).toContain('00:20') // no beat after the close
-  expect(redraws.count).toBe(0) // `ui.invalidate('ui.render')` would draw the band again too
+  expect(redraws.count).toBe(0) // `ui.invalidate('ui.render')` would draw every other drawing of the mod again too
   await terminal.unmount()
 })

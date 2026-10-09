@@ -1,7 +1,7 @@
 // The bridge's vocabulary: stardate, warp factor, stations, alert names and the palette.
 
 import type { Alert } from '../types'
-import { WARP, at } from './sprites'
+import { WARP, at } from './ships'
 
 export type Station = 'Wissenschaft' | 'Maschinenraum' | 'Taktik' | 'Navigation' | 'Brücke'
 
@@ -43,7 +43,7 @@ export function stardate(nowMs: number): string {
   return value.toFixed(1)
 }
 
-/** The warp factor of an effort index (low … max), from the band's own WARP table. */
+/** The warp factor of an effort index (low … max), from the WARP table in ships.ts. */
 export function warpOf(effortIndex: number): string {
   return at(WARP, effortIndex)
 }

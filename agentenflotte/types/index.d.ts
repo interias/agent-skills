@@ -22,7 +22,7 @@ export type Launch = {
 }
 
 /** The mod's switches: `all` is the main switch `/flotte` toggles, the rest one part each. */
-export type FleetSettings = { all: boolean; band: boolean; bruecke: boolean; logbuch: boolean; computer: boolean }
+export type FleetSettings = { all: boolean; bruecke: boolean; logbuch: boolean; computer: boolean }
 
 export type Alert = 'normal' | 'gelb' | 'rot' | 'blau'
 

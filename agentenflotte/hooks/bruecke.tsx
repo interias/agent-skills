@@ -8,7 +8,7 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { Alert } from '../types'
 import { ALERT_LABEL, COLOR, stardate, stationOf, warpOf } from './lexicon'
-import { effortIndex } from './sprites'
+import { effortIndex } from './ships'
 import { INITIAL, isOn, mirrored } from './state'
 
 const settings = atom({ plugin: 'agentenflotte', key: 'settings' } as const, INITIAL.settings)

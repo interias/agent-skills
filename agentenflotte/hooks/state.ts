@@ -10,7 +10,7 @@
 
 import type { Alert, FleetSettings, Launch, Ship } from '../types'
 
-export const DEFAULT_SETTINGS: FleetSettings = { all: true, band: true, bruecke: true, logbuch: true, computer: false }
+export const DEFAULT_SETTINGS: FleetSettings = { all: true, bruecke: true, logbuch: true, computer: false }
 
 /** The initial value of each key under plugin `agentenflotte`. */
 export const INITIAL = {
@@ -31,7 +31,7 @@ export const MAIN_FAIL_MS = 15_000
 /** Below this share of the context window left, in percent, the bridge goes to blue alert. */
 export const LOW_CONTEXT_PERCENT = 20
 
-// The fleet as last written or drawn, for the terminal ticker and lookups that must not wait on a read.
+// The fleet as last written, for lookups that must not wait on a read.
 let mirror: readonly Ship[] = []
 
 export function mirrored(): readonly Ship[] {
@@ -43,7 +43,7 @@ export function setMirror(list: readonly Ship[]) {
 }
 
 export type Part = Exclude<keyof FleetSettings, 'all'>
-export const PARTS: readonly Part[] = ['band', 'bruecke', 'logbuch', 'computer']
+export const PARTS: readonly Part[] = ['bruecke', 'logbuch', 'computer']
 
 /** Whether a part of the mod is on: the main switch and its own. */
 export function isOn(s: FleetSettings, part: Part): boolean {
