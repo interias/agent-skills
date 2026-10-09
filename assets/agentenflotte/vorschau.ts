@@ -18,6 +18,6 @@ const fleet = [
   ship(5, 'Eskalation', 'epic-implementer-urteil-hoch', 'opus', 4, 1),
 ]
 
-const { source } = fleetSvg(fleet, now, true)
+const { source } = fleetSvg(fleet, now, true, 'gelb')
 writeFileSync(new URL('./vorschau.html', import.meta.url),
   `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:transparent}</style>${source}\n`)
