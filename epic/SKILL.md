@@ -43,12 +43,27 @@ Punkt fürs Vorab-Tor.
 stammt: *Skill*, *Adapter* oder der ADR, in dem sie steht. Wer eine Regel anzweifelt, muss wissen,
 wo er sie ändern kann.
 
+**Wie gefragt wird.** Jede Rückfrage an den Menschen — Vorab-Tor, Abbruchbedingung, Fragerunde
+der Nacharbeit, Vorlage von `/epic-flotte` — nennt **Antwortmöglichkeiten und eine markierte
+Empfehlung** mit einem Satz Begründung. Wie viel Sachverhalt und Herkunft dazugehört, entscheidest
+du nach Lage; der Mensch soll ohne Nachlesen wählen können. Gestellt wird mit `AskUserQuestion`,
+sofern die Sitzung es hat: davor im Text eine kurze Lage, die empfohlene Option zuerst und mit
+„(Empfehlung)" im Label, Folgen in der Beschreibung, höchstens vier Optionen je Frage, mehr als
+vier Fragen auf mehrere Aufrufe verteilt. Ohne das Werkzeug dieselbe Runde als Text — je Frage
+`❓ **Q1** — **<Titel>**: <Sachverhalt, Optionen A/B/… mit Folge>` und darunter
+`➡️ <Empfehlung, Grund>`. **Führt `/epic-flotte` den Lauf** — als Lauf-Agent oder als übernommener
+Chat —, fragst du nie mit `AskUserQuestion`: Die Runde geht als Frageblock oder Text an den
+Admiral, und du beendest deinen Zug; sonst hängt der Lauf, bis ein Mensch klickt. Diese Regel
+gilt für alle Epic-Skills; sie verweisen hierher.
+
 **Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, bist du ein
 Subagent und kannst niemanden fragen: Wo dieser Skill fragt oder wartet (Vorab-Tor, Anhalten vor
 dem Lauf), beendest du deinen Zug mit dem Frageblock aus `epic-flotte/SKILL.md` („Wie ein Lauf
 unter dir läuft"), und Implementer und Reviewer startest du im Vordergrund statt mit
 `run_in_background` (Phase 4a). Nach jeder Welle meldest du dich mit `FLOTTE-WELLE` und startest
-die nächste erst auf `weiter`. Alles andere gilt unverändert.
+die nächste erst auf `weiter`. Eine Antwort `vorläufig: <Option>` ist eine Antwort wie jede
+andere; wie ein späteres Veto zu dir kommt, steht im selben Abschnitt von `epic-flotte/SKILL.md`.
+Alles andere gilt unverändert.
 
 ---
 
@@ -320,7 +335,7 @@ Epics, kein Fehler. Sag es im Plan in einem Satz, statt Parallelität vorzutäus
 ### 2c — Das Vorab-Tor
 
 Der Sinn dieses Ablaufs ist der unbeaufsichtigte Lauf. Deshalb wird **alles Fragwürdige hier
-gefragt, einmal, als nummerierte Liste mit je einer Empfehlung** — danach keine Rückfrage mehr.
+gefragt, einmal, als eine Runde nach „Wie gefragt wird"** — danach keine Rückfrage mehr.
 Vorzulegen ist:
 
 1. Ein vorausgesetztes Epic ist offen, und die transitive Auflösung greift nicht.
@@ -347,7 +362,7 @@ Vorzulegen ist:
 **Fehlt der Adapter,** legt das Tor die abgeleiteten Werte immer als eigene Liste vor, auch wenn
 sonst nichts zu melden ist.
 
-Ist nichts zu melden, sag das in einem Satz und lauf los. Sonst Liste vorlegen und **einmal**
+Ist nichts zu melden, sag das in einem Satz und lauf los. Sonst die Runde stellen und **einmal**
 warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Runde gefragt.
 
 ### 2d — Plan, Lauftafel, Eröffnung
@@ -589,7 +604,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - `git push -u <push_remote> epic/<nr>-<slug>`.
 - **Pull Request** eröffnen (`references/forge.md`), `base: <basis>`, `head: epic/…`:
   - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
-    zurückgelassen oder blockiert, ein Verifikationsweg nicht fahrbar, eine Freigabe offen.
+    zurückgelassen oder blockiert, ein Verifikationsweg nicht fahrbar, eine Freigabe offen, eine
+    vorläufige Antwort von `/epic-flotte` unbestätigt.
   - **Body:** je Paket eine Zeile mit Ergebnis — hat ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz „schließt sich ggf. nicht
@@ -632,8 +648,10 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 
 - Das Arbeitsverzeichnis ist nicht sauber, oder es liegen Worktrees eines früheren Laufs herum
   (Phase 0).
-- Das Vorab-Tor hat Punkte (2c). Einmal, als eine Liste; nur neue Punkte aus den Antworten in
+- Das Vorab-Tor hat Punkte (2c). Einmal, als eine Runde; nur neue Punkte aus den Antworten in
   einer zweiten Runde.
+
+Gefragt wird in beiden Fällen nach „Wie gefragt wird".
 
 **Im Lauf wird nicht angehalten.** Was schiefgeht, lässt ein Paket zurück (Phase 5), die übrigen
 laufen weiter.

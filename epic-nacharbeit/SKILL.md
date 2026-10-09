@@ -129,16 +129,8 @@ Nach dem Frontier-Verfahren, wie im `grilling`-Ablauf.
 Baue die Punkte als **Entscheidungsbaum**: jede Entscheidung verzweigt in die Entscheidungen, die
 an ihr hängen. Die **Frontier** ist jede Entscheidung, deren Voraussetzungen schon geklärt sind —
 die Fragen, die du *jetzt* stellen kannst, ohne eine Antwort zu raten, die du noch nicht gehört
-hast. **Frage die ganze Frontier in einer Runde**, jede Frage nummeriert und mit deiner
-Empfehlung. Dann warte auf die Antworten.
-
-Format je Frage:
-
-```
-❓ **Q1** — **<Titel>**: <Körper: der Sachverhalt, dann die Optionen mit ihren Folgen>
-
-➡️ <deine Empfehlung, mit Begründung in einem Satz>
-```
+hast. **Frage die ganze Frontier in einer Runde**, jede Frage mit Antwortmöglichkeiten und deiner
+Empfehlung, gestellt nach `epic/SKILL.md` („Wie gefragt wird"). Dann warte auf die Antworten.
 
 Nach jeder Runde verschiebt sich die Frontier: geklärte Entscheidungen schalten die frei, die von
 ihnen abhingen. Eine Frage, deren Antwort von einer noch offenen Frage derselben Runde abhängt,
@@ -247,6 +239,9 @@ Prüfe nach, dass die Kommentare angekommen sind — ein `POST` kann fehlgeschla
 ---
 
 ## Abbruchbedingungen — anhalten und fragen
+
+Gefragt wird nach `epic/SKILL.md` („Wie gefragt wird"): was vorliegt, die Wege weiter, deine
+Empfehlung.
 
 - Das Arbeitsverzeichnis war zu Beginn nicht sauber.
 - Ein Punkt widerspricht einer Entscheidungsdokumentation oder einem Eintrag im Verzeichnis für
