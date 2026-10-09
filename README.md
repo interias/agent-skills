@@ -83,14 +83,37 @@ Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 
 ## Plugin: `agentenflotte`
 
-![Agentenflotte über der Eingabezeile: rechts das Flaggschiff der Hauptsitzung, links davon in drei Spuren die Subagenten eines /epic-Laufs — Haiku-Shuttles als Kundschafter, Sonnet-Kreuzer als Implementer und Reviewer, Opus-Schiffe für Urteilspakete, eines mit Schild bei höchster Denkstufe. Ein Reviewer wartet mit gelbem Ausrufezeichen auf Freigabe.](assets/agentenflotte/vorschau.png)
+![Agentenflotte über der Eingabezeile in Alarmstufe Gelb: ein Konsolenrahmen mit gelber Kappe und Dienstliste, in der Mitte rechts das Flaggschiff der Hauptsitzung, links davon in drei Spuren die Subagenten eines /epic-Laufs — Haiku-Shuttles als Kundschafter, Sonnet-Kreuzer als Implementer und Reviewer, Opus-Schiffe für Urteilspakete, eines mit Schild bei höchster Denkstufe —, unten je Subagent eine Pille mit Station und Aufgabe. Ein Reviewer wartet mit gelbem Ausrufezeichen auf Freigabe.](assets/agentenflotte/vorschau.png)
 
-Ein Claude-Code-Mod, der laufende Subagenten als Pixel-Raumschiffkonvoi über der Eingabezeile
-zeigt, angeführt vom Flaggschiff der Hauptsitzung: Schiffsklasse = Modell, Warpfaktor =
-Denkstufe, gelber Alarm = wartet auf Freigabe, roter Alarm = fehlgeschlagen. `/flotte` blendet
-das Band aus und ein. Übernommen aus
+Ein Claude-Code-Mod, der die Sitzung zur Schiffsbrücke macht. Laufende Subagenten fahren als
+Pixel-Raumschiffkonvoi über der Eingabezeile, angeführt vom Flaggschiff der Hauptsitzung:
+Schiffsklasse = Modell, Warpfaktor = Denkstufe (Warp 2 bis 9,9). Übernommen aus
 [interias/agentenflotte](https://github.com/interias/agentenflotte); braucht Claude Code mit
 Mod-Unterstützung (getestet mit 2.1.293, die Desktop-App bringt sie mit).
+
+- **Band:** Konsolenrahmen mit Dienstliste und Datenkaskade; Alarmfarbe in der Kappe.
+- **Alarmstufen:** Gelb = ein Subagent wartet auf Freigabe, Rot = Fehler oder Ausfall, Blau =
+  weniger als 20 % Kontext übrig oder Komprimierung.
+- **Brücke:** Spinner-Wörter, Stationsetiketten an Werkzeugzeilen (Sensorscan, Archiv,
+  Maschinenraum …), „Unter Warp“-Zeile, Statuszeile mit Sternzeit, Warp, Schilden und Flotte,
+  Modus-Etikett, Hinweis unter Freigabe-Dialogen und Rufe, wenn ein Subagent zurückkehrt.
+- **Logbuch:** eine Zeile nach jeder Antwort, wenn Subagenten etwas getan haben; `/logbuch` zeigt
+  die letzten zehn Einträge, `/logbuch alle` die letzten fünfzig.
+- **Bordcomputer:** Nachrichten mit „Computer,“ am Anfang werden knapp und sachlich beantwortet,
+  nie bei Code, Commits, Tickets oder Berichten an Dritte. Standardmäßig aus.
+- **Taktisches Display:** `/taktik` öffnet oder schließt das Pane: am Desktop ein Radar der
+  Flotte mit Stationsliste, im Terminal eine Textfassung je Station.
+
+Schalter (bleiben über Sitzungen erhalten):
+
+| Befehl | Wirkung |
+|---|---|
+| `/flotte` | Hauptschalter: ganzen Mod aus- oder einblenden |
+| `/flotte status` | Hauptschalter und alle Teile anzeigen |
+| `/flotte <band\|bruecke\|logbuch\|computer> [an\|aus]` | einen Teil schalten |
+
+Den ganzen Mod ausschalten: `/plugin`, agentenflotte wählen, Disable — oder
+`claude plugin disable agentenflotte@breuckmann-agent-skills`.
 
 Dieses Repo ist dafür selbst ein Plugin-Marketplace namens `breuckmann-agent-skills`
 (`.claude-plugin/marketplace.json`); `install.ps1` installiert und aktualisiert das Plugin mit.
