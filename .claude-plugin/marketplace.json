@@ -1,0 +1,6 @@
+{
+  "name": "breuckmann-agent-skills",
+  "owner": { "name": "Breuckmann" },
+  "description": "Claude-Code-Plugins aus dem agent-skills-Repo.",
+  "plugins": [{ "name": "agentenflotte", "source": "./agentenflotte" }]
+}

@@ -75,6 +75,19 @@ Für die Skills davor (`grill-with-docs`, `to-spec`, `to-tickets` aus dem Plugin
 `mattpocock-skills`) liegt hier keine Kopie, sondern die Einrichtung für unser Gitea:
 [`mattpocock-skills/`](mattpocock-skills/README.md).
 
+## Plugin: `agentenflotte`
+
+Ein Claude-Code-Mod, der laufende Subagenten als Pixel-Raumschiffkonvoi über der Eingabezeile
+zeigt, angeführt vom Flaggschiff der Hauptsitzung: Schiffsklasse = Modell, Warpfaktor =
+Denkstufe, gelber Alarm = wartet auf Freigabe, roter Alarm = fehlgeschlagen. `/flotte` blendet
+das Band aus und ein. Übernommen aus
+[interias/agentenflotte](https://github.com/interias/agentenflotte); braucht Claude Code mit
+Mod-Unterstützung (getestet mit 2.1.293, die Desktop-App bringt sie mit).
+
+Dieses Repo ist dafür selbst ein Plugin-Marketplace namens `breuckmann-agent-skills`
+(`.claude-plugin/marketplace.json`); `install.ps1` installiert und aktualisiert das Plugin mit.
+Ein Update greift nur, wenn `version` in `agentenflotte/.claude-plugin/plugin.json` steigt.
+
 ## Modelle und Denkstufen
 
 Opus macht nicht alles. Der Lauf stuft jedes Paket beim Schneiden in eine **Paketklasse** ein, und
@@ -107,6 +120,8 @@ epic-flotte/           optional: mehrere Epics gleichzeitig
   SKILL.md
 agents/                Agent-Typen der Modellstaffel (epic-kundschafter, epic-implementer-*, …)
 mattpocock-skills/     keine Skills: Einrichtung des Plugins für Gitea
+agentenflotte/         Plugin (Mod): Subagenten als Konvoi über der Eingabezeile
+.claude-plugin/        macht das Repo zum Marketplace breuckmann-agent-skills
 assets/avatar/         Repository-Avatar (avatar.png, 512 px) und sein Generator
 assets/prozess/        Prozessbild im README (prozess.png) und seine Quelle
 assets/flotte/         Flottenbild im README (flotte.png) und seine Quelle
@@ -144,7 +159,11 @@ auslösen.
 
 Die Agent-Typen aus `agents/` kopiert das Skript Datei für Datei nach `~/.claude/agents/`; eine
 vorhandene, abweichende Datei wird vorher nach `~/.claude/skills-backup/agents-<Zeitstempel>/`
-gesichert. Mit `-Skill` bleiben die Agent-Typen unberührt.
+gesichert. Mit `-Skill` bleiben die Agent-Typen und Plugins unberührt.
+
+Die Plugins aus `.claude-plugin/marketplace.json` installiert das Skript über die `claude`-CLI im
+User-Scope (`claude plugin marketplace add/update`, `claude plugin install/update`). Claude Code
+legt davon eine Kopie im Plugin-Cache ab; nichts verlinkt zurück ins Repo.
 
 ## Warum Kopie statt Junction/Symlink
 
