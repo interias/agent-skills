@@ -208,7 +208,7 @@ export function fleetSvg(fleet: readonly Ship[], now: number, isWorking: boolean
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}`
 
   const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMaxYMid meet" shape-rendering="crispEdges">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="xMaxYMid meet" shape-rendering="crispEdges">` +
     `<style>${css}</style><defs>${defs}</defs>` +
     `<rect width="${W}" height="${H}" rx="8" fill="#05071a"/>` +
     stars(warp) + links + body + `</svg>`
