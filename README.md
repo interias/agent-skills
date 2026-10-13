@@ -26,6 +26,10 @@ ohne Rückfrage; den Stand zeigen Gitea und KIBO. Quelle und Rendern des Bildes:
   Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree,
   Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
 
+- **mail-antwort** — Eine Anwender-Mail (`.eml`) zum aktiven Repository beantworten: zerlegen,
+  recherchieren, nach einem Halt bei Bedarf Spec-Issue anlegen und mit `/epic` bis zum Pull Request
+  umsetzen, am Ende ein Antwortentwurf mit markierten Ist- und Soll-Bildern. Verschickt nichts.
+
 - **epic-flotte** *(optional)* — Leitstand über den drei anderen: wählt die Epics, die
   gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die
   Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines
