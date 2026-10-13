@@ -139,6 +139,7 @@ Kundschafter"; Begriffe: [`CONTEXT.md`](CONTEXT.md).
 epic/
   SKILL.md
   references/
+  scripts/             worktree.ps1 (Worktrees rüsten/abräumen) und sein Pester-Test
 epic-nacharbeit/
   SKILL.md
 epic-aufraeumen/

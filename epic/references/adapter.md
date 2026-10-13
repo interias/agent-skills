@@ -176,5 +176,6 @@ alle drei Skills.
 | `references/lauftafel.md` | Aufbau und Fortschreiben der Lauftafel |
 | `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Konsole". Wird kopiert, nicht nachgebaut; ihr gemeinsamer Block steht wortgleich in `epic-flotte/references/flottentafel.html` |
 | `references/worktree.md` | Worktrees rüsten und abräumen |
+| `scripts/worktree.ps1` | das Skript dazu; Rüsten und Abräumen laufen nur darüber |
 
 `references/plan-artifact.md` entfällt und wird durch `lauftafel.md` ersetzt.

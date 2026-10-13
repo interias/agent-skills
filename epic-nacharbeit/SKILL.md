@@ -188,8 +188,11 @@ Zwei Dinge dabei, und beide sind leicht zu vergessen:
 Ist der Pull Request schon gemergt, oder betrifft die Nacharbeit einen anderen Gegenstand: eigener
 Branch, eigener Pull Request, Namensschema `nacharbeit/<epic-nr>-<slug>`, als Ziel derselbe
 Basis-Branch wie beim ursprünglichen Lauf (`base_branch` aus dem Adapter, bei bereits gemergtem
-Pull Request dessen `base`). **Nie direkt auf den Basis-Branch committen**, auch nicht für einen
-Einzeiler in einer Textdatei — der Merge dorthin kann deployen.
+Pull Request dessen `base`). Der Branch bekommt einen eigenen Worktree unter `worktree_root`,
+angelegt und später abgeräumt **nur per `scripts/worktree.ps1` aus `/epic`**
+(`epic/references/worktree.md`); das Hauptverzeichnis wird nie umgeschaltet. **Nie direkt auf den
+Basis-Branch committen**, auch nicht für einen Einzeiler in einer Textdatei — der Merge dorthin kann
+deployen.
 
 Nach jeder Änderung, die Code berührt: **den Testbefehl des Projekts fahren** und gegen den in
 Phase 0 gemessenen Stand vergleichen. Auch dann, wenn du nur einen Kommentar geändert hast; eine

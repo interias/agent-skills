@@ -404,11 +404,10 @@ Danach **ohne Rückfrage** losarbeiten.
 
 - Branchname `epic/<nr>-<slug>`. Slug aus dem Issue-Titel ohne Präfixe wie `Epic:` oder `Spec:`:
   klein, ASCII, höchstens vier Wörter, Umlaute transliteriert (ä→ae, ö→oe, ü→ue, ß→ss).
-- **Der Epic-Branch lebt in einem eigenen Worktree** `<worktree_root>/epic-<nr>`, angelegt in 0b:
-  `git worktree add <worktree_root>/epic-<nr> -b epic/<nr>-<slug> <push_remote>/<basis>`. Existiert
-  der Branch schon: wiederverwenden (`git worktree add <pfad> epic/<nr>-<slug>`, bei vorhandenem
-  Remote darin `git pull --ff-only`). Nie neu anlegen, nie `--force`, nie zurücksetzen — dort kann
-  Arbeit eines früheren Laufs liegen.
+- **Der Epic-Branch lebt in einem eigenen Worktree** `<worktree_root>/epic-<nr>`, angelegt in 0b
+  per Skript mit `-Branch epic/<nr>-<slug> -From <push_remote>/<basis>`. Existiert der Branch schon,
+  nimmt das Skript ihn wieder; bei vorhandenem Remote danach darin `git pull --ff-only`. Nie neu
+  anlegen, nie `--force`, nie zurücksetzen — dort kann Arbeit eines früheren Laufs liegen.
 - Der Epic-Worktree bekommt **alle** `link_dirs` und `env_files`, weil dort die Ausgangsmessung und
   die Verifikation nach jedem Merge über alle Suiten laufen. Er bleibt bis zum Merge des Pull
   Requests stehen; abgeräumt wird er von `/epic-aufraeumen`.
@@ -416,8 +415,9 @@ Danach **ohne Rückfrage** losarbeiten.
   `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer, im Modus `spec`
   ohne Kinder `<spec>-p<k>`. Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
   kann nur noch von einem gleichzeitig laufenden Paket kommen.
-- Anlegen und Rüsten (`env_files` kopieren, `link_dirs` nur für berührte Module, `always_link`
-  immer, `test_isolation_env`, `port_env`) und Abräumen: **`references/worktree.md`**. Lies die
+- Anlegen, Rüsten (`env_files` kopieren, `link_dirs` nur für berührte Module, `always_link`
+  immer, `test_isolation_env`, `port_env`) und Abräumen **nur per `scripts/worktree.ps1`**, nie von
+  Hand. Scheitert es, hält das Paket an. Aufruf und Regeln: **`references/worktree.md`**. Lies die
   Datei, bevor du den ersten Worktree anlegst.
 
 ## Phase 4 — Das Fenster
@@ -556,7 +556,8 @@ bereits auf ihm.
    mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann
    wird nur der Worktree abgeräumt, der Branch bleibt: er gilt als gemergt, `git branch -d`
    gelänge, und ein erneuter Merge brächte die Änderung nicht zurück.
-3. Sonst Worktree und Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei: das nächste
+3. Sonst den Worktree per `worktree.ps1 -Action Remove` und danach den Paket-Branch abräumen
+   (`references/worktree.md`), nie `--force`. Platz frei: das nächste
    startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
    `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
    und verweigert.
