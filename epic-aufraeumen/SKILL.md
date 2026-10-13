@@ -201,10 +201,18 @@ dort nicht. Der Nachweis bleibt derselbe Befehl.
 
 In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht löschen lässt:
 
-1. **Worktrees**, die Git kennt: `git worktree remove <absoluter Pfad>` — **ohne `--force`**.
-   Nimm absolute Pfade; das Arbeitsverzeichnis der Shell wandert im Lauf, und ein relativer Pfad
-   liefert „is not a working tree", obwohl der Eintrag in der Liste steht. Verweigert der Befehl
-   wegen schmutzigen Zustands: melden, stehen lassen.
+1. **Worktrees**, die Git kennt, per Skript aus `/epic` — **nie von Hand, nie `--force`**:
+
+   ```bash
+   powershell -NoProfile -ExecutionPolicy Bypass -File <epic-skill>/scripts/worktree.ps1      -Action Remove -RepoRoot <repo> -WorktreePath <absoluter Pfad>
+   ```
+
+   Das Skript entfernt die Verweise einzeln, sucht nach übrigen Reparse-Points und ruft erst dann
+   `git worktree remove` (`epic/references/worktree.md`, „Abräumen"). Nimm absolute Pfade; das
+   Arbeitsverzeichnis der Shell wandert im Lauf. Bricht es ab, weil der Worktree schmutzig ist:
+   melden, stehen lassen. Bricht es ab, weil **kein Manifest** da ist (Worktree aus der Zeit vor dem
+   Skript), gilt der Weg aus der Junction-Falle: Verweise einzeln entfernen, Reparse-Points suchen,
+   dann `git worktree remove <absoluter Pfad>` ohne `--force`.
 2. **Worktree-Reste**, die nur auf der Platte liegen: nach dem Weg aus der Junction-Falle. Prüfe
    vorher, dass darin nichts anderes als die Verweise liegt — findet sich eine veränderte Datei,
    ist es kein Rest, sondern liegengebliebene Arbeit.
