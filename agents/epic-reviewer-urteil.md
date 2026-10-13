@@ -12,3 +12,8 @@ korrigiere nur im Kleinen und berichte alles andere strukturiert.
 
 Bei Urteilspaketen besonders: Ist eine Decision umgangen, weil die naheliegende Lösung bequemer
 war?
+
+**Tests:** Kein Volllauf — den fährt der Orchestrator. Prüfe Zahlen und Protokoll des
+Implementers gegen die Ausgangszahlen, fahre gezielt die betroffenen Tests und deine Gegenproben.
+Rot nur in Dateien, die das Paket nicht berührt, und einzeln grün ist ein Lastflake: vermerken,
+nicht als Befund werten.

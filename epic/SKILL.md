@@ -467,8 +467,13 @@ aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen 
   keine Tests löschen oder überspringen; die Projektregeln des Adapters; **nicht committen, nicht
   branchen** — das macht der Host.
 - Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable.
+- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
+  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
+  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht.
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
-  Verifikation mit echter Ausgabe; was er nicht konnte und warum. **Übernimmt er bestehende
+  Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
+  grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
+  was er nicht konnte und warum. **Übernimmt er bestehende
   Arbeit** (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
   Original-Hash) und Autor. Ein fremder Autor im Pull Request sieht sonst nach einem Fehler aus.
 
@@ -509,6 +514,11 @@ Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
   Signatur, Merkmale der Ausgabe, jede Abweichung vom Vorgänger. Der Implementer beschreibt, was
   er bauen wollte; dieser Abschnitt geht wörtlich in den Auftrag des Nachfolgers.
 
+**Der Reviewer fährt keinen Volllauf.** Er prüft Zahlen und Protokoll des Implementers gegen die
+Ausgangszahlen, fährt gezielt die betroffenen Tests und seine Gegenproben. Den Volllauf je Paket
+fährst du in 4c; ein zweiter im Review hat bisher keine Regression gefunden, die 4c nicht auch
+gefunden hätte, und kostet je Paket Minuten.
+
 Er **korrigiert selbst, aber nur im Kleinen**: Benennung, Kommentar, ein fehlender Testfall, ein
 vergessener Rest. Eine strukturelle Abweichung oder einen verletzten Abnahmepunkt berichtet er
 strukturiert — dann schickst du den Implementer mit dem Befund erneut los, bei einer strukturellen
@@ -518,18 +528,24 @@ im Bericht, ohne Issues anzulegen oder vorzuschlagen (Regel 3).
 
 ### 4c — Verifikation durch dich
 
-Fahre den Verifikationsweg selbst im Worktree des Pakets; glaub ihn nicht dem Bericht. Bei einem
-Wächter oder Tor fährst du auch die Gegenprobe. Bekannt rote Suiten (`known_red`) sind kein Grund,
-neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket berührt, wird nicht
-ignoriert.
+Fahre den Verifikationsweg selbst im Worktree des Pakets; glaub ihn nicht dem Bericht. Dazu
+gehört ein **Volllauf je betroffener Suite** — der einzige des Pakets neben dem des Implementers.
+Bei einem Wächter oder Tor fährst du auch die Gegenprobe. Bekannt rote Suiten (`known_red`) sind
+kein Grund, neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket berührt, wird
+nicht ignoriert.
 
 **Vergleiche gegen die Ausgangszahlen aus Phase 0.** Grün allein genügt nicht: **eine gesunkene
 Suiten- oder Testzahl ist ein Befund, auch wenn alles grün ist.** Ein Agent, der „alle Suiten
-grün" meldet, hat nichts über die Vollzähligkeit gesagt.
+grün" meldet, hat nichts über die Vollzähligkeit gesagt. Belegt wird der Vergleich aus deinem
+Volllauf hier und dem Protokoll des Implementers, nicht aus einem Lauf des Reviewers.
 
 Dasselbe gilt für den **Lint-Stand**: Fehler und Warnungen je betroffenem Modul vor und nach dem
 Paket, mit `lint_commands` gemessen. **Neue Befunde in geänderten Dateien sind ein Befund**, auch
 wenn der Lint-Befehl mit 0 endet.
+
+**Rot nur in Dateien, die das Paket nicht berührt, und einzeln grün = Lastflake:** vermerken, nicht
+als Befund werten. Setzt der Testbefehl des Adapters eine Worker-Grenze (etwa `--maxWorkers`), gilt
+sie auch für den Einzellauf.
 
 **Sichtprüfung ohne gezeichnetes Fenster.** Zeichnet das Browserfenster nicht (Screenshot und
 Klick auf Koordinaten scheitern), gehen Klicks per Skript und der Text aus dem Seitenbaum weiter.

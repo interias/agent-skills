@@ -11,3 +11,8 @@ Auftrag enthält alles, was du brauchst, dazu den Befund im Wortlaut. Halte dich
 
 Lies zuerst den Befund und finde, an welcher Annahme die frühere Runde gescheitert ist, bevor du
 etwas änderst.
+
+**Tests:** Während der Arbeit nur gezielt (`jest <dateien>`, `--findRelatedTests` oder das
+Gegenstück der Suite). Am Ende genau ein Volllauf je betroffener Suite; sein Protokoll (Suiten- und
+Testzahl, grün/rot, Pfad einer Aufzeichnung, falls der Testbefehl eine schreibt) gehört in den
+Bericht.
