@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- Source of mail-antwort.png in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Mailbild mail-antwort</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; width: 1200px; height: auto; }
+  /* Transparent ground: every label sits on a white plate, so it reads on a light and a dark README theme. */
+</style>
+<svg id="pic" viewBox="0 0 1200 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mailbild: aus einer Anwender-Mail werden Befund, bei Bedarf Pull Request, und immer ein Antwortentwurf">
+  <!-- legend -->
+  <g class="plate-all" font-family="Figtree" font-size="14" fill="#5b6475">
+    <circle cx="895" cy="30" r="9" fill="#fff" stroke="#3949ab" stroke-width="4"/><text x="912" y="35">Schritt</text>
+    <circle cx="990" cy="30" r="11" fill="#fff" stroke="#e8590c" stroke-width="5"/><text x="1009" y="35">du entscheidest</text>
+  </g>
+  <g id="g"></g>
+</svg>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('pic');
+  const g = document.getElementById('g');
+  const el = (name, attrs, parent = g, text) => {
+    const e = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const Y = 170;
+  // main line, split into the four ways after the halt
+  el('path', { d: `M60 ${Y} H560`, stroke: '#3949ab', 'stroke-width': 10, fill: 'none', 'stroke-linecap': 'round' });
+  el('path', { d: `M870 ${Y} H1120`, stroke: '#3949ab', 'stroke-width': 10, fill: 'none', 'stroke-linecap': 'round' });
+  const ways = [
+    [80, 'B', 'Spec-Issue + /epic → PR'],
+    [135, 'C', 'Kommentar am Issue'],
+    [205, 'A', 'nur Antwort'],
+    [260, 'D', 'Issue needs-triage'],
+  ];
+  for (const [y, k, t] of ways) {
+    el('path', { d: `M560 ${Y} C600 ${Y} 590 ${y} 630 ${y} H800 C840 ${y} 830 ${Y} 870 ${Y}`, stroke: k === 'B' ? '#3949ab' : '#9fa8da', 'stroke-width': 8, fill: 'none', 'stroke-linecap': 'round' });
+    el('rect', { x: 615, y: y - 13, width: 195, height: 26, rx: 13, fill: '#fff', stroke: '#3949ab', 'stroke-width': 3 });
+    el('text', { x: 636, y: y + 5, 'font-family': 'JetBrains Mono', 'font-weight': 700, 'font-size': 13, fill: '#3949ab' }, g, k);
+    el('text', { x: 652, y: y + 5, 'font-family': 'Figtree', 'font-weight': 700, 'font-size': 13, fill: '#1d2330' }, g, t);
+  }
+  // mail in, draft out
+  el('rect', { x: 30, y: Y - 18, width: 40, height: 36, rx: 4, fill: '#3949ab' });
+  el('text', { x: 50, y: Y + 5, 'text-anchor': 'middle', 'font-family': 'JetBrains Mono', 'font-weight': 700, 'font-size': 11, fill: '#fff' }, g, '.eml');
+
+  const stations = [
+    [130, 'Zerlegen', ['Text und Bilder', 'Anliegen · Fundort · Absender']],
+    [280, 'Einordnen', ['Art als Hypothese', 'schon bearbeitet?']],
+    [430, 'Recherche', ['Code · Forge · Version · Daten', 'Ursache mit datei:zeile']],
+    [560, 'Halt', ['Befund, Weg, Issue-Entwurf', 'du wählst A–D'], true],
+    [910, 'Bilder', ['Ist markiert,', 'Soll aus dem Worktree']],
+    [1025, 'Entwurf', ['.eml neben der Mail', 'verschickt nie']],
+    [1120, 'Abschicken', ['nur du'], true],
+  ];
+  const labels = el('g', { class: 'plates', 'font-family': 'Figtree', fill: '#1d2330' }, svg);
+  stations.forEach(([x, t, ls, human], n) => {
+    const ly = n % 2 ? 412 : 336;
+    el('circle', { cx: x, cy: Y, r: human ? 12 : 9, fill: '#fff', stroke: human ? '#e8590c' : '#3949ab', 'stroke-width': human ? 5 : 4 });
+    el('line', { x1: x, y1: Y + 16, x2: x, y2: ly - 24, stroke: '#c9ced8', 'stroke-width': 1.5, 'stroke-dasharray': '3 5' });
+    el('text', { x, y: ly, 'text-anchor': 'middle', 'font-weight': 700, 'font-size': 15, fill: human ? '#c2410c' : '#1d2330' }, labels, t);
+    ls.forEach((l, i) => el('text', { x, y: ly + 19 + i * 18, 'text-anchor': 'middle', 'font-size': 13, fill: '#5b6475' }, labels, l));
+  });
+
+  // classification
+  const box = el('g', { 'font-family': 'Figtree', fill: '#1d2330' }, svg);
+  el('rect', { x: 30, y: 484, width: 1140, height: 110, rx: 8, fill: '#fff', stroke: '#c9ced8' }, box);
+  el('text', { x: 48, y: 510, 'font-family': 'JetBrains Mono', 'font-size': 12, 'letter-spacing': 1.5, fill: '#7c8699' }, box, 'ART DER MAIL → WEG');
+  const kinds = [
+    ['Fehler', 'tut nicht, was zugesagt ist', 'B: Issue + /epic'],
+    ['Wunsch', 'will mehr oder anders', 'B wenn klein, sonst D'],
+    ['Bedienung', 'anders benutzt', 'A: nur Antwort'],
+    ['Daten', 'Code richtig, Datensatz nicht', 'A: Stammdaten ändert ein Mensch'],
+    ['Schon erledigt', 'neuere Version, offenes Issue', 'C: Kommentar + Antwort'],
+  ];
+  kinds.forEach(([h, d, w], i) => {
+    const x = 48 + i * 226;
+    if (i) el('line', { x1: x - 14, y1: 524, x2: x - 14, y2: 584, stroke: '#e3e6ec' }, box);
+    el('text', { x, y: 536, 'font-weight': 700, 'font-size': 15, fill: '#3949ab' }, box, h);
+    el('text', { x, y: 556, 'font-size': 13, fill: '#5b6475' }, box, d);
+    el('text', { x, y: 576, 'font-size': 13, 'font-weight': 700, fill: '#1d2330' }, box, w);
+  });
+
+  // Plates behind the labels: texts of one station (same x, at most 24 px apart) share one plate.
+  const plate = (parent, before, b) => {
+    const r = document.createElementNS(NS, 'rect');
+    for (const [k, v] of Object.entries({ x: b.x - 9, y: b.y - 5, width: b.width + 18, height: b.height + 10, rx: 6, fill: '#ffffff', stroke: '#c9ced8' })) r.setAttribute(k, v);
+    parent.insertBefore(r, before);
+  };
+  const union = (els) => els.map((e) => e.getBBox()).reduce((a, b) => {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
+  });
+  document.fonts.ready.then(() => {
+    for (const p of document.querySelectorAll('g.plates')) {
+      const groups = [];
+      for (const t of p.querySelectorAll('text')) {
+        const last = groups.at(-1);
+        const prev = last?.at(-1);
+        if (prev && prev.getAttribute('x') === t.getAttribute('x') && t.getAttribute('y') - prev.getAttribute('y') <= 24) last.push(t);
+        else groups.push([t]);
+      }
+      for (const grp of groups) plate(grp[0].parentNode, grp[0], union(grp));
+    }
+    const legend = document.querySelector('g.plate-all');
+    plate(legend, legend.firstChild, union([...legend.children]));
+  });
+</script>
