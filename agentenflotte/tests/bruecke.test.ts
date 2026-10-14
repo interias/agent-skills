@@ -43,6 +43,16 @@ const toolLine = async ($: Engine, surface: 'terminal' | 'desktop', tool: string
   return texts
 }
 
+const groupLine = async ($: Engine, surface: 'terminal' | 'desktop', calls: [string, boolean?][], isExpanded = false) => {
+  const ui = await $.ui.mount({
+    plugin: 'agentenflotte', surface, component: 'ToolGroup', requestId: 'g',
+    props: { calls: calls.map(([tool, isErrored = false]) => ({ tool, input: {}, isRunning: false, isErrored })), isActive: false, isExpanded },
+  } as never)
+  const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text.trim()).filter(t => t !== '')
+  await ui.unmount()
+  return texts
+}
+
 async function $launch($: Engine, id: string, agentType: string, desc = 'Spawn-Logik suchen') {
   await $.tool.call({ tool: 'Agent', description: desc, prompt: 'x', subagent_type: agentType, model: 'haiku', effort: 'high' } as never)
   await $.classic.SubagentStart({ agent_id: id, agent_type: agentType })
@@ -145,6 +155,22 @@ test('a tool row carries its station label on the terminal and the desktop', asy
   }
 })
 
+test('a folded run of calls carries the labels of its stations, once each and in order', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.store(on)
+  baseAnswers(on)
+  engineLine(on)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    expect(await groupLine($, surface, [['Bash'], ['Bash']])).toEqual(['Konsole'])
+    expect(await groupLine($, surface, [['Read'], ['Grep'], ['Read']])).toEqual(['Archiv', 'Sensorscan'])
+    // A failed call in the run is a hull breach.
+    expect(await groupLine($, surface, [['Bash'], ['Read', true]])).toEqual(['Konsole', 'Hüllenbruch'])
+    // Tools without a station, and an unfolded run whose rows label themselves, stay as the engine draws them.
+    expect(await groupLine($, surface, [['TodoWrite']])).toEqual([])
+    expect(await groupLine($, surface, [['Bash']], true)).toEqual([])
+  }
+})
+
 test('the status line shows stardate, warp, shields, fleet and alert, and drops what has no value', async ($, on) => {
   const clock = mock.clock(on, { now: Date.UTC(1987, 0, 1) })
   mock.store(on)
@@ -173,6 +199,33 @@ test('the status line shows stardate, warp, shields, fleet and alert, and drops 
   // The ticker keeps the stardate current.
   await clock.advance(5000)
   expect(lines.at(-1)).toContain('Flotte 1')
+})
+
+test('the warp factor comes from the model requests of the main loop, where classic events carry no effort', async ($, on) => {
+  mock.clock(on, { now: Date.UTC(1987, 0, 1) })
+  mock.store(on)
+  baseAnswers(on)
+  on('turn.step', async function* (_$, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null } as never
+  })
+  const lines: (string | undefined)[] = []
+  on('ui.status', (_$, e) => { lines.push(e.text as never); return { value: undefined } as never })
+  await start($, 'desktop')
+  const step = async (effort: string, agentId?: string) => {
+    for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'opus', effort, messageCount: 1, agentId } as never));
+  }
+
+  // A tool result without effort, as the desktop sends it, leaves the warp unknown.
+  await $.classic.PostToolUse({ tool_name: 'Read', tool_input: {}, tool_response: {}, tool_use_id: 'x' } as never)
+  expect(lines.at(-1)).toBe('SZ 41000.0 · Flotte 0')
+
+  await step('medium')
+  expect(lines.at(-1)).toBe('SZ 41000.0 · Warp 4 · Flotte 0')
+  // A subagent's request is its own warp, not the bridge's.
+  await step('max', 'a1')
+  expect(lines.at(-1)).toBe('SZ 41000.0 · Warp 4 · Flotte 0')
+  await step('high')
+  expect(lines.at(-1)).toBe('SZ 41000.0 · Warp 6 · Flotte 0')
 })
 
 test('the bridge switched off clears the status line and every other part', async ($, on) => {

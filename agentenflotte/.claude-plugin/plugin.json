@@ -1,6 +1,6 @@
 {
   "name": "agentenflotte",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A starship bridge for Claude Code: bridge spinner, station labels and status line, alert levels, log, ship's computer and a tactical display.",
   "author": { "name": "interias" },
   "types": "./types/index.d.ts"
