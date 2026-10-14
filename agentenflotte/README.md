@@ -15,9 +15,9 @@ The status line, the spinner, the mode label and the radar frame follow the aler
 ## Bridge
 
 - **Spinner:** the working words are bridge talk (`Warpkern kalibrieren`, `Kurs berechnen`); under an alert they change to `Autorisierung abwarten` and the like.
-- **Station labels** on tool rows: `Sensorscan` (Grep, Glob, web), `Archiv` (Read), `Shuttlestart` (Agent), `Maschinenraum` (Edit, Write), `Konsole` (Bash), `Transporter` (worktrees); a failed tool shows `Hüllenbruch`.
-- **Under-warp line** after a turn: `Unter Warp · 1 min 12 s`.
-- **Warp factor = effort:** low to max is warp 2, 4, 6, 8, 9.9.
+- **Station labels** on tool rows: `Sensorscan` (Grep, Glob, web), `Archiv` (Read), `Shuttlestart` (Agent), `Maschinenraum` (Edit, Write), `Konsole` (Bash), `Transporter` (worktrees); a failed tool shows `Hüllenbruch`. A folded run of calls (`Ran 2 shell commands`) carries the labels of its stations, once each.
+- **Under-warp line** after a turn: `Unter Warp · 1 min 12 s` (terminal only; the desktop draws its own turn footer).
+- **Warp factor = effort:** low to max is warp 2, 4, 6, 8, 9.9, read from the main loop's model requests.
 - **Status line:** stardate, warp factor of the main session, shields (context left), fleet size and the alert, e.g. `SZ 80769.9 · Warp 6 · Schilde 64 % · Flotte 3`.
 - **Mode label:** on an alert, `Alarmstufe Gelb|Rot|Blau` joins the session modes.
 - **Permission note:** a line under a permission dialog says who asks (`Alarmstufe Gelb · Maschinenraum erbittet Autorisierung`).

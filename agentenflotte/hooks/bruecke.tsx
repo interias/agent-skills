@@ -1,4 +1,4 @@
-// The bridge (P3): spinner verbs and TurnDuration, a station label on tool rows, the status
+// The bridge (P3): spinner verbs and TurnDuration, a station label on tool rows and folded runs, the status
 // line ($.ui.status) with stardate, warp, shields, fleet and alert, a mode label on alert,
 // a note under permission dialogs, and a toast when a subagent returns. Only while
 // isOn($, 'bruecke').
@@ -52,7 +52,7 @@ const GROUPS: [string[], StationLabel][] = [
 for (const [tools, station] of GROUPS) for (const tool of tools) STATION[tool] = station
 const HULL_BREACH: StationLabel = { label: 'Hüllenbruch', color: COLOR.rot }
 
-// The main session's effort as last seen on a classic event, the status line as last shown, and
+// The main session's effort as last seen on a classic event or a model request, the status line as last shown, and
 // the call each pending question is about: a permission request carries no tool_use_id, but the
 // check that precedes its dialog does, so that is where the call is noted, by who asks and what.
 let mainEffort: number | null = null
@@ -154,6 +154,14 @@ export function registerBruecke(on: On) {
     if (!e.agent_id && e.effort) mainEffort = effortIndex(e.effort.level)
     return next(e)
   })
+  // The desktop's classic events carry no effort; every model request of the main loop does.
+  on('turn.step', {}, async function* ($, e, next) {
+    if (!e.agentId && typeof e.effort === 'string' && effortIndex(e.effort) !== mainEffort) {
+      mainEffort = effortIndex(e.effort)
+      await refreshStatus($)
+    }
+    return yield* next(e)
+  })
 
   // A question for the person is noted with its call, for the permission request that follows.
   on('tool.check', {}, async ($, e, next) => {
@@ -188,6 +196,29 @@ export function registerBruecke(on: On) {
         <Text color={station.color} bold>
           {station.label}{' '}
         </Text>
+        {await next(e)}
+      </Box>
+    )
+  })
+
+  // A folded run of calls (`Ran 2 shell commands`) carries the labels of its stations, once each
+  // and in order; an unfolded run draws ToolUse rows that label themselves.
+  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    if (!isOn(await read($, settings), 'bruecke') || e.props.isExpanded) return next(e)
+    const stations: StationLabel[] = []
+    for (const call of e.props.calls) {
+      const station = call.isErrored ? HULL_BREACH : STATION[call.tool]
+      if (station && !stations.includes(station)) stations.push(station)
+    }
+    if (stations.length === 0) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row">
+        {stations.map(station => (
+          <Text color={station.color} bold>
+            {station.label}{' '}
+          </Text>
+        ))}
         {await next(e)}
       </Box>
     )
