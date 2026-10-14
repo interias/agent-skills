@@ -1,7 +1,8 @@
 # Brückenbild
 
 `agentenflotte.png` im README des Repositorys wird aus `agentenflotte.html` gerendert:
-1200 × 560 px, doppelte Auflösung, transparenter Grund. Terminal und Statuszeile sind ein Beispiel;
+1200 × 560 px, doppelte Auflösung, transparenter Grund. Der Ausschnitt der Desktop-App ist ein nachgestelltes Beispiel (Etiketten und Farben aus
+`agentenflotte/hooks/bruecke.tsx`);
 das Radar folgt Maßen und Farben von `radarSvg` in `agentenflotte/hooks/taktik.tsx`.
 
 Ändert sich das Plugin sichtbar, erst `agentenflotte.html` anpassen, dann neu rendern (Git Bash,

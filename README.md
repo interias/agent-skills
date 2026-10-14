@@ -65,7 +65,7 @@ deren Ablauf nicht.
 
 ## Plugin `agentenflotte`
 
-![Brückenbild: links ein Terminal mit Stationsetiketten an den Werkzeugzeilen, Brücken-Spinner, Logbuchzeile, einer Freigabe unter Alarmstufe Gelb und der Statuszeile mit Sternzeit, Warp, Schilden und Flotte; rechts das taktische Display als Radar mit der Hauptsitzung in der Mitte und den Subagenten als Kontakte. Darunter Alarmstufen und Warpfaktoren.](assets/agentenflotte/agentenflotte.png)
+![Brückenbild: links die Desktop-App mit farbigen Stationsetiketten vor den Werkzeugzeilen, Brücken-Spinner, einer Freigabe unter Alarmstufe Gelb, der Zeile Unter Warp und in der Fußleiste Alarm-Etikett und Statuszeile mit Sternzeit, Warp, Schilden und Flotte; rechts das taktische Display als Radar mit der Hauptsitzung in der Mitte und den Subagenten als Kontakte. Darunter Alarmstufen und Warpfaktoren.](assets/agentenflotte/agentenflotte.png)
 
 Ein Mod, der die Sitzung zur Schiffsbrücke macht: Subagenten sind Schiffe, Warpfaktor ist die
 Denkstufe, Alarmstufen zeigen, was auf dich wartet (Gelb Freigabe, Rot Fehler, Blau Kontext knapp).
