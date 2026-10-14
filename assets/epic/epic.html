@@ -1,0 +1,134 @@
+<!doctype html>
+<!-- Source of epic.png in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Paketbild epic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; width: 1200px; height: auto; }
+  /* Transparent ground: every label sits on a white plate, so it reads on a light and a dark README theme. */
+</style>
+<svg id="pic" viewBox="0 0 1200 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Paketbild: /epic setzt Pakete im gleitenden Fenster um und mergt jedes sofort in den Epic-Branch">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#7c8699"/>
+    </marker>
+  </defs>
+  <!-- legend -->
+  <g class="plate-all" font-family="Figtree" font-size="14" fill="#5b6475">
+    <rect x="440" y="30" width="46" height="20" rx="10" fill="#fff" stroke="#3949ab" stroke-width="3"/><text x="496" y="45">Sonnet</text>
+    <rect x="558" y="30" width="46" height="20" rx="10" fill="#e8eaf6" stroke="#3949ab" stroke-width="3"/><text x="614" y="45">Opus</text>
+    <circle cx="675" cy="40" r="8" fill="#3949ab"/><text x="690" y="45">Sofortmerge</text>
+    <path d="M788 32 l14 16 M802 32 l-14 16" stroke="#c2410c" stroke-width="4" stroke-linecap="round"/><text x="812" y="45">zurückgelassen: Branch bleibt, Nachfolger blockiert</text>
+  </g>
+
+  <!-- the run: graph and gate -->
+  <rect x="30" y="150" width="200" height="190" rx="14" fill="#fff" stroke="#3949ab" stroke-width="5"/>
+  <g font-family="Figtree" fill="#1d2330" text-anchor="middle">
+    <text x="130" y="182" font-family="JetBrains Mono" font-weight="700" font-size="18">/epic</text>
+    <text x="130" y="206" font-size="13" fill="#5b6475">Kinder oder Spec lesen</text>
+    <text x="130" y="224" font-size="13" fill="#5b6475">Pakete schneiden, Klasse</text>
+    <text x="130" y="242" font-size="13" fill="#5b6475">Graph: Vorgänger, Kollision</text>
+    <text x="130" y="272" font-weight="700" font-size="14" fill="#c2410c">Vorab-Tor</text>
+    <text x="130" y="290" font-size="13" fill="#5b6475">alle Fragen einmal</text>
+    <text x="130" y="318" font-size="13" fill="#5b6475">Lauftafel · Statuslabels</text>
+  </g>
+
+  <g id="lanes"></g>
+</svg>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('pic');
+  const lanes = document.getElementById('lanes');
+  const el = (name, attrs, parent = lanes, text) => {
+    const e = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const E = 410; // epic branch
+  // epic branch with PR at the end
+  el('path', { d: `M230 ${E} H1120`, stroke: '#3949ab', 'stroke-width': 12, fill: 'none', 'stroke-linecap': 'round' });
+  el('rect', { x: 1112, y: E - 18, width: 22, height: 36, rx: 4, fill: '#3949ab' });
+
+  const packages = [
+    // slot 1: A merges, D moves up into the free slot
+    { y: 150, x0: 270, x1: 560, name: 'A', st: [[340, 'Impl.'], [420, 'Review'], [500, 'Prüfen']] },
+    { y: 150, x0: 680, x1: 960, name: 'D', st: [[750, 'Impl.'], [830, 'Review'], [910, 'Prüfen']] },
+    // slot 2: B is left behind, E moves up
+    { y: 220, x0: 270, x1: 470, name: 'B', st: [[340, 'Impl.'], [420, 'Review']], stop: true },
+    { y: 220, x0: 760, x1: 1030, name: 'E', st: [[830, 'Impl.'], [910, 'Review'], [990, 'Prüfen']] },
+    // slot 3: C escalates once
+    { y: 290, x0: 270, x1: 740, name: 'C', st: [[340, 'Impl.'], [420, 'Review'], [540, 'Impl.', true], [620, 'Review', true], [700, 'Prüfen']] },
+  ];
+  for (const p of packages) {
+    const end = p.stop ? `H${p.x1}` : `H${p.x1} C${p.x1 + 30} ${p.y} ${p.x1 + 10} ${E} ${p.x1 + 40} ${E}`;
+    el('path', { d: `M${p.x0 - 40} ${E} C${p.x0 - 10} ${E} ${p.x0 - 30} ${p.y} ${p.x0} ${p.y} ${end}`, stroke: '#9fa8da', 'stroke-width': 8, fill: 'none', 'stroke-linecap': 'round' });
+    el('text', { x: p.x0 + 4, y: p.y - 22, 'font-family': 'JetBrains Mono', 'font-weight': 700, 'font-size': 13, fill: '#3949ab', stroke: '#fff', 'stroke-width': 5, 'paint-order': 'stroke' }, lanes, `Paket ${p.name}`);
+    for (const [x, t, opus] of p.st) {
+      el('rect', { x: x - 32, y: p.y - 13, width: 64, height: 26, rx: 13, fill: opus ? '#e8eaf6' : '#fff', stroke: '#3949ab', 'stroke-width': 3 });
+      el('text', { x, y: p.y + 5, 'text-anchor': 'middle', 'font-family': 'Figtree', 'font-weight': 700, 'font-size': 13, fill: '#1d2330' }, lanes, t);
+    }
+    if (p.stop) {
+      const x = p.x1 + 10;
+      el('path', { d: `M${x - 9} ${p.y - 9} l18 18 M${x + 9} ${p.y - 9} l-18 18`, stroke: '#c2410c', 'stroke-width': 5, 'stroke-linecap': 'round' });
+    } else {
+      el('circle', { cx: p.x1 + 40, cy: E, r: 9, fill: '#3949ab', stroke: '#fff', 'stroke-width': 3 });
+    }
+  }
+  // escalation loop on C
+  el('path', { d: 'M430 305 C440 345 520 345 532 306', stroke: '#7c8699', 'stroke-width': 2, 'stroke-dasharray': '4 5', fill: 'none', 'marker-end': 'url(#arrow)' });
+
+  // annotations
+  const notes = el('g', { class: 'plates', 'font-family': 'Figtree', fill: '#1d2330' }, svg);
+  const note = (x, y, lines, anchor = 'start') => lines.forEach(([t, s], i) =>
+    el('text', { x, y: y + i * 18, 'text-anchor': anchor, 'font-size': s ? 14 : 13, 'font-weight': s ? 700 : 400, fill: s ? '#1d2330' : '#5b6475' }, notes, t));
+  note(440, 360, [['Eskalation', 1], ['struktureller Befund → eine Klasse höher']]);
+  note(640, 92, [['höchstens 3 Plätze · wird einer frei, rückt das nächste startbereite Paket sofort nach', 1]], 'middle');
+  note(680, 452, [['Epic-Branch epic/<nr>-<slug>', 1], ['jedes abgenommene Paket sofort hinein, Suiten danach grün · rot → Revert']], 'middle');
+  note(1123, 452, [['Pull Request', 1], ['bleibt offen']], 'middle');
+
+  // model ladder
+  const box = el('g', { 'font-family': 'Figtree', fill: '#1d2330' }, svg);
+  el('rect', { x: 30, y: 500, width: 1140, height: 100, rx: 8, fill: '#fff', stroke: '#c9ced8' }, box);
+  el('text', { x: 48, y: 526, 'font-family': 'JetBrains Mono', 'font-size': 12, 'letter-spacing': 1.5, fill: '#7c8699' }, box, 'PAKETKLASSE → MODELL UND DENKSTUFE · DER ADAPTER DARF NUR HOCHSTUFEN');
+  const cols = [
+    ['Kundschafter', ['Haiku · niedrig', 'liest nur, bis 8 parallel']],
+    ['mechanisch', ['Implementer Sonnet · niedrig', 'Reviewer Sonnet · hoch']],
+    ['Standard', ['Implementer Sonnet · mittel', 'Reviewer Sonnet · hoch']],
+    ['Urteil', ['Implementer Opus · mittel', 'Reviewer Opus · mittel']],
+    ['nach Eskalation', ['Implementer Opus · hoch', 'letzte Stufe']],
+  ];
+  cols.forEach(([h, ls], i) => {
+    const x = 48 + i * 226;
+    if (i) el('line', { x1: x - 14, y1: 540, x2: x - 14, y2: 590, stroke: '#e3e6ec' }, box);
+    el('text', { x, y: 552, 'font-weight': 700, 'font-size': 15, fill: i >= 3 ? '#283593' : '#3949ab' }, box, h);
+    ls.forEach((l, j) => el('text', { x, y: 572 + j * 18, 'font-size': 13, fill: '#5b6475' }, box, l));
+  });
+
+  // Plates behind the labels: texts of one note (same x, at most 24 px apart) share one plate.
+  const plate = (parent, before, b) => {
+    const r = document.createElementNS(NS, 'rect');
+    for (const [k, v] of Object.entries({ x: b.x - 9, y: b.y - 5, width: b.width + 18, height: b.height + 10, rx: 6, fill: '#ffffff', stroke: '#c9ced8' })) r.setAttribute(k, v);
+    parent.insertBefore(r, before);
+  };
+  const union = (els) => els.map((e) => e.getBBox()).reduce((a, b) => {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
+  });
+  document.fonts.ready.then(() => {
+    for (const g of document.querySelectorAll('g.plates')) {
+      const groups = [];
+      for (const t of g.querySelectorAll('text')) {
+        const last = groups.at(-1);
+        const prev = last?.at(-1);
+        if (prev && prev.getAttribute('x') === t.getAttribute('x') && t.getAttribute('y') - prev.getAttribute('y') <= 24) last.push(t);
+        else groups.push([t]);
+      }
+      for (const grp of groups) plate(grp[0].parentNode, grp[0], union(grp));
+    }
+    const legend = document.querySelector('g.plate-all');
+    plate(legend, legend.firstChild, union([...legend.children]));
+  });
+</script>

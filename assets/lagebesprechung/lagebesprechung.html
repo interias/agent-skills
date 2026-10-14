@@ -1,0 +1,127 @@
+<!doctype html>
+<!-- Source of lagebesprechung.png in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Lagebesprechung</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; background: transparent; }
+  svg { display: block; width: 1200px; height: auto; }
+  /* Transparent ground: every label sits on a white plate, so it reads on a light and a dark README theme. */
+</style>
+<svg viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Lagebesprechung: aufgestaute Fragen im laufenden Chat abholen, entscheiden, zurückschreiben">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#7c8699"/>
+    </marker>
+  </defs>
+
+  <!-- the chat: the briefing is an optional insert -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 80 H470 C500 80 500 40 530 40 H670 C700 40 700 80 730 80 H1160" stroke="#3949ab" stroke-width="10"/>
+  </g>
+  <circle cx="600" cy="40" r="12" fill="#fff" stroke="#e8590c" stroke-width="5"/>
+  <g class="plates" font-family="Figtree" fill="#1d2330">
+    <text x="40" y="118" font-weight="700" font-size="15">Chat des Admirals oder Orchestrators</text>
+    <text x="40" y="137" font-size="13" fill="#5b6475">Läufe arbeiten, was nur du entscheidest, staut sich</text>
+    <text x="600" y="118" text-anchor="middle" font-family="JetBrains Mono" font-weight="700" font-size="15" fill="#c2410c">/epic-lagebesprechung</text>
+    <text x="600" y="137" text-anchor="middle" font-size="13" fill="#5b6475">optional · wann du Zeit hast</text>
+    <text x="1160" y="118" text-anchor="end" font-weight="700" font-size="15">weiter wie vorher</text>
+    <text x="1160" y="137" text-anchor="end" font-size="13" fill="#5b6475">Offenes fragt der Skill wie gewohnt</text>
+  </g>
+
+  <!-- sources, ranked -->
+  <g font-family="Figtree" fill="#1d2330">
+    <text x="40" y="190" font-family="JetBrains Mono" font-size="12" letter-spacing="1.5" fill="#7c8699">SAMMELN · BLOCKIERENDES ZUERST</text>
+    <rect x="40" y="204" width="320" height="62" rx="10" fill="#fff3e0" stroke="#e8590c" stroke-width="3"/>
+    <text x="60" y="242" font-weight="700" font-size="22" fill="#c2410c">1</text>
+    <text x="88" y="230" font-weight="700" font-size="15">Fragen, auf die ein Lauf wartet</text>
+    <text x="88" y="250" font-size="13" fill="#5b6475">FLOTTE-FRAGE, Vorab-Tor, Abbruch</text>
+
+    <rect x="40" y="276" width="320" height="62" rx="10" fill="#fff" stroke="#3949ab" stroke-width="3"/>
+    <text x="60" y="314" font-weight="700" font-size="22" fill="#3949ab">2</text>
+    <text x="88" y="302" font-weight="700" font-size="15">Vorläufige Entscheidungen</text>
+    <text x="88" y="322" font-size="13" fill="#5b6475">bestätigen oder kippen · PR trägt WIP:</text>
+
+    <rect x="40" y="348" width="320" height="62" rx="10" fill="#fff" stroke="#3949ab" stroke-width="3"/>
+    <text x="60" y="386" font-weight="700" font-size="22" fill="#3949ab">3</text>
+    <text x="88" y="374" font-weight="700" font-size="15">Triage-Tickets der Epics</text>
+    <text x="88" y="394" font-size="13" fill="#5b6475">needs-triage, needs-info, ohne Abnahme</text>
+
+    <rect x="40" y="420" width="320" height="62" rx="10" fill="#fff" stroke="#c9ced8" stroke-width="3" stroke-dasharray="6 5"/>
+    <text x="60" y="458" font-weight="700" font-size="22" fill="#7c8699">4</text>
+    <text x="88" y="446" font-weight="700" font-size="15">✔ Eigene Entscheidungen</text>
+    <text x="88" y="466" font-size="13" fill="#5b6475">keine Fragen, nur zum Kippen</text>
+  </g>
+
+  <!-- arrows into the rounds -->
+  <g stroke="#7c8699" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M366 235 C400 235 400 300 432 320"/>
+    <path d="M366 307 C395 307 400 325 432 330"/>
+    <path d="M366 379 C395 379 400 345 432 340"/>
+    <path d="M366 451 C400 451 400 360 432 350"/>
+  </g>
+
+  <!-- rounds -->
+  <rect x="440" y="230" width="320" height="210" rx="14" fill="#fff" stroke="#e8590c" stroke-width="5"/>
+  <g font-family="Figtree" fill="#1d2330" text-anchor="middle">
+    <text x="600" y="264" font-weight="700" font-size="18" fill="#c2410c">Fragerunden mit dir</text>
+    <text x="600" y="290" font-size="13" fill="#5b6475">Frontier: alles, was jetzt entscheidbar ist</text>
+    <text x="600" y="308" font-size="13" fill="#5b6475">je Frage Optionen und Empfehlung</text>
+    <text x="600" y="326" font-size="13" fill="#5b6475">Fakten beschafft der Agent, nie du</text>
+    <line x1="470" y1="346" x2="730" y2="346" stroke="#e3e6ec"/>
+    <text x="600" y="372" font-size="13" fill="#5b6475">Triage: was zur Freigabe fehlt —</text>
+    <text x="600" y="390" font-size="13" fill="#5b6475">Abnahme, Verifikation, Abgrenzung</text>
+    <text x="600" y="420" font-weight="700" font-size="14">„Verwerfen“ ist immer eine Option</text>
+  </g>
+
+  <!-- effects -->
+  <g stroke="#7c8699" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M766 290 C800 290 800 245 832 245"/>
+    <path d="M766 380 C800 380 800 395 832 395"/>
+  </g>
+  <g font-family="Figtree" fill="#1d2330">
+    <text x="840" y="190" font-family="JetBrains Mono" font-size="12" letter-spacing="1.5" fill="#7c8699">WIRKUNG</text>
+    <rect x="840" y="204" width="320" height="104" rx="10" fill="#fff" stroke="#3949ab" stroke-width="3"/>
+    <text x="860" y="230" font-weight="700" font-size="15">sofort nach jeder Runde</text>
+    <text x="860" y="252" font-size="13" fill="#5b6475">Antwort an den Lauf → er läuft weiter</text>
+    <text x="860" y="270" font-size="13" fill="#5b6475">„bestätigt / gekippt vom Menschen“</text>
+    <text x="860" y="288" font-size="13" fill="#5b6475">am Issue · Veto an den Lauf</text>
+
+    <rect x="840" y="320" width="320" height="162" rx="10" fill="#fff" stroke="#3949ab" stroke-width="3"/>
+    <text x="860" y="346" font-weight="700" font-size="15">nach deiner Bestätigung, je Ticket</text>
+    <text x="860" y="368" font-size="13" fill="#5b6475">Body fortschreiben · Kommentar mit Herkunft</text>
+    <rect x="860" y="384" width="104" height="24" rx="12" fill="#fde2d4"/>
+    <text x="912" y="401" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#c2410c" text-decoration="line-through">needs-triage</text>
+    <text x="978" y="401" font-size="15" fill="#7c8699">→</text>
+    <rect x="1000" y="384" width="134" height="24" rx="12" fill="#e8eaf6"/>
+    <text x="1067" y="401" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#283593" font-weight="700">ready-for-agent</text>
+    <text x="860" y="434" font-size="13" fill="#5b6475">nur mit Abnahme- und Verifikationsabschnitt</text>
+    <text x="860" y="452" font-size="13" fill="#5b6475">läuft sein Epic schon: nimmt es der nächste</text>
+    <text x="860" y="470" font-size="13" fill="#5b6475">Lauf auf</text>
+  </g>
+</svg>
+<script>
+  // Plates behind the labels: texts of one station (same x, at most 24 px apart) share one plate.
+  const NS = 'http://www.w3.org/2000/svg';
+  const plate = (parent, before, box) => {
+    const r = document.createElementNS(NS, 'rect');
+    for (const [k, v] of Object.entries({ x: box.x - 9, y: box.y - 5, width: box.width + 18, height: box.height + 10, rx: 6, fill: '#ffffff', stroke: '#c9ced8' })) r.setAttribute(k, v);
+    parent.insertBefore(r, before);
+  };
+  const union = (els) => els.map((e) => e.getBBox()).reduce((a, b) => {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y };
+  });
+  document.fonts.ready.then(() => {
+    for (const g of document.querySelectorAll('g.plates')) {
+      const groups = [];
+      for (const t of g.querySelectorAll('text')) {
+        const last = groups.at(-1);
+        const prev = last?.at(-1);
+        if (prev && prev.getAttribute('x') === t.getAttribute('x') && t.getAttribute('y') - prev.getAttribute('y') <= 24) last.push(t);
+        else groups.push([t]);
+      }
+      for (const grp of groups) plate(grp[0].parentNode, grp[0], union(grp));
+    }
+  });
+</script>
