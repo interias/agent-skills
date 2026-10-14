@@ -33,6 +33,10 @@ Oktober 2026 hießen sie `prd…`; alte Adapter werden weiter gelesen.
 Opus macht nicht alles: Die Paketklasse wählt Modell und Denkstufe, Opus hoch gibt es nur nach
 einer Eskalation. Am Ende stehen je Ticket Fundstellen, Verifikation und offene Punkte in Gitea.
 
+Den Stand zeigt die **Lauftafel** im Browser — hier mit den Musterdaten der Vorlage:
+
+![Lauftafel mit Musterdaten: Kennzahlen links, der Fortschritt der Pakete als Leiste, darunter der Stand jedes Pakets mit Modul, Zustand, Runden und Merge, die Belegung der drei Plätze als Zeitleiste und unten die offenen Punkte, die bei dir liegen.](assets/epic/lauftafel.png)
+
 ## `/epic-flotte` — mehrere Epics gleichzeitig
 
 ![Flottenbild: /epic-flotte, der Admiral mit Zufallsnamen, startet drei /epic-Läufe A bis C nebeneinander; ein vierter wartet, bis ein Platz frei wird. Jeder Lauf fragt am Vorab-Tor den Admiral, endet mit offenem Pull Request, durchläuft /epic-nacharbeit, wartet auf deinen Merge und endet mit /epic-aufraeumen. Darunter die Kollisionsstufen (keine 4, klein 3–4, mittel 2, groß 1 gleichzeitig) und das Entscheidungsrecht des Admirals (selbst, mit Präzedenz, immer du).](assets/flotte/flotte.png)
@@ -60,6 +64,8 @@ deren Ablauf nicht.
 ![Mailbild: Die .eml wird zerlegt, eingeordnet und recherchiert; am Halt wählst du den Weg — B Spec-Issue und /epic bis zum PR, C Kommentar am vorhandenen Issue, A nur Antwort, D Issue mit needs-triage. Danach markierte Ist- und Soll-Bilder und ein Antwortentwurf neben der Mail; abschicken nur du. Darunter die Arten der Mail und ihr Weg.](assets/mail-antwort/mail-antwort.png)
 
 ## Plugin `agentenflotte`
+
+![Brückenbild: links ein Terminal mit Stationsetiketten an den Werkzeugzeilen, Brücken-Spinner, Logbuchzeile, einer Freigabe unter Alarmstufe Gelb und der Statuszeile mit Sternzeit, Warp, Schilden und Flotte; rechts das taktische Display als Radar mit der Hauptsitzung in der Mitte und den Subagenten als Kontakte. Darunter Alarmstufen und Warpfaktoren.](assets/agentenflotte/agentenflotte.png)
 
 Ein Mod, der die Sitzung zur Schiffsbrücke macht: Subagenten sind Schiffe, Warpfaktor ist die
 Denkstufe, Alarmstufen zeigen, was auf dich wartet (Gelb Freigabe, Rot Fehler, Blau Kontext knapp).
