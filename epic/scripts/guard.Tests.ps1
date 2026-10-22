@@ -4,12 +4,19 @@
 
 $script = Join-Path $PSScriptRoot 'guard.ps1'
 
+function New-HookInput([string]$command, [string]$cwd, [string]$tool = 'Bash') {
+    ConvertTo-Json -Compress -InputObject @{ tool_name = $tool; tool_input = @{ command = $command }; cwd = $cwd; hook_event_name = 'PreToolUse' }
+}
+
 function Invoke-Guard([string]$guardProfile, [string]$command, [string]$cwd, [string]$tool = 'Bash', [string]$raw) {
-    if (-not $PSBoundParameters.ContainsKey('raw')) {
-        $raw = ConvertTo-Json -Compress -InputObject @{ tool_name = $tool; tool_input = @{ command = $command }; cwd = $cwd; hook_event_name = 'PreToolUse' }
-    }
-    $info = New-Object Diagnostics.ProcessStartInfo 'powershell.exe'
-    $info.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Profile $guardProfile"
+    if (-not $PSBoundParameters.ContainsKey('raw')) { $raw = New-HookInput $command $cwd $tool }
+    Invoke-HookProcess 'powershell.exe' "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Profile $guardProfile" $raw
+}
+
+function Invoke-HookProcess([string]$file, [string]$arguments, [string]$raw, [hashtable]$environment = @{}) {
+    $info = New-Object Diagnostics.ProcessStartInfo $file
+    $info.Arguments = $arguments
+    foreach ($name in $environment.Keys) { $info.EnvironmentVariables[$name] = $environment[$name] }
     $info.UseShellExecute = $false
     $info.RedirectStandardInput = $true; $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true
     $info.StandardOutputEncoding = New-Object Text.UTF8Encoding $false
@@ -320,5 +327,103 @@ Describe 'guard.ps1 aufraeumen (story 6)' {
     It 'allows the safe forms' {
         Assert-Decision $null 'aufraeumen' 'allow' @('git branch -d agent/31-p1', 'git branch --delete agent/31-p1',
             'git worktree remove ../wt/1', 'git worktree prune', 'git fetch origin main:main', 'git branch -a') $TestDrive
+    }
+}
+
+# The hook entries as they stand in the frontmatter of the skill and agent files. Each test runs
+# the command line from the file the way Claude Code does - through Git Bash (the default shell of
+# a command hook on Windows) or through PowerShell (the fallback without Git Bash) - with the path
+# of the installed guard.ps1 bent to the one in this worktree.
+
+$repoRoot = Split-Path (Split-Path $PSScriptRoot)
+$installedGuard = '$HOME/.claude/skills/epic/scripts/guard.ps1'
+
+function Get-HookEntry([string]$relativePath) {
+    $text = [IO.File]::ReadAllText((Join-Path $repoRoot $relativePath))
+    $frontmatter = [regex]::Match($text, '\A---\r?\n(.*?)\r?\n---\r?\n', 'Singleline').Groups[1].Value
+    # Flow form on one line, to keep epic/SKILL.md short (story 2).
+    $block = [regex]::Match($frontmatter, '(?m)^hooks:\r?\n  PreToolUse: (\[.*\])\r?$').Groups[1].Value
+    @{
+        Matcher = [regex]::Match($block, '\{matcher: "([^"]*)", hooks: \[').Groups[1].Value
+        Type = [regex]::Match($block, '\{type: (\w+), ').Groups[1].Value
+        Command = [regex]::Match($block, "command: '((?:[^']|'')*)'").Groups[1].Value -replace "''", "'"
+        Timeout = [regex]::Match($block, ', timeout: (\d+)').Groups[1].Value
+        OnFailure = [regex]::Match($block, ', onFailure: (\w+)\}').Groups[1].Value
+        Entries = ([regex]::Matches($block, '\{type:')).Count
+    }
+}
+
+# Git Bash, not the bash.exe of WSL that may come first on PATH.
+function Find-GitBash {
+    $dir = Split-Path (Get-Command git).Source
+    while ($dir -and -not (Test-Path (Join-Path $dir 'bin\bash.exe'))) { $dir = Split-Path $dir }
+    if ($dir) { Join-Path $dir 'bin\bash.exe' }
+}
+
+function Invoke-HookLine([string]$line, [string]$shell, [string]$raw, [hashtable]$environment = @{}) {
+    $quoted = '"' + ($line -replace '"', '\"') + '"'
+    if ($shell -eq 'bash') { Invoke-HookProcess (Find-GitBash) "-c $quoted" $raw $environment }
+    else { Invoke-HookProcess 'powershell.exe' "-NoProfile -Command $quoted" $raw $environment }
+}
+
+function Assert-HookLine([string]$line, [string]$shell, [string]$expected, [string[]]$commands, [string]$cwd, [string]$tool = 'Bash') {
+    foreach ($c in $commands) {
+        $r = Invoke-HookLine $line $shell (New-HookInput $c $cwd $tool)
+        "$c -> $($r.Decision)" | Should Be "$c -> $expected"
+    }
+}
+
+Describe 'guard.ps1 frontmatter hooks (stories 3, 5, 6)' {
+    $t = New-TestRepo $adapterText
+    $worktreeGuard = $script -replace '\\', '/'
+
+    foreach ($case in @(
+            @{ File = 'epic/SKILL.md'; Profile = 'epic' },
+            @{ File = 'agents/epic-kundschafter.md'; Profile = 'kundschafter' },
+            @{ File = 'epic-aufraeumen/SKILL.md'; Profile = 'aufraeumen' })) {
+        It "$($case.File): one PreToolUse command hook on Bash|PowerShell, profile $($case.Profile), fails closed" {
+            $h = Get-HookEntry $case.File
+            $h.Entries | Should Be 1
+            $h.Matcher | Should Be 'Bash|PowerShell'
+            $h.Type | Should Be 'command'
+            $h.Command | Should Be "powershell -NoProfile -ExecutionPolicy Bypass -File `"$installedGuard`" -Profile $($case.Profile)"
+            $h.OnFailure | Should Be 'block'
+            $h.Timeout | Should Be '30'
+        }
+    }
+
+    It 'epic/SKILL.md: the line resolves $HOME to the installed skill in Git Bash' {
+        $fakeHome = Join-Path $TestDrive 'home'
+        $scripts = Join-Path $fakeHome '.claude\skills\epic\scripts'
+        New-Item -ItemType Directory -Path $scripts -Force | Out-Null
+        Copy-Item $script $scripts
+        $r = Invoke-HookLine (Get-HookEntry 'epic/SKILL.md').Command 'bash' (New-HookInput 'git push github epic/31-guard' $t.Worktree) @{ HOME = $fakeHome -replace '\\', '/' }
+        $r.Decision | Should Be 'deny'
+        $r.Reason | Should Match 'Skill epic, Regel 2'
+    }
+
+    It 'epic/SKILL.md: denies a forbidden remote and a substitution inside double quotes, allows git status' {
+        $line = (Get-HookEntry 'epic/SKILL.md').Command.Replace($installedGuard, $worktreeGuard)
+        Assert-HookLine $line 'bash' 'deny' @('git push github epic/31-guard', 'git switch agent/31-p1') $t.Repo
+        Assert-HookLine $line 'bash' 'deny' @('echo "$(git push github x)"') $t.Worktree
+        Assert-HookLine $line 'bash' 'deny' @('Write-Output "$(git push github x)"', '$cases = @("a", "b $(git push github x) c")') $t.Worktree 'PowerShell'
+        Assert-HookLine $line 'powershell' 'deny' @('Write-Output "$(git push github x)"') $t.Worktree 'PowerShell'
+        Assert-HookLine $line 'bash' 'allow' @('git status', 'git push -u origin epic/31-guard') $t.Worktree
+        Assert-HookLine $line 'powershell' 'allow' @('git status') $t.Worktree 'PowerShell'
+    }
+
+    It 'agents/epic-kundschafter.md: denies a commit, allows reading' {
+        $line = (Get-HookEntry 'agents/epic-kundschafter.md').Command.Replace($installedGuard, $worktreeGuard)
+        $r = Invoke-HookLine $line 'bash' (New-HookInput 'git commit -m x' $TestDrive)
+        $r.Decision | Should Be 'deny'
+        $r.Reason | Should Match 'Agent epic-kundschafter'
+        Assert-HookLine $line 'bash' 'allow' @('git log --oneline', 'cat a.txt') $TestDrive
+    }
+
+    It 'epic-aufraeumen/SKILL.md: denies -D, asks before a remote delete, allows -d' {
+        $line = (Get-HookEntry 'epic-aufraeumen/SKILL.md').Command.Replace($installedGuard, $worktreeGuard)
+        Assert-HookLine $line 'bash' 'deny' @('git branch -D agent/31-p1', 'git worktree remove --force ../wt/1', 'git push --force origin x') $TestDrive
+        Assert-HookLine $line 'bash' 'ask' @('git push origin --delete epic/31-guard') $TestDrive
+        Assert-HookLine $line 'bash' 'allow' @('git branch -d agent/31-p1') $TestDrive
     }
 }
