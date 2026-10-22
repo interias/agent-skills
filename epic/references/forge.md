@@ -20,8 +20,8 @@ curl -s -H "Authorization: token $GITEA_TOKEN" "$API/issues/41"
 ```
 
 `$GITEA_TOKEN` steht in allen Beispielen dieser Datei für die Variable aus `token_env`, geladen
-aus `token_file`. Nennt der Adapter eine andere Variable, wird sie eingesetzt. Ein anderes Token,
-das im Repository liegt, wird nie benutzt (`adapter.md`, „Zwei Tokens").
+aus `token_file`. Nennt der Adapter eine andere Variable, wird sie eingesetzt. Welches Token gilt:
+`adapter.md`, „Zwei Tokens".
 
 ## Diese Gitea-Instanz (`mb-vsv-cast:3003`)
 
@@ -33,9 +33,9 @@ Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
   **HTTP 412**. Das fällt erst beim Merge auf, wenn Gitea die `Closes`-Zeilen abarbeitet, nicht
   beim Eröffnen des Pull Requests. Deshalb gehört in den PR-Body, welches geschlossene Issue noch
   offene Blocker hat. Ein Epic betrifft das immer, weil die API seine Kinder als Blocker führt: Der
-  Pull Request trägt darum nie `Closes #<epic>`, das Epic schließt `/epic-nacharbeit`
-  (`SKILL.md`, Phase 6). Für Ketten unter den Kindern gilt: Ob Gitea die `Closes`-Zeilen der Reihe nach abarbeitet, ist ebenfalls nicht belegt. Die
-  `Closes`-Zeilen stehen darum in der Reihenfolge des Graphen, Vorgänger zuerst, und im PR-Body
+  Pull Request trägt darum nie `Closes #<epic>` (welche Issues `Closes` bekommen: `SKILL.md`,
+  Phase 6). Für Ketten unter den Kindern gilt: Ob Gitea die `Closes`-Zeilen der Reihe nach
+  abarbeitet, ist ebenfalls nicht belegt. Die `Closes`-Zeilen stehen darum in der Reihenfolge des Graphen, Vorgänger zuerst, und im PR-Body
   steht je Kind mit Blocker der Satz „schließt sich ggf. nicht automatisch (412), dann von Hand".
 - **Listen sind bei 50 Einträgen gedeckelt**, auch wenn `limit` größer gesetzt ist. Mit
   `?limit=50&page=<n>` weiterblättern, bis eine Seite weniger als 50 Einträge liefert.
@@ -130,9 +130,9 @@ Statuslabel und bleibt am Epic, bis es geschlossen ist.
 - **GitLab:** `PUT /projects/:id/issues/:iid` mit `add_labels` und `remove_labels`.
 - **Nachlesen nach jedem Setzen:** `GET $API/issues/<nr>/labels` (GitHub: `gh issue view <nr>
   --json labels`) muss das gesetzte Label enthalten und keines der beiden anderen.
-- **Nachzählen:** `GET $API/issues?state=open&type=issues&labels=status/in-arbeit` muss am Ende des
-  Laufs von den Tickets dieses Laufs genau die gemergten Kinder liefern — kein Zielissue, kein
-  zurückgelassenes, kein fehlendes gemergtes Kind. **Vorsicht:** Gitea ignoriert einen
+- **Nachzählen:** `GET $API/issues?state=open&type=issues&labels=status/in-arbeit` liefert am Ende
+  des Laufs die Tickets mit diesem Label; sie werden gegen die Tabelle „Was am Ende in der Forge
+  stehen muss" in `SKILL.md` gehalten. **Vorsicht:** Gitea ignoriert einen
   Label-Filter auf ein Label, das es im Repository nicht gibt, und liefert dann **alle** offenen
   Issues — erst prüfen, dass das Label existiert.
 
@@ -152,10 +152,9 @@ Statuslabel und bleibt am Epic, bis es geschlossen ist.
 
 ## Nachzählen statt annehmen
 
-Am Ende des Laufs für **jede berührte Nummer** prüfen, dass der Kommentar wirklich ankam. Berührt
-sind das Epic mit Kindern bzw. die Spec, jedes Kind, auch jedes übersprungene, und jede transitiv
-mitbearbeitete fremde Spec samt ihrer Kinder. Ein `POST` kann fehlgeschlagen sein, ohne dass es
-im Lauf auffiel.
+Am Ende des Laufs für **jede berührte Nummer** (welche das sind: `SKILL.md`, Phase 6,
+„Nachzählen") prüfen, dass der Kommentar wirklich ankam. Ein `POST` kann fehlgeschlagen sein,
+ohne dass es im Lauf auffiel.
 
 ```bash
 for n in <alle berührten Nummern>; do
@@ -182,8 +181,7 @@ kommen erst nach dem Tor, und dort hält der Lauf nicht mehr an.
 curl -s -H "Authorization: token $GITEA_TOKEN" "${API%/}"   | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).permissions?.push===true))'
 ```
 
-`false` oder ein Fehler ist ein Punkt fürs Vorab-Tor, nicht ein Grund, ein anderes Token im
-Repository zu nehmen.
+`false` oder ein Fehler ist ein Punkt fürs Vorab-Tor (`adapter.md`, „Zwei Tokens").
 
 ## Pull Request
 

@@ -5,9 +5,8 @@ lesen: was gerade läuft, was geklappt hat, wo es hakt. Alles steht auf **einer 
 (ausgelegt auf 1440p, ohne Scrollen), in vier Blöcken, ohne Graphfigur. Alles Weitere steht im
 Issue.
 
-Die Tafel liegt immer im Scratchpad der Sitzung, nie im Repository. Mit `plan_artifact: publish`
-(Standard) wird sie als Artifact veröffentlicht, und ihre URL geht in den Eröffnungskommentar. Mit
-`file` wird die Datei nur geschrieben und ihr Pfad genannt. Ein alter Wert `off` gilt als `file`.
+Wo die Tafel liegt und ob sie veröffentlicht oder nur geschrieben wird (`plan_artifact`, auch der
+alte Wert `off`): `adapter.md`.
 
 ## Die Vorlage
 
