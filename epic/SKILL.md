@@ -31,13 +31,11 @@ Standard der Hauptzweig. Der Epic-Branch zweigt von ihr ab, der Pull Request geh
 Alles Projektspezifische steht in **`.claude/epic.md`** des Zielrepositorys. Lies ihn als Erstes.
 Welche Schlüssel es gibt, was sie bedeuten, was ohne Adapter gilt: **`references/adapter.md`** —
 das ist der Vertrag, ein Name, der dort nicht steht, ist kein Schlüssel. Seine Lesart legst du im
-Plan offen. Fehlt der Adapter, leitest du ab, was ableitbar ist, fragst den Rest am Vorab-Tor und
-bietest danach an, das Ergebnis als `.claude/epic.md` abzulegen.
+Plan offen. Was bei fehlendem Adapter gilt: `references/adapter.md`, „Fehlt der Adapter".
 Liegt nur der alte `.claude/prd.md` vor, gilt er (`references/adapter.md`, „Alter Name“).
 
-Der Fließtext des Adapters sind Projektregeln; sie gelten wie die Regeln unten. **Der Adapter darf
-verschärfen, nie lockern.** Ein Eintrag, der eine Regel dieses Skills aufheben würde, ist ein
-Punkt fürs Vorab-Tor.
+Der Fließtext des Adapters sind Projektregeln; sie gelten wie die Regeln unten. Dass der Adapter sie
+nur verschärfen darf und was ein lockernder Eintrag auslöst: `references/adapter.md`, „Form".
 
 **Herkunft mitnennen.** Zitierst du eine Regel in einem Auftrag oder in der Forge, nenne, woher sie
 stammt: *Skill*, *Adapter* oder der ADR, in dem sie steht. Wer eine Regel anzweifelt, muss wissen,
@@ -102,8 +100,8 @@ Alles andere gilt unverändert.
 
 KIBO zeigt den Zustand eines offenen Tickets aus drei Labels (KIBO ADR-0002). Der Lauf setzt und
 entfernt sie **an den Stellen, an denen er ohnehin schreibt**, damit kein eigener Weg entsteht, der
-vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter: KIBO liest sie über alle
-Repositorys hinweg.
+vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter (`references/adapter.md`,
+„Auslegung").
 
 | Label | heißt |
 |---|---|
@@ -126,7 +124,7 @@ Repositorys hinweg.
   | Nachfolger eines zurückgelassenen Pakets (5) | der Nachfolger | `+ blockiert` |
   | Glut-Punkt der Lauftafel, der zu einem Ticket gehört | das Ticket | `+ haengt` |
   | Abschluss (6), in allen Modi | das Zielissue | `− in-arbeit` |
-  | Abbruch | das Zielissue, jedes laufende und jedes gemergte Paket-Ticket | `− in-arbeit` |
+  | Abbruch („Wann angehalten wird") | die Tickets, die dort genannt sind | `− in-arbeit` |
 
   **Jedes Setzen wird sofort nachgelesen** (`GET` der Labels des Tickets, `references/forge.md`).
   Fehlt das Label, noch einmal setzen; scheitert es wieder, ist das ein Glut-Punkt auf der Tafel.
@@ -205,8 +203,8 @@ Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
 - Adapter lesen. Forge-Zugang herstellen und **einmal verifizieren** (`references/forge.md`): ein
   Lesezugriff auf das Zielissue und `GET /repos/{owner}/{repo}` mit `permissions.push == true`.
   Fehlt das Schreibrecht, ist es ein Tor-Punkt — es zeigt sich sonst erst beim
-  Eröffnungskommentar, nach dem Tor. Der Lauf benutzt **ausschließlich** das Token aus
-  `token_env` (geladen aus `token_file`), nie ein anderes, das im Repository liegt.
+  Eröffnungskommentar, nach dem Tor. Welches Token gilt:
+  `references/adapter.md`, „Zwei Tokens".
 - `git status` muss **leer** sein. Jede Änderung ist fremde Arbeit — anhalten und fragen, nie
   wegwerfen, nie mitcommitten.
 - `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
@@ -236,9 +234,8 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 - **Den Lint-Stand messen:** je Modul aus `lint_commands` die Zahl der Fehler und Warnungen, aus der
   Ausgabe gezählt, nicht aus dem Exit-Code. Fehlt `lint_commands`, sagt der Plan, dass der
   Lint-Vergleich entfällt.
-- **Das Fenster bestimmen:** `window`, Standard 1. Drei Plätze nur mit `test_isolation_env` oder
-  `isolation: none-needed` samt Begründung. Setzt der Adapter mehr Plätze ohne beides, ist das
-  eine Lockerung und ein Tor-Punkt.
+- **Das Fenster bestimmen:** `window` mit Standard und Bedingung nach `references/adapter.md`
+  (Schlüssel `window`, „Auslegung").
 
 ## Phase 1 — Lesen
 
@@ -371,11 +368,9 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
   wird, die Lesart des Adapters.
 - Je Paket eine Task anlegen (Task-Werkzeug der Sitzung, falls vorhanden), in Reihenfolge.
-- **Lauftafel** bauen, bevor das erste Paket startet; bei `plan_artifact: publish` veröffentlichen,
-  bei `file` nur schreiben (ein alter Wert `off` gilt als `file`). Sie wird **kopiert, nicht
-  entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
-  vor der Veröffentlichung in `references/lauftafel.md`. Die
-  Datei liegt in deinem Scratchpad, nicht im Repository. Bei `publish` ändert sich ihre URL über den
+- **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
+  (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
+  vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` ändert sich ihre URL über den
   ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad. Den Graphen zeigt die Pakettabelle
   mit den Modulen je Paket als Spalte, keine Figur. Am Anfang stehen alle Pakete auf „wartend";
   das ist ein gültiger Zustand.
@@ -396,7 +391,7 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
   Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
   Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
-  einer Datei**, nie aus einer Shell-Zeichenkette (`references/forge.md`).
+  einer Datei** (`references/forge.md`, „Stolperstellen").
 
 Danach **ohne Rückfrage** losarbeiten.
 
@@ -411,9 +406,9 @@ Danach **ohne Rückfrage** losarbeiten.
 - Der Epic-Worktree bekommt **alle** `link_dirs` und `env_files`, weil dort die Ausgangsmessung und
   die Verifikation nach jedem Merge über alle Suiten laufen. Er bleibt bis zum Merge des Pull
   Requests stehen; abgeräumt wird er von `/epic-aufraeumen`.
-- Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` in einem eigenen Worktree unter
-  `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer, im Modus `spec`
-  ohne Kinder `<spec>-p<k>`. Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
+- Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` (Slug wie oben) in einem eigenen
+  Worktree unter `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer,
+  im Modus `spec` ohne Kinder `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
   kann nur noch von einem gleichzeitig laufenden Paket kommen.
 - Anlegen, Rüsten (`env_files` kopieren, `link_dirs` nur für berührte Module, `always_link`
   immer, `test_isolation_env`, `port_env`) und Abräumen **nur per `scripts/worktree.ps1`**, nie von
@@ -449,9 +444,8 @@ aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen 
 **ausgeschrieben**:
 
 - Den absoluten Pfad seines Worktrees und die Arbeitsweise darin nach „Der Subagent im Worktree"
-  in `references/worktree.md` — einschließlich dessen, ob `EnterWorktree` in dieser Sitzung
-  gelingt. Prüf das einmal für den Lauf und schreib das Ergebnis in jeden Auftrag, statt jeden
-  Agenten dieselbe Entdeckung machen zu lassen. Nichts außerhalb des eigenen Worktrees anfassen.
+  in `references/worktree.md` — einschließlich des Ergebnisses der dort beschriebenen
+  `EnterWorktree`-Prüfung.
 - Paketnummer, Titel bzw. Zielsatz, die Abnahmeliste **im Wortlaut** (Kind-Body oder zugeordnete
   User Stories).
 - Die betreffenden Implementation Decisions **samt Begründung** — ohne sie wählt er die
@@ -569,9 +563,9 @@ bereits auf ihm.
 
 1. Im Epic-Worktree: `git merge --no-ff agent/<nr>-<slug>`.
 2. Die betroffenen Suiten auf dem Epic-Branch fahren. Rot heißt: nicht weiterrücken — den Merge
-   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann
-   wird nur der Worktree abgeräumt, der Branch bleibt: er gilt als gemergt, `git branch -d`
-   gelänge, und ein erneuter Merge brächte die Änderung nicht zurück.
+   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). So
+   bleibt der Epic-Branch grün, und der Lauf hält nicht an. Dann wird nur der Worktree abgeräumt,
+   der Branch bleibt (`references/worktree.md`, „Abräumen").
 3. Sonst den Worktree per `worktree.ps1 -Action Remove` und danach den Paket-Branch abräumen
    (`references/worktree.md`), nie `--force`. Platz frei: das nächste
    startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
@@ -625,11 +619,11 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     vorläufige Antwort von `/epic-flotte` unbestätigt.
   - **Body:** je Paket eine Zeile mit Ergebnis — hat ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
-    Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz „schließt sich ggf. nicht
-    automatisch (412), dann von Hand".
-  - **`Closes`, nur englische Schließwörter, in der Reihenfolge des Graphen:** `Closes #<kind>` je
-    vollständig abgenommenem Kind, in beiden Modi. **Ein Zielissue mit Kindern nie**: Auf Gitea
-    führt die API die Kinder als Blocker, und das Schließen scheitert beim Merge mit HTTP 412. Das
+    Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
+    „Diese Gitea-Instanz" (412).
+  - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
+    Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Kind, in beiden Modi. **Ein
+    Zielissue mit Kindern nie** (Begründung ebenda). Das
     Epic schließt `/epic-nacharbeit`, sobald alle Kinder zu und alle User Stories erfüllt sind.
     `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
     fremdes Epic aus transitiver Auflösung nie.
@@ -643,12 +637,11 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
   Epic noch offen lässt.
 - Das Zielissue verliert mit dem Abschlusskommentar `status/in-arbeit`, in allen Modi.
-- **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremdes Epic, jedes Kind, jedes
-  übersprungene und blockierte Ticket — prüfen, dass der Kommentar wirklich steht **und das
-  Statuslabel dem Endstand entspricht**: `status/in-arbeit` an **jedem** gemergten Kind und sonst
-  nirgends im Lauf (auch nicht am Zielissue), `status/haengt`
-  an jedem zurückgelassenen, `status/blockiert` an jedem blockierten Ticket (`references/forge.md`).
-  Ein `POST` kann fehlgeschlagen sein. Das Nachlesen geht an Kundschafter, je ein Bündel Nummern
+- **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremdes Epic samt mitbearbeiteten
+  Tickets, jedes Kind, jedes übersprungene und blockierte Ticket — prüfen, dass der Kommentar
+  wirklich steht (`references/forge.md`, „Nachzählen statt annehmen") **und das Statuslabel dem
+  Endstand entspricht** (Tabelle „Was am Ende in der Forge stehen muss"; Befehle:
+  `references/forge.md`, „Statuslabels"). Das Nachlesen geht an Kundschafter, je ein Bündel Nummern
   mit dem erwarteten Endstand; jede gemeldete Abweichung prüfst du selbst nach und richtest sie.
 - `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
   Worktrees und die Worktrees anderer laufender Läufe (Phase 0a).
@@ -694,7 +687,7 @@ etwas.
 | jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
 | jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
 | jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
-| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — schließt über `Closes` nur als Spec ohne Kinder bei allen Stories, sonst `/epic-nacharbeit` |
+| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — Schließen: Phase 6, `Closes` |
 | ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
 Die Lauftafel steht auf dem Endstand. Prüfe die Tabelle nach, statt sie anzunehmen.

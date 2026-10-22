@@ -76,9 +76,8 @@ er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenf
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
 - **Spec-Modus erkennen** (`issue_form: spec`): Nur **ohne** Kind-Tickets liegt alles am
   Spec-Issue selbst, und die Paket-Branches heißen nicht nach Kind-Issues. Hat das Spec-Issue
-  Kinder, gilt derselbe Weg wie im Modus `tickets` — die Kinder sind die Pakete. Das Schema aus
-  `epic/SKILL.md` (Phase 3): Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`, im
-  Modus `spec` ohne Kinder `agent/<spec>-p<k>-<slug>` (Slug mit ä→ae).
+  Kinder, gilt derselbe Weg wie im Modus `tickets` — die Kinder sind die Pakete. Das
+  Namensschema der Branches steht in `epic/SKILL.md` (Phase 3).
 - `git worktree list` prüfen. Reste eines früheren Laufs melden, nicht löschen — dafür ist
   `/epic-aufraeumen` da.
 - Vokabulardatei lesen, und das Verzeichnis für bewusst Verworfenes, falls der Adapter eines
@@ -190,7 +189,7 @@ Branch, eigener Pull Request, Namensschema `nacharbeit/<epic-nr>-<slug>`, als Zi
 Basis-Branch wie beim ursprünglichen Lauf (`base_branch` aus dem Adapter, bei bereits gemergtem
 Pull Request dessen `base`). Der Branch bekommt einen eigenen Worktree unter `worktree_root`,
 angelegt und später abgeräumt **nur per `scripts/worktree.ps1` aus `/epic`**
-(`epic/references/worktree.md`); das Hauptverzeichnis wird nie umgeschaltet. **Nie direkt auf den
+(`epic/references/worktree.md`; Hauptverzeichnis: `epic/SKILL.md`, Regel 11). **Nie direkt auf den
 Basis-Branch committen**, auch nicht für einen Einzeiler in einer Textdatei — der Merge dorthin kann
 deployen.
 
@@ -209,20 +208,21 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
 - **Kommentar am betroffenen Kind-Ticket**, wenn ein Punkt aus dessen Review kam.
 - **Das Epic schließen**, wenn der Pull Request gemergt ist, jedes Kind geschlossen ist und keine
   User Story mehr offen ist — `/epic` schließt es nie per `Closes` (`epic/SKILL.md`, Phase 6). Vorher
-  die Kinder, deren `Closes` an HTTP 412 gescheitert ist, von Hand schließen, Vorgänger zuerst. Dazu
+  die Kinder, deren `Closes` gescheitert ist (412, `epic/references/forge.md`, „Diese
+  Gitea-Instanz"), von Hand schließen, Vorgänger zuerst. Dazu
   ein Kommentar am Epic: die Kinder mit ihren Merge-Commits. Bleibt eine Story offen, bleibt das
   Epic offen, und der Kommentar sagt, welche und warum.
 - **Statuslabels** (`epic/SKILL.md`, „Die Statuslabels"): Ein Ticket, dessen Glut-Punkt oder
   Zurücklassen-Grund jetzt erledigt ist, verliert `status/haengt`; ein Ticket, dessen Blocker jetzt
   geschlossen ist, verliert `status/blockiert`. Ein Kind, das nach dem Merge des Pull Requests
-  offen bleibt (etwa weil `Closes` an HTTP 412 scheiterte und es noch nicht von Hand zu ist),
+  offen bleibt (etwa weil `Closes` scheiterte und es noch nicht von Hand zu ist),
   verliert `status/in-arbeit`. Ein Punkt, der zum Ticket wird, ändert am alten Ticket nichts.
 - **Neu angelegte Issues** — falls die Fragerunde welche verlangt hat — tragen das
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
   vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
 - **Die Lauftafel des `/epic`-Laufs** (`references/lauftafel.md`), bei `plan_artifact: publish`
-  (ein alter Wert `off` gilt als `file`): Diese Sitzung hat ein anderes Scratchpad als der
+  (`epic/references/adapter.md`): Diese Sitzung hat ein anderes Scratchpad als der
   ursprüngliche Lauf, ein lokaler `file_path` trägt hier also nicht mehr. Die URL steht im
   Eröffnungskommentar am Zielissue — die Tafel darüber lesen (Artifact-Werkzeug, `action: read`),
   ändern und mit derselben `url` erneut veröffentlichen, damit der Link bleibt. Ein Abschnitt
@@ -230,7 +230,8 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   markiert. Der Lauf ist damit nicht mehr „beendet", sondern „beendet, nachgearbeitet am
   <Datum>".
 
-Prüfe nach, dass die Kommentare angekommen sind — ein `POST` kann fehlgeschlagen sein.
+Prüfe nach, dass die Kommentare angekommen sind (`epic/references/forge.md`, „Nachzählen statt
+annehmen").
 
 ## Phase 5 — Bericht
 
