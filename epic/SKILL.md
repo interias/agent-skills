@@ -1,6 +1,8 @@
 ---
 name: epic
 description: Ein Epic aus der Forge auf einem Epic-Branch abarbeiten — Modus tickets (Epic mit Kind-Tickets) oder spec (ein Issue mit sieben Abschnitten, das der Orchestrator selbst in Pakete zerlegt). Vorab-Tor, bis zu drei Pakete parallel in eigenen Worktrees, Sofortmerge jedes abgenommenen Pakets, Ende mit offenem Pull Request auf die Basis.
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/guard.ps1" -Profile epic', timeout: 30, onFailure: block}]}]
 ---
 
 # Epic abarbeiten — Host-Orchestrator
@@ -64,10 +66,14 @@ gefragt wird". Alles andere gilt unverändert.
 
 ## Die Regeln, die nicht verhandelbar sind
 
-1. **Der Lauf mergt nie in den Hauptzweig und nie in `<basis>`.** Er endet mit einem offenen Pull
-   Request, den ein Mensch mergt. Am Hauptzweig hängt meist ein Deploy, der Migrationen fährt;
-   diese Kette darf keinen menschenfreien Abschnitt haben.
-2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes`.
+„Durch Hook durchgesetzt" heißt: `scripts/guard.ps1` sperrt die Befehle dafür (Frontmatter oben).
+Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleibt ein Regelverstoß.
+
+1. **Der Lauf mergt und pusht nie in den Hauptzweig und nie in `<basis>`**, er endet mit einem
+   offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
+   freigibt. Durch Hook durchgesetzt.
+2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
+   Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
 3. **Der Reviewer legt keine Issues an.** Funde außerhalb des Pakets gehen in deinen
    Abschlussbericht, höchstens drei pro Lauf, als Vorschlag. Damit ist die Schleife „Agenten
    erzeugen sich ihre eigene Arbeit" mechanisch unterbrochen.
@@ -87,9 +93,9 @@ gefragt wird". Alles andere gilt unverändert.
 10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
     aus den Antworten der ersten entstehen. Was danach schiefgeht,
     lässt ein Paket zurück, nicht den Lauf (siehe „Wann angehalten wird").
-11. **Das Hauptverzeichnis wird nie umgeschaltet.** Kein `git switch`, kein `git checkout` dort. Im
-    selben Klon kann eine zweite Sitzung laufen, und ein Wechsel zöge ihr den Arbeitsstand weg. Der
-    Epic-Branch lebt in einem eigenen Worktree (Phase 3).
+11. **Das Hauptverzeichnis wird nie umgeschaltet**, kein `git switch`, kein `git checkout` dort —
+    im selben Klon kann eine zweite Sitzung laufen, der ein Wechsel den Arbeitsstand wegzöge. Der
+    Epic-Branch lebt in einem eigenen Worktree (Phase 3). Durch Hook durchgesetzt.
 
 ---
 

@@ -1,6 +1,8 @@
 ---
 name: epic-aufraeumen
 description: Nach dem Merge des Pull Requests eines /epic-Laufs aufräumen — den Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree, Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/guard.ps1" -Profile aufraeumen', timeout: 30, onFailure: block}]}]
 ---
 
 # Epic aufräumen
@@ -23,8 +25,9 @@ Der Projektadapter ist derselbe wie bei `/epic`: **`.claude/epic.md`** — er ne
 `base_branch` als Standardwert und `worktree_root`. Maßgeblich für das Löschen ist trotzdem immer
 die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
-Jede Rückfrage — Bestätigung des gefundenen Pull Requests, Zustimmung zum Löschen eines
-Remote-Branches, jede Abbruchbedingung — stellst du nach `epic/SKILL.md` („Wie gefragt wird").
+Jede Rückfrage — Bestätigung des gefundenen Pull Requests, jede Abbruchbedingung — stellst du nach
+`epic/SKILL.md` („Wie gefragt wird"). Die Zustimmung zum Löschen eines Remote-Branches holt der
+Hook (Regel 5).
 
 ---
 
@@ -38,13 +41,14 @@ Remote-Branches, jede Abbruchbedingung — stellst du nach `epic/SKILL.md` („W
 2. **Nichts wird gelöscht, dessen Commits nicht nachweislich im Basiszweig liegen.** Der Nachweis
    ist ein Befehl, nicht eine Annahme (siehe „Der Merge-Nachweis" unten). Ein Branch, dessen Arbeit
    nirgends sonst existiert, ist das einzige Exemplar dieser Arbeit.
-3. **Kein `git branch -D`, kein `--force`.** Löschen geht mit `-d`; verweigert Git, ist das eine
-   Aussage und kein Hindernis. Ein Branch, den `-d` verweigert, wird gemeldet und bleibt stehen.
-4. **Ein schmutziger Worktree wird nicht entfernt.** `git worktree remove` ohne `--force`. Bleibt
-   Arbeit darin liegen, gehört sie einem Menschen.
-5. **Remote-Branches nur nach ausdrücklicher Zustimmung.** Ein `git push <push_remote> --delete`
-   wirkt nach außen und ist für andere sichtbar. Lokales Löschen ist reversibel, das hier nicht
-   ohne Weiteres.
+3. **Kein `git branch -D`, kein `--force`**, gelöscht wird mit `-d` — verweigert Git, ist das eine
+   Aussage, und der Branch wird gemeldet und bleibt stehen. Für `git branch`, `git worktree remove`
+   und `git push` durch Hook durchgesetzt; `--force` anderer Befehle sperrt er nicht.
+4. **Ein schmutziger Worktree wird nicht entfernt** — Arbeit darin gehört einem Menschen. Das
+   `--force` an `git worktree remove` ist durch Hook gesperrt.
+5. **Remote-Branches nur nach ausdrücklicher Zustimmung** — `git push <push_remote> --delete` ist
+   für andere sichtbar und nicht ohne Weiteres umkehrbar. Durch Hook durchgesetzt: Vor
+   `git push --delete` fragt der Berechtigungsdialog; ohne Ja bleibt der Branch stehen.
 6. **Die Junctions unter den Worktrees werden nie rekursiv gelöscht.** Das ist die eine Stelle,
    an der ein Aufräumbefehl echten Schaden anrichtet — `epic/references/worktree.md`,
    „Abräumen".
@@ -167,7 +171,7 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
 4. **Lokale Branches** mit `git branch -d`. Ein Branch mit revertiertem Merge (siehe Merge-Nachweis
    oben) wird übersprungen und gemeldet, nicht gelöscht. Der Epic-Branch zuletzt, nachdem alles
    andere weg ist.
-5. **Remote-Branches** nur nach ausdrücklicher Zustimmung, und nur den Epic-Branch des gemergten
+5. **Remote-Branches** nur nach Zustimmung (Regel 5), und nur den Epic-Branch des gemergten
    Laufs: `git push <push_remote> --delete <branch>`. Viele Forges tun das beim Merge selbst;
    prüfe erst, ob überhaupt noch etwas da ist.
 

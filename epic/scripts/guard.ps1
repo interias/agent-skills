@@ -461,7 +461,7 @@ function Test-Epic($seg, $git, [string]$dir, [string]$shown) {
     if (-not $git -or $git.Sub -notin @('push', 'merge', 'pull', 'switch', 'checkout')) { return $null }
     $info = Get-RepoInfo $dir $git.Location
     if (-not $info) { return $null }
-    $rule1 = 'Skill epic, Regel 1: Der Lauf mergt nie in den Hauptzweig und nie in <basis>'
+    $rule1 = 'Skill epic, Regel 1: Der Lauf mergt und pusht nie in den Hauptzweig und nie in <basis>'
     if ($git.Sub -in @('switch', 'checkout')) {
         if (-not $info.IsMain) { return $null }
         return New-Verdict 'deny' "Gesperrt durch Hook (Skill epic, Regel 11: Das Hauptverzeichnis wird nie umgeschaltet): '$shown' liefe im Hauptverzeichnis $($info.Top). Im Worktree arbeiten (worktree.ps1). $retry"
