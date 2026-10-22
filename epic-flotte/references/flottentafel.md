@@ -7,9 +7,9 @@ unteren Bereich blättern Knöpfe in der Seitenleiste um. Die Lauftafeln der ein
 daneben bestehen (`epic/references/lauftafel.md`); die Flottentafel verlinkt sie, statt sie zu
 wiederholen.
 
-Die Tafel liegt im Scratchpad des Admirals, nie im Repository. Mit `plan_artifact: publish`
-(Standard) wird sie als Artifact veröffentlicht, die URL bleibt über den ganzen Einsatz gleich und
-wird dem Menschen genannt. Mit `file` wird die Datei nur geschrieben und ihr Pfad genannt.
+Wo die Tafel liegt und ob sie veröffentlicht oder nur geschrieben wird (`plan_artifact`):
+`epic/references/adapter.md`; hier liegt sie im Scratchpad des Admirals. Die URL bleibt über den
+ganzen Einsatz gleich und wird dem Menschen genannt (bei `file` der Pfad).
 
 ## Die Vorlage
 

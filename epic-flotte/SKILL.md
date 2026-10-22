@@ -47,8 +47,8 @@ Menschen den Titel für `/rename`.
 4. **Jede eigene Entscheidung steht in der Forge**, am betroffenen Issue, mit Herkunft (siehe
    „Entscheidungsrecht"). Eine Entscheidung, die nur zwischen dir und einem Lauf-Agenten steht,
    ist für den Menschen unsichtbar und für den nächsten Lauf nicht auffindbar.
-5. **Das Hauptverzeichnis wird nie umgeschaltet** (`epic/SKILL.md`, Regel 11). Mehrere Läufe teilen
-   sich den Klon; jeder lebt in seinem Epic-Worktree.
+5. **Für das Hauptverzeichnis gilt `epic/SKILL.md`, Regel 11.** Jeder Lauf lebt in seinem
+   Epic-Worktree.
 6. **Ein blockierter Befehl wird gemeldet, nie in anderer Form wiederholt.** Das steht in jedem
    Auftrag an einen Lauf-Agenten.
 
@@ -86,9 +86,8 @@ STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 
 Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen. Antwortet er
 `vorläufig: <Option>`, arbeitet der Lauf damit weiter wie mit jeder Antwort und öffnet den Pull
-Request mit `WIP:` (`epic/SKILL.md`, Phase 6). Ein späteres Veto des Menschen kommt als Antwort an
-einem Prüfpunkt, `veto: <Frage> → <neue Option>`: Der Lauf setzt es als Paket der nächsten Welle
-um, notfalls als zusätzliche Welle; liegt sein Pull Request schon offen, ist es ein Punkt für `/epic-nacharbeit`.
+Request mit `WIP:` (`epic/SKILL.md`, Phase 6). Ein späteres Veto des Menschen kommt als Antwort
+an einem Prüfpunkt; wie es ankommt und umgesetzt wird, steht unter „Vorläufig mit Veto".
 
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
@@ -126,7 +125,7 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
   (mit Herkunft, auch in der Forge), **vorläufig** („Vorläufig mit Veto") oder **vom Menschen
   bestätigt**. Die erste Nachricht sagt dem Chat, dass er ab jetzt nicht mehr mit
   `AskUserQuestion` fragt, sondern als Text und seinen Zug beendet (`epic/SKILL.md`, „Wie gefragt
-  wird"). Ein Veto schickst du ihm, sobald er stillsteht. Nacharbeit und Aufräumen stößt du im
+  wird"). Ein Veto geht nach „Vorläufig mit Veto". Nacharbeit und Aufräumen stößt du im
   selben Chat an („Rufe den Skill `epic-nacharbeit` mit `#<nr>` auf"); er hat den
   Kontext des Laufs.
 - **Nie stoppen oder archivieren**, ohne dass der Mensch es verlangt.
@@ -187,8 +186,9 @@ mindestens Stufe mittel.
   nachgebaut; Aufbau, Formation, Bremse-Leiste, die drei Seiten und die Prüfung vor der
   Veröffentlichung in `references/flottentafel.md`. Je Epic eine Zeile in „Stand der Läufe" mit
   Mini-Segmentleiste der Pakete, Kollisionsstufe, Agent-ID, Link auf die Lauftafel des Laufs und
-  Pull Request; aus diesen Zeilen zeichnet die Vorlage die Formation. Bei `plan_artifact: publish`
-  veröffentlichen; die URL bleibt über den Einsatz gleich.
+  Pull Request; aus diesen Zeilen zeichnet die Vorlage die Formation. Veröffentlicht oder nur
+  geschrieben wird sie nach `plan_artifact` (`epic/references/adapter.md`); die URL bleibt über den
+  Einsatz gleich.
 - **Flotten-Tor:** Was vor dem Start nur ein Mensch entscheiden kann (siehe „Entscheidungsrecht",
   Spalte *Mensch*), legst du jetzt vor, einmal, nach „Den Menschen fragen". Ist nichts zu
   melden, sag das in einem Satz und starte.
@@ -325,8 +325,9 @@ der Lauf arbeitet weiter, und der Mensch bestätigt oder kippt sie mit der näch
 - **`WIP:`** Ist der Pull Request schon offen, wenn du vorläufig antwortest, setzt du das Präfix
   selbst (Titel per Forge); sonst setzt es der Lauf bei der Eröffnung.
 - **Veto:** Du schickst es dem Lauf an seinem nächsten Prüfpunkt als `veto: <Frage> → <neue
-  Option>` (übernommener Chat: sobald er stillsteht); liegt sein Pull Request schon offen, wird es
-  ein Punkt für `/epic-nacharbeit`. Das `WIP:` bleibt, bis es umgesetzt ist.
+  Option>` (übernommener Chat: sobald er stillsteht). Der Lauf setzt es als Paket der nächsten
+  Welle um, notfalls als zusätzliche Welle; liegt sein Pull Request schon offen, wird es ein Punkt
+  für `/epic-nacharbeit`. Das `WIP:` bleibt, bis es umgesetzt ist.
 
 ## Den Menschen fragen
 
@@ -363,8 +364,8 @@ du deshalb auch nach Gitea, in **ein dauerhaft offenes Issue je Repository** mit
 - **Nie schließen**, auch nach dem Einsatz nicht: Ein geschlossenes zählte in KIBO als erledigt. Am Ende
   steht `active: false`.
 - **Body:** oben ein Satz für Menschen, dann die Marke und der Block. Du ersetzt den ganzen Body (PATCH
-  aus einer Datei, `epic/references/forge.md`), bei jedem Ereignis, in dem du die Flottentafel
-  fortschreibst, und liest ihn danach einmal nach.
+  aus einer Datei, `epic/references/forge.md`, „Stolperstellen"), bei jedem Ereignis, in dem du die
+  Flottentafel fortschreibst, und liest ihn danach einmal nach.
 
 ````
 Stand der Flotte von /epic-flotte. Wird automatisch fortgeschrieben; KIBO liest den Block.

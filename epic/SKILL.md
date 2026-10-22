@@ -55,13 +55,10 @@ Admiral, und du beendest deinen Zug; sonst hängt der Lauf, bis ein Mensch klick
 gilt für alle Epic-Skills; sie verweisen hierher.
 
 **Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, bist du ein
-Subagent und kannst niemanden fragen: Wo dieser Skill fragt oder wartet (Vorab-Tor, Anhalten vor
-dem Lauf), beendest du deinen Zug mit dem Frageblock aus `epic-flotte/SKILL.md` („Wie ein Lauf
-unter dir läuft"), und Implementer und Reviewer startest du im Vordergrund statt mit
-`run_in_background` (Phase 4a). Nach jeder Welle meldest du dich mit `FLOTTE-WELLE` und startest
-die nächste erst auf `weiter`. Eine Antwort `vorläufig: <Option>` ist eine Antwort wie jede
-andere; wie ein späteres Veto zu dir kommt, steht im selben Abschnitt von `epic-flotte/SKILL.md`.
-Alles andere gilt unverändert.
+Subagent und kannst niemanden fragen. Was dann anders läuft — Frageblock statt Rückfrage,
+Vordergrund, Wellen mit `FLOTTE-WELLE`, `vorläufig`-Antworten, Veto —, steht in
+`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"; die Form der Fragen steht in „Wie
+gefragt wird". Alles andere gilt unverändert.
 
 ---
 
@@ -463,7 +460,8 @@ aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen 
 - Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable.
 - **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
   (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
-  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht.
+  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Die Agent-Dateien der
+  Implementer verweisen auf diesen Punkt — schreib ihn deshalb ausgeschrieben in den Auftrag.
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
   Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
   grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
@@ -509,9 +507,11 @@ Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
   er bauen wollte; dieser Abschnitt geht wörtlich in den Auftrag des Nachfolgers.
 
 **Der Reviewer fährt keinen Volllauf.** Er prüft Zahlen und Protokoll des Implementers gegen die
-Ausgangszahlen, fährt gezielt die betroffenen Tests und seine Gegenproben. Den Volllauf je Paket
-fährst du in 4c; ein zweiter im Review hat bisher keine Regression gefunden, die 4c nicht auch
-gefunden hätte, und kostet je Paket Minuten.
+Ausgangszahlen, fährt gezielt die betroffenen Tests und seine Gegenproben; Rot in Dateien, die das
+Paket nicht berührt, wertet er nach dem Lastflake-Absatz in 4c. Den Volllauf je Paket fährst du in
+4c; ein zweiter im Review hat bisher keine Regression gefunden, die 4c nicht auch gefunden hätte,
+und kostet je Paket Minuten. Schreib das ausdrücklich in den Auftrag: Die Agent-Dateien der
+Reviewer verweisen auf diesen Absatz und auf 4c.
 
 Er **korrigiert selbst, aber nur im Kleinen**: Benennung, Kommentar, ein fehlender Testfall, ein
 vergessener Rest. Eine strukturelle Abweichung oder einen verletzten Abnahmepunkt berichtet er
