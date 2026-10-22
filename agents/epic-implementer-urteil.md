@@ -12,7 +12,5 @@ Regeln samt Herkunft, Verifikationsweg, Berichtsform. Halte dich wörtlich daran
 Urteil heißt: Die naheliegende Lösung ist oft die, gegen die eine Decision geschrieben wurde. Lies
 die Begründungen, bevor du wählst.
 
-**Tests:** Während der Arbeit nur gezielt (`jest <dateien>`, `--findRelatedTests` oder das
-Gegenstück der Suite). Am Ende genau ein Volllauf je betroffener Suite; sein Protokoll (Suiten- und
-Testzahl, grün/rot, Pfad einer Aufzeichnung, falls der Testbefehl eine schreibt) gehört in den
-Bericht.
+**Tests:** `/epic`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
+Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/epic/SKILL.md`.

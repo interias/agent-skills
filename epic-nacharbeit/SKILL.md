@@ -54,8 +54,8 @@ Lösung.
 Die Umkehrung gilt genauso: **ein Punkt, der nicht in diese Sitzung passt, wird nicht
 hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der Entscheidung.
 
-**Unter `/epic-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer: Du beendest
-deinen Zug mit dem Frageblock aus `epic-flotte/SKILL.md` und setzt mit seiner Antwort fort. Eine
+**Unter `/epic-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer (`epic/SKILL.md`,
+„Wie gefragt wird"; Frageblock: `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"). Eine
 Entscheidung, die er im Rahmen seines Entscheidungsrechts trifft und in der Forge vermerkt, ist
 eine ausdrückliche Entscheidung im Sinn dieser Regel; was dort dem Menschen vorbehalten ist, legt
 er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er.
@@ -123,22 +123,15 @@ Fragerunde oder ist Abbruchbedingung.
 
 ## Phase 2 — Die Fragerunden
 
-Nach dem Frontier-Verfahren, wie im `grilling`-Ablauf.
+Nach dem Frontier-Verfahren von `grilling` (Skill aus `mattpocock-skills`, eingerichtet nach
+`mattpocock-skills/README.md`), die Punkte der Liste als Entscheidungsbaum. Gestellt wird jede
+Runde nach `epic/SKILL.md` („Wie gefragt wird"), je Frage mit Antwortmöglichkeiten und deiner
+Empfehlung.
 
-Baue die Punkte als **Entscheidungsbaum**: jede Entscheidung verzweigt in die Entscheidungen, die
-an ihr hängen. Die **Frontier** ist jede Entscheidung, deren Voraussetzungen schon geklärt sind —
-die Fragen, die du *jetzt* stellen kannst, ohne eine Antwort zu raten, die du noch nicht gehört
-hast. **Frage die ganze Frontier in einer Runde**, jede Frage mit Antwortmöglichkeiten und deiner
-Empfehlung, gestellt nach `epic/SKILL.md` („Wie gefragt wird"). Dann warte auf die Antworten.
-
-Nach jeder Runde verschiebt sich die Frontier: geklärte Entscheidungen schalten die frei, die von
-ihnen abhingen. Eine Frage, deren Antwort von einer noch offenen Frage derselben Runde abhängt,
-gehört in eine **spätere** Runde, nicht in diese.
-
-**Fakten zu beschaffen ist deine Aufgabe, nie die des Nutzers.** Braucht eine Frage einen Fakt aus
-der Umgebung — steht die Datei noch da, was sagt der Adapter, ist der Test fahrbar —, sieh selbst
-nach, bevor du fragst. Eine Frage, die auf einem ungeprüften Fakt steht, kostet eine ganze Runde.
-Die **Entscheidungen** sind die des Nutzers; die legst du vor und wartest.
+**Eine Abweichung von `grilling`:** Die Fakten beschaffst du selbst, aber ohne Subagenten (siehe
+oben). Braucht eine Frage einen Fakt aus der Umgebung — steht die Datei noch da, was sagt der
+Adapter, ist der Test fahrbar —, sieh selbst nach, bevor du fragst. Eine Frage, die auf einem
+ungeprüften Fakt steht, kostet eine ganze Runde.
 
 ### Die eine Frage, die jeder Punkt beantworten muss
 
@@ -165,8 +158,8 @@ Trifft nichts davon zu, gehört er in diese Sitzung. Der häufigste Fall ist der
 datierter Nachtrag und ein Querverweis die ganze Lösung sind: er hält die Erkenntnis fest, kostet
 eine Viertelstunde und erzeugt keine Arbeit, die später niemand mehr begründen kann.
 
-Die Sitzung ist fertig befragt, wenn die Frontier leer ist. **Handle nicht, bevor der Nutzer
-bestätigt hat, dass ihr dasselbe Verständnis habt.**
+**Handle nicht, bevor der Nutzer bestätigt hat, dass ihr dasselbe Verständnis habt** — sobald die
+Frontier leer ist, holst du diese Bestätigung ein.
 
 ## Phase 3 — Umsetzen
 

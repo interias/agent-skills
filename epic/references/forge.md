@@ -140,15 +140,18 @@ Statuslabel und bleibt am Epic, bis es geschlossen ist.
 
 - **Paginierung.** Issue-Listen sind serverseitig gedeckelt (Gitea: siehe oben). Immer paginieren,
   nie die erste Seite für die ganze Liste halten.
-- **Kommentare und PR-Bodys aus einer Datei schicken, nie aus einer Bash-Zeichenkette.** Beim
-  Bauen des JSON-Bodys inline zerlegt die Shell Code-Zäune und Backticks, und zwar still:
+- **Kommentare, PR-Bodys und Issue-Bodys aus einer Datei schicken, nie aus einer
+  Bash-Zeichenkette.** Beim Bauen des JSON-Bodys inline zerlegt die Shell Code-Zäune und
+  Backticks, und zwar still:
 
   ```bash
   node -e 'fetch(process.argv[1],{method:"POST",headers:{Authorization:"token "+process.env.GITEA_TOKEN,"Content-Type":"application/json"},body:JSON.stringify({body:require("fs").readFileSync(process.argv[2],"utf8")})}).then(r=>r.text()).then(console.log)' \
     "$API/issues/50/comments" bericht.md
   ```
 
-  Mit CLI entfällt der Kunstgriff: `gh issue comment 50 --body-file bericht.md`.
+  Einen Issue-Body ersetzt `PATCH $API/issues/<nr>` mit dem Feld `body`, derselbe Aufruf mit
+  `method:"PATCH"`; danach einmal nachlesen. Mit CLI entfällt der Kunstgriff:
+  `gh issue comment 50 --body-file bericht.md`, `gh issue edit 50 --body-file bericht.md`.
 
 ## Nachzählen statt annehmen
 
