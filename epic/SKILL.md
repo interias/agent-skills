@@ -210,6 +210,17 @@ Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
   `references/adapter.md`, „Zwei Tokens".
 - `git status` muss **leer** sein. Jede Änderung ist fremde Arbeit — anhalten und fragen, nie
   wegwerfen, nie mitcommitten.
+- **Hinterlassenschaften toter Sitzungen abräumen (#36):** zuerst
+  `powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/worktree.ps1 -Action CleanupStale -RepoRoot <repo>`.
+  Es räumt Pakete ab, deren Lock auf eine Sitzung zeigt, die nicht mehr lebt, und beendet
+  Prozesse und Compose-Projekte in Paketordnern unter `worktree_root`, die keinem registrierten
+  Worktree und keinem Lock gehören.
+  Locks lebender Sitzungen und Worktrees ohne Lock (Epic-Worktrees, Pakete aus `Add`) fasst es
+  nicht an. Ein **schmutziger Worktree wird gemeldet, nicht entfernt** — dort kann Arbeit liegen.
+  Das Ergebnis, eine JSON-Liste, nennt der Plan (2d): was beendet und entfernt wurde, was
+  übersprungen ist, mit Grund. Exit 1 heißt, ein Schritt ist gescheitert (`failed: …` in der
+  Liste) — ein Punkt fürs Vorab-Tor. Hintergrund: Das Ende eines Laufs erreicht eine abgestürzte
+  Sitzung nie, der Anfang des nächsten schon.
 - `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
   Epics (`epic-<andere nr>` und ihre Paket-Worktrees). Laufend heißt: ihr Zielissue trägt
   `status/in-arbeit`, oder der Auftrag nennt sie (`/epic-flotte`). Sie fasst der Lauf nicht an.
@@ -369,7 +380,7 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 
 - **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen und Paketklasse, Graph,
   Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
-  wird, die Lesart des Adapters.
+  wird, die Lesart des Adapters, das Ergebnis von `CleanupStale` (0a).
 - Je Paket eine Task anlegen (Task-Werkzeug der Sitzung, falls vorhanden), in Reihenfolge.
 - **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
   (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
