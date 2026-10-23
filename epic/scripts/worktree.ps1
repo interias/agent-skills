@@ -4,6 +4,27 @@
     step checked.
 
 .DESCRIPTION
+    Up: reads the YAML frontmatter of .claude/epic.md in -RepoRoot (worktree_root, link_dirs,
+    always_link, env_files, test_isolation_env, port_env; unknown keys are ignored, missing keys
+    take the defaults of epic/references/adapter.md) and then does what Add does at
+    <worktree_root>/<Package>. In every copied env file it sets test_isolation_env to the package
+    number, port_env to a free port (when the adapter names one) and COMPOSE_PROJECT_NAME to
+    <repo>-<Package>. It writes a lock file to <git common dir>/epic-locks/<Package>.json, outside
+    every worktree, so `git status` stays clean and a later cleanup finds all locks of the repo in
+    one folder. stdout carries exactly one JSON object (path, branch, port, isolation, project,
+    envFiles, lock, sessionPid, warnings); every message goes to stderr. Without an adapter or
+    without frontmatter, Up stops with exit 1 and names what is missing.
+
+    Down: stops what clearly belongs to <worktree_root>/<Package>, then does what Remove does and
+    deletes the lock. Clearly belongs means: compose projects named <repo>-<Package> or whose
+    com.docker.compose.project.working_dir lies in the worktree (`docker compose -p <name> down`,
+    docker from PATH; without docker the compose step is skipped and reported, not an error), and
+    processes whose command line, executable or working directory lies in the worktree. Paths are
+    compared case-insensitively and only at a separator, so ...\35 never matches ...\350. The
+    calling process and its ancestors are never stopped. Unless the path is a linked worktree of
+    -RepoRoot with a manifest, Down stops nothing and ends with exit 1. Down reports every stopped
+    project and process on stdout.
+
     Add: creates a git worktree at -WorktreePath on -Branch (reused when it exists, otherwise
     created from -From), copies -EnvFiles from the main checkout, sets -SetEnv variables in the
     copies, and links each -LinkDirs folder to its counterpart in the main checkout (Windows:
@@ -16,26 +37,38 @@
     without --force, and only then deletes what is left of the folder. A recursive delete
     through a junction destroys the main checkout's node_modules (KOKOS, 2026-09-18).
 
-    The script never installs dependencies, never deletes branches and never uses --force.
+    The script never installs dependencies, never deletes branches, never merges, never starts
+    an agent and never uses --force.
     Any deviation ends with exit code 1 and a message on stderr; nothing is guessed.
 
     Array parameters accept comma-separated strings, because `powershell -File` passes an
     array argument as one string.
 
 .PARAMETER Action
-    Add or Remove.
+    Up, Down, Add or Remove. Add and Remove take every path and setting as parameters and stay
+    as aliases of the older call form.
 
 .PARAMETER RepoRoot
     Absolute path of the main checkout. Links point there; env files are copied from there.
 
 .PARAMETER WorktreePath
-    Absolute path of the worktree. Must not exist for Add.
+    Add and Remove only. Absolute path of the worktree. Must not exist for Add. Up and Down
+    derive it as <worktree_root>/<Package>.
+
+.PARAMETER Package
+    Up and Down only. Package number, e.g. 494 (or epic-490 for the epic worktree).
+
+.PARAMETER SessionPid
+    Up only. PID written to the lock as the owner of the package. It must outlive the package:
+    the shell that runs this script exits right after the call, and a lock with its PID would
+    look dead at once. Default: the nearest ancestor process named claude, i.e. the Claude Code
+    session that runs the epic. Without such an ancestor, Up stops and asks for -SessionPid.
 
 .PARAMETER Branch
-    Add only. Branch to check out. Reused when it exists; otherwise created from -From.
+    Add and Up. Branch to check out. Reused when it exists; otherwise created from -From.
 
 .PARAMETER From
-    Add only. Start point for a new branch, e.g. the current epic head.
+    Add and Up. Start point for a new branch, e.g. the current epic head.
 
 .PARAMETER LinkDirs
     Add only. Folders relative to the repo root to link, e.g. server/node_modules.
@@ -48,6 +81,12 @@
     Replaces the NAME line in the copied file, or appends it. The file must be in -EnvFiles.
 
 .EXAMPLE
+    powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Up -RepoRoot C:\src\app -Package 494 -Branch agent/494-slug -From epic/490-slug
+
+.EXAMPLE
+    powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Down -RepoRoot C:\src\app -Package 494
+
+.EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Add -RepoRoot C:\src\app -WorktreePath C:\src\app-worktrees\494 -Branch agent/494-slug -From epic/490-slug -LinkDirs server/node_modules,client/node_modules -EnvFiles server/.env -SetEnv server/.env:TEST_DB_SUFFIX=494
 
 .EXAMPLE
@@ -55,9 +94,11 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Add', 'Remove')][string]$Action,
+    [Parameter(Mandatory)][ValidateSet('Up', 'Down', 'Add', 'Remove')][string]$Action,
     [Parameter(Mandatory)][string]$RepoRoot,
-    [Parameter(Mandatory)][string]$WorktreePath,
+    [string]$WorktreePath,
+    [string]$Package,
+    [int]$SessionPid = 0,
     [string]$Branch,
     [string]$From,
     [string[]]$LinkDirs = @(),
@@ -114,17 +155,311 @@ function Save-Manifest([string]$path, $links) {
     [IO.File]::WriteAllText($path, $json, (New-Object Text.UTF8Encoding $false))
 }
 
-foreach ($p in @($RepoRoot, $WorktreePath)) {
-    if (-not [IO.Path]::IsPathRooted($p)) { Fail "'$p' is not an absolute path. Relative paths break once the shell's working directory moves." }
+function ConvertFrom-YamlScalar([string]$text) {
+    $text = $text.Trim()
+    if ($text -match '^(["''])(?<inner>.*)\1$') { return $Matches.inner }
+    $text = ($text -replace '\s+#.*$', '').Trim()
+    if ($text -match '^(["''])(?<inner>.*)\1$') { return $Matches.inner }
+    if (-not $text) { return $null }
+    if ($text -match '^\[(?<items>.*)\]$') {
+        return , @($Matches.items -split ',' | ForEach-Object { $_.Trim().Trim('"', "'") } | Where-Object { $_ })
+    }
+    $text
 }
+
+# Reads the flat YAML frontmatter of the adapter: `key: value`, `key: [a, b]` and `- item` lists.
+# Nested maps such as test_commands are skipped; this script does not need them.
+function Read-Adapter([string]$repo) {
+    $path = Join-Path $repo '.claude\epic.md'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $old = Join-Path $repo '.claude\prd.md'
+        if (-not (Test-Path -LiteralPath $old -PathType Leaf)) { Fail "No adapter at $path. $Action reads worktree_root, link_dirs, env_files, test_isolation_env and port_env from its YAML frontmatter; nothing is guessed." }
+        [Console]::Error.WriteLine("worktree.ps1: reading the adapter under its old name $old; rename it to .claude/epic.md.")
+        $path = $old
+    }
+    $lines = [IO.File]::ReadAllLines($path)
+    $end = -1
+    if ($lines.Count -gt 0 -and $lines[0].Trim() -eq '---') {
+        for ($i = 1; $i -lt $lines.Count; $i++) { if ($lines[$i].Trim() -eq '---') { $end = $i; break } }
+    }
+    if ($end -lt 0) { Fail "$path has no YAML frontmatter (a block between two --- lines at the top). $Action reads worktree_root, link_dirs, env_files, test_isolation_env and port_env from it; nothing is guessed." }
+    $keys = @{}
+    $current = $null
+    for ($i = 1; $i -lt $end; $i++) {
+        $line = $lines[$i]
+        if ($line -match '^\s*(#|$)') { continue }
+        if ($line -match '^(?<key>[A-Za-z_][A-Za-z0-9_]*)\s*:(?<value>.*)$') {
+            $current = $Matches.key
+            $keys[$current] = ConvertFrom-YamlScalar $Matches.value
+        } elseif ($current -and $line -match '^\s*-\s+(?<item>.+)$') {
+            $item = ConvertFrom-YamlScalar $Matches.item
+            if ($null -eq $keys[$current]) { $keys[$current] = @($item) } else { $keys[$current] = @($keys[$current]) + $item }
+        }
+        # Any other indented line belongs to a nested map and is skipped.
+    }
+    $keys
+}
+
+function Get-WorktreeRoot($adapter, [string]$repo) {
+    $root = $adapter['worktree_root']
+    if (-not $root) { $root = "../$(Split-Path -Leaf $repo)-worktrees" }
+    if (-not [IO.Path]::IsPathRooted($root)) { $root = Join-Path $repo $root }
+    Get-FullPath $root
+}
+
+function Get-ComposeProjectName([string]$repo, [string]$package) {
+    # Compose accepts lowercase letters, digits, dashes and underscores.
+    "$(Split-Path -Leaf $repo)-$package".ToLowerInvariant() -replace '[^a-z0-9_-]', '-'
+}
+
+function Get-LockPath([string]$repo, [string]$package) {
+    $common = Invoke-Git @('-C', $repo, 'rev-parse', '--git-common-dir')
+    if (-not [IO.Path]::IsPathRooted($common)) { $common = Join-Path $repo $common }
+    Join-Path (Get-FullPath $common) "epic-locks\$package.json"
+}
+
+function Get-ParentPid([int]$id) {
+    if ($onWindows) {
+        $p = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+        if ($p) { return [int]$p.ParentProcessId }
+        return 0
+    }
+    $p = Get-Process -Id $id -ErrorAction SilentlyContinue
+    if ($p -and $p.Parent) { return [int]$p.Parent.Id }
+    0
+}
+
+# The calling process and all its ancestors, so Down never stops the shell or session that runs it.
+function Get-AncestorPids {
+    $ids = @($PID)
+    $id = $PID
+    for ($i = 0; $i -lt 64; $i++) {
+        $parent = Get-ParentPid $id
+        if ($parent -le 0 -or $ids -contains $parent) { break }
+        $ids += $parent
+        $id = $parent
+    }
+    $ids
+}
+
+function Find-SessionPid {
+    foreach ($id in @(Get-AncestorPids | Select-Object -Skip 1)) {
+        $p = Get-Process -Id $id -ErrorAction SilentlyContinue
+        if ($p -and $p.ProcessName -eq 'claude') { return [int]$id }
+    }
+    0
+}
+
+function Get-FreePort {
+    # Port 0 lets the OS hand out a port that is free right now.
+    $listener = New-Object Net.Sockets.TcpListener ([Net.IPAddress]::Loopback, 0)
+    $listener.Start()
+    try { $listener.LocalEndpoint.Port } finally { $listener.Stop() }
+}
+
+$sep = [IO.Path]::DirectorySeparatorChar
+
+function Test-UnderPath([string]$candidate, [string]$root) {
+    if (-not $candidate) { return $false }
+    if ($onWindows) { $candidate = $candidate -replace '/', '\' }
+    $candidate = $candidate.TrimEnd($sep)
+    $candidate.Equals($root, [StringComparison]::OrdinalIgnoreCase) -or
+        $candidate.StartsWith("$root$sep", [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-CommandLineUnderPath([string]$commandLine, [string]$root) {
+    if (-not $commandLine) { return $false }
+    if ($onWindows) { $commandLine = $commandLine -replace '/', '\' }
+    # The path must end at a separator, a quote, whitespace or the end: ...\35 never matches ...\350.
+    $commandLine -match ('(?i)' + [regex]::Escape($root) + '(?=[\\/"''\s]|$)')
+}
+
+function Get-ProcessCwd([int]$id) {
+    if (-not $onWindows) {
+        try { return (Get-Item -LiteralPath "/proc/$id/cwd" -Force -ErrorAction Stop).Target } catch { return $null }
+    }
+    if (-not ('EpicProcessCwd' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class EpicProcessCwd {
+    [StructLayout(LayoutKind.Sequential)]
+    struct BasicInfo { public IntPtr ExitStatus; public IntPtr PebBaseAddress; public IntPtr Affinity; public IntPtr BasePriority; public IntPtr UniqueProcessId; public IntPtr ParentProcessId; }
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(int access, bool inherit, int pid);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")] static extern bool IsWow64Process(IntPtr handle, out bool wow64);
+    [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr handle, IntPtr address, byte[] buffer, IntPtr size, out IntPtr read);
+    [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr handle, int infoClass, ref BasicInfo info, int size, out int returned);
+    [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr handle, int infoClass, out IntPtr info, int size, out int returned);
+
+    static byte[] Read(IntPtr handle, long address, int size) {
+        byte[] buffer = new byte[size];
+        IntPtr read;
+        if (!ReadProcessMemory(handle, new IntPtr(address), buffer, new IntPtr(size), out read) || read.ToInt64() != size) return null;
+        return buffer;
+    }
+
+    // Current directory from the process parameters in the PEB; null when it cannot be read.
+    public static string Get(int pid) {
+        if (IntPtr.Size != 8) return null;
+        IntPtr handle = OpenProcess(0x0410, false, pid);
+        if (handle == IntPtr.Zero) return null;
+        try {
+            bool wow64;
+            int returned, length;
+            long buffer;
+            if (IsWow64Process(handle, out wow64) && wow64) {
+                IntPtr peb32;
+                if (NtQueryInformationProcess(handle, 26, out peb32, IntPtr.Size, out returned) != 0 || peb32 == IntPtr.Zero) return null;
+                byte[] parameters = Read(handle, peb32.ToInt64() + 0x10, 4);
+                if (parameters == null) return null;
+                byte[] text = Read(handle, BitConverter.ToUInt32(parameters, 0) + 0x24, 8);
+                if (text == null) return null;
+                length = BitConverter.ToUInt16(text, 0);
+                buffer = BitConverter.ToUInt32(text, 4);
+            } else {
+                BasicInfo info = new BasicInfo();
+                if (NtQueryInformationProcess(handle, 0, ref info, Marshal.SizeOf(info), out returned) != 0) return null;
+                byte[] parameters = Read(handle, info.PebBaseAddress.ToInt64() + 0x20, 8);
+                if (parameters == null) return null;
+                byte[] text = Read(handle, BitConverter.ToInt64(parameters, 0) + 0x38, 16);
+                if (text == null) return null;
+                length = BitConverter.ToUInt16(text, 0);
+                buffer = BitConverter.ToInt64(text, 8);
+            }
+            if (length == 0 || length > 65534) return null;
+            byte[] chars = Read(handle, buffer, length);
+            return chars == null ? null : System.Text.Encoding.Unicode.GetString(chars);
+        } finally { CloseHandle(handle); }
+    }
+}
+'@
+    }
+    [EpicProcessCwd]::Get($id)
+}
+
+function Get-WorktreeProcesses([string]$root) {
+    $skip = Get-AncestorPids
+    $all = if ($onWindows) {
+        Get-CimInstance Win32_Process | ForEach-Object { [pscustomobject]@{ Id = [int]$_.ProcessId; Name = $_.Name; CommandLine = $_.CommandLine; Path = $_.ExecutablePath } }
+    } else {
+        Get-Process | ForEach-Object { [pscustomobject]@{ Id = $_.Id; Name = $_.ProcessName; CommandLine = $_.CommandLine; Path = $_.Path } }
+    }
+    foreach ($p in $all) {
+        if ($p.Id -le 4 -or $skip -contains $p.Id) { continue }
+        if ((Test-CommandLineUnderPath $p.CommandLine $root) -or (Test-UnderPath $p.Path $root) -or (Test-UnderPath (Get-ProcessCwd $p.Id) $root)) { $p }
+    }
+}
+
+function Stop-WorktreeCompose([string]$root, [string]$project) {
+    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
+        Write-Host 'Compose skipped: docker not reachable (not on PATH).'
+        return
+    }
+    $ids = @(& docker ps -a -q --filter label=com.docker.compose.project)
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Compose skipped: docker not reachable (docker ps exit $LASTEXITCODE)."
+        return
+    }
+    $ids = @($ids | Where-Object { $_ })
+    $names = @()
+    if ($ids) {
+        $inspect = (& docker inspect @ids) | Out-String
+        if ($LASTEXITCODE -ne 0) { Fail "docker inspect failed (exit $LASTEXITCODE). Nothing removed." }
+        foreach ($container in @($inspect | ConvertFrom-Json)) {
+            $labels = $container.Config.Labels
+            $name = $labels.'com.docker.compose.project'
+            if (-not $name) { continue }
+            if ($name -eq $project -or (Test-UnderPath $labels.'com.docker.compose.project.working_dir' $root)) { $names += $name }
+        }
+    }
+    $names = @($names | Select-Object -Unique)
+    if (-not $names) { Write-Host 'Compose: no project belongs to this worktree.'; return }
+    foreach ($name in $names) {
+        & docker compose -p $name down | Out-Null
+        if ($LASTEXITCODE -ne 0) { Fail "docker compose -p $name down failed (exit $LASTEXITCODE). Nothing removed." }
+        Write-Host "Stopped compose project $name."
+    }
+}
+
+if (-not [IO.Path]::IsPathRooted($RepoRoot)) { Fail "'$RepoRoot' is not an absolute path. Relative paths break once the shell's working directory moves." }
 $RepoRoot = Get-FullPath $RepoRoot
-$WorktreePath = Get-FullPath $WorktreePath
 $LinkDirs = Split-List $LinkDirs
 $EnvFiles = Split-List $EnvFiles
 $SetEnv = Split-List $SetEnv
 
-if ($Action -eq 'Add') {
-    if (-not $Branch) { Fail 'Add needs -Branch.' }
+if ($Action -in 'Up', 'Down') {
+    if ($Package -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { Fail "$Action needs -Package, a package number such as 494 (got '$Package')." }
+    if ($WorktreePath) { Fail "$Action derives the worktree path from worktree_root; do not pass -WorktreePath." }
+    $adapter = Read-Adapter $RepoRoot
+    $WorktreePath = Join-Path (Get-WorktreeRoot $adapter $RepoRoot) $Package
+    $project = Get-ComposeProjectName $RepoRoot $Package
+    $lockPath = Get-LockPath $RepoRoot $Package
+} else {
+    if (-not $WorktreePath) { Fail "$Action needs -WorktreePath." }
+    if (-not [IO.Path]::IsPathRooted($WorktreePath)) { Fail "'$WorktreePath' is not an absolute path. Relative paths break once the shell's working directory moves." }
+    $WorktreePath = Get-FullPath $WorktreePath
+}
+
+if ($Action -eq 'Up') {
+    $dotted = @($WorktreePath -split '[\\/]' | Where-Object { $_ -like '.*' })
+    if ($dotted) { Fail "$WorktreePath contains the dot directory '$($dotted[0])'. worktree_root must not lie in one." }
+    if (Test-Path -LiteralPath $lockPath) { Fail "Lock $lockPath already exists. Package $Package is taken; run Down or remove the stale lock first." }
+    if ($SessionPid -eq 0) {
+        $SessionPid = Find-SessionPid
+        if ($SessionPid -eq 0) { Fail 'No Claude session among the ancestors of this process. Pass -SessionPid with a PID that lives as long as the package.' }
+    }
+    $session = Get-Process -Id $SessionPid -ErrorAction SilentlyContinue
+    if (-not $session) { Fail "Session PID $SessionPid is not running. The lock needs a PID that lives as long as the package." }
+
+    $LinkDirs = @(@(Split-List @($adapter['link_dirs'])) + @(Split-List @($adapter['always_link'])) | Select-Object -Unique)
+    $EnvFiles = Split-List @($adapter['env_files'])
+    $isolation = $null
+    $port = $null
+    $variables = @()
+    # Old notation (adapter.md): a value starting with "keine" (German for none) means isolation: none-needed.
+    if ($adapter['test_isolation_env'] -and $adapter['test_isolation_env'] -notmatch '^keine') {
+        $isolation = $Package
+        $variables += "$($adapter['test_isolation_env'])=$Package"
+    }
+    if ($adapter['port_env']) {
+        $port = Get-FreePort
+        $variables += "$($adapter['port_env'])=$port"
+    }
+    $variables += "COMPOSE_PROJECT_NAME=$project"
+    $SetEnv = @(foreach ($file in $EnvFiles) { foreach ($v in $variables) { "${file}:$v" } })
+    $warnings = @()
+    if (-not $EnvFiles) {
+        # No env file to carry the values; creating one would leave an untracked file in the worktree.
+        $warnings += "The adapter names no env_files, so $(($variables | ForEach-Object { ($_ -split '=')[0] }) -join ', ') went into no file. Set them in the environment of what you start in the worktree."
+        foreach ($w in $warnings) { [Console]::Error.WriteLine("worktree.ps1: $w") }
+    }
+}
+
+if ($Action -eq 'Down') {
+    if (-not (Test-Path -LiteralPath $WorktreePath)) { Fail "$WorktreePath does not exist." }
+    # A wrong -Package or worktree_root must not point the path boundary at the main checkout or a
+    # foreign folder: stop nothing unless the path is a linked worktree this script created.
+    $linked = @(Invoke-Git @('-C', $RepoRoot, 'worktree', 'list', '--porcelain') | Where-Object { $_ -like 'worktree *' } |
+        ForEach-Object { Get-FullPath $_.Substring(9) } | Select-Object -Skip 1)
+    if ($linked -notcontains $WorktreePath) { Fail "$WorktreePath is not a linked worktree of $RepoRoot. Nothing stopped, nothing removed." }
+    if (-not (Test-Path -LiteralPath (Get-ManifestPath $WorktreePath))) { Fail "No manifest for $WorktreePath - this worktree was not created by worktree.ps1. Nothing stopped, nothing removed." }
+    # Stop what clearly belongs to the worktree before anything is removed.
+    Stop-WorktreeCompose $WorktreePath $project
+    $found = @(Get-WorktreeProcesses $WorktreePath)
+    foreach ($p in $found) {
+        $proc = Get-Process -Id $p.Id -ErrorAction SilentlyContinue
+        if (-not $proc) { continue }
+        try { $proc.Kill() }
+        catch { if (-not $proc.HasExited) { Fail "Could not stop process $($p.Id) ($($p.Name)): $($_.Exception.Message). Nothing removed." } }
+        if (-not $proc.WaitForExit(10000)) { Fail "Process $($p.Id) ($($p.Name)) is still running. Nothing removed." }
+        Write-Host "Stopped process $($p.Id) ($($p.Name))."
+    }
+    if (-not $found) { Write-Host 'Processes: none ran in this worktree.' }
+}
+
+if ($Action -in 'Add', 'Up') {
+    if (-not $Branch) { Fail "$Action needs -Branch." }
     if (Test-Path -LiteralPath $WorktreePath) { Fail "$WorktreePath already exists. Not reusing or overwriting it." }
 
     # Check every input before the worktree exists, so a bad call leaves nothing behind.
@@ -153,6 +488,9 @@ if ($Action -eq 'Add') {
     foreach ($file in $EnvFiles) {
         $dest = Join-Path $WorktreePath $file
         if (Test-Path -LiteralPath $dest) { Fail "$dest is already in the worktree (tracked?). Not overwriting it." }
+        # The folder of an env file may hold nothing tracked and then is missing in the checkout.
+        $parent = Split-Path -Parent $dest
+        if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
         Copy-Item -LiteralPath (Join-Path $RepoRoot $file) -Destination $dest
     }
     foreach ($setting in $envSettings) {
@@ -192,11 +530,31 @@ if ($Action -eq 'Add') {
         if ($actual -ne $entry.target) { Fail "$($entry.path) points to '$actual', expected '$($entry.target)'." }
     }
 
+    if ($Action -eq 'Up') {
+        $started = $null
+        try { $started = $session.StartTime.ToString('o') } catch { }
+        $lock = [ordered]@{
+            package = $Package; branch = $Branch; sessionPid = $SessionPid; sessionStarted = $started
+            created = (Get-Date).ToString('o'); worktree = $WorktreePath; repoRoot = $RepoRoot
+            port = $port; project = $project
+        }
+        $lockDir = Split-Path -Parent $lockPath
+        if (-not (Test-Path -LiteralPath $lockDir)) { New-Item -ItemType Directory -Path $lockDir | Out-Null }
+        [IO.File]::WriteAllText($lockPath, (ConvertTo-Json -InputObject $lock), (New-Object Text.UTF8Encoding $false))
+        [Console]::Error.WriteLine("worktree.ps1: worktree ready: $WorktreePath on $Branch, $($links.Count) link(s), $($EnvFiles.Count) env file(s), lock $lockPath.")
+        $result = [ordered]@{
+            path = $WorktreePath; branch = $Branch; port = $port; isolation = $isolation; project = $project
+            envFiles = @($EnvFiles | ForEach-Object { Join-Path $WorktreePath $_ }); lock = $lockPath
+            sessionPid = $SessionPid; warnings = @($warnings)
+        }
+        [Console]::Out.WriteLine((ConvertTo-Json -InputObject $result -Compress))
+        exit 0
+    }
     Write-Host "Worktree ready: $WorktreePath on $Branch, $($links.Count) link(s), $($EnvFiles.Count) env file(s)."
     exit 0
 }
 
-# Remove
+# Remove, and the second half of Down
 if (-not (Test-Path -LiteralPath $WorktreePath)) { Fail "$WorktreePath does not exist." }
 
 # 1. Clean? A dirty worktree stays for a human to look at.
@@ -233,4 +591,12 @@ if (Test-Path -LiteralPath $WorktreePath) {
 }
 
 Write-Host "Worktree removed: $WorktreePath"
+if ($Action -eq 'Down') {
+    if (Test-Path -LiteralPath $lockPath) {
+        Remove-Item -LiteralPath $lockPath -Force
+        Write-Host "Lock removed: $lockPath"
+    } else {
+        Write-Host "No lock at $lockPath."
+    }
+}
 exit 0
