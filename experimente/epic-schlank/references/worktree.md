@@ -81,12 +81,11 @@ einen eigenen Wert. Das geht nur, weil die Umgebungsdatei eine Kopie ist.
 ## Der Subagent im Worktree
 
 Erste Handlung: `EnterWorktree` mit `path` auf sein Verzeichnis. Zulässig ist das, weil der Pfad in
-`git worktree list` steht. **Rechne mit dem Fehlschlag.** Läuft die Sitzung im Hauptverzeichnis des
+`git worktree list` steht. Läuft die Sitzung im Hauptverzeichnis des
 Repositorys, dem Normalfall für diesen Ablauf, lehnt `EnterWorktree` mit *„current working
 directory is the repository root, not an isolated worktree"* ab, und zwar für **jeden** Subagenten
 gleich. Der Umweg über absolute Pfade unterhalb des eigenen Worktrees ist dann der Regelweg. Prüf
-das einmal für den Lauf und schreib das Ergebnis in jeden Auftrag, statt drei Agenten dieselbe
-Sackgasse ablaufen zu lassen. `Grep` und `Glob` bekommen
+das einmal für den Lauf und schreib das Ergebnis in jeden Auftrag. `Grep` und `Glob` bekommen
 immer explizit ein `path`.
 
 In beiden Fällen bleibt der Subagent **innerhalb seines eigenen Worktrees**: Er arbeitet nur dort,
@@ -97,8 +96,8 @@ ohne `git switch` und ohne neue Branches.
 Nach dem Merge, und ebenso nach einem nicht abgenommenen Paket: `worktree.ps1 -Action Remove`. Die
 Reihenfolge darin ist fest, weil ein rekursives Löschen einer Junction folgt: **Am 18.09.2026 hat in
 KOKOS ein rekursives Löschen einer Worktree-Hülle das echte `node_modules` im Hauptverzeichnis
-zerstört.** `git status` blieb sauber, erst der nächste Testlauf scheiterte, und niemand verband die
-Ursache mehr mit dem Aufräumen.
+zerstört**, bei sauberem `git status`, sodass erst der nächste Testlauf scheiterte und niemand die
+Ursache mehr mit dem Aufräumen verband.
 
 1. **Sauber?** Ist `git status --porcelain` im Worktree nicht leer, bricht das Skript ab: Der
    Worktree bleibt stehen, das Paket gilt als **nicht abgenommen**, und sein Zustand wird berichtet,

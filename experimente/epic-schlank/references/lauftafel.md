@@ -65,15 +65,14 @@ liegt beim Menschen.*
 Fortschreibung und Sternzeit. **Jede Uhrzeit auf der Tafel stammt aus einem Aufruf der Systemuhr unmittelbar vor
 dem Rendern** (`date`, `Get-Date`) und wird nie geschätzt oder aus dem Verlauf hochgerechnet; die
 Zeitzone steht dabei. Das gilt auch für die Uhrzeit in der Kachel „Tests" und die Zeitleiste.
-Drei Werte, je mit eigener Klasse:
+Drei Werte, je mit eigener Klasse, damit eine liegengebliebene Tafel nicht wie eine laufende
+aussieht:
 
 | Laufzustand | Markup | wann |
 |---|---|---|
 | Lauf im Gang | `<b class="lauf live">Lauf im Gang</b>` | ab der ersten Veröffentlichung bis zum Pull Request |
 | Beendet | `<b class="lauf done">Beendet</b>` | die letzte Fortschreibung vor dem Pull Request |
 | Abgebrochen | `<b class="lauf fail">Abgebrochen</b>` | der Lauf endet vor dem Pull Request; der Grund steht als Glut-Punkt unter „Offene Punkte" |
-
-Ohne diesen Wert sieht eine liegengebliebene Tafel aus wie eine laufende.
 
 **Sternzeit.** Neben dem Stand steht `Sternzeit <b>…</b>`, berechnet aus **demselben**
 Uhrenaufruf wie der Stand: `41000 + 1000 · (Jahr − 1987) + 1000 · Jahresanteil`, eine
@@ -149,8 +148,8 @@ Zwei Sorten. Die Schiene links sagt, welche:
 - `.item.run` (Blau): **Der Lauf hebt es selbst**, vorerst. Ein Beispiel ist eine Kennzahl unter
   Ziel, die ein laufendes Paket heben soll.
 
-Ein Punkt, der den Lauf nicht anhält, gehört trotzdem auf die Tafel, aber in die blaue Sorte.
-Sonst gewöhnt sich der Leser an, über Glut hinwegzulesen. **Ein blauer Punkt kippt zu Glut**, wenn
+Ein Punkt, der den Lauf nicht anhält, gehört trotzdem auf die Tafel, aber in die blaue Sorte,
+damit Glut nicht überlesen wird. **Ein blauer Punkt kippt zu Glut**, wenn
 das Paket, das ihn heben sollte, abgenommen ist und der Befund bleibt. Der Satz sagt dann, was
 entschieden werden muss.
 
@@ -158,8 +157,8 @@ Je Punkt: eine Überschrift (*was* es ist), ein Wort für die Art in `.owner` (E
 Freigabe / im Lauf; bei Glut mit `blink-dot`), **ein** Satz mit dem Befund und seiner Folge, und
 die Monozeile `.meta2` mit dem Harten: seit wann, welcher Branch, was dadurch hängt.
 
-Die Kachel liest sich `2` über `von 3 offenen Punkten · 1 hebt der Lauf`. Eine nackte Gesamtzahl
-zwingt zum Nachzählen. Ist nichts offen, trägt der Block die Zeile `Nichts offen.`
+Die Kachel liest sich `2` über `von 3 offenen Punkten · 1 hebt der Lauf`. Ist nichts offen, trägt
+der Block die Zeile `Nichts offen.`
 
 ## Kennzahlen
 
@@ -206,9 +205,6 @@ sind jedes Mal:
 - Teststand und Kennzahl samt Basis in den Kacheln der Seitenleiste
 - die offenen Punkte: dazugekommene, erledigte, gekippte
 - Balken und Achse der Zeitleiste, die Abweichungszeile
-
-Eine Tafel, die nach dem dritten Merge noch den Anfang zeigt, ist schlimmer als keine, denn sie
-sieht aktuell aus.
 
 ## Vor der ersten Veröffentlichung prüfen
 
