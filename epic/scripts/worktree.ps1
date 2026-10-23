@@ -39,8 +39,11 @@
       compose project, nothing removed - and is reported as skipped with "no lock (epic worktree or
       created by Add)". Read literally, AC 2 would stop the test processes of every parallel run.
     - Orphans are stopped: processes whose command line, executable or working directory lies in
-      <worktree_root>/<name>, and compose projects named <repo>-<name> or whose working_dir lies
-      there, where <name> looks like a package (494, 490-p2, epic-490), is not the main checkout,
+      <worktree_root>/<name>, and compose projects whose working_dir lies there or that are named
+      <repo>-<name> with a working_dir that is missing or lies under worktree_root (a sibling repo
+      app-2 has the default project name app-2 and stays alone; a container under worktree_root is
+      enough for a mixed project; a working_dir that is no path of this host, such as a WSL path,
+      counts as outside), where <name> looks like a package (494, 490-p2, epic-490), is not the main checkout,
       is no registered worktree, has no lock left and is no repo or worktree of another repo (a
       .git directory, or a .git file naming a gitdir outside this repo). Anything else under
       worktree_root is not attributable to a run and stays untouched; a lock never makes such a
@@ -630,7 +633,16 @@ if ($Action -eq 'CleanupStale') {
         } else {
             foreach ($group in @($compose.Projects | Group-Object Name)) {
                 $names = @()
-                if ($group.Name -like "$composePrefix*") { $names += $group.Name.Substring($composePrefix.Length).ToLowerInvariant() }
+                if ($group.Name -like "$composePrefix*") {
+                    # A sibling repo app-2 has the default project name app-2: the name alone is not enough.
+                    $dirs = @($group.Group | ForEach-Object { $_.WorkingDir } | Where-Object { $_ })
+                    # A path .NET cannot parse counts as outside, so one odd label does not abort the compose step.
+                    if (-not $dirs -or @($dirs | Where-Object { try { Test-UnderPath (Get-FullPath $_) $worktreeRoot } catch { $false } })) {
+                        $names += $group.Name.Substring($composePrefix.Length).ToLowerInvariant()
+                    } else {
+                        Add-Entry 'compose' $group.Name $null 'skipped' "name matches ${composePrefix}<nr>, but working_dir $($dirs -join ', ') lies outside worktree_root"
+                    }
+                }
                 $names = @(@($names) + @(Get-PackageNames @($group.Group | ForEach-Object { $_.WorkingDir })) | Select-Object -Unique)
                 if (-not $names) { continue }
                 $reasons = @($names | ForEach-Object { & $protection $_ } | Where-Object { $_ })
