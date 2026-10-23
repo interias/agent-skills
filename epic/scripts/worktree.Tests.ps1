@@ -330,6 +330,268 @@ Describe 'worktree.ps1 Down' {
     }
 }
 
+# CleanupStale with stdout and stderr apart; docker is taken out of PATH unless a stub is given.
+function Invoke-Cleanup($t, $containers = $null) {
+    $saved = $env:PATH
+    $stub = $null
+    if ($null -ne $containers) { $stub = New-DockerStub $containers; $env:PATH = "$stub;$(Get-PathWithoutDocker)" } else { $env:PATH = Get-PathWithoutDocker }
+    $errFile = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.err')
+    try {
+        $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Action CleanupStale -RepoRoot $t.Repo 2>$errFile
+    } finally { $env:PATH = $saved }
+    $out = @($out | Where-Object { $_ -ne $null })
+    $r = @{ Exit = $LASTEXITCODE; Out = $out; Err = ((Get-Content $errFile -Raw) -replace '\s+', ' ') }
+    $r.Entries = if ($out.Count -eq 1) { @($out[0] | ConvertFrom-Json) } else { $null }
+    if ($stub) { $log = Join-Path $stub 'calls.log'; $r.Calls = if (Test-Path $log) { Get-Content $log -Raw } else { '' } }
+    $r
+}
+
+function Find-Entry($r, [string]$kind, $id) {
+    @($r.Entries | Where-Object { $_.kind -eq $kind -and "$($_.id)" -eq "$id" })
+}
+
+# A session that dies: Up needs a running PID, the test then kills it.
+function Start-Session { Start-Sleeper $TestDrive 'session' }
+
+function Stop-Session($session) {
+    Stop-Process -Id $session.Id -Force
+    $session.WaitForExit()
+}
+
+# A worktree at <worktree_root>/<nr> created by Add, i.e. without lock.
+function Add-UnlockedWorktree($t, [string]$nr) {
+    $path = Join-Path (Split-Path $t.Worktree) $nr
+    $r = Invoke-Worktree @('-Action', 'Add', '-RepoRoot', $t.Repo, '-WorktreePath', $path, '-Branch', "agent/$nr-test", '-From', 'main')
+    $null = $r.Exit | Should Be 0
+    $path
+}
+
+Describe 'worktree.ps1 CleanupStale' {
+    It 'removes the package of a lock whose session is gone, with its processes' {
+        $t = New-AdapterRepo
+        $session = Start-Session
+        (Invoke-Up $t $session.Id).Exit | Should Be 0
+        $inWorktree = Start-Sleeper $t.Worktree
+        try {
+            Start-Sleep -Milliseconds 500
+            Stop-Session $session
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            $r.Out.Count | Should Be 1
+            (Find-Entry $r 'lock' '1')[0].action | Should Be 'removed'
+            (Find-Entry $r 'lock' '1')[0].reason | Should Match "session $($session.Id) is gone"
+            (Find-Entry $r 'worktree' '1')[0].action | Should Be 'removed'
+            (Find-Entry $r 'worktree' '1')[0].branch | Should Be 'agent/1-test'
+            (Find-Entry $r 'process' $inWorktree.Id)[0].action | Should Be 'stopped'
+            (Find-Entry $r 'compose' '')[0].reason | Should Match 'docker not reachable'
+            Get-Process -Id $inWorktree.Id -ErrorAction SilentlyContinue | Should BeNullOrEmpty
+            Test-Path $t.Worktree | Should Be $false
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $false
+            Test-Path (Join-Path $t.Repo 'server\node_modules\dep\index.js') | Should Be $true
+        } finally {
+            foreach ($p in @($session, $inWorktree)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    It 'reports nothing to do on a second run' {
+        $t = New-AdapterRepo
+        $session = Start-Session
+        (Invoke-Up $t $session.Id).Exit | Should Be 0
+        Stop-Session $session
+        (Invoke-Cleanup $t).Exit | Should Be 0
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        $r.Err | Should Match 'CleanupStale: nothing to do'
+        @($r.Entries | Where-Object { $_.action -ne 'skipped' }).Count | Should Be 0
+    }
+
+    It 'leaves a lock whose session lives untouched' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $inWorktree = Start-Sleeper $t.Worktree
+        try {
+            Start-Sleep -Milliseconds 500
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            (Find-Entry $r 'lock' '1')[0].action | Should Be 'skipped'
+            (Find-Entry $r 'lock' '1')[0].reason | Should Match 'alive'
+            $r.Err | Should Match 'nothing to do'
+            Get-Process -Id $inWorktree.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+            Test-Path $t.Worktree | Should Be $true
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+        } finally {
+            Stop-Process -Id $inWorktree.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'counts a reused PID as dead' {
+        $t = New-AdapterRepo
+        $session = Start-Session
+        try {
+            (Invoke-Up $t $session.Id).Exit | Should Be 0
+            $lockPath = Join-Path $t.Repo '.git\epic-locks\1.json'
+            $lock = Get-Content $lockPath -Raw | ConvertFrom-Json
+            $lock.sessionStarted = $session.StartTime.AddHours(-1).ToString('o')
+            Set-Content -Path $lockPath -Value (ConvertTo-Json $lock)
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            (Find-Entry $r 'lock' '1')[0].reason | Should Match 'reused'
+            Test-Path $t.Worktree | Should Be $false
+            Test-Path $lockPath | Should Be $false
+            Get-Process -Id $session.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+        } finally {
+            Stop-Process -Id $session.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'reports a dirty worktree with path, branch and reason and keeps it' {
+        $t = New-AdapterRepo
+        $session = Start-Session
+        (Invoke-Up $t $session.Id).Exit | Should Be 0
+        Stop-Session $session
+        Add-Content -Path (Join-Path $t.Worktree 'server\app.js') -Value '// change'
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        $w = (Find-Entry $r 'worktree' '1')[0]
+        $w.action | Should Be 'skipped'
+        $w.path | Should Be $t.Worktree
+        $w.branch | Should Be 'agent/1-test'
+        $w.reason | Should Match 'dirty'
+        (Find-Entry $r 'lock' '1')[0].action | Should Be 'skipped'
+        Test-Path (Join-Path $t.Worktree 'server\app.js') | Should Be $true
+        Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+        (Get-Item (Join-Path $t.Worktree 'server\node_modules') -Force).LinkType | Should Be 'Junction'
+        $again = Invoke-Cleanup $t
+        $again.Err | Should Match 'nothing to do'
+        (Find-Entry $again 'worktree' '1')[0].reason | Should Match 'dirty'
+    }
+
+    It 'leaves a registered worktree without lock and its processes alone' {
+        $t = New-AdapterRepo
+        $unlocked = Add-UnlockedWorktree $t '2'
+        $inUnlocked = Start-Sleeper $unlocked
+        try {
+            Start-Sleep -Milliseconds 500
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            $w = (Find-Entry $r 'worktree' '2')[0]
+            $w.action | Should Be 'skipped'
+            $w.reason | Should Be 'no lock (epic worktree or created by Add)'
+            $w.branch | Should Be 'agent/2-test'
+            Find-Entry $r 'process' $inUnlocked.Id | Should BeNullOrEmpty
+            Get-Process -Id $inUnlocked.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+            Test-Path $unlocked | Should Be $true
+        } finally {
+            Stop-Process -Id $inUnlocked.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'stops processes in a package folder no worktree claims, not in a foreign folder' {
+        $t = New-AdapterRepo
+        $root = Split-Path $t.Worktree
+        $orphanDir = Join-Path $root '9'
+        $foreignDir = Join-Path $root 'tools'
+        New-Item -ItemType Directory -Path $orphanDir, $foreignDir -Force | Out-Null
+        $orphan = Start-Sleeper $orphanDir
+        $foreign = Start-Sleeper $foreignDir
+        try {
+            Start-Sleep -Milliseconds 500
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            (Find-Entry $r 'process' $orphan.Id)[0].action | Should Be 'stopped'
+            Get-Process -Id $orphan.Id -ErrorAction SilentlyContinue | Should BeNullOrEmpty
+            Get-Process -Id $foreign.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+        } finally {
+            foreach ($p in @($orphan, $foreign)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    It 'leaves a repo and a worktree of another repo under worktree_root alone, even with a lock' {
+        $t = New-AdapterRepo
+        $root = Split-Path $t.Worktree
+        $siblingRepo = Join-Path $root '5'
+        New-Item -ItemType Directory -Path $siblingRepo -Force | Out-Null
+        git -C $siblingRepo init -q -b main
+        $other = New-TestRepo
+        $otherWorktree = Join-Path $root '6'
+        git -C $other.Repo worktree add -q $otherWorktree -b agent/6 main 2>$null
+        $lockDir = Join-Path $t.Repo '.git\epic-locks'
+        New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
+        Set-Content -Path (Join-Path $lockDir '5.json') -Value '{ "package": "5", "sessionPid": 999999 }'
+        $inRepo = Start-Sleeper $siblingRepo
+        $inOther = Start-Sleeper $otherWorktree
+        try {
+            Start-Sleep -Milliseconds 500
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 1
+            $r.Out.Count | Should Be 1
+            (Find-Entry $r 'lock' '5')[0].reason | Should Match 'repo or a worktree of another repo'
+            Find-Entry $r 'process' $inRepo.Id | Should BeNullOrEmpty
+            Find-Entry $r 'process' $inOther.Id | Should BeNullOrEmpty
+            Get-Process -Id $inRepo.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+            Get-Process -Id $inOther.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+        } finally {
+            foreach ($p in @($inRepo, $inOther)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    It 'prunes a lock whose worktree folder is gone and removes the lock' {
+        $t = New-AdapterRepo
+        $session = Start-Session
+        (Invoke-Up $t $session.Id).Exit | Should Be 0
+        Stop-Session $session
+        [IO.Directory]::Delete((Join-Path $t.Worktree 'server\node_modules'), $false)
+        Remove-Item -LiteralPath $t.Worktree -Recurse -Force
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        (Find-Entry $r 'worktree' '1')[0].action | Should Be 'removed'
+        (Find-Entry $r 'lock' '1')[0].action | Should Be 'removed'
+        Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $false
+        @(git -C $t.Repo worktree list --porcelain | Where-Object { $_ -like 'worktree *' }).Count | Should Be 1
+        Test-Path (Join-Path $t.Repo 'server\node_modules\dep\index.js') | Should Be $true
+    }
+
+    It 'brings down an orphan compose project, not one with a living lock or an unlocked worktree' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        Add-UnlockedWorktree $t '2' | Out-Null
+        $r = Invoke-Cleanup $t @(
+            @{ Project = 'repo-7'; WorkingDir = 'C:\elsewhere' },
+            @{ Project = 'repo-1'; WorkingDir = $t.Worktree },
+            @{ Project = 'repo-2'; WorkingDir = 'C:\elsewhere' },
+            @{ Project = 'devstack'; WorkingDir = 'C:\elsewhere' })
+        $r.Exit | Should Be 0
+        $r.Calls | Should Match '(?m)^compose -p repo-7 down'
+        $r.Calls | Should Not Match '(?m)^compose -p repo-1 '
+        $r.Calls | Should Not Match '(?m)^compose -p repo-2 '
+        $r.Calls | Should Not Match '(?m)^compose -p devstack '
+        (Find-Entry $r 'compose' 'repo-7')[0].action | Should Be 'stopped'
+        (Find-Entry $r 'compose' 'repo-1')[0].reason | Should Match 'alive'
+        (Find-Entry $r 'compose' 'repo-2')[0].reason | Should Be 'no lock (epic worktree or created by Add)'
+        Find-Entry $r 'compose' 'devstack' | Should BeNullOrEmpty
+    }
+
+    It 'skips compose without docker, exits 0 and still clears a dead lock' {
+        $t = New-AdapterRepo
+        $session = Start-Session
+        (Invoke-Up $t $session.Id).Exit | Should Be 0
+        Stop-Session $session
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        $r.Err | Should Match 'Compose skipped: docker not reachable'
+        (Find-Entry $r 'compose' '')[0].action | Should Be 'skipped'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
+    It 'prints an empty list and nothing to do on a clean repo' {
+        $t = New-AdapterRepo
+        $r = Invoke-Cleanup $t @()
+        $r.Exit | Should Be 0
+        $r.Out[0] | Should Be '[]'
+        $r.Err | Should Match 'nothing to do'
+    }
+}
+
 Describe 'worktree.ps1 Add' {
     It 'creates the worktree with a junction, not a copy' {
         $t = New-TestRepo

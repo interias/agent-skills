@@ -25,6 +25,34 @@
     -RepoRoot with a manifest, Down stops nothing and ends with exit 1. Down reports every stopped
     project and process on stdout.
 
+    CleanupStale (#36): clears what a dead session left behind, run at the start of every /epic and
+    /epic-aufraeumen. It never merges, never starts an agent and never deletes a dirty worktree.
+    - A lock in <git common dir>/epic-locks whose session is dead goes the way of Down (run as a
+      child process). Dead means: the PID does not run, or it runs with a start time other than
+      sessionStarted (the PID was reused). A dirty worktree stays, as do its lock and branch; it is
+      reported with path, branch and reason (its processes are already stopped, as in Down). A lock
+      whose worktree folder is gone or no longer registered: compose and processes of that path are
+      stopped, a registered entry without folder is pruned (`git worktree prune`), the lock goes.
+    - A lock whose session lives is left alone.
+    - Narrowed reading of #36 AC 2: a worktree registered in `git worktree list` without a lock (the
+      epic worktree epic-<nr>, or a package created by Add) is not touched - no process stopped, no
+      compose project, nothing removed - and is reported as skipped with "no lock (epic worktree or
+      created by Add)". Read literally, AC 2 would stop the test processes of every parallel run.
+    - Orphans are stopped: processes whose command line, executable or working directory lies in
+      <worktree_root>/<name>, and compose projects named <repo>-<name> or whose working_dir lies
+      there, where <name> looks like a package (494, 490-p2, epic-490), is not the main checkout,
+      is no registered worktree, has no lock left and is no repo or worktree of another repo (a
+      .git directory, or a .git file naming a gitdir outside this repo). Anything else under
+      worktree_root is not attributable to a run and stays untouched; a lock never makes such a
+      folder a target either.
+    Without docker on PATH the compose part is skipped and reported, not an error.
+    stdout carries exactly one JSON array; each entry has kind (lock, process, compose, worktree),
+    id, path, branch, action (stopped, removed, skipped) and reason. "Nothing to do" means no entry
+    with stopped or removed; the list may still hold skipped entries (living locks, worktrees
+    without lock, dirty worktrees), and stderr then says "CleanupStale: nothing to do". A step that
+    fails is recorded as skipped with reason "failed: ...", the run goes on, and the exit code is 1;
+    otherwise 0, a dirty worktree included.
+
     Add: creates a git worktree at -WorktreePath on -Branch (reused when it exists, otherwise
     created from -From), copies -EnvFiles from the main checkout, sets -SetEnv variables in the
     copies, and links each -LinkDirs folder to its counterpart in the main checkout (Windows:
@@ -45,8 +73,8 @@
     array argument as one string.
 
 .PARAMETER Action
-    Up, Down, Add or Remove. Add and Remove take every path and setting as parameters and stay
-    as aliases of the older call form.
+    Up, Down, CleanupStale, Add or Remove. Add and Remove take every path and setting as
+    parameters and stay as aliases of the older call form. CleanupStale takes only -RepoRoot.
 
 .PARAMETER RepoRoot
     Absolute path of the main checkout. Links point there; env files are copied from there.
@@ -87,6 +115,9 @@
     powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Down -RepoRoot C:\src\app -Package 494
 
 .EXAMPLE
+    powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action CleanupStale -RepoRoot C:\src\app
+
+.EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Add -RepoRoot C:\src\app -WorktreePath C:\src\app-worktrees\494 -Branch agent/494-slug -From epic/490-slug -LinkDirs server/node_modules,client/node_modules -EnvFiles server/.env -SetEnv server/.env:TEST_DB_SUFFIX=494
 
 .EXAMPLE
@@ -94,7 +125,7 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Up', 'Down', 'Add', 'Remove')][string]$Action,
+    [Parameter(Mandatory)][ValidateSet('Up', 'Down', 'CleanupStale', 'Add', 'Remove')][string]$Action,
     [Parameter(Mandatory)][string]$RepoRoot,
     [string]$WorktreePath,
     [string]$Package,
@@ -351,34 +382,56 @@ function Get-WorktreeProcesses([string]$root) {
     }
 }
 
-function Stop-WorktreeCompose([string]$root, [string]$project) {
+# Compose containers as Name and WorkingDir. Reachable is false, and reported, without docker.
+function Get-ComposeProjects {
     if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
         Write-Host 'Compose skipped: docker not reachable (not on PATH).'
-        return
+        return @{ Reachable = $false; Reason = 'docker not reachable (not on PATH)'; Projects = @() }
     }
     $ids = @(& docker ps -a -q --filter label=com.docker.compose.project)
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Compose skipped: docker not reachable (docker ps exit $LASTEXITCODE)."
-        return
+        $reason = "docker not reachable (docker ps exit $LASTEXITCODE)"
+        Write-Host "Compose skipped: $reason."
+        return @{ Reachable = $false; Reason = $reason; Projects = @() }
     }
     $ids = @($ids | Where-Object { $_ })
-    $names = @()
+    $projects = @()
     if ($ids) {
         $inspect = (& docker inspect @ids) | Out-String
         if ($LASTEXITCODE -ne 0) { Fail "docker inspect failed (exit $LASTEXITCODE). Nothing removed." }
-        foreach ($container in @($inspect | ConvertFrom-Json)) {
+        # PowerShell 5.1 emits a JSON array as one object; ForEach-Object unrolls it.
+        foreach ($container in @($inspect | ConvertFrom-Json | ForEach-Object { $_ })) {
             $labels = $container.Config.Labels
             $name = $labels.'com.docker.compose.project'
-            if (-not $name) { continue }
-            if ($name -eq $project -or (Test-UnderPath $labels.'com.docker.compose.project.working_dir' $root)) { $names += $name }
+            if ($name) { $projects += [pscustomobject]@{ Name = $name; WorkingDir = $labels.'com.docker.compose.project.working_dir' } }
         }
     }
-    $names = @($names | Select-Object -Unique)
+    @{ Reachable = $true; Projects = $projects }
+}
+
+function Stop-ComposeProject([string]$name) {
+    & docker compose -p $name down | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail "docker compose -p $name down failed (exit $LASTEXITCODE). Nothing removed." }
+    Write-Host "Stopped compose project $name."
+}
+
+function Stop-WorktreeCompose([string]$root, [string]$project) {
+    $compose = Get-ComposeProjects
+    if (-not $compose.Reachable) { return }
+    $names = @($compose.Projects | Where-Object { $_.Name -eq $project -or (Test-UnderPath $_.WorkingDir $root) } |
+        ForEach-Object { $_.Name } | Select-Object -Unique)
     if (-not $names) { Write-Host 'Compose: no project belongs to this worktree.'; return }
-    foreach ($name in $names) {
-        & docker compose -p $name down | Out-Null
-        if ($LASTEXITCODE -ne 0) { Fail "docker compose -p $name down failed (exit $LASTEXITCODE). Nothing removed." }
-        Write-Host "Stopped compose project $name."
+    foreach ($name in $names) { Stop-ComposeProject $name }
+}
+
+function Stop-FoundProcesses($found) {
+    foreach ($p in @($found)) {
+        $proc = Get-Process -Id $p.Id -ErrorAction SilentlyContinue
+        if (-not $proc) { continue }
+        try { $proc.Kill() }
+        catch { if (-not $proc.HasExited) { Fail "Could not stop process $($p.Id) ($($p.Name)): $($_.Exception.Message). Nothing removed." } }
+        if (-not $proc.WaitForExit(10000)) { Fail "Process $($p.Id) ($($p.Name)) is still running. Nothing removed." }
+        Write-Host "Stopped process $($p.Id) ($($p.Name))."
     }
 }
 
@@ -387,6 +440,236 @@ $RepoRoot = Get-FullPath $RepoRoot
 $LinkDirs = Split-List $LinkDirs
 $EnvFiles = Split-List $EnvFiles
 $SetEnv = Split-List $SetEnv
+
+if ($Action -eq 'CleanupStale') {
+    if ($Package -or $WorktreePath) { Fail 'CleanupStale works on the whole repo; do not pass -Package or -WorktreePath.' }
+    $adapter = Read-Adapter $RepoRoot
+    $worktreeRoot = Get-WorktreeRoot $adapter $RepoRoot
+    $lockDir = Split-Path -Parent (Get-LockPath $RepoRoot 'x')
+    $commonDir = Split-Path -Parent $lockDir
+    $composePrefix = Get-ComposeProjectName $RepoRoot ''
+    # Package folders carry the run ID: 494, 490-p2 (spec package), epic-490 (epic worktree).
+    $packagePattern = '^(epic-)?\d+(-p\d+)?$'
+    $entries = New-Object Collections.ArrayList
+    $failed = $false
+    $hostLines = @()
+
+    # From here on a failing step is recorded and the run goes on: stdout carries only the JSON
+    # list, so the messages of the shared functions go to stderr and are kept for the entries.
+    function Fail([string]$message) { throw $message }
+    function Write-Host([string]$Object) {
+        [Console]::Error.WriteLine("worktree.ps1: $Object")
+        $script:hostLines += $Object
+    }
+
+    function Add-Entry([string]$kind, $id, $path, [string]$action, [string]$reason, $branch = $null) {
+        [void]$entries.Add([pscustomobject][ordered]@{ kind = $kind; id = $id; path = $path; branch = $branch; action = $action; reason = $reason })
+    }
+
+    function Add-Failure([string]$kind, $id, $path, [string]$message) {
+        $script:failed = $true
+        [Console]::Error.WriteLine("worktree.ps1: $message")
+        Add-Entry $kind $id $path 'skipped' "failed: $message"
+    }
+
+    # Turns the messages of Down and of the shared stop functions into entries.
+    function Add-StopEntries([string[]]$lines, [string]$package, [string]$reason, $branch) {
+        foreach ($line in $lines) {
+            if ($line -match '^Stopped compose project (?<name>.+)\.$') { Add-Entry 'compose' $Matches.name $null 'stopped' "package ${package}: $reason" }
+            elseif ($line -match '^Stopped process (?<id>\d+) \((?<name>.*)\)\.$') { Add-Entry 'process' ([int]$Matches.id) $null 'stopped' "$($Matches.name) in package ${package}: $reason" }
+            elseif ($line -match '^Worktree removed: (?<path>.+)$') { Add-Entry 'worktree' $package $Matches.path 'removed' $reason $branch }
+            elseif ($line -match '^Lock removed: (?<path>.+)$') { Add-Entry 'lock' $package $Matches.path 'removed' $reason }
+        }
+    }
+
+    function Get-LinkedWorktrees {
+        $list = @()
+        $current = $null
+        foreach ($line in @(Invoke-Git @('-C', $RepoRoot, 'worktree', 'list', '--porcelain'))) {
+            if ($line -like 'worktree *') {
+                $current = [pscustomobject]@{ Path = (Get-FullPath $line.Substring(9)); Branch = $null }
+                $list += $current
+            } elseif ($current -and $line -like 'branch *') {
+                $current.Branch = $line.Substring(7) -replace '^refs/heads/', ''
+            }
+        }
+        @($list | Select-Object -Skip 1)
+    }
+
+    # $null while the session lives; otherwise why it counts as dead.
+    function Get-DeadSessionReason($lock) {
+        $id = [int]$lock.sessionPid
+        if ($id -le 0) { return 'lock names no session PID' }
+        $proc = Get-Process -Id $id -ErrorAction SilentlyContinue
+        if (-not $proc) { return "session $id is gone" }
+        if (-not $lock.sessionStarted) { return $null }
+        $expected = $lock.sessionStarted
+        if ($expected -isnot [datetime]) {
+            $expected = [datetime]::Parse([string]$expected, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
+        }
+        # A start time that cannot be read is taken as the same process: stop nothing on a guess.
+        try { $actual = $proc.StartTime } catch { return $null }
+        if ([Math]::Abs(($actual.ToUniversalTime() - $expected.ToUniversalTime()).TotalSeconds) -lt 1) { return $null }
+        "PID $id was reused (started $($actual.ToString('o')), the lock says $($lock.sessionStarted))"
+    }
+
+    # A folder with a .git of its own is a repo, or a worktree of another repo, when its .git is a
+    # directory or names a gitdir outside this repo's common dir. With worktree_root: .. or a
+    # worktree_root shared by several repos, such folders sit next to the package folders.
+    function Test-ForeignGitFolder([string]$folder) {
+        $dotGit = Join-Path $folder '.git'
+        if (Test-Path -LiteralPath $dotGit -PathType Container) { return $true }
+        if (-not (Test-Path -LiteralPath $dotGit -PathType Leaf)) { return $false }
+        $gitdir = ([IO.File]::ReadAllText($dotGit) -replace '^\s*gitdir:\s*', '').Trim()
+        if (-not $gitdir) { return $true }
+        if (-not [IO.Path]::IsPathRooted($gitdir)) { $gitdir = Join-Path $folder $gitdir }
+        -not (Test-UnderPath (Get-FullPath $gitdir) $commonDir)
+    }
+
+    # Top-level folder names under worktree_root that a path or command line points into.
+    function Get-PackageNames([string[]]$texts) {
+        $pattern = '(?i)' + [regex]::Escape($worktreeRoot) + '[\\/](?<name>[^\\/"''\s]+)'
+        $names = @()
+        foreach ($text in $texts) {
+            if (-not $text) { continue }
+            if ($onWindows) { $text = $text -replace '/', '\' }
+            foreach ($m in [regex]::Matches($text, $pattern)) { $names += $m.Groups['name'].Value.ToLowerInvariant() }
+        }
+        @($names | Select-Object -Unique)
+    }
+
+    $keptLocks = @{}
+    try {
+        # 1. Locks: a dead session's package goes the way of Down.
+        $linked = Get-LinkedWorktrees
+        $lockFiles = if (Test-Path -LiteralPath $lockDir) { @(Get-ChildItem -LiteralPath $lockDir -Filter '*.json' -File) } else { @() }
+        foreach ($file in $lockFiles) {
+            $name = $file.BaseName.ToLowerInvariant()
+            $keptLocks[$name] = 'cleanup failed'
+            try {
+                if ($name -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { throw "Lock $($file.FullName) does not name a package. Left in place." }
+                $lock = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
+                $reason = Get-DeadSessionReason $lock
+                if (-not $reason) {
+                    $keptLocks[$name] = "session $($lock.sessionPid) is alive"
+                    Add-Entry 'lock' $name $file.FullName 'skipped' $keptLocks[$name]
+                    continue
+                }
+                $wt = Join-Path $worktreeRoot $file.BaseName
+                $registered = @($linked | Where-Object { $_.Path -eq $wt })[0]
+                $branch = if ($registered) { $registered.Branch } else { $lock.branch }
+                [Console]::Error.WriteLine("worktree.ps1: lock $($file.FullName): $reason.")
+                if ($registered -and (Test-Path -LiteralPath $wt)) {
+                    $eap = $ErrorActionPreference
+                    $ErrorActionPreference = 'Continue'
+                    try {
+                        $out = @(& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Action Down -RepoRoot $RepoRoot -Package $file.BaseName 2>&1 | ForEach-Object { "$_" })
+                        $code = $LASTEXITCODE
+                    } finally { $ErrorActionPreference = $eap }
+                    foreach ($line in $out) { if ($line -like 'worktree.ps1:*') { [Console]::Error.WriteLine($line) } else { [Console]::Error.WriteLine("worktree.ps1: $line") } }
+                    Add-StopEntries $out $name $reason $branch
+                    if ($code -eq 0) { $keptLocks.Remove($name); continue }
+                    $status = @(& git -C $wt status --porcelain)
+                    if ($status) {
+                        $keptLocks[$name] = 'worktree is dirty'
+                        Add-Entry 'worktree' $name $wt 'skipped' "dirty, left for a human ($($status.Count) change(s): $(($status | Select-Object -First 5) -join '; '))" $branch
+                        Add-Entry 'lock' $name $file.FullName 'skipped' "kept while worktree $wt is dirty"
+                        continue
+                    }
+                    throw "Down for package $name failed: $((@($out | Where-Object { $_ -like 'worktree.ps1:*' }) -join ' ') -replace '^worktree\.ps1: ', '')"
+                }
+                # No registered worktree with a folder: stop what still runs there, then let the lock go.
+                if (Test-UnderPath $RepoRoot $wt) { throw "$wt holds the main checkout. Nothing stopped." }
+                if (Test-ForeignGitFolder $wt) { throw "$wt is a repo or a worktree of another repo. Nothing stopped." }
+                $script:hostLines = @()
+                Stop-WorktreeCompose $wt (Get-ComposeProjectName $RepoRoot $file.BaseName)
+                Stop-FoundProcesses @(Get-WorktreeProcesses $wt)
+                Add-StopEntries $hostLines $name $reason $branch
+                if ($registered) {
+                    Invoke-Git @('-C', $RepoRoot, 'worktree', 'prune') | Out-Null
+                    Add-Entry 'worktree' $name $wt 'removed' "folder was gone; git worktree prune dropped the entry" $branch
+                } elseif (Test-Path -LiteralPath $wt) {
+                    Add-Entry 'worktree' $name $wt 'skipped' 'folder is no registered worktree; a remnant on disk (references/worktree.md, "Worktrees ohne Manifest und Reste auf der Platte")' $branch
+                }
+                Remove-Item -LiteralPath $file.FullName -Force
+                Add-Entry 'lock' $name $file.FullName 'removed' $reason
+                $keptLocks.Remove($name)
+            } catch {
+                Add-Failure 'lock' $name $file.FullName $_.Exception.Message
+            }
+        }
+
+        # 2. Orphans: what points into a package folder that no registered worktree and no lock claims.
+        $linked = Get-LinkedWorktrees
+        $protection = {
+            param([string]$name)
+            $folder = Join-Path $worktreeRoot $name
+            if ($name -notmatch $packagePattern) { return 'foreign' }
+            if (Test-UnderPath $RepoRoot $folder) { return 'foreign' }
+            if (Test-ForeignGitFolder $folder) { return 'foreign' }
+            if ($keptLocks.ContainsKey($name)) { return "lock kept: $($keptLocks[$name])" }
+            if (@($linked | Where-Object { $_.Path -eq $folder })) { return 'no lock (epic worktree or created by Add)' }
+            $null
+        }
+
+        foreach ($p in @(Get-WorktreeProcesses $worktreeRoot)) {
+            $names = Get-PackageNames @($p.CommandLine, $p.Path, (Get-ProcessCwd $p.Id))
+            if (-not $names -or @($names | Where-Object { & $protection $_ })) { continue }
+            try {
+                $script:hostLines = @()
+                Stop-FoundProcesses @($p)
+                Add-StopEntries $hostLines ($names -join ', ') 'orphan, no registered worktree and no lock' $null
+            } catch {
+                Add-Failure 'process' $p.Id $null $_.Exception.Message
+            }
+        }
+
+        $compose = Get-ComposeProjects
+        if (-not $compose.Reachable) {
+            Add-Entry 'compose' $null $null 'skipped' $compose.Reason
+        } else {
+            foreach ($group in @($compose.Projects | Group-Object Name)) {
+                $names = @()
+                if ($group.Name -like "$composePrefix*") { $names += $group.Name.Substring($composePrefix.Length).ToLowerInvariant() }
+                $names = @(@($names) + @(Get-PackageNames @($group.Group | ForEach-Object { $_.WorkingDir })) | Select-Object -Unique)
+                if (-not $names) { continue }
+                $reasons = @($names | ForEach-Object { & $protection $_ } | Where-Object { $_ })
+                if ($reasons) {
+                    $ours = @($reasons | Where-Object { $_ -ne 'foreign' })
+                    if ($ours) { Add-Entry 'compose' $group.Name $null 'skipped' ($ours -join '; ') }
+                    continue
+                }
+                try {
+                    $script:hostLines = @()
+                    Stop-ComposeProject $group.Name
+                    Add-StopEntries $hostLines ($names -join ', ') 'orphan, no registered worktree and no lock' $null
+                } catch {
+                    Add-Failure 'compose' $group.Name $null $_.Exception.Message
+                }
+            }
+        }
+
+        # 3. Registered worktrees without lock are reported and left alone.
+        foreach ($w in $linked) {
+            if (-not (Test-UnderPath $w.Path $worktreeRoot)) { continue }
+            $name = (Split-Path -Leaf $w.Path).ToLowerInvariant()
+            if ((Split-Path -Parent $w.Path) -eq $worktreeRoot -and $keptLocks.ContainsKey($name)) { continue }
+            Add-Entry 'worktree' $name $w.Path 'skipped' 'no lock (epic worktree or created by Add)' $w.Branch
+        }
+    } catch {
+        Add-Failure 'worktree' $null $null $_.Exception.Message
+    }
+
+    $done = @($entries | Where-Object { $_.action -ne 'skipped' }).Count
+    if ($done) {
+        [Console]::Error.WriteLine("worktree.ps1: CleanupStale: $done stopped or removed, $($entries.Count - $done) skipped.")
+    } else {
+        [Console]::Error.WriteLine("worktree.ps1: CleanupStale: nothing to do ($($entries.Count) skipped).")
+    }
+    [Console]::Out.WriteLine((ConvertTo-Json -InputObject @($entries) -Depth 3 -Compress))
+    if ($failed) { exit 1 }
+    exit 0
+}
 
 if ($Action -in 'Up', 'Down') {
     if ($Package -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { Fail "$Action needs -Package, a package number such as 494 (got '$Package')." }
@@ -447,14 +730,7 @@ if ($Action -eq 'Down') {
     # Stop what clearly belongs to the worktree before anything is removed.
     Stop-WorktreeCompose $WorktreePath $project
     $found = @(Get-WorktreeProcesses $WorktreePath)
-    foreach ($p in $found) {
-        $proc = Get-Process -Id $p.Id -ErrorAction SilentlyContinue
-        if (-not $proc) { continue }
-        try { $proc.Kill() }
-        catch { if (-not $proc.HasExited) { Fail "Could not stop process $($p.Id) ($($p.Name)): $($_.Exception.Message). Nothing removed." } }
-        if (-not $proc.WaitForExit(10000)) { Fail "Process $($p.Id) ($($p.Name)) is still running. Nothing removed." }
-        Write-Host "Stopped process $($p.Id) ($($p.Name))."
-    }
+    Stop-FoundProcesses $found
     if (-not $found) { Write-Host 'Processes: none ran in this worktree.' }
 }
 

@@ -58,6 +58,13 @@ Hook (Regel 5).
 
 ## Phase 0 — Feststellen, was gilt
 
+- **Zuerst, vor allen eigenen Schritten (#36):**
+  `powershell -NoProfile -ExecutionPolicy Bypass -File <epic-skill>/scripts/worktree.ps1 -Action CleanupStale -RepoRoot <repo>`.
+  Es räumt ab, was tote Sitzungen hinterlassen haben (`epic/SKILL.md`, Phase 0a), und fasst
+  Worktrees ohne Lock und Locks lebender Sitzungen nicht an. Ein schmutziger Worktree wird
+  gemeldet, nicht entfernt. Das Ergebnis, eine JSON-Liste, gehört in die Bestandsaufnahme
+  (Phase 2) und in den Bericht. Exit 1 heißt, ein Schritt ist gescheitert (`failed: …` in der
+  Liste): melden, nicht von Hand nachholen.
 - `.claude/epic.md` lesen, Forge-Zugang herstellen und verifizieren.
 - **Den Pull Request holen und prüfen, dass er wirklich gemergt ist** (`merged`, nicht nur
   `state: closed` — ein geschlossener Pull Request kann verworfen worden sein, und dann ist der
