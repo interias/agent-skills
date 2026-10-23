@@ -25,7 +25,8 @@ plan_artifact: publish
 ## Zugang
 
 Kein Token im Repository. Gitea wird mit Basic Auth aus dem Git-Credential-Speicher angesprochen
-(`references/forge.md`, „Ohne Token"). `github` ist ein Spiegel auf GitHub, auf den kein Lauf pusht.
+(`epic/references/forge.md`, „Diese Gitea-Instanz", Absatz „Ohne Token").
+`github` ist ein Spiegel auf GitHub, auf den kein Lauf pusht.
 
 ## Isolation
 
