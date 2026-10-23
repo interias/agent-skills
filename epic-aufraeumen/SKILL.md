@@ -1,6 +1,8 @@
 ---
 name: epic-aufraeumen
 description: Nach dem Merge des Pull Requests eines /epic-Laufs aufräumen — den Basiszweig des Pull Requests holen, ohne das Hauptverzeichnis umzuschalten, dann Epic-Worktree, Epic- und Ticket-Branches sowie Worktree-Reste nach Prüfung entfernen. Löscht nichts, dessen Commits nicht nachweislich im Basiszweig liegen.
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/guard.ps1" -Profile aufraeumen', timeout: 30, onFailure: block}]}]
 ---
 
 # Epic aufräumen
@@ -23,8 +25,9 @@ Der Projektadapter ist derselbe wie bei `/epic`: **`.claude/epic.md`** — er ne
 `base_branch` als Standardwert und `worktree_root`. Maßgeblich für das Löschen ist trotzdem immer
 die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
-Jede Rückfrage — Bestätigung des gefundenen Pull Requests, Zustimmung zum Löschen eines
-Remote-Branches, jede Abbruchbedingung — stellst du nach `epic/SKILL.md` („Wie gefragt wird").
+Jede Rückfrage — Bestätigung des gefundenen Pull Requests, jede Abbruchbedingung — stellst du nach
+`epic/SKILL.md` („Wie gefragt wird"). Die Zustimmung zum Löschen eines Remote-Branches holt der
+Hook (Regel 5).
 
 ---
 
@@ -38,68 +41,17 @@ Remote-Branches, jede Abbruchbedingung — stellst du nach `epic/SKILL.md` („W
 2. **Nichts wird gelöscht, dessen Commits nicht nachweislich im Basiszweig liegen.** Der Nachweis
    ist ein Befehl, nicht eine Annahme (siehe „Der Merge-Nachweis" unten). Ein Branch, dessen Arbeit
    nirgends sonst existiert, ist das einzige Exemplar dieser Arbeit.
-3. **Kein `git branch -D`, kein `--force`.** Löschen geht mit `-d`; verweigert Git, ist das eine
-   Aussage und kein Hindernis. Ein Branch, den `-d` verweigert, wird gemeldet und bleibt stehen.
-4. **Ein schmutziger Worktree wird nicht entfernt.** `git worktree remove` ohne `--force`. Bleibt
-   Arbeit darin liegen, gehört sie einem Menschen.
-5. **Remote-Branches nur nach ausdrücklicher Zustimmung.** Ein `git push <push_remote> --delete`
-   wirkt nach außen und ist für andere sichtbar. Lokales Löschen ist reversibel, das hier nicht
-   ohne Weiteres.
+3. **Kein `git branch -D`, kein `--force`**, gelöscht wird mit `-d` — verweigert Git, ist das eine
+   Aussage, und der Branch wird gemeldet und bleibt stehen. Für `git branch`, `git worktree remove`
+   und `git push` durch Hook durchgesetzt; `--force` anderer Befehle sperrt er nicht.
+4. **Ein schmutziger Worktree wird nicht entfernt** — Arbeit darin gehört einem Menschen. Das
+   `--force` an `git worktree remove` ist durch Hook gesperrt.
+5. **Remote-Branches nur nach ausdrücklicher Zustimmung** — `git push <push_remote> --delete` ist
+   für andere sichtbar und nicht ohne Weiteres umkehrbar. Durch Hook durchgesetzt: Vor
+   `git push --delete` fragt der Berechtigungsdialog; ohne Ja bleibt der Branch stehen.
 6. **Die Junctions unter den Worktrees werden nie rekursiv gelöscht.** Das ist die eine Stelle,
-   an der ein Aufräumbefehl echten Schaden anrichtet — siehe unten.
-
----
-
-## Die Junction-Falle
-
-Der wichtigste Absatz dieses Ablaufs.
-
-`/epic` verlinkt die Abhängigkeitsverzeichnisse eines Worktrees als Verzeichnis-Junction auf das
-Hauptverzeichnis, statt sie zu installieren (`link_dirs` im Adapter). Ein `rm -rf` auf einen
-Worktree-Rest folgt dieser Junction und löscht **das echte `node_modules` im Hauptverzeichnis** —
-das Repository, an dem gerade gearbeitet wird. Der Schaden fällt nicht sofort auf: `git status`
-bleibt sauber, und erst der nächste Testlauf scheitert an einem fehlenden Modul.
-
-Beobachtete Gestalt eines Restes: `git worktree remove` hat den Eintrag aus Git entfernt und die
-verfolgten Dateien gelöscht, die Junctions aber nicht abräumen können. Zurück bleiben leere
-Hüllen — nur `client/node_modules` und `server/node_modules` als Verweise, sonst nichts. In einem
-Lauf über achtzehn Tickets liegen dann achtzehn solcher Hüllen unter `worktree_root`, und
-`git worktree list` kennt keine davon.
-
-Der Weg: **erst die Verweise einzeln als Verweise entfernen, dann das leere Verzeichnis.**
-
-```powershell
-# recursive=false kann per Definition nicht durch die Junction laufen: entweder der Link
-# verschwindet, oder der Aufruf wirft. Das Ziel bleibt in jedem Fall unberührt.
-[System.IO.Directory]::Delete('C:\pfad\zum\rest\server\node_modules', $false)
-[System.IO.Directory]::Delete('C:\pfad\zum\rest\client\node_modules', $false)
-Remove-Item -Path C:\pfad\zum\rest -Recurse -Force -Confirm:$false   # jetzt gefahrlos
-```
-
-**Nicht `Remove-Item -Force` für die Junction selbst.** PowerShell 5.1 sieht den *Inhalt* hinter
-dem Verweis und fragt „enthält Elemente. Möchten Sie fortfahren?" — im NonInteractive-Modus
-scheitert der Aufruf dann mit *„Lese- und Eingabeaufforderungsfunktionen sind nicht verfügbar"*,
-und zwar für jeden Verweis. Das ist harmlos, solange die Prüfung unten davor steht (sie verhindert
-dann das rekursive Löschen), aber es räumt nichts auf. `Directory.Delete` mit `$false` stellt die
-Frage nicht.
-
-Prüfe **vor** jedem rekursiven Löschen, dass kein Verweis mehr darin liegt:
-
-```powershell
-Get-ChildItem C:\pfad\zum\rest -Recurse -Force -Attributes ReparsePoint | Select-Object FullName
-```
-
-Ist die Ausgabe leer, ist das Verzeichnis gefahrlos. Ist sie es nicht, **lösche nicht rekursiv** —
-entferne erst die genannten Verweise. Diese Prüfung ist die eigentliche Sicherung: sie muss auch
-dann greifen, wenn das Entfernen eines Verweises fehlgeschlagen ist.
-
-**Zähl die echten Abhängigkeiten vorher und nachher.** `(Get-ChildItem <repo>\server\node_modules
--Force).Count` vor dem ersten und nach dem letzten Löschen — gleiche Zahl heißt, keine Junction
-wurde durchlaufen. Eine Stichprobe auf ein einzelnes Paket sagt das nicht: sie bliebe auch dann
-wahr, wenn die Hälfte fehlt.
-
-Unter Linux und macOS sind es Symlinks: `rm` auf den Link selbst (nie `rm -rf` auf den Elternpfad,
-solange der Link darin liegt), dann das Verzeichnis. `find <pfad> -type l` listet sie.
+   an der ein Aufräumbefehl echten Schaden anrichtet — `epic/references/worktree.md`,
+   „Abräumen".
 
 ---
 
@@ -118,8 +70,8 @@ solange der Link darin liegt), dann das Verzeichnis. `find <pfad> -type l` liste
 
 ## Phase 1 — Den Basiszweig holen
 
-Das Hauptverzeichnis wird nicht umgeschaltet (`epic/SKILL.md`, Regel 11): Im selben Klon kann eine
-zweite Sitzung laufen. Geprüft wird gegen den Fernzweig.
+Das Hauptverzeichnis wird nicht umgeschaltet (`epic/SKILL.md`, Regel 11). Geprüft wird gegen den
+Fernzweig.
 
 ```bash
 git fetch <push_remote> <base aus dem Pull Request>
@@ -143,18 +95,16 @@ Erst wenn das bestätigt ist, darf gelöscht werden. Alles Weitere hängt daran.
 Erst zählen, dann löschen. Trage vier Listen zusammen:
 
 1. **Der Epic-Branch des Laufs**, lokal und in der Forge.
-2. **Paket-Branches des Laufs** (`agent/<nr>-<slug>` nach `epic/SKILL.md` Phase 3, Slug mit ä→ae;
-   im Tickets-Modus ist `<nr>` die Ticketnummer, im **Spec-Modus** ohne Kind-Tickets
-   `<spec>-p<k>`, also Spec-Nummer und Paketnummer der Lauftafel). Bei einem ordentlich verlaufenen
-   Lauf sind sie schon weg — `/epic` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
+2. **Paket-Branches des Laufs** (Namensschema und `<nr>`: `epic/SKILL.md`, Phase 3). Bei einem
+   ordentlich verlaufenen Lauf sind sie schon weg — `/epic` löscht sie nach dem Sofortmerge. Was übrig ist, gehört zu
    einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
    Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
    Ticketnummer im Tickets-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
 3. **Worktrees:** `git worktree list`, darunter der Epic-Worktree `<worktree_root>/epic-<nr>` — und
    getrennt davon der Inhalt von `worktree_root` auf der
    Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
-   was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest (siehe die
-   Junction-Falle).
+   was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest
+   (`epic/references/worktree.md`, „Worktrees ohne Manifest und Reste auf der Platte").
    **Laufende Läufe anderer Epics** sind kein Befund: `epic-<andere nr>`, ihre Paket-Worktrees und
    Paket-Branches gehören einem Lauf, dessen Zielissue `status/in-arbeit` trägt oder den
    `/epic-flotte` nennt. Sie stehen auf keiner Liste und werden nicht angefasst, auch nicht als
@@ -181,8 +131,8 @@ sein Inhalt im Basiszweig, seine Commits aber nicht, und er erscheint als „nic
 der Fall, in dem `-d` verweigert und ein Mensch entscheiden muss — **nicht** der Fall für `-D`.
 
 `--merged` genügt auch dann nicht, wenn der Merge selbst zurückgenommen wurde: der Merge-Commit
-steht weiterhin im Basiszweig, seine Wirkung aber ist per `git revert -m 1` aufgehoben (Adapter,
-„Rot nach einem Sofortmerge"). Ein solcher Branch gilt hier **nicht** als gemergt, obwohl
+steht weiterhin im Basiszweig, seine Wirkung aber ist per `git revert -m 1` aufgehoben
+(`epic/SKILL.md`, Phase 5, Punkt 2). Ein solcher Branch gilt hier **nicht** als gemergt, obwohl
 `--merged` ihn so führt. Prüfe je Kandidat:
 
 ```bash
@@ -191,7 +141,7 @@ git log <base> --grep '^Revert' --format='%H %B'
 
 Steht darin ein Revert-Commit, dessen Text „This reverts commit <merge-commit-des-branches>"
 nennt, ist der Merge revertiert. Ein solcher Branch wird **gemeldet und nicht gelöscht** — mit dem
-Revert-Commit und dem Hinweis „zurückholen = Revert des Reverts".
+Revert-Commit und dem Hinweis aus `epic/SKILL.md`, „Zurücklassen".
 
 Ein Branch mit `origin/…: gone` ist **kein** Nachweis für irgendetwas. Er sagt nur, dass sein
 Gegenstück in der Forge weg ist; ob das nach einem Merge oder nach einem Verwerfen geschah, steht
@@ -211,9 +161,9 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
    `git worktree remove` (`epic/references/worktree.md`, „Abräumen"). Nimm absolute Pfade; das
    Arbeitsverzeichnis der Shell wandert im Lauf. Bricht es ab, weil der Worktree schmutzig ist:
    melden, stehen lassen. Bricht es ab, weil **kein Manifest** da ist (Worktree aus der Zeit vor dem
-   Skript), gilt der Weg aus der Junction-Falle: Verweise einzeln entfernen, Reparse-Points suchen,
-   dann `git worktree remove <absoluter Pfad>` ohne `--force`.
-2. **Worktree-Reste**, die nur auf der Platte liegen: nach dem Weg aus der Junction-Falle. Prüfe
+   Skript), gilt der Weg aus `epic/references/worktree.md`, „Worktrees ohne Manifest und Reste auf
+   der Platte".
+2. **Worktree-Reste**, die nur auf der Platte liegen: nach demselben Weg. Prüfe
    vorher, dass darin nichts anderes als die Verweise liegt — findet sich eine veränderte Datei,
    ist es kein Rest, sondern liegengebliebene Arbeit.
 3. `git worktree prune` — räumt die Verwaltungseinträge zu Worktrees auf, deren Verzeichnis nicht
@@ -221,7 +171,7 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
 4. **Lokale Branches** mit `git branch -d`. Ein Branch mit revertiertem Merge (siehe Merge-Nachweis
    oben) wird übersprungen und gemeldet, nicht gelöscht. Der Epic-Branch zuletzt, nachdem alles
    andere weg ist.
-5. **Remote-Branches** nur nach ausdrücklicher Zustimmung, und nur den Epic-Branch des gemergten
+5. **Remote-Branches** nur nach Zustimmung (Regel 5), und nur den Epic-Branch des gemergten
    Laufs: `git push <push_remote> --delete <branch>`. Viele Forges tun das beim Merge selbst;
    prüfe erst, ob überhaupt noch etwas da ist.
 
@@ -235,8 +185,8 @@ scheitert still genug, um übersehen zu werden.
 - Der Inhalt von `worktree_root` — leer oder nicht mehr vorhanden, bis auf laufende Läufe anderer
   Epics.
 - `git status` — sauber.
-- **`node_modules` im Hauptverzeichnis prüfen.** Das ist die Gegenprobe zur Junction-Falle: eine
-  Stichprobe, dass die Abhängigkeiten noch dastehen. Fehlen sie, hat ein rekursives Löschen durch
+- **`node_modules` im Hauptverzeichnis prüfen.** Das ist die Gegenprobe zum Abräumen von Junctions
+  (`epic/references/worktree.md`, „Abräumen"): eine Stichprobe, dass die Abhängigkeiten noch dastehen. Fehlen sie, hat ein rekursives Löschen durch
   eine Junction gegriffen — dann sofort melden, denn der nächste Testlauf scheitert sonst an einer
   Ursache, die niemand mehr mit dem Aufräumen verbindet.
 - `git branch -vv` — die verbliebenen Branches, und je Eintrag ein Wort, warum er steht.

@@ -54,8 +54,8 @@ Lösung.
 Die Umkehrung gilt genauso: **ein Punkt, der nicht in diese Sitzung passt, wird nicht
 hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der Entscheidung.
 
-**Unter `/epic-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer: Du beendest
-deinen Zug mit dem Frageblock aus `epic-flotte/SKILL.md` und setzt mit seiner Antwort fort. Eine
+**Unter `/epic-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer (`epic/SKILL.md`,
+„Wie gefragt wird"; Frageblock: `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"). Eine
 Entscheidung, die er im Rahmen seines Entscheidungsrechts trifft und in der Forge vermerkt, ist
 eine ausdrückliche Entscheidung im Sinn dieser Regel; was dort dem Menschen vorbehalten ist, legt
 er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er.
@@ -76,9 +76,8 @@ er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenf
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
 - **Spec-Modus erkennen** (`issue_form: spec`): Nur **ohne** Kind-Tickets liegt alles am
   Spec-Issue selbst, und die Paket-Branches heißen nicht nach Kind-Issues. Hat das Spec-Issue
-  Kinder, gilt derselbe Weg wie im Modus `tickets` — die Kinder sind die Pakete. Das Schema aus
-  `epic/SKILL.md` (Phase 3): Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`, im
-  Modus `spec` ohne Kinder `agent/<spec>-p<k>-<slug>` (Slug mit ä→ae).
+  Kinder, gilt derselbe Weg wie im Modus `tickets` — die Kinder sind die Pakete. Das
+  Namensschema der Branches steht in `epic/SKILL.md` (Phase 3).
 - `git worktree list` prüfen. Reste eines früheren Laufs melden, nicht löschen — dafür ist
   `/epic-aufraeumen` da.
 - Vokabulardatei lesen, und das Verzeichnis für bewusst Verworfenes, falls der Adapter eines
@@ -124,22 +123,15 @@ Fragerunde oder ist Abbruchbedingung.
 
 ## Phase 2 — Die Fragerunden
 
-Nach dem Frontier-Verfahren, wie im `grilling`-Ablauf.
+Nach dem Frontier-Verfahren von `grilling` (Skill aus `mattpocock-skills`, eingerichtet nach
+`mattpocock-skills/README.md`), die Punkte der Liste als Entscheidungsbaum. Gestellt wird jede
+Runde nach `epic/SKILL.md` („Wie gefragt wird"), je Frage mit Antwortmöglichkeiten und deiner
+Empfehlung.
 
-Baue die Punkte als **Entscheidungsbaum**: jede Entscheidung verzweigt in die Entscheidungen, die
-an ihr hängen. Die **Frontier** ist jede Entscheidung, deren Voraussetzungen schon geklärt sind —
-die Fragen, die du *jetzt* stellen kannst, ohne eine Antwort zu raten, die du noch nicht gehört
-hast. **Frage die ganze Frontier in einer Runde**, jede Frage mit Antwortmöglichkeiten und deiner
-Empfehlung, gestellt nach `epic/SKILL.md` („Wie gefragt wird"). Dann warte auf die Antworten.
-
-Nach jeder Runde verschiebt sich die Frontier: geklärte Entscheidungen schalten die frei, die von
-ihnen abhingen. Eine Frage, deren Antwort von einer noch offenen Frage derselben Runde abhängt,
-gehört in eine **spätere** Runde, nicht in diese.
-
-**Fakten zu beschaffen ist deine Aufgabe, nie die des Nutzers.** Braucht eine Frage einen Fakt aus
-der Umgebung — steht die Datei noch da, was sagt der Adapter, ist der Test fahrbar —, sieh selbst
-nach, bevor du fragst. Eine Frage, die auf einem ungeprüften Fakt steht, kostet eine ganze Runde.
-Die **Entscheidungen** sind die des Nutzers; die legst du vor und wartest.
+**Eine Abweichung von `grilling`:** Die Fakten beschaffst du selbst, aber ohne Subagenten (siehe
+oben). Braucht eine Frage einen Fakt aus der Umgebung — steht die Datei noch da, was sagt der
+Adapter, ist der Test fahrbar —, sieh selbst nach, bevor du fragst. Eine Frage, die auf einem
+ungeprüften Fakt steht, kostet eine ganze Runde.
 
 ### Die eine Frage, die jeder Punkt beantworten muss
 
@@ -166,8 +158,8 @@ Trifft nichts davon zu, gehört er in diese Sitzung. Der häufigste Fall ist der
 datierter Nachtrag und ein Querverweis die ganze Lösung sind: er hält die Erkenntnis fest, kostet
 eine Viertelstunde und erzeugt keine Arbeit, die später niemand mehr begründen kann.
 
-Die Sitzung ist fertig befragt, wenn die Frontier leer ist. **Handle nicht, bevor der Nutzer
-bestätigt hat, dass ihr dasselbe Verständnis habt.**
+**Handle nicht, bevor der Nutzer bestätigt hat, dass ihr dasselbe Verständnis habt** — sobald die
+Frontier leer ist, holst du diese Bestätigung ein.
 
 ## Phase 3 — Umsetzen
 
@@ -190,7 +182,7 @@ Branch, eigener Pull Request, Namensschema `nacharbeit/<epic-nr>-<slug>`, als Zi
 Basis-Branch wie beim ursprünglichen Lauf (`base_branch` aus dem Adapter, bei bereits gemergtem
 Pull Request dessen `base`). Der Branch bekommt einen eigenen Worktree unter `worktree_root`,
 angelegt und später abgeräumt **nur per `scripts/worktree.ps1` aus `/epic`**
-(`epic/references/worktree.md`); das Hauptverzeichnis wird nie umgeschaltet. **Nie direkt auf den
+(`epic/references/worktree.md`; Hauptverzeichnis: `epic/SKILL.md`, Regel 11). **Nie direkt auf den
 Basis-Branch committen**, auch nicht für einen Einzeiler in einer Textdatei — der Merge dorthin kann
 deployen.
 
@@ -209,20 +201,21 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
 - **Kommentar am betroffenen Kind-Ticket**, wenn ein Punkt aus dessen Review kam.
 - **Das Epic schließen**, wenn der Pull Request gemergt ist, jedes Kind geschlossen ist und keine
   User Story mehr offen ist — `/epic` schließt es nie per `Closes` (`epic/SKILL.md`, Phase 6). Vorher
-  die Kinder, deren `Closes` an HTTP 412 gescheitert ist, von Hand schließen, Vorgänger zuerst. Dazu
+  die Kinder, deren `Closes` gescheitert ist (412, `epic/references/forge.md`, „Diese
+  Gitea-Instanz"), von Hand schließen, Vorgänger zuerst. Dazu
   ein Kommentar am Epic: die Kinder mit ihren Merge-Commits. Bleibt eine Story offen, bleibt das
   Epic offen, und der Kommentar sagt, welche und warum.
 - **Statuslabels** (`epic/SKILL.md`, „Die Statuslabels"): Ein Ticket, dessen Glut-Punkt oder
   Zurücklassen-Grund jetzt erledigt ist, verliert `status/haengt`; ein Ticket, dessen Blocker jetzt
   geschlossen ist, verliert `status/blockiert`. Ein Kind, das nach dem Merge des Pull Requests
-  offen bleibt (etwa weil `Closes` an HTTP 412 scheiterte und es noch nicht von Hand zu ist),
+  offen bleibt (etwa weil `Closes` scheiterte und es noch nicht von Hand zu ist),
   verliert `status/in-arbeit`. Ein Punkt, der zum Ticket wird, ändert am alten Ticket nichts.
 - **Neu angelegte Issues** — falls die Fragerunde welche verlangt hat — tragen das
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
   vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
 - **Die Lauftafel des `/epic`-Laufs** (`references/lauftafel.md`), bei `plan_artifact: publish`
-  (ein alter Wert `off` gilt als `file`): Diese Sitzung hat ein anderes Scratchpad als der
+  (`epic/references/adapter.md`): Diese Sitzung hat ein anderes Scratchpad als der
   ursprüngliche Lauf, ein lokaler `file_path` trägt hier also nicht mehr. Die URL steht im
   Eröffnungskommentar am Zielissue — die Tafel darüber lesen (Artifact-Werkzeug, `action: read`),
   ändern und mit derselben `url` erneut veröffentlichen, damit der Link bleibt. Ein Abschnitt
@@ -230,7 +223,8 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   markiert. Der Lauf ist damit nicht mehr „beendet", sondern „beendet, nachgearbeitet am
   <Datum>".
 
-Prüfe nach, dass die Kommentare angekommen sind — ein `POST` kann fehlgeschlagen sein.
+Prüfe nach, dass die Kommentare angekommen sind (`epic/references/forge.md`, „Nachzählen statt
+annehmen").
 
 ## Phase 5 — Bericht
 

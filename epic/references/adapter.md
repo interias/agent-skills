@@ -115,8 +115,8 @@ Festgelegt am 23.09.2026 nach dem ersten Entwurf von Skill und Referenzen. Die R
 alle drei Skills.
 
 - **Die Statuslabels** (`status/in-arbeit`, `status/blockiert`, `status/haengt`) sind kein
-  Adapterschlüssel. Namen, Farben und Setzpunkte stehen im Skill („Die Statuslabels"), damit KIBO
-  sie in jedem Repository gleich liest. Ein Adapter kann sie weder umbenennen noch abschalten.
+  Adapterschlüssel. Namen und Setzpunkte stehen im Skill („Die Statuslabels"), Farben und
+  Beschreibungen in `forge.md` („Statuslabels"), damit KIBO sie in jedem Repository gleich liest. Ein Adapter kann sie weder umbenennen noch abschalten.
 - **Das Zielissue ist immer das Epic**, auch wenn es `epic_label` nicht trägt. Trägt im Repository
   **kein** Issue das Label, gilt jede Kante vom Zielissue als Kind, so wie vor dieser Fassung.
 - **Kante Kind → fremdes Epic** (ein Kind ist von einem Epic blockiert, das nicht das Zielissue ist):
@@ -133,9 +133,8 @@ alle drei Skills.
   GitHub wird nichts nachgetragen; die gelesenen Kanten stehen im Plan. Nachgetragen werden nur
   Kanten **innerhalb desselben Repositorys**. Ob die Instanz Kanten über Repositorys hinweg annimmt,
   ist nicht belegt; solche Kanten bleiben Text.
-- **`plan_artifact`:** Die Tafel liegt immer im Scratchpad der Sitzung, nie im Repository. Bei
-  `publish` wird sie als Artifact veröffentlicht, bei `file` nur geschrieben. Ein alter Wert `off`
-  wird als `file` gelesen.
+- **`plan_artifact`:** Die Tafel liegt immer im Scratchpad der Sitzung, nie im Repository (Werte:
+  Tabelle oben). Ein alter Wert `off` wird als `file` gelesen.
 - **Alte Schreibweisen:** „Abnahmeabschnitt" in einem alten Adapter meint `verification_section`,
   wenn dort ein Verifikationsweg steht (spill). `test_isolation_env` mit einem Wert wie „keine" oder
   „keine nötig" plus Begründung ist `isolation: none-needed`; die Begründung ist die Begründung.
@@ -153,17 +152,13 @@ alle drei Skills.
   festlegen: weitere Wörter für Kinder, harte Kanten in den Kopfzeilen der Kinder, Wörter, die keine
   Kante sind. Das ist eine Lesart, keine Lockerung, und braucht keinen Schlüssel; der Plan legt sie
   offen. Mit `write_back_dependencies` gehen die Kanten in die API.
-- **Rot nach einem Sofortmerge:** Der Merge wird mit `git revert -m 1` als eigener Commit
-  zurückgenommen, das Paket bleibt zurück, der Lauf geht weiter. So bleibt der Epic-Branch grün, und
-  der Lauf hält nicht an.
-- **`Closes` und das Epic:** `Closes #<kind>` je vollständig abgenommenem Kind. Ein Zielissue mit
-  Kindern bekommt nie `Closes`, in keinem Modus: Gitea führt die Kinder als Blocker und antwortet
-  beim Merge mit HTTP 412. Es schließt `/epic-nacharbeit`. `Closes #<spec>` nur bei einer Spec ohne
-  Kinder, wenn alle User Stories abgenommen sind.
-- **Der Epic-Branch** lebt im Worktree `<worktree_root>/epic-<nr>`, das Hauptverzeichnis wird nie
-  umgeschaltet (`SKILL.md`, Regel 11). Das ist kein Schlüssel und lässt sich nicht abschalten.
-- **Branches:** Epic-Branch `epic/<nr>-<slug>`, Paket-Branch `agent/<nr>-<slug>`. `<nr>` ist die
-  Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>`. Slug klein, ASCII, ä→ae, ö→oe, ü→ue, ß→ss.
+- **Rot nach einem Sofortmerge:** `SKILL.md`, Phase 5, Punkt 2; der Branch bleibt
+  (`references/worktree.md`, „Abräumen"). Das ist kein Schlüssel.
+- **`Closes` und das Epic:** `SKILL.md`, Phase 6, und `references/forge.md`, „Diese
+  Gitea-Instanz". Das ist kein Schlüssel.
+- **Der Epic-Branch** lebt in einem eigenen Worktree (`SKILL.md`, Regel 11 und Phase 3). Das ist
+  kein Schlüssel und lässt sich nicht abschalten.
+- **Branches:** Namensschema und `<nr>`: `SKILL.md`, Phase 3. Das ist kein Schlüssel.
 
 ## Referenzdateien des Skills
 
@@ -175,7 +170,7 @@ alle drei Skills.
 | `references/forge.md` | Forge-Zugriff, Eigenheiten der Gitea-Instanz, Kommentare aus Dateien, Nachzählen, Pull Request |
 | `references/lauftafel.md` | Aufbau und Fortschreiben der Lauftafel |
 | `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Konsole". Wird kopiert, nicht nachgebaut; ihr gemeinsamer Block steht wortgleich in `epic-flotte/references/flottentafel.html` |
-| `references/worktree.md` | Worktrees rüsten und abräumen |
+| `references/worktree.md` | Worktrees rüsten und abräumen, auch ohne Manifest und Reste auf der Platte |
 | `scripts/worktree.ps1` | das Skript dazu; Rüsten und Abräumen laufen nur darüber |
 
 `references/plan-artifact.md` entfällt und wird durch `lauftafel.md` ersetzt.

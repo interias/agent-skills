@@ -54,15 +54,15 @@ leer: ein Satz „Nichts liegt bei dir", und zurück zum normalen Ablauf.
 
 ## 2 — Fragerunden
 
-Nach dem Frontier-Verfahren aus `epic-nacharbeit` (Phase 2), gestellt nach `epic/SKILL.md` („Wie
-gefragt wird"). `AskUserQuestion` ist hier richtig: Der Mensch hat die Lagebesprechung selbst
+Nach dem Frontier-Verfahren aus `grilling` (Skill aus `mattpocock-skills`, wie in
+`epic-nacharbeit`, Phase 2), gestellt nach `epic/SKILL.md` („Wie gefragt wird").
+`AskUserQuestion` ist hier richtig: Der Mensch hat die Lagebesprechung selbst
 aufgerufen und sitzt davor.
 
-- **Vor der ersten Frage** die ✔-Liste aus Quelle 4, je Zeile `✔ <Entscheidung> — <Herkunft>` mit
-  Link auf den Forge-Kommentar.
-- **Je Frage** das Epic und das Ticket als Link; unter `/epic-flotte` die Empfehlung des Laufs neben
-  deiner, wenn sie abweichen. Eine vorläufige Entscheidung steht mit ihrer Wahl als erster Option
-  und dem Vermerk „vorläufig angewendet".
+- **Vor der ersten Frage** die ✔-Liste aus Quelle 4, in der Form von `epic-flotte/SKILL.md`,
+  „Den Menschen fragen".
+- **Je Frage** das Epic und das Ticket als Link; die Empfehlung des Laufs neben deiner und eine
+  vorläufige Entscheidung wie dort.
 - **Je Triage-Ticket** fragst du, was zur Freigabe fehlt — Abnahmekriterien, Verifikationsweg,
   Abgrenzung, die offene Sachfrage aus `needs-info` — jeweils mit deinem ausformulierten Vorschlag
   als Empfehlung. „Verwerfen" ist immer eine Option.
@@ -88,7 +88,8 @@ Erst nach der Bestätigung, je Ticket:
 
 1. **Body fortschreiben.** Der Implementer liest den Body als Scope; die Entscheidung gehört in den
    Abschnitt, den sie betrifft (`acceptance_section`, `verification_section`, sonst den passenden
-   aus dem Adapter). Body per PATCH aus einer Datei, danach einmal nachlesen.
+   aus dem Adapter). Body per PATCH aus einer Datei (`epic/references/forge.md`,
+   „Stolperstellen"), danach einmal nachlesen.
 2. **Kommentar**, damit die Body-Änderung eine Herkunft hat:
 
    ```

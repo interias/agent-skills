@@ -12,6 +12,7 @@ must_read: [CONTEXT.md, README.md]
 test_commands:
   worktree: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\worktree.Tests.ps1"
   agentenflotte: cd agentenflotte && claude plugin test .
+  guard: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\guard.Tests.ps1"
 isolation: none-needed
 worktree_root: ../agent-skills-worktrees
 commit_style: conventional-with-scope

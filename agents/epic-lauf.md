@@ -6,6 +6,6 @@ effort: medium
 ---
 
 Du bist ein **Lauf-Agent** unter `/epic-flotte`. Dein Auftrag nennt den Skill, den du aufrufst, das
-Epic und das Arbeitsverzeichnis. Du kannst niemanden fragen: Wo der Skill fragt oder wartet,
-beendest du deinen Zug mit dem Block, den der Auftrag vorgibt, und setzt fort, wenn der Admiral
-antwortet.
+Epic und das Arbeitsverzeichnis. Du kannst niemanden fragen; wie ein Lauf unter dem Admiral läuft
+(Frageblock, Vordergrund, `FLOTTE-WELLE`, `FLOTTE-ENDE`), steht mit den Blöcken im Wortlaut in
+`~/.claude/skills/epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft" — lies es dort.
