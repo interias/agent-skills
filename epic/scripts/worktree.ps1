@@ -6,16 +6,22 @@
 .DESCRIPTION
     Up: reads the YAML frontmatter of .claude/epic.md in -RepoRoot (worktree_root, link_dirs,
     always_link, env_files, test_isolation_env, port_env; unknown keys are ignored, missing keys
-    take the defaults of epic/references/adapter.md) and then does what Add does at
-    <worktree_root>/<Package>. In every copied env file it sets test_isolation_env to the package
-    number, port_env to a free port (when the adapter names one) and COMPOSE_PROJECT_NAME to
-    <repo>-<Package>. It writes a lock file to <git common dir>/epic-locks/<Package>.json, outside
-    every worktree, so `git status` stays clean and a later cleanup finds all locks of the repo in
-    one folder. stdout carries exactly one JSON object (path, branch, port, isolation, project,
-    envFiles, lock, sessionPid, warnings); every message goes to stderr. Without an adapter or
-    without frontmatter, Up stops with exit 1 and names what is missing.
+    take the defaults of epic/references/adapter.md) and creates a git worktree at
+    <worktree_root>/<Package> on -Branch (reused when it exists, otherwise created from -From).
+    It copies env_files from the main checkout and links every link_dirs and always_link folder
+    to its counterpart in the main checkout (Windows: directory junction, elsewhere: symlink);
+    all of them go into every worktree, whatever the package touches. Each link is verified to be
+    a link to the expected target - a copied folder is an error, not a success. The links are
+    recorded in a manifest in the worktree's git dir, which `git status` does not see and
+    `git worktree remove` deletes. In every copied env file it sets test_isolation_env to the
+    package number, port_env to a free port (when the adapter names one) and COMPOSE_PROJECT_NAME
+    to <repo>-<Package>. It writes a lock file to <git common dir>/epic-locks/<Package>.json,
+    outside every worktree, so `git status` stays clean and a later cleanup finds all locks of the
+    repo in one folder. stdout carries exactly one JSON object (path, branch, port, isolation,
+    project, envFiles, lock, sessionPid, warnings); every message goes to stderr. Without an
+    adapter or without frontmatter, Up stops with exit 1 and names what is missing.
 
-    Down: stops what clearly belongs to <worktree_root>/<Package>, then does what Remove does and
+    Down: stops what clearly belongs to <worktree_root>/<Package>, then removes the worktree and
     deletes the lock. Clearly belongs means: compose projects whose
     com.docker.compose.project.working_dir lies in the worktree, or named <repo>-<Package> when
     they have no working_dir or one container's working_dir lies under worktree_root (a name match
@@ -26,7 +32,13 @@
     compared case-insensitively and only at a separator, so ...\35 never matches ...\350. The
     calling process and its ancestors are never stopped. Unless the path is a linked worktree of
     -RepoRoot with a manifest, Down stops nothing and ends with exit 1. Down reports every stopped
-    project and process on stdout.
+    project and process on stdout. Then it refuses a dirty worktree (its processes are stopped by
+    then; worktree and lock stay), removes the links from the manifest one by one without
+    recursion, refuses to go on while any reparse point is left, runs `git worktree remove`
+    without --force, and only then deletes what is left of the folder. A recursive delete
+    through a junction destroys the main checkout's node_modules (KOKOS, 2026-09-18). Do not call
+    Down from a shell whose working directory lies in the worktree: `git worktree remove` fails
+    there.
 
     CleanupStale (#36): clears what a dead session left behind, run at the start of every /epic and
     /epic-aufraeumen. It never merges, never starts an agent and never deletes a dirty worktree.
@@ -37,10 +49,10 @@
       whose worktree folder is gone or no longer registered: compose and processes of that path are
       stopped, a registered entry without folder is pruned (`git worktree prune`), the lock goes.
     - A lock whose session lives is left alone.
-    - Narrowed reading of #36 AC 2: a worktree registered in `git worktree list` without a lock (the
-      epic worktree epic-<nr>, or a package created by Add) is not touched - no process stopped, no
-      compose project, nothing removed - and is reported as skipped with "no lock (epic worktree or
-      created by Add)". Read literally, AC 2 would stop the test processes of every parallel run.
+    - Narrowed reading of #36 AC 2: a worktree registered in `git worktree list` without a lock (one
+      that Up did not create, or whose lock is gone) is not touched - no process stopped, no
+      compose project, nothing removed - and is reported as skipped with "no lock (not created by
+      Up)". Read literally, AC 2 would stop the test processes of every parallel run.
     - Orphans are stopped: processes whose command line, executable or working directory lies in
       <worktree_root>/<name>, and compose projects whose working_dir lies there or that are named
       <repo>-<name> with a working_dir that is missing or lies under worktree_root (a sibling repo
@@ -59,38 +71,21 @@
     fails is recorded as skipped with reason "failed: ...", the run goes on, and the exit code is 1;
     otherwise 0, a dirty worktree included.
 
-    Add: creates a git worktree at -WorktreePath on -Branch (reused when it exists, otherwise
-    created from -From), copies -EnvFiles from the main checkout, sets -SetEnv variables in the
-    copies, and links each -LinkDirs folder to its counterpart in the main checkout (Windows:
-    directory junction, elsewhere: symlink). Each link is verified to be a link to the expected
-    target - a copied folder is an error, not a success. The links are recorded in a manifest in
-    the worktree's git dir, which `git status` does not see and `git worktree remove` deletes.
-
-    Remove: refuses a dirty worktree, removes the links from the manifest one by one without
-    recursion, refuses to go on while any reparse point is left, runs `git worktree remove`
-    without --force, and only then deletes what is left of the folder. A recursive delete
-    through a junction destroys the main checkout's node_modules (KOKOS, 2026-09-18).
-
     The script never installs dependencies, never deletes branches, never merges, never starts
     an agent and never uses --force.
     Any deviation ends with exit code 1 and a message on stderr; nothing is guessed.
 
-    Array parameters accept comma-separated strings, because `powershell -File` passes an
-    array argument as one string.
-
 .PARAMETER Action
-    Up, Down, CleanupStale, Add or Remove. Add and Remove take every path and setting as
-    parameters and stay as aliases of the older call form. CleanupStale takes only -RepoRoot.
+    Up, Down or CleanupStale. All paths and settings come from the adapter and from -Package;
+    CleanupStale takes only -RepoRoot (and -AdapterFile). (Add and Remove, the older call form with explicit paths,
+    are gone since #38.)
 
 .PARAMETER RepoRoot
     Absolute path of the main checkout. Links point there; env files are copied from there.
 
-.PARAMETER WorktreePath
-    Add and Remove only. Absolute path of the worktree. Must not exist for Add. Up and Down
-    derive it as <worktree_root>/<Package>.
-
 .PARAMETER Package
-    Up and Down only. Package number, e.g. 494 (or epic-490 for the epic worktree).
+    Up and Down only. Package number, e.g. 494 (or epic-490 for the epic worktree). The worktree
+    lies at <worktree_root>/<Package>.
 
 .PARAMETER SessionPid
     Up only. PID written to the lock as the owner of the package. It must outlive the package:
@@ -99,20 +94,18 @@
     session that runs the epic. Without such an ancestor, Up stops and asks for -SessionPid.
 
 .PARAMETER Branch
-    Add and Up. Branch to check out. Reused when it exists; otherwise created from -From.
+    Up only. Branch to check out. Reused when it exists; otherwise created from -From.
 
 .PARAMETER From
-    Add and Up. Start point for a new branch, e.g. the current epic head.
+    Up only. Start point for a new branch, e.g. the current epic head.
 
-.PARAMETER LinkDirs
-    Add only. Folders relative to the repo root to link, e.g. server/node_modules.
-
-.PARAMETER EnvFiles
-    Add only. Files relative to the repo root to copy, e.g. server/.env.
-
-.PARAMETER SetEnv
-    Add only. Entries of the form <env file>:<NAME>=<value>, e.g. server/.env:TEST_DB_SUFFIX=494.
-    Replaces the NAME line in the copied file, or appends it. The file must be in -EnvFiles.
+.PARAMETER AdapterFile
+    Up, Down and CleanupStale. Absolute path of the adapter file to read instead of
+    <RepoRoot>/.claude/epic.md (#38). It exists for the switch-over only: while the adapter's
+    frontmatter stands on the epic branch and not yet in the main checkout, /epic passes the
+    confirmed version (first from its scratchpad, then <epic worktree>/.claude/epic.md) until the
+    pull request is merged. It is not a way around the adapter. The same checks apply: the file
+    must exist and carry frontmatter, otherwise exit 1.
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Up -RepoRoot C:\src\app -Package 494 -Branch agent/494-slug -From epic/490-slug
@@ -122,25 +115,16 @@
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action CleanupStale -RepoRoot C:\src\app
-
-.EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Add -RepoRoot C:\src\app -WorktreePath C:\src\app-worktrees\494 -Branch agent/494-slug -From epic/490-slug -LinkDirs server/node_modules,client/node_modules -EnvFiles server/.env -SetEnv server/.env:TEST_DB_SUFFIX=494
-
-.EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File worktree.ps1 -Action Remove -RepoRoot C:\src\app -WorktreePath C:\src\app-worktrees\494
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Up', 'Down', 'CleanupStale', 'Add', 'Remove')][string]$Action,
+    [Parameter(Mandatory)][ValidateSet('Up', 'Down', 'CleanupStale')][string]$Action,
     [Parameter(Mandatory)][string]$RepoRoot,
-    [string]$WorktreePath,
     [string]$Package,
     [int]$SessionPid = 0,
     [string]$Branch,
     [string]$From,
-    [string[]]$LinkDirs = @(),
-    [string[]]$EnvFiles = @(),
-    [string[]]$SetEnv = @()
+    [string]$AdapterFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -208,7 +192,11 @@ function ConvertFrom-YamlScalar([string]$text) {
 # Nested maps such as test_commands are skipped; this script does not need them.
 function Read-Adapter([string]$repo) {
     $path = Join-Path $repo '.claude\epic.md'
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+    if ($AdapterFile) {
+        if (-not [IO.Path]::IsPathRooted($AdapterFile)) { Fail "-AdapterFile '$AdapterFile' is not an absolute path." }
+        if (-not (Test-Path -LiteralPath $AdapterFile -PathType Leaf)) { Fail "No adapter at -AdapterFile $AdapterFile." }
+        $path = $AdapterFile
+    } elseif (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         $old = Join-Path $repo '.claude\prd.md'
         if (-not (Test-Path -LiteralPath $old -PathType Leaf)) { Fail "No adapter at $path. $Action reads worktree_root, link_dirs, env_files, test_isolation_env and port_env from its YAML frontmatter; nothing is guessed." }
         [Console]::Error.WriteLine("worktree.ps1: reading the adapter under its old name $old; rename it to .claude/epic.md.")
@@ -458,12 +446,9 @@ function Stop-FoundProcesses($found) {
 
 if (-not [IO.Path]::IsPathRooted($RepoRoot)) { Fail "'$RepoRoot' is not an absolute path. Relative paths break once the shell's working directory moves." }
 $RepoRoot = Get-FullPath $RepoRoot
-$LinkDirs = Split-List $LinkDirs
-$EnvFiles = Split-List $EnvFiles
-$SetEnv = Split-List $SetEnv
 
 if ($Action -eq 'CleanupStale') {
-    if ($Package -or $WorktreePath) { Fail 'CleanupStale works on the whole repo; do not pass -Package or -WorktreePath.' }
+    if ($Package) { Fail 'CleanupStale works on the whole repo; do not pass -Package.' }
     $adapter = Read-Adapter $RepoRoot
     $worktreeRoot = Get-WorktreeRoot $adapter $RepoRoot
     $lockDir = Split-Path -Parent (Get-LockPath $RepoRoot 'x')
@@ -584,7 +569,9 @@ if ($Action -eq 'CleanupStale') {
                     $eap = $ErrorActionPreference
                     $ErrorActionPreference = 'Continue'
                     try {
-                        $out = @(& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Action Down -RepoRoot $RepoRoot -Package $file.BaseName 2>&1 | ForEach-Object { "$_" })
+                        $downArgs = @('-Action', 'Down', '-RepoRoot', $RepoRoot, '-Package', $file.BaseName)
+                        if ($AdapterFile) { $downArgs += @('-AdapterFile', $AdapterFile) }
+                        $out = @(& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @downArgs 2>&1 | ForEach-Object { "$_" })
                         $code = $LASTEXITCODE
                     } finally { $ErrorActionPreference = $eap }
                     foreach ($line in $out) { if ($line -like 'worktree.ps1:*') { [Console]::Error.WriteLine($line) } else { [Console]::Error.WriteLine("worktree.ps1: $line") } }
@@ -629,7 +616,7 @@ if ($Action -eq 'CleanupStale') {
             if (Test-UnderPath $RepoRoot $folder) { return 'foreign' }
             if (Test-ForeignGitFolder $folder) { return 'foreign' }
             if ($keptLocks.ContainsKey($name)) { return "lock kept: $($keptLocks[$name])" }
-            if (@($linked | Where-Object { $_.Path -eq $folder })) { return 'no lock (epic worktree or created by Add)' }
+            if (@($linked | Where-Object { $_.Path -eq $folder })) { return 'no lock (not created by Up)' }
             $null
         }
 
@@ -682,7 +669,7 @@ if ($Action -eq 'CleanupStale') {
             if (-not (Test-UnderPath $w.Path $worktreeRoot)) { continue }
             $name = (Split-Path -Leaf $w.Path).ToLowerInvariant()
             if ((Split-Path -Parent $w.Path) -eq $worktreeRoot -and $keptLocks.ContainsKey($name)) { continue }
-            Add-Entry 'worktree' $name $w.Path 'skipped' 'no lock (epic worktree or created by Add)' $w.Branch
+            Add-Entry 'worktree' $name $w.Path 'skipped' 'no lock (not created by Up)' $w.Branch
         }
     } catch {
         Add-Failure 'worktree' $null $null $_.Exception.Message
@@ -699,18 +686,11 @@ if ($Action -eq 'CleanupStale') {
     exit 0
 }
 
-if ($Action -in 'Up', 'Down') {
-    if ($Package -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { Fail "$Action needs -Package, a package number such as 494 (got '$Package')." }
-    if ($WorktreePath) { Fail "$Action derives the worktree path from worktree_root; do not pass -WorktreePath." }
-    $adapter = Read-Adapter $RepoRoot
-    $WorktreePath = Join-Path (Get-WorktreeRoot $adapter $RepoRoot) $Package
-    $project = Get-ComposeProjectName $RepoRoot $Package
-    $lockPath = Get-LockPath $RepoRoot $Package
-} else {
-    if (-not $WorktreePath) { Fail "$Action needs -WorktreePath." }
-    if (-not [IO.Path]::IsPathRooted($WorktreePath)) { Fail "'$WorktreePath' is not an absolute path. Relative paths break once the shell's working directory moves." }
-    $WorktreePath = Get-FullPath $WorktreePath
-}
+if ($Package -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { Fail "$Action needs -Package, a package number such as 494 (got '$Package')." }
+$adapter = Read-Adapter $RepoRoot
+$WorktreePath = Join-Path (Get-WorktreeRoot $adapter $RepoRoot) $Package
+$project = Get-ComposeProjectName $RepoRoot $Package
+$lockPath = Get-LockPath $RepoRoot $Package
 
 if ($Action -eq 'Up') {
     $dotted = @($WorktreePath -split '[\\/]' | Where-Object { $_ -like '.*' })
@@ -738,7 +718,9 @@ if ($Action -eq 'Up') {
         $variables += "$($adapter['port_env'])=$port"
     }
     $variables += "COMPOSE_PROJECT_NAME=$project"
-    $SetEnv = @(foreach ($file in $EnvFiles) { foreach ($v in $variables) { "${file}:$v" } })
+    $envSettings = @(foreach ($file in $EnvFiles) {
+        foreach ($v in $variables) { $name, $value = $v -split '=', 2; [pscustomobject]@{ File = $file; Name = $name; Value = $value } }
+    })
     $warnings = @()
     if (-not $EnvFiles) {
         # No env file to carry the values; creating one would leave an untracked file in the worktree.
@@ -762,7 +744,7 @@ if ($Action -eq 'Down') {
     if (-not $found) { Write-Host 'Processes: none ran in this worktree.' }
 }
 
-if ($Action -in 'Add', 'Up') {
+if ($Action -eq 'Up') {
     if (-not $Branch) { Fail "$Action needs -Branch." }
     if (Test-Path -LiteralPath $WorktreePath) { Fail "$WorktreePath already exists. Not reusing or overwriting it." }
 
@@ -774,11 +756,6 @@ if ($Action -in 'Add', 'Up') {
     foreach ($file in $EnvFiles) {
         $source = Join-Path $RepoRoot $file
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { Fail "Env file $source does not exist in the main checkout." }
-    }
-    $envSettings = foreach ($entry in $SetEnv) {
-        if ($entry -notmatch '^(?<file>[^:]+):(?<name>[A-Za-z_][A-Za-z0-9_]*)=(?<value>.*)$') { Fail "-SetEnv entry '$entry' is not of the form <env file>:<NAME>=<value>." }
-        if ($EnvFiles -notcontains $Matches.file) { Fail "-SetEnv names '$($Matches.file)', which is not in -EnvFiles." }
-        [pscustomobject]@{ File = $Matches.file; Name = $Matches.name; Value = $Matches.value }
     }
 
     & git -C $RepoRoot rev-parse --verify --quiet "refs/heads/$Branch" | Out-Null
@@ -811,7 +788,7 @@ if ($Action -in 'Add', 'Up') {
         [IO.File]::WriteAllText($dest, $text, (New-Object Text.UTF8Encoding $false))
     }
 
-    # The manifest is written after every link, so a failure halfway still lets Remove find them.
+    # The manifest is written after every link, so a failure halfway still lets Down find them.
     $manifestPath = Get-ManifestPath $WorktreePath
     $links = @()
     Save-Manifest $manifestPath $links
@@ -834,31 +811,27 @@ if ($Action -in 'Add', 'Up') {
         if ($actual -ne $entry.target) { Fail "$($entry.path) points to '$actual', expected '$($entry.target)'." }
     }
 
-    if ($Action -eq 'Up') {
-        $started = $null
-        try { $started = $session.StartTime.ToString('o') } catch { }
-        $lock = [ordered]@{
-            package = $Package; branch = $Branch; sessionPid = $SessionPid; sessionStarted = $started
-            created = (Get-Date).ToString('o'); worktree = $WorktreePath; repoRoot = $RepoRoot
-            port = $port; project = $project
-        }
-        $lockDir = Split-Path -Parent $lockPath
-        if (-not (Test-Path -LiteralPath $lockDir)) { New-Item -ItemType Directory -Path $lockDir | Out-Null }
-        [IO.File]::WriteAllText($lockPath, (ConvertTo-Json -InputObject $lock), (New-Object Text.UTF8Encoding $false))
-        [Console]::Error.WriteLine("worktree.ps1: worktree ready: $WorktreePath on $Branch, $($links.Count) link(s), $($EnvFiles.Count) env file(s), lock $lockPath.")
-        $result = [ordered]@{
-            path = $WorktreePath; branch = $Branch; port = $port; isolation = $isolation; project = $project
-            envFiles = @($EnvFiles | ForEach-Object { Join-Path $WorktreePath $_ }); lock = $lockPath
-            sessionPid = $SessionPid; warnings = @($warnings)
-        }
-        [Console]::Out.WriteLine((ConvertTo-Json -InputObject $result -Compress))
-        exit 0
+    $started = $null
+    try { $started = $session.StartTime.ToString('o') } catch { }
+    $lock = [ordered]@{
+        package = $Package; branch = $Branch; sessionPid = $SessionPid; sessionStarted = $started
+        created = (Get-Date).ToString('o'); worktree = $WorktreePath; repoRoot = $RepoRoot
+        port = $port; project = $project
     }
-    Write-Host "Worktree ready: $WorktreePath on $Branch, $($links.Count) link(s), $($EnvFiles.Count) env file(s)."
+    $lockDir = Split-Path -Parent $lockPath
+    if (-not (Test-Path -LiteralPath $lockDir)) { New-Item -ItemType Directory -Path $lockDir | Out-Null }
+    [IO.File]::WriteAllText($lockPath, (ConvertTo-Json -InputObject $lock), (New-Object Text.UTF8Encoding $false))
+    [Console]::Error.WriteLine("worktree.ps1: worktree ready: $WorktreePath on $Branch, $($links.Count) link(s), $($EnvFiles.Count) env file(s), lock $lockPath.")
+    $result = [ordered]@{
+        path = $WorktreePath; branch = $Branch; port = $port; isolation = $isolation; project = $project
+        envFiles = @($EnvFiles | ForEach-Object { Join-Path $WorktreePath $_ }); lock = $lockPath
+        sessionPid = $SessionPid; warnings = @($warnings)
+    }
+    [Console]::Out.WriteLine((ConvertTo-Json -InputObject $result -Compress))
     exit 0
 }
 
-# Remove, and the second half of Down
+# The second half of Down
 if (-not (Test-Path -LiteralPath $WorktreePath)) { Fail "$WorktreePath does not exist." }
 
 # 1. Clean? A dirty worktree stays for a human to look at.
@@ -895,12 +868,10 @@ if (Test-Path -LiteralPath $WorktreePath) {
 }
 
 Write-Host "Worktree removed: $WorktreePath"
-if ($Action -eq 'Down') {
-    if (Test-Path -LiteralPath $lockPath) {
-        Remove-Item -LiteralPath $lockPath -Force
-        Write-Host "Lock removed: $lockPath"
-    } else {
-        Write-Host "No lock at $lockPath."
-    }
+if (Test-Path -LiteralPath $lockPath) {
+    Remove-Item -LiteralPath $lockPath -Force
+    Write-Host "Lock removed: $lockPath"
+} else {
+    Write-Host "No lock at $lockPath."
 }
 exit 0

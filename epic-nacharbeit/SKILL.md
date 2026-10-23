@@ -70,7 +70,9 @@ er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenf
 - Feststellen, wie der Pull Request des Laufs steht. **Der Epic-Branch des Laufs ist die
   Arbeitsfläche, solange sein Pull Request offen ist** — dort gehört die Nacharbeit hin, wenn sie
   denselben Gegenstand betrifft (siehe Phase 3). Er liegt im Worktree `<worktree_root>/epic-<nr>`;
-  das Hauptverzeichnis wird nie umgeschaltet (`epic/SKILL.md`, Regel 11).
+  das Hauptverzeichnis wird nie umgeschaltet (`epic/SKILL.md`, Regel 11). Der Epic-Worktree lebt
+  mit der Sitzung des Laufs (`epic/SKILL.md`, Phase 3); steht er nicht mehr, legst du ihn mit
+  `Up -Package epic-<nr> -Branch epic/<nr>-<slug>` auf dem vorhandenen Branch neu an (#38).
 - **Den Basis-Branch feststellen:** `base_branch` aus dem Adapter ist der Standard, maßgeblich
   aber — sobald der Pull Request existiert — dessen eigene `base`. Ein Epic kann von einem anderen
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
@@ -181,8 +183,11 @@ Ist der Pull Request schon gemergt, oder betrifft die Nacharbeit einen anderen G
 Branch, eigener Pull Request, Namensschema `nacharbeit/<epic-nr>-<slug>`, als Ziel derselbe
 Basis-Branch wie beim ursprünglichen Lauf (`base_branch` aus dem Adapter, bei bereits gemergtem
 Pull Request dessen `base`). Der Branch bekommt einen eigenen Worktree unter `worktree_root`,
-angelegt und später abgeräumt **nur per `scripts/worktree.ps1` aus `/epic`**
-(`epic/references/worktree.md`; Hauptverzeichnis: `epic/SKILL.md`, Regel 11). **Nie direkt auf den
+angelegt mit `Up -Package nacharbeit-<epic-nr> -Branch nacharbeit/<epic-nr>-<slug> -From <push_remote>/<base>`
+und abgeräumt mit `Down -Package nacharbeit-<epic-nr>`, **nur per `scripts/worktree.ps1` aus
+`/epic`** (`epic/references/worktree.md`; Hauptverzeichnis: `epic/SKILL.md`, Regel 11). Exit 1
+meldest du im Wortlaut, von Hand holst du nichts nach. Steht das Frontmatter nur auf dem
+Epic-Branch, bekommt jeder Aufruf `-AdapterFile` (#38, `epic/references/worktree.md`, „Umstellung"). **Nie direkt auf den
 Basis-Branch committen**, auch nicht für einen Einzeiler in einer Textdatei — der Merge dorthin kann
 deployen.
 

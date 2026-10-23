@@ -58,13 +58,15 @@ Hook (Regel 5).
 
 ## Phase 0 — Feststellen, was gilt
 
-- **Zuerst, vor allen eigenen Schritten (#36):**
-  `powershell -NoProfile -ExecutionPolicy Bypass -File <epic-skill>/scripts/worktree.ps1 -Action CleanupStale -RepoRoot <repo>`.
-  Es räumt ab, was tote Sitzungen hinterlassen haben (`epic/SKILL.md`, Phase 0a), und fasst
-  Worktrees ohne Lock und Locks lebender Sitzungen nicht an. Ein schmutziger Worktree wird
-  gemeldet, nicht entfernt. Das Ergebnis, eine JSON-Liste, gehört in die Bestandsaufnahme
-  (Phase 2) und in den Bericht. Exit 1 heißt, ein Schritt ist gescheitert (`failed: …` in der
-  Liste): melden, nicht von Hand nachholen.
+- **Zuerst, vor allen eigenen Schritten (#36):** `worktree.ps1 -Action CleanupStale`
+  (`epic/references/worktree.md`). Es räumt ab, was tote Sitzungen hinterlassen haben
+  (`epic/SKILL.md`, Phase 0a) — auch den Epic-Worktree des Laufs, wenn seine Sitzung tot und er
+  sauber ist — und fasst Worktrees ohne Lock und Locks lebender Sitzungen nicht an. Ein
+  schmutziger Worktree wird gemeldet, nicht entfernt. Das Ergebnis, eine JSON-Liste, gehört in die
+  Bestandsaufnahme (Phase 2) und in den Bericht. Exit 1 heißt, ein Schritt ist gescheitert
+  (`failed: …` in der Liste): das Skript im Wortlaut melden, nicht von Hand nachholen. Steht das
+  Frontmatter nur auf dem Epic-Branch, bekommt jeder Aufruf `-AdapterFile` (#38,
+  `epic/references/worktree.md`, „Umstellung").
 - `.claude/epic.md` lesen, Forge-Zugang herstellen und verifizieren.
 - **Den Pull Request holen und prüfen, dass er wirklich gemergt ist** (`merged`, nicht nur
   `state: closed` — ein geschlossener Pull Request kann verworfen worden sein, und dann ist der
@@ -108,9 +110,10 @@ Erst zählen, dann löschen. Trage vier Listen zusammen:
    einem **nicht abgenommenen** Paket und trägt Arbeit, die im Basiszweig *nicht* liegt. Solche
    Branches werden **nicht** gelöscht; sie werden gemeldet, mit der Kennung ihres Pakets —
    Ticketnummer im Tickets-Modus, Paketbezeichnung aus dem Branchnamen im Spec-Modus.
-3. **Worktrees:** `git worktree list`, darunter der Epic-Worktree `<worktree_root>/epic-<nr>` — und
-   getrennt davon der Inhalt von `worktree_root` auf der
-   Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
+3. **Worktrees:** `git worktree list`, darunter der Epic-Worktree `<worktree_root>/epic-<nr>`, **falls
+   er noch steht** — er lebt mit der Sitzung des Laufs, und `CleanupStale` kann ihn schon abgeräumt
+   haben; sein Fehlen ist kein Befund (`epic/references/worktree.md`, „Abräumen") — und getrennt
+   davon der Inhalt von `worktree_root` auf der Platte. Die beiden Listen weichen voneinander ab, und die Differenz ist der eigentliche Befund:
    was Git kennt, ist ein Worktree; was nur auf der Platte liegt, ist ein Rest
    (`epic/references/worktree.md`, „Worktrees ohne Manifest und Reste auf der Platte").
    **Laufende Läufe anderer Epics** sind kein Befund: `epic-<andere nr>`, ihre Paket-Worktrees und
@@ -159,18 +162,13 @@ dort nicht. Der Nachweis bleibt derselbe Befehl.
 
 In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht löschen lässt:
 
-1. **Worktrees**, die Git kennt, per Skript aus `/epic` — **nie von Hand, nie `--force`**:
-
-   ```bash
-   powershell -NoProfile -ExecutionPolicy Bypass -File <epic-skill>/scripts/worktree.ps1      -Action Remove -RepoRoot <repo> -WorktreePath <absoluter Pfad>
-   ```
-
-   Das Skript entfernt die Verweise einzeln, sucht nach übrigen Reparse-Points und ruft erst dann
-   `git worktree remove` (`epic/references/worktree.md`, „Abräumen"). Nimm absolute Pfade; das
-   Arbeitsverzeichnis der Shell wandert im Lauf. Bricht es ab, weil der Worktree schmutzig ist:
-   melden, stehen lassen. Bricht es ab, weil **kein Manifest** da ist (Worktree aus der Zeit vor dem
-   Skript), gilt der Weg aus `epic/references/worktree.md`, „Worktrees ohne Manifest und Reste auf
-   der Platte".
+1. **Worktrees**, die Git kennt, mit `worktree.ps1 -Action Down -Package <Ordnername unter
+   worktree_root>` (`epic/references/worktree.md`) — **nie von Hand, nie `--force`**, nie aus einer
+   Shell, die im Worktree steht. Der Epic-Worktree heißt `epic-<nr>`. Bricht `Down` ab, weil der
+   Worktree schmutzig ist: melden, stehen lassen. Bricht es ab, weil **kein Manifest** da ist
+   (Worktree aus der Zeit vor dem Skript), gilt der Weg aus `epic/references/worktree.md`,
+   „Worktrees ohne Manifest und Reste auf der Platte". Jeder andere Exit 1: das Skript im
+   Wortlaut melden, nichts von Hand nachholen.
 2. **Worktree-Reste**, die nur auf der Platte liegen: nach demselben Weg. Prüfe
    vorher, dass darin nichts anderes als die Verweise liegt — findet sich eine veränderte Datei,
    ist es kein Rest, sondern liegengebliebene Arbeit.

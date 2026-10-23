@@ -313,6 +313,8 @@ Describe 'guard.ps1 aufraeumen (story 6)' {
         $r = Invoke-Guard 'aufraeumen' 'git worktree remove --force ../wt/1' $TestDrive
         $r.Decision | Should Be 'deny'
         $r.Reason | Should Match 'Regel 3 und 4'
+        $r.Reason | Should Match 'worktree.ps1 -Action Down'
+        $r.Reason | Should Not Match 'Action Remove'
         Assert-Decision $null 'aufraeumen' 'deny' @('git worktree remove -f ../wt/1', 'git worktree remove ../wt/1 --force') $TestDrive
     }
 

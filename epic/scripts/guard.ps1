@@ -616,7 +616,7 @@ function Test-Aufraeumen($seg, $git, [string]$shown) {
     }
     if ($git.Sub -eq 'worktree' -and $a.Count -and $a[0] -eq 'remove') {
         if ((Test-ShortFlag $a 'f') -or ($a | Where-Object { $_ -eq '--force' })) {
-            return New-Verdict 'deny' "Gesperrt durch Hook (Skill epic-aufraeumen, Regel 3 und 4: kein --force; Ein schmutziger Worktree wird nicht entfernt): '$shown'. Ohne --force über worktree.ps1 -Action Remove; bleibt Arbeit liegen, den Worktree melden. $retry"
+            return New-Verdict 'deny' "Gesperrt durch Hook (Skill epic-aufraeumen, Regel 3 und 4: kein --force; Ein schmutziger Worktree wird nicht entfernt): '$shown'. Ohne --force über worktree.ps1 -Action Down; bleibt Arbeit liegen, den Worktree melden. $retry"
         }
     }
     if ($git.Sub -eq 'push') {
