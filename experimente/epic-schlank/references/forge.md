@@ -141,7 +141,7 @@ Statuslabel und bleibt am Epic, bis es geschlossen ist.
 - **Paginierung.** Issue-Listen sind serverseitig gedeckelt (Gitea: siehe oben). Immer paginieren,
   nie die erste Seite für die ganze Liste halten.
 - **Kommentare, PR-Bodys und Issue-Bodys aus einer Datei schicken, nie aus einer
-  Bash-Zeichenkette.** Beim Bauen des JSON-Bodys inline zerlegt die Shell Code-Zäune und
+  Bash-Zeichenkette**, denn beim Bauen des JSON-Bodys inline zerlegt die Shell Code-Zäune und
   Backticks, und zwar still:
 
   ```bash

@@ -8,8 +8,7 @@ hooks:
 # Epic abarbeiten — Host-Orchestrator
 
 Du bist der **Host-Orchestrator**: Planner und Merger in einer Person. Die Pakete implementierst
-du **nicht selbst**, sondern über Subagenten (Implementer + Reviewer). Du schneidest, prüfst nach,
-mergst und schreibst zurück in die Forge.
+du **nicht selbst**, sondern über Subagenten (Implementer + Reviewer).
 
 Zielvorgabe ist das Argument des Aufrufs. `#41` ist immer die Issue-Nummer. Eine nackte Zahl
 oder eine mit fremdem Präfix (`PRD 41`) ist eine **externe Nummer**, wenn `issue_offset` gesetzt
@@ -45,11 +44,10 @@ wo er sie ändern kann.
 
 **Wie gefragt wird.** Jede Rückfrage an den Menschen — Vorab-Tor, Abbruchbedingung, Fragerunde
 der Nacharbeit, Vorlage von `/epic-flotte` — nennt **Antwortmöglichkeiten und eine markierte
-Empfehlung** mit einem Satz Begründung. Wie viel Sachverhalt und Herkunft dazugehört, entscheidest
-du nach Lage; der Mensch soll ohne Nachlesen wählen können. Gestellt wird mit `AskUserQuestion`,
-sofern die Sitzung es hat: davor im Text eine kurze Lage, die empfohlene Option zuerst und mit
-„(Empfehlung)" im Label, Folgen in der Beschreibung, höchstens vier Optionen je Frage, mehr als
-vier Fragen auf mehrere Aufrufe verteilt. Ohne das Werkzeug dieselbe Runde als Text — je Frage
+Empfehlung** mit einem Satz Begründung. Gestellt wird mit `AskUserQuestion`, sofern die Sitzung
+es hat: die empfohlene Option mit „(Empfehlung)" im Label, Folgen in der Beschreibung, höchstens
+vier Optionen je Frage, mehr als vier Fragen auf mehrere Aufrufe verteilt. Ohne das Werkzeug
+dieselbe Runde als Text — je Frage
 `❓ **Q1** — **<Titel>**: <Sachverhalt, Optionen A/B/… mit Folge>` und darunter
 `➡️ <Empfehlung, Grund>`. **Führt `/epic-flotte` den Lauf** — als Lauf-Agent oder als übernommener
 Chat —, fragst du nie mit `AskUserQuestion`: Die Runde geht als Frageblock oder Text an den
@@ -85,9 +83,8 @@ Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleib
    `out_of_scope_dir` nennt, ist geprüft und verworfen — auch wenn es beim Lesen des Codes nötig
    erscheint.
 8. **Nichts existiert nur im Chat.** Jedes Issue, das der Lauf berührt — bearbeitet,
-   übersprungen, zurückgelassen, blockiert —, bekommt einen Kommentar in der Forge. Der Chat ist
-   weg, sobald die Sitzung endet; die Forge ist der Ort, an dem in einem halben Jahr noch steht,
-   was passiert ist und warum.
+   übersprungen, zurückgelassen, blockiert —, bekommt einen Kommentar in der Forge, denn der Chat
+   endet mit der Sitzung.
 9. **Ein Paket — ein Branch, ein Worktree, ein Testbett.** Der Epic-Branch ist Merge-Ziel, nicht
    Arbeitsfläche.
 10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
@@ -129,10 +126,9 @@ vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter (`r
   | Abschluss (6), in allen Modi | das Zielissue | `− in-arbeit` |
   | Abbruch („Wann angehalten wird") | die Tickets, die dort genannt sind | `− in-arbeit` |
 
-  **Jedes Setzen wird sofort nachgelesen** (`GET` der Labels des Tickets, `references/forge.md`).
-  Fehlt das Label, noch einmal setzen; scheitert es wieder, ist das ein Glut-Punkt auf der Tafel.
-  Ein `POST`, der still fehlschlägt, fällt sonst erst beim Nachzählen in Phase 6 auf — oder nie,
-  weil dort nur geprüft wird, was fehlen soll.
+  **Jedes Setzen wird sofort nachgelesen** (`GET` der Labels des Tickets, `references/forge.md`),
+  sonst fällt ein still gescheiterter `POST` erst in Phase 6 auf oder nie. Fehlt das Label, noch
+  einmal setzen; scheitert es wieder, ist das ein Glut-Punkt auf der Tafel.
 
   Ein Kind, das wegen eines fehlenden Labels, einer fehlenden Abnahmeliste oder eines fehlenden
   Verifikationswegs übersprungen wird, bekommt **kein** Statuslabel: es wartet auf keinen anderen,
@@ -143,16 +139,14 @@ vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter (`r
   `status/haengt` beim Start seines Implementers.
 - **Fehlt ein Label im Repository**, legt der Lauf es an — mit den Farben und Beschreibungen aus
   `references/forge.md`, damit KIBO in allen Projekten gleich aussieht.
-- Jede Label-Änderung zählt in der Forge als Änderung und setzt den Stillstand des Tickets auf null.
-  Das ist gewollt: am Ticket ist etwas geschehen.
 - Befehle je Forge: `references/forge.md`, „Statuslabels".
 
 ---
 
 ## Modelle, Paketklasse, Kundschafter
 
-Nicht jede Arbeit braucht das stärkste Modell. Wer was macht, folgt einer festen Leiter; die
-Agent-Typen liegen im Skill-Repository unter `agents/` und werden mit den Skills installiert.
+Wer was macht, folgt einer festen Leiter; die Agent-Typen liegen im Skill-Repository unter
+`agents/` und werden mit den Skills installiert.
 
 | Rolle | Agent-Typ (`subagent_type`) | Modell, Denkstufe |
 |---|---|---|
@@ -229,10 +223,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 - `pre_commit_checks` prüfen (etwa `git config core.hooksPath`): was nicht von allein läuft, fährst
   du in 4d selbst.
 - **Den Ausgangsstand messen:** alle `test_commands` fahren und je Suite **Suiten- und Testzahl**
-  notieren, `known_red` mit Namen. Nicht aus dem README abschreiben — dort steht der Stand vom
-  letzten Mal. Die Messung liefert die Vergleichszahlen für jeden Auftrag und beantwortet vorab,
-  ob der Verifikationsweg fahrbar ist; ein fehlendes Abhängigkeitsverzeichnis fällt hier auf und
-  nicht beim dritten Paket. Legt ein Paket eine Suite erst an, ist ihr Ausgangsstand 0 Suiten; ab
+  notieren, `known_red` mit Namen. Die Messung liefert die Vergleichszahlen für jeden Auftrag und
+  beantwortet vorab, ob der Verifikationsweg fahrbar ist, statt erst beim dritten Paket. Legt ein
+  Paket eine Suite erst an, ist ihr Ausgangsstand 0 Suiten; ab
   dem Merge dieses Pakets wird sie gefahren und verglichen.
 - **Den Lint-Stand messen:** je Modul aus `lint_commands` die Zahl der Fehler und Warnungen, aus der
   Ausgabe gezählt, nicht aus dem Exit-Code. Fehlt `lint_commands`, sagt der Plan, dass der
@@ -242,11 +235,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 
 ## Phase 1 — Lesen
 
-- Zielissue holen und den Body **vollständig** lesen. Die sieben Abschnitte haben je eine Rolle:
-  **Problem Statement** (der Schaden, der die naheliegende Lösung ausschließt), **Solution**,
-  **User Stories** (Abnahmeliste im Modus `spec`), **Implementation Decisions** (Vorgaben *samt
-  Begründung* — der Grund, warum ein Implementer nicht frei wählt), **Testing Decisions**
-  (Verifikationsweg, benanntes Vorbild), **Out of Scope** (Verbote), **Further Notes**.
+- Zielissue holen und den Body **vollständig** lesen. Die **User Stories** sind im Modus `spec`
+  die Abnahmeliste, die **Implementation Decisions** Vorgaben *samt Begründung* — der Grund, warum
+  ein Implementer nicht frei wählt.
 - **Kanten lesen** nach `dependency_source` (`api`, `header`, `body`; mehrere möglich), Befehle in
   `references/forge.md`. `epic_label` trennt die Bedeutung: eine Kante vom Zielissue zu einem
   anderen **Epic** heißt *Reihenfolge* (Vorbedingung), eine Kante zu einem **Nicht-Epic** heißt
@@ -254,7 +245,7 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   der Standardlesart die Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die
   Kinder, alle übrigen Nummern dort sind Reihenfolge. Legt der Adapter eine eigene Lesart seiner
   Kopfzeilen fest, gilt sie (`references/adapter.md`, Auslegung); der Plan legt sie offen.
-- **Modus bestimmen** — erst jetzt, weil er die Kinder braucht: `issue_form` aus dem Adapter; fehlt
+- **Modus bestimmen:** `issue_form` aus dem Adapter; fehlt
   er, aus der Form — Kinder → `tickets`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
   Ableitung steht im Plan.
 - **Vorbedingung prüfen:** Ist ein vorausgesetztes Epic offen, gilt:
@@ -274,8 +265,8 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
   Reviewer blind.
 - **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
-  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt. Bodys
-  altern. Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Bei mehr als
+  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt.
+  Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Bei mehr als
   einer Handvoll Behauptungen gehen sie gebündelt an Kundschafter („Modelle, Paketklasse,
   Kundschafter").
 - Widerspricht das Issue einem ADR oder einem Out-of-Scope-Eintrag, ist eines von beiden falsch —
@@ -288,8 +279,7 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 **Modus `tickets`:** die bearbeitbaren Kinder. Berührte Module aus `modules_section`, sonst aus der
 Abnahmeliste erschlossen.
 
-**Modus `spec` ohne Kinder:** Ein Implementer, der das ganze Issue bekommt, liefert Matsch. Du
-schneidest nach diesen Regeln:
+**Modus `spec` ohne Kinder:** Du schneidest nach diesen Regeln:
 
 - **Entlang der Implementation Decisions, nicht der Verzeichnisse.** Sind die Decisions eine Folge,
   ist die Folge der Schnitt und die Reihenfolge Teil der Vorgabe. **Schneide nicht für
@@ -303,8 +293,6 @@ schneidest nach diesen Regeln:
   überführt und jeder Beleg gesichert ist.
 - **Eine Datenwurzel kann mehrere Erzeuger haben.** Bevor ein Paket eine Zählregel über ein
   Verzeichnis bekommt, sieh nach, wer alles dort hineinschreibt.
-- **Ein Schema-Versionssprung ist querschnittlich:** Wächter, die an Zahlen des alten Schemas
-  hängen, reißen still — der Test bleibt grün und prüft weniger.
 - **Je Paket die berührten Dateien und Module notieren.** Ohne sie gibt es keine Kollisionskante.
 - **Zuordnungstabelle Story → Paket:** jede User Story genau einem Paket. Eine Story ohne Paket ist
   eine Lücke im Plan, ein Paket ohne Story Arbeit, die niemand verlangt hat.
@@ -317,9 +305,6 @@ mit einem Halbsatz Begründung.
 
 ### 2b — Der Graph
 
-Der Graph wird nach dem Sortieren **nicht weggeworfen**: er entscheidet bei jedem frei werdenden
-Platz neu und zeigt beim Scheitern eines Pakets sofort, welche Nachfolger mit hängen.
-
 - **Harte Kante `A → B`:** B setzt A voraus (Kante aus Phase 1 oder Reihenfolge der Decisions). B
   startet erst, wenn A **gemergt** ist.
 - **Kollisionskante `A — B`:** beide berühren dieselben Module oder Dateien. Reihenfolge frei, nie
@@ -329,13 +314,13 @@ Platz neu und zeigt beim Scheitern eines Pakets sofort, welche Nachfolger mit h�
   `exclusive_paths` ändert, das Wort `Exklusiv` in `modules_section` trägt, in eine Datenwurzel
   mit mehreren Erzeugern schreibt oder einen Punkt aus `gate_approvals` braucht.
 
-Ist der Graph so dicht, dass nie zwei Pakete gleichzeitig laufen, ist das eine Eigenschaft des
-Epics, kein Fehler. Sag es im Plan in einem Satz, statt Parallelität vorzutäuschen.
+Laufen nach dem Graphen nie zwei Pakete gleichzeitig, sag es im Plan in einem Satz, statt
+Parallelität vorzutäuschen.
 
 ### 2c — Das Vorab-Tor
 
-Der Sinn dieses Ablaufs ist der unbeaufsichtigte Lauf. Deshalb wird **alles Fragwürdige hier
-gefragt, einmal, als eine Runde nach „Wie gefragt wird"** — danach keine Rückfrage mehr.
+Damit der Lauf danach unbeaufsichtigt bleibt, wird **alles Fragwürdige hier gefragt, einmal, als
+eine Runde nach „Wie gefragt wird"** — danach keine Rückfrage mehr.
 Vorzulegen ist:
 
 1. Ein vorausgesetztes Epic ist offen, und die transitive Auflösung greift nicht.
@@ -370,18 +355,14 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 - **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen und Paketklasse, Graph,
   Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
   wird, die Lesart des Adapters.
-- Je Paket eine Task anlegen (Task-Werkzeug der Sitzung, falls vorhanden), in Reihenfolge.
 - **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
   (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
   vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` ändert sich ihre URL über den
-  ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad. Den Graphen zeigt die Pakettabelle
-  mit den Modulen je Paket als Spalte, keine Figur. Am Anfang stehen alle Pakete auf „wartend";
-  das ist ein gültiger Zustand.
+  ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad.
 - **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
   nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
   Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ist der Grund ein
-  blockierendes Ticket, bekommt das Kind im selben Zug `status/blockiert`. Ein Grund, der nur im
-  Chat steht, führt zu einem vergessenen Ticket oder einem in falscher Reihenfolge.
+  blockierendes Ticket, bekommt das Kind im selben Zug `status/blockiert`.
 - **Kanten nachtragen:** bei `write_back_dependencies` jede aus `header` gelesene Kante, aus `body`
   nur nach Adapter oder Antwort am Tor, in die Abhängigkeiten der Forge eintragen
   (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
@@ -389,14 +370,11 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 - Das Zielissue bekommt mit dem Eröffnungskommentar `status/in-arbeit`, in allen Modi. Ein
   fremdes Epic aus transitiver Auflösung nicht: es gehört nicht diesem Lauf.
 - **Das Zielissue bekommt `epic_label`**, falls es fehlt, in allen Modi — auch eine Spec ohne
-  Kinder ist ein Epic. KIBO gruppiert danach, und ein späterer Lauf unterscheidet daran Kind und
-  Reihenfolge.
+  Kinder ist ein Epic, und KIBO wie spätere Läufe lesen es daran.
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
   Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
   Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
   einer Datei** (`references/forge.md`, „Stolperstellen").
-
-Danach **ohne Rückfrage** losarbeiten.
 
 ## Phase 3 — Epic-Branch und Worktrees
 
@@ -420,8 +398,8 @@ Danach **ohne Rückfrage** losarbeiten.
 
 ## Phase 4 — Das Fenster
 
-Kein Wellenmodell mit Barrieren — ein gleitendes Fenster mit `window` Plätzen (Phase 0). Wird ein
-Platz frei, rückt sofort das nächste startbereite Paket nach.
+Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0). Wird ein Platz frei,
+rückt sofort das nächste startbereite Paket nach.
 
 **Startbereit** ist ein Paket, wenn alle harten Vorgänger **gemergt** sind und zu keinem laufenden
 Paket eine Kollisionskante besteht. Ein Exklusivknoten startet nur bei leeren Plätzen. Bei mehreren
@@ -429,22 +407,19 @@ Kandidaten gewinnt, wer die meisten Nachfolger entsperrt; bei Gleichstand die kl
 keiner startbereit, bleibt der Platz leer — das ist kein Fehler.
 
 **Diese Wahl triffst du bei jedem frei werdenden Platz neu.** Die Belegung auf der Tafel ist eine
-Vorschau, keine Entscheidung. Hängen zwei Pakete am selben Vorgänger und kollidieren miteinander,
-entscheidet „wer entsperrt mehr" — oft **nicht** die kleinere Nummer. Eine Abweichung von der
-Vorschau trägst du auf der Tafel nach, mit Grund.
+Vorschau, keine Entscheidung. Eine Abweichung von der Vorschau trägst du auf der Tafel nach, mit
+Grund.
 
-Warum höchstens drei: du fährst jeden Verifikationsweg selbst nach und liest jeden
-Reviewer-Bericht — das ist die Engstelle, nicht die Rechenzeit. Und die Kollisionspaare wachsen
-quadratisch.
+Höchstens drei Plätze, denn deine Nachprüfung ist die Engstelle.
 
 ### 4a — Implementer-Subagent
 
 Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
 unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
-Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
-aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen Kontext nicht; sein Auftrag enthält alles
-**ausgeschrieben**:
+Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — dort, mitten in der
+Merge-Checkliste, fällt es am leichtesten aus. Er hat deinen Kontext nicht; sein Auftrag enthält
+alles **ausgeschrieben**:
 
 - Den absoluten Pfad seines Worktrees und die Arbeitsweise darin nach „Der Subagent im Worktree"
   in `references/worktree.md` — einschließlich des Ergebnisses der dort beschriebenen
@@ -490,8 +465,7 @@ den Bericht des Implementers und den Diff, und prüft zwei Achsen getrennt:
   entlang des Verifikationswegs in der Form des Vorbilds; Stil des umgebenden Codes; die
   Projektregeln des Adapters.
 
-**Ein Wächter oder ein Tor wird gegen sich selbst geprüft: Positivprobe und Gegenprobe.** Ein
-Wächter ohne Nachweis, dass er feuern kann, ist schlimmer als keiner.
+**Ein Wächter oder ein Tor wird gegen sich selbst geprüft: Positivprobe und Gegenprobe.**
 
 **Führt ein Paket eine Schreibsperre, einen Update-Schutz oder eine neue Validierung ein, sucht der
 Reviewer jeden anderen Schreiber derselben Felder**: Migration, Import, Skripte, Hintergrundjobs,
@@ -502,11 +476,11 @@ Kundschafter geben, einen je Schreiberart; hat er kein `Agent`-Werkzeug, sucht e
 
 Drei Dinge, in einer Kette ein viertes, schreibst du ihm ausdrücklich in den Auftrag:
 
-- **Den Diff-Befehl `git -C <worktree> diff HEAD`** und den Epic-Kopf, auf dem sein Worktree steht.
-  Ein Diff gegen den Epic-Branch zeigt inzwischen gemergte Pakete als vermeintliche Änderung, und
-  der Reviewer sucht Fehler in fremdem Code.
-- **Die neuen Dateien namentlich**, mit der Anweisung, sie direkt zu lesen. Sie stehen in keinem
-  Diff; eine neue Kernfunktion, die er nie sieht, nimmt er ungeprüft ab.
+- **Den Diff-Befehl `git -C <worktree> diff HEAD`** und den Epic-Kopf, auf dem sein Worktree steht,
+  denn ein Diff gegen den Epic-Branch zeigt inzwischen gemergte Pakete als vermeintliche Änderung,
+  und der Reviewer sucht Fehler in fremdem Code.
+- **Die neuen Dateien namentlich**, mit der Anweisung, sie direkt zu lesen, denn sie stehen in
+  keinem Diff, und eine neue Kernfunktion, die er nie sieht, nimmt er ungeprüft ab.
 - **Die Lint-Basis der betroffenen Module** aus Phase 0, mit dem Auftrag, die Differenz zu melden.
 - **Steht das Paket in einer Kette, hält er die Schnittstelle fest**: was tatsächlich dasteht —
   Signatur, Merkmale der Ausgabe, jede Abweichung vom Vorgänger. Der Implementer beschreibt, was
@@ -515,9 +489,8 @@ Drei Dinge, in einer Kette ein viertes, schreibst du ihm ausdrücklich in den Au
 **Der Reviewer fährt keinen Volllauf.** Er prüft Zahlen und Protokoll des Implementers gegen die
 Ausgangszahlen, fährt gezielt die betroffenen Tests und seine Gegenproben; Rot in Dateien, die das
 Paket nicht berührt, wertet er nach dem Lastflake-Absatz in 4c. Den Volllauf je Paket fährst du in
-4c; ein zweiter im Review hat bisher keine Regression gefunden, die 4c nicht auch gefunden hätte,
-und kostet je Paket Minuten. Schreib das ausdrücklich in den Auftrag: Die Agent-Dateien der
-Reviewer verweisen auf diesen Absatz und auf 4c.
+4c; ein zweiter im Review kostet Minuten und fand bisher nichts Neues. Schreib das ausdrücklich in
+den Auftrag: Die Agent-Dateien der Reviewer verweisen auf diesen Absatz und auf 4c.
 
 Er **korrigiert selbst, aber nur im Kleinen**: Benennung, Kommentar, ein fehlender Testfall, ein
 vergessener Rest. Eine strukturelle Abweichung oder einen verletzten Abnahmepunkt berichtet er
@@ -535,9 +508,8 @@ kein Grund, neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket
 nicht ignoriert.
 
 **Vergleiche gegen die Ausgangszahlen aus Phase 0.** Grün allein genügt nicht: **eine gesunkene
-Suiten- oder Testzahl ist ein Befund, auch wenn alles grün ist.** Ein Agent, der „alle Suiten
-grün" meldet, hat nichts über die Vollzähligkeit gesagt. Belegt wird der Vergleich aus deinem
-Volllauf hier und dem Protokoll des Implementers, nicht aus einem Lauf des Reviewers.
+Suiten- oder Testzahl ist ein Befund, auch wenn alles grün ist.** Belegt wird der Vergleich aus
+deinem Volllauf hier und dem Protokoll des Implementers, nicht aus einem Lauf des Reviewers.
 
 Dasselbe gilt für den **Lint-Stand**: Fehler und Warnungen je betroffenem Modul vor und nach dem
 Paket, mit `lint_commands` gemessen. **Neue Befunde in geänderten Dateien sind ein Befund**, auch
@@ -548,10 +520,10 @@ als Befund werten. Setzt der Testbefehl des Adapters eine Worker-Grenze (etwa `-
 sie auch für den Einzellauf.
 
 **Sichtprüfung ohne gezeichnetes Fenster.** Zeichnet das Browserfenster nicht (Screenshot und
-Klick auf Koordinaten scheitern), gehen Klicks per Skript und der Text aus dem Seitenbaum weiter.
-Was so nicht erreichbar ist — etwa Zeilen eines virtualisierten Grids, die ohne Zeichnen nicht
+Klick auf Koordinaten scheitern), gehen Klicks per Skript und der Text aus dem Seitenbaum weiter;
+was so nicht erreichbar ist — etwa Zeilen eines virtualisierten Grids, die ohne Zeichnen nicht
 entstehen —, wird über vorhandene oder neue Tests belegt und in der Abnahmeliste als **„per Test
-belegt, nicht gesichtet"** gekennzeichnet. Stillschweigend als gesichtet abhaken ist ausgeschlossen.
+belegt, nicht gesichtet"** gekennzeichnet, nie stillschweigend als gesichtet abgehakt.
 
 ### 4d — Commit auf dem Paket-Branch
 
@@ -563,15 +535,13 @@ belegt, nicht gesichtet"** gekennzeichnet. Stillschweigend als gesichtet abhaken
 
 ## Phase 5 — Sofortmerge
 
-Sobald ein Paket abgenommen ist, wandert es **sofort** in den Epic-Branch, nicht gesammelt am Ende.
-Der Paket-Branch lebt Minuten statt Stunden neben dem Epic-Branch, und jedes spätere Paket beginnt
-bereits auf ihm.
+Sobald ein Paket abgenommen ist, wandert es **sofort** in den Epic-Branch, nicht gesammelt am Ende,
+damit jedes spätere Paket schon auf ihm beginnt.
 
 1. Im Epic-Worktree: `git merge --no-ff agent/<nr>-<slug>`.
 2. Die betroffenen Suiten auf dem Epic-Branch fahren. Rot heißt: nicht weiterrücken — den Merge
-   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). So
-   bleibt der Epic-Branch grün, und der Lauf hält nicht an. Dann wird nur der Worktree abgeräumt,
-   der Branch bleibt (`references/worktree.md`, „Abräumen").
+   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann wird
+   nur der Worktree abgeräumt, der Branch bleibt (`references/worktree.md`, „Abräumen").
 3. Sonst den Worktree per `worktree.ps1 -Action Remove` und danach den Paket-Branch abräumen
    (`references/worktree.md`), nie `--force`. Platz frei: das nächste
    startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
@@ -586,8 +556,7 @@ bereits auf ihm.
 5. **Lauftafel fortschreiben** nach `references/lauftafel.md`: Zustand, Merge-Commit und Runden
    des Pakets, neu gestartete Pakete, Teststand, Abweichungen vom Plan, offene Punkte. Die
    Fortschreibung gehört an **diese** Stelle — die Tafel ist der einzige Ort, an dem der Stand für
-   jemanden sichtbar wird, der den Chat nicht liest; eine Tafel, die nach dem dritten Merge den
-   Anfang zeigt, sieht aktuell aus und ist falsch.
+   jemanden sichtbar wird, der den Chat nicht liest.
 6. **Kein Issue schließen.** Es schließt sich beim Merge des Pull Requests über `Closes`.
 
 **Ein Merge-Konflikt ist eine Aussage über den Graphen, nicht über Git.** Er kann nur von einem
@@ -634,8 +603,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
     fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
-- **Abschlusskommentar am Zielissue** (und am fremden Epic). Das ist der Schritt, der am
-  leichtesten ausfällt, weil sich der Lauf nach dem Pull Request fertig anfühlt. Hinein: Link auf
+- **Abschlusskommentar am Zielissue** (und am fremden Epic). Hinein: Link auf
   Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden, Paketklasse und
   Eskalationen; tatsächliche gegen geplante
   Belegung und woran Abweichungen lagen; übersprungene und blockierte Tickets mit Grund und dem,
@@ -678,10 +646,8 @@ Branches bleiben. Der Stand kommt in die Forge (Kommentar am Zielissue und an de
 und auf die Tafel: laufende Pakete verlieren „in Arbeit" **auf der Tafel und als Label**; das
 Zielissue und die gemergten Kinder verlieren das Label ebenfalls, denn kein Pull Request trägt
 ihren Stand. Der
-Abbruchgrund steht als Glut-Punkt beim Menschen. Ein `status/in-arbeit`, das nach einem Abbruch
-stehen bleibt, lügt wie eine Tafel, die stehen bleibt. Ein Abbruch, der nur im Chat steht, ist von „noch nicht angefangen" nicht zu
-unterscheiden; eine Tafel, die drei Pakete als „in Arbeit" stehen lässt, behauptet, es liefe noch
-etwas.
+Abbruchgrund steht als Glut-Punkt beim Menschen. Eine Tafel, die drei Pakete als „in Arbeit"
+stehen lässt, behauptet, es liefe noch etwas.
 
 ---
 
@@ -696,4 +662,4 @@ etwas.
 | das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — Schließen: Phase 6, `Closes` |
 | ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
-Die Lauftafel steht auf dem Endstand. Prüfe die Tabelle nach, statt sie anzunehmen.
+Die Lauftafel steht auf dem Endstand.
