@@ -295,10 +295,31 @@ Describe 'worktree.ps1 Down' {
     It 'brings down the compose project named <repo>-<nr>' {
         $t = New-AdapterRepo
         (Invoke-Up $t).Exit | Should Be 0
-        $r = Invoke-DownWithDocker $t @(@{ Project = 'repo-1'; WorkingDir = 'C:\elsewhere' })
+        $r = Invoke-DownWithDocker $t @(@{ Project = 'repo-1' })
         $r.Exit | Should Be 0
         $r.Calls | Should Match '(?m)^compose -p repo-1 down'
         $r.Output | Should Match 'Stopped compose project repo-1'
+    }
+
+    It 'leaves a name match alone whose working_dir lies outside worktree_root' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $sibling = Join-Path (Split-Path $t.Repo) 'repo-1'
+        $r = Invoke-DownWithDocker $t @(@{ Project = 'repo-1'; WorkingDir = $sibling })
+        $r.Exit | Should Be 0
+        $r.Calls | Should Not Match '(?m)^compose '
+        $r.Output | Should Match 'Compose: repo-1 matches the package name, but working_dir .*repo-1 lies outside worktree_root; left alone\.'
+        $r.Output | Should Match 'no project belongs to this worktree'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
+    It 'brings down a name match with one container under worktree_root and one outside' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $sibling = Join-Path (Split-Path $t.Repo) 'repo-1'
+        $r = Invoke-DownWithDocker $t @(@{ Project = 'repo-1'; WorkingDir = $sibling }, @{ Project = 'repo-1'; WorkingDir = (Join-Path (Split-Path $t.Worktree) 'other') })
+        $r.Exit | Should Be 0
+        $r.Calls | Should Match '(?m)^compose -p repo-1 down'
     }
 
     It 'brings down a compose project whose working_dir lies in the worktree' {

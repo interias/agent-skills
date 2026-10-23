@@ -16,9 +16,12 @@
     without frontmatter, Up stops with exit 1 and names what is missing.
 
     Down: stops what clearly belongs to <worktree_root>/<Package>, then does what Remove does and
-    deletes the lock. Clearly belongs means: compose projects named <repo>-<Package> or whose
-    com.docker.compose.project.working_dir lies in the worktree (`docker compose -p <name> down`,
-    docker from PATH; without docker the compose step is skipped and reported, not an error), and
+    deletes the lock. Clearly belongs means: compose projects whose
+    com.docker.compose.project.working_dir lies in the worktree, or named <repo>-<Package> when
+    they have no working_dir or one container's working_dir lies under worktree_root (a name match
+    with every working_dir outside worktree_root is left alone and reported: a parallel project
+    may share the name; `docker compose -p <name> down`, docker from PATH; without docker the
+    compose step is skipped and reported, not an error), and
     processes whose command line, executable or working directory lies in the worktree. Paths are
     compared case-insensitively and only at a separator, so ...\35 never matches ...\350. The
     calling process and its ancestors are never stopped. Unless the path is a linked worktree of
@@ -418,11 +421,26 @@ function Stop-ComposeProject([string]$name) {
     Write-Host "Stopped compose project $name."
 }
 
-function Stop-WorktreeCompose([string]$root, [string]$project) {
+# A project name that matches by name counts only if it has no working_dir or one container lies under
+# worktree_root: a sibling repo app-2 has the default project name app-2, so the name alone is not enough.
+# A path .NET cannot parse counts as outside, so one odd label does not abort the compose step.
+function Test-ComposeNameMatchCounts($dirs, [string]$worktreeRoot) {
+    $dirs = @($dirs | Where-Object { $_ })
+    [bool](-not $dirs -or @($dirs | Where-Object { try { Test-UnderPath (Get-FullPath $_) $worktreeRoot } catch { $false } }))
+}
+
+function Stop-WorktreeCompose([string]$root, [string]$project, [string]$worktreeRoot) {
     $compose = Get-ComposeProjects
     if (-not $compose.Reachable) { return }
-    $names = @($compose.Projects | Where-Object { $_.Name -eq $project -or (Test-UnderPath $_.WorkingDir $root) } |
-        ForEach-Object { $_.Name } | Select-Object -Unique)
+    $names = @()
+    foreach ($group in @($compose.Projects | Group-Object Name)) {
+        $dirs = @($group.Group | ForEach-Object { $_.WorkingDir } | Where-Object { $_ })
+        if (@($group.Group | Where-Object { Test-UnderPath $_.WorkingDir $root })) { $names += $group.Name }
+        elseif ($group.Name -eq $project) {
+            if (Test-ComposeNameMatchCounts $dirs $worktreeRoot) { $names += $group.Name }
+            else { Write-Host "Compose: $($group.Name) matches the package name, but working_dir $($dirs -join ', ') lies outside worktree_root; left alone." }
+        }
+    }
     if (-not $names) { Write-Host 'Compose: no project belongs to this worktree.'; return }
     foreach ($name in $names) { Stop-ComposeProject $name }
 }
@@ -585,7 +603,7 @@ if ($Action -eq 'CleanupStale') {
                 if (Test-UnderPath $RepoRoot $wt) { throw "$wt holds the main checkout. Nothing stopped." }
                 if (Test-ForeignGitFolder $wt) { throw "$wt is a repo or a worktree of another repo. Nothing stopped." }
                 $script:hostLines = @()
-                Stop-WorktreeCompose $wt (Get-ComposeProjectName $RepoRoot $file.BaseName)
+                Stop-WorktreeCompose $wt (Get-ComposeProjectName $RepoRoot $file.BaseName) $worktreeRoot
                 Stop-FoundProcesses @(Get-WorktreeProcesses $wt)
                 Add-StopEntries $hostLines $name $reason $branch
                 if ($registered) {
@@ -634,10 +652,8 @@ if ($Action -eq 'CleanupStale') {
             foreach ($group in @($compose.Projects | Group-Object Name)) {
                 $names = @()
                 if ($group.Name -like "$composePrefix*") {
-                    # A sibling repo app-2 has the default project name app-2: the name alone is not enough.
                     $dirs = @($group.Group | ForEach-Object { $_.WorkingDir } | Where-Object { $_ })
-                    # A path .NET cannot parse counts as outside, so one odd label does not abort the compose step.
-                    if (-not $dirs -or @($dirs | Where-Object { try { Test-UnderPath (Get-FullPath $_) $worktreeRoot } catch { $false } })) {
+                    if (Test-ComposeNameMatchCounts $dirs $worktreeRoot) {
                         $names += $group.Name.Substring($composePrefix.Length).ToLowerInvariant()
                     } else {
                         Add-Entry 'compose' $group.Name $null 'skipped' "name matches ${composePrefix}<nr>, but working_dir $($dirs -join ', ') lies outside worktree_root"
@@ -740,7 +756,7 @@ if ($Action -eq 'Down') {
     if ($linked -notcontains $WorktreePath) { Fail "$WorktreePath is not a linked worktree of $RepoRoot. Nothing stopped, nothing removed." }
     if (-not (Test-Path -LiteralPath (Get-ManifestPath $WorktreePath))) { Fail "No manifest for $WorktreePath - this worktree was not created by worktree.ps1. Nothing stopped, nothing removed." }
     # Stop what clearly belongs to the worktree before anything is removed.
-    Stop-WorktreeCompose $WorktreePath $project
+    Stop-WorktreeCompose $WorktreePath $project (Get-WorktreeRoot $adapter $RepoRoot)
     $found = @(Get-WorktreeProcesses $WorktreePath)
     Stop-FoundProcesses $found
     if (-not $found) { Write-Host 'Processes: none ran in this worktree.' }
