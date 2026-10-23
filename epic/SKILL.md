@@ -500,7 +500,7 @@ durchkommt, oder er meldet ihn als Befund. Ein Schreiber, den nur ein Trockenlau
 als nicht geprüft — ein Trockenlauf sieht die schreibenden Aufrufe nicht. Die Suche darf er an
 Kundschafter geben, einen je Schreiberart; hat er kein `Agent`-Werkzeug, sucht er selbst.
 
-Drei Dinge schreibst du ihm ausdrücklich in den Auftrag:
+Drei Dinge, in einer Kette ein viertes, schreibst du ihm ausdrücklich in den Auftrag:
 
 - **Den Diff-Befehl `git -C <worktree> diff HEAD`** und den Epic-Kopf, auf dem sein Worktree steht.
   Ein Diff gegen den Epic-Branch zeigt inzwischen gemergte Pakete als vermeintliche Änderung, und

@@ -33,11 +33,12 @@ Hook (Regel 5).
 
 ## Die Regeln, die nicht verhandelbar sind
 
-1. **Der Basiszweig kommt aus dem Pull Request, nicht aus dem Adapter.** Du wechselst zurück auf
-   den Zweig, in den der Pull Request gemergt wurde — sein `base`. Das ist *meistens* der
-   Hauptzweig, aber nicht immer: ein Epic kann von einem anderen Epic abzweigen, und dann wäre ein
-   Wechsel auf den Hauptzweig eine falsche Ausgangslage für den nächsten Lauf. Lies das Feld, nimm
-   es nicht an.
+1. **Der Basiszweig kommt aus dem Pull Request, nicht aus dem Adapter.** Geholt und geprüft
+   wird der Zweig, in den der Pull Request gemergt wurde — sein `base` —, per `git fetch` und gegen
+   den Fernzweig, ohne das Hauptverzeichnis umzuschalten (Phase 1, `epic/SKILL.md` Regel 11). Das
+   ist *meistens* der Hauptzweig, aber nicht immer: ein Epic kann von einem anderen Epic abzweigen,
+   und dann wäre ein Nachweis gegen den Hauptzweig eine falsche Ausgangslage für den nächsten Lauf.
+   Lies das Feld, nimm es nicht an.
 2. **Nichts wird gelöscht, dessen Commits nicht nachweislich im Basiszweig liegen.** Der Nachweis
    ist ein Befehl, nicht eine Annahme (siehe „Der Merge-Nachweis" unten). Ein Branch, dessen Arbeit
    nirgends sonst existiert, ist das einzige Exemplar dieser Arbeit.

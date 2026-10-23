@@ -20,7 +20,8 @@ grill-with-docs ─→ to-spec ──────────────→ /ep
 ```
 
 - **`grill-with-docs`** klärt Plan und Fachsprache und schreibt `CONTEXT.md` und `docs/adr/`.
-  `grill-me` und `grilling` sind dieselbe Befragung ohne Dokumente.
+  `grill-me` und `grilling` sind dieselbe Befragung ohne Dokumente. `epic-nacharbeit` und
+  `epic-lagebesprechung` setzen für ihre Fragerunden `grilling` voraus.
 - **`to-spec`** schreibt eine Spec mit sieben Abschnitten, `/epic` zerlegt sie selbst.
 - **`to-tickets`** zerlegt in Kind-Tickets, `/epic` arbeitet sie als Epic ab.
 
