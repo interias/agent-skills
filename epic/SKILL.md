@@ -93,6 +93,9 @@ Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleib
 10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
     aus den Antworten der ersten entstehen. Was danach schiefgeht,
     lässt ein Paket zurück, nicht den Lauf (siehe „Wann angehalten wird").
+    **Eine Ausnahme: die RAM-Bremse** (Phase 4, „Die RAM-Bremse"). Warten auf Speicher ist kein
+    Zurücklassen: laufende Pakete laufen weiter, nur kein neuer Start. Herkunft: Tor-Entscheidung
+    im Epic #34, vorläufig (#37).
 11. **Das Hauptverzeichnis wird nie umgeschaltet**, kein `git switch`, kein `git checkout` dort —
     im selben Klon kann eine zweite Sitzung laufen, der ein Wechsel den Arbeitsstand wegzöge. Der
     Epic-Branch lebt in einem eigenen Worktree (Phase 3). Durch Hook durchgesetzt.
@@ -448,10 +451,43 @@ Warum höchstens drei: du fährst jeden Verifikationsweg selbst nach und liest j
 Reviewer-Bericht — das ist die Engstelle, nicht die Rechenzeit. Und die Kollisionspaare wachsen
 quadratisch.
 
+### Die RAM-Bremse (#37)
+
+Ist der Speicher des Windows-Rechners voll, stürzt er ab und reißt alle laufenden Pakete mit
+(Epic #34). Deshalb misst du **vor jedem Paketstart** — in 4a und beim Nachrücker (Phase 5,
+Punkt 3); eine Nachricht, die mehrere Pakete startet, braucht eine Messung:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/ram.ps1 -RepoRoot <repo>
+```
+
+Ausgabe ist ein JSON-Objekt: `percent_used`, `free_gb`, `total_gb`, `level`. Ab **75 %** belegt
+ist es `warn`, ab **85 %** `hold`, und bei weniger als **4 GB** frei mindestens `warn`; die drei
+Werte stellt der Adapter ein (`ram_warn_percent`, `ram_hold_percent`, `ram_min_free_gb`,
+dokumentiert in #38). „Frei" ist, was Windows sofort vergeben kann — der Wert „Verfügbar" des
+Task-Managers. Der Grund für Prozent mit Boden: `scripts/ram.ps1`, Kopfkommentar.
+
+| `level` | Du tust |
+|---|---|
+| `ok` | Paket startet |
+| `warn` | Paket startet; das `warn` steht beim Messwert auf der Tafel |
+| `hold` | **Kein weiteres Paket startet**, der Platz bleibt leer; laufende Pakete laufen weiter. Du misst bei jedem Aufwachen neu und, wenn kein Paket läuft, alle fünf Minuten (`Start-Sleep`), bis es `ok` ist oder der Mensch freigibt. Eine Freigabe gilt für den nächsten Start. Du sagst einmal im Chat, dass du wartest |
+
+Jeder Messwert steht auf der Lauftafel (`references/lauftafel.md`, „RAM-Messung"). Schlägt die
+Messung fehl (Exit 1), ist das ein Glut-Punkt, und das Paket startet nicht ohne Messwert.
+
+**Unter `/epic-flotte`** fragst du bei `hold` nicht selbst: du beendest den Zug mit einem
+Frageblock der Phase `ram` (`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"), Optionen
+„warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Der Admiral legt es dem Menschen vor.
+Auf seine Antwort `warten` startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn
+`weiter` kommt (`ok` oder Freigabe des Menschen), und misst dann nicht noch einmal. Schlägt die
+Messung fehl, geht derselbe Block hinaus, mit dem Fehlertext statt des Messwerts.
+
 ### 4a — Implementer-Subagent
 
 Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
-unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
+unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht), davor die Messung
+der RAM-Bremse. Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
 aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen Kontext nicht; sein Auftrag enthält alles
@@ -585,7 +621,8 @@ bereits auf ihm.
    der Branch bleibt (`references/worktree.md`, „Abräumen").
 3. Sonst den Worktree per `worktree.ps1 -Action Remove` und danach den Paket-Branch abräumen
    (`references/worktree.md`), nie `--force`. Platz frei: das nächste
-   startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
+   startbereite Paket startet nach 4a, **mit** Messung der RAM-Bremse und `status/in-arbeit` an
+   seinem Ticket und Nachlesen.
    `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
    und verweigert.
 4. **Kommentar an das gemergte Ticket** — im Modus `tickets` und `spec` mit Kindern das Kind, im Modus
@@ -682,6 +719,10 @@ Gefragt wird in beiden Fällen nach „Wie gefragt wird".
 
 **Im Lauf wird nicht angehalten.** Was schiefgeht, lässt ein Paket zurück (Phase 5), die übrigen
 laufen weiter.
+
+**Ausnahme RAM-Bremse (#37):** Steht sie auf `hold`, startet das nächste Paket nicht, bis sie
+`ok` ist oder der Mensch freigibt (Phase 4, „Die RAM-Bremse"). Das hält den Lauf nicht an und
+lässt kein Paket zurück: was läuft, läuft weiter.
 
 **Wird der Lauf trotzdem abgebrochen** — durch den Menschen, die Sitzung, den Verlust der Forge —,
 wird **nichts weggeworfen**: der Epic-Branch bleibt, die fertigen Merges bleiben, zurückgelassene

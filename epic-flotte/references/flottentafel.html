@@ -300,7 +300,7 @@
   <header class="head">
     <!-- Name des Repositorys und des Admirals in der Kopfleiste; das Script liest den Admiral von hier. -->
     <div class="topbar"><div class="t"><b>Flottentafel</b><span>Beispielrepo · <span id="admiral">Admiral Janeway</span></span></div><i></i><u></u></div>
-    <div class="stamp"><span class="demo">Musterbelegung</span><b class="lauf live">Einsatz läuft</b><span>Stand <b>22.09.2026, 14:10 MESZ</b></span><span>Fortschreibung <b>11</b></span><span>Sternzeit <b>80724.8</b></span></div>
+    <div class="stamp"><span class="demo">Musterbelegung</span><b class="lauf live">Einsatz läuft</b><span>Stand <b>22.09.2026, 14:10 MESZ</b></span><span>Fortschreibung <b>11</b></span><span>Sternzeit <b>80724.8</b></span><span>RAM <b>66 % · 10,8 GB frei · ok</b></span></div>
   </header>
 
   <aside class="side" aria-label="Kennzahlen der Flotte">
@@ -443,15 +443,15 @@
       </div></section>
 
       <section class="blk" id="seite-bremse" role="tabpanel" aria-labelledby="k-bremse" style="--rc: var(--butter)" hidden><div class="rail"></div><div>
-        <h2>Verlauf der Bremse <small>je Messung: Stufe, Fenster, Zuwachs seit der letzten, Pakete dazwischen</small></h2>
+        <h2>Verlauf der Bremse <small>je Messung: Stufe, Fenster, Zuwachs seit der letzten, Pakete dazwischen, Speicher vor der Welle</small></h2>
         <div class="tblw"><table>
-          <thead><tr><th scope="col">Zeit</th><th scope="col">Stufe</th><th scope="col">5 h verbraucht</th><th scope="col">hochgerechnet</th><th scope="col">Woche</th><th scope="col">Zuwachs</th><th scope="col">Pakete dazwischen</th></tr></thead>
+          <thead><tr><th scope="col">Zeit</th><th scope="col">Stufe</th><th scope="col">5 h verbraucht</th><th scope="col">hochgerechnet</th><th scope="col">Woche</th><th scope="col">Zuwachs</th><th scope="col">Pakete dazwischen</th><th scope="col">RAM vor der Welle</th></tr></thead>
           <tbody>
-            <tr><td>11:05</td><td><span class="stufe gruen">grün</span></td><td>3 %</td><td>—</td><td>37 %</td><td>—</td><td>—</td></tr>
-            <tr><td>11:40</td><td><span class="stufe gruen">grün</span></td><td>9 %</td><td>68 %</td><td>38 %</td><td>+6 %</td><td>1 · mechanisch</td></tr>
-            <tr><td>12:30</td><td><span class="stufe gruen">grün</span></td><td>26 %</td><td>87 %</td><td>39 %</td><td>+17 %</td><td>2 · standard</td></tr>
-            <tr><td>13:10</td><td><span class="stufe gelb">gelb</span></td><td>41 %</td><td>95 %</td><td>40 %</td><td>+15 %</td><td>1 · urteil, 2 Runden</td></tr>
-            <tr><td>14:05</td><td><span class="stufe gelb">gelb</span></td><td>62 %</td><td>101 %</td><td>41 %</td><td>+21 %</td><td>3 · 2 standard, 1 urteil</td></tr>
+            <tr><td>11:05</td><td><span class="stufe gruen">grün</span></td><td>3 %</td><td>—</td><td>37 %</td><td>—</td><td>—</td><td>41 % · 18,7 GB · ok</td></tr>
+            <tr><td>11:40</td><td><span class="stufe gruen">grün</span></td><td>9 %</td><td>68 %</td><td>38 %</td><td>+6 %</td><td>1 · mechanisch</td><td>52 % · 15,2 GB · ok</td></tr>
+            <tr><td>12:30</td><td><span class="stufe gruen">grün</span></td><td>26 %</td><td>87 %</td><td>39 %</td><td>+17 %</td><td>2 · standard</td><td>64 % · 11,4 GB · ok</td></tr>
+            <tr><td>13:10</td><td><span class="stufe gelb">gelb</span></td><td>41 %</td><td>95 %</td><td>40 %</td><td>+15 %</td><td>1 · urteil, 2 Runden</td><td>77 % · 7,3 GB · warn</td></tr>
+            <tr><td>14:05</td><td><span class="stufe gelb">gelb</span></td><td>62 %</td><td>101 %</td><td>41 %</td><td>+21 %</td><td>3 · 2 standard, 1 urteil</td><td>66 % · 10,8 GB · ok</td></tr>
           </tbody>
         </table></div>
         <p class="dev"><b>Kosten je Paket bisher:</b> mechanisch 6 % · standard 8 % (Spanne 7–9) · urteil 15 % — Schätzung der nächsten Welle daraus.</p>
