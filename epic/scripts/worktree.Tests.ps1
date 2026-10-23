@@ -554,11 +554,11 @@ Describe 'worktree.ps1 CleanupStale' {
     It 'brings down an orphan compose project, not one with a living lock or an unlocked worktree' {
         $t = New-AdapterRepo
         (Invoke-Up $t).Exit | Should Be 0
-        Add-UnlockedWorktree $t '2' | Out-Null
+        $unlocked = Add-UnlockedWorktree $t '2'
         $r = Invoke-Cleanup $t @(
-            @{ Project = 'repo-7'; WorkingDir = 'C:\elsewhere' },
+            @{ Project = 'repo-7'; WorkingDir = (Join-Path (Split-Path $t.Worktree) '7') },
             @{ Project = 'repo-1'; WorkingDir = $t.Worktree },
-            @{ Project = 'repo-2'; WorkingDir = 'C:\elsewhere' },
+            @{ Project = 'repo-2'; WorkingDir = $unlocked },
             @{ Project = 'devstack'; WorkingDir = 'C:\elsewhere' })
         $r.Exit | Should Be 0
         $r.Calls | Should Match '(?m)^compose -p repo-7 down'
@@ -569,6 +569,27 @@ Describe 'worktree.ps1 CleanupStale' {
         (Find-Entry $r 'compose' 'repo-1')[0].reason | Should Match 'alive'
         (Find-Entry $r 'compose' 'repo-2')[0].reason | Should Be 'no lock (epic worktree or created by Add)'
         Find-Entry $r 'compose' 'devstack' | Should BeNullOrEmpty
+    }
+
+    It 'leaves a name match alone whose working_dir lies outside worktree_root, and counts a missing working_dir or one container under it' {
+        $t = New-AdapterRepo
+        $sibling = Join-Path (Split-Path $t.Repo) 'repo-2'
+        $r = Invoke-Cleanup $t @(
+            @{ Project = 'repo-2'; WorkingDir = $sibling },
+            @{ Project = 'repo-3'; WorkingDir = '' },
+            @{ Project = 'repo-4' },
+            @{ Project = 'repo-5'; WorkingDir = 'C:\odd|dir' },
+            @{ Project = 'repo-6'; WorkingDir = $sibling },
+            @{ Project = 'repo-6'; WorkingDir = (Join-Path (Split-Path $t.Worktree) '6') })
+        $r.Exit | Should Be 0
+        $r.Calls | Should Not Match '(?m)^compose -p repo-5 '
+        (Find-Entry $r 'compose' 'repo-5')[0].action | Should Be 'skipped'
+        $r.Calls | Should Match '(?m)^compose -p repo-6 down'
+        $r.Calls | Should Not Match '(?m)^compose -p repo-2 '
+        (Find-Entry $r 'compose' 'repo-2')[0].action | Should Be 'skipped'
+        (Find-Entry $r 'compose' 'repo-2')[0].reason | Should Match 'name matches repo-<nr>, but working_dir .*repo-2 lies outside worktree_root'
+        $r.Calls | Should Match '(?m)^compose -p repo-3 down'
+        $r.Calls | Should Match '(?m)^compose -p repo-4 down'
     }
 
     It 'skips compose without docker, exits 0 and still clears a dead lock' {
