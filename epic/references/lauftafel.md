@@ -181,6 +181,20 @@ ganze Kachel. Ohne sie gibt es auf der Tafel keine Hitze. Getönt wird nach dem 
 Der Balken ist `.meter`: `<i style="width: <wert>%">` der Wert, `<u style="left: <ziel>%">` die
 Zielmarke.
 
+## RAM-Messung (#37)
+
+Vor jedem Paketstart misst `scripts/ram.ps1` den Speicher (`SKILL.md`, „Die RAM-Bremse"). **Jeder
+Messwert steht auf der Tafel**, ohne neues Element und ohne Eingriff in den `<style>`-Block:
+
+- `.stamp`: die letzte Messung als `<span>RAM <b>66 % · 10,8 GB frei · ok</b></span>` hinter der
+  Sternzeit — belegter Anteil, freier Speicher, `level`.
+- Der `.sub` des Pakets, dessen Start gemessen wurde, endet auf ` · RAM <belegt> % · <frei> GB frei ·
+  <level>`. Ein Nachrücker bekommt seine eigene Messung. Ein Paket, dessen Start die Bremse hielt,
+  trägt die Messung, bei der es dann startete.
+- Hielt die Bremse (`hold`) einen Start zurück, steht in der Abweichungszeile seit wann, bei
+  welchem Wert und wie das Warten endete (`ok` oder Freigabe des Menschen). Ein `warn` braucht dort
+  keinen Satz; es steht beim Messwert.
+
 ## Zeitleiste
 
 Eine Spur je Platz des Fensters (`window`), also bei `window: 1` genau eine. Die Überschrift nennt
@@ -206,6 +220,7 @@ sind jedes Mal:
 - Teststand und Kennzahl samt Basis in den Kacheln der Seitenleiste
 - die offenen Punkte: dazugekommene, erledigte, gekippte
 - Balken und Achse der Zeitleiste, die Abweichungszeile
+- die letzte RAM-Messung in `.stamp` und die Messung im `.sub` jedes neu gestarteten Pakets
 
 Eine Tafel, die nach dem dritten Merge noch den Anfang zeigt, ist schlimmer als keine, denn sie
 sieht aktuell aus.
@@ -216,7 +231,7 @@ sieht aktuell aus.
   steht auf `Lauf im Gang`.
 - Keine Musterdaten mehr auf der Seite. Die Ausgabe muss leer sein:
   ```bash
-  grep -n "Musterbelegung\|Beispielrepo\|Auftragsliste\|1&nbsp;438\|#9[45][0-9]\|release/9.4\|epic/942-\|agent/949-\|1a2b3c4\|5d6e7f8\|9a0b1c2\|export_legacy\|Exporte unter 2 s\|= 318\|>318<\|88,7\|22.09.2026, 14:05\|80724.8" "<scratchpad>/lauftafel-<nr>.html"
+  grep -n "Musterbelegung\|Beispielrepo\|Auftragsliste\|1&nbsp;438\|#9[45][0-9]\|release/9.4\|epic/942-\|agent/949-\|1a2b3c4\|5d6e7f8\|9a0b1c2\|export_legacy\|Exporte unter 2 s\|= 318\|>318<\|88,7\|10,8 GB frei\|13,3 GB frei\|7,3 GB frei\|22.09.2026, 14:05\|80724.8" "<scratchpad>/lauftafel-<nr>.html"
   ```
   Trägt der echte Lauf selbst eine Nummer zwischen #940 und #959, meldet das Muster `#9[45][0-9]`
   auch echte Treffer. Dann jede Zeile einzeln ansehen.

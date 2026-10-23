@@ -69,6 +69,24 @@ kommt ebenfalls von der Systemuhr oder aus `get_usage`, nie aus einer Schätzung
 | Beendet | `<b class="lauf done">Beendet</b>` | Endstand nach Phase 5 |
 | Abgebrochen | `<b class="lauf fail">Abgebrochen</b>` | der Einsatz endet vorher; der Grund steht als Glut-Punkt unter „Beim Menschen" |
 
+## RAM-Messung (#37)
+
+Vor jeder Welle misst der Admiral den Speicher (`SKILL.md`, „RAM-Bremse"). **Jeder Messwert steht
+auf der Tafel**, ohne neues Element und ohne Eingriff in den `<style>`-Block:
+
+- `.stamp`: die letzte Messung als `<span>RAM <b>66 % · 10,8 GB frei · ok</b></span>` hinter der
+  Sternzeit.
+- Seite **Bremse**: je Messung eine Zeile, die Spalte „RAM vor der Welle" nennt belegten Anteil,
+  freien Speicher und `level` (`ok`, `warn`, `hold`). Die Zeile gehört zu der Messung der
+  Verbrauchsbremse desselben Aufwachens; wird nur der Speicher gemessen, bleiben die Felder davor
+  `—`. Bei `warn` und `hold` steht in der Abweichungszeile der Seite Belegung, welche Welle oder
+  welches Paket die Bremse zurückhält.
+- Bei `hold` ist die Frage an den Menschen ein Glut-Punkt unter „Beim Menschen" (Art `Entscheidung`),
+  bei `warn` die Pause ein blauer Punkt (`.item.run`, hebt die Flotte selbst).
+
+Die Stufen der RAM-Bremse heißen `ok`, `warn`, `hold` und tragen auf der Tafel nur Text; die
+Farbchips `gruen`, `gelb`, `rot` gehören der Verbrauchsbremse.
+
 ## Kennzahlen
 
 | Kachel | Wert | `.basis` |
@@ -185,7 +203,8 @@ im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
 - die Zeilen von „Stand der Läufe": Zustand, Mini-Segmente aus der jeweiligen Lauftafel, `.sub`,
   PR; neue Epics aus dem Dock, freie Plätze
 - die Kacheln
-- die Bremse-Leiste und eine neue Zeile auf der Seite Bremse bei jeder Messung
+- die Bremse-Leiste und eine neue Zeile auf der Seite Bremse bei jeder Messung, mit der RAM-Messung
+  dieses Aufwachens und der Messung in `.stamp`
 - eine neue Zeile auf der Seite Entscheidungen bei jeder eigenen Entscheidung, Bestätigung oder
   jedem Veto
 - „Beim Menschen": dazugekommene, erledigte Punkte
@@ -197,7 +216,7 @@ im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
   steht auf `Einsatz läuft`.
 - Keine Musterdaten mehr auf der Seite. Die Ausgabe muss leer sein:
   ```bash
-  grep -n "Musterbelegung\|Beispielrepo\|Auftragsliste\|Rechnungen gesammelt\|Lieferscheine\|Rollenrechte\|Exportformat XLSX\|Testkonto\|#9[4-7][0-9]\|data-epic=\"9[4-7][0-9]\"\|a7f3e21\|c21e9d0\|5be8f13\|9b04c77\|#212\|22.09.2026, 14:10\|80724.8\|hochgerechnet 101 %" "<scratchpad>/flottentafel.html"
+  grep -n "Musterbelegung\|Beispielrepo\|Auftragsliste\|Rechnungen gesammelt\|Lieferscheine\|Rollenrechte\|Exportformat XLSX\|10,8 GB\|18,7 GB\|15,2 GB\|11,4 GB\|7,3 GB\|Testkonto\|#9[4-7][0-9]\|data-epic=\"9[4-7][0-9]\"\|a7f3e21\|c21e9d0\|5be8f13\|9b04c77\|#212\|22.09.2026, 14:10\|80724.8\|hochgerechnet 101 %" "<scratchpad>/flottentafel.html"
   ```
   Trägt ein echtes Epic eine Nummer zwischen #940 und #979 oder ein echter Pull Request #212,
   meldet das Muster auch echte Treffer. Dann jede Zeile einzeln ansehen. Der Admiralsname der

@@ -78,7 +78,7 @@ Zwei Dinge unterscheiden ihn von einem Chat-Lauf, und beide schreibst du in sein
 Der Frageblock, mit dem ein Lauf-Agent seinen Zug beendet:
 
 ```
-FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch>
+FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
 1. <Frage> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
 2. …
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
@@ -88,6 +88,10 @@ Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen. Antworte
 `vorläufig: <Option>`, arbeitet der Lauf damit weiter wie mit jeder Antwort und öffnet den Pull
 Request mit `WIP:` (`epic/SKILL.md`, Phase 6). Ein späteres Veto des Menschen kommt als Antwort
 an einem Prüfpunkt; wie es ankommt und umgesetzt wird, steht unter „Vorläufig mit Veto".
+
+**Meldet ein Lauf `hold`** der RAM-Bremse (`epic/SKILL.md`, „Die RAM-Bremse"), fragt er nicht selbst,
+sondern beendet seinen Zug mit einem Frageblock der Phase `ram`: Messwert, Optionen „warten bis
+`ok`" (Empfehlung) und „trotz `hold` starten". Du antwortest nach „RAM-Bremse" unten.
 
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
@@ -195,7 +199,8 @@ mindestens Stufe mittel.
 
 ## Phase 2 — Starten
 
-Vor jedem Start die Verbrauchsbremse prüfen: gestartet wird nur bei Grün.
+Vor jedem Start die Verbrauchsbremse prüfen: gestartet wird nur bei Grün. Dazu die RAM-Bremse
+messen („RAM-Bremse"): gestartet wird nur bei `ok`.
 
 Je Epic der Belegung ein Lauf-Agent, alle Starts in **einer** Nachricht. Sein Auftrag enthält
 ausgeschrieben:
@@ -215,10 +220,12 @@ den Link nennen.
 ## Phase 3 — Überwachen
 
 Du wirst geweckt, wenn ein Lauf-Agent seinen Zug beendet. Dazwischen pollst du nicht. Bei jedem
-Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse").
+Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher („RAM-Bremse").
 
 - **`FLOTTE-WELLE`:** Stufe bestimmen und `weiter` oder `Pause bis <Reset>` antworten; die Wahl
-  steht auf der Flottentafel.
+  steht auf der Flottentafel. Steht die RAM-Bremse nicht auf `ok`, lautet sie `Pause bis RAM ok`.
+
+- **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" beantworten und dem Menschen vorlegen.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
   entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Agenten. Was beim
@@ -287,6 +294,7 @@ sondern die Frage, ob eine Entscheidung **eine Herkunft hat** und **folgenlos au
 | Kanten aus `body` nachtragen (Tor-Punkt 11), Belegung und Reihenfolge der Epics | Dieselbe Frage wurde in **einem anderen Projekt** dieser Forge entschieden, der Kontext passt, und die Entscheidung ist aufhebbar | Produktiv- oder Stammdaten (Regel 4, Tor-Punkt 5) |
 | Nacharbeit: Handgriffe (lokal, reversibel), „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge | | Zugriff aus `no_access` (Tor-Punkt 4), fehlendes Schreibrecht (10), `gate_approvals` (12) |
 | Einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen | | Widerspruch zu einem ADR oder Out-of-Scope (Tor-Punkt 6) — eines von beiden ist falsch |
+| | | Eine Freigabe trotz RAM-`hold` (die Umkehr wäre ein Absturz, nie vorläufig) |
 | | | PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde |
 
 **Präzedenz suchen** ist Faktenbeschaffung und damit deine Aufgabe: in der Forge die Kommentare
@@ -314,8 +322,9 @@ umkehren** lässt — gemergt wird ohnehin nur vom Menschen. Du wendest deine Em
 der Lauf arbeitet weiter, und der Mensch bestätigt oder kippt sie mit der nächsten Runde.
 
 - **Nie vorläufig:** Produktiv- oder Stammdaten, Zugriff aus `no_access`, fehlendes Schreibrecht,
-  `gate_approvals`, eine Antwort, die eine Regel lockert, PR mergen, Remote-Branch löschen, ein
-  Issue schließen, und alles nach dem Merge des Epic-PRs. Hier wartet der Lauf.
+  `gate_approvals`, eine Freigabe trotz RAM-`hold`, eine Antwort, die eine Regel lockert, PR
+  mergen, Remote-Branch löschen, ein Issue schließen, und alles nach dem Merge des Epic-PRs. Hier
+  wartet der Lauf.
 - **Widerspruch zu ADR oder Out-of-Scope:** vorläufig nur in eine Richtung — der Lauf folgt der
   bestehenden Entscheidung und lässt den widersprechenden Teil des Issues als offenen Punkt.
 - **Forge-Kommentar** wie oben, Kopfzeile **Vorläufig entschieden von /epic-flotte (Admiral
@@ -377,6 +386,9 @@ Stand der Flotte von /epic-flotte. Wird automatisch fortgeschrieben; KIBO liest 
   "active": true,
   "admiral": "Pike",
   "brake": "gelb",
+  "ram": [
+    { "at": "2026-10-23T14:05", "epic": 21, "level": "ok", "percent_used": 62.4, "free_gb": 11.9 }
+  ],
   "epics": [
     { "number": 21, "stage": "packages", "wave": 3, "carrier": "chat", "paused": false, "note": "" }
   ],
@@ -389,6 +401,7 @@ Stand der Flotte von /epic-flotte. Wird automatisch fortgeschrieben; KIBO liest 
 | Feld | Inhalt |
 |---|---|
 | `brake` | Stufe der Verbrauchsbremse: `gruen`, `gelb`, `rot`. **Nur die Stufe, nie Prozente** — das Planlimit sind Kontodaten einer Person, Gitea liest das Team |
+| `ram` | **Jeder Messwert der RAM-Bremse** beim Wellen- oder Epic-Start dieses Einsatzes (#37), älteste zuerst, je `at` (Ortszeit aus der Systemuhr), `epic` (das Epic, dessen Start gemessen wurde, sonst `0`), `level` (`ok`, `warn`, `hold`), `percent_used`, `free_gb`. RAM-Werte sind Maschinendaten, keine Kontodaten, deshalb dürfen Zahlen hinein. Mit `epics` leerst du die Liste beim Start des nächsten Einsatzes |
 | `epics[].stage` | Etappe: `waiting`, `gate`, `packages`, `pr`, `followup` (Nacharbeit), `merge` (wartet auf den Merge des Menschen), `cleanup`, `done` |
 | `epics[].carrier` | `agent` (dein Lauf-Agent) oder `chat` (übernommener Chat) |
 | `epics[].paused` | `true` während einer Pause der Verbrauchsbremse |
@@ -442,6 +455,37 @@ nach Paketklasse und Implementer-Runden), die Eskalationen und ob eine Schwelle 
 spät gegriffen hat. Daraus
 schlägst du eine Zeile für `references/verbrauch.md` vor; sie kommt per Pull Request ins
 Skill-Repository, nicht von dir direkt.
+
+## RAM-Bremse
+
+Bricht der Speicher des Windows-Rechners ein, stürzt er mit allen Läufen ab. Du misst **vor jeder
+Welle** — vor dem Start eines Laufs (Phase 2) und bei jedem `FLOTTE-WELLE`, bevor du `weiter`
+sagst — mit dem Skript von `/epic`:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/skills/epic/scripts/ram.ps1 -RepoRoot <repo>
+```
+
+Stufen, Standards und die Schlüssel im Adapter: `epic/SKILL.md`, „Die RAM-Bremse". Laufende Pakete
+laufen in jeder Stufe weiter; die Bremse hält nur Neues zurück.
+
+| `level` | Du tust |
+|---|---|
+| `ok` | normal |
+| `warn` | **keine neue Welle**, auch kein neues Epic; jedes `FLOTTE-WELLE` bekommt `Pause bis RAM ok`. Du sagst es dem Menschen im Chat, in einem Satz mit Messwert; fragen musst du nicht |
+| `hold` | wie `warn`, zusätzlich **bekommt kein laufendes Epic ein neues Paket**: auch ein Frageblock `ram` eines Laufs (er hat selbst `hold` gemessen) wird mit `warten` beantwortet. Du **fragst den Menschen** („Den Menschen fragen"): „warten bis `ok`" (Empfehlung: es hilft, Speicher freizugeben) oder „freigeben" — die Freigabe gilt für die nächste Welle und geht den wartenden Läufen als `weiter` zu |
+
+**Schlägt die Messung fehl** (Exit 1 von `ram.ps1`), startest du nichts und sagst es dem Menschen;
+ohne Messwert gilt die Bremse als `hold`.
+
+**Fortsetzen:** Du misst bei jedem Aufwachen neu. Ist es `ok`, antwortest du den pausierten Läufen
+`weiter`. Hast du ein Werkzeug, das dich nach fünf Minuten weckt, stellst du es darauf; sonst sagst
+du dem Menschen, dass er dich mit „weiter" anstoßen soll. Wartet ein Lauf auf eine Antwort des
+Menschen, bleibt sie offen (siehe „Ohne Antwort").
+
+**Spuren:** Jeder Messwert kommt als Zeile auf die Seite „Bremse" der Flottentafel, der aktuelle
+in `.stamp` (`references/flottentafel.md`, „RAM-Messung"), und als Eintrag `ram` ins Flottenlogbuch,
+im selben Zug wie jede Fortschreibung.
 
 ## Wann angehalten wird
 
