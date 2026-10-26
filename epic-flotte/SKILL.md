@@ -147,7 +147,9 @@ Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
   `epic-<nr>`-Worktree: Ist ein Chat oder Agent dran (`list_sessions`, Titel; offenes Zielissue
   mit `status/in-arbeit`)? Ein laufender Lauf ist belegt und zählt gegen die Obergrenze; ein
   laufender Chat wird übernommen („Laufende Chats übernehmen"); ein verwaister Worktree ist ein
-  Punkt für dich, kein Rest zum Löschen.
+  Punkt für dich, kein Rest zum Löschen. Ein fehlender `epic-<nr>`-Worktree heißt nicht, dass kein
+  Lauf mehr offen ist: Der Epic-Worktree lebt mit der Sitzung des Laufs, danach räumt `CleanupStale`
+  ihn ab, und Branch und Pull Request bleiben (`epic/references/worktree.md`, #34).
 - **Kandidaten einsammeln:** die Epics aus dem Argument, sonst alle offenen Epics, an denen oder
   an deren Kindern `ready_label` steht. Je Epic: Kinder, berührte Module (`modules_section`),
   Reihenfolge-Kanten zu anderen Epics, `exclusive_paths` und `always_collide`, die es berührt,
@@ -241,7 +243,7 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher 
   inzwischen gemergten Epics.
 - **Prüfen statt glauben**, je Lauf mindestens bei Tor, jedem Ende und jeder Abbruchmeldung:
   Statuslabels und Kommentare stichprobenartig in der Forge, Lauftafel aktuell, Epic-Worktree
-  vorhanden. Eine Abweichung schickst du dem Lauf-Agenten zurück, statt sie selbst zu richten.
+  vorhanden, solange die Sitzung des Lauf-Agenten lebt (danach räumt ihn `CleanupStale` ab, #34). Eine Abweichung schickst du dem Lauf-Agenten zurück, statt sie selbst zu richten.
 - **Ein Lauf-Agent, der ohne Block endet** oder mit einer Fehlermeldung: einmal nachfragen
   (`SendMessage`), ob er fortsetzen kann. Kommt kein Block zurück, ist der Lauf abgebrochen: Stand
   am Zielissue kommentieren, Statuslabels nach `epic/SKILL.md` („Wird der Lauf trotzdem
