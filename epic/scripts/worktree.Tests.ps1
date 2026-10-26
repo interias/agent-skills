@@ -65,24 +65,45 @@ function Invoke-Down($t) {
     Invoke-Worktree @('-Action', 'Down', '-RepoRoot', $t.Repo, '-Package', '1')
 }
 
+# Takes docker off PATH and puts a wsl.cmd without running distribution in front of the real
+# wsl.exe, so no test reaches the docker of this machine.
 function Get-PathWithoutDocker {
-    @($env:PATH -split ';' | Where-Object {
+    $noWsl = New-DockerStub @() -Wsl -Running @()
+    "$noWsl;" + (@($env:PATH -split ';' | Where-Object {
         $dir = $_
         $dir -and -not (@('docker.exe', 'docker.cmd', 'docker.bat') | Where-Object { try { [IO.File]::Exists([IO.Path]::Combine($dir, $_)) } catch { $false } })
-    }) -join ';'
+    }) -join ';')
 }
 
 # A docker.cmd that logs every call and answers `ps` and `inspect` with the given containers.
-function New-DockerStub($containers) {
+# With -Wsl a wsl.cmd instead: it answers `--list --running --quiet` with -Running and runs
+# `-d <distro> -e docker ...` like docker.cmd. Every docker call exits with -DockerExit.
+function New-DockerStub($containers, [switch]$Wsl, [string[]]$Running = @('Ubuntu'), [int]$DockerExit = 0) {
     $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N').Substring(0, 8) + '-docker')
     New-Item -ItemType Directory -Path $dir | Out-Null
-    Set-Content -Path (Join-Path $dir 'docker.cmd') -Encoding Ascii -Value @'
+    if ($Wsl) {
+        Set-Content -Path (Join-Path $dir 'wsl.cmd') -Encoding Ascii -Value (@'
+@echo off
+echo %*>>"%~dp0calls.log"
+if "%1"=="--list" goto list
+if "%5"=="ps" type "%~dp0ps.txt"
+if "%5"=="inspect" type "%~dp0inspect.json"
+exit /b EXIT
+:list
+type "%~dp0running.txt"
+exit /b 0
+'@).Replace('EXIT', "$DockerExit")
+        $names = if ($Running) { $Running } else { 'There are no running distributions.' }
+        Set-Content -Path (Join-Path $dir 'running.txt') -Encoding Ascii -Value $names
+    } else {
+        Set-Content -Path (Join-Path $dir 'docker.cmd') -Encoding Ascii -Value (@'
 @echo off
 echo %*>>"%~dp0calls.log"
 if "%1"=="ps" type "%~dp0ps.txt"
 if "%1"=="inspect" type "%~dp0inspect.json"
-exit /b 0
-'@
+exit /b EXIT
+'@).Replace('EXIT', "$DockerExit")
+    }
     $i = 0
     $list = @(foreach ($c in $containers) {
         $i++
@@ -93,6 +114,16 @@ exit /b 0
     $dir
 }
 
+function Get-StubCalls([string]$stub) {
+    $log = Join-Path $stub 'calls.log'
+    if (Test-Path $log) { Get-Content $log -Raw } else { '' }
+}
+
+# C:\x\y as docker in WSL labels it: /mnt/c/x/y.
+function ConvertTo-WslPath([string]$path) {
+    '/mnt/' + $path.Substring(0, 1).ToLowerInvariant() + ($path.Substring(2) -replace '\\', '/')
+}
+
 function Invoke-DownWithPath($t, [string]$path) {
     $saved = $env:PATH
     try { $env:PATH = $path; Invoke-Down $t } finally { $env:PATH = $saved }
@@ -101,8 +132,14 @@ function Invoke-DownWithPath($t, [string]$path) {
 function Invoke-DownWithDocker($t, $containers) {
     $stub = New-DockerStub $containers
     $r = Invoke-DownWithPath $t "$stub;$(Get-PathWithoutDocker)"
-    $log = Join-Path $stub 'calls.log'
-    $r.Calls = if (Test-Path $log) { Get-Content $log -Raw } else { '' }
+    $r.Calls = Get-StubCalls $stub
+    $r
+}
+
+# Down with docker only in WSL: no docker on PATH, the given wsl.cmd stub in front of wsl.exe.
+function Invoke-DownWithWsl($t, $stub) {
+    $r = Invoke-DownWithPath $t "$stub;$(Get-PathWithoutDocker)"
+    $r.Calls = Get-StubCalls $stub
     $r
 }
 
@@ -339,13 +376,81 @@ Describe 'worktree.ps1 Down' {
         $r.Output | Should Match 'Compose skipped: docker not reachable'
         Test-Path $t.Worktree | Should Be $false
     }
+
+    It 'takes docker from PATH before docker in WSL' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $docker = New-DockerStub @(@{ Project = 'repo-1' })
+        $wsl = New-DockerStub @(@{ Project = 'repo-1' }) -Wsl
+        $r = Invoke-DownWithPath $t "$docker;$wsl;$(Get-PathWithoutDocker)"
+        $r.Exit | Should Be 0
+        Get-StubCalls $docker | Should Match '(?m)^compose -p repo-1 down'
+        Get-StubCalls $wsl | Should BeNullOrEmpty
+    }
+
+    It 'falls back to docker in a running WSL distribution and reads its /mnt path as a Windows path' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $stub = New-DockerStub @(@{ Project = 'devstack'; WorkingDir = (ConvertTo-WslPath (Join-Path $t.Worktree 'server')) }) -Wsl -Running @('Debian', 'Ubuntu')
+        $r = Invoke-DownWithWsl $t $stub
+        $r.Exit | Should Be 0
+        $r.Calls | Should Match '(?m)^--list --running --quiet'
+        $r.Calls | Should Match '(?m)^-d Debian -e docker compose -p devstack down'
+        $r.Output | Should Match 'Stopped compose project devstack'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
+    It 'leaves a name match alone whose WSL working_dir lies outside worktree_root or on no Windows drive' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $sibling = ConvertTo-WslPath (Join-Path (Split-Path $t.Repo) 'repo-1')
+        $stub = New-DockerStub @(@{ Project = 'repo-1'; WorkingDir = $sibling }, @{ Project = 'repo-1'; WorkingDir = '/home/u/repo-1' }) -Wsl
+        $r = Invoke-DownWithWsl $t $stub
+        $r.Exit | Should Be 0
+        $r.Calls | Should Not Match 'compose '
+        $r.Output | Should Match 'Compose: repo-1 matches the package name, but working_dir .*\\repo-1, /home/u/repo-1 lies outside worktree_root; left alone\.'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
+    It 'brings down a name match whose WSL working_dir lies under worktree_root' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $stub = New-DockerStub @(@{ Project = 'repo-1'; WorkingDir = (ConvertTo-WslPath (Join-Path (Split-Path $t.Worktree) 'other')) }) -Wsl
+        $r = Invoke-DownWithWsl $t $stub
+        $r.Exit | Should Be 0
+        $r.Calls | Should Match '(?m)^-d Ubuntu -e docker compose -p repo-1 down'
+    }
+
+    It 'skips compose without a running WSL distribution and never starts one' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $stub = New-DockerStub @(@{ Project = 'repo-1' }) -Wsl -Running @()
+        $r = Invoke-DownWithWsl $t $stub
+        $r.Exit | Should Be 0
+        $r.Output | Should Match 'Compose skipped: docker not reachable \(not on PATH, no running WSL distribution with docker\)'
+        $r.Calls | Should Match '(?m)^--list --running --quiet'
+        $r.Calls | Should Not Match '-e docker'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
+    It 'skips compose when the running WSL distribution has no docker' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $stub = New-DockerStub @(@{ Project = 'repo-1' }) -Wsl -DockerExit 1
+        $r = Invoke-DownWithWsl $t $stub
+        $r.Exit | Should Be 0
+        $r.Output | Should Match 'Compose skipped: docker not reachable'
+        $r.Calls | Should Match '(?m)^-d Ubuntu -e docker ps -q'
+        $r.Calls | Should Not Match 'compose '
+        Test-Path $t.Worktree | Should Be $false
+    }
 }
 
 # CleanupStale with stdout and stderr apart; docker is taken out of PATH unless a stub is given.
-function Invoke-Cleanup($t, $containers = $null) {
+function Invoke-Cleanup($t, $containers = $null, [switch]$Wsl) {
     $saved = $env:PATH
     $stub = $null
-    if ($null -ne $containers) { $stub = New-DockerStub $containers; $env:PATH = "$stub;$(Get-PathWithoutDocker)" } else { $env:PATH = Get-PathWithoutDocker }
+    if ($null -ne $containers) { $stub = New-DockerStub $containers -Wsl:$Wsl; $env:PATH = "$stub;$(Get-PathWithoutDocker)" } else { $env:PATH = Get-PathWithoutDocker }
     $errFile = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.err')
     try {
         $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Action CleanupStale -RepoRoot $t.Repo 2>$errFile
@@ -353,7 +458,7 @@ function Invoke-Cleanup($t, $containers = $null) {
     $out = @($out | Where-Object { $_ -ne $null })
     $r = @{ Exit = $LASTEXITCODE; Out = $out; Err = ((Get-Content $errFile -Raw) -replace '\s+', ' ') }
     $r.Entries = if ($out.Count -eq 1) { @($out[0] | ConvertFrom-Json) } else { $null }
-    if ($stub) { $log = Join-Path $stub 'calls.log'; $r.Calls = if (Test-Path $log) { Get-Content $log -Raw } else { '' } }
+    if ($stub) { $r.Calls = Get-StubCalls $stub }
     $r
 }
 
@@ -601,6 +706,25 @@ Describe 'worktree.ps1 CleanupStale' {
         (Find-Entry $r 'compose' 'repo-2')[0].reason | Should Match 'name matches repo-<nr>, but working_dir .*repo-2 lies outside worktree_root'
         $r.Calls | Should Match '(?m)^compose -p repo-3 down'
         $r.Calls | Should Match '(?m)^compose -p repo-4 down'
+    }
+
+    It 'brings down an orphan through docker in WSL and keeps the path protection for WSL paths' {
+        $t = New-AdapterRepo
+        $root = Split-Path $t.Worktree
+        $r = Invoke-Cleanup $t @(
+            @{ Project = 'repo-7'; WorkingDir = (ConvertTo-WslPath (Join-Path $root '7')) },
+            @{ Project = 'repo-2'; WorkingDir = (ConvertTo-WslPath (Join-Path (Split-Path $t.Repo) 'repo-2')) },
+            @{ Project = 'repo-3'; WorkingDir = '/home/u/repo-3' },
+            @{ Project = 'stack'; WorkingDir = (ConvertTo-WslPath (Join-Path (Split-Path $t.Repo) 'stack')) }) -Wsl
+        $r.Exit | Should Be 0
+        $r.Calls | Should Match '(?m)^-d Ubuntu -e docker compose -p repo-7 down'
+        (Find-Entry $r 'compose' 'repo-7')[0].action | Should Be 'stopped'
+        $r.Calls | Should Not Match 'compose -p repo-2 '
+        (Find-Entry $r 'compose' 'repo-2')[0].reason | Should Match 'name matches repo-<nr>, but working_dir .*\\repo-2 lies outside worktree_root'
+        $r.Calls | Should Not Match 'compose -p repo-3 '
+        (Find-Entry $r 'compose' 'repo-3')[0].reason | Should Match 'working_dir /home/u/repo-3 lies outside worktree_root'
+        $r.Calls | Should Not Match 'compose -p stack '
+        Find-Entry $r 'compose' 'stack' | Should BeNullOrEmpty
     }
 
     It 'skips compose without docker, exits 0 and still clears a dead lock' {

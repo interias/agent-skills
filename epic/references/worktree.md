@@ -138,8 +138,22 @@ Ursache mehr mit dem Aufräumen.
 
 Ein **schmutziger Worktree** bricht `Down` mit Exit 1 ab: Worktree und Lock bleiben stehen, die
 Prozesse sind dann schon beendet, das Paket gilt als **nicht abgenommen**, und sein Zustand wird
-berichtet, damit ein Mensch hineinschauen kann. Ohne docker im PATH meldet `Down`, dass der
-Compose-Schritt übersprungen ist (Exit 0).
+berichtet, damit ein Mensch hineinschauen kann.
+
+**Docker** nehmen `Down` und `CleanupStale` aus dem PATH. Fehlt es dort, nehmen sie docker in einer
+**laufenden** WSL-Distribution (`wsl -d <distro> -e docker`) und lesen deren `working_dir`
+`/mnt/<laufwerk>/…` als Windows-Pfad, damit der Pfadschutz (`working_dir` unter `worktree_root`)
+weiter greift; ein anderer WSL-Pfad (`/home/…`) liegt außerhalb. Ein gestopptes WSL fahren sie dafür
+nie hoch — ohne laufende Distribution läuft auch kein Container. Antwortet keins von beiden, melden
+sie, dass der Compose-Schritt übersprungen ist (Exit 0). Nachgearbeitet am 26.10.2026 (#34,
+Tor 3, gekippt vom Menschen); geprobt mit Docker in WSL: `Up`, ein Container, `Down` — Container und
+Netz weg.
+
+Nachtrag 26.10.2026 (#34, Review): Der Vergleich der **Kommandozeile** mit dem Worktree-Pfad prüft
+die rechte Grenze (`…\35` trifft nie `…\350`) überall, die linke nur sicher unter Windows, wo der
+Pfad mit dem Laufwerk beginnt. Unter Linux/macOS könnte `/home/u/wt/35` auch innerhalb eines
+längeren Pfads treffen (`/mnt/x/home/u/wt/35`). Ungeprüft, weil hier kein Projekt unter Linux läuft;
+ein Ticket erst, wenn eines dazukommt.
 
 **Den Branch löscht das Skript nie.** Das bleibt bei dir, weil es vom Ausgang des Pakets abhängt:
 

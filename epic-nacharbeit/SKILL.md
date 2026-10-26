@@ -73,6 +73,9 @@ er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenf
   das Hauptverzeichnis wird nie umgeschaltet (`epic/SKILL.md`, Regel 11). Der Epic-Worktree lebt
   mit der Sitzung des Laufs (`epic/SKILL.md`, Phase 3); steht er nicht mehr, legst du ihn mit
   `Up -Package epic-<nr> -Branch epic/<nr>-<slug>` auf dem vorhandenen Branch neu an (#38).
+- **Vor dem ersten `Up`** läuft `worktree.ps1 -Action CleanupStale` wie in `/epic` (Phase 0), damit
+  Reste toter Sitzungen nicht im Weg stehen; das Ergebnis gehört in den Bericht. Waisen eines
+  `nacharbeit-<nr>`-Ordners ohne Lock erkennt es noch nicht, nur solche mit Lock (#34).
 - **Den Basis-Branch feststellen:** `base_branch` aus dem Adapter ist der Standard, maßgeblich
   aber — sobald der Pull Request existiert — dessen eigene `base`. Ein Epic kann von einem anderen
   Epic abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.

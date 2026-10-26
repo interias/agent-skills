@@ -26,8 +26,9 @@
     com.docker.compose.project.working_dir lies in the worktree, or named <repo>-<Package> when
     they have no working_dir or one container's working_dir lies under worktree_root (a name match
     with every working_dir outside worktree_root is left alone and reported: a parallel project
-    may share the name; `docker compose -p <name> down`, docker from PATH; without docker the
-    compose step is skipped and reported, not an error), and
+    may share the name; `docker compose -p <name> down`, docker from PATH, otherwise docker in a
+    running WSL distribution with its /mnt/<drive> working_dir read as a Windows path; WSL is never
+    started for this; without either the compose step is skipped and reported, not an error), and
     processes whose command line, executable or working directory lies in the worktree. Paths are
     compared case-insensitively and only at a separator, so ...\35 never matches ...\350. The
     calling process and its ancestors are never stopped. Unless the path is a linked worktree of
@@ -57,13 +58,14 @@
       <worktree_root>/<name>, and compose projects whose working_dir lies there or that are named
       <repo>-<name> with a working_dir that is missing or lies under worktree_root (a sibling repo
       app-2 has the default project name app-2 and stays alone; a container under worktree_root is
-      enough for a mixed project; a working_dir that is no path of this host, such as a WSL path,
-      counts as outside), where <name> looks like a package (494, 490-p2, epic-490), is not the main checkout,
+      enough for a mixed project; a working_dir that is no path of this host, such as /home/... in
+      WSL, counts as outside; /mnt/<drive>/... from docker in WSL is read as <drive>:\...), where <name> looks like a package (494, 490-p2, epic-490), is not the main checkout,
       is no registered worktree, has no lock left and is no repo or worktree of another repo (a
       .git directory, or a .git file naming a gitdir outside this repo). Anything else under
       worktree_root is not attributable to a run and stays untouched; a lock never makes such a
       folder a target either.
-    Without docker on PATH the compose part is skipped and reported, not an error.
+    Without docker on PATH or in a running WSL distribution the compose part is skipped and
+    reported, not an error.
     stdout carries exactly one JSON array; each entry has kind (lock, process, compose, worktree),
     id, path, branch, action (stopped, removed, skipped) and reason. "Nothing to do" means no entry
     with stopped or removed; the list may still hold skipped entries (living locks, worktrees
@@ -376,13 +378,45 @@ function Get-WorktreeProcesses([string]$root) {
     }
 }
 
+# The docker command: docker from PATH, otherwise docker inside a running WSL distribution
+# (`wsl -d <distro> -e docker`, #34 follow-up). WSL is never started for this: without a running
+# distribution no container runs either. $null when neither answers `docker ps`.
+function Get-DockerCommand {
+    $docker = @(Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)[0]
+    if ($docker) { return @{ Exe = $docker.Source; Prefix = @(); Wsl = $false } }
+    if (-not $onWindows) { return $null }
+    $wsl = @(Get-Command wsl -CommandType Application -ErrorAction SilentlyContinue)[0]
+    if (-not $wsl) { return $null }
+    # wsl.exe writes UTF-16; read in the console code page, every other byte is a NUL. A distribution
+    # name has no spaces, so a "no running distributions" message never counts as one.
+    $running = @(& $wsl.Source --list --running --quiet | ForEach-Object { "$_".Replace("`0", '').Trim() } | Where-Object { $_ -match '^[\w.-]+$' })
+    if ($LASTEXITCODE -ne 0) { return $null }
+    foreach ($distro in $running) {
+        $candidate = @{ Exe = $wsl.Source; Prefix = @('-d', $distro, '-e', 'docker'); Wsl = $true }
+        & $candidate.Exe @($candidate.Prefix + @('ps', '-q')) | Out-Null
+        if ($LASTEXITCODE -eq 0) { return $candidate }
+    }
+    $null
+}
+
+# /mnt/c/x/y -> C:\x\y. Any other path stays as it is and is then no path of this host.
+function ConvertFrom-WslPath([string]$path) {
+    if ($path -match '^/mnt/(?<drive>[a-zA-Z])(?<rest>/.*)?$') {
+        $rest = if ($Matches.rest) { $Matches.rest -replace '/', '\' } else { '\' }
+        return "$($Matches.drive.ToUpperInvariant()):$rest"
+    }
+    $path
+}
+
 # Compose containers as Name and WorkingDir. Reachable is false, and reported, without docker.
 function Get-ComposeProjects {
-    if (-not (Get-Command docker -CommandType Application -ErrorAction SilentlyContinue)) {
-        Write-Host 'Compose skipped: docker not reachable (not on PATH).'
-        return @{ Reachable = $false; Reason = 'docker not reachable (not on PATH)'; Projects = @() }
+    $script:docker = Get-DockerCommand
+    if (-not $docker) {
+        $reason = 'docker not reachable (not on PATH, no running WSL distribution with docker)'
+        Write-Host "Compose skipped: $reason."
+        return @{ Reachable = $false; Reason = $reason; Projects = @() }
     }
-    $ids = @(& docker ps -a -q --filter label=com.docker.compose.project)
+    $ids = @(& $docker.Exe @($docker.Prefix + @('ps', '-a', '-q', '--filter', 'label=com.docker.compose.project')))
     if ($LASTEXITCODE -ne 0) {
         $reason = "docker not reachable (docker ps exit $LASTEXITCODE)"
         Write-Host "Compose skipped: $reason."
@@ -391,20 +425,23 @@ function Get-ComposeProjects {
     $ids = @($ids | Where-Object { $_ })
     $projects = @()
     if ($ids) {
-        $inspect = (& docker inspect @ids) | Out-String
+        $inspect = (& $docker.Exe @($docker.Prefix + @('inspect') + $ids)) | Out-String
         if ($LASTEXITCODE -ne 0) { Fail "docker inspect failed (exit $LASTEXITCODE). Nothing removed." }
         # PowerShell 5.1 emits a JSON array as one object; ForEach-Object unrolls it.
         foreach ($container in @($inspect | ConvertFrom-Json | ForEach-Object { $_ })) {
             $labels = $container.Config.Labels
             $name = $labels.'com.docker.compose.project'
-            if ($name) { $projects += [pscustomobject]@{ Name = $name; WorkingDir = $labels.'com.docker.compose.project.working_dir' } }
+            $dir = $labels.'com.docker.compose.project.working_dir'
+            # Docker in WSL labels /mnt/c/...; the path protections compare Windows paths.
+            if ($docker.Wsl -and $dir) { $dir = ConvertFrom-WslPath $dir }
+            if ($name) { $projects += [pscustomobject]@{ Name = $name; WorkingDir = $dir } }
         }
     }
     @{ Reachable = $true; Projects = $projects }
 }
 
 function Stop-ComposeProject([string]$name) {
-    & docker compose -p $name down | Out-Null
+    & $docker.Exe @($docker.Prefix + @('compose', '-p', $name, 'down')) | Out-Null
     if ($LASTEXITCODE -ne 0) { Fail "docker compose -p $name down failed (exit $LASTEXITCODE). Nothing removed." }
     Write-Host "Stopped compose project $name."
 }
