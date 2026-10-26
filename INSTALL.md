@@ -52,7 +52,9 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 
 **Immer Kopie, nie Junction oder Symlink.** Ein rekursives Löschen folgt einem Link und löscht die
 Quelle mit — passiert am 18.09.2026 in KOKOS mit `node_modules`-Junctions. Findet das Skript im
-Ziel einen Reparse-Point, bricht es ab; diesen Abbruch meldest du, statt ihn zu umgehen.
+Ziel einen Reparse-Point, meldet es `ABORT`, lässt diesen Skill-Ordner oder diese Agent-Datei
+unberührt und macht mit den übrigen weiter; am Ende steht trotzdem `Done.`. Jedes `ABORT` meldest
+du, statt es zu umgehen.
 
 ## Ändern
 
