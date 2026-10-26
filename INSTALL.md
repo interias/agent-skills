@@ -4,6 +4,19 @@ Für den Agenten, der die Skills dieses Repositorys auf einem Rechner einrichtet
 Merge aktualisiert. Alles läuft über `install.ps1` im Wurzelverzeichnis; das Skript beschreibt sich
 selbst (`Get-Help .\install.ps1 -Detailed`).
 
+## Voraussetzungen
+
+- **Claude Code.** Die Skills `epic` und `epic-aufraeumen` sowie der Agent-Typ `epic-kundschafter`
+  hängen `guard.ps1` als PreToolUse-Hook aus `~/.claude/skills/epic/scripts/` ein; `epic` muss
+  dafür installiert sein.
+- **Windows PowerShell 5.1 mit Pester 3.4** (liegt Windows bei) für die Tests der Skripte:
+  `Invoke-Pester .\epic\scripts\<name>.Tests.ps1`.
+- **Plugin `mattpocock-skills`**, eingerichtet nach [`mattpocock-skills/`](mattpocock-skills/README.md).
+  `epic-nacharbeit` und `epic-lagebesprechung` setzen daraus `grilling` voraus.
+- **Python mit Pillow** für die Skripte von `mail-antwort`.
+- Nur für `experimente/scripts/spiegel.ps1`: Gitea-Zugang mit den Scopes `write:organization`,
+  `write:repository` und `write:issue` (Token in `GITEA_API_TOKEN`, sonst `git credential fill`).
+
 ## Ablauf
 
 1. **Auf `main` und aktuell sein:** `git status` sauber, `git pull`. Installiert wird der Stand des
@@ -20,23 +33,22 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
    powershell -File install.ps1
    ```
 
-   Nur einen Skill: `-Skill <ordnername>`. Agent-Typen und Plugins bleiben dann unberührt.
-4. **Nachprüfen:** Jeder Skill-Ordner des Repositorys liegt unter `~/.claude/skills/<name>`, jede
-   Datei aus `agents/` unter `~/.claude/agents/`, und `claude plugin list` zeigt `agentenflotte`.
-   Neue Skills und Agent-Typen greifen erst in einer neuen Sitzung.
+   Nur einen Skill: `-Skill <ordnername>`. Die Agent-Typen bleiben dann unberührt.
+4. **Nachprüfen:** Jeder Skill-Ordner des Repositorys liegt unter `~/.claude/skills/<name>` und
+   jede Datei aus `agents/` unter `~/.claude/agents/`. Neue Skills und Agent-Typen greifen erst in
+   einer neuen Sitzung.
 
 ## Was das Skript tut
 
-- **Skills:** kopiert jeden Skill-Ordner nach `~/.claude/skills/<name>`. Ein vorhandener Zielordner
+- **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
+  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `mail-antwort` — nach
+  `~/.claude/skills/<name>`. `mattpocock-skills/` (ohne `SKILL.md`) und alles unter `experimente/`
+  bleiben außen vor. Ein vorhandener Zielordner
   wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,
   wenn die Sicherung nachweislich vollständig ist. Ordner unter alten Namen (`prd`, `prd-nacharbeit`,
   `prd-aufraeumen`, `prd-flotte`) werden gesichert und entfernt.
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
-- **Plugins:** installiert die Plugins aus `.claude-plugin/marketplace.json` über die `claude`-CLI im
-  User-Scope, mit diesem Repo als Marketplace `breuckmann-agent-skills`. Claude Code liest das
-  Plugin direkt aus diesem Ordner — ein Branchwechsel hier ändert den Mod der nächsten Sitzung. Ein
-  Update greift nur, wenn `version` in `agentenflotte/.claude-plugin/plugin.json` steigt.
 
 **Immer Kopie, nie Junction oder Symlink.** Ein rekursives Löschen folgt einem Link und löscht die
 Quelle mit — passiert am 18.09.2026 in KOKOS mit `node_modules`-Junctions. Findet das Skript im
