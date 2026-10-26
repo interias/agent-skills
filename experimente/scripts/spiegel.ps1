@@ -37,9 +37,10 @@
     repo name. No switch skips the question. A repo whose name does not start with `exp-` is
     never deleted, and neither created.
 
-    Access: Basic Auth from `git credential fill` for the Gitea host, as in epic/references/
-    forge.md. The credentials are never printed and never put into a URL; the push uses the
-    credential helper of git.
+    Access: the token in $env:GITEA_API_TOKEN if set, else Basic Auth from `git credential fill`
+    for the Gitea host, as in epic/references/forge.md. Creating a repo in the organisation needs
+    the scopes write:organization, write:repository and write:issue. The credentials are never
+    printed and never put into a URL; the push uses the credential helper of git.
 
     Array parameters accept comma-separated strings, because `powershell -File` passes an
     array argument as one string.
@@ -85,10 +86,10 @@
     Delete the mirrors after confirmation instead of creating them.
 
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File spiegel.ps1 -WhatIf
+    powershell -NoProfile -File spiegel.ps1 -WhatIf
 
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File spiegel.ps1 -Remove
+    powershell -NoProfile -File spiegel.ps1 -Remove
 #>
 [CmdletBinding()]
 param(
@@ -206,6 +207,7 @@ function Invoke-GitCredentialFill([string]$request) {
 
 function Get-GiteaAuth {
     if ($State.Auth) { return $State.Auth }
+    if ($env:GITEA_API_TOKEN) { $State.Auth = "token $env:GITEA_API_TOKEN"; return $State.Auth }
     $uri = [Uri]$State.Api
     $credential = Invoke-GitCredentialFill "url=$($uri.Scheme)://$($uri.Authority)`n`n"
     $user = ($credential | Where-Object { $_ -like 'username=*' } | Select-Object -First 1) -replace '^username=', ''

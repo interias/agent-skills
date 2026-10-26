@@ -38,11 +38,15 @@ Reihenfolge der Kinder“ im Prompt, für beide gleich. Das ändert die Laufzeit
 
 Je Lauf, in dieser Reihenfolge; die Schritte 1 bis 4 für beide Spiegel gleich.
 
-1. **Spiegel anlegen** (einmal für beide):
+1. **Spiegel anlegen** (einmal für beide). Voraussetzung: ein Token mit `write:organization`,
+   `write:repository` und `write:issue`, gesetzt als `$env:GITEA_API_TOKEN`. Ohne die Variable
+   nimmt `spiegel.ps1` die Zugangsdaten aus `git credential fill`; fehlt dort
+   `write:organization`, scheitert das Anlegen mit HTTP 403. Die Ausführungsrichtlinie
+   `RemoteSigned` genügt, `-ExecutionPolicy Bypass` ist nicht nötig:
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\sboerzel\git\agent-skills\experimente\scripts\spiegel.ps1 -WhatIf
-   powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\sboerzel\git\agent-skills\experimente\scripts\spiegel.ps1 | Set-Content spiegel.json -Encoding utf8
+   powershell -NoProfile -File C:\Users\sboerzel\git\agent-skills\experimente\scripts\spiegel.ps1 -WhatIf
+   powershell -NoProfile -File C:\Users\sboerzel\git\agent-skills\experimente\scripts\spiegel.ps1 | Set-Content spiegel.json -Encoding utf8
    ```
 
    Erst `-WhatIf` lesen: Es zeigt jeden geplanten Aufruf und schreibt nichts. Das JSON bewahren
@@ -217,7 +221,7 @@ Erst wenn beide Läufe fertig sind. Im lokalen BRIQNET-Klon `C:\Users\sboerzel\g
 3. **Blind aufbereiten.** `blind.ps1` mischt A und B zufällig und versiegelt die Zuordnung:
 
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\sboerzel\git\agent-skills\experimente\scripts\blind.ps1 `
+   powershell -NoProfile -File C:\Users\sboerzel\git\agent-skills\experimente\scripts\blind.ps1 `
        -RepoRoot $repo -Branches $neutral.A,$neutral.B -OutDir C:\Users\sboerzel\git\blind-523 -Reference 29207580
    ```
 

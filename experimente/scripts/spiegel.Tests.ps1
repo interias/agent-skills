@@ -428,6 +428,33 @@ public class SpiegelFakeResponse : System.Net.WebResponse {
 }
 '@
 
+Describe 'spiegel.ps1 Gitea auth' {
+    It 'uses GITEA_API_TOKEN when it is set and asks git for nothing' {
+        Mock Invoke-GitCredentialFill { throw 'must not be called' }
+        $saved = $env:GITEA_API_TOKEN
+        try {
+            $env:GITEA_API_TOKEN = 'abc123'
+            $State.Auth = $null; $State.Api = $apiBase
+            Get-GiteaAuth | Should Be 'token abc123'
+        } finally {
+            $env:GITEA_API_TOKEN = $saved; $State.Auth = $null
+        }
+        Assert-MockCalled Invoke-GitCredentialFill -Times 0 -Scope It
+    }
+
+    It 'falls back to Basic Auth from git credential fill without the token' {
+        Mock Invoke-GitCredentialFill { @('username=u', 'password=p') }
+        $saved = $env:GITEA_API_TOKEN
+        try {
+            Remove-Item Env:GITEA_API_TOKEN -ErrorAction SilentlyContinue
+            $State.Auth = $null; $State.Api = $apiBase
+            Get-GiteaAuth | Should Be ('Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('u:p')))
+        } finally {
+            $env:GITEA_API_TOKEN = $saved; $State.Auth = $null
+        }
+    }
+}
+
 Describe 'spiegel.ps1 Gitea errors' {
     It 'keeps the error text that Windows PowerShell puts into ErrorDetails' {
         # PS 5.1 reads the error body itself: the response stream is empty, the text is in ErrorDetails.
