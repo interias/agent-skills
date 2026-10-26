@@ -1,0 +1,665 @@
+---
+name: epic-schlank
+description: Ein Epic aus der Forge auf einem Epic-Branch abarbeiten — Modus tickets (Epic mit Kind-Tickets) oder spec (ein Issue mit sieben Abschnitten, das der Orchestrator selbst in Pakete zerlegt). Vorab-Tor, bis zu drei Pakete parallel in eigenen Worktrees, Sofortmerge jedes abgenommenen Pakets, Ende mit offenem Pull Request auf die Basis.
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic-schlank/scripts/guard.ps1" -Profile epic', timeout: 30, onFailure: block}]}]
+---
+
+# Epic abarbeiten — Host-Orchestrator
+
+Du bist der **Host-Orchestrator**: Planner und Merger in einer Person. Die Pakete implementierst
+du **nicht selbst**, sondern über Subagenten (Implementer + Reviewer).
+
+Zielvorgabe ist das Argument des Aufrufs. `#41` ist immer die Issue-Nummer. Eine nackte Zahl
+oder eine mit fremdem Präfix (`PRD 41`) ist eine **externe Nummer**, wenn `issue_offset` gesetzt
+ist, und wird damit umgerechnet; ohne `issue_offset` ist die nackte Zahl die Issue-Nummer.
+
+**Zwei Modi** (`issue_form`), ein Ablauf. Überall, wo unten *Paket* steht, ist im Modus `tickets` ein
+Kind-Ticket gemeint, im Modus `spec` ein von dir geschnittenes Stück der Spec:
+
+| | `tickets` | `spec` |
+|---|---|---|
+| Form | Epic mit Kind-Tickets | ein Issue mit sieben Abschnitten, Kinder optional |
+| Pakete | die Kinder | ohne Kinder: dein Schnitt (Phase 2a); mit Kindern: die Kinder |
+| Abnahmeliste | `acceptance_section` des Kindes | die User Stories der Spec |
+| Freigabe (`ready_label`) | am Kind | an der Spec |
+
+**Der Hauptzweig** ist `main_branch`. **Die Basis** ist `base_branch`, im Folgenden `<basis>`,
+Standard der Hauptzweig. Der Epic-Branch zweigt von ihr ab, der Pull Request geht auf sie zurück.
+
+## Der Projektadapter
+
+Alles Projektspezifische steht in **`.claude/epic.md`** des Zielrepositorys. Lies ihn als Erstes.
+Welche Schlüssel es gibt, was sie bedeuten, was ohne Adapter gilt: **`references/adapter.md`** —
+das ist der Vertrag, ein Name, der dort nicht steht, ist kein Schlüssel. Seine Lesart legst du im
+Plan offen. Was bei fehlendem Adapter gilt: `references/adapter.md`, „Fehlt der Adapter".
+Liegt nur der alte `.claude/prd.md` vor, gilt er (`references/adapter.md`, „Alter Name“).
+
+Der Fließtext des Adapters sind Projektregeln; sie gelten wie die Regeln unten. Dass der Adapter sie
+nur verschärfen darf und was ein lockernder Eintrag auslöst: `references/adapter.md`, „Form".
+
+**Herkunft mitnennen.** Zitierst du eine Regel in einem Auftrag oder in der Forge, nenne, woher sie
+stammt: *Skill*, *Adapter* oder der ADR, in dem sie steht. Wer eine Regel anzweifelt, muss wissen,
+wo er sie ändern kann.
+
+**Wie gefragt wird.** Jede Rückfrage an den Menschen — Vorab-Tor, Abbruchbedingung, Fragerunde
+der Nacharbeit, Vorlage von `/epic-flotte` — nennt **Antwortmöglichkeiten und eine markierte
+Empfehlung** mit einem Satz Begründung. Gestellt wird mit `AskUserQuestion`, sofern die Sitzung
+es hat: die empfohlene Option mit „(Empfehlung)" im Label, Folgen in der Beschreibung, höchstens
+vier Optionen je Frage, mehr als vier Fragen auf mehrere Aufrufe verteilt. Ohne das Werkzeug
+dieselbe Runde als Text — je Frage
+`❓ **Q1** — **<Titel>**: <Sachverhalt, Optionen A/B/… mit Folge>` und darunter
+`➡️ <Empfehlung, Grund>`. **Führt `/epic-flotte` den Lauf** — als Lauf-Agent oder als übernommener
+Chat —, fragst du nie mit `AskUserQuestion`: Die Runde geht als Frageblock oder Text an den
+Admiral, und du beendest deinen Zug; sonst hängt der Lauf, bis ein Mensch klickt. Diese Regel
+gilt für alle Epic-Skills; sie verweisen hierher.
+
+**Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, bist du ein
+Subagent und kannst niemanden fragen. Was dann anders läuft — Frageblock statt Rückfrage,
+Vordergrund, Wellen mit `FLOTTE-WELLE`, `vorläufig`-Antworten, Veto —, steht in
+`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"; die Form der Fragen steht in „Wie
+gefragt wird". Alles andere gilt unverändert.
+
+---
+
+## Die Regeln, die nicht verhandelbar sind
+
+„Durch Hook durchgesetzt" heißt: `scripts/guard.ps1` sperrt die Befehle dafür (Frontmatter oben).
+Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleibt ein Regelverstoß.
+
+1. **Der Lauf mergt und pusht nie in den Hauptzweig und nie in `<basis>`**, er endet mit einem
+   offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
+   freigibt. Durch Hook durchgesetzt.
+2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
+   Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
+3. **Der Reviewer legt keine Issues an.** Funde außerhalb des Pakets gehen in deinen
+   Abschlussbericht, höchstens drei pro Lauf, als Vorschlag. Damit ist die Schleife „Agenten
+   erzeugen sich ihre eigene Arbeit" mechanisch unterbrochen.
+4. **Datenmigration ist Handarbeit.** Eine Schema-Migration darf ein Paket schreiben; ein Skript,
+   das Produktiv- oder Stammdaten umschreibt, wird vorgeschlagen, nicht ausgeführt.
+5. **Keine Testsuite wird grün gemacht, indem Tests gelöscht oder übersprungen werden.**
+6. **Fachsprache aus `glossary`.** Einträge mit `glossary_forbidden_marker` sind Verbote.
+7. **Scope ist die Abnahmeliste des Pakets.** Nichts darüber hinaus. Was „Out of Scope" oder
+   `out_of_scope_dir` nennt, ist geprüft und verworfen — auch wenn es beim Lesen des Codes nötig
+   erscheint.
+8. **Nichts existiert nur im Chat.** Jedes Issue, das der Lauf berührt — bearbeitet,
+   übersprungen, zurückgelassen, blockiert —, bekommt einen Kommentar in der Forge, denn der Chat
+   endet mit der Sitzung.
+9. **Ein Paket — ein Branch, ein Worktree, ein Testbett.** Der Epic-Branch ist Merge-Ziel, nicht
+   Arbeitsfläche.
+10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
+    aus den Antworten der ersten entstehen. Was danach schiefgeht,
+    lässt ein Paket zurück, nicht den Lauf (siehe „Wann angehalten wird").
+11. **Das Hauptverzeichnis wird nie umgeschaltet**, kein `git switch`, kein `git checkout` dort —
+    im selben Klon kann eine zweite Sitzung laufen, der ein Wechsel den Arbeitsstand wegzöge. Der
+    Epic-Branch lebt in einem eigenen Worktree (Phase 3). Durch Hook durchgesetzt.
+
+---
+
+## Die Statuslabels
+
+KIBO zeigt den Zustand eines offenen Tickets aus drei Labels (KIBO ADR-0002). Der Lauf setzt und
+entfernt sie **an den Stellen, an denen er ohnehin schreibt**, damit kein eigener Weg entsteht, der
+vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter (`references/adapter.md`,
+„Auslegung").
+
+| Label | heißt |
+|---|---|
+| `status/in-arbeit` | ein Lauf hat das Ticket angefasst und ist noch nicht fertig |
+| `status/blockiert` | das Ticket wartet auf ein anderes Ticket |
+| `status/haengt` | ein Lauf hat es aufgegeben; ohne einen Menschen geht es nicht weiter |
+
+- **Sie steuern nichts.** Ob der Lauf ein Ticket nimmt, entscheidet allein das Freigabelabel. Ein
+  Statuslabel wird nie als Sperre gelesen, auch nicht ein fremdes.
+- **Höchstens eines je Ticket.** Wer eines setzt, nimmt die beiden anderen ab.
+- **Wann:**
+
+  | Stelle | an | Label |
+  |---|---|---|
+  | Eröffnung (2d), in allen Modi | das Zielissue | `+ in-arbeit` |
+  | Übersprungenes Kind (2d), **wenn der Grund ein blockierendes Ticket ist** | das Kind | `+ blockiert` |
+  | Implementer startet (4a) — auch jeder Nachrücker (5, Punkt 3) | das Paket-Ticket | `+ in-arbeit` |
+  | Kommentar nach dem Merge (5, Punkt 4) | das Kind | bleibt `in-arbeit`, bis der Pull Request gemergt ist und `Closes` es schließt |
+  | Zurücklassen (5) | das Ticket | `+ haengt` |
+  | Nachfolger eines zurückgelassenen Pakets (5) | der Nachfolger | `+ blockiert` |
+  | Glut-Punkt der Lauftafel, der zu einem Ticket gehört | das Ticket | `+ haengt` |
+  | Abschluss (6), in allen Modi | das Zielissue | `− in-arbeit` |
+  | Abbruch („Wann angehalten wird") | die Tickets, die dort genannt sind | `− in-arbeit` |
+
+  **Jedes Setzen wird sofort nachgelesen** (`GET` der Labels des Tickets, `references/forge.md`),
+  sonst fällt ein still gescheiterter `POST` erst in Phase 6 auf oder nie. Fehlt das Label, noch
+  einmal setzen; scheitert es wieder, ist das ein Glut-Punkt auf der Tafel.
+
+  Ein Kind, das wegen eines fehlenden Labels, einer fehlenden Abnahmeliste oder eines fehlenden
+  Verifikationswegs übersprungen wird, bekommt **kein** Statuslabel: es wartet auf keinen anderen,
+  sondern auf eine Klärung — das zeigt KIBO über das Freigabelabel.
+- **Beim Start (0a) aufräumen:** `status/in-arbeit` an Tickets dieses Epics, das ein früherer,
+  abgebrochener Lauf hinterlassen hat, nimmt der Lauf ab; `status/blockiert` an Kindern, deren
+  Blocker inzwischen geschlossen ist, ebenso. Ein Ticket, das der Lauf wieder aufgreift, verliert
+  `status/haengt` beim Start seines Implementers.
+- **Fehlt ein Label im Repository**, legt der Lauf es an — mit den Farben und Beschreibungen aus
+  `references/forge.md`, damit KIBO in allen Projekten gleich aussieht.
+- Befehle je Forge: `references/forge.md`, „Statuslabels".
+
+---
+
+## Modelle, Paketklasse, Kundschafter
+
+Wer was macht, folgt einer festen Leiter; die Agent-Typen liegen im Skill-Repository unter
+`agents/` und werden mit den Skills installiert.
+
+| Rolle | Agent-Typ (`subagent_type`) | Modell, Denkstufe |
+|---|---|---|
+| Kundschafter | `epic-schlank-kundschafter` | Haiku, niedrig |
+| Implementer *mechanisch* | `epic-schlank-implementer-mechanisch` | Sonnet, niedrig |
+| Implementer *Standard* | `epic-schlank-implementer-standard` | Sonnet, mittel |
+| Implementer *Urteil* | `epic-schlank-implementer-urteil` | Opus, mittel |
+| Implementer nach Eskalation aus *Urteil* | `epic-schlank-implementer-urteil-hoch` | Opus, hoch |
+| Reviewer *mechanisch* und *Standard* | `epic-schlank-reviewer-standard` | Sonnet, hoch |
+| Reviewer *Urteil* | `epic-schlank-reviewer-urteil` | Opus, mittel |
+
+Der Reviewer ist nie schwächer als der Implementer. **Opus mit hoher Denkstufe gibt es nur als
+letzte Stufe einer Eskalation.** Fehlt ein Agent-Typ in der Sitzung, startest du
+`general-purpose` mit dem `model` aus der Tabelle (die Denkstufe erbt er dann von dir) und sagst
+das im Plan.
+
+**Paketklasse.** Jedes Paket bekommt beim Schneiden (2a) eine, in allen Modi:
+
+- *mechanisch* — die Änderung ist als Verschiebung lesbar: Massenumschreiben, Umbenennen,
+  Verschieben, das Löschpaket am Ende.
+- *Urteil* — das Paket ist ein Exklusivknoten, führt einen Wächter, ein Tor, eine Schreibsperre
+  oder einen Schema-Versionssprung ein, oder eine seiner Implementation Decisions ist gegen die
+  naheliegende Lösung geschrieben.
+- *Standard* — alles andere.
+
+Im Zweifel die höhere. Der Adapter darf hochstufen (`min_package_class`, oder Projektregeln wie
+„alles unter `server/auth` ist Urteil"), nie herab. Die Klasse steht im Plan und auf der Tafel.
+
+**Eskalation.** Meldet der Reviewer eine **strukturelle** Abweichung, läuft die nächste Runde eine
+Stufe höher: *mechanisch* → *Standard* → *Urteil* → `epic-schlank-implementer-urteil-hoch`; der Reviewer
+folgt der neuen Klasse. Ein verletzter Abnahmepunkt allein eskaliert nicht. Jede Eskalation steht
+auf der Tafel und im Abschlusskommentar — sie heißt, dass die Klasse falsch geschätzt war.
+
+**Kundschafter** lesen nur und liefern Fundstellen; sie schreiben keinen Code, nehmen nichts ab und
+schreiben nicht in die Forge. Einsatzstellen: Behauptungen im Body prüfen (Phase 1), andere
+Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
+
+- **Ein Kundschafter je unabhängiger Frage**, höchstens acht in einer Nachricht, **immer im
+  Vordergrund** — du brauchst die Antwort für den nächsten Schritt. Unter `/epic-flotte` nennt der
+  Admiral bei Gelb eine kleinere Zahl.
+- **„Nichts gefunden" übernimmst du ungeprüft.** Einen Fund prüfst du selbst nach, wenn daraus ein
+  Tor-Punkt, ein Befund oder eine Löschung folgt — sonst nicht.
+- Den Verifikationsweg (4c) und den Vergleich gegen die Ausgangszahlen machst du weiter selbst.
+
+---
+
+## Phase 0 — Rüsten
+
+### 0a — Zugang und Adapter
+
+- Adapter lesen. Forge-Zugang herstellen und **einmal verifizieren** (`references/forge.md`): ein
+  Lesezugriff auf das Zielissue und `GET /repos/{owner}/{repo}` mit `permissions.push == true`.
+  Fehlt das Schreibrecht, ist es ein Tor-Punkt — es zeigt sich sonst erst beim
+  Eröffnungskommentar, nach dem Tor. Welches Token gilt:
+  `references/adapter.md`, „Zwei Tokens".
+- `git status` muss **leer** sein. Jede Änderung ist fremde Arbeit — anhalten und fragen, nie
+  wegwerfen, nie mitcommitten.
+- `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
+  Epics (`epic-<andere nr>` und ihre Paket-Worktrees). Laufend heißt: ihr Zielissue trägt
+  `status/in-arbeit`, oder der Auftrag nennt sie (`/epic-flotte`). Sie fasst der Lauf nicht an.
+  Alles andere sind Reste eines früheren Laufs: melden, nicht entfernen — dort kann Arbeit liegen.
+- **Statuslabels aufräumen**, die ein früherer Lauf an Tickets dieses Epics hinterlassen hat
+  („Die Statuslabels"); fehlende Labels im Repository anlegen, `epic_label` eingeschlossen.
+
+### 0b — Basis und Messung
+
+Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis bestimmt hat.
+
+- `git fetch <push_remote> <basis>` und den **Epic-Worktree** anlegen (Phase 3). Das
+  Hauptverzeichnis bleibt, wo es steht (Regel 11). Leseprotokoll, Messung und jede spätere
+  Verifikation laufen im Epic-Worktree. Endet der Lauf am Tor, wird er wieder abgeräumt.
+- **Leseprotokoll:** `must_read` ganz, `glossary` ganz, aus `adr_dir` alle Dateien bei
+  `read_all_adrs`, sonst die im Issue genannten; das README der betroffenen Module.
+- `pre_commit_checks` prüfen (etwa `git config core.hooksPath`): was nicht von allein läuft, fährst
+  du in 4d selbst.
+- **Den Ausgangsstand messen:** alle `test_commands` fahren und je Suite **Suiten- und Testzahl**
+  notieren, `known_red` mit Namen. Die Messung liefert die Vergleichszahlen für jeden Auftrag und
+  beantwortet vorab, ob der Verifikationsweg fahrbar ist, statt erst beim dritten Paket. Legt ein
+  Paket eine Suite erst an, ist ihr Ausgangsstand 0 Suiten; ab
+  dem Merge dieses Pakets wird sie gefahren und verglichen.
+- **Den Lint-Stand messen:** je Modul aus `lint_commands` die Zahl der Fehler und Warnungen, aus der
+  Ausgabe gezählt, nicht aus dem Exit-Code. Fehlt `lint_commands`, sagt der Plan, dass der
+  Lint-Vergleich entfällt.
+- **Das Fenster bestimmen:** `window` mit Standard und Bedingung nach `references/adapter.md`
+  (Schlüssel `window`, „Auslegung").
+
+## Phase 1 — Lesen
+
+- Zielissue holen und den Body **vollständig** lesen. Die **User Stories** sind im Modus `spec`
+  die Abnahmeliste, die **Implementation Decisions** Vorgaben *samt Begründung* — der Grund, warum
+  ein Implementer nicht frei wählt.
+- **Kanten lesen** nach `dependency_source` (`api`, `header`, `body`; mehrere möglich), Befehle in
+  `references/forge.md`. `epic_label` trennt die Bedeutung: eine Kante vom Zielissue zu einem
+  anderen **Epic** heißt *Reihenfolge* (Vorbedingung), eine Kante zu einem **Nicht-Epic** heißt
+  *Kind*. Das Zielissue gilt als Epic, auch wenn es das Label nicht trägt. Bei `header` nennt in
+  der Standardlesart die Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die
+  Kinder, alle übrigen Nummern dort sind Reihenfolge. Legt der Adapter eine eigene Lesart seiner
+  Kopfzeilen fest, gilt sie (`references/adapter.md`, Auslegung); der Plan legt sie offen.
+- **Modus bestimmen:** `issue_form` aus dem Adapter; fehlt
+  er, aus der Form — Kinder → `tickets`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
+  Ableitung steht im Plan.
+- **Vorbedingung prüfen:** Ist ein vorausgesetztes Epic offen, gilt:
+  - Hängen **alle** Pakete an noch nicht gemergten Tickets dieses Epics und steht `transitive:
+    true`, werden diese Tickets im selben Lauf mitbearbeitet — ein Epic-Branch, ein Pull Request.
+    Das fremde Epic bekommt Eröffnungs- und Abschlusskommentar, wird aber **nie per `Closes`
+    geschlossen**.
+  - Hängen nur **einzelne** Kinder daran, werden diese übersprungen (Phase 2d).
+  - Sonst: Vorab-Tor.
+- **Basis bestimmen**, wenn `base_branch: from-issue`: aus der Kopfzeile oder den Further Notes,
+  sonst der Branch, von dem die vorausgesetzten Epics abgezweigt sind (`git log --merges`). Nicht
+  raten.
+- **Kinder einsammeln** (Modus `tickets`, und `spec` mit Kindern): je Kind Body, Labels, State,
+  Kanten. Bearbeitet wird nur, was offen ist und die Freigabe trägt. Übersprungen wird ein Kind
+  mit einem der `skip_labels`, ohne `ready_label`, mit Kante in ein fremdes offenes Epic (ohne
+  transitive Auflösung) oder im Modus `tickets` ohne `acceptance_section` oder ohne
+  `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
+  Reviewer blind.
+- **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
+  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt.
+  Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Bei mehr als
+  einer Handvoll Behauptungen gehen sie gebündelt an Kundschafter („Modelle, Paketklasse,
+  Kundschafter").
+- Widerspricht das Issue einem ADR oder einem Out-of-Scope-Eintrag, ist eines von beiden falsch —
+  das entscheidet ein Mensch (Vorab-Tor).
+
+## Phase 2 — Schneiden, Graph, Vorab-Tor
+
+### 2a — Die Pakete
+
+**Modus `tickets`:** die bearbeitbaren Kinder. Berührte Module aus `modules_section`, sonst aus der
+Abnahmeliste erschlossen.
+
+**Modus `spec` ohne Kinder:** Du schneidest nach diesen Regeln:
+
+- **Entlang der Implementation Decisions, nicht der Verzeichnisse.** Sind die Decisions eine Folge,
+  ist die Folge der Schnitt und die Reihenfolge Teil der Vorgabe. **Schneide nicht für
+  Parallelität** — ein Schnitt, der Decisions zerlegt, damit mehr gleichzeitig läuft, tauscht
+  Korrektheit gegen Minuten.
+- **Jedes Paket ist für sich verifizierbar.** Kannst du keinen Weg benennen, wie du selbst prüfst,
+  dass es stimmt, ist es falsch geschnitten.
+- **Mechanisches und Urteilsbehaftetes trennen.** Ein Massenumschreiben ist als Verschiebung
+  lesbar, ein inhaltlicher Eingriff braucht Gegenlesung; sie gehören nicht in denselben Commit.
+- **Löschungen zuletzt**, als eigenes Paket ohne inhaltliche Änderung — erst wenn jeder Anschluss
+  überführt und jeder Beleg gesichert ist.
+- **Eine Datenwurzel kann mehrere Erzeuger haben.** Bevor ein Paket eine Zählregel über ein
+  Verzeichnis bekommt, sieh nach, wer alles dort hineinschreibt.
+- **Je Paket die berührten Dateien und Module notieren.** Ohne sie gibt es keine Kollisionskante.
+- **Zuordnungstabelle Story → Paket:** jede User Story genau einem Paket. Eine Story ohne Paket ist
+  eine Lücke im Plan, ein Paket ohne Story Arbeit, die niemand verlangt hat.
+
+**Modus `spec` mit Kindern:** die Kinder sind die Pakete; die Zuordnungstabelle ordnet jede Story
+einem Kind zu.
+
+**In allen Modi** bekommt jedes Paket seine **Paketklasse** („Modelle, Paketklasse, Kundschafter"),
+mit einem Halbsatz Begründung.
+
+### 2b — Der Graph
+
+- **Harte Kante `A → B`:** B setzt A voraus (Kante aus Phase 1 oder Reihenfolge der Decisions). B
+  startet erst, wenn A **gemergt** ist.
+- **Kollisionskante `A — B`:** beide berühren dieselben Module oder Dateien. Reihenfolge frei, nie
+  gleichzeitig. Zwischen allen Paketen, die eine Datei aus `always_collide` berühren, zieht sie
+  sich immer — sonst entsteht etwa derselbe Versionssprung zweimal.
+- **Exklusivknoten** — läuft allein, alle Plätze leer: ein Paket, das einen Pfad aus
+  `exclusive_paths` ändert, das Wort `Exklusiv` in `modules_section` trägt, in eine Datenwurzel
+  mit mehreren Erzeugern schreibt oder einen Punkt aus `gate_approvals` braucht.
+
+Laufen nach dem Graphen nie zwei Pakete gleichzeitig, sag es im Plan in einem Satz, statt
+Parallelität vorzutäuschen.
+
+### 2c — Das Vorab-Tor
+
+Damit der Lauf danach unbeaufsichtigt bleibt, wird **alles Fragwürdige hier gefragt, einmal, als
+eine Runde nach „Wie gefragt wird"** — danach keine Rückfrage mehr.
+Vorzulegen ist:
+
+1. Ein vorausgesetztes Epic ist offen, und die transitive Auflösung greift nicht.
+2. Das Zielissue ist nicht offen, trägt im Modus `spec` nicht das `ready_label`, oder der Modus
+   ist nicht ableitbar.
+3. Ein Adapterwert fehlt und ist nicht ableitbar, oder ein Adaptereintrag würde eine Regel dieses
+   Skills lockern.
+4. Ein Paket braucht Zugriff auf ein System aus `no_access` oder einen anderen, den es hier nicht
+   gibt.
+5. Ein Paket würde Produktiv- oder Stammdaten verändern (Regel 4).
+6. Das Issue widerspricht einem ADR oder einem Out-of-Scope-Eintrag.
+7. Eine Behauptung im Body ist gegen den Arbeitsbaum nicht haltbar, und ein Paket hängt daran.
+8. Die Ausgangsmessung aus Phase 0 ist nicht fahrbar, oder die Testisolation greift nicht.
+9. Der Verifikationsweg eines Pakets ist nicht fahrbar: Werkzeug, Zugang oder Ablage fehlt (etwa
+   kein Docker, kein Lesetoken im Worktree, keine Ablage für Bildschirmfotos). Empfehlung dazu,
+   wie mit dem nicht fahrbaren Teil umgegangen wird — etwa: er wird offener Punkt, der Pull
+   Request bekommt `WIP:`.
+10. Der Forge-Zugang hat kein Schreibrecht (Phase 0a).
+11. Kanten wurden aus `body` gelesen, und der Adapter setzt `write_back_dependencies` für sie
+    nicht: nachtragen oder nicht.
+12. Jeder Punkt aus `gate_approvals`, den ein Paket berührt. Vorzulegen: was es beantwortet, was es
+    kostet, was die harte Grenze ist.
+
+**Fehlt der Adapter,** legt das Tor die abgeleiteten Werte immer als eigene Liste vor, auch wenn
+sonst nichts zu melden ist.
+
+Ist nichts zu melden, sag das in einem Satz und lauf los. Sonst die Runde stellen und **einmal**
+warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Runde gefragt.
+
+### 2d — Plan, Lauftafel, Eröffnung
+
+- **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen und Paketklasse, Graph,
+  Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
+  wird, die Lesart des Adapters.
+- **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
+  (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
+  vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` ändert sich ihre URL über den
+  ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad.
+- **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
+  nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
+  Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ist der Grund ein
+  blockierendes Ticket, bekommt das Kind im selben Zug `status/blockiert`.
+- **Kanten nachtragen:** bei `write_back_dependencies` jede aus `header` gelesene Kante, aus `body`
+  nur nach Adapter oder Antwort am Tor, in die Abhängigkeiten der Forge eintragen
+  (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
+  auf GitHub nichts (`references/adapter.md`, „Auslegung").
+- Das Zielissue bekommt mit dem Eröffnungskommentar `status/in-arbeit`, in allen Modi. Ein
+  fremdes Epic aus transitiver Auflösung nicht: es gehört nicht diesem Lauf.
+- **Das Zielissue bekommt `epic_label`**, falls es fehlt, in allen Modi — auch eine Spec ohne
+  Kinder ist ein Epic, und KIBO wie spätere Läufe lesen es daran.
+- **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch am fremden Epic): dass der
+  Lauf beginnt, Modus, Basis, Epic-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
+  Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
+  einer Datei** (`references/forge.md`, „Stolperstellen").
+
+## Phase 3 — Epic-Branch und Worktrees
+
+- Branchname `epic/<nr>-<slug>`. Slug aus dem Issue-Titel ohne Präfixe wie `Epic:` oder `Spec:`:
+  klein, ASCII, höchstens vier Wörter, Umlaute transliteriert (ä→ae, ö→oe, ü→ue, ß→ss).
+- **Der Epic-Branch lebt in einem eigenen Worktree** `<worktree_root>/epic-<nr>`, angelegt in 0b
+  per Skript mit `-Branch epic/<nr>-<slug> -From <push_remote>/<basis>`. Existiert der Branch schon,
+  nimmt das Skript ihn wieder; bei vorhandenem Remote danach darin `git pull --ff-only`. Nie neu
+  anlegen, nie `--force`, nie zurücksetzen — dort kann Arbeit eines früheren Laufs liegen.
+- Der Epic-Worktree bekommt **alle** `link_dirs` und `env_files`, weil dort die Ausgangsmessung und
+  die Verifikation nach jedem Merge über alle Suiten laufen. Er bleibt bis zum Merge des Pull
+  Requests stehen; abgeräumt wird er von `/epic-aufraeumen`.
+- Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` (Slug wie oben) in einem eigenen
+  Worktree unter `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer,
+  im Modus `spec` ohne Kinder `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
+  kann nur noch von einem gleichzeitig laufenden Paket kommen.
+- Anlegen, Rüsten (`env_files` kopieren, `link_dirs` nur für berührte Module, `always_link`
+  immer, `test_isolation_env`, `port_env`) und Abräumen **nur per `scripts/worktree.ps1`**, nie von
+  Hand. Scheitert es, hält das Paket an. Aufruf und Regeln: **`references/worktree.md`**. Lies die
+  Datei, bevor du den ersten Worktree anlegst.
+
+## Phase 4 — Das Fenster
+
+Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0). Wird ein Platz frei,
+rückt sofort das nächste startbereite Paket nach.
+
+**Startbereit** ist ein Paket, wenn alle harten Vorgänger **gemergt** sind und zu keinem laufenden
+Paket eine Kollisionskante besteht. Ein Exklusivknoten startet nur bei leeren Plätzen. Bei mehreren
+Kandidaten gewinnt, wer die meisten Nachfolger entsperrt; bei Gleichstand die kleinere Nummer. Ist
+keiner startbereit, bleibt der Platz leer — das ist kein Fehler.
+
+**Diese Wahl triffst du bei jedem frei werdenden Platz neu.** Die Belegung auf der Tafel ist eine
+Vorschau, keine Entscheidung. Eine Abweichung von der Vorschau trägst du auf der Tafel nach, mit
+Grund.
+
+Höchstens drei Plätze, denn deine Nachprüfung ist die Engstelle.
+
+### 4a — Implementer-Subagent
+
+Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
+unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
+und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
+Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — dort, mitten in der
+Merge-Checkliste, fällt es am leichtesten aus. Er hat deinen Kontext nicht; sein Auftrag enthält
+alles **ausgeschrieben**:
+
+- Den absoluten Pfad seines Worktrees und die Arbeitsweise darin nach „Der Subagent im Worktree"
+  in `references/worktree.md` — einschließlich des Ergebnisses der dort beschriebenen
+  `EnterWorktree`-Prüfung.
+- Paketnummer, Titel bzw. Zielsatz, die Abnahmeliste **im Wortlaut** (Kind-Body oder zugeordnete
+  User Stories).
+- Die betreffenden Implementation Decisions **samt Begründung** — ohne sie wählt er die
+  naheliegende Lösung, gegen die die Decision geschrieben wurde. Dazu die relevanten
+  Out-of-Scope-Punkte und die Testing Decisions mit benanntem Vorbild.
+- Die **Ausgangszahlen** der betroffenen Suiten aus Phase 0.
+- Steht das Paket in einer Kette: den **Schnittstellenabschnitt des Reviewers** des Vorgängers,
+  wörtlich (4b).
+- Pflichtlektüre vor der ersten Änderung: `must_read`, `glossary`, die genannten ADRs, das README
+  des betroffenen Moduls.
+- Die Regeln, je mit Herkunft: Fachsprache samt Verboten; Scope strikt die Abnahmeliste; keine
+  Umbenennung und kein Refactoring ohne Auftrag; keine neue Abhängigkeit ohne Nennung im Issue;
+  keine Tests löschen oder überspringen; die Projektregeln des Adapters; **nicht committen, nicht
+  branchen** — das macht der Host.
+- Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable.
+- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
+  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
+  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Die Agent-Dateien der
+  Implementer verweisen auf diesen Punkt — schreib ihn deshalb ausgeschrieben in den Auftrag.
+- Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
+  Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
+  grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
+  was er nicht konnte und warum. **Übernimmt er bestehende
+  Arbeit** (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
+  Original-Hash) und Autor. Ein fremder Autor im Pull Request sieht sonst nach einem Fehler aus.
+
+Verlangt ein Paket, dass etwas „im Issue vermerkt" wird, notiert der Implementer den Text — das
+Kommentieren machst du in Phase 5.
+
+### 4b — Reviewer-Subagent
+
+Ein zweiter Subagent (`subagent_type` nach Paketklasse), im selben Worktree, nach dem Implementer. Er bekommt Paket, Issue-Auszug,
+den Bericht des Implementers und den Diff, und prüft zwei Achsen getrennt:
+
+- **Spec:** Ist jeder Abnahmepunkt erfüllt — nachweisbar, nicht behauptet? Ist etwas gebaut, was
+  niemand verlangt hat? Ist ein Out-of-Scope-Punkt verletzt, eine Decision umgangen, weil die
+  naheliegende Lösung bequemer war?
+- **Standards:** Fachsprache; kein toter oder auskommentierter Rest; keine ADR-Verletzung; Tests
+  entlang des Verifikationswegs in der Form des Vorbilds; Stil des umgebenden Codes; die
+  Projektregeln des Adapters.
+
+**Ein Wächter oder ein Tor wird gegen sich selbst geprüft: Positivprobe und Gegenprobe.**
+
+**Führt ein Paket eine Schreibsperre, einen Update-Schutz oder eine neue Validierung ein, sucht der
+Reviewer jeden anderen Schreiber derselben Felder**: Migration, Import, Skripte, Hintergrundjobs,
+andere Endpunkte, dazu die Pfade aus `writers` im Adapter. Je Schreiber belegt er, dass er
+durchkommt, oder er meldet ihn als Befund. Ein Schreiber, den nur ein Trockenlauf abdeckt, gilt
+als nicht geprüft — ein Trockenlauf sieht die schreibenden Aufrufe nicht. Die Suche darf er an
+Kundschafter geben, einen je Schreiberart; hat er kein `Agent`-Werkzeug, sucht er selbst.
+
+Drei Dinge, in einer Kette ein viertes, schreibst du ihm ausdrücklich in den Auftrag:
+
+- **Den Diff-Befehl `git -C <worktree> diff HEAD`** und den Epic-Kopf, auf dem sein Worktree steht,
+  denn ein Diff gegen den Epic-Branch zeigt inzwischen gemergte Pakete als vermeintliche Änderung,
+  und der Reviewer sucht Fehler in fremdem Code.
+- **Die neuen Dateien namentlich**, mit der Anweisung, sie direkt zu lesen, denn sie stehen in
+  keinem Diff, und eine neue Kernfunktion, die er nie sieht, nimmt er ungeprüft ab.
+- **Die Lint-Basis der betroffenen Module** aus Phase 0, mit dem Auftrag, die Differenz zu melden.
+- **Steht das Paket in einer Kette, hält er die Schnittstelle fest**: was tatsächlich dasteht —
+  Signatur, Merkmale der Ausgabe, jede Abweichung vom Vorgänger. Der Implementer beschreibt, was
+  er bauen wollte; dieser Abschnitt geht wörtlich in den Auftrag des Nachfolgers.
+
+**Der Reviewer fährt keinen Volllauf.** Er prüft Zahlen und Protokoll des Implementers gegen die
+Ausgangszahlen, fährt gezielt die betroffenen Tests und seine Gegenproben; Rot in Dateien, die das
+Paket nicht berührt, wertet er nach dem Lastflake-Absatz in 4c. Den Volllauf je Paket fährst du in
+4c; ein zweiter im Review kostet Minuten und fand bisher nichts Neues. Schreib das ausdrücklich in
+den Auftrag: Die Agent-Dateien der Reviewer verweisen auf diesen Absatz und auf 4c.
+
+Er **korrigiert selbst, aber nur im Kleinen**: Benennung, Kommentar, ein fehlender Testfall, ein
+vergessener Rest. Eine strukturelle Abweichung oder einen verletzten Abnahmepunkt berichtet er
+strukturiert — dann schickst du den Implementer mit dem Befund erneut los, bei einer strukturellen
+Abweichung eine Stufe höher (Eskalation, „Modelle, Paketklasse, Kundschafter"). Nach **`max_rounds`**
+Runden (Standard 3) wird das Paket zurückgelassen (Phase 5). Funde außerhalb des Pakets notiert er
+im Bericht, ohne Issues anzulegen oder vorzuschlagen (Regel 3).
+
+### 4c — Verifikation durch dich
+
+Fahre den Verifikationsweg selbst im Worktree des Pakets; glaub ihn nicht dem Bericht. Dazu
+gehört ein **Volllauf je betroffener Suite** — der einzige des Pakets neben dem des Implementers.
+Bei einem Wächter oder Tor fährst du auch die Gegenprobe. Bekannt rote Suiten (`known_red`) sind
+kein Grund, neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket berührt, wird
+nicht ignoriert.
+
+**Vergleiche gegen die Ausgangszahlen aus Phase 0.** Grün allein genügt nicht: **eine gesunkene
+Suiten- oder Testzahl ist ein Befund, auch wenn alles grün ist.** Belegt wird der Vergleich aus
+deinem Volllauf hier und dem Protokoll des Implementers, nicht aus einem Lauf des Reviewers.
+
+Dasselbe gilt für den **Lint-Stand**: Fehler und Warnungen je betroffenem Modul vor und nach dem
+Paket, mit `lint_commands` gemessen. **Neue Befunde in geänderten Dateien sind ein Befund**, auch
+wenn der Lint-Befehl mit 0 endet.
+
+**Rot nur in Dateien, die das Paket nicht berührt, und einzeln grün = Lastflake:** vermerken, nicht
+als Befund werten. Setzt der Testbefehl des Adapters eine Worker-Grenze (etwa `--maxWorkers`), gilt
+sie auch für den Einzellauf.
+
+**Sichtprüfung ohne gezeichnetes Fenster.** Zeichnet das Browserfenster nicht (Screenshot und
+Klick auf Koordinaten scheitern), gehen Klicks per Skript und der Text aus dem Seitenbaum weiter;
+was so nicht erreichbar ist — etwa Zeilen eines virtualisierten Grids, die ohne Zeichnen nicht
+entstehen —, wird über vorhandene oder neue Tests belegt und in der Abnahmeliste als **„per Test
+belegt, nicht gesichtet"** gekennzeichnet, nie stillschweigend als gesichtet abgehakt.
+
+### 4d — Commit auf dem Paket-Branch
+
+- `pre_commit_checks` fahren, soweit sie nicht von allein laufen, und die Projektregeln des
+  Adapters für Commits erfüllen (etwa eine Pflichtdatei bei nutzersichtbarer Änderung).
+- Ein Commit im Worktree auf `agent/<nr>-<slug>` nach `commit_style`, `commit_language`,
+  `commit_umlauts`; Issue-Nummer im Betreff, Body mit dem *Warum*, am Ende die
+  `Co-Authored-By`-Zeile, die deine Sitzung vorgibt.
+
+## Phase 5 — Sofortmerge
+
+Sobald ein Paket abgenommen ist, wandert es **sofort** in den Epic-Branch, nicht gesammelt am Ende,
+damit jedes spätere Paket schon auf ihm beginnt.
+
+1. Im Epic-Worktree: `git merge --no-ff agent/<nr>-<slug>`.
+2. Die betroffenen Suiten auf dem Epic-Branch fahren. Rot heißt: nicht weiterrücken — den Merge
+   mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). Dann wird
+   nur der Worktree abgeräumt, der Branch bleibt (`references/worktree.md`, „Abräumen").
+3. Sonst den Worktree per `worktree.ps1 -Action Remove` und danach den Paket-Branch abräumen
+   (`references/worktree.md`), nie `--force`. Platz frei: das nächste
+   startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
+   `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
+   und verweigert.
+4. **Kommentar an das gemergte Ticket** — im Modus `tickets` und `spec` mit Kindern das Kind, im Modus
+   `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
+   Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
+   echter Ausgabe und den Zahlen gegen Phase 0, was der Reviewer selbst korrigiert hat, was das
+   Issue vermerkt haben will, die offenen Punkte. Das Kind **behält** `status/in-arbeit`:
+   gemergt ist es erst im Epic-Branch, nicht auf der Basis.
+5. **Lauftafel fortschreiben** nach `references/lauftafel.md`: Zustand, Merge-Commit und Runden
+   des Pakets, neu gestartete Pakete, Teststand, Abweichungen vom Plan, offene Punkte. Die
+   Fortschreibung gehört an **diese** Stelle — die Tafel ist der einzige Ort, an dem der Stand für
+   jemanden sichtbar wird, der den Chat nicht liest.
+6. **Kein Issue schließen.** Es schließt sich beim Merge des Pull Requests über `Closes`.
+
+**Ein Merge-Konflikt ist eine Aussage über den Graphen, nicht über Git.** Er kann nur von einem
+gleichzeitig laufenden Paket kommen, und genau die sollte eine Kollisionskante ausschließen. Tritt
+er auf: Kante nachtragen, im Bericht nennen, und den Konflikt **nur lösen, wenn er mechanisch ist**
+(getrennte Zeilen, Importlisten, benachbarte Einträge). Alles Inhaltliche macht das Paket zu einem
+nicht abgenommenen.
+
+### Zurücklassen
+
+Ein Paket wird **zurückgelassen**, wenn es nach `max_rounds` nicht abnahmefähig ist, ein Konflikt
+nicht mechanisch ist, sein Worktree schmutzig bleibt, der Epic-Branch nach dem Merge rot wird, oder
+sich im Lauf zeigt, dass es einen Zugriff oder eine Freigabe braucht, die am Tor nicht vorlag. Der
+Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenlos aufhebbar:
+
+- Branch bleibt stehen; der Worktree wird entfernt, ein schmutziger bleibt stehen und wird
+  gemeldet.
+- Kommentar an das Ticket (wie Punkt 4): was fehlt, wo sein Branch liegt. Nach einem Revert
+  zusätzlich der Revert-Commit und der Hinweis „zurückholen = Revert des Reverts". Das Ticket
+  bekommt `status/haengt` statt `status/in-arbeit`.
+- Tafel: Zustand „nicht abgenommen", der Grund als Glut-Punkt beim Menschen.
+- Jeder Nachfolger im Graphen wird **blockiert**, auf der Tafel so markiert, sofort
+  kommentiert, mit Nennung des blockierenden Pakets, und bekommt `status/blockiert`.
+
+## Phase 6 — Abschluss
+
+- Gesamtlauf über alle `test_commands` im Epic-Worktree, gegen Phase 0 gestellt; `git log
+  --oneline <push_remote>/<basis>..HEAD` als Übersicht.
+- **Lauftafel ein letztes Mal fortschreiben**, bevor du den Pull Request eröffnest: alle Zustände
+  endgültig, tatsächliche Belegung gegen geplante, Teststand vorher/nachher, offene Punkte.
+- `git push -u <push_remote> epic/<nr>-<slug>`.
+- **Pull Request** eröffnen (`references/forge.md`), `base: <basis>`, `head: epic/…`:
+  - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
+    zurückgelassen oder blockiert, ein Verifikationsweg nicht fahrbar, eine Freigabe offen, eine
+    vorläufige Antwort von `/epic-flotte` unbestätigt.
+  - **Body:** je Paket eine Zeile mit Ergebnis — hat ein Paket bestehende Arbeit übernommen, mit
+    „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
+    Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
+    „Diese Gitea-Instanz" (412).
+  - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
+    Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Kind, in beiden Modi. **Ein
+    Zielissue mit Kindern nie** (Begründung ebenda). Das
+    Epic schließt `/epic-nacharbeit`, sobald alle Kinder zu und alle User Stories erfüllt sind.
+    `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
+    fremdes Epic aus transitiver Auflösung nie.
+- **Nicht mergen.**
+- **Abschlusskommentar am Zielissue** (und am fremden Epic). Hinein: Link auf
+  Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden, Paketklasse und
+  Eskalationen; tatsächliche gegen geplante
+  Belegung und woran Abweichungen lagen; übersprungene und blockierte Tickets mit Grund und dem,
+  was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
+  Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
+  Epic noch offen lässt.
+- Das Zielissue verliert mit dem Abschlusskommentar `status/in-arbeit`, in allen Modi.
+- **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremdes Epic samt mitbearbeiteten
+  Tickets, jedes Kind, jedes übersprungene und blockierte Ticket — prüfen, dass der Kommentar
+  wirklich steht (`references/forge.md`, „Nachzählen statt annehmen") **und das Statuslabel dem
+  Endstand entspricht** (Tabelle „Was am Ende in der Forge stehen muss"; Befehle:
+  `references/forge.md`, „Statuslabels"). Das Nachlesen geht an Kundschafter, je ein Bündel Nummern
+  mit dem erwarteten Endstand; jede gemeldete Abweichung prüfst du selbst nach und richtest sie.
+- `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
+  Worktrees und die Worktrees anderer laufender Läufe (Phase 0a).
+- **Bericht an den Menschen:** Reihenfolge und warum; je Paket bzw. Story abgenommen oder nicht,
+  mit Beleg; zurückgelassene Pakete mit Branch; übersprungene Tickets mit Grund; Reviewer-Funde
+  außerhalb (höchstens drei) als Vorschlag zur Entscheidung; Links auf Pull Request und Tafel, mit
+  dem Satz, was der Merge auf `<basis>` auslöst.
+
+---
+
+## Wann angehalten wird
+
+**Vor dem Lauf** — und nur dort:
+
+- Das Arbeitsverzeichnis ist nicht sauber, oder es liegen Worktrees eines früheren Laufs herum
+  (Phase 0).
+- Das Vorab-Tor hat Punkte (2c). Einmal, als eine Runde; nur neue Punkte aus den Antworten in
+  einer zweiten Runde.
+
+Gefragt wird in beiden Fällen nach „Wie gefragt wird".
+
+**Im Lauf wird nicht angehalten.** Was schiefgeht, lässt ein Paket zurück (Phase 5), die übrigen
+laufen weiter.
+
+**Wird der Lauf trotzdem abgebrochen** — durch den Menschen, die Sitzung, den Verlust der Forge —,
+wird **nichts weggeworfen**: der Epic-Branch bleibt, die fertigen Merges bleiben, zurückgelassene
+Branches bleiben. Der Stand kommt in die Forge (Kommentar am Zielissue und an den laufenden Paketen)
+und auf die Tafel: laufende Pakete verlieren „in Arbeit" **auf der Tafel und als Label**; das
+Zielissue und die gemergten Kinder verlieren das Label ebenfalls, denn kein Pull Request trägt
+ihren Stand. Der
+Abbruchgrund steht als Glut-Punkt beim Menschen. Eine Tafel, die drei Pakete als „in Arbeit"
+stehen lässt, behauptet, es liefe noch etwas.
+
+---
+
+## Was am Ende in der Forge stehen muss
+
+| Issue | Kommentar | Zustand danach |
+|---|---|---|
+| jedes gemergte Paket-Ticket (Kind, in beiden Modi) | Merge-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen, `status/in-arbeit` — schließt über `Closes` |
+| jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
+| jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
+| jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
+| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Merge; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — Schließen: Phase 6, `Closes` |
+| ein fremdes Epic (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
+
+Die Lauftafel steht auf dem Endstand.
