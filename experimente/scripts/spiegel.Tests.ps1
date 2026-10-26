@@ -421,6 +421,30 @@ Describe 'spiegel.ps1 dependency edges' {
     }
 }
 
+Add-Type -TypeDefinition @'
+public class SpiegelFakeResponse : System.Net.WebResponse {
+    public int StatusCode { get { return 403; } }
+    public override System.IO.Stream GetResponseStream() { return new System.IO.MemoryStream(); }
+}
+'@
+
+Describe 'spiegel.ps1 Gitea errors' {
+    It 'keeps the error text that Windows PowerShell puts into ErrorDetails' {
+        # PS 5.1 reads the error body itself: the response stream is empty, the text is in ErrorDetails.
+        Mock Get-GiteaAuth { 'Basic x' }
+        Mock Invoke-WebRequest {
+            $ex = New-Object System.Net.WebException('403', $null, 'ProtocolError', (New-Object SpiegelFakeResponse))
+            $record = New-Object Management.Automation.ErrorRecord($ex, 'WebCmdletWebResponseException', 'InvalidOperation', $null)
+            $record.ErrorDetails = New-Object Management.Automation.ErrorDetails('{"message":"token does not have at least one of required scope(s), required=[write:organization]"}')
+            throw $record
+        }
+        $State.Api = $apiBase; $State.DryRun = $false
+        $r = Invoke-Gitea 'POST' '/orgs/Breuckmann/repos' @{ name = 'exp-x' }
+        $r.Status | Should Be 403
+        $r.Data.message | Should Match 'required=\[write:organization\]'
+    }
+}
+
 Describe 'spiegel.ps1 -Remove' {
     It 'deletes nothing when the input does not match' {
         $t = New-SourceRepo; $fake = New-FakeApi -existing @('exp-523-a', 'exp-523-b'); $fake.Answers = @('', 'exp-523-a'); . Set-Mocks

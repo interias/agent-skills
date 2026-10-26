@@ -238,6 +238,8 @@ function Invoke-Gitea([string]$Method, [string]$Path, $Body = $null) {
         $status = [int]$_.Exception.Response.StatusCode
         $reader = New-Object IO.StreamReader($_.Exception.Response.GetResponseStream(), [Text.Encoding]::UTF8)
         try { $text = $reader.ReadToEnd() } finally { $reader.Dispose() }
+        # Windows PowerShell has read the body already and left it in ErrorDetails.
+        if (-not $text -and $_.ErrorDetails) { $text = $_.ErrorDetails.Message }
     }
     $data = $null
     if ($text) { try { $data = $text | ConvertFrom-Json } catch { $data = $text } }
