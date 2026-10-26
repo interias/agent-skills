@@ -7,10 +7,22 @@ nicht steht, ist kein Adapterschlüssel.
 
 ## Form
 
-Ein Adapter darf YAML-Frontmatter benutzen (KOKOS) oder Tabellen in Prosa (spill). Maßgeblich ist
-die **Bedeutung** des Eintrags, nicht seine Schreibweise. Eine Tabellenzeile „Epic-Label |
-`type/epic`" ist dasselbe wie `epic_label: type/epic`. Im Zweifel legt der Lauf seine Lesart im
-Plan offen, statt still zu raten.
+**YAML-Frontmatter ist Pflichtform** für jeden maschinenlesbaren Schlüssel (#38): ein Block
+zwischen zwei `---`-Zeilen am Anfang von `.claude/epic.md`. `scripts/worktree.ps1` (`Up`, `Down`,
+`CleanupStale`) liest nur dort — während der Umstellung aus der Datei, die `-AdapterFile` nennt
+(`references/worktree.md`, „Umstellung") — und endet ohne Frontmatter mit Exit 1; `scripts/ram.ps1` liest dort
+nur die RAM-Schlüssel und nimmt ohne Frontmatter die Standards.
+Gelesen werden flache Einträge — `key: value`, `key: [a, b]` oder eine Liste mit `- item`;
+verschachtelte Maps wie `test_commands` überspringen die Skripte, sie brauchen sie nicht.
+Unbekannte Schlüssel lassen sie durch. Die **Prosa** darunter bleibt für Begründungen und
+Projektregeln.
+
+Ein älterer Adapter mit Tabellen in Prosa (spill) wird vom Lauf noch gelesen: Maßgeblich ist die
+**Bedeutung** des Eintrags, eine Tabellenzeile „Epic-Label | `type/epic`" ist dasselbe wie
+`epic_label: type/epic`, und der Lauf legt seine Lesart im Plan offen, statt still zu raten. Die
+Skripte lesen ihn nicht. Deshalb legt das Vorab-Tor dem Menschen eine aus der Prosa abgeleitete
+Frontmatter-Fassung vor (`SKILL.md`, Phase 2c, Punkt 13) — für dieses Repository, keine
+Sammelaktion über andere.
 
 Der Fließtext des Adapters sind **Projektregeln**, zum Beispiel Doku-Pflicht, Migrationsverbote
 oder Fachsprache. Sie gelten wie Regeln des Skills. Der Adapter darf den Skill **verschärfen, nie
@@ -21,10 +33,11 @@ lockern**. Ein Eintrag, der eine Regel des Skills aufheben würde, ist ein Punkt
 Ableiten, was ableitbar ist: Forge aus `git remote get-url origin`, Testbefehle aus
 `package.json` bzw. `pyproject.toml`, Commit-Stil aus `git log`. Die Ableitung wird im Plan
 offengelegt, und der Lauf fragt nach dem Rest am Vorab-Tor, statt zu raten. Danach bietet er an,
-das Ergebnis als `.claude/epic.md` abzulegen.
+das Ergebnis als `.claude/epic.md` abzulegen, mit Frontmatter.
 
-**Alte Adapter bleiben gültig.** Jeder Schlüssel unten hat einen Standardwert, und ein Adapter
-aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
+**Alte Adapter bleiben lesbar.** Jeder Schlüssel unten hat einen Standardwert, und ein Adapter
+aus der Zeit vor dieser Fassung wird vom Lauf ohne Änderung gelesen; die Skripte brauchen sein
+Frontmatter (Abschnitt „Form").
 
 **Alter Name.** Bis zur Umbenennung hieß die Datei `.claude/prd.md` und der Modus `tickets` hieß
 `prd`. Fehlt `.claude/epic.md`, liest der Lauf `.claude/prd.md`; `issue_form: prd` gilt als
@@ -75,11 +88,11 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `test_commands` | Befehle je Suite | aus `package.json` / `pyproject.toml` |
+| `test_commands` | Befehle je Suite: die Prüfungen **je Paket, ohne vollen Stack**. Der volle Stack läuft einmal in `acceptance_commands` | aus `package.json` / `pyproject.toml` |
 | `known_red` | Tests, die auf der Basis bekannt rot sind, mit Namen | keine |
 | `lint_commands` | Lint-Befehl je Modul; gezählt werden Fehler und Warnungen aus der Ausgabe, nicht der Exit-Code | keine — dann entfällt der Lint-Vergleich, und der Plan sagt das |
 | `writers` | Pfade der Schreiber ohne Oberfläche (Migration, Import, Jobs), die der Reviewer bei jeder neuen Schreibsperre prüft | keine |
-| `test_isolation_env` | Variable, die jedem Worktree ein eigenes Testbett gibt | keine |
+| `test_isolation_env` | Variable, die jedem Worktree ein eigenes Testbett gibt; `Up` setzt sie auf die Paketnummer. Auf einem geteilten Dienst (`shared_services`) heißt das **eine Datenbank oder ein Schema je Paket**, das das Projekt aus der Variable ableitet (etwa `app_test_<nr>`) | keine |
 | `isolation` | `none-needed` mit **Begründung**, wenn parallele Läufe sich nachweislich nichts teilen | nicht gesetzt |
 | `window` | Zahl der gleichzeitigen Plätze, höchstens 3 | **1**, außer `test_isolation_env` oder `isolation: none-needed` ist gesetzt, dann 3 |
 | `max_rounds` | Implementer-Runden je Paket, bevor es zurückbleibt | `3` |
@@ -94,9 +107,31 @@ aus der Zeit vor dieser Fassung wird ohne Änderung gelesen.
 |---|---|---|
 | `worktree_root` | Ablage der Worktrees, **ohne Punktverzeichnis im Pfad** | `../<repo>-worktrees` |
 | `env_files` | gitignorierte Dateien, die jeder Worktree braucht. Sie werden **kopiert**, nie verlinkt | keine |
-| `link_dirs` | Abhängigkeitsverzeichnisse, die als Junction verlinkt statt installiert werden. Nur für Pakete, die sie berühren: berührt heißt, ein Modul des Pakets liegt unter dem Elternpfad des Verzeichnisses. Im Zweifel verlinken | keine |
-| `always_link` | Verzeichnisse, die jedes Paket braucht, auch wenn es sie nicht berührt | keine |
-| `port_env` | Variable für den Port eines Worktree-Servers | keine |
+| `link_dirs` | Abhängigkeitsverzeichnisse, die als Junction verlinkt statt installiert werden. `Up` verlinkt **alle** in jeden Worktree, ohne Unterscheidung nach Paket. Ein Paket, das das Lockfile ändert, braucht eine echte Installation und ist per `Up` nicht rüstbar (`SKILL.md`, Phase 3) | keine |
+| `always_link` | Verzeichnisse, die jedes Paket braucht. `Up` behandelt sie wie `link_dirs` | keine |
+| `port_env` | Variable für den Port eines Worktree-Servers; `Up` setzt einen freien Port | keine |
+
+### Infrastruktur und Verifikation (#38)
+
+Welche Dienste geteilt laufen und was ein Worktree starten darf, ist nicht ableitbares
+Projektwissen: Fehlt es, erfindet jeder Agent seine eigene Lösung (ARGUS: dort startet jedes Epic
+eine eigene MariaDB). Die Schlüssel sind **Vertrag für den Orchestrator**; `Up` wertet sie nicht
+aus. Sie stehen im Frontmatter (Abschnitt „Form").
+
+| Schlüssel | Bedeutung | Standard |
+|---|---|---|
+| `shared_services` | Dienste, die im Projekt **einmal und geteilt** laufen, je Eintrag Name und Ort, etwa `MariaDB auf 3307`. Worktrees verbinden sich damit und starten sie nicht | keine |
+| `service_start` | wie die geteilten Dienste gestartet werden: Befehl und Ort (etwa „in WSL"). Das tut der Orchestrator, nie ein Paket | keiner — fehlt er bei gesetzten `shared_services`, ist das ein Tor-Punkt |
+| `worktree_may_start` | was ein Worktree selbst starten darf: `dev_server` (Entwicklungsserver auf dem `port_env` des Pakets), `compose` (ein Compose-Projekt des Pakets), `db_server` (ein eigener Datenbankserver) | `[dev_server]` — **keine eigenen DB-Server**, kein eigener Compose-Stack. Ein Paket, das mehr braucht, ist ein Tor-Punkt |
+| `acceptance_commands` | Prüfungen **mit vollem Stack** (Sichtprüfung, E2E), die der Orchestrator **einmal** vor dem Pull Request fährt, im Epic-Worktree und im Slot (`SKILL.md`, „Gestufte Verifikation und der Slot") | keine — dann entfällt die Abnahmestufe, und der Plan sagt das |
+| `ram_warn_percent` | ab dieser Belegung des Windows-Speichers ist die RAM-Bremse (`SKILL.md`, „Die RAM-Bremse") auf `warn` | `75` |
+| `ram_hold_percent` | ab dieser Belegung auf `hold` | `85` |
+| `ram_min_free_gb` | Boden: bei weniger freiem Speicher ist die Bremse mindestens `warn` | `4` |
+
+Die Isolation läuft über `test_isolation_env` (Tabelle „Tests und Parallelität"). Die RAM-Werte
+gelten, wenn `0 < ram_warn_percent < ram_hold_percent <= 100`, `ram_min_free_gb >= 0` und alle
+endlich sind; eine Nicht-Zahl oder ein Verstoß beendet `scripts/ram.ps1` mit Exit 1. Ein fehlender
+Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 
 ### Commits, Tafel, Tor
 
@@ -171,6 +206,7 @@ alle drei Skills.
 | `references/lauftafel.md` | Aufbau und Fortschreiben der Lauftafel |
 | `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Konsole". Wird kopiert, nicht nachgebaut; ihr gemeinsamer Block steht wortgleich in `epic-flotte/references/flottentafel.html` |
 | `references/worktree.md` | Worktrees rüsten und abräumen, auch ohne Manifest und Reste auf der Platte |
-| `scripts/worktree.ps1` | das Skript dazu; Rüsten und Abräumen laufen nur darüber |
+| `scripts/worktree.ps1` | das Skript dazu; `Up`, `Down` und `CleanupStale` sind der einzige Weg, Worktrees zu rüsten und abzuräumen |
+| `scripts/ram.ps1` | die RAM-Messung der RAM-Bremse (`SKILL.md`, Phase 4) |
 
 `references/plan-artifact.md` entfällt und wird durch `lauftafel.md` ersetzt.

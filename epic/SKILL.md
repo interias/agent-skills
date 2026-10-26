@@ -35,6 +35,8 @@ Welche Schlüssel es gibt, was sie bedeuten, was ohne Adapter gilt: **`reference
 das ist der Vertrag, ein Name, der dort nicht steht, ist kein Schlüssel. Seine Lesart legst du im
 Plan offen. Was bei fehlendem Adapter gilt: `references/adapter.md`, „Fehlt der Adapter".
 Liegt nur der alte `.claude/prd.md` vor, gilt er (`references/adapter.md`, „Alter Name“).
+**Frontmatter ist Pflichtform** für alle maschinenlesbaren Schlüssel (#38, `references/adapter.md`,
+„Form"); die Skripte lesen nur dort. Fehlt es, greift Punkt 13 des Vorab-Tors (2c).
 
 Der Fließtext des Adapters sind Projektregeln; sie gelten wie die Regeln unten. Dass der Adapter sie
 nur verschärfen darf und was ein lockernder Eintrag auslöst: `references/adapter.md`, „Form".
@@ -93,9 +95,19 @@ Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleib
 10. **Im Lauf wird nicht angehalten.** Gefragt wird am Vorab-Tor, eine zweite Runde nur für Punkte, die
     aus den Antworten der ersten entstehen. Was danach schiefgeht,
     lässt ein Paket zurück, nicht den Lauf (siehe „Wann angehalten wird").
+    **Eine Ausnahme: die RAM-Bremse** (Phase 4, „Die RAM-Bremse"). Warten auf Speicher ist kein
+    Zurücklassen: laufende Pakete laufen weiter, nur kein neuer Start. Herkunft: Tor-Entscheidung
+    im Epic #34, vorläufig (#37).
 11. **Das Hauptverzeichnis wird nie umgeschaltet**, kein `git switch`, kein `git checkout` dort —
     im selben Klon kann eine zweite Sitzung laufen, der ein Wechsel den Arbeitsstand wegzöge. Der
     Epic-Branch lebt in einem eigenen Worktree (Phase 3). Durch Hook durchgesetzt.
+12. **Ein voller Stack läuft im Projekt immer nur einmal gleichzeitig** (der Slot): Sichtprüfung,
+    E2E und `acceptance_commands`. Jedes Paket prüft nur mit `test_commands` und den geteilten
+    Diensten; den vollen Stack fährt der Orchestrator, einer nach dem anderen (Phase 4, „Gestufte
+    Verifikation und der Slot"). Herkunft: Epic #34, der RAM des Rechners läuft voll (#38).
+13. **Wer einen Dev-Server oder Stack außerhalb von `Up` startet, beendet ihn am Ende des
+    Pakets**; `Down` fängt den Rest ab (`references/worktree.md`). Ein Server, der das Paket
+    überlebt, hält Speicher und Port, bis die nächste Sitzung ihn mit `CleanupStale` findet (#38).
 
 ---
 
@@ -210,6 +222,18 @@ Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
   `references/adapter.md`, „Zwei Tokens".
 - `git status` muss **leer** sein. Jede Änderung ist fremde Arbeit — anhalten und fragen, nie
   wegwerfen, nie mitcommitten.
+- **Hat der Adapter kein Frontmatter,** geht zuerst die Frage nach Punkt 13 (2c) hinaus, vor
+  `CleanupStale`; danach laufen `CleanupStale` und `Up` mit `-AdapterFile` (Umstellung,
+  `references/worktree.md`).
+- **Hinterlassenschaften toter Sitzungen abräumen (#36):** `worktree.ps1 -Action
+  CleanupStale` (Aufruf: `references/worktree.md`). Es räumt Pakete ab, deren Lock auf eine
+  Sitzung zeigt, die nicht mehr lebt — auch den Epic-Worktree eines früheren Laufs —, und beendet
+  Waisen in Paketordnern unter `worktree_root`. Locks lebender Sitzungen und Worktrees ohne Lock
+  fasst es nicht an. Ein **schmutziger Worktree wird gemeldet, nicht entfernt** — dort kann Arbeit
+  liegen. Das Ergebnis, eine JSON-Liste, nennt der Plan (2d). Exit 1 heißt, ein Schritt ist
+  gescheitert (`failed: …` in der Liste): das Skript im Wortlaut melden, nichts von Hand nachholen
+  — ein Punkt fürs Vorab-Tor. Hintergrund: Das Ende eines Laufs erreicht eine abgestürzte Sitzung
+  nie, der Anfang des nächsten schon.
 - `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
   Epics (`epic-<andere nr>` und ihre Paket-Worktrees). Laufend heißt: ihr Zielissue trägt
   `status/in-arbeit`, oder der Auftrag nennt sie (`/epic-flotte`). Sie fasst der Lauf nicht an.
@@ -223,7 +247,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 
 - `git fetch <push_remote> <basis>` und den **Epic-Worktree** anlegen (Phase 3). Das
   Hauptverzeichnis bleibt, wo es steht (Regel 11). Leseprotokoll, Messung und jede spätere
-  Verifikation laufen im Epic-Worktree. Endet der Lauf am Tor, wird er wieder abgeräumt.
+  Verifikation laufen im Epic-Worktree. Endet der Lauf am Tor, wird er mit `Down` wieder
+  abgeräumt. Bei der Umstellung (2c, Punkt 13) ist die bestätigte Fassung des Adapters der erste
+  Commit darin.
 - **Leseprotokoll:** `must_read` ganz, `glossary` ganz, aus `adr_dir` alle Dateien bei
   `read_all_adrs`, sonst die im Issue genannten; das README der betroffenen Module.
 - `pre_commit_checks` prüfen (etwa `git config core.hooksPath`): was nicht von allein läuft, fährst
@@ -358,6 +384,18 @@ Vorzulegen ist:
     nicht: nachtragen oder nicht.
 12. Jeder Punkt aus `gate_approvals`, den ein Paket berührt. Vorzulegen: was es beantwortet, was es
     kostet, was die harte Grenze ist.
+13. **Der Adapter hat kein Frontmatter** (#38; gestellt schon in 0a). Vorzulegen ist eine aus der
+    Prosa abgeleitete Frontmatter-Fassung von `.claude/epic.md`: je Schlüssel Wert und Fundstelle
+    in der Prosa, Lücken mit dem Standard aus `references/adapter.md` markiert. Antworten:
+    bestätigen (Empfehlung), ändern, oder ohne Frontmatter weiterlaufen — dann sind `Up`, `Down`
+    und `CleanupStale` nicht fahrbar, und der Lauf endet hier. Nach Bestätigung läuft die
+    **Umstellung** (`references/worktree.md`, „Umstellung"). Keine Sammelaktion über andere
+    Repositories.
+14. **Infrastruktur und Rüstung** (#38). Ein Paket braucht einen Dienst, der nicht in
+    `shared_services` steht, oder mehr zu starten, als `worktree_may_start` erlaubt (Standard:
+    kein eigener DB-Server); `shared_services` ist gesetzt, `service_start` fehlt; ein Paket
+    ändert das Lockfile eines `link_dirs`-Verzeichnisses und bräuchte eine echte Installation —
+    **ein solches Paket ist per `Up` nicht rüstbar**, `Up` verlinkt immer alle `link_dirs`.
 
 **Fehlt der Adapter,** legt das Tor die abgeleiteten Werte immer als eigene Liste vor, auch wenn
 sonst nichts zu melden ist.
@@ -369,7 +407,13 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 
 - **Plan einmal ausgeben:** Modus und seine Herleitung, Basis, Pakete mit Modulen und Paketklasse, Graph,
   Reihenfolge samt Begründung, im Modus `spec` die Zuordnungstabelle, was bewusst nicht angefasst
-  wird, die Lesart des Adapters.
+  wird, die Lesart des Adapters, das Ergebnis von `CleanupStale` (0a). Dazu aus dem Adapter
+  (#38): die **Infrastruktur** (`shared_services`, `service_start`, was ein Worktree starten
+  darf), die **Isolation** (`test_isolation_env` bzw. `isolation`, bei geteiltem Dienst
+  Datenbank oder Schema je Paket), der **Slot** (wann und wo der volle Stack läuft, ob
+  `acceptance_commands` vorhanden sind, sonst „Abnahmestufe entfällt") und die **wirksamen
+  RAM-Schwellen** (`ram_warn_percent`, `ram_hold_percent`, `ram_min_free_gb`, mit Standard, wo der
+  Adapter schweigt).
 - Je Paket eine Task anlegen (Task-Werkzeug der Sitzung, falls vorhanden), in Reihenfolge.
 - **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
   (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
@@ -403,20 +447,29 @@ Danach **ohne Rückfrage** losarbeiten.
 - Branchname `epic/<nr>-<slug>`. Slug aus dem Issue-Titel ohne Präfixe wie `Epic:` oder `Spec:`:
   klein, ASCII, höchstens vier Wörter, Umlaute transliteriert (ä→ae, ö→oe, ü→ue, ß→ss).
 - **Der Epic-Branch lebt in einem eigenen Worktree** `<worktree_root>/epic-<nr>`, angelegt in 0b
-  per Skript mit `-Branch epic/<nr>-<slug> -From <push_remote>/<basis>`. Existiert der Branch schon,
-  nimmt das Skript ihn wieder; bei vorhandenem Remote danach darin `git pull --ff-only`. Nie neu
-  anlegen, nie `--force`, nie zurücksetzen — dort kann Arbeit eines früheren Laufs liegen.
-- Der Epic-Worktree bekommt **alle** `link_dirs` und `env_files`, weil dort die Ausgangsmessung und
-  die Verifikation nach jedem Merge über alle Suiten laufen. Er bleibt bis zum Merge des Pull
-  Requests stehen; abgeräumt wird er von `/epic-aufraeumen`.
+  mit `Up -Package epic-<nr> -Branch epic/<nr>-<slug> -From <push_remote>/<basis>`. Existiert der
+  Branch schon, nimmt `Up` ihn wieder; bei vorhandenem Remote danach darin `git pull --ff-only`.
+  Nie neu anlegen, nie `--force`, nie zurücksetzen — dort kann Arbeit eines früheren Laufs liegen.
+- Der Epic-Worktree bekommt wie jeder `Up`-Worktree **alle** `link_dirs` und `env_files`, weil
+  dort die Ausgangsmessung und die Verifikation nach jedem Merge über alle Suiten laufen. **Er
+  trägt ein Lock deiner Sitzung und lebt mit ihr:** Endet die Sitzung, räumt der nächste
+  `CleanupStale` ihn ab, sofern er sauber ist; der Branch bleibt. Er steht damit nicht mehr
+  zwingend bis zum Merge des Pull Requests. `/epic-aufraeumen` räumt ihn per `Down -Package
+  epic-<nr>` ab, falls er noch steht, und `/epic-nacharbeit` legt ihn mit `Up` auf dem vorhandenen
+  Branch neu an, falls er fehlt (#38).
 - Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` (Slug wie oben) in einem eigenen
-  Worktree unter `worktree_root`, gezogen vom **aktuellen** Epic-Kopf. `<nr>` ist die Kindnummer,
-  im Modus `spec` ohne Kinder `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket alles Gemergte, und ein Konflikt
-  kann nur noch von einem gleichzeitig laufenden Paket kommen.
-- Anlegen, Rüsten (`env_files` kopieren, `link_dirs` nur für berührte Module, `always_link`
-  immer, `test_isolation_env`, `port_env`) und Abräumen **nur per `scripts/worktree.ps1`**, nie von
-  Hand. Scheitert es, hält das Paket an. Aufruf und Regeln: **`references/worktree.md`**. Lies die
-  Datei, bevor du den ersten Worktree anlegst.
+  Worktree unter `worktree_root`, gezogen vom **aktuellen** Epic-Kopf: `Up -Package <nr> -Branch
+  agent/<nr>-<slug> -From epic/<nr>-<slug>`. `<nr>` ist die Kindnummer, im Modus `spec` ohne Kinder
+  `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket
+  alles Gemergte, und ein Konflikt kann nur noch von einem gleichzeitig laufenden Paket kommen.
+- **Rüsten und Abräumen nur mit `Up`, `Down` und `CleanupStale`**, nie von Hand. `Up` liest den
+  Adapter selbst und verlinkt **alle** `link_dirs` und `always_link`; während der Umstellung (2c,
+  Punkt 13) bekommt jeder Aufruf `-AdapterFile <epic-worktree>/.claude/epic.md`. **Ein Paket, das das Lockfile
+  ändert und eine echte Installation bräuchte, ist per `Up` nicht rüstbar** — ein Tor-Punkt (2c,
+  Punkt 14), keine Handarbeit. Exit 1 heißt: das Skript im Wortlaut melden, nichts von Hand
+  nachholen; bei `Up` hält das Paket an. `Down` nie aus einer Shell aufrufen, die im Worktree
+  steht. Aufruf und Regeln: **`references/worktree.md`**. Lies die Datei, bevor du den ersten
+  Worktree anlegst.
 
 ## Phase 4 — Das Fenster
 
@@ -437,18 +490,74 @@ Warum höchstens drei: du fährst jeden Verifikationsweg selbst nach und liest j
 Reviewer-Bericht — das ist die Engstelle, nicht die Rechenzeit. Und die Kollisionspaare wachsen
 quadratisch.
 
+### Die RAM-Bremse (#37)
+
+Ist der Speicher des Windows-Rechners voll, stürzt er ab und reißt alle laufenden Pakete mit
+(Epic #34). Deshalb misst du **vor jedem Paketstart** — in 4a und beim Nachrücker (Phase 5,
+Punkt 3); eine Nachricht, die mehrere Pakete startet, braucht eine Messung:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/ram.ps1 -RepoRoot <repo>
+```
+
+Ausgabe ist ein JSON-Objekt: `percent_used`, `free_gb`, `total_gb`, `level`. Ab **75 %** belegt
+ist es `warn`, ab **85 %** `hold`, und bei weniger als **4 GB** frei mindestens `warn`; das sind
+die Standards der drei Werte, die der Adapter einstellt (`ram_warn_percent`, `ram_hold_percent`,
+`ram_min_free_gb`, `references/adapter.md`, „Infrastruktur und Verifikation"). „Frei" ist, was Windows sofort vergeben kann — der Wert „Verfügbar" des
+Task-Managers. Der Grund für Prozent mit Boden: `scripts/ram.ps1`, Kopfkommentar.
+
+| `level` | Du tust |
+|---|---|
+| `ok` | Paket startet |
+| `warn` | Paket startet; das `warn` steht beim Messwert auf der Tafel |
+| `hold` | **Kein weiteres Paket startet**, der Platz bleibt leer; laufende Pakete laufen weiter. Du misst bei jedem Aufwachen neu und, wenn kein Paket läuft, alle fünf Minuten (`Start-Sleep`), bis es `ok` ist oder der Mensch freigibt. Eine Freigabe gilt für den nächsten Start. Du sagst einmal im Chat, dass du wartest |
+
+Jeder Messwert steht auf der Lauftafel (`references/lauftafel.md`, „RAM-Messung"). Schlägt die
+Messung fehl (Exit 1), ist das ein Glut-Punkt, und das Paket startet nicht ohne Messwert.
+
+**Unter `/epic-flotte`** fragst du bei `hold` nicht selbst: du beendest den Zug mit einem
+Frageblock der Phase `ram` (`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"), Optionen
+„warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Der Admiral legt es dem Menschen vor.
+Auf seine Antwort `warten` startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn
+`weiter` kommt (`ok` oder Freigabe des Menschen), und misst dann nicht noch einmal. Schlägt die
+Messung fehl, geht derselbe Block hinaus, mit dem Fehlertext statt des Messwerts.
+
+### Gestufte Verifikation und der Slot (#38)
+
+Die meisten Projekte brauchen für Tests keinen Stack; der volle Stack läuft **einmal zur Abnahme**
+statt je Paket (Epic #34: der RAM des Rechners läuft voll). Deshalb zwei Stufen:
+
+| Stufe | Was | Wer, wo, wann | Befehle |
+|---|---|---|---|
+| je Paket | Tests ohne vollen Stack, gegen die geteilten Dienste (`shared_services`) mit eigener Datenbank oder eigenem Schema (`test_isolation_env`) | Implementer (4a) und du (4c) im Paket-Worktree | `test_commands` |
+| Abnahme | der volle Stack: Sichtprüfung, E2E | du, **einmal** vor dem Pull Request, im Epic-Worktree (Phase 6) | `acceptance_commands` |
+
+Verlangt der Verifikationsweg eines Pakets den vollen Stack (etwa eine Sichtprüfung im Browser),
+fährt ihn nicht der Implementer: Der Auftrag sagt „vom Host im Slot", und du fährst ihn in 4c.
+
+**Der Slot** ist die Erlaubnis, einen vollen Stack zu betreiben, und es gibt ihn im Projekt nur
+einmal (Regel 12). Du nimmst ihn, bevor du einen vollen Stack startest, und gibst ihn frei, sobald
+dieser beendet ist (Regel 13). Vorher siehst du nach, ob schon ein voller Stack dieses Projekts
+läuft — dein eigener oder der eines anderen Laufs: Compose-Projekte (`docker compose ls`, soweit
+docker erreichbar ist) und Prozesse in den Worktrees unter `worktree_root`. Läuft einer, wartest du
+wie bei `hold` der RAM-Bremse (`Start-Sleep`, neu prüfen); das lässt kein Paket zurück und hält den
+Lauf nicht an. Die geteilten Dienste aus `shared_services` zählen nicht als Stack — sie laufen
+immer; gestartet werden sie nach `service_start`, von dir. Dass `/epic-flotte` den Slot über alle
+Läufe abstimmt, steht dort noch nicht: offener Punkt (#38).
+
 ### 4a — Implementer-Subagent
 
 Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
-unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht). Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
+unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht), davor die Messung
+der RAM-Bremse. Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — genau dort fällt es am leichtesten
 aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen Kontext nicht; sein Auftrag enthält alles
 **ausgeschrieben**:
 
-- Den absoluten Pfad seines Worktrees und die Arbeitsweise darin nach „Der Subagent im Worktree"
-  in `references/worktree.md` — einschließlich des Ergebnisses der dort beschriebenen
-  `EnterWorktree`-Prüfung.
+- Den absoluten Pfad seines Worktrees samt `port` und `isolation` aus dem JSON von `Up` und die
+  Arbeitsweise darin nach „Der Subagent im Worktree" in `references/worktree.md` — einschließlich
+  des Ergebnisses der dort beschriebenen `EnterWorktree`-Prüfung.
 - Paketnummer, Titel bzw. Zielsatz, die Abnahmeliste **im Wortlaut** (Kind-Body oder zugeordnete
   User Stories).
 - Die betreffenden Implementation Decisions **samt Begründung** — ohne sie wählt er die
@@ -462,8 +571,11 @@ aus, weil der Start dann mitten in der Merge-Checkliste passiert. Er hat deinen 
 - Die Regeln, je mit Herkunft: Fachsprache samt Verboten; Scope strikt die Abnahmeliste; keine
   Umbenennung und kein Refactoring ohne Auftrag; keine neue Abhängigkeit ohne Nennung im Issue;
   keine Tests löschen oder überspringen; die Projektregeln des Adapters; **nicht committen, nicht
-  branchen** — das macht der Host.
-- Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable.
+  branchen** — das macht der Host; **kein voller Stack** (Regel 12, Skill, #38) und keine eigenen
+  DB-Server, außer `worktree_may_start` erlaubt es (Adapter); wer außerhalb von `Up` einen
+  Dev-Server startet, beendet ihn am Ende des Pakets (Regel 13, Skill, #38).
+- Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable, soweit er
+  ohne vollen Stack geht (`test_commands`); den Rest fährst du in 4c im Slot.
 - **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
   (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
   Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Die Agent-Dateien der
@@ -572,9 +684,10 @@ bereits auf ihm.
    mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). So
    bleibt der Epic-Branch grün, und der Lauf hält nicht an. Dann wird nur der Worktree abgeräumt,
    der Branch bleibt (`references/worktree.md`, „Abräumen").
-3. Sonst den Worktree per `worktree.ps1 -Action Remove` und danach den Paket-Branch abräumen
-   (`references/worktree.md`), nie `--force`. Platz frei: das nächste
-   startbereite Paket startet nach 4a, **mit** `status/in-arbeit` an seinem Ticket und Nachlesen.
+3. Sonst den Worktree mit `Down -Package <nr>` (aus einer Shell außerhalb des Worktrees) und
+   danach den Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei: das nächste
+   startbereite Paket startet nach 4a, **mit** Messung der RAM-Bremse und `status/in-arbeit` an
+   seinem Ticket und Nachlesen.
    `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
    und verweigert.
 4. **Kommentar an das gemergte Ticket** — im Modus `tickets` und `spec` mit Kindern das Kind, im Modus
@@ -603,8 +716,8 @@ nicht mechanisch ist, sein Worktree schmutzig bleibt, der Epic-Branch nach dem M
 sich im Lauf zeigt, dass es einen Zugriff oder eine Freigabe braucht, die am Tor nicht vorlag. Der
 Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenlos aufhebbar:
 
-- Branch bleibt stehen; der Worktree wird entfernt, ein schmutziger bleibt stehen und wird
-  gemeldet.
+- Branch bleibt stehen; der Worktree wird mit `Down` entfernt, ein schmutziger bleibt stehen und
+  wird gemeldet.
 - Kommentar an das Ticket (wie Punkt 4): was fehlt, wo sein Branch liegt. Nach einem Revert
   zusätzlich der Revert-Commit und der Hinweis „zurückholen = Revert des Reverts". Das Ticket
   bekommt `status/haengt` statt `status/in-arbeit`.
@@ -616,12 +729,19 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 
 - Gesamtlauf über alle `test_commands` im Epic-Worktree, gegen Phase 0 gestellt; `git log
   --oneline <push_remote>/<basis>..HEAD` als Übersicht.
+- **Abnahmestufe** (#38): Sind `acceptance_commands` gesetzt, fährst du sie **einmal**, im
+  Epic-Worktree, im Slot (Phase 4, „Gestufte Verifikation und der Slot"), und gibst den Slot
+  danach frei. Ihr Ergebnis steht auf der Tafel und im Pull-Request-Body. Rot oder nicht fahrbar
+  ist ein Glut-Punkt und macht den Pull Request zu `WIP:`; es hält den Lauf nicht an und lässt
+  kein Paket zurück. Sind keine gesetzt, sagt der Bericht „Abnahmestufe entfällt". Was du dafür
+  außerhalb von `Up` gestartet hast, beendest du (Regel 13).
 - **Lauftafel ein letztes Mal fortschreiben**, bevor du den Pull Request eröffnest: alle Zustände
   endgültig, tatsächliche Belegung gegen geplante, Teststand vorher/nachher, offene Punkte.
 - `git push -u <push_remote> epic/<nr>-<slug>`.
 - **Pull Request** eröffnen (`references/forge.md`), `base: <basis>`, `head: epic/…`:
   - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
-    zurückgelassen oder blockiert, ein Verifikationsweg nicht fahrbar, eine Freigabe offen, eine
+    zurückgelassen oder blockiert, ein Verifikationsweg oder eine Abnahmeprüfung nicht fahrbar oder
+    rot, eine Freigabe offen, eine
     vorläufige Antwort von `/epic-flotte` unbestätigt.
   - **Body:** je Paket eine Zeile mit Ergebnis — hat ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
@@ -671,6 +791,10 @@ Gefragt wird in beiden Fällen nach „Wie gefragt wird".
 
 **Im Lauf wird nicht angehalten.** Was schiefgeht, lässt ein Paket zurück (Phase 5), die übrigen
 laufen weiter.
+
+**Ausnahme RAM-Bremse (#37):** Steht sie auf `hold`, startet das nächste Paket nicht, bis sie
+`ok` ist oder der Mensch freigibt (Phase 4, „Die RAM-Bremse"). Das hält den Lauf nicht an und
+lässt kein Paket zurück: was läuft, läuft weiter.
 
 **Wird der Lauf trotzdem abgebrochen** — durch den Menschen, die Sitzung, den Verlust der Forge —,
 wird **nichts weggeworfen**: der Epic-Branch bleibt, die fertigen Merges bleiben, zurückgelassene
