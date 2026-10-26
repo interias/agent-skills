@@ -22,6 +22,10 @@ Rückfrage; den Stand zeigen Gitea und KIBO.
 | `epic-lagebesprechung` | Optional: im laufenden Chat alles abholen, was bei dir liegt |
 | `mail-antwort` | Eine Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen |
 
+Vorgelagert sind die Skills aus dem Plugin `mattpocock-skills` (`grill-with-docs`, `grilling`,
+`to-spec`, `to-tickets` …). Sie werden nicht hierher kopiert; [`mattpocock-skills/`](mattpocock-skills/README.md)
+legt fest, wie sie für Gitea eingerichtet werden.
+
 Alle Epic-Skills lesen im Zielprojekt die Adapterdatei `.claude/epic.md`
 ([Vertrag](epic/references/adapter.md)) und fragen mit Antwortmöglichkeiten und Empfehlung. Bis
 Oktober 2026 hießen sie `prd…`; alte Adapter werden weiter gelesen.
@@ -63,27 +67,64 @@ deren Ablauf nicht.
 
 ![Mailbild: Die .eml wird zerlegt, eingeordnet und recherchiert; am Halt wählst du den Weg — B Spec-Issue und /epic bis zum PR, C Kommentar am vorhandenen Issue, A nur Antwort, D Issue mit needs-triage. Danach markierte Ist- und Soll-Bilder und ein Antwortentwurf neben der Mail; abschicken nur du. Darunter die Arten der Mail und ihr Weg.](assets/mail-antwort/mail-antwort.png)
 
-## Plugin `agentenflotte`
+## Die Agent-Typen
 
-![Brückenbild: links die Desktop-App mit farbigen Stationsetiketten vor den Werkzeugzeilen, Brücken-Spinner, einer Freigabe unter Alarmstufe Gelb, der Zeile Unter Warp und in der Fußleiste Alarm-Etikett und Statuszeile mit Sternzeit, Warp, Schilden und Flotte; rechts das taktische Display als Radar mit der Hauptsitzung in der Mitte und den Subagenten als Kontakte. Darunter Alarmstufen und Warpfaktoren.](assets/agentenflotte/agentenflotte.png)
+Unter `agents/` liegt die Modellstaffel; `/epic` und `/epic-flotte` wählen den Typ nach Paketklasse
+und Rolle.
 
-Ein Mod, der die Sitzung zur Schiffsbrücke macht: Subagenten sind Schiffe, Warpfaktor ist die
-Denkstufe, Alarmstufen zeigen, was auf dich wartet (Gelb Freigabe, Rot Fehler, Blau Kontext knapp).
-Dazu Statuszeile, `/logbuch`, `/taktik` (Radar der Flotte) und ein optionaler Bordcomputer.
-`/flotte` schaltet den Mod, `/flotte status` zeigt die Teile. Übernommen aus
-[interias/agentenflotte](https://github.com/interias/agentenflotte).
+| Agent-Typ | Modell, Denkstufe | Rolle |
+|---|---|---|
+| `epic-implementer-mechanisch` | Sonnet, niedrig | Implementer, Klasse mechanisch |
+| `epic-implementer-standard` | Sonnet, mittel | Implementer, Klasse Standard |
+| `epic-implementer-urteil` | Opus, mittel | Implementer, Klasse Urteil; erste Eskalation von Standard |
+| `epic-implementer-urteil-hoch` | Opus, hoch | Implementer nach einer Eskalation, letzte Stufe |
+| `epic-reviewer-standard` | Sonnet, hoch | Reviewer, Klassen mechanisch und Standard |
+| `epic-reviewer-urteil` | Opus, mittel | Reviewer, Klasse Urteil |
+| `epic-kundschafter` | Haiku, niedrig | liest und liefert Fundstellen, ändert nichts |
+| `epic-lauf` | Opus, mittel | ein Lauf unter `/epic-flotte`, fragt den Admiral statt dich |
+
+## Die Skripte
+
+Unter `epic/scripts/`, jedes mit Pester-Tests daneben und Hilfe im Kopfkommentar
+(`Get-Help <skript> -Detailed`):
+
+- **`worktree.ps1`** rüstet und räumt die Worktrees der Pakete nach dem Adapter: `Up` legt
+  Worktree, Env-Dateien, Links der Abhängigkeitsordner und Lock an, `Down` stoppt, was zum Worktree
+  gehört, und entfernt ihn, `CleanupStale` räumt zu Beginn von `/epic` und `/epic-aufraeumen` ab,
+  was tote Sitzungen hinterlassen haben.
+- **`guard.ps1`** ist der PreToolUse-Hook, den `epic`, `epic-aufraeumen` und `epic-kundschafter`
+  in ihrem Frontmatter einhängen. Er sperrt je Profil (`epic`, `aufraeumen`, `kundschafter`)
+  verbotene Shell-Befehle, etwa Pushes auf den Hauptbranch oder `git branch -D`.
+- **`ram.ps1`** misst den freien Speicher des Windows-Hosts und gibt `ok`, `warn` oder `hold`
+  aus — die RAM-Bremse vor jedem Paketstart (`/epic`) und jeder Welle (`/epic-flotte`).
+
+## Experimente
+
+`experimente/` wird von `install.ps1` nicht installiert:
+
+- **`epic-schlank/`** — eine gekürzte Fassung von `epic` mit eigenen Agent-Typen und Skripten,
+  gestrichen nach [`STREICHLISTE.md`](experimente/epic-schlank/STREICHLISTE.md).
+- **`scripts/spiegel.ps1`** spiegelt den Ausgangsstand eines Laufs in private Gitea-Repos
+  (`exp-…`), damit zwei Skills dieselbe Aufgabe bearbeiten können; **`scripts/blind.ps1`** legt
+  die Diffs zweier Branches für einen blinden Vergleich ab.
+- [`STARTPROMPTS.md`](experimente/STARTPROMPTS.md) legt fest, wie beide Läufe gestartet werden.
+
+Das Plugin `agentenflotte` liegt nicht mehr in diesem Repository; es wird unter
+[interias/agentenflotte](https://github.com/interias/agentenflotte) gepflegt.
 
 ## Aufbau
 
 ```
-epic/ epic-nacharbeit/ epic-aufraeumen/   die Epic-Skills (epic/references: Adapter, Forge, Tafeln)
+epic/ epic-nacharbeit/ epic-aufraeumen/   die Epic-Skills (epic/references: Adapter, Forge, Tafeln;
+                                          epic/scripts: worktree, guard, ram)
 epic-flotte/ epic-lagebesprechung/        optional: Flotte und Lagebesprechung
 mail-antwort/                             Skill mit Python-Skripten
 agents/                                   Agent-Typen der Modellstaffel
-agentenflotte/  .claude-plugin/           Plugin und Marketplace breuckmann-agent-skills
 mattpocock-skills/                        Einrichtung der vorgelagerten Skills für Gitea
-assets/                                   Bilder dieses README, je mit HTML-Quelle
-install.ps1  INSTALL.md
+experimente/                              nicht installiert: epic-schlank, spiegel, blind
+assets/                                   Bilder dieses README, je mit HTML-Quelle; avatar/ mit Python
+.claude/epic.md                           Adapter dieses Repositorys
+install.ps1  INSTALL.md  CONTEXT.md
 ```
 
 Änderungen nur über Branch und Pull Request, nie direkt in `~/.claude/skills`.
