@@ -1,0 +1,42 @@
+{
+  "profile": {
+    "guid": "{c1a0de00-2a7b-4e1f-9d3c-a7b0e1d2c0de}",
+    "name": "Claude Arbeitspferd",
+    "commandline": "pwsh.exe -NoExit -NoLogo -ExecutionPolicy Bypass -File \"{CFG}\\start-arbeitspferd.ps1\"",
+    "startingDirectory": "{HOME}\\git",
+    "icon": "{CFG}\\arbeitspferd.ico",
+    "colorScheme": "Claude Code",
+    "closeOnExit": "always",
+    "tabColor": "#D97757",
+    "font": {
+      "face": "Cascadia Code",
+      "size": 11
+    },
+    "cursorShape": "bar",
+    "padding": "10",
+    "hidden": false
+  },
+  "scheme": {
+    "name": "Claude Code",
+    "background": "#1F1E1D",
+    "foreground": "#F0EEE6",
+    "cursorColor": "#D97757",
+    "selectionBackground": "#5A4034",
+    "black": "#1F1E1D",
+    "red": "#E5735F",
+    "green": "#8FB573",
+    "yellow": "#E3B341",
+    "blue": "#7AA2C8",
+    "purple": "#B88CC4",
+    "cyan": "#6FB3B0",
+    "white": "#D9D6CC",
+    "brightBlack": "#6B6862",
+    "brightRed": "#F08C78",
+    "brightGreen": "#A8CC8C",
+    "brightYellow": "#F0C674",
+    "brightBlue": "#94B8DA",
+    "brightPurple": "#CBA3D6",
+    "brightCyan": "#8CCAC6",
+    "brightWhite": "#FAF9F5"
+  }
+}

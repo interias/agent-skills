@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "defaultMode": "auto"
+  },
+  "model": "opus[1m]",
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": true,
+    "ribbon@robonuggets": true
+  },
+  "extraKnownMarketplaces": {
+    "robonuggets": {
+      "source": {
+        "source": "github",
+        "repo": "robonuggets/ribbon"
+      }
+    }
+  },
+  "outputStyle": "ELI5",
+  "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "autoCompactWindow": 400000
+    }
+  },
+  "askUserQuestionTimeout": "10m",
+  "skipWorkflowUsageWarning": true,
+  "theme": "custom:claude-farbe",
+  "agentPushNotifEnabled": true,
+  "viewMode": "focus",
+  "tui": "fullscreen",
+  "spinnerTipsEnabled": false,
+  "showTurnDuration": false
+}

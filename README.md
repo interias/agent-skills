@@ -121,6 +121,8 @@ epic/ epic-nacharbeit/ epic-aufraeumen/   die Epic-Skills (epic/references: Adap
 epic-flotte/ epic-lagebesprechung/        optional: Flotte und Lagebesprechung
 mail-antwort/                             Skill mit Python-Skripten
 leitstand/                                Leitstand über das zweite Konto, mit PowerShell-Skripten
+arbeitspferd/                             nicht installiert: Terminal-Gerüst des zweiten Kontos,
+                                          eingerichtet mit arbeitspferd/einrichten.ps1
 agents/                                   Agent-Typen der Modellstaffel
 mattpocock-skills/                        Einrichtung der vorgelagerten Skills für Gitea
 experimente/                              nicht installiert: epic-schlank, spiegel, blind

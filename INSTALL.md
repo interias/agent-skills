@@ -50,6 +50,9 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
 
+Das zweite Konto für `leitstand` (Konfigordner, Startskripte, Theme, Windows-Terminal-Profil)
+richtet `install.ps1` nicht ein, sondern [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md).
+
 **Immer Kopie, nie Junction oder Symlink.** Ein rekursives Löschen folgt einem Link und löscht die
 Quelle mit — passiert am 18.09.2026 in KOKOS mit `node_modules`-Junctions. Findet das Skript im
 Ziel einen Reparse-Point, meldet es `ABORT`, lässt diesen Skill-Ordner oder diese Agent-Datei
