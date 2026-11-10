@@ -41,7 +41,7 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 ## Was das Skript tut
 
 - **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
-  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `mail-antwort` — nach
+  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `leitstand`, `mail-antwort` — nach
   `~/.claude/skills/<name>`. `mattpocock-skills/` (ohne `SKILL.md`) und alles unter `experimente/`
   bleiben außen vor. Ein vorhandener Zielordner
   wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,
@@ -49,6 +49,9 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   `prd-aufraeumen`, `prd-flotte`) werden gesichert und entfernt.
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
+
+Das zweite Konto für `leitstand` (Konfigordner, Startskripte, Theme, Windows-Terminal-Profil)
+richtet `install.ps1` nicht ein, sondern [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md).
 
 **Immer Kopie, nie Junction oder Symlink.** Ein rekursives Löschen folgt einem Link und löscht die
 Quelle mit — passiert am 18.09.2026 in KOKOS mit `node_modules`-Junctions. Findet das Skript im

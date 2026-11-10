@@ -1,0 +1,16 @@
+{
+  "name": "Claude Farbe",
+  "base": "dark",
+  "overrides": {
+    "userMessageBackground": "#26344F",
+    "briefLabelYou": "#7FB8FF",
+    "briefLabelClaude": "#E8916F",
+    "claude": "#E8916F",
+    "promptBorder": "#7FB8FF",
+    "permission": "#7FB8FF",
+    "suggestion": "#B39DFF",
+    "success": "#8FD694",
+    "warning": "#FFC857",
+    "error": "#FF7A66"
+  }
+}
