@@ -1,6 +1,6 @@
 # Waits for a pull request's checks, merges it with a merge commit, then deletes its head branch on the
 # remote only when the base branch provably contains every commit of it. Prints one summary line.
-# Usage: merge.ps1 -Repo interias/hexanite -Pr 164 [-MaxMinuten 30] [-BranchBehalten]
+# Usage: merge.ps1 -Repo <owner/name> -Pr 164 [-MaxMinuten 30] [-BranchBehalten]
 param(
     [Parameter(Mandatory)][string]$Repo,
     [Parameter(Mandatory)][int]$Pr,

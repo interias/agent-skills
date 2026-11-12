@@ -8,6 +8,8 @@
       backed up to ~/.claude/skills-backup/arbeitspferd-<timestamp>/. settings.json is only written
       when none exists yet, because the account keeps changing its own settings.
     - Copies themes/claude-farbe.json into ~/.claude/themes, same backup rule.
+    - Installs the skill leitstand/ into ~/.claude/skills/leitstand, same backup rule. install.ps1 leaves
+      it out, so only machines with a second account get it.
     - Creates the junctions skills, agents, output-styles, plugins and themes in the config folder,
       pointing to ~/.claude. Existing entries are left alone. Nothing is ever deleted.
     - Adds or replaces the profile "Claude Arbeitspferd" and the scheme "Claude Code" in every
@@ -32,13 +34,13 @@ $main = Join-Path $HOME '.claude'
 $cfg = Join-Path $HOME '.claude-arbeitspferd'
 $backup = Join-Path $main "skills-backup\arbeitspferd-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 
-function Copy-WithBackup([string]$file, [string]$targetDir) {
+function Copy-WithBackup([string]$file, [string]$targetDir, [string]$backupDir = $backup) {
     $target = Join-Path $targetDir (Split-Path -Leaf $file)
     if ((Test-Path $target) -and (Get-FileHash $target).Hash -eq (Get-FileHash $file).Hash) { "unveraendert: $target"; return }
     if ($DryRun) { "[DryRun] wuerde schreiben: $target$(if (Test-Path $target) { ' (mit Sicherung)' })"; return }
     if (Test-Path $target) {
-        New-Item -ItemType Directory -Force $backup | Out-Null
-        Copy-Item $target $backup -Force
+        New-Item -ItemType Directory -Force $backupDir | Out-Null
+        Copy-Item $target $backupDir -Force
     }
     New-Item -ItemType Directory -Force $targetDir | Out-Null
     Copy-Item $file $target -Force
@@ -51,6 +53,13 @@ foreach ($f in Get-ChildItem (Join-Path $src 'dateien') -File) {
     Copy-WithBackup $f.FullName $cfg
 }
 Copy-WithBackup (Join-Path $src 'themes\claude-farbe.json') (Join-Path $main 'themes')
+
+# Skill leitstand, kept out of install.ps1 so only machines with a second account get it
+$skillSrc = Join-Path $src 'leitstand'
+foreach ($f in Get-ChildItem $skillSrc -File -Recurse) {
+    $rel = [IO.Path]::GetRelativePath($skillSrc, $f.DirectoryName).TrimStart('.')
+    Copy-WithBackup $f.FullName (Join-Path $main "skills\leitstand\$rel") (Join-Path $backup "leitstand\$rel")
+}
 
 # Shared folders of the main account, as junctions
 foreach ($n in 'skills', 'agents', 'output-styles', 'plugins', 'themes') {

@@ -28,7 +28,7 @@ if (-not $lebt) {
     return
 }
 
-$botschaft = "Nachricht der Hauptsitzung (Stefan): Lies $Datei vollständig und arbeite danach. Wenn du gerade mitten in etwas bist, mach das erst fertig."
+$botschaft = "Nachricht der Hauptsitzung: Lies $Datei vollständig und arbeite danach. Wenn du gerade mitten in etwas bist, mach das erst fertig."
 $prompt = "Use SendMessage exactly once, to `"$($sess.name)`", with exactly this message text and nothing added: `"$botschaft`" Then print only the tool result."
 Get-ChildItem Env: | Where-Object Name -match '^CLAUDE' | ForEach-Object { Remove-Item "Env:$($_.Name)" }
 $env:CLAUDE_CONFIG_DIR = $cfg
