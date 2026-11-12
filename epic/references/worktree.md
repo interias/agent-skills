@@ -69,7 +69,12 @@ Nach dem Verlinken prüft `Up` jedes Verzeichnis darauf, dass es ein Verweis auf
 Ziel ist, und bricht bei einer Kopie ab. Die angelegten Verweise stehen in einem Manifest im
 Git-Verzeichnis des Worktrees, unsichtbar für `git status`; danach richtet sich `Down`. Das Lock
 liegt in `<git common dir>/epic-locks/<Package>.json` und nennt die Sitzung, die den Worktree
-besitzt (standardmäßig den nächsten Vorfahren `claude`).
+besitzt (standardmäßig den nächsten Vorfahren `claude`) — mit ihrer PID und, wenn eine
+Claude-Sitzung `Up` aufruft, mit ihrer **Sitzungs-ID**. Die PID wechselt, wenn die Sitzung neu
+gestartet wird, die ID nicht: `CleanupStale` lässt ein Lock stehen, dessen Sitzung unter einer
+neuen PID weiterläuft (BRIQNET, 12.11.2026: Ein Lauf lief nach einem Neustart weiter, sein Lock
+zeigte noch auf die alte PID). Eine Sitzung, die geschlossen ist und erst später fortgesetzt wird,
+läuft nicht und gilt weiter als beendet.
 
 stdout von `Up` ist **genau eine JSON-Zeile** `{path, branch, port, isolation, project, envFiles,
 lock, sessionPid, warnings}`. `path`, `port` und `isolation` gehören in den Auftrag des
@@ -172,7 +177,7 @@ nicht zurück, dafür braucht es den Revert des Reverts. Was der Kommentar am Pa
 
 **Der Epic-Worktree** (`epic-<nr>`) trägt ein Lock der Sitzung, die den Lauf führt, und lebt mit
 ihr: Endet die Sitzung, räumt der nächste `CleanupStale` ihn ab, sofern er sauber ist; der Branch
-bleibt. Er steht also nicht bis zum Merge des Pull Requests. `/epic-aufraeumen` räumt ihn per
+bleibt. Ein Neustart der Sitzung ist kein Ende (oben, „Anlegen"). Er steht also nicht bis zum Merge des Pull Requests. `/epic-aufraeumen` räumt ihn per
 `Down -Package epic-<nr>` ab, falls er noch steht, und kommt mit seinem Fehlen zurecht; wer danach
 auf dem Epic-Branch weiterarbeitet (`/epic-nacharbeit`), legt ihn mit `Up` auf dem vorhandenen
 Branch neu an.
