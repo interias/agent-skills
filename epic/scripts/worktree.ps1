@@ -554,7 +554,10 @@ if ($Action -eq 'CleanupStale') {
             $expected = [datetime]::Parse([string]$expected, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind)
         }
         # A start time that cannot be read is taken as the same process: stop nothing on a guess.
+        # Reading it throws for some processes and silently yields $null for a protected system
+        # process that took over the PID (BRIQNET, 2026-11-12: AggregatorHost on a session's PID).
         try { $actual = $proc.StartTime } catch { return $null }
+        if (-not $actual) { return $null }
         if ([Math]::Abs(($actual.ToUniversalTime() - $expected.ToUniversalTime()).TotalSeconds) -lt 1) { return $null }
         "PID $id was reused (started $($actual.ToString('o')), the lock says $($lock.sessionStarted))"
     }
