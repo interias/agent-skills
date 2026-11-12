@@ -1,6 +1,6 @@
 # Arbeitspferd
 
-Das zweite Claude-Konto im eigenen Terminalfenster, das der Skill [`leitstand`](../leitstand/SKILL.md)
+Das zweite Claude-Konto im eigenen Terminalfenster, das der Skill [`leitstand`](leitstand/SKILL.md)
 steuert. Dieser Ordner enthält alles, was es auf einem neuen Rechner braucht. `install.ps1` lässt ihn
 aus; eingerichtet wird er mit
 
@@ -21,6 +21,11 @@ Danach einmal das Profil „Claude Arbeitspferd“ in Windows Terminal öffnen, 
 | `dateien/settings.json` | `~/.claude-arbeitspferd` | Vorlage, nur geschrieben, wenn noch keine existiert |
 | `themes/claude-farbe.json` | `~/.claude/themes` | Claude-Theme `custom:claude-farbe` |
 | `windows-terminal.json` | Windows-Terminal-`settings.json` | Profil „Claude Arbeitspferd“ und Farbschema „Claude Code“ |
+| `leitstand/` | `~/.claude/skills/leitstand` | Skill der Hauptsitzung, der das Arbeitspferd steuert |
+
+Was nur für deinen Rechner gilt — Dienste, die keine Sitzung anfassen darf, Programme, die offen
+bleiben —, schreibst du nach `~/.claude-arbeitspferd/leitstand/lokal.md`. Die Datei gehört nicht ins
+Repository; `start.ps1` hängt sie jedem Auftrag an, und der Leitstand liest sie zu Beginn.
 
 Im Konfigordner liegen `skills`, `agents`, `output-styles`, `plugins` und `themes` als Junctions
 auf `~/.claude`, damit beide Konten dieselben Skills sehen. Ein rekursives Löschen von

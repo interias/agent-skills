@@ -21,7 +21,7 @@ Rückfrage; den Stand zeigen Gitea und KIBO.
 | `epic-flotte` | Optional: mehrere Epics gleichzeitig, geführt von einem Admiral |
 | `epic-lagebesprechung` | Optional: im laufenden Chat alles abholen, was bei dir liegt |
 | `mail-antwort` | Eine Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen |
-| `leitstand` | Aus der Hauptsitzung Sitzungen des zweiten Kontos starten, überwachen, ihre PRs mergen |
+| `leitstand` | Optional, nur mit zweitem Konto: aus der Hauptsitzung dessen Sitzungen starten, überwachen, ihre PRs mergen. Eingerichtet mit `arbeitspferd/einrichten.ps1` |
 
 Vorgelagert sind die Skills aus dem Plugin `mattpocock-skills` (`grill-with-docs`, `grilling`,
 `to-spec`, `to-tickets` …). Sie werden nicht hierher kopiert; [`mattpocock-skills/`](mattpocock-skills/README.md)
@@ -130,8 +130,8 @@ epic/ epic-nacharbeit/ epic-aufraeumen/   die Epic-Skills (epic/references: Adap
                                           epic/scripts: worktree, guard, ram)
 epic-flotte/ epic-lagebesprechung/        optional: Flotte und Lagebesprechung
 mail-antwort/                             Skill mit Python-Skripten
-leitstand/                                Leitstand über das zweite Konto, mit PowerShell-Skripten
-arbeitspferd/                             nicht installiert: Terminal-Gerüst des zweiten Kontos,
+arbeitspferd/                             nicht von install.ps1 installiert: zweites Konto mit
+                                          Terminal-Gerüst und Skill leitstand (arbeitspferd/leitstand),
                                           eingerichtet mit arbeitspferd/einrichten.ps1
 agents/                                   Agent-Typen der Modellstaffel
 mattpocock-skills/                        Einrichtung der vorgelagerten Skills für Gitea

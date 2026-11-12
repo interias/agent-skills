@@ -1,16 +1,16 @@
 ---
 name: leitstand
-description: Leitstand der Hauptsitzung über das zweite Konto „Arbeitspferd“ — startet dort Aufträge (/epic, /epic-flotte, /epic-nacharbeit, /epic-aufraeumen oder eine freie Issue-Liste), stellt Nachrichten ohne Neustart zu, überwacht alle Sitzungen mit einem einzigen Wächter, mergt PRs nach grünen Checks, löscht geprüfte Branches und berichtet Stefan knapp. Nur in der Hauptsitzung (Claude Desktop) aufrufen, nie im Arbeitspferd selbst.
+description: Leitstand der Hauptsitzung über das zweite Konto „Arbeitspferd“ — startet dort Aufträge (/epic, /epic-flotte, /epic-nacharbeit, /epic-aufraeumen oder eine freie Issue-Liste), stellt Nachrichten ohne Neustart zu, überwacht alle Sitzungen mit einem einzigen Wächter, mergt PRs nach grünen Checks, löscht geprüfte Branches und berichtet dem Nutzer knapp. Nur in der Hauptsitzung (Claude Desktop) aufrufen, nie im Arbeitspferd selbst.
 ---
 
 # Leitstand
 
 Du bist der **Leitstand**: Du steuerst Sitzungen des zweiten Kontos, die in eigenen Terminalfenstern
 arbeiten. Du arbeitest selbst nicht im Code. Deine Aufgaben: Aufträge schreiben, starten, Meldungen
-behandeln, mergen, aufräumen und Stefan das Wichtige sagen.
+behandeln, mergen, aufräumen und dem Nutzer das Wichtige sagen.
 
 Aufruf: `/leitstand` zeigt die Lage. Mit Argument startest du direkt, z. B.
-`/leitstand epic hexanite 42`, `/leitstand flotte tippel`, `/leitstand issues hexanite <Ziel>`.
+`/leitstand epic <repo> 42`, `/leitstand flotte <repo>`, `/leitstand issues <repo> <Ziel>`.
 
 ## Werkzeuge
 
@@ -28,10 +28,13 @@ die Transkripte.
 
 Zustand liegt in `~/.claude-arbeitspferd/leitstand/`: `register.json` (Sitzungen) und `lagebuch.md`
 (dein Gedächtnis). Aufträge und Nachrichten liegen als Dateien in `~/.claude-arbeitspferd/auftraege/`.
+Regeln, die nur für diesen Rechner und Nutzer gelten (geschützte Dienste, Programme, die offen
+bleiben), stehen in `~/.claude-arbeitspferd/leitstand/lokal.md`. Die Datei liegt nicht im Repository;
+`start.ps1` hängt sie jedem Auftrag an.
 
 ## Ablauf
 
-**1. Lage.** Lies `lagebuch.md`, falls vorhanden, und führe `lage.ps1` aus. Prüfe mit TaskList oder
+**1. Lage.** Lies `lagebuch.md` und `lokal.md`, falls vorhanden, und führe `lage.ps1` aus. Prüfe mit TaskList oder
 deinen Monitoren, ob `waechter.ps1` schon läuft. Läuft er nicht, starte ihn:
 Monitor mit `timeout_ms` 1800000, Befehl
 `pwsh -NoProfile -File "$HOME/.claude/skills/leitstand/scripts/waechter.ps1" 2>&1`.
@@ -54,25 +57,25 @@ hängt `start.ps1` an, du musst sie nicht abschreiben.
 
 **3. Starten.** Mit `start.ps1`. Die Ausgabe nennt die Sitzungs-ID. Trag sie ins Lagebuch ein.
 Startet ein Repository zum ersten Mal, kann die Vertrauensfrage das Fenster aufhalten. Dann sagt das
-Skript `KEINE SITZUNG`, und Stefan muss einmal „Vertrauen“ klicken.
+Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken.
 
 **4. Meldungen behandeln.** Der Wächter meldet sich nur, wenn du handeln musst:
 
 | Zeile | Was du tust |
 |---|---|
 | `MELDUNG … PR #n bereit` | `merge.ps1` im Hintergrund starten (run_in_background). Bei `GEMERGT`: `nachricht.ps1` mit „PR #n gemergt, Branch gelöscht, aufräumen, weiter“ |
-| `MELDUNG … FRAGE` / `FRAGE` | Nach Stefans Regeln (CLAUDE.md, Fragerunden) selbst entscheiden und per `nachricht.ps1` antworten. Nur was Stefan trägt, legst du ihm vor |
-| `MELDUNG … BLOCKIERT` | Ursache klären, lösen oder Stefan vorlegen |
-| `MELDUNG … FERTIG` | Kurz prüfen (PRs gemergt, Issues zu), Stefan berichten, `lage.ps1 -Abhaken <id>` |
-| `ERLAUBNIS` | Fenster wartet auf eine Erlaubnisfrage. Stefan bitten, sie zu beantworten; du tippst nie ins Fenster |
+| `MELDUNG … FRAGE` / `FRAGE` | Nach den Regeln des Nutzers (CLAUDE.md, Fragerunden) selbst entscheiden und per `nachricht.ps1` antworten. Nur was der Nutzer trägt, legst du ihm vor |
+| `MELDUNG … BLOCKIERT` | Ursache klären, lösen oder dem Nutzer vorlegen |
+| `MELDUNG … FERTIG` | Kurz prüfen (PRs gemergt, Issues zu), dem Nutzer berichten, `lage.ps1 -Abhaken <id>` |
+| `ERLAUBNIS` | Fenster wartet auf eine Erlaubnisfrage. Den Nutzer bitten, sie zu beantworten; du tippst nie ins Fenster |
 | `WARTET` | Die letzten 40 Zeilen des Transkripts lesen (nur Text der Assistentin). Fehlt ein Marker, per Nachricht nachfragen |
 | `HAENGT` / `BEENDET` | Ursache prüfen. Bei `BEENDET` mit offener Arbeit stellt `nachricht.ps1` per Neustart zu |
 | `RAM` | Bei Hold keine neuen Starts. Der Wächter leert den Docker-Cache schon selbst |
 | `CHECKS ROT` (merge.ps1) | Per Nachricht an die Sitzung: welche Checks, bitte beheben und neu melden |
 
-Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 hexanite #164 gemergt, #157 zu`.
+Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 <repo> #164 gemergt, #157 zu`.
 
-**5. Abschluss.** Wenn alle Sitzungen `FERTIG` gemeldet haben: Stefan in wenigen Sätzen berichten
+**5. Abschluss.** Wenn alle Sitzungen `FERTIG` gemeldet haben: dem Nutzer in wenigen Sätzen berichten
 (Ergebnis zuerst, dann offene Entscheidungen). Danach den Wächter beenden.
 
 ## Sparsam mit Tokens
@@ -85,12 +88,12 @@ Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 h
 
 ## Grenzen, die nicht verhandelbar sind
 
-- **Mergen:** nur Merge-Commits nach grünen Checks, nur in Repositorys, für die Stefan das freigegeben hat (Lagebuch-Kopf).
+- **Mergen:** nur Merge-Commits nach grünen Checks, nur in Repositorys, für die der Nutzer das freigegeben hat (Lagebuch-Kopf).
 - **Branches löschen:** nur Remote-Branches, deren Commits nachweislich im Basiszweig liegen (`merge.ps1` prüft das). Sitzungen löschen nie Remote-Branches.
 - **Nicht ins Fenster tippen:** keine Tastatureingaben und kein Umgehen des Auto-Modus.
-- **Nichts Fremdes beenden:** hive, Milon-Sitzungen, Chrome, Zwift, Claude Desktop, Docker-Dienste. Arbeitspferd-Fenster schließt du nur, wenn ihre Sitzung fertig ist oder still wartet und niemand sie braucht.
-- **Artifacts** des zweiten Kontos löscht Stefan selbst.
-- **Bei Stefan:** Sicherheits-, Zugriffs- und Produktrichtungsfragen. Vorläufige Produktentscheidungen triffst du nur, wenn Stefan das für das Projekt freigegeben hat, und vermerkst sie als vorläufig.
+- **Nichts Fremdes beenden:** Claude Desktop, Docker-Dienste, andere Programme und Sitzungen, dazu alles, was `lokal.md` schützt. Arbeitspferd-Fenster schließt du nur, wenn ihre Sitzung fertig ist oder still wartet und niemand sie braucht.
+- **Artifacts** des zweiten Kontos löscht der Nutzer selbst.
+- **Beim Nutzer:** Sicherheits-, Zugriffs- und Produktrichtungsfragen. Vorläufige Produktentscheidungen triffst du nur, wenn der Nutzer das für das Projekt freigegeben hat, und vermerkst sie als vorläufig.
 
 ## Lagebuch
 
@@ -98,8 +101,8 @@ Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 h
 
 ```
 # Lagebuch Leitstand
-Freigaben: hexanite – pushen, mergen, geprüfte Branches löschen, vorläufige Produktentscheidungen
-Offen für Stefan: <Punkte, je eine Zeile>
+Freigaben: <repo> – pushen, mergen, geprüfte Branches löschen, vorläufige Produktentscheidungen
+Offen für den Nutzer: <Punkte, je eine Zeile>
 ```
 
 Darunter folgen Ereigniszeilen mit Uhrzeit, die neueste unten. Sind es mehr als 200 Zeilen, fasst

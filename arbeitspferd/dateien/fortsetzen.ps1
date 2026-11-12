@@ -1,5 +1,5 @@
 # Closes one waiting Arbeitspferd window and continues its session in a new one.
-# Usage: fortsetzen.ps1 -Repo tippel -SessionId <id> -AuftragDatei <file> [-AltePid <claude pid>]
+# Usage: fortsetzen.ps1 -Repo <repo> -SessionId <id> -AuftragDatei <file> [-AltePid <claude pid>]
 # Only touches a claude process whose parent pwsh runs start-arbeitspferd.ps1, so it can never stop
 # Claude Desktop or a session of the main account.
 param(

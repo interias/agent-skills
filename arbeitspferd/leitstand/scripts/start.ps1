@@ -1,6 +1,7 @@
 # Starts a new Arbeitspferd session in its own window, appends the standing fleet rules to the brief and
-# records the session in the register so waechter.ps1, nachricht.ps1 and lage.ps1 know it.
-# Usage: start.ps1 -Repo hexanite -Auftrag <text or file> [-Modus epic|flotte|issues|nacharbeit|aufraeumen] [-Gh owner/name]
+# the machine-specific rules from leitstand\lokal.md if present, and records the session in the register
+# so waechter.ps1, nachricht.ps1 and lage.ps1 know it.
+# Usage: start.ps1 -Repo <repo> -Auftrag <text or file> [-Modus epic|flotte|issues|nacharbeit|aufraeumen] [-Gh owner/name]
 param(
     [Parameter(Mandatory)][string]$Repo,
     [Parameter(Mandatory)][string]$Auftrag,
@@ -15,7 +16,8 @@ if (-not (Test-Path $path)) { throw "Repository nicht gefunden: $path" }
 if (-not $Gh) { Push-Location $path; $Gh = gh repo view --json nameWithOwner -q .nameWithOwner 2>$null; Pop-Location }
 
 $text = if (Test-Path $Auftrag -PathType Leaf) { Get-Content -Raw $Auftrag } else { $Auftrag }
-$text += "`n`n" + (Get-Content -Raw "$PSScriptRoot\..\references\flotten-regeln.md")
+$text += "`n`n" + (Get-Content -Raw "$PSScriptRoot\..\references\flotten-regeln.md").Replace('{CFG}', $cfg)
+if (Test-Path "$cfg\leitstand\lokal.md") { $text += "`n" + (Get-Content -Raw "$cfg\leitstand\lokal.md") }
 $AddDir = @($AddDir) + @($cfg, "$HOME\.claude", "$path-worktrees") | Where-Object { $_ } | Select-Object -Unique
 
 $vorher = @(Get-ChildItem "$cfg\sessions\*.json" -EA SilentlyContinue | ForEach-Object Name)
