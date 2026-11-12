@@ -29,6 +29,7 @@ Rückfrage; den Stand zeigen Gitea und KIBO.
 | `epic-flotte` | Optional: mehrere Epics gleichzeitig, geführt von einem Admiral |
 | `epic-lagebesprechung` | Optional: im laufenden Chat alles abholen, was bei dir liegt |
 | `mail-antwort` | Eine Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen |
+| `persona-review` | Eine Funktion von Persona-Agenten lokal durchspielen lassen, Befunde nachprüfen, Runden vergleichen |
 | `leitstand` | Optional, nur mit zweitem Konto: aus der Hauptsitzung dessen Sitzungen starten, überwachen, ihre PRs mergen. Eingerichtet mit `arbeitspferd/einrichten.ps1` |
 
 Vorgelagert sind die Skills aus dem Plugin `mattpocock-skills` (`grill-with-docs`, `grilling`,
@@ -222,6 +223,24 @@ deren Ablauf nicht.
 
 ![Mailbild: Die .eml wird zerlegt, eingeordnet und recherchiert; am Halt wählst du den Weg — B Spec-Issue und /epic bis zum PR, C Kommentar am vorhandenen Issue, A nur Antwort, D Issue mit needs-triage. Danach markierte Ist- und Soll-Bilder und ein Antwortentwurf neben der Mail; abschicken nur du. Darunter die Arten der Mail und ihr Weg.](assets/mail-antwort/mail-antwort.png)
 
+## `persona-review` — Bedienung über Runden messen
+
+4–7 Persona-Agenten in festen Rollen (Neuling, Spezialist, Leitung, „nur Maus“, „liest wörtlich“ …)
+spielen synthetische Fälle auf einer **lokalen** Instanz mit Datenbankkopie durch. Sie sehen
+Screenshots wie ein Mensch, zählen jeden Klick, getrennt nach reiner Sucherei, und schreiben Berichte
+in fester Form. Der Host prüft jeden Fehlerbefund im Code nach, bevor er als Fehler gilt, legt dir
+die offenen Entscheidungen vor und macht daraus Tickets für `/epic`. Nach den Fixes läuft eine neue
+Runde mit denselben Fällen auf neuen Datensätzen; erst der Vergleich zeigt, ob die Bedienung
+leichter wurde. Eine Abnahme-Probe mit Gegenprobe schließt ab.
+
+- **Starten:** die Sitzung auf Fable stellen (`/model fable`, `/effort high`), dann
+  `/persona-review <Funktion oder PR>`, für eine Folgerunde mit `runde <N>`.
+- **Du entscheidest zweimal:** bei der Startvorlage (Personas, Fälle, Modell der Personas — eine
+  Kostenfrage) und bei den Befunden, die eine Entscheidung brauchen.
+- **Projekt:** Adapter `.claude/persona-review.md` mit Basis-URL, Login, Anlage der Fälle,
+  verbotenen Werten und Ablage ([Vertrag](persona-review/references/adapter.md)). Die Ablage liegt
+  außerhalb jedes öffentlichen Repositorys; Screenshots können vertrauliche Werte zeigen.
+
 ## `leitstand` — Arbeit an das zweite Konto geben
 
 Der Leitstand ist kein zweiter Flotten-Mechanismus: Er delegiert Aufträge an ein zweites
@@ -253,6 +272,7 @@ epic/ epic-nacharbeit/ epic-aufraeumen/   die Epic-Skills (epic/references: Adap
                                           epic/scripts: worktree, sweep, guard, ram)
 epic-flotte/ epic-lagebesprechung/        optional: Flotte und Lagebesprechung
 mail-antwort/                             Skill mit Python-Skripten
+persona-review/                           Skill mit Vorlagen (references) und Browser-Kit (scripts)
 arbeitspferd/                             nicht von install.ps1 installiert: zweites Konto mit
                                           Terminal-Gerüst und Skill leitstand (arbeitspferd/leitstand),
                                           eingerichtet mit arbeitspferd/einrichten.ps1

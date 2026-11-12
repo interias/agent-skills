@@ -14,6 +14,8 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 - **Plugin `mattpocock-skills`**, eingerichtet nach [`mattpocock-skills/`](mattpocock-skills/README.md).
   `epic-nacharbeit` und `epic-lagebesprechung` setzen daraus `grilling` voraus.
 - **Python mit Pillow** für die Skripte von `mail-antwort`.
+- **Python mit Playwright und Chromium** für das Kit von `persona-review`; prüfen mit
+  `python -P persona-review/scripts/selftest.py`.
 
 ## Ablauf
 
@@ -39,7 +41,7 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 ## Was das Skript tut
 
 - **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
-  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `mail-antwort` — nach
+  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `mail-antwort`, `persona-review` — nach
   `~/.claude/skills/<name>`. `mattpocock-skills/` (ohne `SKILL.md`) und `arbeitspferd/` bleiben
   außen vor. Ein vorhandener Zielordner
   wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,
