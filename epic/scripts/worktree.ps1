@@ -46,7 +46,9 @@
     /epic-aufraeumen. It never merges, never starts an agent and never deletes a dirty worktree.
     - A lock in <git common dir>/epic-locks whose session is dead goes the way of Down (run as a
       child process). Dead means: the PID does not run, or it runs with a start time other than
-      sessionStarted (the PID was reused). A dirty worktree stays, as do its lock and branch; it is
+      sessionStarted (the PID was reused) - and the session of the lock does not run under another
+      PID either: a restarted Claude session keeps its session id, which Up records with the folder
+      of Claude's session files, and a living process with that id keeps the lock. A dirty worktree stays, as do its lock and branch; it is
       reported with path, branch and reason (its processes are already stopped, as in Down). A lock
       whose worktree folder is gone or no longer registered: compose and processes of that path are
       stopped, a registered entry without folder is pruned (`git worktree prune`), the lock goes.
@@ -95,6 +97,8 @@
     the shell that runs this script exits right after the call, and a lock with its PID would
     look dead at once. Default: the nearest ancestor process named claude, i.e. the Claude Code
     session that runs the epic. Without such an ancestor, Up stops and asks for -SessionPid.
+    With the default owner, or when CLAUDE_PID names the given PID, Up also records the session
+    id from CLAUDE_CODE_SESSION_ID: it survives a restart of the session, the PID does not.
 
 .PARAMETER Branch
     Up only. Branch to check out. Reused when it exists; otherwise created from -From.
@@ -562,6 +566,33 @@ if ($Action -eq 'CleanupStale') {
         "PID $id was reused (started $($actual.ToString('o')), the lock says $($lock.sessionStarted))"
     }
 
+    # The PID under which the session of a lock runs now, 0 when it does not. Claude Code keeps one
+    # file per running session in <config dir>/sessions: <pid>.json with pid, sessionId and
+    # procStart, the start of the process as a Windows FILETIME (seen in 2.1.321, an internal
+    # format: whatever cannot be read here leaves the verdict of the PID check as it is). A file
+    # outlives its process, so the PID must run and, where both are readable, have that start time.
+    function Find-RestartedSession($lock) {
+        if (-not $lock.sessionId -or -not $lock.sessionsDir) { return 0 }
+        if (-not (Test-Path -LiteralPath $lock.sessionsDir -PathType Container)) { return 0 }
+        foreach ($file in @(Get-ChildItem -LiteralPath $lock.sessionsDir -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+            try { $s = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json } catch { continue }
+            if (-not $s -or "$($s.sessionId)" -ne "$($lock.sessionId)") { continue }
+            $id = 0
+            if (-not [int]::TryParse("$($s.pid)", [ref]$id) -or $id -le 0) { continue }
+            $proc = Get-Process -Id $id -ErrorAction SilentlyContinue
+            if (-not $proc) { continue }
+            try {
+                $actual = $proc.StartTime
+                if ($actual -and $s.procStart) {
+                    $expected = [datetime]::FromFileTimeUtc([long]$s.procStart)
+                    if ([Math]::Abs(($actual.ToUniversalTime() - $expected).TotalSeconds) -ge 1) { continue }
+                }
+            } catch { }
+            return $id
+        }
+        0
+    }
+
     # A folder with a .git of its own is a repo, or a worktree of another repo, when its .git is a
     # directory or names a gitdir outside this repo's common dir. With worktree_root: .. or a
     # worktree_root shared by several repos, such folders sit next to the package folders.
@@ -599,8 +630,9 @@ if ($Action -eq 'CleanupStale') {
                 if ($name -notmatch '^[A-Za-z0-9][A-Za-z0-9-]*$') { throw "Lock $($file.FullName) does not name a package. Left in place." }
                 $lock = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
                 $reason = Get-DeadSessionReason $lock
-                if (-not $reason) {
-                    $keptLocks[$name] = "session $($lock.sessionPid) is alive"
+                $heir = if ($reason) { Find-RestartedSession $lock } else { 0 }
+                if (-not $reason -or $heir) {
+                    $keptLocks[$name] = if ($heir) { "session $($lock.sessionId) is alive as PID $heir (restarted; the lock names PID $($lock.sessionPid))" } else { "session $($lock.sessionPid) is alive" }
                     Add-Entry 'lock' $name $file.FullName 'skipped' $keptLocks[$name]
                     continue
                 }
@@ -739,12 +771,23 @@ if ($Action -eq 'Up') {
     $dotted = @($WorktreePath -split '[\\/]' | Where-Object { $_ -like '.*' })
     if ($dotted) { Fail "$WorktreePath contains the dot directory '$($dotted[0])'. worktree_root must not lie in one." }
     if (Test-Path -LiteralPath $lockPath) { Fail "Lock $lockPath already exists. Package $Package is taken; run Down or remove the stale lock first." }
-    if ($SessionPid -eq 0) {
+    $pidGiven = $SessionPid -ne 0
+    if (-not $pidGiven) {
         $SessionPid = Find-SessionPid
         if ($SessionPid -eq 0) { Fail 'No Claude session among the ancestors of this process. Pass -SessionPid with a PID that lives as long as the package.' }
     }
     $session = Get-Process -Id $SessionPid -ErrorAction SilentlyContinue
     if (-not $session) { Fail "Session PID $SessionPid is not running. The lock needs a PID that lives as long as the package." }
+    # The session id survives a restart of the session process, the PID does not (BRIQNET,
+    # 2026-11-12: a run went on under a new PID while its lock still named the old one). Claude
+    # Code hands the id to its shells; it is recorded only when the lock owner is that session.
+    $sessionId = $null
+    $sessionsDir = $null
+    if ($env:CLAUDE_CODE_SESSION_ID -and (-not $pidGiven -or "$env:CLAUDE_PID" -eq "$SessionPid")) {
+        $sessionId = $env:CLAUDE_CODE_SESSION_ID
+        $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path ([Environment]::GetFolderPath('UserProfile')) '.claude' }
+        $sessionsDir = Join-Path $configDir 'sessions'
+    }
 
     $LinkDirs = @(@(Split-List @($adapter['link_dirs'])) + @(Split-List @($adapter['always_link'])) | Select-Object -Unique)
     $EnvFiles = Split-List @($adapter['env_files'])
@@ -858,6 +901,7 @@ if ($Action -eq 'Up') {
     try { $started = $session.StartTime.ToString('o') } catch { }
     $lock = [ordered]@{
         package = $Package; branch = $Branch; sessionPid = $SessionPid; sessionStarted = $started
+        sessionId = $sessionId; sessionsDir = $sessionsDir
         created = (Get-Date).ToString('o'); worktree = $WorktreePath; repoRoot = $RepoRoot
         port = $port; project = $project
     }

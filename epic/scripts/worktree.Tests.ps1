@@ -474,6 +474,29 @@ function Stop-Session($session) {
     $session.WaitForExit()
 }
 
+# Up the way a Claude session calls it: CLAUDE_PID names the session process, the session id and
+# the config folder come from the environment. -ClaudePid lets a test name a foreign owner.
+function Invoke-UpAsSession($t, $owner, [string]$sessionId, [string]$configDir, [string]$ClaudePid = "$($owner.Id)") {
+    $saved = @{ Id = $env:CLAUDE_CODE_SESSION_ID; ProcessId = $env:CLAUDE_PID; Config = $env:CLAUDE_CONFIG_DIR }
+    try {
+        $env:CLAUDE_CODE_SESSION_ID = $sessionId
+        $env:CLAUDE_PID = $ClaudePid
+        $env:CLAUDE_CONFIG_DIR = $configDir
+        Invoke-Up $t $owner.Id
+    } finally {
+        $env:CLAUDE_CODE_SESSION_ID = $saved.Id
+        $env:CLAUDE_PID = $saved.ProcessId
+        $env:CLAUDE_CONFIG_DIR = $saved.Config
+    }
+}
+
+# A session file as Claude Code writes it: <config dir>/sessions/<pid>.json.
+function Set-SessionFile([string]$configDir, [int]$id, [string]$sessionId, [datetime]$start) {
+    $dir = Join-Path $configDir 'sessions'
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    Set-Content -Path (Join-Path $dir "$id.json") -Value (ConvertTo-Json @{ pid = $id; sessionId = $sessionId; procStart = $start.ToFileTimeUtc() })
+}
+
 # A registered worktree without lock, as one that Up did not create.
 function Add-UnlockedWorktree($t, [string]$nr) {
     $path = Join-Path (Split-Path $t.Worktree) $nr
@@ -575,6 +598,77 @@ Describe 'worktree.ps1 CleanupStale' {
         (Find-Entry $r 'lock' '1')[0].reason | Should Match 'alive'
         Test-Path $t.Worktree | Should Be $true
         Test-Path $lockPath | Should Be $true
+    }
+
+    It 'records the session id only when the lock owner is the calling Claude session' {
+        $session = Start-Session
+        try {
+            $config = Join-Path $TestDrive 'cfg-record'
+            $own = New-AdapterRepo
+            (Invoke-UpAsSession $own $session 'sess-record' $config).Exit | Should Be 0
+            $lock = Get-Content (Join-Path $own.Repo '.git\epic-locks\1.json') -Raw | ConvertFrom-Json
+            $lock.sessionId | Should Be 'sess-record'
+            $lock.sessionsDir | Should Be (Join-Path $config 'sessions')
+
+            $foreign = New-AdapterRepo
+            (Invoke-UpAsSession $foreign $session 'sess-record' $config -ClaudePid '1').Exit | Should Be 0
+            $lock = Get-Content (Join-Path $foreign.Repo '.git\epic-locks\1.json') -Raw | ConvertFrom-Json
+            $lock.sessionId | Should BeNullOrEmpty
+        } finally {
+            Stop-Process -Id $session.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'keeps the package of a session that was restarted under a new PID' {
+        $t = New-AdapterRepo
+        $config = Join-Path $TestDrive 'cfg-restart'
+        $old = Start-Session
+        (Invoke-UpAsSession $t $old 'sess-restart' $config).Exit | Should Be 0
+        Stop-Session $old
+        $new = Start-Session
+        try {
+            Set-SessionFile $config $new.Id 'sess-restart' $new.StartTime
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            (Find-Entry $r 'lock' '1')[0].action | Should Be 'skipped'
+            (Find-Entry $r 'lock' '1')[0].reason | Should Match "alive as PID $($new.Id) \(restarted"
+            Test-Path $t.Worktree | Should Be $true
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+        } finally {
+            Stop-Process -Id $new.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'clears the package when no process runs the session any more' {
+        $t = New-AdapterRepo
+        $config = Join-Path $TestDrive 'cfg-gone'
+        $old = Start-Session
+        (Invoke-UpAsSession $t $old 'sess-gone' $config).Exit | Should Be 0
+        Set-SessionFile $config $old.Id 'sess-gone' $old.StartTime
+        Stop-Session $old
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        (Find-Entry $r 'lock' '1')[0].action | Should Be 'removed'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
+    It 'does not take another process on the PID of a session file for the session' {
+        $t = New-AdapterRepo
+        $config = Join-Path $TestDrive 'cfg-other'
+        $old = Start-Session
+        (Invoke-UpAsSession $t $old 'sess-other' $config).Exit | Should Be 0
+        Stop-Session $old
+        $other = Start-Session
+        try {
+            Set-SessionFile $config $other.Id 'sess-other' $other.StartTime.AddHours(-1)
+            $r = Invoke-Cleanup $t
+            $r.Exit | Should Be 0
+            (Find-Entry $r 'lock' '1')[0].action | Should Be 'removed'
+            Test-Path $t.Worktree | Should Be $false
+            Get-Process -Id $other.Id -ErrorAction SilentlyContinue | Should Not BeNullOrEmpty
+        } finally {
+            Stop-Process -Id $other.Id -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It 'reports a dirty worktree with path, branch and reason and keeps it' {
