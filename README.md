@@ -49,6 +49,9 @@ Den Stand zeigt die **Lauftafel** im Browser — hier mit den Musterdaten der Vo
 - Läufe sind Subagenten; ihre Fragen beantwortet der Admiral, soweit sein Entscheidungsrecht
   reicht, jede Entscheidung mit Herkunft in Gitea. Was bis zum Merge umkehrbar ist, entscheidet er
   **vorläufig** — du bestätigst oder kippst, bis dahin trägt der PR `WIP:`.
+- Der Admiral läuft auf Fable 5.2 (Denkstufe hoch), die Läufe bleiben auf ihrer Staffel. Er darf
+  einem Lauf mit eigenem Text statt mit einer der vorgelegten Optionen antworten; ohne Herkunft
+  gilt eine solche Antwort als vorläufig.
 - Eine **Verbrauchsbremse** liest 5-Stunden- und Wochenlimit: bei Gelb nichts Neues, bei Rot Pause
   bis zum Reset. Den Stand schreibt der Admiral ins Issue `Flottenlogbuch`, das KIBO anzeigt.
 
@@ -83,6 +86,10 @@ und Rolle.
 | `epic-reviewer-urteil` | Opus, mittel | Reviewer, Klasse Urteil |
 | `epic-kundschafter` | Haiku, niedrig | liest und liefert Fundstellen, ändert nichts |
 | `epic-lauf` | Opus, mittel | ein Lauf unter `/epic-flotte`, fragt den Admiral statt dich |
+
+Implementer arbeiten nach der Leiter „kleinste vollständige Änderung", Reviewer berichten Befunde
+als Muss, Sollte, Kann, jeden mit konkretem Fall — beides nach
+[Ponytail](https://github.com/DietrichGebert/ponytail) von Dietrich Gebert (MIT).
 
 ## Die Skripte
 

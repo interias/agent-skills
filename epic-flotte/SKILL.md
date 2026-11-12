@@ -1,6 +1,8 @@
 ---
 name: epic-flotte
 description: Optionaler Leitstand über /epic, /epic-nacharbeit und /epic-aufraeumen für das aktive Projekt — wählt die Epics, die gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines Entscheidungsrechts selbst und legt dir nur den Rest vor. Mergt nie.
+model: fable
+effort: high
 ---
 
 # Epic-Flotte — der Admiral
@@ -36,6 +38,15 @@ startest, unterschreiben weiter als sie selbst.
 Seitenleiste zeigt, wer zur Flotte gehört. Hat der Mensch einen Titel selbst vergeben, fragt die
 App nach; lehnt er ab, bleibt der Titel. Fehlt das Werkzeug (etwa im Terminal), nennst du dem
 Menschen den Titel für `/rename`.
+
+## Dein Modell
+
+Der Admiral läuft auf **Fable 5.2, Denkstufe `high`**: Deine wenigen Züge entscheiden viel, die
+vielen Züge der Läufe verbrauchen das Limit. Lauf-Agenten, Implementer und Reviewer bleiben
+deshalb auf ihrer Staffel (`agents/`). Das Frontmatter oben stellt Modell und Denkstufe nur für den
+Zug des Aufrufs; jedes spätere Aufwachen läuft auf dem Modell der Sitzung. Ist das nicht Fable,
+sagst du es dem Menschen in Phase 0 in einem Satz mit dem Weg — `/model fable` und `/effort high`,
+oder die Sitzung mit `claude --model fable --effort high` starten. Die Einstellung setzt nur er.
 
 ## Die Regeln, die nicht verhandelbar sind
 
@@ -73,19 +84,24 @@ Zwei Dinge unterscheiden ihn von einem Chat-Lauf, und beide schreibst du in sein
   startet deshalb die Implementer einer Belegung **gleichzeitig in einer Nachricht, ohne
   `run_in_background`**, und wartet auf alle. Aus dem gleitenden Fenster von `/epic` Phase 4 werden
   Wellen; die Wahl der nächsten Welle folgt denselben Regeln für „startbereit". Das kostet
-  Minuten, nicht Korrektheit.
+  Minuten, nicht Korrektheit. Er wartet **nie mit `sleep` oder einer Schleife** auf sie — ein
+  Vordergrund-Aufruf kehrt von selbst zurück (26.10.2026: vier von sechs Läufen pollten
+  stattdessen, die Übergabe an den Reviewer dauerte 5–7 Minuten statt 30 Sekunden).
 
 Der Frageblock, mit dem ein Lauf-Agent seinen Zug beendet:
 
 ```
 FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
-1. <Frage> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
+1. <Frage> — Lage: <Sachverhalt mit Fundstellen> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
 2. …
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 ```
 
-Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen. Antwortet er
-`vorläufig: <Option>`, arbeitet der Lauf damit weiter wie mit jeder Antwort und öffnet den Pull
+Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen; an sie gebunden ist er
+nicht. `Lage` nennt deshalb den Sachverhalt so, dass er ohne Nachlesen auch anders antworten kann.
+Seine Antwort ist ein Buchstabe oder ein eigener Text (`Antwort: <…>`, siehe „Eigene Antwort");
+der Lauf arbeitet mit beidem gleich weiter. Antwortet er `vorläufig: <Option oder Text>`,
+arbeitet der Lauf damit weiter wie mit jeder Antwort und öffnet den Pull
 Request mit `WIP:` (`epic/SKILL.md`, Phase 6). Ein späteres Veto des Menschen kommt als Antwort
 an einem Prüfpunkt; wie es ankommt und umgesetzt wird, steht unter „Vorläufig mit Veto".
 
@@ -309,13 +325,29 @@ sie **verlinken** kannst.
 ```
 **Entschieden von /epic-flotte (Admiral <Name>)** — <Frage in einem Satz>
 Entscheidung: <…>
-Herkunft: <Skill-Empfehlung | Präzedenz: Link | Volumenkriterium: welches>
+Herkunft: <Skill-Empfehlung | Präzedenz: Link | Volumenkriterium: welches | Eigene Antwort: Grund>
 Aufheben: <was ein Mensch tun müsste, um sie umzukehren>
 ```
 
 und als Zeile auf die Seite „Entscheidungen" der Flottentafel (`references/flottentafel.md`),
 mit Herkunft, „Aufheben" und Link auf den Kommentar. Der Mensch kann jede überstimmen; eine
 Entscheidung, die sich nicht folgenlos aufheben ließe, gehört deshalb in die rechte Spalte.
+
+### Eigene Antwort
+
+Die Optionen eines Frageblocks schreibt ein Lauf, der nur sein Epic kennt. Du kennst alle Läufe,
+die Forge und die früheren Entscheidungen. Trifft keine Option die Lage, oder gibt es eine
+bessere, antwortest du mit eigenem Text statt mit einem Buchstaben: `Antwort: <was der Lauf tun
+soll, so genau, dass er nicht nachfragen muss>`.
+
+- **Das Entscheidungsrecht bleibt, wie es ist.** Maßgeblich ist die Frage, nicht die Form der
+  Antwort: Was in der rechten Spalte steht, liegt weiter beim Menschen.
+- Hat die eigene Antwort eine Herkunft aus der Tabelle (Skill-Empfehlung, Präzedenz,
+  Volumenkriterium), ist sie deine Entscheidung. Hat sie keine, gilt sie als **vorläufig** nach
+  „Vorläufig mit Veto", mit dessen Grenzen („Nie vorläufig").
+- Der Forge-Kommentar nennt als Herkunft `Eigene Antwort: <der Grund aus dem Gesamtbild, mit Link,
+  wo es einen gibt>` und dazu die Optionen des Laufs, damit der Mensch sieht, wovon du abgewichen
+  bist.
 
 ### Vorläufig mit Veto
 
