@@ -88,7 +88,7 @@ Frontmatter (Abschnitt „Form").
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `test_commands` | Befehle je Suite: die Prüfungen **je Paket, ohne vollen Stack**. Der volle Stack läuft einmal in `acceptance_commands` | aus `package.json` / `pyproject.toml` |
+| `test_commands` | Befehle je Suite: die Prüfungen **je Paket, ohne vollen Stack**. Der volle Stack läuft einmal in `acceptance_commands`. Eine Worker-Grenze steht als **feste Zahl**, nicht als Anteil der Kerne: Bis zu `window` Implementer und der Orchestrator fahren gleichzeitig, und `--maxWorkers=30%` sind auf 20 Kernen sechs Worker mit rund 4 GB je Lauf (BRIQNET client, gemessen 12.11.2026) | aus `package.json` / `pyproject.toml` |
 | `known_red` | Tests, die auf der Basis bekannt rot sind, mit Namen | keine |
 | `lint_commands` | Lint-Befehl je Modul; gezählt werden Fehler und Warnungen aus der Ausgabe, nicht der Exit-Code | keine — dann entfällt der Lint-Vergleich, und der Plan sagt das |
 | `writers` | Pfade der Schreiber ohne Oberfläche (Migration, Import, Jobs), die der Reviewer bei jeder neuen Schreibsperre prüft | keine |

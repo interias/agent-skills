@@ -638,10 +638,26 @@ Abweichung eine Stufe höher (Eskalation, „Modelle, Paketklasse, Kundschafter"
 Runden (Standard 3) wird das Paket zurückgelassen (Phase 5). Funde außerhalb des Pakets notiert er
 im Bericht, ohne Issues anzulegen oder vorzuschlagen (Regel 3).
 
+Seine Befunde kommen in drei Gruppen — **Muss**, **Sollte**, **Kann** —, jeder mit Fundstelle,
+konkretem Fall und kleinster Korrektur; die Form steht in den Agent-Dateien der Reviewer (nach
+`ponytail-review`, [Ponytail](https://github.com/DietrichGebert/ponytail), MIT). **Nur ein
+Muss-Befund löst eine Runde aus.** Sollte und Kann, die er nicht selbst korrigiert hat, gehen als
+offene Punkte in den Kommentar am Ticket (Phase 5, Punkt 4).
+
+**Kehrt ein Subagent ohne Bericht zurück** — er „wartet auf eine Benachrichtigung", hat einen
+Befehl in den Hintergrund gelegt oder bricht mitten in der Arbeit ab —, dann steht er: Niemand
+weckt ihn. Du setzt ihn sofort einmal fort (`SendMessage` an seine Agent-ID: den Befehl im
+Vordergrund fahren, dann berichten). Kommt wieder kein Bericht in der verlangten Form, ist die
+Runde verbraucht, und ein neuer Agent übernimmt mit dem Stand im Worktree. Das gilt für
+Implementer wie Reviewer. Herkunft: Lauf BRIQNET #574, 09.11.2026 — ein Reviewer endete so, und
+der Lauf stand 248 Minuten, bis der Mensch nachfragte.
+
 ### 4c — Verifikation durch dich
 
 Fahre den Verifikationsweg selbst im Worktree des Pakets; glaub ihn nicht dem Bericht. Dazu
 gehört ein **Volllauf je betroffener Suite** — der einzige des Pakets neben dem des Implementers.
+Deine Vollläufe fährst du **nacheinander, nie zwei gleichzeitig**, auch nicht über mehrere
+Pakete: Jeder Lauf belegt je Worker Speicher, und die Implementer fahren ihre daneben (Epic #34).
 Bei einem Wächter oder Tor fährst du auch die Gegenprobe. Bekannt rote Suiten (`known_red`) sind
 kein Grund, neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket berührt, wird
 nicht ignoriert.
@@ -680,7 +696,12 @@ Der Paket-Branch lebt Minuten statt Stunden neben dem Epic-Branch, und jedes sp�
 bereits auf ihm.
 
 1. Im Epic-Worktree: `git merge --no-ff agent/<nr>-<slug>`.
-2. Die betroffenen Suiten auf dem Epic-Branch fahren. Rot heißt: nicht weiterrücken — den Merge
+2. Die betroffenen Suiten auf dem Epic-Branch fahren — **nur wenn der Merge etwas anderes ergibt,
+   als du in 4c geprüft hast.** Endet `git diff --quiet agent/<nr>-<slug> HEAD` mit 0, ist der
+   Baum nach dem Merge derselbe wie im Paket-Worktree (kein anderes Paket wurde dazwischen
+   gemergt), und der Lauf entfällt; das steht mit dem Befehl im Kommentar (Punkt 4). Herkunft:
+   Messung vom 12.11.2026 — KOKOS #283 fuhr 16 Vollläufe für 7 Pakete. Rot heißt: nicht
+   weiterrücken — den Merge
    mit `git revert -m 1` als eigenen Commit zurücknehmen und das Paket zurücklassen (unten). So
    bleibt der Epic-Branch grün, und der Lauf hält nicht an. Dann wird nur der Worktree abgeräumt,
    der Branch bleibt (`references/worktree.md`, „Abräumen").
