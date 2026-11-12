@@ -34,7 +34,7 @@ Zustand liegt in `~/.claude-arbeitspferd/leitstand/`: `register.json` (Sitzungen
 **1. Lage.** Lies `lagebuch.md`, falls vorhanden, und führe `lage.ps1` aus. Prüfe mit TaskList oder
 deinen Monitoren, ob `waechter.ps1` schon läuft. Läuft er nicht, starte ihn:
 Monitor mit `timeout_ms` 1800000, Befehl
-`pwsh -NoProfile -File "C:/Users/stefa/.claude/skills/leitstand/scripts/waechter.ps1" 2>&1`.
+`pwsh -NoProfile -File "$HOME/.claude/skills/leitstand/scripts/waechter.ps1" 2>&1`.
 Läuft er ab, startest du ihn neu. Was zwischendurch geschah, holt der Wächter nicht nach, deshalb
 vorher `lage.ps1` ausführen. Es läuft nie mehr als ein Wächter. Alte Einzelwächter beendest du.
 

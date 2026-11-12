@@ -26,7 +26,8 @@
     com.docker.compose.project.working_dir lies in the worktree, or named <repo>-<Package> when
     they have no working_dir or one container's working_dir lies under worktree_root (a name match
     with every working_dir outside worktree_root is left alone and reported: a parallel project
-    may share the name; `docker compose -p <name> down`, docker from PATH, otherwise docker in a
+    may share the name; `docker compose -p <name> down --rmi local`, which also removes the images
+    the project built itself and keeps pulled ones; docker from PATH, otherwise docker in a
     running WSL distribution with its /mnt/<drive> working_dir read as a Windows path; WSL is never
     started for this; without either the compose step is skipped and reported, not an error), and
     processes whose command line, executable or working directory lies in the worktree. Paths are
@@ -440,9 +441,11 @@ function Get-ComposeProjects {
     @{ Reachable = $true; Projects = $projects }
 }
 
+# --rmi local also removes the images the project built itself (pulled ones stay): a package stack
+# otherwise leaves its images behind for good (KOKOS package 275: 4.4 GB, found 2026-11-12).
 function Stop-ComposeProject([string]$name) {
-    & $docker.Exe @($docker.Prefix + @('compose', '-p', $name, 'down')) | Out-Null
-    if ($LASTEXITCODE -ne 0) { Fail "docker compose -p $name down failed (exit $LASTEXITCODE). Nothing removed." }
+    & $docker.Exe @($docker.Prefix + @('compose', '-p', $name, 'down', '--rmi', 'local')) | Out-Null
+    if ($LASTEXITCODE -ne 0) { Fail "docker compose -p $name down --rmi local failed (exit $LASTEXITCODE). Nothing removed." }
     Write-Host "Stopped compose project $name."
 }
 

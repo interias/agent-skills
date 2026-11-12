@@ -10,7 +10,7 @@ deshalb nur so, je eine Zeile am Zeilenanfang:
 Zwischenstände nicht melden. Fragen nicht als AskUserQuestion-Dialog stellen, es sitzt niemand davor.
 
 Nachrichten der Hauptsitzung kommen als `cross-session-message` und verweisen auf eine Datei unter
-`C:\Users\stefa\.claude-arbeitspferd\auftraege\`. Lies die Datei vollständig und handle danach.
+`~/.claude-arbeitspferd/auftraege/`. Lies die Datei vollständig und handle danach.
 
 Feste Grenzen:
 - hive nicht anfassen: weder herunterfahren noch seine Ports (4483–4486, 1025, Supabase 5433x) nutzen, keine Tests gegen seine Datenbank.
