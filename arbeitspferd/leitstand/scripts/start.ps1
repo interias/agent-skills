@@ -1,5 +1,6 @@
 # Starts a new Arbeitspferd session in its own window, appends the standing fleet rules to the brief and
-# the machine-specific rules from leitstand\lokal.md if present, and records the session in the register so waechter.ps1, nachricht.ps1 and lage.ps1 know it.
+# the machine-specific rules from leitstand\lokal.md if present, and records the session in the register
+# so waechter.ps1, nachricht.ps1 and lage.ps1 know it.
 # Usage: start.ps1 -Repo <repo> -Auftrag <text or file> [-Modus epic|flotte|issues|nacharbeit|aufraeumen] [-Gh owner/name]
 param(
     [Parameter(Mandatory)][string]$Repo,
