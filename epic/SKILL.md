@@ -60,7 +60,7 @@ gilt für alle Epic-Skills; sie verweisen hierher.
 den Admiral statt des Menschen. Was dann anders läuft, hängt vom Träger ab und steht in
 `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft": als **Sitzung** Frageblock statt
 Rückfrage, `FLOTTE-FRAGE` oder `FLOTTE-ENDE` in der ersten Zeile eines Zugs, der den Admiral
-braucht, `Pause` und `weiter`, `vorläufig`-Antworten, Veto — sonst wie ein Chat-Lauf; als
+braucht, `Pause` und `weiter`, Entscheidungen und Widerruf des Admirals — sonst wie ein Chat-Lauf; als
 **Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der
 Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
 
@@ -734,9 +734,12 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - **Pull Request** eröffnen (`references/forge.md`), `base: <basis>`, `head: epic/…`:
   - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
     zurückgelassen oder blockiert, ein Verifikationsweg oder eine Abnahmeprüfung nicht fahrbar oder
-    rot, eine Freigabe offen, eine
-    vorläufige Antwort von `/epic-flotte` unbestätigt.
-  - **Body:** je Paket eine Zeile mit Ergebnis — hat ein Paket bestehende Arbeit übernommen, mit
+    rot, eine Freigabe offen. Eine Entscheidung des Admirals von `/epic-flotte` ist kein Grund
+    für `WIP:`.
+  - **Body:** unter `/epic-flotte` die Entscheidungen des Admirals zu diesem Epic, je eine Zeile
+    mit Link auf seinen Kommentar — der Mensch liest sie spätestens beim Merge
+    (`epic-flotte/SKILL.md`, „Was aufgeschrieben wird"); je Paket eine Zeile mit Ergebnis — hat
+    ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).

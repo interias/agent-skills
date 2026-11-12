@@ -1,6 +1,6 @@
 ---
 name: epic-lagebesprechung
-description: Lagebesprechung im laufenden /epic-flotte- oder /epic-Chat — alles, was beim Menschen liegt, sammeln (Fragen der Läufe, vorläufige Entscheidungen, Triage-Tickets der Epics), in Fragerunden mit Empfehlung klären, Antworten sofort an die Läufe geben, Tickets nachdokumentieren und auf ready-for-agent heben. Optional; der Ablauf des Laufs bleibt unverändert.
+description: Lagebesprechung im laufenden /epic-flotte- oder /epic-Chat — alles, was beim Menschen liegt, sammeln (Fragen der Läufe, Entscheidungen des Admirals zum Nachlesen, Triage-Tickets der Epics), in Fragerunden mit Empfehlung klären, Antworten sofort an die Läufe geben, Tickets nachdokumentieren und auf ready-for-agent heben. Optional; der Ablauf des Laufs bleibt unverändert.
 disable-model-invocation: true
 ---
 
@@ -8,8 +8,9 @@ disable-model-invocation: true
 
 Der Mensch ruft diesen Skill im Chat eines laufenden **Admirals** (`/epic-flotte`) oder
 **Orchestrators** (`/epic`) auf, wenn er Zeit hat. Bis dahin hat sich angestaut, was nur er
-entscheidet: Fragen, auf die Läufe warten, vorläufige Entscheidungen, Tickets, die in Triage
-hängen. Die Lagebesprechung holt all das in **einer** Sitzung ab, statt zu warten, bis es am Ende
+entscheidet oder nachlesen will: Fragen, auf die Läufe warten, die Entscheidungen des Admirals,
+Tickets, die in Triage hängen. Die Lagebesprechung holt all das in **einer** Sitzung ab, statt
+zu warten, bis es am Ende
 eines Zugs einzeln gefragt wird.
 
 Sie ist ein **Einschub**: Du bleibst Admiral bzw. Orchestrator, mit allen Regeln deines Skills,
@@ -32,13 +33,15 @@ Vier Quellen, in dieser Rangfolge. Die Rangfolge ist auch die Reihenfolge der Vo
 1. **Fragen, auf die ein Lauf wartet.** Unter `/epic-flotte`: offene `FLOTTE-FRAGE`n aus der
    rechten Spalte des Entscheidungsrechts — Flottentafel „Beim Menschen", `questions` im
    Flottenlogbuch. Unter `/epic`: ein offenes Vorab-Tor oder eine Abbruchbedingung.
-2. **Vorläufige Entscheidungen** ohne Bestätigung: Forge-Kommentare „Vorläufig entschieden von
-   /epic-flotte", noch ohne „bestätigt vom Menschen" oder „gekippt vom Menschen".
+2. **Einflussreiche Entscheidungen des Admirals** seit der letzten Vorlage: die Einträge im
+   Entscheidungsprotokoll am Flottenlogbuch (`epic-flotte/SKILL.md`, „Was aufgeschrieben wird").
+   Keine Fragen — sie gelten; der Mensch liest sie nach und widerruft, was ihm nicht passt.
 3. **Triage-Tickets** der Epics dieses Chats — laufende und anstehende: Kinder mit
    `needs-triage` oder `needs-info`, ohne `ready-for-agent`, oder ohne `acceptance_section` bzw.
    `verification_section`. Den Grund liefert oft der Überspringen-Kommentar des Laufs am Ticket.
    `wontfix` ist bereits entschieden und bleibt außen vor.
-4. **Eigene Entscheidungen** des Admirals seit der letzten Vorlage — keine Fragen, nur zum Kippen.
+4. **Die übrigen Entscheidungen** des Admirals seit der letzten Vorlage — als ✔-Liste, ebenfalls
+   zum Widerrufen.
 
 Glut-Punkte und offene Punkte abgeschlossener Läufe gehören zu `/epic-nacharbeit`, nicht hierher.
 
@@ -59,10 +62,10 @@ Nach dem Frontier-Verfahren aus `grilling` (Skill aus `mattpocock-skills`, wie i
 `AskUserQuestion` ist hier richtig: Der Mensch hat die Lagebesprechung selbst
 aufgerufen und sitzt davor.
 
-- **Vor der ersten Frage** die ✔-Liste aus Quelle 4, in der Form von `epic-flotte/SKILL.md`,
-  „Den Menschen fragen".
-- **Je Frage** das Epic und das Ticket als Link; die Empfehlung des Laufs neben deiner und eine
-  vorläufige Entscheidung wie dort.
+- **Vor der ersten Frage** die Entscheidungen aus Quelle 2 mit Frage, Entscheidung, Warum und
+  Link ins Protokoll, dann die ✔-Liste aus Quelle 4 in der Form von `epic-flotte/SKILL.md`,
+  „Den Menschen fragen". Dazu eine Frage: ob er eine davon widerrufen will.
+- **Je Frage** das Epic und das Ticket als Link und die Empfehlung des Laufs neben deiner.
 - **Je Triage-Ticket** fragst du, was zur Freigabe fehlt — Abnahmekriterien, Verifikationsweg,
   Abgrenzung, die offene Sachfrage aus `needs-info` — jeweils mit deinem ausformulierten Vorschlag
   als Empfehlung. „Verwerfen" ist immer eine Option.
@@ -73,9 +76,9 @@ ganze Lagebesprechung. Die Antwort des Menschen ist die ausdrückliche Entscheid
 - Antwort auf eine wartende Frage → an den Lauf, so wie dein Skill sonst antwortet (unter
   `/epic-flotte` per `SendMessage`; unter `/epic` setzt du selbst fort, sobald die
   Lagebesprechung endet).
-- Bestätigt oder gekippt → Forge-Kommentar „bestätigt vom Menschen" bzw. „gekippt vom Menschen:
-  <neue Option>" am Issue der vorläufigen Entscheidung; ein Veto geht nach „Vorläufig mit Veto"
-  (`epic-flotte/SKILL.md`) an den Lauf.
+- Widerrufen → nach „Widerruf" (`epic-flotte/SKILL.md`): die Zeile „widerrufen vom Menschen:
+  <neue Entscheidung>" am Kommentar und im Protokoll, `widerruf: …` an den Lauf, und dein
+  Vorschlag für die Regel, die den Widerruf künftig erspart — im Projekt oder für alle Projekte.
 - Erledigte Punkte verlassen „Beim Menschen" und `questions` — was hier beantwortet ist, fragst du
   danach nicht noch einmal.
 
