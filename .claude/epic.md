@@ -39,6 +39,5 @@ Datenbank, keine Ports und keine Dienste, die sich parallele Worktrees teilen k�
 - Die Dateien dieses Repositorys **sind** die Skills, mit denen der Lauf selbst arbeitet. Ein Lauf
   liest seine Regeln aus der installierten Fassung unter `~/.claude/skills`, nicht aus dem
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
-- `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`. Experimentelle
-  Fassungen liegen unter `experimente/` und werden dadurch nicht aktiv.
+- `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
 - Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(epic-flotte): …`), PR-Titel deutsch.
