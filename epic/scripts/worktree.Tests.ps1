@@ -324,7 +324,7 @@ Describe 'worktree.ps1 Down' {
         (Invoke-Up $t).Exit | Should Be 0
         $r = Invoke-DownWithDocker $t @(@{ Project = 'repo-1' })
         $r.Exit | Should Be 0
-        $r.Calls | Should Match '(?m)^compose -p repo-1 down'
+        $r.Calls | Should Match '(?m)^compose -p repo-1 down --rmi local'
         $r.Output | Should Match 'Stopped compose project repo-1'
     }
 

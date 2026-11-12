@@ -196,6 +196,14 @@ scheitert still genug, um übersehen zu werden.
   eine Junction gegriffen — dann sofort melden, denn der nächste Testlauf scheitert sonst an einer
   Ursache, die niemand mehr mit dem Aufräumen verbindet.
 - `git branch -vv` — die verbliebenen Branches, und je Eintrag ein Wort, warum er steht.
+- **Reste außerhalb dieses Repositorys**, zuletzt: `sweep.ps1 -Root <Ordner über dem
+  Hauptverzeichnis>` (`epic/scripts/`, Aufrufform wie `worktree.ps1`, Hilfe im Kopfkommentar). Es
+  fährt `CleanupStale` in jedem Repository mit Adapter, entfernt alte Temp-Ordner der Läufe
+  (Browserprofile, Jest-Caches), verwaiste Docker-Images und Build-Cache älter als sieben Tage.
+  Markierte Images, Volumes, Container und alles, was `CleanupStale` schützt, bleiben. Die
+  JSON-Liste gehört in den Bericht; Exit 1 heißt, ein Schritt ist gescheitert: im Wortlaut melden,
+  nichts von Hand nachholen. Herkunft: Bestandsaufnahme vom 12.11.2026 — Epic-Worktrees toter
+  Sitzungen standen in drei Repositorys seit zwei Wochen, weil dort kein Lauf mehr gestartet war.
 
 Bericht: was gelöscht wurde (mit dem Nachweis, der es erlaubte), was **nicht** gelöscht wurde und
 warum, und was ein Mensch entscheiden muss. Nicht abgenommene Paket-Branches namentlich, mit der

@@ -129,7 +129,8 @@ ohne `git switch` und ohne neue Branches. Er ruft `Up`, `Down` und `CleanupStale
 ## Abräumen
 
 Nach dem Merge, und ebenso nach einem nicht abgenommenen Paket: `Down -Package <nr>`. `Down`
-stoppt zuerst, was dem Worktree klar gehört (Compose-Projekte, Prozesse), prüft dann auf einen
+stoppt zuerst, was dem Worktree klar gehört (Compose-Projekte samt der Images, die sie selbst
+gebaut haben — `down --rmi local`, gezogene Images bleiben —, und Prozesse), prüft dann auf einen
 sauberen Worktree und entfernt die Verweise einzeln, bevor Git den Worktree wegnimmt. Die
 Reihenfolge ist fest, weil ein rekursives Löschen einer Junction folgt: **Am 18.09.2026 hat in
 KOKOS ein rekursives Löschen einer Worktree-Hülle das echte `node_modules` im Hauptverzeichnis

@@ -76,11 +76,14 @@ while ($true) {
         $zustand[$e.sessionId] = $neu
     }
 
-    # RAM brake; at warn or hold drop the docker-desktop VM page cache silently, at most every 5 minutes
+    # RAM brake; at warn or hold drop the page cache of the WSL VM silently, at most every 5 minutes.
+    # All distributions share the one VM, so any running one will do (Docker Desktop: docker-desktop,
+    # docker in WSL: e.g. Ubuntu); a stopped WSL is never started for this.
     $ram = powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME\.claude\skills\epic\scripts\ram.ps1" -RepoRoot "$HOME\git" 2>$null | ConvertFrom-Json
     if ($ram) {
         if ($ram.level -ne 'ok' -and ((Get-Date) - $letzterDrop).TotalMinutes -ge 5) {
-            wsl -d docker-desktop sh -c "sync; echo 3 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory" 2>$null
+            $distro = @(wsl --list --running --quiet 2>$null | ForEach-Object { "$_".Replace("`0", '').Trim() } | Where-Object { $_ -match '^[\w.-]+$' })[0]
+            if ($distro) { wsl -d $distro -u root sh -c "sync; echo 3 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory" 2>$null }
             $letzterDrop = Get-Date
         }
         $hold = $ram.level -eq 'hold'; $hoch = $ram.percent_used -ge 92

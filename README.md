@@ -100,6 +100,9 @@ Unter `epic/scripts/`, jedes mit Pester-Tests daneben und Hilfe im Kopfkommentar
   Worktree, Env-Dateien, Links der Abhängigkeitsordner und Lock an, `Down` stoppt, was zum Worktree
   gehört, und entfernt ihn, `CleanupStale` räumt zu Beginn von `/epic` und `/epic-aufraeumen` ab,
   was tote Sitzungen hinterlassen haben.
+- **`sweep.ps1`** räumt, was über ein einzelnes Repository hinausgeht: `CleanupStale` in jedem
+  Repository unter einem Ordner, alte Temp-Ordner der Läufe, verwaiste Docker-Images und alter
+  Build-Cache. `/epic-aufraeumen` ruft es am Ende auf; `-DryRun` zeigt nur, was es täte.
 - **`guard.ps1`** ist der PreToolUse-Hook, den `epic`, `epic-aufraeumen` und `epic-kundschafter`
   in ihrem Frontmatter einhängen. Er sperrt je Profil (`epic`, `aufraeumen`, `kundschafter`)
   verbotene Shell-Befehle, etwa Pushes auf den Hauptbranch oder `git branch -D`.
