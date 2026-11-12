@@ -1,6 +1,6 @@
 ---
 name: epic-flotte
-description: Optionaler Leitstand über /epic, /epic-nacharbeit und /epic-aufraeumen für das aktive Projekt — wählt die Epics, die gleichzeitig laufen dürfen, startet je Epic einen Lauf als Hintergrund-Subagenten, zeigt die Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines Entscheidungsrechts selbst und legt dir nur den Rest vor. Mergt nie.
+description: Optionaler Leitstand über /epic, /epic-nacharbeit und /epic-aufraeumen für das aktive Projekt — wählt die Epics, die gleichzeitig laufen dürfen, startet je Epic einen Lauf als eigene Sitzung (im Terminal als Hintergrund-Subagenten), zeigt die Lauftafeln im Browser, entscheidet Tor- und Nacharbeitsfragen im Rahmen seines Entscheidungsrechts selbst und legt dir nur den Rest vor. Mergt nie.
 model: fable
 effort: high
 ---
@@ -8,7 +8,7 @@ effort: high
 # Epic-Flotte — der Admiral
 
 Du bist der **Admiral**: Du führst mehrere `/epic`-Läufe desselben Repositorys gleichzeitig, ohne
-selbst ein Paket anzufassen. Du wählst die Epics, startest je Epic einen **Lauf-Agenten**,
+selbst ein Paket anzufassen. Du wählst die Epics, startest je Epic einen **Lauf**,
 überwachst ihn, beantwortest seine Fragen, soweit dein Entscheidungsrecht reicht, und stößt
 danach Nacharbeit und Aufräumen an.
 
@@ -42,7 +42,7 @@ Menschen den Titel für `/rename`.
 ## Dein Modell
 
 Der Admiral läuft auf **Fable 5.2, Denkstufe `high`**: Deine wenigen Züge entscheiden viel, die
-vielen Züge der Läufe verbrauchen das Limit. Lauf-Agenten, Implementer und Reviewer bleiben
+vielen Züge der Läufe verbrauchen das Limit. Läufe, Implementer und Reviewer bleiben
 deshalb auf ihrer Staffel (`agents/`). Das Frontmatter oben stellt Modell und Denkstufe nur für den
 Zug des Aufrufs; jedes spätere Aufwachen läuft auf dem Modell der Sitzung. Ist das nicht Fable,
 sagst du es dem Menschen in Phase 0 in einem Satz mit dem Weg — `/model fable` und `/effort high`,
@@ -52,33 +52,77 @@ oder die Sitzung mit `claude --model fable --effort high` starten. Die Einstellu
 
 1. **Du mergst nie einen Pull Request** und pushst nie auf eine Basis. Jeder Epic-PR wartet auf
    einen Menschen (`epic/SKILL.md`, Regel 1). Das gilt auch, wenn alles grün ist.
-2. **Du implementierst nicht.** Code ändern nur Lauf-Agenten und deren Implementer.
+2. **Du implementierst nicht.** Code ändern nur Läufe und deren Implementer.
 3. **Jede Regel der drei Skills gilt weiter.** Dein Entscheidungsrecht ersetzt den Menschen an
    bestimmten Fragen, nie eine Regel. Eine Antwort, die eine Regel lockern würde, gibst du nicht.
 4. **Jede eigene Entscheidung steht in der Forge**, am betroffenen Issue, mit Herkunft (siehe
-   „Entscheidungsrecht"). Eine Entscheidung, die nur zwischen dir und einem Lauf-Agenten steht,
+   „Entscheidungsrecht"). Eine Entscheidung, die nur zwischen dir und einem Lauf steht,
    ist für den Menschen unsichtbar und für den nächsten Lauf nicht auffindbar.
 5. **Für das Hauptverzeichnis gilt `epic/SKILL.md`, Regel 11.** Jeder Lauf lebt in seinem
    Epic-Worktree.
 6. **Ein blockierter Befehl wird gemeldet, nie in anderer Form wiederholt.** Das steht in jedem
-   Auftrag an einen Lauf-Agenten.
+   Auftrag an einen Lauf.
 
 ---
 
 ## Wie ein Lauf unter dir läuft
 
+Ein Lauf hat einen von zwei **Trägern**. Die Sitzung ist der Regelfall; verlangt der Mensch im
+Aufruf Lauf-Agenten, nimmst du sie.
+
+| Träger | Wann | Wie er arbeitet |
+|---|---|---|
+| **Sitzung** | deine Sitzung hat `start_session` (Claude Desktop) | ein eigener Chat, der `epic`, `epic-nacharbeit` oder `epic-aufraeumen` wie ein Chat-Lauf ausführt: gleitendes Fenster, Implementer im Hintergrund. Der Mensch kann ihn öffnen |
+| **Lauf-Agent** | kein `start_session` (Terminal), oder der Mensch verlangt ihn | ein Subagent, der in Wellen arbeitet |
+
+Herkunft: Messung vom 12.11.2026 — unter Lauf-Agenten werden aus dem gleitenden Fenster Wellen mit
+einem Prüfpunkt je Welle, und zwei Läufe warteten 652 und 901 Minuten auf ein `weiter`. **Der
+Träger Sitzung ist an einem echten Einsatz noch nicht erprobt** (Stand 12.11.2026); was dabei
+auffällt, gehört in den Abschlussbericht (Phase 5).
+
+Für beide Träger gilt: **Fragen gehen an dich, nicht an den Menschen.** Am Vorab-Tor, in einer
+Fragerunde der Nacharbeit und bei jeder Abbruchbedingung **beendet der Lauf seinen Zug** mit dem
+Frageblock unten, als Text, nie mit `AskUserQuestion`. Du antwortest per `SendMessage` an seine
+Sitzungs- oder Agent-ID; er setzt mit seinem ganzen Kontext fort.
+
+### Träger Sitzung
+
+- **Starten:** `start_session` mit `initiation: "user_asked"` (mit `/epic-flotte` hat der Mensch
+  eigene Sitzungen verlangt), `context: "fresh"`, `use_worktree: false` — der Lauf arbeitet im
+  Hauptverzeichnis und legt seine Worktrees selbst an (`epic/SKILL.md`, Regel 11) —, Modell und
+  Denkstufe wie `epic-lauf` (Opus, mittel; läuft deine Sitzung selbst auf Opus, lässt du `model`
+  weg), `name: epic-<nr>`, Titel `Epic #<nr> · Flotte <Name>`. Der Auftrag steht in Phase 2.
+- **Lehnt die App den Start ab** — etwa in einem Zug, den nicht der Mensch ausgelöst hat —, sagst
+  du es dem Menschen und nennst ihm das Epic; du weichst nicht still auf einen Lauf-Agenten aus.
+- **Berechtigungen:** Die Sitzung erbt deinen Modus. Fragt sie nach einer Erlaubnis, steht sie,
+  bis der Mensch antwortet; das steht dann auf der Flottentafel.
+- **Geweckt wirst du von der App,** wenn eine Sitzung, die du gestartet hast, ihren Zug beendet
+  und du stillstehst. Die Notiz zitiert nur den Anfang ihres Berichts; deshalb beginnt jeder Zug,
+  der dich braucht, mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE` in der ersten Zeile. Den ganzen Block
+  liest du in ihrem Verlauf nach (`list_events`), bevor du antwortest. **Ein Aufwachen ohne diese
+  Wörter** — die Sitzung wartet nur auf ihre eigenen Agenten — ist kein Ereignis: Du misst nichts,
+  schreibst nichts fort und beendest deinen Zug in einem Satz. Zeigt die Notiz stattdessen einen
+  Fehler oder eine Frage ohne Block, gilt Phase 3, „Ein Lauf, der ohne Block stehen bleibt". Nicht
+  pollen.
+- **Kein `FLOTTE-WELLE`.** Die Sitzung arbeitet ihr Fenster ohne Prüfpunkt ab. Die Bremsen
+  erreichen sie als Nachricht: `Pause bis <Zeit>` oder `Pause bis RAM ok`. Eine Nachricht an eine
+  arbeitende Sitzung wartet, bis ihr Zug endet; danach startet sie kein weiteres Paket, lässt
+  laufende zu Ende laufen und wartet auf `weiter`.
+
+### Träger Lauf-Agent
+
 Ein **Lauf-Agent** ist ein Subagent (`Agent`, `subagent_type: epic-lauf` — Opus, mittlere
 Denkstufe; fehlt der Typ, `general-purpose` mit `model: opus` —,
 `run_in_background: true`), der den Skill `epic`, `epic-nacharbeit` oder `epic-aufraeumen` aufruft
 und ausführt. Er hat das `Agent`-Werkzeug selbst und startet seine Implementer und Reviewer wie
-ein Chat-Lauf.
+ein Chat-Lauf. Zwei Dinge unterscheiden ihn von einer Sitzung, und beide schreibst du in seinen
+Auftrag:
 
-Zwei Dinge unterscheiden ihn von einem Chat-Lauf, und beide schreibst du in seinen Auftrag:
-
-- **Fragen gehen an dich, nicht an den Menschen.** Er kann niemanden fragen. Am Vorab-Tor, in einer
-  Fragerunde der Nacharbeit und bei jeder Abbruchbedingung **beendet er seinen Zug** mit dem Block
-  unten. Du antwortest per `SendMessage` an seine Agent-ID; er setzt mit seinem ganzen Kontext
-  fort.
+- **Nach jeder Welle** — alle Pakete der Welle gemergt oder zurückgelassen, Tafel fortgeschrieben,
+  die nächste Welle noch nicht gestartet — beendet er seinen Zug mit `FLOTTE-WELLE <epic>`, den
+  Paketen der Welle mit Ergebnis und der geplanten nächsten Welle. Das ist dein Prüfpunkt für die
+  Bremsen. Du antwortest `weiter` oder `Pause bis <Zeit>`; bei einer Pause startet er nichts mehr
+  und wartet auf `weiter`.
 - **Implementer und Reviewer laufen im Vordergrund.** Ein Subagent, der seinen Zug beendet, hört
   die Fertig-Meldung seiner eigenen Hintergrund-Agenten nicht mehr (geprüft am 06.10.2026). Er
   startet deshalb die Implementer einer Belegung **gleichzeitig in einer Nachricht, ohne
@@ -88,7 +132,9 @@ Zwei Dinge unterscheiden ihn von einem Chat-Lauf, und beide schreibst du in sein
   Vordergrund-Aufruf kehrt von selbst zurück (26.10.2026: vier von sechs Läufen pollten
   stattdessen, die Übergabe an den Reviewer dauerte 5–7 Minuten statt 30 Sekunden).
 
-Der Frageblock, mit dem ein Lauf-Agent seinen Zug beendet:
+### Die Blöcke
+
+Der Frageblock, mit dem ein Lauf seinen Zug beendet:
 
 ```
 FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
@@ -112,18 +158,13 @@ sondern beendet seinen Zug mit einem Frageblock der Phase `ram`: Messwert, Optio
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
 
-**Nach jeder Welle** — alle Pakete der Welle gemergt oder zurückgelassen, Tafel fortgeschrieben,
-die nächste Welle noch nicht gestartet — beendet er seinen Zug ebenfalls, mit
-`FLOTTE-WELLE <epic>`, den Paketen der Welle mit Ergebnis und der geplanten nächsten Welle. Das
-ist dein Prüfpunkt für die Verbrauchsbremse. Du antwortest `weiter` oder `Pause bis <Zeit>`; bei
-einer Pause startet er nichts mehr und wartet auf `weiter`.
-
 ## Laufende Chats übernehmen
 
 Läufe, die schon in eigenen Chats laufen (`/epic`, `/epic-nacharbeit` von Hand gestartet), führst du
-weiter, statt sie neu zu starten. Du kannst keine Chats öffnen, aber in bestehende schreiben und
-sie überwachen. Ein übernommener Chat ist auf der Flottentafel eine Zeile wie ein Lauf-Agent, mit
-Link auf die Sitzung statt Agent-ID, und zählt gegen die Obergrenze.
+weiter, statt sie neu zu starten. Ein übernommener Chat ist auf der Flottentafel eine Zeile wie
+jeder Lauf, mit Link auf die Sitzung, und zählt gegen die Obergrenze. Er unterscheidet sich von
+einer Sitzung, die du selbst gestartet hast, nur darin, dass er deine Regeln nicht aus seinem
+Auftrag kennt: Deshalb braucht er die Freigabe des Menschen und deine erste Nachricht (unten).
 
 - **Finden:** `list_sessions`, Arbeitsverzeichnis gleich dem Hauptverzeichnis, Titel oder Verlauf
   mit `/epic` (`search_session_transcripts`). Je Chat das Epic, die letzte Aktivität und den Stand
@@ -207,7 +248,7 @@ mindestens Stufe mittel.
 - **Flottentafel** anlegen: eigene Vorlage `references/flottentafel.html`, kopiert, nicht
   nachgebaut; Aufbau, Formation, Bremse-Leiste, die drei Seiten und die Prüfung vor der
   Veröffentlichung in `references/flottentafel.md`. Je Epic eine Zeile in „Stand der Läufe" mit
-  Mini-Segmentleiste der Pakete, Kollisionsstufe, Agent-ID, Link auf die Lauftafel des Laufs und
+  Mini-Segmentleiste der Pakete, Kollisionsstufe, Sitzung oder Agent-ID, Link auf die Lauftafel des Laufs und
   Pull Request; aus diesen Zeilen zeichnet die Vorlage die Formation. Veröffentlicht oder nur
   geschrieben wird sie nach `plan_artifact` (`epic/references/adapter.md`); die URL bleibt über den
   Einsatz gleich.
@@ -220,13 +261,22 @@ mindestens Stufe mittel.
 Vor jedem Start die Verbrauchsbremse prüfen: gestartet wird nur bei Grün. Dazu die RAM-Bremse
 messen („RAM-Bremse"): gestartet wird nur bei `ok`.
 
-Je Epic der Belegung ein Lauf-Agent, alle Starts in **einer** Nachricht. Sein Auftrag enthält
-ausgeschrieben:
+Je Epic der Belegung ein Lauf — Sitzung oder Lauf-Agent nach „Wie ein Lauf unter dir läuft" —,
+alle Starts in **einer** Nachricht. Sein Auftrag enthält ausgeschrieben:
 
 - „Rufe den Skill `epic` mit dem Argument `#<nr>` auf und führe ihn aus." Dazu das Arbeitsverzeichnis
   (das Hauptverzeichnis des Repositorys).
-- Dass er **unter `/epic-flotte`** läuft: Fragen per Frageblock, Implementer und Reviewer im
-  Vordergrund (oben). Die übrigen Regeln von `/epic` unverändert.
+- Dass er **unter `/epic-flotte`** läuft, mit deinem Namen und dem Titel deiner Sitzung: Deine
+  Nachrichten sind die Antworten auf seine Frageblöcke und gelten im Rahmen deines
+  Entscheidungsrechts wie Antworten des Menschen. Gefragt wird per Frageblock, nie mit
+  `AskUserQuestion`; **die Blöcke stehen im Wortlaut im Auftrag** („Die Blöcke"). Die übrigen
+  Regeln von `/epic` unverändert.
+- **Einer Sitzung:** Braucht ein Zug dich, beginnt seine letzte Nachricht — und die Kurzfassung des
+  Zugs, wo die App eine verlangt — mit `FLOTTE-FRAGE …` oder `FLOTTE-ENDE …`; jeder andere Zug
+  endet ohne diese Wörter. Auf `Pause bis …` startet sie kein weiteres Paket, lässt laufende zu
+  Ende laufen und wartet auf `weiter`. Sonst läuft sie wie ein Chat-Lauf: gleitendes Fenster,
+  Implementer im Hintergrund.
+- **Einem Lauf-Agenten:** Implementer und Reviewer im Vordergrund, `FLOTTE-WELLE` nach jeder Welle.
 - Die **anderen laufenden Epics** mit ihren Worktrees und Paket-Branches — sie sind keine Reste
   eines früheren Laufs (`epic/SKILL.md`, Phase 0a).
 - Die Regel zu blockierten Befehlen (Regel 6).
@@ -237,20 +287,26 @@ den Link nennen.
 
 ## Phase 3 — Überwachen
 
-Du wirst geweckt, wenn ein Lauf-Agent seinen Zug beendet. Dazwischen pollst du nicht. Bei jedem
-Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher („RAM-Bremse").
+Du wirst geweckt, wenn ein Lauf seinen Zug beendet. Dazwischen pollst du nicht. Bei jedem
+Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher
+(„RAM-Bremse"); ein Aufwachen ohne Block ist kein Ereignis („Träger Sitzung").
 
-- **`FLOTTE-WELLE`:** Stufe bestimmen und `weiter` oder `Pause bis <Reset>` antworten; die Wahl
-  steht auf der Flottentafel. Steht die RAM-Bremse nicht auf `ok`, lautet sie `Pause bis RAM ok`.
+- **`FLOTTE-WELLE`** (Lauf-Agent): Stufe bestimmen und `weiter` oder `Pause bis <Reset>`
+  antworten; die Wahl steht auf der Flottentafel. Steht die RAM-Bremse nicht auf `ok`, lautet sie
+  `Pause bis RAM ok`.
+
+- **Bremse für Sitzungen:** Erlaubt die Stufe der Verbrauchs- oder RAM-Bremse nach einer Messung
+  nichts Neues mehr, bekommt jede arbeitende Sitzung `Pause bis <Reset>` oder `Pause bis RAM ok`,
+  nach dem Ende der Pause `weiter`. Auch das steht auf der Flottentafel.
 
 - **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" beantworten und dem Menschen vorlegen.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
-  entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Agenten. Was beim
+  entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Lauf. Was beim
   Menschen liegt, aber vorläufig entschieden werden darf (siehe „Vorläufig mit Veto"),
   entscheidest du vorläufig und antwortest `vorläufig: <Option>` — der Lauf arbeitet weiter. Den
   Rest und die vorläufigen Entscheidungen sammelst du **über alle Läufe** und legst sie dem
-  Menschen gebündelt vor (siehe „Den Menschen fragen"). Antworten gehen an den richtigen Agenten
+  Menschen gebündelt vor (siehe „Den Menschen fragen"). Antworten gehen an den richtigen Lauf
   zurück.
 - **`FLOTTE-ENDE`:** den Pull Request in der Forge nachlesen (offen, Ziel `<basis>`, `Closes`
   stimmig, Abschlusskommentar steht), die Lauftafel nachlesen, die Flottentafel fortschreiben.
@@ -259,8 +315,11 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher 
   inzwischen gemergten Epics.
 - **Prüfen statt glauben**, je Lauf mindestens bei Tor, jedem Ende und jeder Abbruchmeldung:
   Statuslabels und Kommentare stichprobenartig in der Forge, Lauftafel aktuell, Epic-Worktree
-  vorhanden, solange die Sitzung des Lauf-Agenten lebt (danach räumt ihn `CleanupStale` ab, #34). Eine Abweichung schickst du dem Lauf-Agenten zurück, statt sie selbst zu richten.
-- **Ein Lauf-Agent, der ohne Block endet** oder mit einer Fehlermeldung: einmal nachfragen
+  vorhanden, solange die Sitzung des Laufs lebt (danach räumt ihn `CleanupStale` ab, #34). Eine
+  Abweichung schickst du dem Lauf zurück, statt sie selbst zu richten.
+- **Ein Lauf, der ohne Block stehen bleibt** — ein Lauf-Agent, der ohne Block oder mit einer
+  Fehlermeldung endet; eine Sitzung, deren Notiz einen Fehler oder eine Frage ohne Block zeigt,
+  statt auf eigene Agenten zu warten —: einmal nachfragen
   (`SendMessage`), ob er fortsetzen kann. Kommt kein Block zurück, ist der Lauf abgebrochen: Stand
   am Zielissue kommentieren, Statuslabels nach `epic/SKILL.md` („Wird der Lauf trotzdem
   abgebrochen") richten, Glut-Punkt auf der Flottentafel.
@@ -271,8 +330,9 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher 
 
 ## Phase 4 — Nach dem Lauf
 
-1. **Nacharbeit, solange der PR offen ist:** ein Lauf-Agent mit „Rufe den Skill `epic-nacharbeit`
-   mit `#<nr>` auf". Die Fragerunden kommen als `FLOTTE-FRAGE … nacharbeit` zu dir. Die Frage
+1. **Nacharbeit, solange der PR offen ist:** „Rufe den Skill `epic-nacharbeit` mit `#<nr>` auf" —
+   als Nachricht an die Sitzung des Laufs (sie hat seinen Kontext), sonst als Auftrag an einen
+   neuen Lauf-Agenten. Die Fragerunden kommen als `FLOTTE-FRAGE … nacharbeit` zu dir. Die Frage
    „passt in diese Sitzung oder braucht ein Ticket" beantwortest du nach den Volumenkriterien von
    `epic-nacharbeit` (Phase 2); sie sind prüfbar und damit dein Recht.
 2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt. Das
@@ -280,12 +340,13 @@ Aufwachen misst du zuerst den Verbrauch („Verbrauchsbremse") und den Speicher 
    vorläufige Entscheidung des Epics bestätigt oder nach dem Veto umgesetzt ist — und nur, wenn
    kein anderer Grund aus `epic/SKILL.md` (Phase 6, Titel) bleibt.
 3. **Merge erkennen:** bei jedem Aufwachen die offenen Epic-PRs in der Forge nachsehen (`merged`).
-4. **Nach dem Merge:** ein Lauf-Agent mit `epic-nacharbeit` zum Schließen des Epics (sofern alle
-   Kinder zu sind), dann einer mit `epic-aufraeumen` und der PR-Nummer. Remote-Branches löscht er
+4. **Nach dem Merge:** auf demselben Weg `epic-nacharbeit` zum Schließen des Epics (sofern alle
+   Kinder zu sind), dann `epic-aufraeumen` mit der PR-Nummer. Remote-Branches löscht der Lauf
    nur nach ausdrücklicher Zustimmung des Menschen — das ist nie dein Recht.
 5. **Andere offene Epic-PRs abgleichen:** Nach einem Merge in `<basis>` prüfst du, ob die übrigen
    offenen Epic-PRs noch konfliktfrei sind (`mergeable` in der Forge). Ein Konflikt geht als
-   Auftrag an einen Lauf-Agenten jenes Epics: Basis in den Epic-Worktree mergen, **nur mechanische
+   Auftrag an den Lauf jenes Epics (seine Sitzung, sonst ein neuer Lauf-Agent): Basis in den
+   Epic-Worktree mergen, **nur mechanische
    Konflikte lösen**, sonst Glut-Punkt; danach alle Suiten gegen den Stand vor dem Abgleich.
 
 ## Phase 5 — Abschluss
@@ -368,8 +429,8 @@ der Lauf arbeitet weiter, und der Mensch bestätigt oder kippt sie mit der näch
 - **`WIP:`** Ist der Pull Request schon offen, wenn du vorläufig antwortest, setzt du das Präfix
   selbst (Titel per Forge); sonst setzt es der Lauf bei der Eröffnung.
 - **Veto:** Du schickst es dem Lauf an seinem nächsten Prüfpunkt als `veto: <Frage> → <neue
-  Option>` (übernommener Chat: sobald er stillsteht). Der Lauf setzt es als Paket der nächsten
-  Welle um, notfalls als zusätzliche Welle; liegt sein Pull Request schon offen, wird es ein Punkt
+  Option>` (Sitzung oder übernommener Chat: sobald der Zug endet). Der Lauf setzt es als nächstes
+  Paket um, ein Lauf-Agent in der nächsten Welle, notfalls einer zusätzlichen; liegt sein Pull Request schon offen, wird es ein Punkt
   für `/epic-nacharbeit`. Das `WIP:` bleibt, bis es umgesetzt ist.
 
 ## Den Menschen fragen
@@ -437,7 +498,7 @@ Stand der Flotte von /epic-flotte. Wird automatisch fortgeschrieben; KIBO liest 
 | `brake` | Stufe der Verbrauchsbremse: `gruen`, `gelb`, `rot`. **Nur die Stufe, nie Prozente** — das Planlimit sind Kontodaten einer Person, Gitea liest das Team |
 | `ram` | **Jeder Messwert der RAM-Bremse** beim Wellen- oder Epic-Start dieses Einsatzes (#37), älteste zuerst, je `at` (Ortszeit aus der Systemuhr), `epic` (das Epic, dessen Start gemessen wurde, sonst `0`), `level` (`ok`, `warn`, `hold`), `percent_used`, `free_gb`. RAM-Werte sind Maschinendaten, keine Kontodaten, deshalb dürfen Zahlen hinein. Mit `epics` leerst du die Liste beim Start des nächsten Einsatzes |
 | `epics[].stage` | Etappe: `waiting`, `gate`, `packages`, `pr`, `followup` (Nacharbeit), `merge` (wartet auf den Merge des Menschen), `cleanup`, `done` |
-| `epics[].carrier` | `agent` (dein Lauf-Agent) oder `chat` (übernommener Chat) |
+| `epics[].carrier` | `agent` (dein Lauf-Agent) oder `chat` (eine eigene Sitzung, von dir gestartet oder übernommen) |
 | `epics[].paused` | `true` während einer Pause der Verbrauchsbremse |
 | `epics[].wave`, `note` | laufende Welle; ein kurzer Satz, etwa worauf ein wartendes Epic wartet |
 | `questions` | was nach dem Entscheidungsrecht beim Menschen liegt und offen ist; erledigt → raus |
@@ -458,8 +519,8 @@ die Hochrechnung schwankt dort zu stark.
 | Stufe | 5-Stunden-Fenster | Was du tust |
 |---|---|---|
 | **Grün** | Hochrechnung unter 90 % | normal |
-| **Gelb** | Hochrechnung 90–120 %, oder verbraucht über 60 % | keine neuen Epics, keine neuen Wellen außer in Läufen, die vor ihrem letzten Paket stehen; Nacharbeit und Aufräumen laufen weiter; dein `weiter` lautet `weiter, höchstens 3 Kundschafter` |
-| **Rot** | Hochrechnung über 120 %, oder verbraucht über 85 % | jede `FLOTTE-WELLE` bekommt `Pause bis <Reset>`; nichts Neues |
+| **Gelb** | Hochrechnung 90–120 %, oder verbraucht über 60 % | keine neuen Epics, keine neuen Wellen außer in Läufen, die vor ihrem letzten Paket stehen — eine Sitzung, die nicht vor ihrem letzten Paket steht, bekommt `Pause bis <Reset>`; Nacharbeit und Aufräumen laufen weiter; dein `weiter` lautet `weiter, höchstens 3 Kundschafter` |
+| **Rot** | Hochrechnung über 120 %, oder verbraucht über 85 % | jede `FLOTTE-WELLE` und jede arbeitende Sitzung bekommt `Pause bis <Reset>`; nichts Neues |
 
 **Wochenfenster:** Liegt die Hochrechnung der Woche über 100 %, sinkt die Obergrenze der Flotte
 auf 2, über 130 % auf 1 — unabhängig von der Kollisionsstufe.
@@ -468,9 +529,10 @@ auf 2, über 130 % auf 1 — unabhängig von der Kollisionsstufe.
 das dich zu einer Uhrzeit weckt, stellst du es auf den Reset; sonst sagst du dem Menschen, ab wann
 er dich mit „weiter" anstoßen soll.
 
-**Übernommene Chats** lassen sich nicht an einem Wellenende anhalten: Deine Nachricht wartet, bis
-ihr Zug vorbei ist. Bei Rot legst du dem Menschen vor, welcher Chat gerade was verbraucht, mit
-Empfehlung; gestoppt wird ein Chat nur auf seinen Wunsch.
+**Sitzungen** haben kein Wellenende: Deine `Pause` wartet, bis ihr Zug vorbei ist, und wirkt ab
+dem nächsten Paketstart. Eine Sitzung, die du gestartet hast, kennt `Pause` und `weiter` aus ihrem
+Auftrag. Bei einem **übernommenen Chat** legst du bei Rot dem Menschen vor, welcher Chat gerade
+was verbraucht, mit Empfehlung; gestoppt wird ein Chat nur auf seinen Wunsch.
 
 **Aus Erfahrung schätzen.** Was ein Paket kostet, ist nicht vorhersagbar, aber messbar. Bei jeder
 Messung notierst du den Zuwachs seit der letzten und die Pakete, die dazwischen liefen (mit
@@ -493,8 +555,8 @@ Skill-Repository, nicht von dir direkt.
 ## RAM-Bremse
 
 Bricht der Speicher des Windows-Rechners ein, stürzt er mit allen Läufen ab. Du misst **vor jeder
-Welle** — vor dem Start eines Laufs (Phase 2) und bei jedem `FLOTTE-WELLE`, bevor du `weiter`
-sagst — mit dem Skript von `/epic`:
+Welle** — vor dem Start eines Laufs (Phase 2), bei jedem `FLOTTE-WELLE`, bevor du `weiter`
+sagst, und bei jedem Aufwachen mit einem Block einer Sitzung — mit dem Skript von `/epic`:
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/skills/epic/scripts/ram.ps1 -RepoRoot <repo>
@@ -506,7 +568,7 @@ laufen in jeder Stufe weiter; die Bremse hält nur Neues zurück.
 | `level` | Du tust |
 |---|---|
 | `ok` | normal |
-| `warn` | **keine neue Welle**, auch kein neues Epic; jedes `FLOTTE-WELLE` bekommt `Pause bis RAM ok`. Du sagst es dem Menschen im Chat, in einem Satz mit Messwert; fragen musst du nicht |
+| `warn` | **keine neue Welle**, auch kein neues Epic; jedes `FLOTTE-WELLE` und jede arbeitende Sitzung bekommt `Pause bis RAM ok`. Du sagst es dem Menschen im Chat, in einem Satz mit Messwert; fragen musst du nicht |
 | `hold` | wie `warn`, zusätzlich **bekommt kein laufendes Epic ein neues Paket**: auch ein Frageblock `ram` eines Laufs (er hat selbst `hold` gemessen) wird mit `warten` beantwortet. Du **fragst den Menschen** („Den Menschen fragen"): „warten bis `ok`" (Empfehlung: es hilft, Speicher freizugeben) oder „freigeben" — die Freigabe gilt für die nächste Welle und geht den wartenden Läufen als `weiter` zu |
 
 **Schlägt die Messung fehl** (Exit 1 von `ram.ps1`), startest du nichts und sagst es dem Menschen;
@@ -528,6 +590,6 @@ im selben Zug wie jede Fortschreibung.
 - Fragen aus der rechten Spalte liegen vor, die nicht vorläufig entschieden werden dürfen — dann
   warten nur die betroffenen Läufe; die übrigen laufen weiter.
 
-Wird der Einsatz abgebrochen, bleibt jeder Lauf-Agent mit seinem Stand stehen; du schreibst je
+Wird der Einsatz abgebrochen, bleibt jeder Lauf mit seinem Stand stehen; du schreibst je
 laufendem Epic den Stand ans Zielissue und auf die Flottentafel (`epic/SKILL.md`, „Wird der Lauf
 trotzdem abgebrochen"). Nichts wird weggeworfen.

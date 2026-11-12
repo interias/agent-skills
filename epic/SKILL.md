@@ -51,16 +51,18 @@ es hat: die empfohlene Option mit „(Empfehlung)" im Label, Folgen in der Besch
 vier Optionen je Frage, mehr als vier Fragen auf mehrere Aufrufe verteilt. Ohne das Werkzeug
 dieselbe Runde als Text — je Frage
 `❓ **Q1** — **<Titel>**: <Sachverhalt, Optionen A/B/… mit Folge>` und darunter
-`➡️ <Empfehlung, Grund>`. **Führt `/epic-flotte` den Lauf** — als Lauf-Agent oder als übernommener
-Chat —, fragst du nie mit `AskUserQuestion`: Die Runde geht als Frageblock oder Text an den
+`➡️ <Empfehlung, Grund>`. **Führt `/epic-flotte` den Lauf** — als Sitzung, die der Admiral
+gestartet hat, als Lauf-Agent oder als übernommener Chat —, fragst du nie mit `AskUserQuestion`: Die Runde geht als Frageblock oder Text an den
 Admiral, und du beendest deinen Zug; sonst hängt der Lauf, bis ein Mensch klickt. Diese Regel
 gilt für alle Epic-Skills; sie verweisen hierher.
 
-**Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, bist du ein
-Subagent und kannst niemanden fragen. Was dann anders läuft — Frageblock statt Rückfrage,
-Vordergrund, Wellen mit `FLOTTE-WELLE`, `vorläufig`-Antworten, Veto —, steht in
-`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"; die Form der Fragen steht in „Wie
-gefragt wird". Alles andere gilt unverändert.
+**Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, fragst du
+den Admiral statt des Menschen. Was dann anders läuft, hängt vom Träger ab und steht in
+`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft": als **Sitzung** Frageblock statt
+Rückfrage, `FLOTTE-FRAGE` oder `FLOTTE-ENDE` in der ersten Zeile eines Zugs, der den Admiral
+braucht, `Pause` und `weiter`, `vorläufig`-Antworten, Veto — sonst wie ein Chat-Lauf; als
+**Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der
+Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
 
 ---
 
@@ -523,7 +525,7 @@ Läufe abstimmt, steht dort noch nicht: offener Punkt (#38).
 ### 4a — Implementer-Subagent
 
 Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
-unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht), davor die Messung
+als Lauf-Agent unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht), davor die Messung
 der RAM-Bremse. Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — dort, mitten in der
