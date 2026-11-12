@@ -114,7 +114,7 @@ Zeilen zeichnet das Script die Formation**; was hier steht, steht dort. Die Spal
 | Laufzustand | Chip | in der Formation | wann |
 |---|---|---|---|
 | im Dock | `.state.wait` | im Dock links | wartet auf eine Reihenfolge-Kante, eine Kollision oder die Bremse; `data-wartet="#<nr>"` an der Zeile nennt den Grund im Dock |
-| läuft | `.state.live` | Schiff glüht | der Lauf-Agent oder übernommene Chat arbeitet |
+| läuft | `.state.live` | Schiff glüht | der Lauf arbeitet — Sitzung, Lauf-Agent oder übernommener Chat |
 | wartet auf dich | `.state.you` | Schiff blinkt | eine Frage, auf die der Lauf wartet, liegt beim Menschen |
 | fertig | `.state.done` | Schiff blau | `FLOTTE-ENDE` ist da; der `.sub` sagt, ob PR offen, gemergt oder aufgeräumt |
 | abgebrochen | `.state.fail` | Schiff rot | der Lauf endet ohne Block oder mit Abbruch; Glut-Punkt unter „Beim Menschen" |
@@ -123,8 +123,8 @@ Zeilen zeichnet das Script die Formation**; was hier steht, steht dort. Die Spal
   des Epics, in der Reihenfolge und im Zustand seiner Lauftafel (`wait`, `live`, `done`, `fail`,
   `block`), dahinter `<span class="mono">abgenommen/gesamt</span>`. Die Zahlen stehen auch im
   `aria-label`.
-- **Lauf**: die Agent-ID (die ersten sieben Zeichen), bei einem übernommenen Chat ein Link auf die
-  Sitzung, dann der Link auf die Lauftafel des Laufs.
+- **Lauf**: bei einer Sitzung — von dir gestartet oder übernommen — ein Link auf sie, bei einem
+  Lauf-Agenten die Agent-ID (die ersten sieben Zeichen), dann der Link auf die Lauftafel des Laufs.
 - **PR**: Link auf den Pull Request, sonst `—`.
 
 Glut tragen auch hier nur „läuft" und „wartet auf dich" (`--live`, `--you`).

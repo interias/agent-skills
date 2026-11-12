@@ -14,8 +14,6 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 - **Plugin `mattpocock-skills`**, eingerichtet nach [`mattpocock-skills/`](mattpocock-skills/README.md).
   `epic-nacharbeit` und `epic-lagebesprechung` setzen daraus `grilling` voraus.
 - **Python mit Pillow** für die Skripte von `mail-antwort`.
-- Nur für `experimente/scripts/spiegel.ps1`: Gitea-Zugang mit den Scopes `write:organization`,
-  `write:repository` und `write:issue` (Token in `GITEA_API_TOKEN`, sonst `git credential fill`).
 
 ## Ablauf
 
@@ -42,8 +40,8 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 
 - **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
   `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `mail-antwort` — nach
-  `~/.claude/skills/<name>`. `mattpocock-skills/` (ohne `SKILL.md`) und alles unter `experimente/`
-  bleiben außen vor. Ein vorhandener Zielordner
+  `~/.claude/skills/<name>`. `mattpocock-skills/` (ohne `SKILL.md`) und `arbeitspferd/` bleiben
+  außen vor. Ein vorhandener Zielordner
   wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,
   wenn die Sicherung nachweislich vollständig ist. Ordner unter alten Namen (`prd`, `prd-nacharbeit`,
   `prd-aufraeumen`, `prd-flotte`) werden gesichert und entfernt.
