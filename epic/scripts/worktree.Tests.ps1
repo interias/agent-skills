@@ -560,6 +560,23 @@ Describe 'worktree.ps1 CleanupStale' {
         }
     }
 
+    It 'leaves a lock alone whose PID now belongs to a process with an unreadable start time' {
+        $protected = Get-Process | Where-Object { $_.Id -gt 0 -and -not $_.StartTime } | Select-Object -First 1
+        if (-not $protected) { Set-TestInconclusive 'no process with an unreadable start time on this machine'; return }
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        $lockPath = Join-Path $t.Repo '.git\epic-locks\1.json'
+        $lock = Get-Content $lockPath -Raw | ConvertFrom-Json
+        $lock.sessionPid = $protected.Id
+        Set-Content -Path $lockPath -Value (ConvertTo-Json $lock)
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        (Find-Entry $r 'lock' '1')[0].action | Should Be 'skipped'
+        (Find-Entry $r 'lock' '1')[0].reason | Should Match 'alive'
+        Test-Path $t.Worktree | Should Be $true
+        Test-Path $lockPath | Should Be $true
+    }
+
     It 'reports a dirty worktree with path, branch and reason and keeps it' {
         $t = New-AdapterRepo
         $session = Start-Session
