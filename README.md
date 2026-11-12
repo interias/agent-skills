@@ -155,15 +155,21 @@ während die Implementer die Masse der Tokens verbrauchen; deshalb läuft nur er
   ohne Sitzungswerkzeuge als Subagent. Wie viele gleichzeitig laufen, bestimmt die Kollisionsstufe
   je Paar, nie mehr als vier. Der Träger Sitzung ist an einem echten Einsatz noch nicht erprobt
   (Stand 12.11.2026).
-- **Entscheidungsrecht:** Die Fragen der Läufe beantwortet der Admiral, jede Entscheidung mit
-  Herkunft in Gitea.
+- **Entscheidungsrecht:** Der Admiral entscheidet die Fragen der Läufe endgültig; du bestätigst
+  nichts vorab, sondern liest nach und widerrufst, was dir nicht passt. Die Grenze: Was sich nach
+  dem Fakt nicht widerrufen lässt, bleibt bei dir, und der Lauf wartet.
 
-  | Der Admiral entscheidet selbst | Vorläufig, bis du bestätigst oder kippst | Immer du |
-  |---|---|---|
-  | wofür der Skill eine Empfehlung nennt oder es eine verlinkbare Präzedenz gibt; Belegung und Reihenfolge; Handgriffe der Nacharbeit | was bis zum Merge folgenlos umkehrbar ist; der PR trägt solange `WIP:` | Produktiv- und Stammdaten, Zugriffe, Freigaben aus `gate_approvals`, das Lockern einer Regel, eine Freigabe trotz RAM-Bremse, Mergen, Remote-Branch löschen |
+  | Der Admiral entscheidet | Immer du |
+  |---|---|
+  | jede Frage eines Laufs, die bis zum Merge umkehrbar ist, auch gegen die Empfehlung des Laufs und mit eigener Antwort; Belegung und Reihenfolge; Handgriffe der Nacharbeit | Produktiv- und Stammdaten, Zugriffe, Freigaben aus `gate_approvals`, das Lockern einer Regel, eine Freigabe trotz RAM-Bremse, Mergen, Remote-Branch löschen, alles nach dem Merge |
 
-- **Eigene Antwort:** Der Admiral ist nicht an die Optionen gebunden, die ein Lauf vorlegt; er
-  darf mit eigenem Text antworten. Ohne Herkunft gilt eine solche Antwort als vorläufig.
+- **Nachlesen:** Jede Entscheidung steht als Kommentar am betroffenen Issue und im Pull Request
+  des Epics. Die einflussreichen — Abweichung von der Empfehlung des Laufs, eigenes Urteil,
+  geänderter Umfang, etwas bleibt ungeprüft — stehen zusätzlich im **Entscheidungsprotokoll**, den
+  Kommentaren am Issue `Flottenlogbuch`: Frage, Lage, Optionen, Entscheidung, Warum.
+- **Widerrufen:** im Chat, in der Lagebesprechung oder als Kommentar. Der Admiral gibt den
+  Widerruf an den Lauf und schlägt die Regel vor, die ihn künftig erspart: für das Projekt im
+  Abschnitt „Entscheidungsregeln" des Adapters, oder für alle Projekte als Änderung dieses Skills.
 - **Bremsen:** Die Verbrauchsbremse liest 5-Stunden- und Wochenlimit (bei Gelb nichts Neues, bei
   Rot Pause bis zum Reset), die RAM-Bremse den Speicher. Den Stand schreibt der Admiral ins Issue
   `Flottenlogbuch`, das KIBO anzeigt.

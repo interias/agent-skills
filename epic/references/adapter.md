@@ -28,6 +28,12 @@ Der Fließtext des Adapters sind **Projektregeln**, zum Beispiel Doku-Pflicht, M
 oder Fachsprache. Sie gelten wie Regeln des Skills. Der Adapter darf den Skill **verschärfen, nie
 lockern**. Ein Eintrag, der eine Regel des Skills aufheben würde, ist ein Punkt für das Vorab-Tor.
 
+Ein Abschnitt **`## Entscheidungsregeln`** im Fließtext legt fest, wie der Admiral von
+`/epic-flotte` wiederkehrende Fragen in diesem Projekt entscheidet: je Regel ein Satz, mit Datum
+und Anlass (meist ein Widerruf). Sie binden den Admiral und gehen der Empfehlung des Skills vor
+(`epic-flotte/SKILL.md`, „Entscheidungsrecht"). Was dort beim Menschen liegt, können sie ihm nicht
+übertragen. Fehlt der Abschnitt, gilt die Rangfolge des Skills.
+
 ## Fehlt der Adapter
 
 Ableiten, was ableitbar ist: Forge aus `git remote get-url origin`, Testbefehle aus

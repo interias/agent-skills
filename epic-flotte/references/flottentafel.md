@@ -26,8 +26,8 @@ zugleich geändert; die Prüfung mit `diff` steht in `lauftafel.md` („Die Vorl
 zeichnet die Formation und blättert den unteren Bereich; der Admiral pflegt nur HTML-Daten.
 
 Die Vorlage trägt die Musterdaten eines erfundenen Einsatzes und zeigt darin **jede** Form einmal:
-alle fünf Laufzustände, alle fünf Paketformen, drei Kollisionsstufen, eine vorläufige
-Entscheidung, beide Sorten Punkte beim Menschen, eine gelbe Bremse. Das ist eine Formenlehre, kein
+alle fünf Laufzustände, alle fünf Paketformen, drei Kollisionsstufen, eine Entscheidung
+im Protokoll, beide Sorten Punkte beim Menschen, eine gelbe Bremse. Das ist eine Formenlehre, kein
 Anfangszustand. Im Anfangszustand stehen die Epics der Belegung auf „läuft" mit allen Paketen
 „wartend", die übrigen im Dock; unter „Beim Menschen" steht `Nichts offen.` nach dem
 auskommentierten Muster, unter „Entscheidungen" `<p class="none">Noch keine.</p>`, unter „Bremse"
@@ -93,7 +93,7 @@ Farbchips `gruen`, `gelb`, `rot` gehören der Verbrauchsbremse.
 |---|---|---|
 | Läufe | belegte Plätze `/` Obergrenze der Flotte (nach Kollisionsstufe und Wochenfenster) | Zahl der Epics im Dock |
 | Pakete | abgenommene Pakete `/` alle Pakete, über alle Läufe | „über alle Läufe" |
-| Selbst entschieden | Zahl der Zeilen auf der Seite Entscheidungen | davon vorläufig |
+| Selbst entschieden | Zahl der Zeilen auf der Seite Entscheidungen | davon im Protokoll |
 | Wartet auf dich | Zahl der Glut-Punkte unter „Beim Menschen" | von wie vielen Punkten, wie viele die Flotte hebt |
 
 Die Pakete-Kachel ist die Summe der Mini-Segmentleisten. Hitze-Tönung gibt es auf der
@@ -165,7 +165,8 @@ der Tafel, nie im Flottenlogbuch.
 Wie „Offene Punkte" der Lauftafel, mit derselben Schiene links:
 
 - `.item.you` (Glut): Was nach „Entscheidungsrecht" beim Menschen liegt — offene Fragen,
-  vorläufige Entscheidungen zum Bestätigen oder Kippen, Pull Requests zum Mergen, Abbrüche.
+  Pull Requests zum Mergen, Abbrüche. Entscheidungen des Admirals stehen nicht hier, sondern auf
+  der Seite Entscheidungen: Sie warten auf keine Bestätigung.
   Diese Punkte zählt die Kachel „Wartet auf dich".
 - `.item.run` (Blau): Was die Flotte selbst hebt, etwa eine Pause der Bremse.
 
@@ -182,10 +183,11 @@ warum ein Platz leer ist.
 
 **Entscheidungen**: **alle** eigenen Entscheidungen des Einsatzes, neueste oben, je eine
 `<div class="d">` mit dem Epic (oder `Flotte`) in `.lbl`, der Entscheidung in einem Satz und in
-`.hard` Herkunft, „Aufheben" (was ein Mensch tun müsste) und dem Link auf den Forge-Kommentar —
-dieselben Felder wie der Kommentar in `SKILL.md`. Eine vorläufige trägt `class="d vorl"` und
-`<span class="vk">vorläufig</span>`; bestätigt der Mensch, wird daraus `bestätigt`, kippt er sie,
-`gekippt` mit der neuen Option im Satz. Gestrichen wird keine.
+`.hard` Herkunft, „Widerrufen" (was ein Mensch tun müsste) und dem Link auf den Forge-Kommentar —
+dieselben Felder wie der Kommentar in `SKILL.md`. Eine einflussreiche trägt `class="d vorl"` und
+`<span class="vk">Protokoll</span>`, ihr Link führt auf den Eintrag im Entscheidungsprotokoll;
+widerruft der Mensch eine Entscheidung, wird aus der Marke `widerrufen` mit der neuen
+Entscheidung im Satz. Gestrichen wird keine.
 
 **Bremse**: der Verlauf der Messungen, je Aufwachen eine Zeile, neueste unten: Zeit, Stufe
 (`<span class="stufe gruen|gelb|rot">`), 5 Stunden verbraucht, hochgerechnet, Woche, Zuwachs seit
@@ -205,8 +207,8 @@ im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
 - die Kacheln
 - die Bremse-Leiste und eine neue Zeile auf der Seite Bremse bei jeder Messung, mit der RAM-Messung
   dieses Aufwachens und der Messung in `.stamp`
-- eine neue Zeile auf der Seite Entscheidungen bei jeder eigenen Entscheidung, Bestätigung oder
-  jedem Veto
+- eine neue Zeile auf der Seite Entscheidungen bei jeder eigenen Entscheidung und jedem
+  Widerruf
 - „Beim Menschen": dazugekommene, erledigte Punkte
 - Balken und Abweichungszeile der Belegung
 

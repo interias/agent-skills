@@ -146,10 +146,10 @@ STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen; an sie gebunden ist er
 nicht. `Lage` nennt deshalb den Sachverhalt so, dass er ohne Nachlesen auch anders antworten kann.
 Seine Antwort ist ein Buchstabe oder ein eigener Text (`Antwort: <…>`, siehe „Eigene Antwort");
-der Lauf arbeitet mit beidem gleich weiter. Antwortet er `vorläufig: <Option oder Text>`,
-arbeitet der Lauf damit weiter wie mit jeder Antwort und öffnet den Pull
-Request mit `WIP:` (`epic/SKILL.md`, Phase 6). Ein späteres Veto des Menschen kommt als Antwort
-an einem Prüfpunkt; wie es ankommt und umgesetzt wird, steht unter „Vorläufig mit Veto".
+der Lauf arbeitet mit beidem gleich weiter und nennt die Entscheidungen des Admirals im Body
+seines Pull Requests (`epic/SKILL.md`, Phase 6). Widerruft der Mensch später eine Entscheidung,
+kommt das als `widerruf: <Frage> → <neue Entscheidung>` an einem Prüfpunkt; wie es umgesetzt
+wird, steht unter „Widerruf".
 
 **Meldet ein Lauf `hold`** der RAM-Bremse (`epic/SKILL.md`, „Die RAM-Bremse"), fragt er nicht selbst,
 sondern beendet seinen Zug mit einem Frageblock der Phase `ram`: Messwert, Optionen „warten bis
@@ -183,10 +183,10 @@ Auftrag kennt: Deshalb braucht er die Freigabe des Menschen und deine erste Nach
   Laufs, Ende mit PR, Abbruch.
 - **Antworten und anstoßen:** per `SendMessage` an den Chat, erste Zeile *„Admiral <Name>
   (/epic-flotte): <worum es geht>"*. Je Antwort kennzeichnen, ob sie **deine Entscheidung** ist
-  (mit Herkunft, auch in der Forge), **vorläufig** („Vorläufig mit Veto") oder **vom Menschen
-  bestätigt**. Die erste Nachricht sagt dem Chat, dass er ab jetzt nicht mehr mit
+  (mit Herkunft, auch in der Forge) oder **vom Menschen** kommt. Die erste Nachricht sagt dem
+  Chat, dass er ab jetzt nicht mehr mit
   `AskUserQuestion` fragt, sondern als Text und seinen Zug beendet (`epic/SKILL.md`, „Wie gefragt
-  wird"). Ein Veto geht nach „Vorläufig mit Veto". Nacharbeit und Aufräumen stößt du im
+  wird"). Ein Widerruf geht nach „Widerruf". Nacharbeit und Aufräumen stößt du im
   selben Chat an („Rufe den Skill `epic-nacharbeit` mit `#<nr>` auf"); er hat den
   Kontext des Laufs.
 - **Nie stoppen oder archivieren**, ohne dass der Mensch es verlangt.
@@ -198,6 +198,9 @@ Auftrag kennt: Deshalb braucht er die Freigabe des Menschen und deine erste Nach
 - Adapter `.claude/epic.md` lesen, Forge-Zugang einmal verifizieren, Schreibrecht prüfen
   (`epic/references/forge.md`).
 - `git status` im Hauptverzeichnis muss leer sein, sonst anhalten und fragen.
+- **Entscheidungsregeln und Widerrufe lesen:** den Abschnitt „Entscheidungsregeln" des Adapters,
+  und im Entscheidungsprotokoll am Flottenlogbuch die Einträge und Kommentare seit dem letzten
+  Einsatz. Ein Widerruf, zu dem noch keine Regel steht, gilt als Präzedenz („Widerruf").
 - `askUserQuestionTimeout` in den Einstellungen nachsehen (`~/.claude/settings.json`, sonst die
   Projektebenen); fehlt er überall, siehe „Den Menschen fragen".
 - **Laufende Läufe feststellen:** `git worktree list` und der Inhalt von `worktree_root`. Je
@@ -302,12 +305,10 @@ Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") u
 - **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" beantworten und dem Menschen vorlegen.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
-  entscheidest du, schreibst es mit Herkunft in die Forge und antwortest dem Lauf. Was beim
-  Menschen liegt, aber vorläufig entschieden werden darf (siehe „Vorläufig mit Veto"),
-  entscheidest du vorläufig und antwortest `vorläufig: <Option>` — der Lauf arbeitet weiter. Den
-  Rest und die vorläufigen Entscheidungen sammelst du **über alle Läufe** und legst sie dem
-  Menschen gebündelt vor (siehe „Den Menschen fragen"). Antworten gehen an den richtigen Lauf
-  zurück.
+  entscheidest du, schreibst es auf („Was aufgeschrieben wird") und antwortest dem Lauf — er
+  arbeitet weiter. Was beim Menschen liegt, sammelst du **über alle Läufe** und legst es ihm
+  gebündelt vor (siehe „Den Menschen fragen"); nur der betroffene Lauf wartet solange. Antworten
+  gehen an den richtigen Lauf zurück.
 - **`FLOTTE-ENDE`:** den Pull Request in der Forge nachlesen (offen, Ziel `<basis>`, `Closes`
   stimmig, Abschlusskommentar steht), die Lauftafel nachlesen, die Flottentafel fortschreiben.
   Dann Phase 4 für dieses Epic, und der frei gewordene Platz geht nach Phase 1 an das nächste
@@ -335,10 +336,9 @@ Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") u
    neuen Lauf-Agenten. Die Fragerunden kommen als `FLOTTE-FRAGE … nacharbeit` zu dir. Die Frage
    „passt in diese Sitzung oder braucht ein Ticket" beantwortest du nach den Volumenkriterien von
    `epic-nacharbeit` (Phase 2); sie sind prüfbar und damit dein Recht.
-2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt. Das
-   `WIP:` aus einer vorläufigen Entscheidung nimmst du selbst ab (Titel per Forge), wenn jede
-   vorläufige Entscheidung des Epics bestätigt oder nach dem Veto umgesetzt ist — und nur, wenn
-   kein anderer Grund aus `epic/SKILL.md` (Phase 6, Titel) bleibt.
+2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt, und
+   nennst dabei deine einflussreichen Entscheidungen zu diesem Epic mit Link ins Protokoll: Der
+   Merge ist die Stelle, an der der Mensch sie spätestens liest.
 3. **Merge erkennen:** bei jedem Aufwachen die offenen Epic-PRs in der Forge nachsehen (`merged`).
 4. **Nach dem Merge:** auf demselben Weg `epic-nacharbeit` zum Schließen des Epics (sofern alle
    Kinder zu sind), dann `epic-aufraeumen` mit der PR-Nummer. Remote-Branches löscht der Lauf
@@ -356,99 +356,137 @@ Wenn kein Epic mehr startbereit ist und kein Lauf mehr läuft:
 - Flottenlogbuch auf den Endstand: `active: false`, Zähler in `history` fortgeschrieben.
 - Flottentafel auf den Endstand: je Epic Ergebnis, PR, Merge-Zustand, Nacharbeit, Aufräumen.
 - **Bericht:** Verbrauch und Schwellen-Befund mit Vorschlag für `references/verbrauch.md`
-  („Verbrauchsbremse"); Belegung geplant gegen tatsächlich, je Epic das Ergebnis, alle eigenen
-  Entscheidungen mit Herkunft (zum Überstimmen), was beim Menschen liegt, welche PRs auf den Merge
-  warten.
+  („Verbrauchsbremse"); Belegung geplant gegen tatsächlich, je Epic das Ergebnis, die
+  einflussreichen Entscheidungen als Liste mit Link ins Protokoll (zum Widerrufen), die übrigen
+  als Zahl, was beim Menschen liegt, welche PRs auf den Merge warten.
 
 ---
 
 ## Entscheidungsrecht
 
-Du entscheidest viel selbst — das ist der Zweck dieses Skills. Die Grenze zieht nicht der Mut,
-sondern die Frage, ob eine Entscheidung **eine Herkunft hat** und **folgenlos aufhebbar** ist.
+Du entscheidest — das ist der Zweck dieses Skills. Der Mensch bestätigt deine Entscheidungen nicht
+vorab: Er liest sie nach und widerruft, was ihm nicht passt. Die Grenze zieht deshalb eine Frage:
+**Lässt sich die Entscheidung nach dem Fakt widerrufen?** Was sich widerrufen lässt, entscheidest
+du und schreibst es auf. Was sich nicht widerrufen lässt, liegt beim Menschen, und der Lauf wartet.
 
-| Du entscheidest selbst | … mit Präzedenz | Immer der Mensch |
-|---|---|---|
-| Die Empfehlung des Skills für den Fall, wenn er eine nennt (etwa Tor-Punkt 9: nicht fahrbarer Verifikationsweg → offener Punkt, PR mit `WIP:`) | Dieselbe Frage wurde in **diesem** Projekt schon entschieden: ADR, `out_of_scope_dir`, Antwort an einem früheren Vorab-Tor oder in einer Nacharbeit (Kommentare am Zielissue) | Ein Adaptereintrag oder eine Antwort würde eine Regel lockern (Tor-Punkt 3) |
-| Kanten aus `body` nachtragen (Tor-Punkt 11), Belegung und Reihenfolge der Epics | Dieselbe Frage wurde in **einem anderen Projekt** dieser Forge entschieden, der Kontext passt, und die Entscheidung ist aufhebbar | Produktiv- oder Stammdaten (Regel 4, Tor-Punkt 5) |
-| Nacharbeit: Handgriffe (lokal, reversibel), „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge | | Zugriff aus `no_access` (Tor-Punkt 4), fehlendes Schreibrecht (10), `gate_approvals` (12) |
-| Einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen | | Widerspruch zu einem ADR oder Out-of-Scope (Tor-Punkt 6) — eines von beiden ist falsch |
-| | | Eine Freigabe trotz RAM-`hold` (die Umkehr wäre ein Absturz, nie vorläufig) |
-| | | PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde |
+Herkunft: Vorgabe des Menschen vom 12.11.2026. Bis dahin galt eine Entscheidung ohne Herkunft als
+vorläufig, und der Pull Request trug `WIP:`, bis ein Mensch sie bestätigt hatte.
 
-**Präzedenz suchen** ist Faktenbeschaffung und damit deine Aufgabe: in der Forge die Kommentare
-an Epics dieses und anderer Repositorys (Vorab-Tor, `### Was das Epic offen lässt`, Nacharbeit),
-die ADRs, und frühere Sitzungen (`search_session_transcripts`). Eine Präzedenz gilt nur, wenn du
-sie **verlinken** kannst.
+| Du entscheidest | Immer der Mensch |
+|---|---|
+| Jede Tor-, Nacharbeits- und Abbruchfrage eines Laufs, die sich bis zum Merge des Epic-PRs umkehren lässt — auch gegen die Empfehlung des Laufs und mit eigener Antwort | Produktiv- oder Stammdaten (Regel 4, Tor-Punkt 5) |
+| Nicht fahrbarer Verifikationsweg (Tor-Punkt 9), Kanten aus `body` (Tor-Punkt 11), Belegung und Reihenfolge der Epics | Zugriff aus `no_access` (Tor-Punkt 4), fehlendes Schreibrecht (10), `gate_approvals` (12) |
+| Widerspruch zu einem ADR oder Out-of-Scope (Tor-Punkt 6), in eine Richtung: Der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil des Issues wird offener Punkt | Ein Adaptereintrag oder eine Antwort würde eine Regel lockern (Tor-Punkt 3) |
+| Nacharbeit: Handgriffe (lokal, reversibel), „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge | Eine Freigabe trotz RAM-`hold` (die Umkehr wäre ein Absturz) |
+| Einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen | PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde, und alles nach dem Merge des Epic-PRs |
 
-**Jede eigene Entscheidung** geht als Kommentar an das betroffene Issue:
+**Worauf du dich stützt**, in dieser Rangfolge. Die erste, die greift, ist die **Herkunft** deiner
+Entscheidung:
 
-```
-**Entschieden von /epic-flotte (Admiral <Name>)** — <Frage in einem Satz>
-Entscheidung: <…>
-Herkunft: <Skill-Empfehlung | Präzedenz: Link | Volumenkriterium: welches | Eigene Antwort: Grund>
-Aufheben: <was ein Mensch tun müsste, um sie umzukehren>
-```
-
-und als Zeile auf die Seite „Entscheidungen" der Flottentafel (`references/flottentafel.md`),
-mit Herkunft, „Aufheben" und Link auf den Kommentar. Der Mensch kann jede überstimmen; eine
-Entscheidung, die sich nicht folgenlos aufheben ließe, gehört deshalb in die rechte Spalte.
+1. **Entscheidungsregeln des Projekts** — der Abschnitt „Entscheidungsregeln" im Adapter
+   (`epic/references/adapter.md`, „Form"). Sie binden dich.
+2. **Die Empfehlung des Skills**, wenn er für den Fall eine nennt.
+3. **Präzedenz:** Dieselbe Frage wurde in diesem Projekt schon entschieden (ADR,
+   `out_of_scope_dir`, ein früheres Vorab-Tor, eine Nacharbeit, ein Widerruf) oder in einem anderen
+   Projekt dieser Forge, und der Kontext passt. Sie gilt nur, wenn du sie **verlinken** kannst.
+   Präzedenz suchen ist Faktenbeschaffung und damit deine Aufgabe: die Kommentare an Epics dieses
+   und anderer Repositorys, das Entscheidungsprotokoll, die ADRs, frühere Sitzungen
+   (`search_session_transcripts`).
+4. **Eigenes Urteil** aus dem Gesamtbild, mit Begründung.
 
 ### Eigene Antwort
 
 Die Optionen eines Frageblocks schreibt ein Lauf, der nur sein Epic kennt. Du kennst alle Läufe,
 die Forge und die früheren Entscheidungen. Trifft keine Option die Lage, oder gibt es eine
 bessere, antwortest du mit eigenem Text statt mit einem Buchstaben: `Antwort: <was der Lauf tun
-soll, so genau, dass er nicht nachfragen muss>`.
+soll, so genau, dass er nicht nachfragen muss>`. Maßgeblich bleibt die Frage, nicht die Form der
+Antwort: Was in der rechten Spalte steht, liegt weiter beim Menschen.
 
-- **Das Entscheidungsrecht bleibt, wie es ist.** Maßgeblich ist die Frage, nicht die Form der
-  Antwort: Was in der rechten Spalte steht, liegt weiter beim Menschen.
-- Hat die eigene Antwort eine Herkunft aus der Tabelle (Skill-Empfehlung, Präzedenz,
-  Volumenkriterium), ist sie deine Entscheidung. Hat sie keine, gilt sie als **vorläufig** nach
-  „Vorläufig mit Veto", mit dessen Grenzen („Nie vorläufig").
-- Der Forge-Kommentar nennt als Herkunft `Eigene Antwort: <der Grund aus dem Gesamtbild, mit Link,
-  wo es einen gibt>` und dazu die Optionen des Laufs, damit der Mensch sieht, wovon du abgewichen
-  bist.
+### Was aufgeschrieben wird
 
-### Vorläufig mit Veto
+**Jede Entscheidung** geht als Kommentar an das betroffene Issue:
 
-Eine Frage aus der rechten Spalte hält ihren Lauf nicht an, wenn sie sich **bis zum Merge folgenlos
-umkehren** lässt — gemergt wird ohnehin nur vom Menschen. Du wendest deine Empfehlung vorläufig an,
-der Lauf arbeitet weiter, und der Mensch bestätigt oder kippt sie mit der nächsten Runde.
+```
+**Entschieden von /epic-flotte (Admiral <Name>)** — <Frage in einem Satz>
+Entscheidung: <…>
+Herkunft: <Projektregel: welche | Skill-Empfehlung | Präzedenz: Link | Volumenkriterium: welches | Eigenes Urteil: Grund>
+Verworfen: <die Optionen des Laufs und seine Empfehlung, soweit du davon abweichst>
+Widerrufen: <was ein Mensch tun müsste, um sie umzukehren, und was das kostet>
+```
 
-- **Nie vorläufig:** Produktiv- oder Stammdaten, Zugriff aus `no_access`, fehlendes Schreibrecht,
-  `gate_approvals`, eine Freigabe trotz RAM-`hold`, eine Antwort, die eine Regel lockert, PR
-  mergen, Remote-Branch löschen, ein Issue schließen, und alles nach dem Merge des Epic-PRs. Hier
-  wartet der Lauf.
-- **Widerspruch zu ADR oder Out-of-Scope:** vorläufig nur in eine Richtung — der Lauf folgt der
-  bestehenden Entscheidung und lässt den widersprechenden Teil des Issues als offenen Punkt.
-- **Forge-Kommentar** wie oben, Kopfzeile **Vorläufig entschieden von /epic-flotte (Admiral
-  <Name>)**, dazu `Gilt bis: Bestätigung oder Veto; bis dahin trägt der Pull Request WIP:`.
-  Bestätigt der Mensch, ergänzt du am selben Issue „bestätigt vom Menschen", kippt er sie,
-  „gekippt vom Menschen: <neue Option>".
-- **`WIP:`** Ist der Pull Request schon offen, wenn du vorläufig antwortest, setzt du das Präfix
-  selbst (Titel per Forge); sonst setzt es der Lauf bei der Eröffnung.
-- **Veto:** Du schickst es dem Lauf an seinem nächsten Prüfpunkt als `veto: <Frage> → <neue
-  Option>` (Sitzung oder übernommener Chat: sobald der Zug endet). Der Lauf setzt es als nächstes
-  Paket um, ein Lauf-Agent in der nächsten Welle, notfalls einer zusätzlichen; liegt sein Pull Request schon offen, wird es ein Punkt
-  für `/epic-nacharbeit`. Das `WIP:` bleibt, bis es umgesetzt ist.
+und als Zeile auf die Seite „Entscheidungen" der Flottentafel (`references/flottentafel.md`). Der
+Lauf nennt deine Entscheidungen zu seinem Epic im Body des Pull Requests (`epic/SKILL.md`,
+Phase 6); dort liest sie der Mensch spätestens beim Merge. `WIP:` trägt der Pull Request ihretwegen
+nicht.
+
+**Einflussreiche Entscheidungen** stehen zusätzlich im **Entscheidungsprotokoll**: je Entscheidung
+ein Kommentar am Flottenlogbuch („Flottenlogbuch"), damit sie über alle Epics und Einsätze an
+einem Ort nachlesbar bleiben. Einflussreich ist eine Entscheidung, die
+
+- von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist,
+- sich nur auf dein eigenes Urteil stützt,
+- einen Widerspruch auflöst (ADR, Out-of-Scope, Issue gegen Arbeitsbaum),
+- den Umfang ändert — ein Paket, eine User Story oder ein Abnahmepunkt wird ausgelassen,
+  verschoben oder anders geschnitten,
+- etwas ungeprüft lässt, etwa einen Verifikationsweg zum offenen Punkt macht,
+- mehr als ein Paket oder mehr als ein Epic betrifft.
+
+Im Zweifel gehört sie hinein. Der Eintrag soll ohne den Chat verständlich sein:
+
+```
+**Protokoll /epic-flotte (Admiral <Name>)** — Epic #<nr>, <Datum>
+Frage: <ein Satz>
+Lage: <was vorlag, mit Fundstellen>
+Optionen: <die des Laufs, mit seiner Empfehlung>
+Entscheidung: <…>
+Warum: <die Abwägung in zwei, drei Sätzen: was für die Alternativen sprach und woran sie scheiterten>
+Herkunft: <wie im Kommentar am Issue>
+Widerrufen: <was dann zu tun ist und was es kostet>
+Kommentar: <Link auf den Kommentar am Issue>
+```
+
+Im Abschlussbericht (Phase 5) stehen die einflussreichen Entscheidungen des Einsatzes als Liste mit
+Link ins Protokoll, die übrigen als Zahl.
+
+### Widerruf
+
+Der Mensch kann jede Entscheidung widerrufen: im Chat, in der Lagebesprechung, oder mit einem
+Kommentar am Issue oder im Protokoll. Diese Kommentare liest du zu Beginn eines Einsatzes
+(Phase 0) und bei jedem `FLOTTE-ENDE` nach.
+
+- **An den Lauf:** `widerruf: <Frage> → <neue Entscheidung>`, an seinem nächsten Prüfpunkt
+  (Sitzung oder übernommener Chat: sobald der Zug endet). Der Lauf setzt es als nächstes Paket um,
+  ein Lauf-Agent in der nächsten Welle, notfalls einer zusätzlichen. Liegt sein Pull Request schon
+  offen, wird es ein Punkt für `/epic-nacharbeit`. Nach dem Merge des Pull Requests entscheidet
+  der Mensch, ob daraus ein Ticket wird.
+- **In der Forge:** am Kommentar der Entscheidung und, wenn sie dort steht, im Protokoll die Zeile
+  „widerrufen vom Menschen: <neue Entscheidung>". Gestrichen wird nichts.
+- **Die Regel dahinter.** Ein Widerruf heißt, dass deine Entscheidungsfindung an dieser Stelle
+  nicht passt. Du schlägst deshalb im selben Zug die Regel vor, die ihn künftig erspart, als
+  ausformulierten Satz, und fragst den Menschen, wo sie gelten soll: **im Projekt** — Abschnitt
+  „Entscheidungsregeln" des Adapters, eingetragen über Branch und Pull Request als Punkt der
+  Nacharbeit oder vom Menschen selbst — oder **für alle Projekte** — dieser Skill, per Pull
+  Request ins Skill-Repository, nicht von dir direkt. Bis die Regel steht, gilt der Widerruf als
+  Präzedenz.
+
 
 ## Den Menschen fragen
 
 Form nach `epic/SKILL.md` („Wie gefragt wird"). Je Frage dazu das Epic und, wenn sie abweichen, die
-Empfehlung des Laufs neben deiner. Eine vorläufig entschiedene Frage steht mit deiner Wahl als
-erster Option und dem Vermerk „vorläufig angewendet". Vor den Fragen stehen die Entscheidungen,
-die du seit der letzten Runde selbst getroffen hast, je eine Zeile `✔ <Entscheidung> — <Herkunft>`
-mit Link auf den Forge-Kommentar, damit der Mensch sie kippen kann.
+Empfehlung des Laufs neben deiner. Gefragt wird nur, was nach „Entscheidungsrecht" beim Menschen
+liegt. Vor den Fragen stehen die Entscheidungen, die du seit der letzten Runde getroffen hast, je
+eine Zeile `✔ <Entscheidung> — <Herkunft>` mit Link auf den Forge-Kommentar, die einflussreichen
+zuerst und mit Link ins Protokoll, damit der Mensch sie widerrufen kann. Das ist eine Mitteilung,
+keine Frage: Du wartest nicht auf eine Bestätigung.
 
 **Wann:** `AskUserQuestion` blockiert deinen Zug, bis der Mensch antwortet; Meldungen der Läufe
 bleiben solange liegen. Deshalb ist die Frage der **letzte Schritt eines Zugs**: zuerst jedem
-wartenden Lauf antworten (eigene und vorläufige Entscheidungen, `weiter` oder `Pause`), frei
+wartenden Lauf antworten (deine Entscheidungen, `weiter` oder `Pause`), frei
 gewordene Plätze belegen, Tafel und Logbuch fortschreiben — dann fragen.
 
 **Ohne Antwort:** Kehrt die Frage nach dem Timeout unbeantwortet zurück (`askUserQuestionTimeout`
-in den Einstellungen des Menschen), gelten die vorläufigen Entscheidungen weiter, und Fragen, auf
-die ein Lauf wartet, bleiben offen. Ein Timeout ist nie eine Entscheidung. Die offenen Fragen
+in den Einstellungen des Menschen), bleiben die Fragen, auf die ein Lauf wartet, offen. Ein
+Timeout ist nie eine Entscheidung. Die offenen Fragen
 stellst du beim nächsten Aufwachen erneut, gebündelt mit neuen. Ist der Timeout nicht gesetzt,
 wartet die Frage beliebig lange, und Läufe an ihren Prüfpunkten stehen solange; unter Remote
 Control läuft er nicht. Das sagst du dem Menschen in Phase 0 einmal in einem Satz, wenn der
@@ -467,6 +505,9 @@ du deshalb auch nach Gitea, in **ein dauerhaft offenes Issue je Repository** mit
   `#00f0ff`, Beschreibung „Flottenlogbuch von /epic-flotte, kein Ticket"). Es gibt höchstens eines.
 - **Nie schließen**, auch nach dem Einsatz nicht: Ein geschlossenes zählte in KIBO als erledigt. Am Ende
   steht `active: false`.
+- **Seine Kommentare sind das Entscheidungsprotokoll** („Was aufgeschrieben wird"): je
+  einflussreicher Entscheidung einer, nie bearbeitet oder gelöscht; ein Widerruf kommt als Zeile
+  darunter. Den Body mit dem Block berührt das nicht.
 - **Body:** oben ein Satz für Menschen, dann die Marke und der Block. Du ersetzt den ganzen Body (PATCH
   aus einer Datei, `epic/references/forge.md`, „Stolperstellen"), bei jedem Ereignis, in dem du die
   Flottentafel fortschreibst, und liest ihn danach einmal nach.
@@ -587,8 +628,8 @@ im selben Zug wie jede Fortschreibung.
 
 - Das Hauptverzeichnis ist nicht sauber.
 - Das Flotten-Tor hat Punkte.
-- Fragen aus der rechten Spalte liegen vor, die nicht vorläufig entschieden werden dürfen — dann
-  warten nur die betroffenen Läufe; die übrigen laufen weiter.
+- Fragen aus der rechten Spalte des Entscheidungsrechts liegen vor — dann warten nur die
+  betroffenen Läufe; die übrigen laufen weiter.
 
 Wird der Einsatz abgebrochen, bleibt jeder Lauf mit seinem Stand stehen; du schreibst je
 laufendem Epic den Stand ans Zielissue und auf die Flottentafel (`epic/SKILL.md`, „Wird der Lauf
