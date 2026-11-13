@@ -750,11 +750,18 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
     fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
+- **Verbrauch messen:** `scripts/usage.ps1 -RepoRoot <startverzeichnis der sitzung> -Contains
+  'epic/<nr>-'` (Kopfkommentar des Skripts) summiert aus den Transkripten den Verbrauch je Rolle,
+  je Paket und je Agent. Hat die Sitzung mehr getan als diesen Lauf, grenzt `-Since` mit der Zeit
+  des Eröffnungskommentars ein. Das Paket liest das Skript aus der `description` des
+  `Agent`-Aufrufs — sie nennt deshalb immer die Paketnummer (`Implementer #588 …`,
+  `Reviewer #588 …`). Exit 1 ist ein offener Punkt im Bericht, kein Glut-Punkt.
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Hinein: Link auf
   Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden, Paketklasse und
   Eskalationen; tatsächliche gegen geplante
   Belegung und woran Abweichungen lagen; übersprungene und blockierte Tickets mit Grund und dem,
-  was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
+  was sie freischalten; Teststand vorher/nachher; der gemessene Verbrauch (Anteil je Rolle,
+  `weighted` je Paket mit Paketklasse und Runden); was beim Merge passiert, wenn der Lauf eine
   Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
   Epic noch offen lässt.
 - Das Zielissue verliert mit dem Abschlusskommentar `status/in-arbeit`, in allen Modi.
