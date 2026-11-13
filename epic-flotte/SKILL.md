@@ -115,8 +115,11 @@ Ein **Lauf-Agent** ist ein Subagent (`Agent`, `subagent_type: epic-lauf` — Opu
 Denkstufe; fehlt der Typ, `general-purpose` mit `model: opus` —,
 `run_in_background: true`), der den Skill `epic`, `epic-nacharbeit` oder `epic-aufraeumen` aufruft
 und ausführt. Er hat das `Agent`-Werkzeug selbst und startet seine Implementer und Reviewer wie
-ein Chat-Lauf. Zwei Dinge unterscheiden ihn von einer Sitzung, und beide schreibst du in seinen
-Auftrag:
+ein Chat-Lauf. Sein Agent-Typ setzt `experimental.cacheTtl: 1h`: Ein Subagent hat sonst einen
+Cache von fünf Minuten und schreibt nach jeder Welle seinen ganzen Kontext neu (Messung vom
+13.11.2026 über 121 Lauf-Agenten: 82 % ihrer Cache-Schreibvorgänge folgten auf eine Pause von 5
+bis 60 Minuten). Der Ersatz `general-purpose` hat das nicht. Zwei Dinge unterscheiden ihn von
+einer Sitzung, und beide schreibst du in seinen Auftrag:
 
 - **Nach jeder Welle** — alle Pakete der Welle gemergt oder zurückgelassen, Tafel fortgeschrieben,
   die nächste Welle noch nicht gestartet — beendet er seinen Zug mit `FLOTTE-WELLE <epic>`, den
