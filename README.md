@@ -52,6 +52,7 @@ die am meisten ausmachen:
 | `shared_services`, `worktree_may_start` | welche Dienste geteilt laufen und was ein Paket selbst starten darf |
 | `acceptance_commands` | Prüfungen mit vollem Stack, einmal vor dem Pull Request |
 | `gate_approvals`, `no_access` | was immer am Vorab-Tor vorgelegt wird |
+| `code_graph: off` | schaltet den Code-Graphen ab; ohne den Schlüssel wird er gebaut, sobald Graphify installiert ist |
 
 Ein Kind-Ticket braucht eine Abnahmeliste und einen Verifikationsweg, sonst überspringt der Lauf
 es mit Kommentar. Eine Spec hat sieben feste Abschnitte; ihre User Stories sind die Abnahmeliste.
@@ -64,14 +65,23 @@ Deine Sitzung ist der **Orchestrator**: Er schneidet, prüft nach und mergt in d
 Pakete setzen Subagenten um.
 
 1. **Rüsten:** Reste toter Sitzungen abräumen, Epic-Worktree anlegen, den Ausgangsstand von Tests
-   und Lint messen.
+   und Lint messen und, wenn Graphify installiert ist, den **Code-Graphen** bauen.
 2. **Lesen und schneiden:** das Issue ganz lesen, Pakete bilden, jedem eine **Paketklasse** geben
    (mechanisch, Standard, Urteil), Abhängigkeiten und Kollisionen als Graph.
 3. **Vorab-Tor:** alles Fragwürdige in einer Runde, mit Antwortmöglichkeiten und Empfehlung.
 4. **Je Paket**, bis zu `window` gleichzeitig: eigener Branch und Worktree → Implementer →
    Reviewer → der Orchestrator fährt die Verifikation selbst → Commit → Sofortmerge in den
    Epic-Branch. Ein frei werdender Platz wird sofort neu belegt.
-5. **Abschluss:** Gesamtlauf aller Tests, Abnahmestufe, Push, Pull Request, Abschlusskommentar.
+5. **Abschluss:** Gesamtlauf aller Tests, Abnahmestufe, Push, Pull Request, Verbrauchsmessung,
+   Abschlusskommentar.
+
+Der **Code-Graph** ist eine Landkarte des Codes: wer ein Symbol oder eine Datei aufruft, importiert
+oder davon abhängt, mit Datei und Zeile. [Graphify](https://github.com/Graphify-Labs/graphify)
+liest ihn lokal aus dem Quelltext, ohne Modell; er liegt im Git-Verzeichnis (`.git/epic-graph/`),
+nicht im Arbeitsbaum, und wird nach jedem Sofortmerge erneuert. Orchestrator, Implementer und
+Reviewer fragen ihn, statt den Baum zu durchsuchen. Er ist optional — ohne Graphify läuft der Lauf
+wie bisher — und ersetzt keine Prüfung: Aufrufer in Tests können fehlen, deshalb endet die Suche
+nach betroffenen Stellen weiter mit einem gezielten `grep`.
 
 Den Stand zeigt die **Lauftafel** im Browser — hier mit den Musterdaten der Vorlage:
 
@@ -81,6 +91,19 @@ Den Stand zeigt die **Lauftafel** im Browser — hier mit den Musterdaten der Vo
 Median 12 Minuten (Urteil 22, Standard 7, mechanisch 1), ein Reviewer 5. Worktree anlegen und
 abräumen dauern Sekunden. Die Zeit geht zu gut der Hälfte in die Arbeit der Modelle und zu einem
 guten Viertel in Testläufe.
+
+**Wohin Zeit und Verbrauch gehen** (42 Läufe, 278 Pakete, gemessen am 13.11.2026 mit `usage.ps1`):
+
+- **Zeit:** Je Paket arbeiten die Agenten rund 25 Minuten, die Wanduhr zeigt im Median 85 Minuten,
+  unter der Flotte mit Subagenten 136. Der Rest ist Stillstand: Warten auf eine Antwort, auf ein
+  Limit, über Nacht.
+- **Verbrauch:** Gut die Hälfte geht ins Orchestrieren — 30 % in die Lauf-Agenten der Flotte, 22 %
+  in die Hauptsitzungen (Orchestrator eines Chat-Laufs oder Admiral) —, 31 % in die Implementer, 10 % in die Reviewer. Gerechnet in
+  Input-Token-Äquivalenten ohne Modellpreise; mit Preisen wächst der Anteil der teuren Modelle.
+- **Je Paket:** Ein Paket der Klasse *Urteil* kostet etwa achtmal so viel wie ein mechanisches, ein
+  Standardpaket etwa dreimal. Jede weitere Runde verdoppelt ein Paket grob.
+- **Was Implementer laden:** 46 % Dateien lesen, 31 % Suchen, je 7 % Pflichtlektüre und Tests. Das
+  Suchen ist der Teil, den der Code-Graph verkürzt.
 
 ## Die Regeln, die greifen
 
@@ -141,10 +164,15 @@ wird. Die Agent-Typen liegen unter `agents/`.
 | Implementer nach einer Eskalation aus Urteil | `epic-implementer-urteil-hoch` | Opus, hoch |
 | Reviewer *mechanisch* und *Standard* | `epic-reviewer-standard` | Sonnet, hoch |
 | Reviewer *Urteil* | `epic-reviewer-urteil` | Opus, mittel |
-| Lauf als Subagent unter der Flotte (Rückfall) | `epic-lauf` | Opus, mittel |
+| Lauf als Subagent unter der Flotte (Rückfall) | `epic-lauf` | Opus, mittel; Cache eine Stunde |
 
-Der Reviewer ist nie schwächer als der Implementer. Der Admiral hat wenige, folgenreiche Züge,
-während die Implementer die Masse der Tokens verbrauchen; deshalb läuft nur er auf Fable.
+Der Reviewer ist nie schwächer als der Implementer. Der Admiral hat wenige, folgenreiche Züge; die
+Masse der Tokens verbrauchen die Orchestratoren der Läufe und die Implementer („Wohin Zeit und
+Verbrauch gehen"). Deshalb läuft nur er auf Fable.
+
+Ein Subagent hält seinen Cache sonst fünf Minuten. Der Lauf-Agent wartet auf jede Welle länger und
+schrieb danach seinen ganzen Kontext neu; mit dem Stunden-Cache (`experimental.cacheTtl: 1h`, ab
+Claude Code 2.1.248) entfällt das. Der Wert gilt nicht, solange das Abo auf Zusatzguthaben läuft.
 
 ## `/epic-flotte` — mehrere Epics gleichzeitig
 
@@ -155,7 +183,9 @@ während die Implementer die Masse der Tokens verbrauchen; deshalb läuft nur er
 - **Jedes Epic läuft als eigene Sitzung,** die du in der Seitenleiste öffnen kannst; im Terminal
   ohne Sitzungswerkzeuge als Subagent. Wie viele gleichzeitig laufen, bestimmt die Kollisionsstufe
   je Paar, nie mehr als vier. Der Träger Sitzung ist an einem echten Einsatz noch nicht erprobt
-  (Stand 12.11.2026).
+  (Stand 12.11.2026). Er ist auch der günstigere: Gemessen kostete die Orchestrierung je Paket als
+  Sitzung rund ein Drittel weniger als als Subagent (verschiedene Projekte, kein Vergleich am
+  selben Epic).
 - **Entscheidungsrecht:** Der Admiral entscheidet die Fragen der Läufe endgültig; du bestätigst
   nichts vorab, sondern liest nach und widerrufst, was dir nicht passt. Die Grenze: Was sich nach
   dem Fakt nicht widerrufen lässt, bleibt bei dir, und der Lauf wartet.
@@ -194,6 +224,7 @@ den Musterdaten der Vorlage:
 | Was | Wer räumt | Wann |
 |---|---|---|
 | Worktree, Prozesse und Compose-Projekt eines Pakets, samt der Images, die es gebaut hat | `worktree.ps1 -Action Down` | nach jedem Paket |
+| Code-Graph eines Laufs (`.git/epic-graph/epic-<nr>`, rund 15 MB) | `graph.ps1 -Action Remove` | in `/epic-aufraeumen` |
 | Worktrees und Prozesse toter Sitzungen | `CleanupStale` | zu Beginn von `/epic` und `/epic-aufraeumen`, je Repository |
 | dasselbe über alle Repositorys, dazu alte Temp-Ordner der Läufe, verwaiste WSL-Swap-Dateien, verwaiste Docker-Images, Build-Cache älter als sieben Tage | `sweep.ps1` | am Ende von `/epic-aufraeumen`, oder von Hand |
 
