@@ -173,7 +173,9 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
    vorher, dass darin nichts anderes als die Verweise liegt — findet sich eine veränderte Datei,
    ist es kein Rest, sondern liegengebliebene Arbeit.
 3. `git worktree prune` — räumt die Verwaltungseinträge zu Worktrees auf, deren Verzeichnis nicht
-   mehr existiert.
+   mehr existiert. Dazu der Code-Graph des Laufs: `graph.ps1 -Action Remove -RepoRoot <repo>
+   -Package epic-<nr>` (`epic/scripts/graph.ps1`); er liegt im Git-Verzeichnis und fällt in
+   keiner der Listen auf. `removed: false` heißt, der Lauf hatte keinen.
 4. **Lokale Branches** mit `git branch -d`. Ein Branch mit revertiertem Merge (siehe Merge-Nachweis
    oben) wird übersprungen und gemeldet, nicht gelöscht. Der Epic-Branch zuletzt, nachdem alles
    andere weg ist.

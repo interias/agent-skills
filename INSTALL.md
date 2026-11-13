@@ -13,6 +13,8 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   `Invoke-Pester .\epic\scripts\<name>.Tests.ps1`.
 - **Plugin `mattpocock-skills`**, eingerichtet nach [`mattpocock-skills/`](mattpocock-skills/README.md).
   `epic-nacharbeit` und `epic-lagebesprechung` setzen daraus `grilling` voraus.
+- **Optional: Graphify** für den Code-Graphen von `/epic` (`uv tool install graphifyy`). Ohne es
+  läuft `/epic` ohne Graph.
 - **Python mit Pillow** für die Skripte von `mail-antwort`.
 - **Python mit Playwright und Chromium** für das Kit von `persona-review`; prüfen mit
   `python -P persona-review/scripts/selftest.py`.

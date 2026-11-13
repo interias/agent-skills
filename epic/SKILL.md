@@ -260,6 +260,13 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   Lint-Vergleich entfällt.
 - **Das Fenster bestimmen:** `window` mit Standard und Bedingung nach `references/adapter.md`
   (Schlüssel `window`, „Auslegung").
+- **Den Code-Graphen bauen:** `scripts/graph.ps1 -RepoRoot <repo> -Worktree <epic-worktree>
+  -Package epic-<nr>` (Kopfkommentar des Skripts). Graphify liest den Code lokal per AST, ohne
+  Modell; der Graph liegt im Git-Verzeichnis, nicht im Arbeitsbaum. Die Ausgabe nennt seinen
+  Pfad (`graph`) — er geht in jeden Auftrag (4a, 4b). `available: false` heißt, Graphify ist
+  nicht installiert oder der Adapter schaltet es ab (`code_graph: off`): Der Lauf arbeitet dann
+  ohne Graph, und der Plan sagt das. Exit 1 ist ein offener Punkt, kein Tor-Punkt. Herkunft:
+  Messung vom 13.11.2026 — 31 % dessen, was Implementer in ihren Kontext laden, ist Suchen.
 
 ## Phase 1 — Lesen
 
@@ -322,6 +329,8 @@ Abnahmeliste erschlossen.
 - **Eine Datenwurzel kann mehrere Erzeuger haben.** Bevor ein Paket eine Zählregel über ein
   Verzeichnis bekommt, sieh nach, wer alles dort hineinschreibt.
 - **Je Paket die berührten Dateien und Module notieren.** Ohne sie gibt es keine Kollisionskante.
+  Mit Code-Graph (0b) fragst du je Datei oder Symbol, das ein Paket ändert, `graphify affected
+  "<name>" --depth 1 --graph <graph>` und nimmst die Abhängigen in die berührten Dateien auf.
 - **Zuordnungstabelle Story → Paket:** jede User Story genau einem Paket. Eine Story ohne Paket ist
   eine Lücke im Plan, ein Paket ohne Story Arbeit, die niemand verlangt hat.
 
@@ -545,6 +554,16 @@ alles **ausgeschrieben**:
   wörtlich (4b).
 - Pflichtlektüre vor der ersten Änderung: `must_read`, `glossary`, die genannten ADRs, das README
   des betroffenen Moduls.
+- **Den Code-Graphen**, falls gebaut (0b): seinen Pfad und die drei Abfragen im Wortlaut —
+  `graphify explain "<symbol oder datei>" --graph <graph>` (Nachbarn mit Datei und Zeile),
+  `graphify affected "<symbol oder datei>" --depth 1 --graph <graph>` (wer davon abhängt),
+  `graphify path "<A>" "<B>" --graph <graph>`. Exit 3 heißt mehrdeutig (die Kandidaten stehen
+  da; mit der genannten ID wiederholen), Exit 4 kein Treffer. Dazu die Regel: **erst den Graphen
+  fragen, dann gezielt die genannten Stellen lesen** statt den Baum zu durchsuchen. Der Graph
+  zeigt den Stand des Epic-Kopfs beim Paketstart, nicht die eigenen Änderungen, und Aufrufer in
+  Tests können fehlen — die Liste der Stellen, die die Änderung erreichen muss, schließt deshalb
+  mit einem gezielten `grep` auf den Symbolnamen. Dazu, was du selbst in 2a für das Paket
+  abgefragt hast: die Abhängigen der berührten Dateien.
 - Die Regeln, je mit Herkunft: Fachsprache samt Verboten; Scope strikt die Abnahmeliste; keine
   Umbenennung und kein Refactoring ohne Auftrag; keine neue Abhängigkeit ohne Nennung im Issue;
   keine Tests löschen oder überspringen; die Projektregeln des Adapters; **nicht committen, nicht
@@ -586,7 +605,9 @@ Reviewer jeden anderen Schreiber derselben Felder**: Migration, Import, Skripte,
 andere Endpunkte, dazu die Pfade aus `writers` im Adapter. Je Schreiber belegt er, dass er
 durchkommt, oder er meldet ihn als Befund. Ein Schreiber, den nur ein Trockenlauf abdeckt, gilt
 als nicht geprüft — ein Trockenlauf sieht die schreibenden Aufrufe nicht. Die Suche darf er an
-Kundschafter geben, einen je Schreiberart; hat er kein `Agent`-Werkzeug, sucht er selbst.
+Kundschafter geben, einen je Schreiberart; hat er kein `Agent`-Werkzeug, sucht er selbst. Der
+Code-Graph (Pfad und Abfragen wie in 4a, in seinem Auftrag ausgeschrieben) ist dabei der erste
+Griff, nicht der Beleg: Ein Schreiber, den der Graph nicht nennt, ist damit nicht ausgeschlossen.
 
 Drei Dinge, in einer Kette ein viertes, schreibst du ihm ausdrücklich in den Auftrag:
 
@@ -679,7 +700,9 @@ damit jedes spätere Paket schon auf ihm beginnt.
    wird nur der Worktree abgeräumt,
    der Branch bleibt (`references/worktree.md`, „Abräumen").
 3. Sonst den Worktree mit `Down -Package <nr>` (aus einer Shell außerhalb des Worktrees) und
-   danach den Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Platz frei: das nächste
+   danach den Paket-Branch abräumen (`references/worktree.md`), nie `--force`. Den Code-Graphen
+   mit demselben Aufruf wie in 0b neu bauen (rund 20 Sekunden, unveränderte Dateien kommen aus
+   dem Cache), damit der Nachrücker den gemergten Stand sieht. Platz frei: das nächste
    startbereite Paket startet nach 4a, **mit** Messung der RAM-Bremse und `status/in-arbeit` an
    seinem Ticket und Nachlesen.
    `git branch -d` läuft im Epic-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
@@ -750,11 +773,18 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Ein
     fremdes Epic aus transitiver Auflösung nie.
 - **Nicht mergen.**
+- **Verbrauch messen:** `scripts/usage.ps1 -RepoRoot <startverzeichnis der sitzung> -Contains
+  'epic/<nr>-'` (Kopfkommentar des Skripts) summiert aus den Transkripten den Verbrauch je Rolle,
+  je Paket und je Agent. Hat die Sitzung mehr getan als diesen Lauf, grenzt `-Since` mit der Zeit
+  des Eröffnungskommentars ein. Das Paket liest das Skript aus der `description` des
+  `Agent`-Aufrufs — sie nennt deshalb immer die Paketnummer (`Implementer #588 …`,
+  `Reviewer #588 …`). Exit 1 ist ein offener Punkt im Bericht, kein Glut-Punkt.
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Hinein: Link auf
   Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden, Paketklasse und
   Eskalationen; tatsächliche gegen geplante
   Belegung und woran Abweichungen lagen; übersprungene und blockierte Tickets mit Grund und dem,
-  was sie freischalten; Teststand vorher/nachher; was beim Merge passiert, wenn der Lauf eine
+  was sie freischalten; Teststand vorher/nachher; der gemessene Verbrauch (Anteil je Rolle,
+  `weighted` je Paket mit Paketklasse und Runden); was beim Merge passiert, wenn der Lauf eine
   Migration enthält; und unter der festen Überschrift `### Was das Epic offen lässt`, was das
   Epic noch offen lässt.
 - Das Zielissue verliert mit dem Abschlusskommentar `status/in-arbeit`, in allen Modi.

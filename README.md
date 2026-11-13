@@ -264,12 +264,17 @@ Unter `epic/scripts/`, jedes mit Pester-Tests daneben und Hilfe im Kopfkommentar
   verbotene Shell-Befehle, etwa Pushes auf den Hauptbranch oder `git branch -D`.
 - **`ram.ps1`** misst den freien Speicher des Windows-Hosts und gibt `ok`, `warn` oder `hold`
   aus — die RAM-Bremse vor jedem Paketstart (`/epic`) und unter der Flotte.
+- **`graph.ps1`** baut mit [Graphify](https://github.com/Graphify-Labs/graphify) den Code-Graphen
+  eines Laufs (lokal per AST, ohne Modell) und räumt ihn wieder ab. Optional: Ohne installiertes
+  `graphify` (`uv tool install graphifyy`) läuft `/epic` ohne Graph.
+- **`usage.ps1`** summiert aus den Transkripten einer Sitzung den Tokenverbrauch eines Laufs je
+  Rolle, je Paket und je Agent, auch nachträglich; es liest nur.
 
 ## Aufbau
 
 ```
 epic/ epic-nacharbeit/ epic-aufraeumen/   die Epic-Skills (epic/references: Adapter, Forge, Tafeln;
-                                          epic/scripts: worktree, sweep, guard, ram)
+                                          epic/scripts: worktree, sweep, guard, ram, graph, usage)
 epic-flotte/ epic-lagebesprechung/        optional: Flotte und Lagebesprechung
 mail-antwort/                             Skill mit Python-Skripten
 persona-review/                           Skill mit Vorlagen (references) und Browser-Kit (scripts)
