@@ -64,6 +64,13 @@ braucht, `Pause` und `weiter`, Entscheidungen und Widerruf des Admirals — sons
 **Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der
 Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
 
+**Eine Frage hält nur an, was von ihr abhängt.** Jede Frage eines Frageblocks nennt in
+`Betrifft:` die Pakete, die ohne Antwort nicht starten oder nicht weiterlaufen können — samt
+ihren Nachfolgern im Graphen —, oder `Lauf`, wenn wirklich nichts ohne sie geht. Antwortet der
+Admiral `weiter ohne <Pakete>`, arbeitest du alle übrigen Pakete nach Phase 4 ab; die geparkten
+bleiben `wartend` mit dem Grund auf der Tafel und starten, sobald ihre Antwort kommt. Sind am
+Ende nur noch geparkte Pakete übrig, beendest du den Zug mit demselben Frageblock erneut.
+
 ---
 
 ## Die Regeln, die nicht verhandelbar sind
@@ -476,6 +483,16 @@ Grund.
 
 Höchstens drei Plätze, denn deine Nachprüfung ist die Engstelle.
 
+**Das Fenster gleitet je Paket, nicht je Belegung.** Jedes Paket geht seinen Weg einzeln weiter,
+sobald sein eigener Schritt fertig ist: Der Reviewer startet, wenn **sein** Implementer zurück
+ist, deine Nachprüfung, wenn **sein** Reviewer zurück ist — nie erst, wenn die Nachbarn so weit
+sind. Läuft für ein Paket ein langer Befehl (Volllauf, Gate, Slot-Fahrt), legst du ihn in den
+Hintergrund und führst inzwischen die anderen Pakete weiter: Berichte lesen, Reviewer starten,
+mergen, Nachrücker starten. Die Grenze „nie zwei Vollläufe gleichzeitig" (4c) bleibt. Herkunft:
+Messung vom 18.11.2026 (hexanite, Epics #240/#241) — in 70 % der Laufzeit arbeitete kein
+Implementer und kein Reviewer; zwei Pakete, deren Implementer nach 22 und 31 Minuten fertig
+waren, warteten 108 und 116 Minuten auf ihren Reviewer, weil der dritte noch lief.
+
 ### Die RAM-Bremse (#37)
 
 Ist der Speicher des Windows-Rechners voll, stürzt er ab und reißt alle laufenden Pakete mit
@@ -520,6 +537,13 @@ statt je Paket (Epic #34: der RAM des Rechners läuft voll). Deshalb zwei Stufen
 
 Verlangt der Verifikationsweg eines Pakets den vollen Stack (etwa eine Sichtprüfung im Browser),
 fährt ihn nicht der Implementer: Der Auftrag sagt „vom Host im Slot", und du fährst ihn in 4c.
+
+**Eine Slot-Fahrt je Paket nur, wenn sein Diff Oberfläche berührt** — Komponenten, Seiten, Stile,
+Texte der Oberfläche oder eine Schnittstelle, deren Antwort eine geänderte Ansicht speist. Ändert
+das Paket nur API, Daten, Tests oder Doku, entfällt die Fahrt, auch wenn der Verifikationsweg
+pauschal eine Sichtprüfung nennt: Der Punkt wird über Tests belegt und in der Abnahmeliste als
+„per Test belegt, nicht gesichtet" geführt (4c); gesichtet wird er mit der Abnahme in Phase 6.
+Herkunft: Messung vom 18.11.2026 — eine Slot-Fahrt kostete 10 bis 13 Minuten je Paket, seriell.
 
 **Der Slot** ist die Erlaubnis, einen vollen Stack zu betreiben, und es gibt ihn im Projekt nur
 einmal (Regel 12). Du nimmst ihn, bevor du einen vollen Stack startest, und gibst ihn frei, sobald
@@ -654,6 +678,13 @@ Fahre den Verifikationsweg selbst im Worktree des Pakets; glaub ihn nicht dem Be
 gehört ein **Volllauf je betroffener Suite** — der einzige des Pakets neben dem des Implementers.
 Deine Vollläufe fährst du **nacheinander, nie zwei gleichzeitig**, auch nicht über mehrere
 Pakete: Jeder Lauf belegt je Worker Speicher, und die Implementer fahren ihre daneben (Epic #34).
+**Dieselbe Suite fährst du je Paket nur einmal voll.** Fährt ein Prüfbefehl, den du für das Paket
+ohnehin fährst (`pre_commit_checks`, ein Merge-Gate des Projekts), die betroffene Suite schon
+voll, **ist das dein Volllauf** — du fährst sie nicht zusätzlich einzeln davor. Wählt dieser
+Befehl nur einen Teil der Suite aus (Gruppen nach Pfad), gilt er als Volllauf des Pakets, und der
+ganze Lauf folgt in Phase 6. Der Vergleich gegen die Ausgangszahlen unten gilt für diesen Lauf
+genauso. Herkunft: Messung vom 18.11.2026 — nach dem Reviewer folgten je Paket rund 21 Minuten
+Nachprüfung und danach ein Gate von 8 bis 30 Minuten über dieselben Tests.
 Bei einem Wächter oder Tor fährst du auch die Gegenprobe. Bekannt rote Suiten (`known_red`) sind
 kein Grund, neues Rot zu akzeptieren, und eine bekannt rote Suite, die das Paket berührt, wird
 nicht ignoriert.
@@ -711,7 +742,10 @@ damit jedes spätere Paket schon auf ihm beginnt.
    `spec` ohne Kinder die Spec. Hinein: Paket, Merge-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
    echter Ausgabe und den Zahlen gegen Phase 0, was der Reviewer selbst korrigiert hat, was das
-   Issue vermerkt haben will, die offenen Punkte. Das Kind **behält** `status/in-arbeit`:
+   Issue vermerkt haben will, die offenen Punkte. Dazu eine Zeile **`Zeiten:`** mit den
+   Uhrzeiten des Pakets — Start, Implementer zurück, Reviewer zurück, abgenommen, gemergt — und
+   jeder Wartezeit über fünf Minuten samt Grund (Slot, Volllauf, Antwort, Bremse). Aus diesen
+   Zeilen wird der Lauf später ausgewertet, ohne die Transkripte zu lesen. Das Kind **behält** `status/in-arbeit`:
    gemergt ist es erst im Epic-Branch, nicht auf der Basis.
 5. **Lauftafel fortschreiben** nach `references/lauftafel.md`: Zustand, Merge-Commit und Runden
    des Pakets, neu gestartete Pakete, Teststand, Abweichungen vom Plan, offene Punkte. Die

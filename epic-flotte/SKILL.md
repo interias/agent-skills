@@ -131,7 +131,12 @@ einer Sitzung, und beide schreibst du in seinen Auftrag:
   startet deshalb die Implementer einer Belegung **gleichzeitig in einer Nachricht, ohne
   `run_in_background`**, und wartet auf alle. Aus dem gleitenden Fenster von `/epic` Phase 4 werden
   Wellen; die Wahl der nächsten Welle folgt denselben Regeln für „startbereit". Das kostet
-  Minuten, nicht Korrektheit. Er wartet **nie mit `sleep` oder einer Schleife** auf sie — ein
+  Minuten, nicht Korrektheit — **solange die Pakete einer Welle etwa gleich lang laufen.** Er
+  stellt deshalb Wellen aus Paketen gleicher Paketklasse und ähnlicher Größe zusammen und gibt
+  einem Paket, das absehbar viel länger läuft (große Abnahmeliste, Migration, lange Suiten),
+  eine eigene Welle, statt kurze Pakete darauf warten zu lassen. Die Reviewer einer Welle startet
+  er ebenso gleichzeitig. Herkunft: Messung vom 18.11.2026 — in einer Welle mit 22, 31 und
+  131 Minuten warteten zwei fertige Pakete fast zwei Stunden auf ihren Reviewer. Er wartet **nie mit `sleep` oder einer Schleife** auf sie — ein
   Vordergrund-Aufruf kehrt von selbst zurück (26.10.2026: vier von sechs Läufen pollten
   stattdessen, die Übergabe an den Reviewer dauerte 5–7 Minuten statt 30 Sekunden).
 
@@ -141,7 +146,7 @@ Der Frageblock, mit dem ein Lauf seinen Zug beendet:
 
 ```
 FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
-1. <Frage> — Lage: <Sachverhalt mit Fundstellen> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
+1. <Frage> — Betrifft: <Pakete samt Nachfolgern | Lauf> — Lage: <Sachverhalt mit Fundstellen> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
 2. …
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 ```
@@ -310,8 +315,13 @@ Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") u
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
   entscheidest du, schreibst es auf („Was aufgeschrieben wird") und antwortest dem Lauf — er
   arbeitet weiter. Was beim Menschen liegt, sammelst du **über alle Läufe** und legst es ihm
-  gebündelt vor (siehe „Den Menschen fragen"); nur der betroffene Lauf wartet solange. Antworten
-  gehen an den richtigen Lauf zurück.
+  gebündelt vor (siehe „Den Menschen fragen"). **Es wartet nur, was die Frage in `Betrifft:`
+  nennt:** Stehen dort Pakete, antwortest du dem Lauf im selben Zug `weiter ohne <Pakete>` samt
+  deinen eigenen Entscheidungen — er arbeitet die übrigen Pakete ab (`epic/SKILL.md`, „Eine Frage
+  hält nur an, was von ihr abhängt"). Nur bei `Betrifft: Lauf` wartet der ganze Lauf. Fehlt das
+  Feld, fragst du einmal nach, welche Pakete ohne die Antwort laufen können. Antworten des
+  Menschen gehen an den richtigen Lauf zurück, sobald sie da sind. Herkunft: Messung vom
+  18.11.2026 — 20 Rückfragen kosteten 654 Minuten, 545 davon eine einzige über Nacht.
 - **`FLOTTE-ENDE`:** den Pull Request in der Forge nachlesen (offen, Ziel `<basis>`, `Closes`
   stimmig, Abschlusskommentar steht), die Lauftafel nachlesen, die Flottentafel fortschreiben.
   Dann Phase 4 für dieses Epic, und der frei gewordene Platz geht nach Phase 1 an das nächste
@@ -484,8 +494,20 @@ keine Frage: Du wartest nicht auf eine Bestätigung.
 
 **Wann:** `AskUserQuestion` blockiert deinen Zug, bis der Mensch antwortet; Meldungen der Läufe
 bleiben solange liegen. Deshalb ist die Frage der **letzte Schritt eines Zugs**: zuerst jedem
-wartenden Lauf antworten (deine Entscheidungen, `weiter` oder `Pause`), frei
-gewordene Plätze belegen, Tafel und Logbuch fortschreiben — dann fragen.
+wartenden Lauf antworten (deine Entscheidungen, `weiter`, `weiter ohne <Pakete>` oder `Pause`),
+frei gewordene Plätze belegen, Tafel und Logbuch fortschreiben — dann fragen.
+
+**Solange ein Lauf arbeitet oder ein Platz belegbar ist, fragst du als Text, nicht mit
+`AskUserQuestion`.** Die Runde steht dann in derselben Form (`❓ **Q1** …`, `➡️ Empfehlung`) am
+Ende deines Zugs und auf der Flottentafel unter „liegt beim Menschen"; du beendest den Zug und
+bleibst für die Meldungen der Läufe wach. Die Antwort des Menschen kommt als gewöhnliche
+Nachricht. `AskUserQuestion` nimmst du nur, wenn ohne die Antwort kein Lauf mehr arbeiten kann.
+Hat die Sitzung ein Werkzeug für Benachrichtigungen aufs Telefon, schickst du mit jeder neuen
+Runde eine Zeile: wie viele Fragen, welches Epic wartet.
+
+**Jede Frage sagt, was ohne Antwort geschieht:** welche Pakete geparkt sind und was inzwischen
+weiterläuft. Eine Standardantwort, die du nach Ablauf selbst einsetzt, gibt es nicht — was beim
+Menschen liegt, bleibt bei ihm; geparkt wird, nicht geraten.
 
 **Ohne Antwort:** Kehrt die Frage nach dem Timeout unbeantwortet zurück (`askUserQuestionTimeout`
 in den Einstellungen des Menschen), bleiben die Fragen, auf die ein Lauf wartet, offen. Ein
