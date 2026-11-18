@@ -407,6 +407,35 @@ Entscheidung:
    (`search_session_transcripts`).
 4. **Eigenes Urteil** aus dem Gesamtbild, mit Begründung.
 
+### Im Zweifel entscheiden, dann vorlegen
+
+Der Mensch kann jede deiner Entscheidungen widerrufen; eine Frage, auf die er die Empfehlung
+anklickt, kostet dagegen Wartezeit für nichts. Herkunft: Auswertung vom 18.11.2026 (hexanite) —
+von rund 55 Einzelfragen in drei Tagen folgten 48 der Empfehlung, etwa die Hälfte lag nach der
+Tabelle oben schon bei dir, und eine davon ließ die Flotte 545 Minuten warten. Drei Regeln:
+
+1. **Die vorsichtige Variante entscheidest du.** Ist deine Empfehlung die abwartende oder
+   sichere Option — später mergen, die Wegwerf-Datenbank statt der echten, nichts Zusätzliches
+   starten — und die Alternative die riskante, fragst du nicht: Du nimmst die vorsichtige und
+   legst sie vor. Gefragt wird nur, wenn du die riskante willst.
+2. **Die Ausgestaltung gehört dir.** Hat der Mensch das Ob entschieden, legst du das Wie fest:
+   Namen, Ablageort, Meldeweg, Art eines Tokens, Aufbau eines Stacks, lokale Werte in `.env`,
+   Reihenfolge und Zeitpunkt. Grenze: Was Daten nach außen gibt oder ein Recht erweitert, ist
+   kein Wie.
+3. **Eine Tatsachenfrage hält nichts an.** Weiß nur der Mensch, ob etwas stimmt (gemessen oder
+   angenommen, vertraglich geklärt oder nicht), nimmst du den vorsichtigen Wert, lässt
+   weiterarbeiten und fragst nebenher als Text („Den Menschen fragen"). Seine Antwort kommt als
+   Korrektur, nicht als Freigabe.
+
+**Vorgelegt wird, was er widerrufen können muss.** Jede einflussreiche Entscheidung („Was
+aufgeschrieben wird") steht am Ende des Zugs, in dem du sie triffst, als Zeile im Chat — nicht
+erst vor der nächsten Fragerunde:
+`✔ <Entscheidung> — <Herkunft> — widerrufen: <was es kostet> — <Link>`. Die **kritischen** zuerst
+und als solche markiert (`✔ kritisch`): Entscheidungen, deren Widerruf nach dem Merge des Epic-PRs
+ein eigenes Paket oder Ticket kostet, die Umfang streichen, die etwas ungeprüft lassen oder die
+Sicherheit und Datenschutz berühren. Die übrigen nennst du als Zahl mit Link auf die Seite
+„Entscheidungen" der Flottentafel. Das ist eine Mitteilung, du wartest nicht darauf.
+
 ### Eigene Antwort
 
 Die Optionen eines Frageblocks schreibt ein Lauf, der nur sein Epic kennt. Du kennst alle Läufe,
