@@ -21,10 +21,12 @@ die Transkripte.
 | Skript | Zweck |
 |---|---|
 | `lage.ps1` | Überblick: Sitzungen, offene PRs, RAM. Dazu `-Eintragen <id> -Repo <pfad>` (eine von Hand gestartete Sitzung übernehmen) und `-Abhaken <id>` |
-| `start.ps1 -Repo <name> -Auftrag <datei> -Modus <m>` | Neues Fenster starten, Flottenregeln anhängen, Sitzung ins Register eintragen |
+| `start.ps1 -Repo <name> -Auftrag <datei> -Titel "<#ticket Kurzname>" -Modus <m>` | Neues Fenster mit festem Titel starten, Flottenregeln anhängen, Sitzung ins Register eintragen, Fenster anordnen |
 | `nachricht.ps1 -SessionId <id> -Datei <datei>` | Nachricht ohne Neustart zustellen (Haiku-Helfer per SendMessage). Bestätigt erst, wenn sie im Transkript steht. Neustart nur, wenn der Prozess fehlt |
 | `merge.ps1 -Repo <owner/name> -Pr <n>` | Auf die Checks warten, Merge-Commit, geprüften Branch löschen, eine Ergebniszeile |
 | `waechter.ps1` | Der einzige Wächter, unter Monitor (persistent) |
+| `fenster-ordnen.ps1` | Alle Terminalfenster nach Titel in ein Raster aus Achteln des Bildschirms legen: die ersten vier 2 × 2 links, weitere rechts. Verschiebt nur |
+| `fenster-schliessen.ps1 -SessionId <id>` | Fenster einer still wartenden Sitzung aus dem Register schließen, Sitzung abhaken, Rest neu anordnen |
 
 Zustand liegt in `~/.claude-arbeitspferd/leitstand/`: `register.json` (Sitzungen) und `lagebuch.md`
 (dein Gedächtnis). Aufträge und Nachrichten liegen als Dateien in `~/.claude-arbeitspferd/auftraege/`.
@@ -55,9 +57,12 @@ Vorlagen je Modus:
 Schreib nur, was die Sitzung nicht selbst findet. Code-Fakten liest sie selbst. Die Flottenregeln
 hängt `start.ps1` an, du musst sie nicht abschreiben.
 
-**3. Starten.** Mit `start.ps1`. Die Ausgabe nennt die Sitzungs-ID. Trag sie ins Lagebuch ein.
+**3. Starten.** Mit `start.ps1`. Der Titel nennt, woran das Fenster arbeitet, damit der Nutzer es sofort
+zuordnen kann: `#295 Gate`, bei mehreren Tickets `#229 +4 Kern-Reste`, bei einem Epic `Epic #241 Live`. Die
+Ausgabe nennt die Sitzungs-ID. Trag sie ins Lagebuch ein.
 Startet ein Repository zum ersten Mal, kann die Vertrauensfrage das Fenster aufhalten. Dann sagt das
-Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken.
+Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken. Die Konfigordner stehen deshalb in
+`permissions.additionalDirectories` der `settings.json` des zweiten Kontos, nicht in `--add-dir`.
 
 **4. Meldungen behandeln.** Der Wächter meldet sich nur, wenn du handeln musst:
 
@@ -73,10 +78,14 @@ Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken.
 | `RAM` | Bei Hold keine neuen Starts. Der Wächter leert den Docker-Cache schon selbst |
 | `CHECKS ROT` (merge.ps1) | Per Nachricht an die Sitzung: welche Checks, bitte beheben und neu melden |
 
+Ist der letzte PR einer Sitzung gemergt und wartet sie still, schließt du ihr Fenster sofort mit
+`fenster-schliessen.ps1`. Offene, untätige Fenster lässt du nicht stehen.
+
 Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 <repo> #164 gemergt, #157 zu`.
 
 **5. Abschluss.** Wenn alle Sitzungen `FERTIG` gemeldet haben: dem Nutzer in wenigen Sätzen berichten
-(Ergebnis zuerst, dann offene Entscheidungen). Danach den Wächter beenden.
+(Ergebnis zuerst, dann offene Entscheidungen). Danach die übrigen fertigen Fenster schließen und den
+Wächter beenden.
 
 ## Sparsam mit Tokens
 
@@ -91,7 +100,7 @@ Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 <
 - **Mergen:** nur Merge-Commits nach grünen Checks, nur in Repositorys, für die der Nutzer das freigegeben hat (Lagebuch-Kopf).
 - **Branches löschen:** nur Remote-Branches, deren Commits nachweislich im Basiszweig liegen (`merge.ps1` prüft das). Sitzungen löschen nie Remote-Branches.
 - **Nicht ins Fenster tippen:** keine Tastatureingaben und kein Umgehen des Auto-Modus.
-- **Nichts Fremdes beenden:** Claude Desktop, Docker-Dienste, andere Programme und Sitzungen, dazu alles, was `lokal.md` schützt. Arbeitspferd-Fenster schließt du nur, wenn ihre Sitzung fertig ist oder still wartet und niemand sie braucht.
+- **Nichts Fremdes beenden:** Claude Desktop, Docker-Dienste, andere Programme und Sitzungen, dazu alles, was `lokal.md` schützt. Arbeitspferd-Fenster schließt du nur mit `fenster-schliessen.ps1`, wenn ihre Sitzung fertig ist oder still wartet und niemand sie braucht.
 - **Artifacts** des zweiten Kontos löscht der Nutzer selbst.
 - **Beim Nutzer:** Sicherheits-, Zugriffs- und Produktrichtungsfragen. Vorläufige Produktentscheidungen triffst du nur, wenn der Nutzer das für das Projekt freigegeben hat, und vermerkst sie als vorläufig.
 

@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory)][string]$Repo,
     [Parameter(Mandatory)][string]$Auftrag,
     [string]$Resume,
-    [string[]]$AddDir
+    [string[]]$AddDir,
+    [string]$Titel
 )
 
 $cfg = "$HOME\.claude-arbeitspferd"
@@ -23,5 +24,7 @@ $name = Split-Path -Leaf $path
 $tab = $palette[([int[]][char[]]$name | Measure-Object -Sum).Sum % $palette.Count]
 
 # Profile "Claude Arbeitspferd" in Windows Terminal supplies the Claude look (scheme, icon); the command line here overrides its own
-wt -w new -p "Claude Arbeitspferd" --tabColor $tab --title "Arbeitspferd $(Split-Path -Leaf $path)" -d $path pwsh -NoExit -NoLogo -ExecutionPolicy Bypass -File "$cfg\start-arbeitspferd.ps1" -AuftragDatei $datei $(if ($Resume) { '-Resume', $Resume }) $(if ($AddDir) { '-AddDir', ($AddDir -join ',') })
+# Fixed title: names the ticket at a glance, and claude must not overwrite it. A semicolon would split the wt command.
+$fensterTitel = if ($Titel) { $Titel -replace ';', ',' } else { "Arbeitspferd $(Split-Path -Leaf $path)" }
+wt -w new -p "Claude Arbeitspferd" --tabColor $tab --title $fensterTitel --suppressApplicationTitle -d $path pwsh -NoExit -NoLogo -ExecutionPolicy Bypass -File "$cfg\start-arbeitspferd.ps1" -AuftragDatei $datei $(if ($Resume) { '-Resume', $Resume }) $(if ($AddDir) { '-AddDir', ($AddDir -join ',') })
 Write-Host "Gestartet in $path (Auftrag: $datei)"

@@ -18,7 +18,7 @@ Danach einmal das Profil „Claude Arbeitspferd“ in Windows Terminal öffnen, 
 | `dateien/auftrag.ps1`, `fortsetzen.ps1` | `~/.claude-arbeitspferd` | Neues Fenster mit Auftrag, Tabfarbe je Repository; Sitzung in neuem Fenster fortsetzen |
 | `dateien/arbeitspferd.ico`, `icon-bauen.ps1` | `~/.claude-arbeitspferd` | Icon des Profils und das Skript, das es baut |
 | `dateien/CLAUDE.md` | `~/.claude-arbeitspferd` | Importiert die globale `CLAUDE.md` und ergänzt Regeln fürs unbeaufsichtigte Fenster |
-| `dateien/settings.json` | `~/.claude-arbeitspferd` | Vorlage, nur geschrieben, wenn noch keine existiert |
+| `dateien/settings.json` | `~/.claude-arbeitspferd` | Vorlage, nur geschrieben, wenn noch keine existiert. `einrichten.ps1` trägt darin die beiden Konfigordner als `additionalDirectories` ein, damit kein Start an der Vertrauensfrage hängt |
 | `themes/claude-farbe.json` | `~/.claude/themes` | Claude-Theme `custom:claude-farbe` |
 | `windows-terminal.json` | Windows-Terminal-`settings.json` | Profil „Claude Arbeitspferd“ und Farbschema „Claude Code“ |
 | `leitstand/` | `~/.claude/skills/leitstand` | Skill der Hauptsitzung, der das Arbeitspferd steuert |
