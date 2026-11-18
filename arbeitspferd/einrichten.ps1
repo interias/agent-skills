@@ -54,6 +54,21 @@ foreach ($f in Get-ChildItem (Join-Path $src 'dateien') -File) {
 }
 Copy-WithBackup (Join-Path $src 'themes\claude-farbe.json') (Join-Path $main 'themes')
 
+# Folders every session needs. Passed as --add-dir they stop each start at the trust prompt, so they live in the settings
+$settingsDatei = Join-Path $cfg 'settings.json'
+if (Test-Path $settingsDatei) {
+    $settings = Get-Content $settingsDatei -Raw | ConvertFrom-Json -Depth 32
+    if (-not $settings.permissions) { $settings | Add-Member -Force permissions ([pscustomobject]@{}) }
+    $vorhanden = @($settings.permissions.additionalDirectories | Where-Object { $_ })
+    $fehlend = @($main, $cfg | Where-Object { $_ -notin $vorhanden })
+    if ($fehlend -and $DryRun) { "[DryRun] wuerde eintragen: $($fehlend -join ', ')" }
+    elseif ($fehlend) {
+        $settings.permissions | Add-Member -Force additionalDirectories @($vorhanden + $fehlend)
+        ConvertTo-Json $settings -Depth 32 | Set-Content $settingsDatei -Encoding utf8NoBOM
+        "eingetragen in settings.json: $($fehlend -join ', ')"
+    }
+}
+
 # Skill leitstand, kept out of install.ps1 so only machines with a second account get it
 $skillSrc = Join-Path $src 'leitstand'
 foreach ($f in Get-ChildItem $skillSrc -File -Recurse) {
