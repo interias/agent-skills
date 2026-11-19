@@ -27,6 +27,7 @@ Rückfrage; den Stand zeigen Gitea und KIBO.
 | `epic-nacharbeit` | Die offenen Punkte eines abgeschlossenen Laufs in Fragerunden klären und erledigen |
 | `epic-aufraeumen` | Nach dem Merge Worktrees und Branches abräumen, nur was nachweislich gemergt ist |
 | `epic-flotte` | Optional: mehrere Epics gleichzeitig, geführt von einem Admiral |
+| `flotte` | Optional: dasselbe als Programm (Bun), die Läufe als `claude -p` auf einem oder zwei Konten; Start im Terminal, siehe `flotte/SKILL.md` |
 | `epic-lagebesprechung` | Optional: im laufenden Chat alles abholen, was bei dir liegt |
 | `mail-antwort` | Eine Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen |
 | `persona-review` | Eine Funktion von Persona-Agenten lokal durchspielen lassen, Befunde nachprüfen, Runden vergleichen |

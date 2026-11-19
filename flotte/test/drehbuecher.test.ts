@@ -238,6 +238,8 @@ describe('Drehbücher (#14)', () => {
     expect(z.statistik.maxLaeufe).toBe(1);
     expect(nrs.every((n) => z.epics[String(n)].stufe === 'fertig')).toBe(true);
     expect(gross.p.meldungen.some((m) => /Belegung/.test(m))).toBe(false);
+    // one after another, the epics still spread over both accounts
+    expect(nrs.map((n) => z.epics[String(n)].konto)).toEqual([0, 1, 0, 1, 0].map((i) => gross.konten[i]));
 
     const frei = aufbau();
     const buch2 = drehbuch(nrs.map((n) => lauf(n, [{ warte: 400 }, { text: ende(n, 10 + n) }])));

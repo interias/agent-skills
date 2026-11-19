@@ -36,6 +36,8 @@ export interface Einstellung {
   nacharbeit: boolean;
   sweepRoot: string | null;
   sweepDocker: boolean;
+  /** -TempRoot of sweep.ps1; null: its default, the temp folder of the machine */
+  sweepTemp: string | null;
   skripte: string;
   mergeSkript: string;
   admiralName: string;
@@ -64,8 +66,10 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     nacharbeit: true,
     sweepRoot: null,
     sweepDocker: true,
+    sweepTemp: null,
     skripte: SKRIPTE,
-    mergeSkript: resolve(SKRIPTE, '../../arbeitspferd/leitstand/scripts/merge.ps1'),
+    // repository layout, else installed: ~/.claude/skills/leitstand next to ~/.claude/skills/epic
+    mergeSkript: [resolve(SKRIPTE, '../../arbeitspferd/leitstand/scripts/merge.ps1'), resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1')].find((p) => existsSync(p)) ?? resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1'),
     admiralName: 'Treiber',
     maxDauerMs: null,
   };
@@ -426,7 +430,9 @@ class Treiber {
     }
     for (const nr of plan.neu) {
       const ep = this.epic(nr);
-      const konto = [...gruen].sort((a, b) => this.aufKonto(a) - this.aufKonto(b))[0];
+      // fewest running runs; on a tie the account with fewer epics so far (dress rehearsal: with
+      // a limit of 1 every tie went to account 1)
+      const konto = [...gruen].sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
       ep.konto = konto;
       ep.stufe = 'laeuft';
       ep.notiz = '';
@@ -440,6 +446,10 @@ class Treiber {
 
   aufKonto(k: string): number {
     return Object.values(this.z.epics).filter((ep) => ep.konto === k && this.laufend.has(ep.nr)).length;
+  }
+
+  epicsAuf(k: string): number {
+    return Object.values(this.z.epics).filter((ep) => ep.konto === k).length;
   }
 
   // ---- results
@@ -701,7 +711,7 @@ class Treiber {
   async abschluss(): Promise<void> {
     if (this.istZuEnde()) {
       if (this.e.sweepRoot) {
-        const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'sweep.ps1'), '-Root', this.e.sweepRoot, ...(this.e.sweepDocker ? [] : ['-SkipDocker'])], { timeoutMs: 30 * 60_000 });
+        const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'sweep.ps1'), '-Root', this.e.sweepRoot, ...(this.e.sweepTemp ? ['-TempRoot', this.e.sweepTemp] : []), ...(this.e.sweepDocker ? [] : ['-SkipDocker'])], { timeoutMs: 30 * 60_000 });
         this.ereignis(null, r.code ? 'sweep.ps1 meldet Fehler' : 'Einsatzende: sweep.ps1 gelaufen');
       }
       this.z.aktiv = false;
@@ -725,20 +735,23 @@ export async function fahren(argv: string[]): Promise<unknown> {
   const epics = nummern(wert(argv, '--epics'));
   const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
   if (!repo || repo.startsWith('--') || !forge || !epics.length || !konten.length) {
-    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 30] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--sweep-root <dir>] [--ohne-docker] [--ohne-nacharbeit] [--max-min n]');
+    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 30] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
   }
   const e = standard(repo, forge, epics, konten);
   e.skill = wert(argv, '--skill') ?? e.skill;
   e.modell = wert(argv, '--modell') ?? e.modell;
   e.admiralModell = wert(argv, '--admiral-modell') ?? e.admiralModell;
   e.admiralEffort = wert(argv, '--admiral-effort') ?? e.admiralEffort;
+  if (e.admiralEffort === 'keine') e.admiralEffort = null;
   e.pingModell = wert(argv, '--ping-modell') ?? e.pingModell;
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 30) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
   e.ramWarn = Number(wert(argv, '--ram-warn') ?? e.ramWarn);
   e.sweepRoot = wert(argv, '--sweep-root') ?? null;
+  e.sweepTemp = wert(argv, '--sweep-temp') ?? null;
   e.sweepDocker = !argv.includes('--ohne-docker');
+  e.mergeSkript = resolve(wert(argv, '--merge-skript') ?? e.mergeSkript);
   e.nacharbeit = !argv.includes('--ohne-nacharbeit');
   const max = wert(argv, '--max-min');
   e.maxDauerMs = max ? Number(max) * 60_000 : null;
