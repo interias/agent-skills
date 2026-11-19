@@ -5,47 +5,98 @@ Treiber, nicht mehr der Admiral-Chat oder der Leitstand. Beides lässt sich je E
 
 ## Voraussetzungen
 
-1. **Merge-Regel (#15) ist auf `main`.** Ohne sie mergt `merge.ps1` nach den alten Regeln und kennt `merge: mensch` nicht.
-2. **Die Stufen-PRs von `flotte` sind auf `main`**, in Reihenfolge.
-3. **Bun ist installiert** (`bun --version`). Der Treiber braucht zur Laufzeit keine Pakete, also kein `bun install`.
-4. **Beide Konten sind angemeldet.** Ein Test je Konto, er kostet einen Haiku-Aufruf:
-   `claude -p --model haiku "OK"`, für Konto 2 mit `CLAUDE_CONFIG_DIR=~/.claude-arbeitspferd`.
+1. **Merge-Regel (#15) und die Stufen-PRs von `flotte` sind auf `main`**, in Reihenfolge.
+2. **Bun ist installiert** (`bun --version`). Zur Laufzeit braucht der Treiber keine Pakete, also
+   kein `bun install`.
+3. **Beide Konten sind angemeldet.** Ein Test je Konto kostet einen Haiku-Aufruf:
+   `claude -p --model haiku "OK"`, für Konto 2 mit
+   `CLAUDE_CONFIG_DIR=C:\Users\stefa\.claude-arbeitspferd`.
+4. **Je Projekt mit `merge: nach_gate` ohne CI:** Das Gate des Projekts schreibt die Basis in
+   seine Kopfzeile (`Basis <remote>/<basis> @ <sha>` und `(HEAD <sha>)`). Sonst mergt die
+   Merge-Regel nie, und das Epic wird nach den Nachbesserungen blockiert. In hexanite fehlt die
+   Basis bisher; dort erst `gate/gate.mts` anpassen, bis dahin `merge: mensch`.
 
-## Einrichten (einmal, von Stefan)
+## Vor dem Umschalten, in dieser Reihenfolge
 
-1. `install.ps1 -Skill flotte` kopiert den Ordner nach `~/.claude/skills/flotte`. Die Skripte findet der Treiber dort als Nachbarn: `~/.claude/skills/epic/scripts` und `~/.claude/skills/leitstand/scripts/merge.ps1`. Liegt im Hauptverzeichnis ein `flotte/node_modules`, vorher löschen: Es wird sonst mitkopiert und gebraucht wird es nicht.
-2. **`settings.json` bleibt, wie es ist.**
-   - Eine Statuszeile braucht es nicht; der Verbrauch kommt aus den Läufen selbst.
-   - Eine Erlaubnisregel für den Merge braucht es nicht, weil der Treiber `merge.ps1` selbst aufruft und kein Lauf mergt.
-   - `guard.ps1` sperrt `gh pr merge` in den Läufen weiter.
-3. **Im Projektadapter `.claude/epic.md`** des jeweiligen Projekts, über einen PR:
+Sobald die neue `merge.ps1` eingespielt ist, mergt auch der laufende Leitstand nur noch bei
+`merge: nach_gate`. Deshalb kommt der Adapter zuerst.
+
+1. **Keine Flotte im betroffenen Repository.** Weder der Leitstand noch `/epic-flotte` führt dort
+   gerade Epics. Einspielen, während eine Flotte läuft, ändert die Merge-Regel mitten in deren
+   Einsatz.
+2. **Adapter zuerst:** im Projektadapter `.claude/epic.md`, über einen PR auf die Basis:
    - `merge: mensch` (Standard) oder `merge: nach_gate`.
-   - Bei Repos ohne CI die Gate-Schlüssel, falls der Block anders aussieht als der Standard.
-   - Optional `nach_merge:` als Liste von Befehlen, die nach jedem Merge im Hauptverzeichnis laufen.
+   - Bei Repositorys ohne CI die Gate-Schlüssel (`gate_heading`, `gate_green`, `gate_base`,
+     `gate_head`), falls der Block anders aussieht als der Standard
+     (`epic/references/adapter.md`, „Merge“).
+   - Optional `nach_merge:`, eine Liste von Befehlen, die nach jedem Merge im Hauptverzeichnis
+     laufen.
+3. **Dann einspielen,** alle drei Skills. Der Treiber braucht ihre Skripte als Nachbarn:
+   - `install.ps1 -Skill epic`: `guard.ps1` mit der Sperre gegen `gh pr merge` und `worktree.ps1`
+     mit `EPIC_LOCK_HOLDER`.
+   - `install.ps1 -Skill flotte`. Liegt im Hauptverzeichnis ein `flotte/node_modules`, vorher
+     löschen. Es würde sonst mitkopiert, gebraucht wird es nicht.
+   - **`leitstand`** mit der neuen `merge.ps1`: `install.ps1` spielt ihn nicht ein, das tut
+     `pwsh -File arbeitspferd\einrichten.ps1`. Das Skript fasst auch das Terminal-Profil und das
+     Theme an, deshalb vorher mit `-DryRun` ansehen. Wer das nicht will, kopiert nur
+     `arbeitspferd\leitstand\scripts\merge.ps1` nach
+     `C:\Users\stefa\.claude\skills\leitstand\scripts\`.
+
+   Eine alte `merge.ps1`, die den Schlüssel `merge` nicht kennt, ruft der Treiber nicht auf. Er
+   meldet das beim Start, und ein Mensch mergt.
+4. **`settings.json` bleibt, wie es ist.**
+   - Eine Statuszeile braucht es nicht; der Verbrauch kommt aus den Läufen selbst.
+   - Eine Erlaubnisregel für den Merge braucht es nicht: Der Treiber ruft `merge.ps1` selbst auf,
+     und kein Lauf mergt.
+   - `guard.ps1` sperrt `gh pr merge` in den Läufen weiter, auch nach `--resume`.
+5. **Das erste echte Epic mit `merge: mensch` fahren.** Es zeigt, was die Generalprobe nicht
+   zeigen kann: den Anteil der Rückfragen mit einem Fable-Admiral, lange Züge von `/epic` unter
+   `-p` und das Aufräumen mit Docker.
 
 ## Ein Einsatz mit dem Treiber
 
-1. **Keine Flotte im selben Repository.** Weder `/epic-flotte` noch der Leitstand darf dort Epics führen. Der Treiber sperrt nur gegen einen zweiten Treiber, nicht gegen einen Admiral-Chat.
-2. **Starten:** im Terminal, nicht in einer Claude-Sitzung. Das Fenster bleibt offen, solange der Einsatz läuft.
+1. **Keine Flotte im selben Repository.** Weder `/epic-flotte` noch der Leitstand führt dort Epics.
+   Der Treiber sperrt nur gegen einen zweiten Treiber, nicht gegen einen Admiral-Chat.
+2. **Starten:** im Terminal, nicht in einer Claude-Sitzung. Das Fenster bleibt offen, solange der
+   Einsatz läuft. Die Konten mit vollem Pfad angeben, ohne `~`: Die Shell löst nur die erste
+   Tilde auf. Der Treiber erweitert zwar jede und bricht bei einem fehlenden Kontenordner ab, aber
+   so bleibt der Befehl eindeutig.
 
    ```
-   bun ~/.claude/skills/flotte/src/cli.ts fahren C:\Users\stefa\git\<projekt> --forge interias/<projekt> --epics 15,21 --konten ~/.claude,~/.claude-arbeitspferd
+   bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts fahren C:\Users\stefa\git\<projekt> --forge interias/<projekt> --epics 15,21 --konten C:\Users\stefa\.claude,C:\Users\stefa\.claude-arbeitspferd
    ```
 
 3. **Tafel öffnen:** `<projekt>\.git\flotte\tafel.html`.
-4. **Fragen** kommen als `FRAGE AN DEN MENSCHEN` ans Issue (mit GitHub-Benachrichtigung) und stehen auf der Tafel. Beantwortet werden sie mit `flotte antworten`; die Zeile zum Kopieren steht im Kommentar.
-5. **Unterbrechen:** Strg+C beendet den Treiber.
-   - Läufe, die gerade arbeiten, laufen bis zum Ende ihres Zugs weiter.
-   - Ein neuer `fahren`-Aufruf mit denselben Epics setzt aus `zustand.json` fort: Er beobachtet lebende Läufe, liest die Ergebnisse beendeter Läufe aus deren Log und startet nichts doppelt.
+4. **Fragen** kommen als `FRAGE AN DEN MENSCHEN` ans Issue, mit GitHub-Benachrichtigung, und
+   stehen auf der Tafel. Beantwortet werden sie im Projektordner mit `flotte antworten . <epic>
+   <frage> "<Antwort>"`. Die Zeile zum Kopieren steht im Kommentar.
+5. **Unterbrechen:** Strg+C beendet den Treiber und gibt seine Sperre frei.
+   - Ein Lauf arbeitet in einer eigenen Prozessgruppe und schreibt sein Log selbst. Er macht
+     seinen Zug zu Ende, auch wenn der Treiber hart stirbt. Getestet ist das in D16 (Treiberprozess
+     mitten im Zug beendet) und in der Generalprobe.
+   - Ein neuer `fahren`-Aufruf mit denselben Epics setzt aus `zustand.json` fort. Einen Lauf
+     beobachtet er weiter, wenn PID und Startzeit noch zu ihm passen. Hat ein anderer Prozess die
+     PID übernommen, liest er das Ergebnis aus dem Log. Er startet nichts doppelt.
 
 ## Rückweg zu `/epic-flotte` oder zum Leitstand
 
-1. **Treiber beenden** (Strg+C) und den Stand ansehen: `bun ~/.claude/skills/flotte/src/cli.ts zustand <projekt>`. Dort steht je Epic Stufe, Konto, Sitzung, PR und ob gerade ein Prozess läuft (`pid`).
-2. **Laufende Prozesse** zu Ende laufen lassen oder mit `taskkill /PID <pid> /T` beenden. Danach räumt `worktree.ps1 -Action CleanupStale -RepoRoot <projekt>` ihre Worktrees ab.
-3. **Offene Epics übergeben:**
-   - Eine Sitzung lässt sich auf ihrem Konto fortsetzen, mit vollem Kontext: im Projekt `claude --resume <sitzung>` (für Konto 2 mit `CLAUDE_CONFIG_DIR`).
-   - Oder `/epic-flotte` bzw. der Leitstand übernimmt die Epics neu. Epic-Branches und PRs bleiben dabei bestehen.
-4. **Offene PRs** bleiben offen. Wer mergt, bestimmt weiter der Adapterschlüssel `merge`: `merge.ps1` des Leitstands liest ihn genauso.
-5. **Aufräumen:** `<projekt>\.git\flotte\` löschen, wenn der Zustand nicht mehr gebraucht wird. Das Logbuch-Issue bleibt offen (es zählt in KIBO nie als Ticket) und steht am Ende auf `active: false`.
+1. **Treiber beenden** (Strg+C) und den Stand ansehen:
+   `bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts zustand <projekt>`. Dort steht je Epic Stufe,
+   Konto, Sitzung, PR und ob gerade ein Prozess läuft (`pid`).
+2. **Laufende Prozesse** zu Ende laufen lassen oder mit `taskkill /PID <pid> /T` beenden.
+3. **Halter löschen:** `<projekt>\.git\flotte\halten\` leeren. Solange dort eine Datei je Epic
+   liegt, lässt `CleanupStale` die Worktrees dieses Epics stehen. Erst danach räumt
+   `worktree.ps1 -Action CleanupStale -RepoRoot <projekt>` sie ab.
+4. **Offene Epics übergeben:**
+   - Eine Sitzung lässt sich auf ihrem Konto mit vollem Kontext fortsetzen: im Projekt
+     `claude --resume <sitzung>`, für Konto 2 mit `CLAUDE_CONFIG_DIR`.
+   - Oder `/epic-flotte` bzw. der Leitstand übernimmt die Epics neu. Epic-Branches und PRs bleiben
+     dabei bestehen.
+5. **Offene PRs** bleiben offen. Wer mergt, bestimmt weiter der Adapterschlüssel `merge`, denn
+   `merge.ps1` des Leitstands liest ihn genauso.
+6. **Aufräumen:** `<projekt>\.git\flotte\` löschen, wenn der Zustand nicht mehr gebraucht wird.
+   `flotte messen` liest Fragen und Wartezeiten aus `zustand.json`; vorher messen. Das
+   Logbuch-Issue bleibt offen (es zählt in KIBO nie als Ticket) und steht am Ende auf
+   `active: false`.
 
 Der Rückweg braucht keine Änderung an `settings.json`, an `epic-flotte` oder am Leitstand.
