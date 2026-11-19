@@ -17,6 +17,10 @@ foreach ($rule in (Get-Content $env:MERGE_GH_FIXTURE -Raw -Encoding utf8 | Conve
 exit 1
 '@
 
+# The same rules as a native program (gh.cmd -> pwsh), writing raw UTF-8 bytes: merge.ps1 then decodes
+# them with [Console]::OutputEncoding, the path the code page fix of the dress rehearsal changed.
+$nativeStub = $stub -replace 'if \(\$rule\.out\) \{ \$rule\.out \}', 'if ($rule.out) { $b = [Text.Encoding]::UTF8.GetBytes([string]$rule.out + [char]10); $o = [Console]::OpenStandardOutput(); $o.Write($b, 0, $b.Length); $o.Flush() }'
+
 function Get-Base64([string]$text) { [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text)) }
 
 $baseSha = 'aaaaaaa' + ('1' * 33)
@@ -46,11 +50,16 @@ function New-Rules([string]$body, [string]$adapter = $nachGate, [string]$checks 
     $rules
 }
 
-function Invoke-Merge($rules) {
+function Invoke-Merge($rules, [switch]$Native) {
     $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $dir | Out-Null
     $stubFile = Join-Path $dir 'gh-stub.ps1'
-    Set-Content -Path $stubFile -Value $stub -Encoding UTF8
+    Set-Content -Path $stubFile -Value $(if ($Native) { $nativeStub } else { $stub }) -Encoding UTF8
+    if ($Native) {
+        $cmd = Join-Path $dir 'gh.cmd'
+        Set-Content -Path $cmd -Value "@pwsh -NoProfile -ExecutionPolicy Bypass -File `"$stubFile`" %*" -Encoding ASCII
+        $stubFile = $cmd
+    }
     $fixture = Join-Path $dir 'rules.json'
     [IO.File]::WriteAllText($fixture, (ConvertTo-Json -Depth 5 -InputObject @($rules)), (New-Object Text.UTF8Encoding $false))
     $log = Join-Path $dir 'calls.log'
@@ -90,7 +99,7 @@ Describe 'merge.ps1: with checks' {
         $r = Invoke-Merge (New-Rules 'kein Gate' -checks '[{"name":"ci","bucket":"pass"}]')
         $r.Exit | Should Be 0
         $r.Out | Should Match 'GEMERGT #7 -> main'
-        (Get-MergeCalls $r) | Should Be @('pr merge 7 --repo o/r --merge')
+        (Get-MergeCalls $r) | Should Be @("pr merge 7 --repo o/r --merge --match-head-commit $headSha")
     }
 
     It 'stops on red checks' {
@@ -105,6 +114,14 @@ Describe 'merge.ps1: without checks the gate block decides' {
         $r = Invoke-Merge (New-Rules (New-GateBody))
         $r.Exit | Should Be 0
         $r.Out | Should Match 'GEMERGT #7 -> main; Branch epic/7-x geloescht'
+        (Get-MergeCalls $r).Count | Should Be 1
+        # a push between the check and the merge makes gh refuse (acceptance, low)
+        @(Get-MergeCalls $r)[0] | Should Match "--match-head-commit $headSha"
+    }
+
+    It 'reads "Gate gruen." with an umlaut from a native gh in UTF-8 (dress rehearsal, acceptance finding 16)' {
+        $r = Invoke-Merge (New-Rules (New-GateBody)) -Native
+        $r.Out | Should Match 'GEMERGT #7 -> main'
         (Get-MergeCalls $r).Count | Should Be 1
     }
 

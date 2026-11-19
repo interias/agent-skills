@@ -109,9 +109,11 @@ if ($ohneChecks) {
     if ($LASTEXITCODE -or "$hinter".Trim() -ne '0') { "GATE FEHLT #${Pr}: der Head enthaelt die aktuelle Basis nicht ($("$hinter".Trim()) Commits dahinter)"; exit 1 }
 }
 
+$head = $info.headRefOid
 $info = gh pr view $Pr --repo $Repo --json mergeable | ConvertFrom-Json
 if ($info.mergeable -eq 'CONFLICTING') { "KONFLIKT #${Pr}: nicht mergebar"; exit 1 }
-gh pr merge $Pr --repo $Repo --merge | Out-Null
+# only the head that was checked: a push between the check and the merge makes gh refuse
+gh pr merge $Pr --repo $Repo --merge --match-head-commit $head | Out-Null
 if ($LASTEXITCODE) { "MERGE FEHLGESCHLAGEN #$Pr"; exit 1 }
 
 $info = gh pr view $Pr --repo $Repo --json 'state,headRefName,baseRefName,closingIssuesReferences' | ConvertFrom-Json

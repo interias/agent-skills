@@ -803,6 +803,19 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
+  - **Gate-Block**, bei `merge: nach_gate` in einem Repository ohne Checks: Die Merge-Regel
+    (`merge.ps1`, der Flotten-Treiber) mergt nur mit ihm (`references/adapter.md`, „Merge").
+    Er steht unter genau der Überschrift `gate_heading`, Standard `## Gate`, nicht unter
+    „Verifikation" oder „Prüfung". Darunter steht die Ausgabe des Merge-Gates des Projekts als
+    Codeblock. Sie hat zwei Teile:
+    - **Kopfzeile:** Sie nennt die Basis und den Head, also `Basis <remote>/<basis> @ <sha>` und
+      `(HEAD <sha>)`. Hat der Adapter `gate_base` und `gate_head`, gilt deren Form.
+    - **Letzte Zeile:** `gate_green`, Standard `Gate grün.`.
+
+    Das Gate läuft nach dem letzten Commit und gegen den aktuellen Stand der Basis. Jeder Commit
+    danach verlangt einen neuen Lauf und einen neuen Block, auch einer nur für die Doku oder den
+    PR-Text. Den alten Block ersetzt du. Gibt das Gate des Projekts keine Basis aus, ist das ein
+    offener Punkt, und gemergt wird von Hand.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
     Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Kind, in beiden Modi. **Ein
     Zielissue mit Kindern nie** (Begründung ebenda). Das
