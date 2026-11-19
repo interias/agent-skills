@@ -80,7 +80,10 @@ Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleib
 
 1. **Der Lauf mergt und pusht nie in den Hauptzweig und nie in `<basis>`**, er endet mit einem
    offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
-   freigibt. Durch Hook durchgesetzt.
+   freigibt. Wer den Pull Request mergt, sagt allein der Adapterschlüssel `merge`
+   (`references/adapter.md`, „Merge"): ein Mensch (`mensch`, Standard) oder nach dem Gate genau
+   ein Akteur außerhalb des Laufs (`nach_gate`). Der Lauf mergt nie, auch nicht mit
+   `gh pr merge`. Durch Hook durchgesetzt.
 2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
    Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
 3. **Der Reviewer legt keine Issues an.** Funde außerhalb des Pakets gehen in deinen

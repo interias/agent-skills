@@ -137,6 +137,21 @@ Describe 'guard.ps1 epic: rule 1 (no merge or push into main or base)' {
         Assert-Decision $u 'epic' 'deny' @('git push origin epic/31-guard', 'git merge agent/31-p1') $u.Worktree
     }
 
+    It 'denies merging a pull request through gh, whatever the branch' {
+        $r = Invoke-Guard 'epic' 'gh pr merge 12 --merge' $t.Worktree
+        $r.Decision | Should Be 'deny'
+        $r.Reason | Should Match 'Skill epic, Regel 1'
+        $r.Reason | Should Match 'Adapterschlüssel merge'
+        Assert-Decision $t 'epic' 'deny' @('gh pr merge', 'gh pr merge 12 --repo o/r --squash --delete-branch',
+            'gh api -X PUT repos/o/r/pulls/12/merge', 'cd x && gh pr merge 3') $t.Worktree
+        Assert-Decision $t 'epic' 'deny' @('gh pr merge 12') $TestDrive
+    }
+
+    It 'allows reading and opening pull requests through gh' {
+        Assert-Decision $t 'epic' 'allow' @('gh pr view 12 --json state', 'gh pr create --base main --title x --body y',
+            'gh api repos/o/r/pulls/12', 'gh pr checks 12') $t.Worktree
+    }
+
     It 'protects only the main branch for base_branch: from-issue' {
         $u = New-TestRepo "---`nbase_branch: from-issue`n---`n"
         Assert-Decision $u 'epic' 'allow' @('git push origin epic/31-guard') $u.Worktree
