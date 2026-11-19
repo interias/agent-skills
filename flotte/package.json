@@ -1,0 +1,16 @@
+{
+  "name": "flotte",
+  "private": true,
+  "type": "module",
+  "description": "Flotten-Treiber: führt /epic-Läufe als claude -p, ohne Fenster (#14)",
+  "bin": { "flotte": "src/cli.ts" },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}

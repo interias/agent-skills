@@ -1,0 +1,22 @@
+{
+  "konten": { "k1": "~/.claude", "k2": "~/.claude-arbeitspferd" },
+  "einsaetze": [
+    {
+      "name": "beispiel",
+      "repo": "owner/repo",
+      "repoPfad": "C:/Users/me/git/repo",
+      "von": "2026-11-14T17:00:00Z",
+      "bis": "2026-11-16T20:00:00Z",
+      "epics": [1, 2, 3],
+      "orchestrierung": [
+        { "konto": "k1", "id": "aaaaaaaa" },
+        { "konto": "k2", "id": "bbbbbbbb", "von": "2026-11-15T06:00:00Z" }
+      ],
+      "laeufe": [{ "konto": "k2", "id": "bbbbbbbb", "agentType": "epic-lauf" }],
+      "startOrdner": ["C--Users-me-git-repo"],
+      "laeufeAusOrdnern": true,
+      "ausschliessen": ["cccccccc"],
+      "quelle": "woher die Zuordnung stammt"
+    }
+  ]
+}
