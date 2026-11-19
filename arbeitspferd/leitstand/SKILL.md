@@ -88,6 +88,17 @@ Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken. Die 
 Ist der letzte PR einer Sitzung gemergt und wartet sie still, schließt du ihr Fenster sofort mit
 `fenster-schliessen.ps1`. Offene, untätige Fenster lässt du nicht stehen.
 
+**Kein Fenster bleibt unbemerkt kalt.** Solange ein Arbeitspferd-Fenster offen ist, läuft `waechter.ps1`
+als Monitor. Ohne ihn erfährt niemand, dass ein Fenster fertig ist. Am 19.11.2026 standen so drei Fenster
+ein bis fünf Stunden kalt. Meldet er `WARTET`, dann gilt: Ohne offenen PR und ohne offene Frage schließt du
+das Fenster sofort. Mit offenem PR mergst du ihn, oder das Lagebuch nennt, worauf er wartet. Ein Fenster,
+das länger als 30 Minuten still steht, ohne dass das Lagebuch den Grund nennt, ist ein Fehler.
+
+**Der Arbeitsstand steht im Lagebuch, nicht im Kontext.** Der Kontext der Hauptsitzung ist Arbeitsspeicher
+und geht beim nächsten Compact verloren. Was eine spätere Sitzung wissen muss, steht im Kopf des Lagebuchs:
+laufende Sitzungen mit ID, offene PRs, Entscheidungen, was auf den Nutzer wartet, Regeln einer Flotte.
+Du führst ihn nach jedem Schritt nach, der den Stand ändert. Nach Start oder Compact liest du ihn zuerst.
+
 Nach jeder behandelten Meldung kommt **eine** Zeile ins Lagebuch, z. B. `05:12 <repo> #164 gemergt, #157 zu`.
 
 **5. Abschluss.** Wenn alle Sitzungen `FERTIG` gemeldet haben: dem Nutzer in wenigen Sätzen berichten
