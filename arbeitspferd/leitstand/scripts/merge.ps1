@@ -20,6 +20,9 @@ param(
 
 $ghExe = if ($GhCommand -eq 'gh') { (Get-Command gh -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source } else { $GhCommand }
 function gh { & $ghExe @args }
+# gh writes UTF-8; with the console code page (ibm850 here) 'Gate grün.' in a PR body never matched
+# (dress rehearsal #14, 19.11.2026).
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 
 # Flat `key: value` entries of the YAML frontmatter; quotes around a value are removed, an
 # unquoted value loses a trailing ` # comment`.
