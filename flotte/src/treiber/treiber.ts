@@ -160,6 +160,16 @@ export interface FlottenZustand extends Zustand {
   statistik: { starts: number; maxLaeufe: number; admiral: number; pings: number; immerGruen: boolean };
 }
 
+/**
+ * guard.ps1 as a hook of the session, not only of the skill: the hook in the frontmatter of /epic
+ * holds in the turn that calls the skill and is gone after --resume (dress rehearsal 2, 19.11.2026:
+ * `gh pr merge` passed in the second turn). Every answer of the driver is a --resume.
+ */
+export function guardArgs(guard: string): string[] {
+  const befehl = `powershell -NoProfile -ExecutionPolicy Bypass -File "${guard}" -Profile epic`;
+  return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: befehl, timeout: 30 }] }] } })];
+}
+
 const BELEGT = new Set(['laeuft', 'frage', 'nacharbeit']);
 const ENDE = new Set(['fertig', 'blockiert', 'abgebrochen']);
 const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -445,7 +455,7 @@ class Treiber {
         log: ep.log,
         // the worktree locks of this run outlive its process between turns (acceptance finding 3)
         env: { EPIC_LOCK_HOLDER: this.halten(nr) },
-        extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(',')],
+        extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(','), ...guardArgs(join(this.e.skripte, 'guard.ps1'))],
         werkzeuge: laufWerkzeuge,
         beimStart: (pid) => {
           ep.pid = pid;

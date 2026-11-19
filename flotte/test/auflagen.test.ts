@@ -197,6 +197,24 @@ describe('Befund 13: Leerlauf', () => {
   }, T);
 });
 
+describe('Befund 15: guard.ps1 auch nach --resume', () => {
+  it('every start and every continuation carries guard.ps1 as a session hook (--settings)', async () => {
+    const t = aufbau();
+    const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    await fahre(t.einstellung(buch, [3]), t.welt);
+    const laeufe = fuer(buch.gesehen(), 3);
+    expect(laeufe).toHaveLength(2);
+    expect(laeufe[1].args).toContain('--resume');
+    for (const g of laeufe) {
+      const settings = JSON.parse(g.args[g.args.indexOf('--settings') + 1]);
+      const hook = settings.hooks.PreToolUse[0];
+      expect(hook.matcher).toBe('Bash|PowerShell');
+      expect(hook.hooks[0].command).toContain(join(t.repo, 'skripte', 'guard.ps1'));
+      expect(hook.hooks[0].command).toMatch(/-Profile epic$/);
+    }
+  }, T);
+});
+
 describe('Niedrig: Frage-Kommentar ohne lokalen Pfad', () => {
   it('the comment at the issue names no absolute path of this machine', async () => {
     const t = aufbau();
