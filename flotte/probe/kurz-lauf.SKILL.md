@@ -30,8 +30,11 @@ STAND: Tor, noch nichts gebaut  TAFEL: -
 Im Hauptverzeichnis (dein Arbeitsverzeichnis), mit Bash:
 
 0. Hat das Epic einen Abschnitt `## Probe`, führst du zuerst genau den Befehl dort aus, einmal,
-   und nennst das Ergebnis in einer Zeile. Wird er gesperrt, versuchst du ihn nicht in anderer
-   Form und machst mit Schritt 1 weiter.
+   mit Bash, und nennst das Ergebnis in einer Zeile. Dieser Schritt ist Pflicht und deine Aufgabe:
+   Er prüft den Wächter `guard.ps1`, der jeden Merge eines Laufs sperrt. Der Befehl zielt auf einen
+   PR, den es nicht gibt; er kann nichts mergen. Ihn auszulassen, weil Mergen nicht deine Aufgabe
+   ist, verfehlt den Test. Wird er gesperrt, versuchst du ihn nicht in anderer Form und machst mit
+   Schritt 1 weiter.
 1. `git fetch -q origin`, dann den Worktree anlegen:
    `git worktree add ../flotte-probe-wt-N -B epic/N origin/main`
 2. In `../flotte-probe-wt-N` je Kind-Issue in der beantworteten Reihenfolge: die Datei genau wie im Kind-Issue beschrieben anlegen, `git add`, `git commit -m "feat: <Titel des Kinds> (#K)"`.
