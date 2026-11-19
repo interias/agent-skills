@@ -3,16 +3,17 @@
 // call per question block. Everything the driver decides is in this file and tested by the
 // scripts D1–D21 (test/drehbuecher.test.ts).
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { type Adapter, belege, type EpicBild, sammle } from '../werkzeuge/belegung.ts';
 import { type EndeBlock, type FrageBlock, leseBlock } from '../werkzeuge/bloecke.ts';
-import { type LaufErgebnis, liesLog, type Start, starte } from '../werkzeuge/lauf.ts';
+import { beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch } from '../werkzeuge/verbrauch.ts';
-import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, type Zustand } from '../werkzeuge/zustand.ts';
-import { ADMIRAL_ARGS, admiralAuftrag, antwortenAus } from './admiral.ts';
+import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
+import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { schreibeTafel } from './tafel.ts';
 
@@ -30,7 +31,10 @@ export interface Einstellung {
   leerlaufMs: number;
   taktMs: number;
   plattMinGb: number;
-  ramWarn: number;
+  /** --ram-warn: warn threshold for ram.ps1 and the hysteresis; null: the adapter's or 75 */
+  ramWarn: number | null;
+  /** --obergrenze: a fixed fleet limit instead of the one from the 7-day projection (dress rehearsals) */
+  obergrenze: number | null;
   verbrauchMaxAlterMin: number;
   /** /epic-nacharbeit while the PR is open when FLOTTE-ENDE names open points (Phase 4.1) */
   nacharbeit: boolean;
@@ -52,16 +56,18 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     repo: resolve(repo),
     forge,
     epics,
-    konten: konten.map((k) => resolve(k)),
+    // a second ~ in "~/.claude,~/.claude-arbeitspferd" reaches us unexpanded (acceptance finding 5)
+    konten: konten.map((k) => resolve(k.startsWith('~') ? join(homedir(), k.slice(1)) : k)),
     skill: 'epic',
     modell: null,
     admiralModell: 'fable',
     admiralEffort: 'high',
     pingModell: 'haiku',
-    leerlaufMs: 30 * 60_000,
+    leerlaufMs: 60 * 60_000,
     taktMs: 60_000,
     plattMinGb: 20,
-    ramWarn: 75,
+    ramWarn: null,
+    obergrenze: null,
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
     sweepRoot: null,
@@ -81,6 +87,8 @@ export interface Welt {
   langsam: AsyncAufrufer;
   starte: (s: Start) => Promise<LaufErgebnis>;
   freiGb: (pfad: string) => number | null;
+  /** start of a process in epoch ms, null when unreadable (D16: a reused pid) */
+  startZeit: (pid: number) => number | null;
   jetzt: () => number;
   melde: (zeile: string) => void;
 }
@@ -90,6 +98,7 @@ export const echteWelt: Welt = {
   langsam: aufrufenAsync,
   starte,
   freiGb,
+  startZeit,
   jetzt: Date.now,
   melde: (z) => process.stderr.write(`${z}\n`),
 };
@@ -118,6 +127,8 @@ export interface Entscheidung {
 
 export interface FlottenEpic extends EpicZustand {
   pid?: number | null;
+  /** when the driver spawned pid: tells a living run from a reused pid after a restart */
+  pidSeit?: number | null;
   log?: string | null;
   /** what the run gets next, once the brakes allow it */
   auftrag?: { text: string; resume: boolean } | null;
@@ -126,7 +137,12 @@ export interface FlottenEpic extends EpicZustand {
   /** answers of the person to deliver with the next turn */
   nachzureichen?: string[];
   nacharbeitGemacht?: boolean;
+  /** merge refusals the run has to answer for (gate red or missing on an unchanged base) */
   mergeVersuche?: number;
+  /** merge refusals because the base moved on (another merge): not the run's fault */
+  basisNachzuege?: number;
+  /** resumes after a silent turn (acceptance finding 13) */
+  leerlaeufe?: number;
   konfliktGemeldet?: boolean;
   prBereitGemeldet?: boolean;
 }
@@ -170,6 +186,12 @@ class Treiber {
   platteGenug = true;
   bewertung = new Map<string, Bewertung>();
   letzterPing = new Map<string, number>();
+  /** pings and merges run beside the loop; the loop wakes up when one ends */
+  nebenher = new Set<Promise<void>>();
+  mergeKette: Promise<void> = Promise.resolve();
+  mergesOffen = new Set<number>();
+  /** why merge.ps1 cannot merge for us (missing or an old version), null when it can */
+  mergeAlt: string | null = null;
   geaendert = true;
 
   constructor(
@@ -197,34 +219,54 @@ class Treiber {
       aktiv: true,
       stand: '',
     };
+    const fehlt = this.e.konten.filter((k) => !existsSync(k));
+    if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
     this.bilder = bilder;
     this.adapter = adapter;
     this.z.logbuch ??= logbuchFinden(this.w.aufrufer, this.e.forge, this.logbuchText());
     this.ereignis(null, `Einsatz gestartet: ${this.e.epics.map((n) => `#${n}`).join(', ')}`);
+    if (this.adapter.merge === 'nach_gate') {
+      this.mergeAlt = this.pruefeMergeSkript();
+      if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch mergt`);
+    }
     this.wiederaufnehmen();
 
     for (;;) {
       this.antwortenLesen();
-      this.messen();
-      await this.pings();
+      await this.messen();
+      this.pings();
       await this.mergeWache();
       this.verteile();
       this.belege();
       this.speichern();
-      if (!this.fertig.length && !this.laufend.size && this.istZuEnde()) break;
+      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde()) break;
       if (this.e.maxDauerMs !== null && this.w.jetzt() - anfang > this.e.maxDauerMs) {
         this.ereignis(null, `Zeitgrenze von ${Math.round(this.e.maxDauerMs / 1000)} s erreicht, Treiber hält an`);
         await Promise.all(this.laufend.values());
         while (this.fertig.length) await this.verarbeite(this.fertig.shift()!);
+        await this.mergeKette;
         break;
       }
-      if (!this.fertig.length) await Promise.race([...this.laufend.values(), pause(this.e.taktMs)]);
+      if (!this.fertig.length) await Promise.race([...this.laufend.values(), ...this.nebenher, pause(this.e.taktMs)]);
       while (this.fertig.length) await this.verarbeite(this.fertig.shift()!);
     }
+    await Promise.all(this.nebenher);
     await this.abschluss();
     return this.z;
+  }
+
+  nebenbei(p: Promise<void>): void {
+    const q: Promise<void> = p.catch((e) => this.ereignis(null, `Fehler nebenher: ${e}`)).finally(() => this.nebenher.delete(q));
+    this.nebenher.add(q);
+  }
+
+  /** Acceptance finding 7: an installed merge.ps1 older than the merge rule merges without a gate. */
+  pruefeMergeSkript(): string | null {
+    if (!existsSync(this.e.mergeSkript)) return `merge.ps1 fehlt (${this.e.mergeSkript})`;
+    const text = readFileSync(this.e.mergeSkript, 'utf8');
+    return /nach_gate/.test(text) && /gate_heading/.test(text) ? null : `merge.ps1 unter ${this.e.mergeSkript} kennt den Adapterschlüssel merge nicht (alte Fassung)`;
   }
 
   // ---- state, board, logbook
@@ -268,13 +310,20 @@ class Treiber {
   wiederaufnehmen(): void {
     for (const ep of Object.values(this.z.epics)) {
       if (!ep.pid) continue;
-      const { pid, log } = ep;
-      this.ereignis(ep.nr, lebt(pid) ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
-      const p = (async () => {
-        while (lebt(pid)) await pause(Math.min(this.e.taktMs, 1000));
-        const r = log && existsSync(log) ? liesLog(log) : liesLog(this.leeresLog(ep.nr));
-        this.fertig.push({ nr: ep.nr, r });
-      })().finally(() => this.laufend.delete(ep.nr));
+      const { pid } = ep;
+      // the same process only when it started when the driver spawned it: a pid is reused
+      const seit = lebt(pid) ? this.w.startZeit(pid) : null;
+      const derselbe = seit !== null && ep.pidSeit != null && Math.abs(seit - ep.pidSeit) < 10_000;
+      // a living pid whose start cannot be compared is followed, but never killed
+      const unklar = lebt(pid) && !derselbe && (seit === null || ep.pidSeit == null);
+      const verfolgen = derselbe || unklar;
+      this.ereignis(ep.nr, verfolgen ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
+      const log = ep.log && existsSync(ep.log) ? ep.log : this.leeresLog(ep.nr);
+      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge })
+        .then((r) => {
+          this.fertig.push({ nr: ep.nr, r });
+        })
+        .finally(() => this.laufend.delete(ep.nr));
       this.laufend.set(ep.nr, p);
     }
   }
@@ -289,11 +338,14 @@ class Treiber {
 
   // ---- measurements and brakes (D6–D9)
 
-  messen(): void {
-    this.ram = messeRam(this.w.aufrufer, this.e.repo, join(this.e.skripte, 'ram.ps1'));
-    const vorher = this.ramBremse.halt;
-    this.ramBremse = naechsteBremse(this.ramBremse, this.ram, this.e.ramWarn);
-    if (this.ramBremse.halt !== vorher) this.ereignis(null, this.ramBremse.halt ? `RAM ${this.ram.level} (${this.ram.percent_used ?? '?'} %): nichts Neues` : `RAM wieder ok (${this.ram.percent_used} %): es geht weiter`);
+  async messen(): Promise<void> {
+    // asynchronous: spawnSync with a timeout fails under Bun after a long wait on a child (acceptance finding 8)
+    this.ram = await messeRam(this.w.langsam, this.e.repo, join(this.e.skripte, 'ram.ps1'), this.e.ramWarn);
+    const vorher = this.ramBremse;
+    this.ramBremse = naechsteBremse(this.ramBremse, this.ram, this.e.ramWarn ?? 75);
+    if (this.ramBremse.halt !== vorher.halt || Boolean(this.ramBremse.fehler) !== Boolean(vorher.fehler)) {
+      this.ereignis(null, !this.ramBremse.halt ? `RAM wieder ok (${this.ram.percent_used} %): es geht weiter` : this.ram.fehler ? `RAM-Messung fehlgeschlagen (${this.ram.fehler}): nichts Neues` : `RAM ${this.ram.level} (${this.ram.percent_used ?? '?'} %): nichts Neues`);
+    }
     const frei = this.w.freiGb(this.e.repo);
     const genug = frei !== null && frei >= this.e.plattMinGb;
     if (genug !== this.platteGenug) this.ereignis(null, genug ? 'Platte wieder über der Schwelle' : `Platte: ${frei ?? 'unbekannt'} GB frei, Schwelle ${this.e.plattMinGb} GB: kein Start`);
@@ -320,24 +372,36 @@ class Treiber {
 
   obergrenze(): number {
     const gruen = this.e.konten.map((k) => this.bewertung.get(k)).filter((b): b is Bewertung => b?.stufe === 'gruen');
-    return gruen.length ? Math.min(4, ...gruen.map((b) => b.obergrenze)) : 0;
+    if (!gruen.length) return 0;
+    return Math.min(4, this.e.obergrenze ?? Math.min(...gruen.map((b) => b.obergrenze)));
   }
 
-  /** Decision 1 at HALT 1: a stale value is red; a small haiku run fetches a fresh one when nothing runs on the account. */
-  async pings(): Promise<void> {
+  /**
+   * Decision 1 at HALT 1: a stale value is red; a small haiku run fetches a fresh one. It comes at
+   * half the threshold and also while a run works on the account: a run reports usage about once
+   * per turn, so a long turn would make its own account red (acceptance finding 4). Only when
+   * something on the account may start or continue: no pings while everything waits for the person.
+   */
+  pings(): void {
     for (const k of this.e.konten) {
       const b = this.bewertung.get(k)!;
-      if (b.alterMin !== null && b.alterMin <= this.e.verbrauchMaxAlterMin) continue;
-      if (Object.values(this.z.epics).some((ep) => ep.konto === k && this.laufend.has(ep.nr))) continue;
+      if (b.alterMin !== null && b.alterMin <= this.e.verbrauchMaxAlterMin / 2) continue;
+      if (!this.brauchtVerbrauch(k)) continue;
       const zuletzt = this.letzterPing.get(k) ?? 0;
       if (this.w.jetzt() - zuletzt < (this.e.verbrauchMaxAlterMin * 60_000) / 2) continue;
       this.letzterPing.set(k, this.w.jetzt());
       this.z.statistik.pings++;
-      const r = await this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000 });
-      this.ereignis(null, `Verbrauch ${this.kontoName(k)} veraltet: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
-      const neu = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin);
-      this.bewertung.set(k, neu);
+      this.nebenbei(
+        this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] }).then((r) => {
+          this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
+          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin));
+        }),
+      );
     }
+  }
+
+  brauchtVerbrauch(k: string): boolean {
+    return Object.values(this.z.epics).some((ep) => (ep.konto === k && this.laufend.has(ep.nr)) || (Boolean(ep.auftrag) && (!ep.konto || ep.konto === k)) || ep.stufe === 'wartend');
   }
 
   programm(): Pick<Start, 'programm' | 'programmArgs'> {
@@ -379,8 +443,13 @@ class Treiber {
         modell: this.e.modell,
         leerlaufMs: this.e.leerlaufMs,
         log: ep.log,
+        // the worktree locks of this run outlive its process between turns (acceptance finding 3)
+        env: { EPIC_LOCK_HOLDER: this.halten(nr) },
+        extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(',')],
+        werkzeuge: laufWerkzeuge,
         beimStart: (pid) => {
           ep.pid = pid;
+          ep.pidSeit = Date.now();
           schreibeZustand(this.dir, this.z);
         },
       })
@@ -391,6 +460,19 @@ class Treiber {
     this.laufend.set(nr, p);
     this.z.statistik.maxLaeufe = Math.max(this.z.statistik.maxLaeufe, this.laufend.size);
     this.ereignis(nr, resume ? 'Lauf fortgesetzt' : 'Lauf gestartet');
+  }
+
+  /** The holder file: while it exists, CleanupStale keeps the worktree locks of this epic's runs. */
+  halten(nr: number): string {
+    const d = join(this.dir, 'halten');
+    mkdirSync(d, { recursive: true });
+    const f = join(d, `${nr}.json`);
+    if (!existsSync(f)) writeFileSync(f, JSON.stringify({ epic: nr, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString() }));
+    return f;
+  }
+
+  loslassen(nr: number): void {
+    rmSync(join(this.dir, 'halten', `${nr}.json`), { force: true });
   }
 
   verteile(): void {
@@ -457,13 +539,24 @@ class Treiber {
   async verarbeite({ nr, r }: { nr: number; r: LaufErgebnis }): Promise<void> {
     const ep = this.epic(nr);
     ep.pid = null;
+    // flotte messen reads the cold time from here: turn end to the next start (finding 14)
+    this.ereignis(nr, `Zug zu Ende (${Math.round(r.dauerMs / 1000)} s)`);
     if (r.sitzung) ep.sitzung = r.sitzung;
+    if (r.fehler === 'werkzeuge') return this.halt(ep, 'blockiert', `${r.stderr.split('\n')[0]}. Der Lauf wurde beendet, bevor er arbeitete.`);
     if (r.verweigert.length) {
       // D19: on the board, blocked, never tried again in another form
       const was = r.verweigert.map((d) => (d as { tool_name?: string }).tool_name ?? JSON.stringify(d).slice(0, 80)).join(', ');
       return this.halt(ep, 'blockiert', `Erlaubnis verweigert: ${was}. Kein zweiter Versuch in anderer Form.`);
     }
     if (r.fehler === 'leerlauf') {
+      const min = Math.round(this.e.leerlaufMs / 60_000);
+      if ((ep.leerlaeufe ?? 0) < 1 && ep.sitzung) {
+        // acceptance finding 13: a long quiet command is no dead run; once more, then the end
+        ep.leerlaeufe = (ep.leerlaeufe ?? 0) + 1;
+        ep.auftrag = { resume: true, text: this.an(nr, `Dein Zug war ${min} min ohne Ausgabe und wurde beendet. Setze an derselben Stelle fort; lange Befehle im Hintergrund starten und dazwischen den Stand melden.`) };
+        this.ereignis(nr, `Leerlauf: ${min} min ohne Ausgabe, einmal fortgesetzt`);
+        return;
+      }
       await this.aufraeumen(nr);
       return this.halt(ep, 'abgebrochen', `Leerlauf: ${Math.round(this.e.leerlaufMs / 60_000)} min ohne Ausgabe`, true);
     }
@@ -507,13 +600,16 @@ class Treiber {
   }
 
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
+    this.loslassen(ep.nr);
     ep.stufe = stufe;
     ep.notiz = grund.split('\n')[0];
     this.ereignis(ep.nr, `${stufe}: ${grund.split('\n')[0]}`);
     if (amIssue || stufe === 'blockiert') kommentar(this.w.aufrufer, this.e.forge, ep.nr, `**Flotte (${this.e.admiralName})** — Epic ${stufe}.\n\n${grund}`);
   }
 
+  /** CleanupStale is repository-wide; it spares the locks of every epic that still holds them (halten). */
   async aufraeumen(nr: number | null): Promise<void> {
+    if (nr !== null) this.loslassen(nr);
     const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'worktree.ps1'), '-Action', 'CleanupStale', '-RepoRoot', this.e.repo], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
     this.ereignis(nr, r.code ? `CleanupStale meldet Fehler: ${(r.stderr || r.stdout).trim().split('\n').pop()}` : 'Reste abgeräumt (CleanupStale)');
   }
@@ -537,11 +633,13 @@ class Treiber {
       konto: ep.konto!,
       auftrag: admiralAuftrag(block, kontext),
       modell: this.e.admiralModell,
-      extraArgs: [...ADMIRAL_ARGS, ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
+      extraArgs: [...admiralArgs(block), ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
+      werkzeuge: admiralWerkzeuge,
       leerlaufMs: 15 * 60_000,
       log: join(this.dir, 'admiral', `${nr}-${this.w.jetzt()}.jsonl`),
     });
-    const antworten = antwortenAus(r.strukturiert, block);
+    if (r.fehler === 'werkzeuge') this.ereignis(nr, `${r.stderr.split('\n')[0]}: Admiral beendet, die Fragen gehen an den Menschen`);
+    const antworten = antwortenAus(r.fehler === 'werkzeuge' ? null : r.strukturiert, block);
     const zeilen: string[] = [];
     const geparkt: string[] = [];
     let ganzerLauf = false;
@@ -563,7 +661,7 @@ class Treiber {
       const wartet = lauf ? 'der ganze Lauf' : (f.betrifft as string[]).join(', ');
       this.z.fragen.push({ epic: nr, nr: a.nr, frage: f.frage, empfehlung: a.antwort, wartet, ganzerLauf: lauf, seit: zeit });
       zeilen.push(`${a.nr}. liegt beim Menschen${lauf ? '' : `; geparkt: ${wartet}`}`);
-      kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.\nAntworten: \`flotte antworten ${this.e.repo} ${nr} ${a.nr} "<Antwort>"\``);
+      kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.\nAntworten, im Repository: \`flotte antworten . ${nr} ${a.nr} "<Antwort>"\``);
       this.ereignis(nr, `❓ Frage ${a.nr} liegt beim Menschen (wartet: ${wartet})`);
     }
     const text = this.an(nr, `Antwort des Admirals auf FLOTTE-FRAGE ${block.phase}:\n${zeilen.join('\n')}${geparkt.length && !ganzerLauf ? `\nweiter ohne ${[...new Set(geparkt)].join(', ')}` : ''}`);
@@ -637,8 +735,16 @@ class Treiber {
     ep.stufe = 'pr';
     if (!ep.pr) return this.halt(ep, 'blockiert', 'FLOTTE-ENDE ohne Pull Request');
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
-    if (this.adapter.merge === 'nach_gate') await this.mergen(ep);
-    else this.prBereit(ep, 'merge: mensch');
+    if (this.adapter.merge !== 'nach_gate') return this.prBereit(ep, 'merge: mensch');
+    if (this.mergeAlt) return this.prBereit(ep, this.mergeAlt);
+    // beside the loop and one at a time: merge.ps1 waits minutes for checks (acceptance finding 12)
+    this.mergesOffen.add(nr);
+    ep.notiz = `PR #${ep.pr}: merge.ps1 prüft`;
+    this.mergeKette = this.mergeKette
+      .then(() => this.mergen(ep))
+      .catch((e) => this.ereignis(nr, `merge.ps1: ${e}`))
+      .finally(() => this.mergesOffen.delete(nr));
+    this.nebenbei(this.mergeKette);
   }
 
   prBereit(ep: FlottenEpic, warum: string): void {
@@ -656,9 +762,15 @@ class Treiber {
     this.ereignis(ep.nr, `merge.ps1: ${zeile}`);
     if (/^GEMERGT/.test(zeile)) return this.nachMerge(ep);
     if (/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT|CHECKS ROT)/.test(zeile)) {
-      // D10: never merged; the run brings its PR in order
-      ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
-      if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter abgelehnt: ${zeile}`);
+      // D10: never merged; the run brings its PR in order. A base that moved on (another epic was
+      // merged) is not the run's fault and counts apart (acceptance finding 9).
+      if (/^KONFLIKT|Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile)) {
+        ep.basisNachzuege = (ep.basisNachzuege ?? 0) + 1;
+        if (ep.basisNachzuege > 5) return this.halt(ep, 'blockiert', `Die Basis zog fünfmal davon, Merge weiter abgelehnt: ${zeile}`);
+      } else {
+        ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
+        if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter abgelehnt: ${zeile}`);
+      }
       ep.stufe = 'laeuft';
       ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Merge wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung: Basis in den Epic-Branch mergen, nur mechanische Konflikte lösen, das Gate neu laufen lassen und den Gate-Block in der PR-Beschreibung ersetzen. Dann FLOTTE-ENDE.`) };
       return;
@@ -670,7 +782,7 @@ class Treiber {
   /** D12/D13: merged by a person, or a conflict after another merge. */
   async mergeWache(): Promise<void> {
     for (const ep of Object.values(this.z.epics)) {
-      if (ep.stufe !== 'pr' || !ep.pr || this.laufend.has(ep.nr) || ep.auftrag) continue;
+      if (ep.stufe !== 'pr' || !ep.pr || this.laufend.has(ep.nr) || ep.auftrag || this.mergesOffen.has(ep.nr)) continue;
       const pz = prZustand(this.w.aufrufer, this.e.forge, ep.pr);
       if (!pz) continue;
       if (pz.state === 'MERGED') {
@@ -735,7 +847,7 @@ export async function fahren(argv: string[]): Promise<unknown> {
   const epics = nummern(wert(argv, '--epics'));
   const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
   if (!repo || repo.startsWith('--') || !forge || !epics.length || !konten.length) {
-    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 30] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
+    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
   }
   const e = standard(repo, forge, epics, konten);
   e.skill = wert(argv, '--skill') ?? e.skill;
@@ -744,10 +856,13 @@ export async function fahren(argv: string[]): Promise<unknown> {
   e.admiralEffort = wert(argv, '--admiral-effort') ?? e.admiralEffort;
   if (e.admiralEffort === 'keine') e.admiralEffort = null;
   e.pingModell = wert(argv, '--ping-modell') ?? e.pingModell;
-  e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 30) * 60_000;
+  e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
-  e.ramWarn = Number(wert(argv, '--ram-warn') ?? e.ramWarn);
+  const ramWarn = wert(argv, '--ram-warn');
+  e.ramWarn = ramWarn ? Number(ramWarn) : null;
+  const grenze = wert(argv, '--obergrenze');
+  e.obergrenze = grenze ? Number(grenze) : null;
   e.sweepRoot = wert(argv, '--sweep-root') ?? null;
   e.sweepTemp = wert(argv, '--sweep-temp') ?? null;
   e.sweepDocker = !argv.includes('--ohne-docker');
@@ -755,6 +870,13 @@ export async function fahren(argv: string[]): Promise<unknown> {
   e.nacharbeit = !argv.includes('--ohne-nacharbeit');
   const max = wert(argv, '--max-min');
   e.maxDauerMs = max ? Number(max) * 60_000 : null;
+  // Ctrl+C: the lock goes, the state is already written; the runs finish their turn in their own
+  // process group and a new start reads their logs (D16)
+  process.once('SIGINT', () => {
+    entsperren(flotteDir(e.repo));
+    process.stderr.write('Treiber angehalten. Laufende Züge arbeiten weiter; ein neuer Start liest ihre Logs.\n');
+    process.exit(130);
+  });
   const z = await fahre(e);
   return {
     aktiv: z.aktiv,

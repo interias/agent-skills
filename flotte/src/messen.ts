@@ -16,7 +16,7 @@ export interface Rueckfrage {
   zeit: number;
   wartenMin: number | null;
   /** ask: AskUserQuestion; text: a question round as text (❓), answered by the next input of a person */
-  form: 'ask' | 'text';
+  form: 'ask' | 'text' | 'treiber';
   /** null: the transcript does not show whether the answer was the recommendation */
   gefolgt: boolean | null;
   epic: number | null;
@@ -195,4 +195,63 @@ export function verteilung(werte: number[]): Verteilung {
 
 export function runde(x: number): number {
   return Math.round(x * 10) / 10;
+}
+
+/** What `flotte messen` needs from the state file of the driver (src/treiber/treiber.ts). */
+export interface TreiberZustand {
+  ereignisse: { zeit: string; epic: number | null; text: string }[];
+  fragen: { epic: number; nr: number; frage: string; empfehlung: string; beantwortet?: string }[];
+  entscheidungen: { epic: number }[];
+}
+
+/**
+ * Questions, waiting time, cold time and starts of a deployment of the driver (acceptance finding
+ * 14): the questions to the person and their waits come from the driver's events, not from
+ * transcripts, where a run under the driver never asks anyone. Cold time is measured as in
+ * kalteZeit: from the end of a turn to the next start of that epic, without the wait for the
+ * person in between, gaps from schwelleMin on.
+ */
+export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleMin = 2) {
+  const ev = z.ereignisse.map((e) => ({ ...e, t: Date.parse(e.zeit) })).filter((e) => imFenster(e.t, fenster));
+  const fragen: Rueckfrage[] = [];
+  for (const f of z.fragen) {
+    const q = ev.find((e) => e.epic === f.epic && e.text.includes(`Frage ${f.nr} liegt beim Menschen`));
+    if (!q) continue;
+    const a = ev.find((e) => e.epic === f.epic && e.t >= q.t && e.text.includes(`Antwort des Menschen auf Frage ${f.nr}`));
+    const buchstabe = /^[A-H]$/.test(f.empfehlung.trim()) ? f.empfehlung.trim() : null;
+    fragen.push({
+      zeit: q.t,
+      wartenMin: a ? (a.t - q.t) / MIN : null,
+      form: 'treiber',
+      gefolgt: f.beantwortet && buchstabe ? new RegExp(`(^|[^A-Za-z])${buchstabe}([^A-Za-z]|$)`).test(f.beantwortet) : null,
+      epic: f.epic,
+      frage: f.frage,
+    });
+  }
+  const epics = [...new Set(ev.map((e) => e.epic).filter((n): n is number => n !== null))];
+  const kalt = epics.map((nr) => {
+    const mine = ev.filter((e) => e.epic === nr);
+    let minuten = 0;
+    let endeSeit: number | null = null;
+    let warten = 0;
+    let frageSeit: number | null = null;
+    for (const e of mine) {
+      if (/^Zug zu Ende/.test(e.text)) {
+        endeSeit = e.t;
+        warten = 0;
+      } else if (/liegt beim Menschen/.test(e.text)) frageSeit ??= e.t;
+      else if (/^Antwort des Menschen/.test(e.text) && frageSeit !== null) {
+        warten += e.t - frageSeit;
+        frageSeit = null;
+      } else if (/^Lauf (gestartet|fortgesetzt)/.test(e.text) && endeSeit !== null) {
+        const luecke = (e.t - endeSeit - warten) / MIN;
+        if (luecke >= schwelleMin) minuten += luecke;
+        endeSeit = null;
+      }
+    }
+    return { epic: nr, minuten };
+  });
+  const starts = ev.filter((e) => /^Lauf (gestartet|fortgesetzt)/.test(e.text)).length;
+  const fehlstarts = ev.filter((e) => /^Start ohne Ergebnis/.test(e.text)).length;
+  return { fragen, kalt, starts, fehlstarts, entscheidungen: z.entscheidungen.length };
 }

@@ -81,7 +81,7 @@ const pct = (x: number) => Math.round(x * 1000) / 10;
 
 export function bewerte(v: Verbrauch | null, jetzt: number, maxAlterMin = 30): Bewertung {
   if (!v) return { stufe: 'rot', grund: 'keine Verbrauchsdatei', obergrenze: 4, fuenf: null, sieben: null, alterMin: null };
-  const alterMin = Math.round((jetzt - v.zeit) / 60_000);
+  const alterMin = Math.round((jetzt - v.zeit) / 6_000) / 10;
   const bild = (f: Fenster | null, laenge: number) => (f ? { verbraucht: pct(f.anteil), hochrechnung: ((h) => (h === null ? null : pct(h)))(hochrechnung(f, laenge, jetzt)), reset: new Date(f.reset).toISOString() } : null);
   const fuenf = bild(v.fuenf, 5 * STUNDE);
   const sieben = bild(v.sieben, 7 * 24 * STUNDE);

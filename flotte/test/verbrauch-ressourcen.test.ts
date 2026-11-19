@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ausEreignis, bewerte, lies, schreibe, type Verbrauch } from '../src/werkzeuge/verbrauch.ts';
 import { messe, messeRam, naechsteBremse } from '../src/werkzeuge/ressourcen.ts';
-import type { Aufrufer } from '../src/aufruf.ts';
+import { aufrufen, aufrufenAsync, type AsyncAufrufer } from '../src/aufruf.ts';
 
 const H = 3_600_000;
 const jetzt = Date.parse('2026-11-19T12:00:00Z');
@@ -61,23 +61,36 @@ describe('verbrauch', () => {
   });
 });
 
-const ramStub = (out: string, code = 0): Aufrufer => (p) => (p === 'pwsh' ? { code, stdout: out, stderr: code ? 'kaputt' : '' } : { code: 1, stdout: '', stderr: '' });
+const ramStub = (out: string, code = 0): AsyncAufrufer => async (p, args) => {
+  gesehen.push(args);
+  return p === 'pwsh' ? { code, stdout: out, stderr: code ? 'kaputt' : '' } : { code: 1, stdout: '', stderr: '' };
+};
+const gesehen: string[][] = [];
 
 describe('ressourcen', () => {
-  it('takes the level from ram.ps1', () => {
-    expect(messeRam(ramStub('{"percent_used":72.1,"free_gb":17.5,"total_gb":62.9,"level":"ok"}'), 'C:/r')).toEqual({ level: 'ok', percent_used: 72.1, free_gb: 17.5 });
+  it('takes the level from ram.ps1 and hands it --ram-warn', async () => {
+    expect(await messeRam(ramStub('{"percent_used":72.1,"free_gb":17.5,"total_gb":62.9,"level":"ok"}'), 'C:/r')).toEqual({ level: 'ok', percent_used: 72.1, free_gb: 17.5 });
+    await messeRam(ramStub('{"level":"ok"}'), 'C:/r', 'ram.ps1', 80);
+    expect(gesehen.at(-1)?.slice(-2)).toEqual(['-WarnPercent', '80']);
   });
 
-  it('counts a failed measurement as hold (D7)', () => {
-    expect(messeRam(ramStub('', 1), 'C:/r')).toMatchObject({ level: 'hold', percent_used: null });
-    expect(messeRam(ramStub('kein json'), 'C:/r').level).toBe('hold');
+  it('counts a failed measurement as hold (D7)', async () => {
+    expect(await messeRam(ramStub('', 1), 'C:/r')).toMatchObject({ level: 'hold', percent_used: null });
+    expect((await messeRam(ramStub('kein json'), 'C:/r')).level).toBe('hold');
   });
 
-  it('starts nothing when the disk is below the threshold or unknown (D9)', () => {
+  it('measures after a long wait on a child: no spawnSync timeout under Bun (acceptance finding 8)', async () => {
+    await aufrufenAsync(process.execPath, ['-e', 'setTimeout(() => {}, 1500)']);
+    const r = await aufrufenAsync(process.execPath, ['-e', 'console.log(JSON.stringify({ level: "ok", percent_used: 50, free_gb: 30 }))'], { timeoutMs: 1000 });
+    expect(r.code).toBe(0);
+    expect(aufrufen(process.execPath, ['-e', 'console.log(1)']).code).toBe(0);
+  }, 10_000);
+
+  it('starts nothing when the disk is below the threshold or unknown (D9)', async () => {
     const a = ramStub('{"level":"ok","percent_used":50,"free_gb":30}');
-    expect(messe(a, 'C:/r', 20, () => 12).platte).toEqual({ frei_gb: 12, min_gb: 20, genug: false });
-    expect(messe(a, 'C:/r', 20, () => null).platte.genug).toBe(false);
-    expect(messe(a, 'C:/r', 20, () => 50).platte.genug).toBe(true);
+    expect((await messe(a, 'C:/r', 20, () => 12)).platte).toEqual({ frei_gb: 12, min_gb: 20, genug: false });
+    expect((await messe(a, 'C:/r', 20, () => null)).platte.genug).toBe(false);
+    expect((await messe(a, 'C:/r', 20, () => 50)).platte.genug).toBe(true);
   });
 
   it('holds on warn and hold and resumes only after the hysteresis (D6)', () => {
@@ -89,6 +102,13 @@ describe('ressourcen', () => {
     b = naechsteBremse(b, { level: 'ok', percent_used: 73, free_gb: 12 });
     expect(b.halt).toBe(true); // ok, but within 5 points of warn
     b = naechsteBremse(b, { level: 'ok', percent_used: 69, free_gb: 14 });
+    expect(b).toEqual({ halt: false, stufe: 'ok' });
+  });
+
+  it('a hold from a failed reading ends with the next good reading, without hysteresis (acceptance finding 8)', () => {
+    let b = naechsteBremse({ halt: false, stufe: 'ok' }, { level: 'hold', percent_used: null, free_gb: null, fehler: 'ram.ps1 Exit 1' });
+    expect(b).toEqual({ halt: true, stufe: 'hold', fehler: true });
+    b = naechsteBremse(b, { level: 'ok', percent_used: 72, free_gb: 18 });
     expect(b).toEqual({ halt: false, stufe: 'ok' });
   });
 });

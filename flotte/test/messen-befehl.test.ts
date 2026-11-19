@@ -94,6 +94,41 @@ describe('messeEinsatz', () => {
     expect(aufrufe.filter((a) => a[0] === 'pwsh').every((a) => a.includes('-Since') && a.includes('-Until'))).toBe(true);
   });
 
+  it('reads questions, waits, cold time and starts of a driver deployment from zustand.json (acceptance finding 14)', () => {
+    const dir = konto();
+    const ev = (m: number, epic: number | null, text: string) => ({ zeit: min(m), epic, text });
+    const zustand = {
+      ereignisse: [
+        ev(0, 12, 'Lauf gestartet'),
+        ev(5, 12, 'Zug zu Ende (300 s)'),
+        ev(6, 12, '❓ Frage 1 liegt beim Menschen (wartet: der ganze Lauf)'),
+        ev(30, 12, 'Antwort des Menschen auf Frage 1'),
+        ev(30.2, 12, 'Lauf fortgesetzt'),
+        ev(40, 12, 'Zug zu Ende (590 s)'),
+        ev(41, 12, 'FLOTTE-ENDE, PR #16'),
+        ev(44, 12, 'merge.ps1: GATE FEHLT #16: kein Abschnitt'),
+        ev(44.1, 12, 'Lauf fortgesetzt'),
+        ev(0, 13, 'Lauf gestartet'),
+        ev(1, 13, 'Zug zu Ende (60 s)'),
+        ev(1, 13, 'Start ohne Ergebnis (kein_ergebnis, Exit 1), Neustart 1 von 2'),
+        ev(1.5, 13, 'Lauf gestartet'),
+      ],
+      fragen: [{ epic: 12, nr: 1, frage: 'Tor?', empfehlung: 'A', beantwortet: 'A, wie empfohlen' }],
+      entscheidungen: [{ epic: 13 }],
+    };
+    writeFileSync(join(dir, 'zustand.json'), JSON.stringify(zustand));
+    const konf: Konfiguration = { konten: { k1: konto() }, einsaetze: [{ name: 'probe', repo: 'o/korb', von: min(-1), bis: min(200), epics: [12, 13], orchestrierung: [], laeufe: [], treiberZustand: join(dir, 'zustand.json') }] };
+    const r = messeEinsatz(konf, konf.einsaetze[0], { aufrufer: stub, usageSkript: 'u' });
+    expect(r.rueckfragen).toMatchObject({ anzahl: 1, form: { treiber: 1 }, empfehlung_gefolgt: { beurteilbar: 1, gefolgt: 1 }, entscheidungen_admiral: 1 });
+    expect(r.wartezeit_min).toMatchObject({ n: 1, summe: 24 });
+    // #12: 5 → 30.2 is 25.2 min, 24 of them waiting for the person (under 2 min: not counted); 40 → 44.1 is 4.1 min
+    expect(r.kalte_zeit_min.je_lauf).toEqual([
+      { sitzung: 'treiber/#12', minuten: 4.1 },
+      { sitzung: 'treiber/#13', minuten: 0 },
+    ]);
+    expect(r.fehlstarts).toMatchObject({ starts: 5, fehlstarts: 1 });
+  });
+
   it('names a session it cannot find instead of guessing', () => {
     const konf: Konfiguration = {
       konten: { k1: konto() },
