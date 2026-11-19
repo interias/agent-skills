@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { leseBlock } from '../src/werkzeuge/bloecke.ts';
+
+const frage = `Bericht des Laufs.
+
+FLOTTE-FRAGE 302 tor
+1. Soll #307 vor #254 laufen? — Betrifft: #307, #254 — Lage: ADR-0094 verlangt X (docs/adr/0094.md) — Optionen: A) zuerst #307, ein Tag später B) parallel, Konfliktgefahr — Empfehlung: A — Grund: sicherer — Regel/Quelle: epic, Phase 1
+2. Darf der Lauf die Testdatenbank neu anlegen? — Betrifft: Lauf — Lage: kein Testbett — Optionen: A) ja B) nein — Empfehlung: B — Grund: Daten — Regel/Quelle: Adapter
+3. Port 5433 oder 5434? — Lage: beide frei — Optionen: A) 5433 B) 5434 — Empfehlung: A — Grund: Standard — Regel/Quelle: Skill
+STAND: 3 von 5 Paketen gemergt  TAFEL: https://claude.ai/artifact/abc`;
+
+describe('leseBlock', () => {
+  it('reads a question block with Betrifft, options and recommendation', () => {
+    const b = leseBlock(frage);
+    expect(b).toMatchObject({ art: 'frage', epic: 302, phase: 'tor', stand: '3 von 5 Paketen gemergt', tafel: 'https://claude.ai/artifact/abc' });
+    if (b?.art !== 'frage') throw new Error('kein Frageblock');
+    expect(b.fragen).toHaveLength(3);
+    expect(b.fragen[0]).toMatchObject({ nr: 1, frage: 'Soll #307 vor #254 laufen?', betrifft: ['#307', '#254'], empfehlung: 'A', quelle: 'epic, Phase 1' });
+    expect(b.fragen[0].optionen).toEqual([
+      { buchstabe: 'A', text: 'zuerst #307, ein Tag später' },
+      { buchstabe: 'B', text: 'parallel, Konfliktgefahr' },
+    ]);
+    expect(b.fragen[1].betrifft).toBe('Lauf');
+    expect(b.fragen[2].betrifft).toBeNull();
+  });
+
+  it('takes the last block when a text holds several', () => {
+    const b = leseBlock('FLOTTE-FRAGE 1 tor\n1. x — Betrifft: Lauf\nSTAND: a\n\nweiter gearbeitet\nFLOTTE-FRAGE 1 abbruch\n1. y — Betrifft: p2\nSTAND: b');
+    expect(b).toMatchObject({ phase: 'abbruch', stand: 'b' });
+  });
+
+  it('reads an end block with the pull request and what stays open', () => {
+    const b = leseBlock('FLOTTE-ENDE 299 https://github.com/o/r/pull/347\nPR offen.\n\n### Was das Epic offen lässt\n- #243 wartet\n- Doku');
+    expect(b).toEqual({ art: 'ende', epic: 299, pr: 347, prUrl: 'https://github.com/o/r/pull/347', offen: '- #243 wartet\n- Doku' });
+  });
+
+  it('reads the PR number without a link and a bold header', () => {
+    expect(leseBlock('**FLOTTE-ENDE** #7 PR #12 bereit')).toMatchObject({ art: 'ende', epic: 7, pr: 12, prUrl: null, offen: '' });
+  });
+
+  it('is null without a block, also for a mention inside a sentence', () => {
+    expect(leseBlock('Fertig. Ich schicke gleich FLOTTE-ENDE.')).toBeNull();
+    expect(leseBlock('')).toBeNull();
+  });
+
+  it('joins a question that runs over several lines', () => {
+    const b = leseBlock('FLOTTE-FRAGE 5 nacharbeit\n1. Lange Frage\n   — Betrifft: p3 — Empfehlung: B\nSTAND: x');
+    expect(b?.art === 'frage' && b.fragen[0]).toMatchObject({ frage: 'Lange Frage', betrifft: ['p3'], empfehlung: 'B' });
+  });
+});
