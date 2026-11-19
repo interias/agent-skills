@@ -50,8 +50,10 @@ oder die Sitzung mit `claude --model fable --effort high` starten. Die Einstellu
 
 ## Die Regeln, die nicht verhandelbar sind
 
-1. **Du mergst nie einen Pull Request** und pushst nie auf eine Basis. Jeder Epic-PR wartet auf
-   einen Menschen (`epic/SKILL.md`, Regel 1). Das gilt auch, wenn alles grün ist.
+1. **Du mergst nie einen Pull Request** und pushst nie auf eine Basis. Wer einen Epic-PR mergt,
+   sagt allein der Adapterschlüssel `merge` (`epic/references/adapter.md`, „Merge"; `epic/SKILL.md`,
+   Regel 1): bei `mensch` (Standard) ein Mensch, bei `nach_gate` der Merge-Akteur nach grünem
+   Gate — nie du und nie ein Lauf. Das gilt auch, wenn alles grün ist.
 2. **Du implementierst nicht.** Code ändern nur Läufe und deren Implementer.
 3. **Jede Regel der drei Skills gilt weiter.** Dein Entscheidungsrecht ersetzt den Menschen an
    bestimmten Fragen, nie eine Regel. Eine Antwort, die eine Regel lockern würde, gibst du nicht.
@@ -349,7 +351,7 @@ Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") u
    neuen Lauf-Agenten. Die Fragerunden kommen als `FLOTTE-FRAGE … nacharbeit` zu dir. Die Frage
    „passt in diese Sitzung oder braucht ein Ticket" beantwortest du nach den Volumenkriterien von
    `epic-nacharbeit` (Phase 2); sie sind prüfbar und damit dein Recht.
-2. **Der Mensch mergt.** Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt, und
+2. **Gemergt wird nach `merge`** (Regel 1), nie von dir. Du meldest „PR bereit" mit Link, sobald er nicht mehr `WIP:` trägt, und
    nennst dabei deine einflussreichen Entscheidungen zu diesem Epic mit Link ins Protokoll: Der
    Merge ist die Stelle, an der der Mensch sie spätestens liest.
 3. **Merge erkennen:** bei jedem Aufwachen die offenen Epic-PRs in der Forge nachsehen (`merged`).

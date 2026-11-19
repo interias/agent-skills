@@ -151,6 +151,44 @@ Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 | `gate_approvals` | zusätzliche Punkte fürs Vorab-Tor, etwa bezahlte Läufe oder Blindsatz | keine |
 | `no_access` | Systeme, auf die ein Lauf keinen Zugriff hat. Ein Paket, das sie braucht, ist ein Tor-Punkt | keine |
 
+### Merge (#14)
+
+Wer einen Epic-PR oder einen anderen Pull Request eines Laufs mergt, steht **nur hier**. Die
+Regeln 1 von `epic` und `epic-flotte`, `guard.ps1` und der Leitstand verweisen auf diesen
+Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
+
+| Schlüssel | Bedeutung | Standard |
+|---|---|---|
+| `merge` | `mensch`: ein Mensch mergt. `nach_gate`: genau ein Akteur mergt nach grünen Checks oder, ohne Checks, nach grünem Gate-Block — der Flotten-Treiber, bis zum Umschalten `merge.ps1` des Leitstands. Immer mit Merge-Commit | `mensch` |
+| `gate_heading` | Überschrift des Abschnitts mit dem Gate-Block in der PR-Beschreibung | `## Gate` |
+| `gate_green` | Zeile, die einen grünen Gate-Lauf abschließt | `Gate grün.` |
+| `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die das Gate lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
+| `gate_head` | regulärer Ausdruck mit einer Gruppe: die SHA, auf der das Gate lief | `\(HEAD ([0-9a-f]{7,40})\)` |
+
+**Der Gate-Block** gilt nur in Repositorys **ohne Checks** (meldet die Forge zwei Minuten lang
+keinen Check, hat das Repository keine). Er steht in der PR-Beschreibung unter `gate_heading`, bis
+zur nächsten Überschrift gleicher oder höherer Ebene; meist als Codeblock, so wie das Gate ihn
+ausgibt:
+
+```
+== Gate: Basis origin/main @ a7d3a91, 3 geänderte Dateien (HEAD d9084a7c)
+  hive-web grün            0:50
+  wurzel   grün            0:24
+Gate grün.
+```
+
+Stehen mehrere Läufe im Abschnitt (erst rot, nach einem Nachlauf grün), zählt der **letzte**: die
+letzte Zeile, auf die `gate_base` passt, und was danach folgt. Gemergt wird nur, wenn
+
+1. der Abschnitt da ist und `gate_base` und `gate_head` im letzten Lauf passen,
+2. nach dieser Zeile `gate_green` steht (ganze Zeile),
+3. die Basis-SHA des Blocks der **aktuelle** Stand der Basis ist (Präfix),
+4. die HEAD-SHA des Blocks der aktuelle Head des Pull Requests ist (Präfix), und
+5. der Head die aktuelle Basis enthält (Forge-Vergleich: 0 Commits hinter der Basis).
+
+Fehlt etwas davon, wird nicht gemergt, und der Lauf fährt das Gate neu (`epic/SKILL.md`, Phase 6).
+Ein Commit nach dem Gate, auch nur Doku, verlangt ein neues Gate.
+
 ## Auslegung
 
 Festgelegt am 23.09.2026 nach dem ersten Entwurf von Skill und Referenzen. Die Regeln gelten für
