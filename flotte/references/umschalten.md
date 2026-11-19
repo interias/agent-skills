@@ -1,7 +1,9 @@
 # Umschalten von `/epic-flotte` auf `flotte` — und zurück
 
-`epic-flotte` und `leitstand` bleiben unverändert. Umschalten heißt: Neue Einsätze startet der
-Treiber, nicht mehr der Admiral-Chat oder der Leitstand. Beides lässt sich je Einsatz wählen.
+Umschalten heißt: Neue Einsätze startet der Treiber, nicht mehr der Admiral-Chat oder der
+Leitstand. Beides lässt sich je Einsatz wählen. `epic-flotte` bleibt unverändert, **der Leitstand
+nicht**: Er bekommt die neue `merge.ps1` und mergt ab dem Einspielen in keinem Projekt mehr ohne
+`merge: nach_gate`.
 
 ## Voraussetzungen
 
@@ -18,11 +20,18 @@ Treiber, nicht mehr der Admiral-Chat oder der Leitstand. Beides lässt sich je E
 
 ## Vor dem Umschalten, in dieser Reihenfolge
 
-Sobald die neue `merge.ps1` eingespielt ist, mergt auch der laufende Leitstand nur noch bei
-`merge: nach_gate`. Deshalb kommt der Adapter zuerst.
+Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`, `guard.ps1` und
+`worktree.ps1` ändern sich für jede Sitzung in jedem Projekt, auch für eine, die schon läuft.
 
-1. **Keine Flotte im betroffenen Repository.** Weder der Leitstand noch `/epic-flotte` führt dort
-   gerade Epics. Einspielen, während eine Flotte läuft, ändert die Merge-Regel mitten in deren
+- Ab dann mergt der Leitstand nur noch bei `merge: nach_gate`. In jedem Projekt mit
+  `merge: mensch` oder ohne den Schlüssel mergt ein Mensch.
+- In hexanite heißt das: von Hand mergen, bis `gate/gate.mts` die Basis ausgibt und der Adapter auf
+  `nach_gate` steht.
+- Deshalb kommt der Adapter zuerst.
+
+1. **Auf der ganzen Maschine läuft keine Flotte und kein `/epic`,** in keinem Projekt und auf
+   keinem Konto. Weder der Leitstand noch `/epic-flotte` noch ein Fenster mit `/epic` arbeitet
+   gerade. Einspielen, während eine davon läuft, ändert ihr die Merge-Regel und den Hook mitten im
    Einsatz.
 2. **Adapter zuerst:** im Projektadapter `.claude/epic.md`, über einen PR auf die Basis:
    - `merge: mensch` (Standard) oder `merge: nach_gate`.
@@ -48,7 +57,13 @@ Sobald die neue `merge.ps1` eingespielt ist, mergt auch der laufende Leitstand n
    - Eine Statuszeile braucht es nicht; der Verbrauch kommt aus den Läufen selbst.
    - Eine Erlaubnisregel für den Merge braucht es nicht: Der Treiber ruft `merge.ps1` selbst auf,
      und kein Lauf mergt.
-   - `guard.ps1` sperrt `gh pr merge` in den Läufen weiter, auch nach `--resume`.
+   - `guard.ps1` sperrt `gh pr merge` in den Läufen des Treibers auch nach `--resume`, weil der
+     Treiber den Hook jedem Zug über `--settings` mitgibt. Eine Sperre blockiert das Epic erst,
+     wenn der Zug daran scheitert, wenn dieselbe Regel ein zweites Mal sperrt oder bei der dritten
+     Sperre im Epic.
+   - **Außerhalb des Treibers gilt das nicht:** Der Hook im Kopf von `/epic` gilt nur im Zug, der
+     den Skill aufruft. Eine `/epic`-Sitzung, die mit `claude --resume` fortgesetzt wird, läuft
+     ohne `guard.ps1`.
 5. **Das erste echte Epic mit `merge: mensch` fahren.** Es zeigt, was die Generalprobe nicht
    zeigen kann: den Anteil der Rückfragen mit einem Fable-Admiral, lange Züge von `/epic` unter
    `-p` und das Aufräumen mit Docker.
@@ -70,7 +85,11 @@ Sobald die neue `merge.ps1` eingespielt ist, mergt auch der laufende Leitstand n
 4. **Fragen** kommen als `FRAGE AN DEN MENSCHEN` ans Issue, mit GitHub-Benachrichtigung, und
    stehen auf der Tafel. Beantwortet werden sie im Projektordner mit `flotte antworten . <epic>
    <frage> "<Antwort>"`. Die Zeile zum Kopieren steht im Kommentar.
-5. **Unterbrechen:** Strg+C beendet den Treiber und gibt seine Sperre frei.
+5. **Unterbrechen:** Strg+C beendet den Treiber.
+   - Seine Sperre (`treiber.lock`) gibt er nur frei, wenn das Signal bei ihm ankommt. Läuft er in
+     einer PowerShell-Pipeline (etwa `… | Tee-Object`), kommt es nicht an; das war in der
+     Generalprobe so. Die Sperre bleibt dann liegen, und der nächste `fahren`-Aufruf übernimmt sie,
+     weil ihr Prozess tot ist.
    - Ein Lauf arbeitet in einer eigenen Prozessgruppe und schreibt sein Log selbst. Er macht
      seinen Zug zu Ende, auch wenn der Treiber hart stirbt. Getestet ist das in D16 (Treiberprozess
      mitten im Zug beendet) und in der Generalprobe.
@@ -88,15 +107,26 @@ Sobald die neue `merge.ps1` eingespielt ist, mergt auch der laufende Leitstand n
    liegt, lässt `CleanupStale` die Worktrees dieses Epics stehen. Erst danach räumt
    `worktree.ps1 -Action CleanupStale -RepoRoot <projekt>` sie ab.
 4. **Offene Epics übergeben:**
-   - Eine Sitzung lässt sich auf ihrem Konto mit vollem Kontext fortsetzen: im Projekt
-     `claude --resume <sitzung>`, für Konto 2 mit `CLAUDE_CONFIG_DIR`.
-   - Oder `/epic-flotte` bzw. der Leitstand übernimmt die Epics neu. Epic-Branches und PRs bleiben
-     dabei bestehen.
+   - Am sichersten übernimmt `/epic-flotte` bzw. der Leitstand die Epics neu. Epic-Branches und PRs
+     bleiben dabei bestehen.
+   - Eine Sitzung lässt sich auf ihrem Konto auch mit vollem Kontext fortsetzen: im Projekt
+     `claude --resume <sitzung>`, für Konto 2 mit `CLAUDE_CONFIG_DIR`. **Dann ohne `guard.ps1`:**
+     Der Hook kam vom Treiber, und der Hook des Skills gilt nach `--resume` nicht. Die Sitzung
+     deshalb nur unter Aufsicht weiterarbeiten lassen.
 5. **Offene PRs** bleiben offen. Wer mergt, bestimmt weiter der Adapterschlüssel `merge`, denn
    `merge.ps1` des Leitstands liest ihn genauso.
-6. **Aufräumen:** `<projekt>\.git\flotte\` löschen, wenn der Zustand nicht mehr gebraucht wird.
+6. **Alte `merge.ps1` zurück,** nur wenn der Leitstand wieder ohne `merge: nach_gate` mergen soll:
+   - `einrichten.ps1` hat die vorige Fassung gesichert, unter
+     `C:\Users\stefa\.claude\skills-backup\arbeitspferd-<zeit>\leitstand\scripts\merge.ps1`.
+   - Diese Datei nach `C:\Users\stefa\.claude\skills\leitstand\scripts\` zurückkopieren.
+   - Die alten `guard.ps1` und `worktree.ps1` liegen von `install.ps1` unter
+     `C:\Users\stefa\.claude\skills-backup\epic-<zeit>\scripts\`. Für den Merge durch den Leitstand
+     brauchen sie nicht zurück.
+   - Danach ruft der Treiber `merge.ps1` nicht mehr auf (Befund 7), und ein Mensch mergt seine PRs.
+7. **Aufräumen:** `<projekt>\.git\flotte\` löschen, wenn der Zustand nicht mehr gebraucht wird.
    `flotte messen` liest Fragen und Wartezeiten aus `zustand.json`; vorher messen. Das
    Logbuch-Issue bleibt offen (es zählt in KIBO nie als Ticket) und steht am Ende auf
    `active: false`.
 
-Der Rückweg braucht keine Änderung an `settings.json`, an `epic-flotte` oder am Leitstand.
+Der Rückweg braucht keine Änderung an `settings.json` oder an `epic-flotte`. Am Leitstand nur
+Schritt 6, und auch den nur, wenn er wieder ohne `merge: nach_gate` mergen soll.

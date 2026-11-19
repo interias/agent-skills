@@ -5,7 +5,8 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { admiralWerkzeuge, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
-import { fahre, standard } from '../src/treiber/treiber.ts';
+import { fahre, SPERREN_GRENZE, standard } from '../src/treiber/treiber.ts';
+import { hookRegel } from '../src/werkzeuge/lauf.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
 import { admiral, aufbau, drehbuch, ende, frage, lauf, ping } from './flotte-welt.ts';
@@ -211,6 +212,8 @@ describe('Befund 15: guard.ps1 auch nach --resume', () => {
       expect(hook.matcher).toBe('Bash|PowerShell');
       expect(hook.hooks[0].command).toContain(join(t.repo, 'skripte', 'guard.ps1'));
       expect(hook.hooks[0].command).toMatch(/-Profile epic$/);
+      // like the hook in the head of epic/SKILL.md: a hook that fails refuses, it never lets through (Nachprüfung A)
+      expect(hook.hooks[0].onFailure).toBe('block');
     }
   }, T);
 });
@@ -223,5 +226,77 @@ describe('Niedrig: Frage-Kommentar ohne lokalen Pfad', () => {
     const k = t.p.kommentare.find((x) => x.text.startsWith('**FRAGE AN DEN MENSCHEN'))!.text;
     expect(k).toMatch(/flotte antworten \. 3 1/);
     expect(k).not.toContain(t.repo);
+  }, T);
+});
+
+// Nachprüfung at #14 (comment 7015405998), finding B: a refusal of guard.ps1 reaches the run as a
+// tool error, and the run can change its way, as in a window.
+let sperrNr = 0;
+function sperre(regel: string, befehl: string) {
+  const id = `toolu_sperre_${++sperrNr}`;
+  const text = `PreToolUse:Bash hook error: Gesperrt durch Hook (${regel}: Text der Regel): '${befehl}'. Weg ändern, nicht in anderer Form wiederholen.`;
+  return {
+    zeile: { zeile: { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, is_error: true, content: text }] } } },
+    verweigert: { tool_name: 'Bash', tool_use_id: id, tool_input: { command: befehl } },
+  };
+}
+
+describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () => {
+  it('reads the rule from the text of guard.ps1', () => {
+    expect(hookRegel("PreToolUse:Bash hook error: Gesperrt durch Hook (Skill epic, Regel 1: Ein Lauf mergt nie): 'gh pr merge 1'.")).toBe('Skill epic, Regel 1');
+  });
+
+  it('a run that changes its way after a refusal goes on; the refusal is on the board', async () => {
+    const t = aufbau();
+    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const buch = drehbuch([lauf(3, [a.zeile, { text: ende(3, 13), verweigert: [a.verweigert] }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.epics['3'].sperren).toEqual(['Skill epic, Regel 1']);
+    expect(index(t.p.zeitleiste, /Hook-Sperre: Skill epic, Regel 1/)).toBeGreaterThanOrEqual(0);
+  }, T);
+
+  it('the same rule a second time blocks the epic: the run tried again in another form', async () => {
+    const t = aufbau();
+    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const b = sperre('Skill epic, Regel 1', 'gh api -X PUT repos/x/y/pulls/13/merge');
+    const buch = drehbuch([
+      lauf(3, [a.zeile, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]), verweigert: [a.verweigert] }]),
+      admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
+      lauf(3, [b.zeile, { text: ende(3, 13), verweigert: [b.verweigert] }]),
+    ]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(fuer(buch.gesehen(), 3)).toHaveLength(2);
+    expect(z.epics['3'].stufe).toBe('blockiert');
+    expect(z.epics['3'].notiz).toMatch(/Regel „Skill epic, Regel 1" sperrte zweimal/);
+    expect(t.p.kommentare.some((k) => k.text.includes('gh api -X PUT'))).toBe(true);
+  }, T);
+
+  it(`blocks at the ${SPERREN_GRENZE}rd refusal of an epic, even by different rules`, async () => {
+    const t = aufbau();
+    const s = ['Skill epic, Regel 1', 'Skill epic, Regel 2', 'Skill epic, Regel 11'].map((r, i) => sperre(r, `befehl ${i}`));
+    const buch = drehbuch([lauf(3, [...s.map((x) => x.zeile), { text: ende(3, 13), verweigert: s.map((x) => x.verweigert) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('blockiert');
+    expect(z.epics['3'].notiz).toMatch(/3 Hook-Sperren/);
+  }, T);
+
+  it('a turn that fails at the refusal (no block) blocks at once, without asking again', async () => {
+    const t = aufbau();
+    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const buch = drehbuch([lauf(3, [a.zeile, { text: 'Gesperrt, ich weiß nicht weiter.', verweigert: [a.verweigert] }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(fuer(buch.gesehen(), 3)).toHaveLength(1);
+    expect(z.epics['3'].stufe).toBe('blockiert');
+    expect(z.epics['3'].notiz).toMatch(/der Zug scheiterte daran/);
+  }, T);
+
+  it('a refusal that is not the hook\'s still blocks at once (D19), also next to a hook refusal', async () => {
+    const t = aufbau();
+    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const buch = drehbuch([lauf(3, [a.zeile, { text: ende(3, 13), verweigert: [a.verweigert, { tool_name: 'Write', tool_use_id: 'toolu_auto', tool_input: {} }] }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('blockiert');
+    expect(z.epics['3'].notiz).toMatch(/Erlaubnis verweigert: Write/);
   }, T);
 });

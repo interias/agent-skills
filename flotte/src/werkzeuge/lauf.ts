@@ -20,6 +20,21 @@ export interface Ergebnis {
   verweigert: unknown[];
 }
 
+/** a PreToolUse hook (guard.ps1) refused a tool call; the run saw the reason and can change its way */
+export interface HookSperre {
+  id: string;
+  /** "Skill epic, Regel 1" from guard.ps1's text, else the start of the text */
+  regel: string;
+  text: string;
+}
+
+const HOOK = /^(?:Error: )?PreToolUse:\w+ hook error:\s*/;
+
+export function hookRegel(text: string): string {
+  const t = text.replace(HOOK, '');
+  return /Gesperrt durch Hook \(([^:)]+)/.exec(t)?.[1].trim() ?? t.slice(0, 80);
+}
+
 export type Fehlerart = 'netz' | 'anmeldung' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | null;
 
 export interface LaufErgebnis {
@@ -30,6 +45,8 @@ export interface LaufErgebnis {
   /** the last non-empty result text: there stands the block */
   text: string;
   verweigert: unknown[];
+  /** the denials a hook made (part of verweigert, matched by tool_use_id) */
+  sperren: HookSperre[];
   verbrauch: Verbrauch | null;
   /** structured_output of the last result that has one (--json-schema) */
   strukturiert: unknown;
@@ -46,6 +63,7 @@ export class Auswertung {
   strukturiert: unknown = null;
   /** the tool list of the init event */
   werkzeuge: string[] | null = null;
+  sperren: HookSperre[] = [];
   zeile(roh: string, jetzt = Date.now()): void {
     let d: any;
     try {
@@ -56,6 +74,13 @@ export class Auswertung {
     if (d?.session_id && !this.sitzung) this.sitzung = String(d.session_id);
     if (d?.type === 'system' && d.subtype === 'init' && Array.isArray(d.tools)) this.werkzeuge = d.tools.map(String);
     if (d?.type === 'rate_limit_event' && d.rate_limit_info) this.verbrauch = ausEreignis(d.rate_limit_info, jetzt);
+    if (d?.type === 'user' && Array.isArray(d.message?.content)) {
+      for (const c of d.message.content) {
+        if (c?.type !== 'tool_result' || !c.is_error) continue;
+        const text = typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? c.content.map((x: any) => x?.text ?? '').join('') : '';
+        if (HOOK.test(text)) this.sperren.push({ id: String(c.tool_use_id ?? ''), regel: hookRegel(text), text: text.replace(HOOK, '').slice(0, 300) });
+      }
+    }
     if (d?.type === 'result') {
       if (d.structured_output !== undefined && d.structured_output !== null) this.strukturiert = d.structured_output;
       this.ergebnisse.push({
@@ -69,7 +94,7 @@ export class Auswertung {
   ergebnis(code: number | null, leerlauf: boolean, dauerMs: number, stderr: string): LaufErgebnis {
     const text = [...this.ergebnisse].reverse().find((e) => e.text.trim())?.text ?? '';
     const verweigert = this.ergebnisse.flatMap((e) => e.verweigert);
-    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, verbrauch: this.verbrauch, strukturiert: this.strukturiert, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
+    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, sperren: this.sperren, verbrauch: this.verbrauch, strukturiert: this.strukturiert, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
   }
 }
 

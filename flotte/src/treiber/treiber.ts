@@ -143,6 +143,8 @@ export interface FlottenEpic extends EpicZustand {
   basisNachzuege?: number;
   /** resumes after a silent turn (acceptance finding 13) */
   leerlaeufe?: number;
+  /** rules of guard.ps1 that refused a call of this epic's run, in order (acceptance finding B) */
+  sperren?: string[];
   konfliktGemeldet?: boolean;
   prBereitGemeldet?: boolean;
 }
@@ -167,8 +169,11 @@ export interface FlottenZustand extends Zustand {
  */
 export function guardArgs(guard: string): string[] {
   const befehl = `powershell -NoProfile -ExecutionPolicy Bypass -File "${guard}" -Profile epic`;
-  return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: befehl, timeout: 30 }] }] } })];
+  return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' }] }] } })];
 }
+
+/** hook refusals an epic may collect before it is blocked (acceptance finding B) */
+export const SPERREN_GRENZE = 3;
 
 const BELEGT = new Set(['laeuft', 'frage', 'nacharbeit']);
 const ENDE = new Set(['fertig', 'blockiert', 'abgebrochen']);
@@ -553,10 +558,24 @@ class Treiber {
     this.ereignis(nr, `Zug zu Ende (${Math.round(r.dauerMs / 1000)} s)`);
     if (r.sitzung) ep.sitzung = r.sitzung;
     if (r.fehler === 'werkzeuge') return this.halt(ep, 'blockiert', `${r.stderr.split('\n')[0]}. Der Lauf wurde beendet, bevor er arbeitete.`);
-    if (r.verweigert.length) {
+    const hookIds = new Set(r.sperren.map((s) => s.id));
+    const fremd = r.verweigert.filter((d) => !hookIds.has(String((d as { tool_use_id?: string }).tool_use_id ?? '')));
+    if (fremd.length) {
       // D19: on the board, blocked, never tried again in another form
-      const was = r.verweigert.map((d) => (d as { tool_name?: string }).tool_name ?? JSON.stringify(d).slice(0, 80)).join(', ');
+      const was = fremd.map((d) => (d as { tool_name?: string }).tool_name ?? JSON.stringify(d).slice(0, 80)).join(', ');
       return this.halt(ep, 'blockiert', `Erlaubnis verweigert: ${was}. Kein zweiter Versuch in anderer Form.`);
+    }
+    if (r.sperren.length) {
+      // acceptance finding B: guard.ps1 refused a call. In a window the run reads the reason and
+      // changes its way; so does a run here. Blocked only when the turn fails at it (no block, an
+      // error), when one rule refuses twice in the epic (the run tries again in another form, which
+      // the hook forbids) or at the third refusal of the epic (the run keeps working against the rules).
+      const frueher = ep.sperren ?? [];
+      ep.sperren = [...frueher, ...r.sperren.map((s) => s.regel)];
+      this.ereignis(nr, `Hook-Sperre: ${r.sperren.map((s) => s.regel).join('; ')}`);
+      const doppelt = ep.sperren.find((x, i) => ep.sperren!.indexOf(x) !== i);
+      const grund = doppelt ? `Regel „${doppelt}" sperrte zweimal` : ep.sperren.length >= SPERREN_GRENZE ? `${ep.sperren.length} Hook-Sperren in diesem Epic` : !leseBlock(r.text) || r.fehler ? 'der Zug scheiterte daran' : null;
+      if (grund) return this.halt(ep, 'blockiert', `Gesperrt durch guard.ps1, ${grund}:\n\n${r.sperren.map((s) => `- ${s.text}`).join('\n')}`);
     }
     if (r.fehler === 'leerlauf') {
       const min = Math.round(this.e.leerlaufMs / 60_000);

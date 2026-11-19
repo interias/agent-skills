@@ -73,6 +73,10 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
    - Endet ein Zug ohne Block, fragt der Treiber einmal nach; danach gilt der Lauf als abgebrochen.
    - Nach `--leerlauf-min` ohne Ausgabe beendet er den Zug und setzt ihn einmal fort. Beim zweiten Mal bricht er das Epic ab.
    - `permission_denials` blockieren das Epic, ohne zweiten Versuch.
+   - Ausnahme sind Sperren von `guard.ps1`. Der Treiber gibt den Hook jedem Zug über `--settings` mit, weil der Hook des Skills nach `--resume` nicht mehr gilt. Nach einer Sperre darf der Lauf seinen Weg ändern, wie im Fenster. Blockiert wird das Epic erst in einem dieser Fälle:
+     - Der Zug scheitert an der Sperre.
+     - Dieselbe Regel sperrt ein zweites Mal.
+     - Im Epic kommt die dritte Sperre.
    - Nach jedem toten Lauf räumt `CleanupStale` auf. Es verschont die Worktrees der Epics, die noch laufen oder warten: Jeder Lauf bekommt `EPIC_LOCK_HOLDER`, eine Datei in `<git common dir>/flotte/halten/`. Der Treiber löscht sie erst, wenn das Epic endet.
 6. **Ende eines Laufs:**
    - Mit `merge: nach_gate` ruft der Treiber `merge.ps1` auf, neben der Schleife und einer nach dem anderen: Während `merge.ps1` auf Checks wartet, beantwortet der Treiber andere Läufe. Fehlt der Gate-Block oder ist er veraltet, geht der Auftrag zurück an den Lauf.
