@@ -30,6 +30,8 @@ export interface LaufErgebnis {
   text: string;
   verweigert: unknown[];
   verbrauch: Verbrauch | null;
+  /** structured_output of the last result that has one (--json-schema) */
+  strukturiert: unknown;
   fehler: Fehlerart;
   dauerMs: number;
   stderr: string;
@@ -40,6 +42,7 @@ export class Auswertung {
   sitzung: string | null = null;
   ergebnisse: Ergebnis[] = [];
   verbrauch: Verbrauch | null = null;
+  strukturiert: unknown = null;
   zeile(roh: string, jetzt = Date.now()): void {
     let d: any;
     try {
@@ -50,6 +53,7 @@ export class Auswertung {
     if (d?.session_id && !this.sitzung) this.sitzung = String(d.session_id);
     if (d?.type === 'rate_limit_event' && d.rate_limit_info) this.verbrauch = ausEreignis(d.rate_limit_info, jetzt);
     if (d?.type === 'result') {
+      if (d.structured_output !== undefined && d.structured_output !== null) this.strukturiert = d.structured_output;
       this.ergebnisse.push({
         text: typeof d.result === 'string' ? d.result : '',
         istFehler: Boolean(d.is_error),
@@ -61,7 +65,7 @@ export class Auswertung {
   ergebnis(code: number | null, leerlauf: boolean, dauerMs: number, stderr: string): LaufErgebnis {
     const text = [...this.ergebnisse].reverse().find((e) => e.text.trim())?.text ?? '';
     const verweigert = this.ergebnisse.flatMap((e) => e.verweigert);
-    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, verbrauch: this.verbrauch, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
+    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, verbrauch: this.verbrauch, strukturiert: this.strukturiert, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
   }
 }
 
@@ -102,6 +106,10 @@ export interface Start {
   modell?: string | null;
   leerlaufMs?: number;
   log?: string | null;
+  /** further arguments for claude (--json-schema, --tools, ...) */
+  extraArgs?: string[];
+  /** called right after the spawn with the pid, before any output (D16) */
+  beimStart?: (pid: number) => void;
   /** the program instead of claude: a stand-in that plays a script (stage 3) */
   programm?: string;
   programmArgs?: string[];
@@ -111,6 +119,7 @@ export function claudeArgs(s: Start): string[] {
   const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none'];
   if (s.modell) a.push('--model', s.modell);
   if (s.resume) a.push('--resume', s.resume);
+  if (s.extraArgs) a.push(...s.extraArgs);
   return a;
 }
 
@@ -134,6 +143,7 @@ export function starte(s: Start): Promise<LaufErgebnis> {
   if (s.log) mkdirSync(dirname(s.log), { recursive: true });
   return new Promise((fertig) => {
     const kind = spawn(programm, args, { cwd: s.repo, env: laufUmgebung(process.env, s.konto), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' });
+    if (kind.pid) s.beimStart?.(kind.pid);
     let rest = '';
     let stderr = '';
     let leerlauf = false;

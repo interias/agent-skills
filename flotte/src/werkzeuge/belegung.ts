@@ -28,6 +28,10 @@ export interface Adapter {
   always_collide: string[];
   modules_section: string;
   epic_label: string;
+  /** who merges (references/adapter.md, "Merge"): only nach_gate lets the driver call merge.ps1 */
+  merge: 'mensch' | 'nach_gate';
+  /** commands after a merge, run in the main checkout (#14, stage 3) */
+  nach_merge: string[];
 }
 
 export interface Paar {
@@ -66,6 +70,8 @@ export function liesAdapter(text: string): Adapter {
     always_collide: werte.get('always_collide') ?? [],
     modules_section: werte.get('modules_section')?.[0] ?? '## Betroffene Module',
     epic_label: werte.get('epic_label')?.[0] ?? 'epic',
+    merge: werte.get('merge')?.[0] === 'nach_gate' ? 'nach_gate' : 'mensch',
+    nach_merge: werte.get('nach_merge') ?? [],
   };
 }
 

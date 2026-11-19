@@ -9,6 +9,7 @@ import { lauf } from './werkzeuge/lauf.ts';
 import { ressourcen } from './werkzeuge/ressourcen.ts';
 import { verbrauch } from './werkzeuge/verbrauch.ts';
 import { zustand } from './werkzeuge/zustand.ts';
+import { antworten, fahren } from './treiber/treiber.ts';
 
 const befehle: Record<string, (argv: string[]) => unknown> = {
   messen,
@@ -18,6 +19,8 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   zustand,
   lauf,
   belegung: (argv) => belegung(argv),
+  fahren,
+  antworten,
 };
 
 export async function main(argv: string[]): Promise<number> {

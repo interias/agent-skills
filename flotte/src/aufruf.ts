@@ -1,7 +1,7 @@
 // Runs an external program and returns its output. Every tool of the driver calls programs only
 // through a Aufrufer, so tests replace it with a stub.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -77,3 +77,22 @@ export function pwshJson(aufrufer: Aufrufer, skript: string, args: string[], opt
   }
   return { code: r.code, json, stderr: r.stderr };
 }
+
+export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number }) => Promise<Ergebnis>;
+
+/** For the slow scripts (merge.ps1 waits for checks): the event loop keeps reading the runs meanwhile. */
+export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
+  new Promise((fertig) => {
+    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    const uhr = opts.timeoutMs ? setTimeout(() => kind.kill(), opts.timeoutMs) : null;
+    kind.stdout?.setEncoding('utf8').on('data', (x: string) => (stdout += x));
+    kind.stderr?.setEncoding('utf8').on('data', (x: string) => (stderr += x));
+    kind.on('error', (e) => (stderr += e.message));
+    kind.on('close', (code) => {
+      if (uhr) clearTimeout(uhr);
+      fertig({ code: code ?? 1, stdout, stderr });
+    });
+    if (opts.eingabe !== undefined) kind.stdin?.end(opts.eingabe);
+  });

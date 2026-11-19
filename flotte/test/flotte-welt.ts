@@ -1,0 +1,178 @@
+// The world around the driver for the scripts D1–D21: a real empty git repository, a forge stand-in
+// for gh, stand-ins for the pwsh scripts, fresh usage files per account. Runs go to the stand-in
+// claude (src/attrappe.ts) through the real `starte`.
+
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import { aufrufen, type Aufrufer, type AsyncAufrufer, type Ergebnis } from '../src/aufruf.ts';
+import { standard, type Einstellung, type Welt } from '../src/treiber/treiber.ts';
+import { starte } from '../src/werkzeuge/lauf.ts';
+import { schreibe as schreibeVerbrauch } from '../src/werkzeuge/verbrauch.ts';
+import { drehbuch, mitAttrappe } from './attrappe.ts';
+
+const H = 3_600_000;
+
+/** the script a pwsh call runs: the argument after -File */
+export const skriptVon = (args: string[]) => basename(args[args.indexOf('-File') + 1] ?? '');
+
+export interface Optionen {
+  /** issue bodies by number; default: each epic its own module */
+  bodies?: Record<number, string>;
+  /** frontmatter lines of .claude/epic.md */
+  adapter?: string;
+  /** JSON lines of ram.ps1 in order, the last one repeats; null: the measurement fails */
+  ram?: (string | null)[];
+  frei?: number | null;
+  /** merge.ps1 output per call */
+  merge?: (pr: number, n: number) => string;
+  /** state of a PR per call of `gh pr view` */
+  pr?: (pr: number, n: number) => { state: string; mergeable?: string };
+  /** exit code of a nach_merge command */
+  nachMerge?: number;
+  /** usage share of the 5-hour window per account; null: no file; 'alt': 40 min old */
+  verbrauch?: (number | null | 'alt')[];
+}
+
+export interface Protokoll {
+  aufrufe: string[][];
+  kommentare: { nr: number; text: string }[];
+  logbuch: string[];
+  merges: number[];
+  aufraeumen: number;
+  sweeps: number;
+  nachMerge: string[];
+  meldungen: string[];
+  zeitleiste: string[];
+}
+
+export function aufbau(o: Optionen = {}) {
+  const repo = mkdtempSync(join(tmpdir(), 'flotte-repo-'));
+  aufrufen('git', ['init', '-q', repo]);
+  mkdirSync(join(repo, '.claude'));
+  writeFileSync(join(repo, '.claude', 'epic.md'), `---\n${o.adapter ?? 'merge: mensch'}\n---\n# Adapter\n`);
+  const verbrauch = o.verbrauch ?? [0.1, 0.1];
+  const konten = verbrauch.map((anteil, i) => {
+    const k = mkdtempSync(join(tmpdir(), `flotte-konto${i + 1}-`));
+    if (anteil !== null) {
+      const zeit = anteil === 'alt' ? Date.now() - 40 * 60_000 : Date.now();
+      schreibeVerbrauch(k, { zeit, fuenf: { anteil: anteil === 'alt' ? 0.1 : anteil, reset: Date.now() + 3 * H }, sieben: { anteil: 0.1, reset: Date.now() + 5 * 24 * H } });
+    }
+    return k;
+  });
+  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [] };
+  let ramN = 0;
+  const prN = new Map<number, number>();
+  const mergeN = new Map<number, number>();
+  const ok = (stdout = ''): Ergebnis => ({ code: 0, stdout, stderr: '' });
+
+  const aufrufer: Aufrufer = (programm, args, opts) => {
+    p.aufrufe.push([programm, ...args]);
+    if (programm === 'git') return aufrufen(programm, args, opts);
+    if (programm === 'pwsh' && skriptVon(args) === 'ram.ps1') {
+      const liste = o.ram ?? ['{"level":"ok","percent_used":50,"free_gb":30}'];
+      const z = liste[Math.min(ramN++, liste.length - 1)];
+      return z === null ? { code: 1, stdout: '', stderr: 'kaputt' } : ok(z);
+    }
+    if (programm !== 'gh') return { code: 1, stdout: '', stderr: `unerwartet: ${programm}` };
+    const [a, b] = args;
+    const nr = Number(args[2]);
+    if (a === 'issue' && b === 'view') return ok(JSON.stringify({ body: o.bodies?.[nr] ?? `## Betroffene Module\n- m${nr}\n` }));
+    if (a === 'issue' && b === 'comment') {
+      p.kommentare.push({ nr, text: opts?.eingabe ?? '' });
+      return ok();
+    }
+    if (a === 'issue' && b === 'list') return ok('[]');
+    if (a === 'label') return ok();
+    if (a === 'issue' && b === 'create') return ok('https://github.com/o/r/issues/99\n');
+    if (a === 'issue' && b === 'edit') {
+      p.logbuch.push(opts?.eingabe ?? '');
+      return ok();
+    }
+    if (a === 'pr' && b === 'view') {
+      const n = (prN.get(nr) ?? 0) + 1;
+      prN.set(nr, n);
+      const s = o.pr?.(nr, n) ?? { state: 'MERGED' };
+      if (s.state === 'MERGED') p.zeitleiste.push(`gemergt ${nr}`);
+      return ok(JSON.stringify({ state: s.state, mergeable: s.mergeable ?? 'MERGEABLE', url: `https://github.com/o/r/pull/${nr}` }));
+    }
+    return { code: 1, stdout: '', stderr: `gh unerwartet: ${args.join(' ')}` };
+  };
+
+  const langsam: AsyncAufrufer = async (programm, args) => {
+    p.aufrufe.push([programm, ...args]);
+    const skript = skriptVon(args);
+    if (skript === 'merge.ps1') {
+      const pr = Number(args[args.indexOf('-Pr') + 1]);
+      const n = (mergeN.get(pr) ?? 0) + 1;
+      mergeN.set(pr, n);
+      p.merges.push(pr);
+      const zeile = o.merge?.(pr, n) ?? `GEMERGT #${pr} -> main`;
+      if (zeile.startsWith('GEMERGT')) p.zeitleiste.push(`gemergt ${pr}`);
+      return ok(`${zeile}\n`);
+    }
+    if (skript === 'worktree.ps1') {
+      p.aufraeumen++;
+      p.zeitleiste.push('aufraeumen');
+      return ok('[]');
+    }
+    if (skript === 'sweep.ps1') {
+      p.sweeps++;
+      return ok('[]');
+    }
+    const c = args.indexOf('-Command');
+    if (c >= 0) {
+      p.nachMerge.push(args[c + 1]);
+      p.zeitleiste.push(`nach_merge ${args[c + 1]}`);
+      return { code: o.nachMerge ?? 0, stdout: '', stderr: o.nachMerge ? 'fehlgeschlagen' : '' };
+    }
+    return { code: 1, stdout: '', stderr: 'unerwartet' };
+  };
+
+  const welt: Welt = {
+    aufrufer,
+    langsam,
+    starte,
+    freiGb: () => (o.frei === undefined ? 100 : o.frei),
+    jetzt: Date.now,
+    melde: (z) => {
+      p.meldungen.push(z);
+      p.zeitleiste.push(z);
+    },
+  };
+
+  function einstellung(buch: ReturnType<typeof drehbuch>, epics: number[], e: Partial<Einstellung> = {}): Einstellung {
+    return {
+      ...standard(repo, 'o/r', epics, konten),
+      ...mitAttrappe(buch.datei),
+      skripte: join(repo, 'skripte'),
+      mergeSkript: join(repo, 'skripte', 'merge.ps1'),
+      admiralModell: null,
+      admiralEffort: null,
+      taktMs: 20,
+      leerlaufMs: 20_000,
+      maxDauerMs: 20_000,
+      ...e,
+    };
+  }
+
+  return { repo, konten, p, welt, einstellung };
+}
+
+// ---- script building blocks for the stand-in
+
+export const lauf = (nr: number, schritte: unknown[], exit?: number) => ({ wenn: `^Flotte, Epic #${nr}\\b`, sitzung: `s${nr}`, schritte, ...(exit === undefined ? {} : { exit }) });
+
+export const frage = (nr: number, phase: string, fragen: { betrifft?: string; empfehlung?: string }[]) =>
+  [`Bericht.`, ``, `FLOTTE-FRAGE ${nr} ${phase}`, ...fragen.map((f, i) => `${i + 1}. Frage ${i + 1} zu #${nr}?${f.betrifft === undefined ? '' : ` — Betrifft: ${f.betrifft}`} — Lage: Sachverhalt — Optionen: A) vorsichtig B) riskant — Empfehlung: ${f.empfehlung ?? 'A'} — Grund: sicher — Regel/Quelle: Skill`), `STAND: Tor  TAFEL: http://tafel`].join('\n');
+
+export const ende = (nr: number, pr: number, offen = 'keine') => `Fertig.\n\nFLOTTE-ENDE ${nr} https://github.com/o/r/pull/${pr}\n\n### Was das Epic offen lässt\n${offen}`;
+
+export const admiral = (nr: number, antworten: { nr: number; antwort: string; beim_menschen: boolean; einflussreich?: boolean }[]) => ({
+  wenn: `^FLOTTE-ADMIRAL[\\s\\S]*FLOTTE-FRAGE ${nr} `,
+  schritte: [{ zeile: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { antworten: antworten.map((a) => ({ herkunft: 'Skill-Empfehlung', grund: 'vorsichtig', einflussreich: false, ...a })) } } }],
+});
+
+export const ping = (anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
+
+export { drehbuch };

@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 // A stand-in for `claude -p` (#14, stage 3): started instead of claude, it plays a script.
-// FLOTTE_DREHBUCH names a JSON file { "aufrufe": [ Aufruf, ... ] }; the n-th start plays aufrufe[n]
-// (the last one again when there are fewer). Every start is logged next to the script
+// FLOTTE_DREHBUCH names a JSON file { "aufrufe": [ Aufruf, ... ] }. A start plays the first unused
+// Aufruf whose "wenn" (a regex) matches its stdin and arguments, or that has no "wenn"; when every
+// fitting one is used, the last fitting one again. Runs of several epics run at once, so their
+// order is not fixed: "wenn" ties an Aufruf to its epic. Every start is logged next to the script
 // (<drehbuch>.aufrufe.jsonl: args, stdin, cwd, account) so a test can check what the driver sent.
 //
-// Aufruf: { "sitzung"?: string, "schritte": Schritt[], "exit"?: number }
+// Aufruf: { "wenn"?: string, "sitzung"?: string, "schritte": Schritt[], "exit"?: number }
 // Schritt: { "text": string, "fehler"?: boolean, "grund"?: string, "verweigert"?: unknown[] }  -> a result line
 //        | { "zeile": object }                                                                -> any stream-json line
 //        | { "verbrauch": [fuenf, sieben] }                                                   -> a rate_limit_event (shares 0..1)
@@ -21,6 +23,7 @@ type Schritt =
   | { haenge: true };
 
 interface Aufruf {
+  wenn?: string;
   sitzung?: string;
   schritte: Schritt[];
   exit?: number;
@@ -46,11 +49,19 @@ async function main(): Promise<number> {
   }
   const buch = JSON.parse(readFileSync(datei, 'utf8')) as { aufrufe: Aufruf[] };
   const log = `${datei}.aufrufe.jsonl`;
-  const n = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).length : 0;
-  const aufruf = buch.aufrufe[Math.min(n, buch.aufrufe.length - 1)];
   const eingabe = await liesEingabe();
   const args = process.argv.slice(2);
-  appendFileSync(log, JSON.stringify({ n, args, eingabe, cwd: process.cwd(), konto: process.env.CLAUDE_CONFIG_DIR ?? null, decke: process.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS ?? null }) + '\n');
+  const frueher = existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean).map((z) => JSON.parse(z) as { i: number }) : [];
+  const n = frueher.length;
+  const benutzt = new Set(frueher.map((x) => x.i));
+  const passend = buch.aufrufe.map((a, i) => ({ a, i })).filter(({ a }) => !a.wenn || new RegExp(a.wenn).test(`${eingabe}\n${args.join(' ')}`));
+  const wahl = passend.find(({ i }) => !benutzt.has(i)) ?? passend[passend.length - 1];
+  if (!wahl) {
+    process.stderr.write(`kein Aufruf passt: ${eingabe.slice(0, 80)}\n`);
+    return 3;
+  }
+  const { a: aufruf, i } = wahl;
+  appendFileSync(log, JSON.stringify({ n, i, args, eingabe, cwd: process.cwd(), konto: process.env.CLAUDE_CONFIG_DIR ?? null, decke: process.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS ?? null }) + '\n');
 
   const resume = args.includes('--resume') ? args[args.indexOf('--resume') + 1] : null;
   const sitzung = resume ?? aufruf.sitzung ?? `sitzung-${n}`;
