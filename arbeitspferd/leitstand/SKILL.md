@@ -60,6 +60,13 @@ hängt `start.ps1` an, du musst sie nicht abschreiben.
 **3. Starten.** Mit `start.ps1`. Der Titel nennt, woran das Fenster arbeitet, damit der Nutzer es sofort
 zuordnen kann: `#295 Gate`, bei mehreren Tickets `#229 +4 Kern-Reste`, bei einem Epic `Epic #241 Live`. Die
 Ausgabe nennt die Sitzungs-ID. Trag sie ins Lagebuch ein.
+**Nach jedem Start prüfen, dass der Auftrag angekommen ist:** Nach etwa 30 s muss das Transkript der
+neuen Sitzung (`<cfg>\projects\<repo>\<id>.jsonl`) Antwortzeilen haben. Steht dort nur der Hook-Hinweis,
+lief die Sitzung leer. Am 19.11.2026 geschah das zweimal aus zwei Gründen. Erstens wurden die Skripte mit
+Windows PowerShell 5.1 aufgerufen, die `utf8NoBOM` nicht kennt; sie gehören immer in PowerShell 7 (`pwsh`).
+Zweitens stand der Auftrag direkt hinter `--add-dir`, das beliebig viele Werte nimmt, und wurde als
+Verzeichnis gelesen. Deshalb übergibt `start-arbeitspferd.ps1` den Auftrag hinter `--`. `start.ps1` nie zum
+Ausprobieren aufrufen: Jeder Aufruf startet eine echte Sitzung.
 Startet ein Repository zum ersten Mal, kann die Vertrauensfrage das Fenster aufhalten. Dann sagt das
 Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken. Die Konfigordner stehen deshalb in
 `permissions.additionalDirectories` der `settings.json` des zweiten Kontos, nicht in `--add-dir`.

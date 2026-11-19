@@ -19,7 +19,9 @@ if ($AuftragDatei) {
     $Host.UI.RawUI.WindowTitle = "Claude Arbeitspferd - $(Split-Path -Leaf (Get-Location))"
     $extra = @(foreach ($d in ($AddDir -split ',' | Where-Object { $_ })) { '--add-dir', $d })
     if ($Resume) { $extra += '--resume', $Resume }
-    claude @extra (Get-Content -Raw $AuftragDatei)
+    # `--add-dir` takes any number of values: without `--`, the prompt became one more directory and the
+    # session started empty (19.11.2026, #246 and the backup fix).
+    claude @extra -- (Get-Content -Raw $AuftragDatei)
 } else {
     Set-Location "$HOME\git"
     Write-Host "Projekt waehlen: cd <projekt>; dann 'claude' starten, z. B. mit /epic-flotte" -ForegroundColor DarkGray
