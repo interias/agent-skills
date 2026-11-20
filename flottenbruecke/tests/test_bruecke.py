@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -572,3 +573,13 @@ def test_prognose_in_bereit_und_fuer_den_backlog(client, bericht):
     assert t['projekte'][0]['prognose']['status'] == 'zu_wenig' and t['unterwegs']['bereit'][0]['prognose'] is None
     bericht['prognose']['status'] = 'vielleicht'
     assert client.post('/api/bericht', json=bericht).status_code == 422
+
+
+def test_seite_bindet_skript_und_stil_mit_inhaltsstand_ein(client):
+    # an updated bridge must not run old cached app.js against new markup (phone after an update)
+    antwort = client.get('/')
+    assert antwort.headers['cache-control'] == 'no-cache'
+    html = antwort.text
+    stand = re.search(r'/static/app\.js\?v=([0-9a-f]{12})"', html)
+    assert stand and f'/static/app.css?v={stand.group(1)}"' in html
+    assert client.get(f'/static/app.js?v={stand.group(1)}').status_code == 200
