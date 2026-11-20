@@ -185,6 +185,34 @@ describe('A: die Merge-Schlange', () => {
     expect(Object.values(z.epics).every((e) => e.stufe === 'fertig')).toBe(true);
   }, T);
 
+  it('lays the epic worktree out again when the run\'s session took it along, and takes it down after the merge (probe 3)', async () => {
+    const aufrufe: { aktion: string; holder?: string }[] = [];
+    let neu = '';
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }], {
+      worktree: (aktion, args, env) => {
+        aufrufe.push({ aktion, holder: env?.EPIC_LOCK_HOLDER });
+        const branch = args[args.indexOf('-Branch') + 1];
+        if (aktion === 'Up') {
+          neu = join(mkdtempSync(join(tmpdir(), 'flotte-up-')), 'epic-4');
+          git(t.repo, 'worktree', 'add', '-q', neu, branch);
+          return JSON.stringify({ path: neu, branch });
+        }
+        git(t.repo, 'worktree', 'remove', neu);
+        return '';
+      },
+    });
+    // the session of #4 ended: its epic worktree is gone, the branch stays
+    git(t.repo, 'worktree', 'remove', t.epics[1].wt);
+    const buch = drehbuch([lauf(3, [{ warte: 100 }, { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, { text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 30_000 }), t.welt);
+    expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
+    expect(aufrufe.map((a) => a.aktion)).toEqual(['Up', 'Down']);
+    expect(aufrufe[0].holder).toMatch(/halten[\\/]4\.json$/);
+    expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate teil', resolve(neu)]]);
+    expect(texte(z).some((x) => /#4 Epic-Worktree neu angelegt/.test(x))).toBe(true);
+    expect(git(t.repo, 'worktree', 'list')).not.toContain('epic-4');
+  }, T);
+
   it('blocks after three gate runs of the driver when the base keeps moving', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { mergeImmerAbgelehnt: 13 });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);

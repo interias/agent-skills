@@ -45,6 +45,8 @@ export interface Optionen {
   gate?: (befehl: string, cwd: string, n: number) => { code: number; stdout: string };
   /** `gh pr view --json headRefName,...` of a PR */
   prInfo?: (pr: number) => { headRefName: string; baseRefName: string; headRefOid: string; body: string };
+  /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
+  worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
 }
 
 export interface Protokoll {
@@ -144,6 +146,11 @@ export function aufbau(o: Optionen = {}) {
       const zeile = o.mergeEcht?.(pr, n) ?? o.merge?.(pr, n) ?? `GEMERGT #${pr} -> main`;
       if (zeile.startsWith('GEMERGT')) p.zeitleiste.push(`gemergt ${pr}`);
       return ok(`${zeile}\n`);
+    }
+    const aktion = args[args.indexOf('-Action') + 1];
+    if (skript === 'worktree.ps1' && o.worktree && aktion !== 'CleanupStale') {
+      p.zeitleiste.push(`worktree ${aktion}`);
+      return ok(o.worktree(aktion, args, opts?.env));
     }
     if (skript === 'worktree.ps1') {
       p.aufraeumen++;

@@ -147,6 +147,8 @@ export interface FlottenEpic extends EpicZustand {
   basisNachzuege?: number;
   /** gate runs of the driver in this epic's worktree after it merged the base in (merge queue) */
   gateWiederholungen?: number;
+  /** the driver laid out the epic worktree again (worktree.ps1 Up) and takes it down after the merge */
+  worktreeSelbst?: boolean;
   /** the last step of the run from its log, for the board (#14, round 5, C4) */
   schritt?: string | null;
   schrittZeit?: string | null;
@@ -459,7 +461,12 @@ class Treiber {
   // ---- starting and continuing runs
 
   startText(nr: number): string {
-    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). Mergen ist nicht deine Aufgabe.`;
+    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe.`;
+  }
+
+  /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
+  blockForm(nr: number): string {
+    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter.`;
   }
 
   an(nr: number, text: string): string {
@@ -658,7 +665,7 @@ class Treiber {
       // D4: ask once, then aborted with the state at the issue
       if (ep.nachfragen < 1 && ep.sitzung) {
         ep.nachfragen++;
-        ep.auftrag = { resume: true, text: this.an(nr, 'Dein Zug endete ohne FLOTTE-FRAGE oder FLOTTE-ENDE. Kannst du fortsetzen? Beende den Zug mit einem der beiden Blöcke.') };
+        ep.auftrag = { resume: true, text: this.an(nr, `Dein Zug endete ohne FLOTTE-FRAGE oder FLOTTE-ENDE in lesbarer Form. Kannst du fortsetzen? Beende den Zug mit einem der beiden Blöcke. ${this.blockForm(nr)}`) };
         this.ereignis(nr, 'Zug ohne Block, einmal nachgefragt');
         return;
       }
@@ -921,6 +928,33 @@ class Treiber {
   }
 
   /**
+   * The epic worktree goes with the run's session (epic/SKILL.md, Phase 3), so after the run's last
+   * turn it may be gone (probe 3). Like /epic-nacharbeit the driver lays it out again with `Up` on
+   * the existing branch, fast-forwarded to the remote branch. The lock names the driver (Up wants a
+   * living PID) and the epic's holder file; CleanupStale spares it while the driver lives, so the
+   * driver takes it down itself with `Down` after the merge.
+   */
+  async epicWorktreeAnlegen(ep: FlottenEpic, branch: string): Promise<string | null> {
+    const f = await this.w.langsam('git', ['-C', this.e.repo, 'fetch', 'origin', branch], { timeoutMs: 5 * 60_000 });
+    if (f.code) return null;
+    const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'worktree.ps1'), '-Action', 'Up', '-RepoRoot', this.e.repo, '-Package', `epic-${ep.nr}`, '-Branch', branch, '-From', `origin/${branch}`, '-SessionPid', String(process.pid)], { cwd: this.e.repo, timeoutMs: 15 * 60_000, env: { EPIC_LOCK_HOLDER: this.halten(ep.nr) } });
+    let pfad: string | null = null;
+    try {
+      pfad = (JSON.parse(r.stdout.trim().split(/\r?\n/).pop() ?? '') as { path?: string }).path ?? null;
+    } catch {
+      pfad = null;
+    }
+    if (r.code || !pfad) {
+      this.ereignis(ep.nr, `Epic-Worktree für ${branch} nicht angelegt: ${(r.stderr || r.stdout).trim().split('\n').pop()?.slice(0, 200)}`);
+      return null;
+    }
+    ep.worktreeSelbst = true;
+    const ff = this.w.aufrufer('git', ['-C', pfad, 'merge', '--ff-only', `origin/${branch}`]);
+    this.ereignis(ep.nr, `Epic-Worktree neu angelegt (worktree.ps1 Up): ${pfad}${ff.code ? `, nicht auf origin/${branch} vorgespult` : ''}`);
+    return pfad;
+  }
+
+  /**
    * Merges the base into the epic branch in its worktree and runs the gate there. Green: the merge is
    * pushed and the block appended to the gate section of the PR. Red or a conflict: nothing pushed,
    * the text goes to the run. 'mensch': the gate cannot give a block merge.ps1 would read.
@@ -934,9 +968,9 @@ class Treiber {
     } catch {
       return { art: 'mensch', text: `PR #${ep.pr} nicht lesbar: ${v.stderr.trim().slice(0, 200)}` };
     }
-    const wt = this.epicWorktree(info.headRefName);
     const auftrag = 'Bring den Pull Request in Ordnung: Basis in den Epic-Branch mergen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), Suiten und Gate neu, Gate-Block in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.';
-    if (!wt) return { art: 'zurueck', text: `Die Basis zog davon, und kein Worktree hat den Branch ${info.headRefName} ausgecheckt; der Treiber kann nicht nachziehen. ${auftrag}` };
+    const wt = this.epicWorktree(info.headRefName) ?? (await this.epicWorktreeAnlegen(ep, info.headRefName));
+    if (!wt) return { art: 'zurueck', text: `Die Basis zog davon, und der Treiber konnte keinen Worktree für ${info.headRefName} anlegen; er kann nicht nachziehen. ${auftrag}` };
     const git = (...a: string[]) => this.w.aufrufer('git', ['-C', wt, ...a]);
     if (git('status', '--porcelain').stdout.trim()) return { art: 'zurueck', text: `Die Basis zog davon, aber der Epic-Worktree ${wt} ist nicht sauber; der Treiber zieht nicht nach. ${auftrag}` };
     if (!git('rev-parse', 'HEAD').stdout.trim().startsWith(info.headRefOid)) return { art: 'zurueck', text: `Der Epic-Worktree steht nicht auf dem Head des PR (${info.headRefOid.slice(0, 8)}); der Treiber zieht nicht nach. ${auftrag}` };
@@ -1049,6 +1083,10 @@ class Treiber {
       // D21: reported, cleanup still runs
       this.ereignis(ep.nr, r.code ? `nach_merge fehlgeschlagen (Exit ${r.code}): ${befehl}` : `nach_merge: ${befehl}`);
       if (r.code) this.w.melde(`FEHLER nach_merge #${ep.nr}: ${befehl}: ${(r.stderr || r.stdout).trim().slice(-500)}`);
+    }
+    if (ep.worktreeSelbst) {
+      const d = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'worktree.ps1'), '-Action', 'Down', '-RepoRoot', this.e.repo, '-Package', `epic-${ep.nr}`], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
+      this.ereignis(ep.nr, d.code ? `Epic-Worktree des Treibers nicht abgebaut (Exit ${d.code}): ${(d.stderr || d.stdout).trim().split('\n').pop()?.slice(0, 200)}` : 'Epic-Worktree des Treibers abgebaut (worktree.ps1 Down)');
     }
     await this.aufraeumen(ep.nr);
     this.lokalerBranchWeg(ep);
