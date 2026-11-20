@@ -73,6 +73,27 @@ Mögliche Schalter:
 | `--max-min` | ohne Grenze |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
+### Weiteres Konto zuschalten
+
+Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber; der Leitstand kennt
+es nicht. Eingerichtet und angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto
+einrichten“. Zugeschaltet wird es nur, wenn der Mensch es sagt:
+
+1. Treiber mit Strg+C anhalten. Die Läufe arbeiten weiter, der Zustand steht schon in `zustand.json`.
+2. Mit demselben Aufruf neu starten, `--konten` um das Konto erweitert (Kurzname oder Ordner; `~`
+   versteht der Treiber selbst), im Projektordner:
+
+   ```
+   bun ~\.claude\skills\flotte\src\cli.ts fahren --epics 15,21,32 --konten 1,2,3 --konto-max 3=1
+   ```
+
+3. `--konto-max <konto>=<n>` ist die Grenze: Auf dem Konto arbeiten höchstens n Epics gleichzeitig
+   (siehe Tabelle). Ohne die Angabe verteilt der Treiber neue Epics auf alle Konten mit grünem
+   Verbrauch.
+
+Ein Epic bleibt bei dem Konto, dem es zugeteilt ist, auch für Fortsetzungen und Nacharbeit. Ein
+Konto deshalb erst wieder aus `--konten` nehmen, wenn keines seiner Epics mehr offen ist.
+
 Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
 - `flotte zustand <repo>`: Zustand und Sperre.

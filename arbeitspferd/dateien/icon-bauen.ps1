@@ -1,8 +1,10 @@
 # Builds arbeitspferd.ico: an orange spark on a dark warm tile with a small "2" for the second account.
-# Run with Windows PowerShell (System.Drawing). Writes arbeitspferd.ico and arbeitspferd-preview.png next to it.
+# Run with Windows PowerShell (System.Drawing). Writes <Name>.ico and <Name>-preview.png next to it.
+# The other accounts: -Name hauptkonto -Zahl 1 -Farbe '#8FB573' and -Name arbeitspferd-3 -Zahl 3 -Farbe '#7AA2C8'.
+param([string]$Name = 'arbeitspferd', [string]$Zahl = '2', [string]$Farbe = '#D97757')
 Add-Type -AssemblyName System.Drawing
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$orange = [Drawing.Color]::FromArgb(217, 119, 87)
+$orange = [Drawing.ColorTranslator]::FromHtml($Farbe)
 $dark = [Drawing.Color]::FromArgb(31, 30, 29)
 $cream = [Drawing.Color]::FromArgb(250, 249, 245)
 
@@ -31,14 +33,14 @@ function New-Tile([int]$size) {
         $g.FillPolygon($brush, $pts)
     }
     $g.FillEllipse($brush, $cx - $inner * 1.3, $cy - $inner * 1.3, $inner * 2.6, $inner * 2.6)
-    # Badge "2" bottom right
+    # Badge with the account number bottom right
     if ($size -ge 24) {
         $b = $size * 0.36
         $g.FillEllipse((New-Object Drawing.SolidBrush $cream), $size - $b - $size * 0.04, $size - $b - $size * 0.04, $b, $b)
         $font = New-Object Drawing.Font 'Segoe UI', ($b * 0.62), ([Drawing.FontStyle]::Bold), ([Drawing.GraphicsUnit]::Pixel)
         $fmt = New-Object Drawing.StringFormat; $fmt.Alignment = 'Center'; $fmt.LineAlignment = 'Center'
         $rect = New-Object Drawing.RectangleF ($size - $b - $size * 0.04), ($size - $b - $size * 0.04 + $b * 0.03), $b, $b
-        $g.DrawString('2', $font, (New-Object Drawing.SolidBrush $dark), $rect, $fmt)
+        $g.DrawString($Zahl, $font, (New-Object Drawing.SolidBrush $dark), $rect, $fmt)
     }
     $g.Dispose()
     return $bmp
@@ -58,6 +60,6 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
     $offset += $len
 }
 foreach ($f in $frames) { $w.Write($f) }
-[IO.File]::WriteAllBytes("$dir\arbeitspferd.ico", $out.ToArray())
-(New-Tile 256).Save("$dir\arbeitspferd-preview.png", [Drawing.Imaging.ImageFormat]::Png)
-"Icon geschrieben: $dir\arbeitspferd.ico"
+[IO.File]::WriteAllBytes("$dir\$Name.ico", $out.ToArray())
+(New-Tile 256).Save("$dir\$Name-preview.png", [Drawing.Imaging.ImageFormat]::Png)
+"Icon geschrieben: $dir\$Name.ico"
