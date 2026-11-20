@@ -84,9 +84,9 @@ describe('Befund 2: keine Konnektoren und MCP-Werkzeuge', () => {
 
 describe('Befund 3: CleanupStale verschont wartende Läufe', () => {
   it('a run carries its holder file; it stays while the epic waits and goes when the epic is merged', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate' });
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });
     const buch = drehbuch([
-      lauf(3, [{ warte: 300 }, gateGefahren(), { text: ende(3, 13) }]),
+      lauf(3, [{ warte: 300 }, ...gateGefahren(), { text: ende(3, 13) }]),
       lauf(4, [{ text: frage(4, 'tor', [{ betrifft: 'Lauf' }]) }]),
       admiral(4, [{ nr: 1, antwort: 'A', beim_menschen: true }]),
     ]);
@@ -152,25 +152,14 @@ describe('Befund 7: eine alte merge.ps1 mergt nicht', () => {
   }, T);
 });
 
-describe('Befund 9: eine bewegte Basis zählt nicht als Nachbesserung', () => {
-  it('three refusals because another merge moved the base do not block the epic', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate', merge: (pr, n) => (n <= 3 ? `GATE FEHLT #${pr}: Gate lief gegen abc1234, die Basis steht auf def5678` : `GEMERGT #${pr} -> main`) });
-    const buch = drehbuch([lauf(3, [gateGefahren(), { text: ende(3, 13) }])]);
-    const z = await fahre(t.einstellung(buch, [3]), t.welt);
-    expect(t.p.merges).toEqual([13, 13, 13, 13]);
-    expect(z.epics['3']).toMatchObject({ stufe: 'fertig', basisNachzuege: 3 });
-    expect(z.epics['3'].mergeVersuche ?? 0).toBe(0);
-  }, T);
-});
-
 describe('Befund 12: merge.ps1 hält die Schleife nicht an', () => {
   it('while merge.ps1 waits, the driver answers another run', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate', mergeDauerMs: 2000 });
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', mergeDauerMs: 2000 });
     const buch = drehbuch([
-      lauf(3, [gateGefahren(), { text: ende(3, 13) }]),
+      lauf(3, [...gateGefahren(), { text: ende(3, 13) }]),
       lauf(4, [{ warte: 400 }, { text: frage(4, 'tor', [{ betrifft: 'Lauf' }]) }]),
       admiral(4, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
-      lauf(4, [{ warte: 2500 }, gateGefahren(), { text: ende(4, 14) }]),
+      lauf(4, [{ warte: 2500 }, ...gateGefahren(), { text: ende(4, 14) }]),
     ]);
     const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
     expect(index(t.p.zeitleiste, /^#4 Lauf fortgesetzt/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));

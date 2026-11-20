@@ -33,10 +33,11 @@ function New-GateBody([string]$base = 'aaaaaaa', [string]$head = 'bbbbbbbb', [st
 
 # Rules for a pull request #7 with the given body, adapter text, checks and compare answers.
 function New-Rules([string]$body, [string]$adapter = $nachGate, [string]$checks = '[]', [string]$behind = '0',
-    [string]$stateAfter = 'MERGED', [string]$ahead = '0') {
-    $view = ConvertTo-Json -Compress -InputObject @{ state = 'OPEN'; headRefName = 'epic/7-x'; baseRefName = 'main'; headRefOid = $headSha; isDraft = $false; body = $body }
+    [string]$stateAfter = 'MERGED', [string]$ahead = '0', [string]$base = 'main') {
+    $view = ConvertTo-Json -Compress -InputObject @{ state = 'OPEN'; headRefName = 'epic/7-x'; headRefOid = $headSha; isDraft = $false; body = $body; baseRefName = $base }
     $rules = @(
         @{ match = '^pr view 7 .*--json state,headRefName,baseRefName,headRefOid'; out = $view; exit = 0 }
+        @{ match = '^api repos/o/r --jq \.default_branch'; out = 'main'; exit = 0 }
         @{ match = '^api repos/o/r/contents/\.claude/epic\.md\?ref=main'; out = $(if ($adapter) { Get-Base64 $adapter } else { '' }); exit = $(if ($adapter) { 0 } else { 1 }) }
         @{ match = '^pr checks 7'; out = $checks; exit = 0 }
         @{ match = '^api repos/o/r/commits/main'; out = $baseSha; exit = 0 }
@@ -84,6 +85,21 @@ Describe 'merge.ps1: the adapter key merge decides who merges' {
     It 'refuses without an adapter' {
         $r = Invoke-Merge (New-Rules (New-GateBody) '')
         $r.Out | Should Match 'merge: mensch'
+        (Get-MergeCalls $r).Count | Should Be 0
+    }
+
+    It 'reads the adapter from the default branch and refuses a base other than the expected one' {
+        $r = Invoke-Merge (New-Rules (New-GateBody) -base 'release')
+        $r.Exit | Should Be 1
+        $r.Out | Should Match 'NICHT GEMERGT #7: Basis release, erwartet main'
+        @($r.Calls | Where-Object { $_ -match 'contents/\.claude/epic\.md\?ref=main' }).Count | Should Be 1
+        (Get-MergeCalls $r).Count | Should Be 0
+        $r = Invoke-Merge (New-Rules (New-GateBody) "---`nmerge: nach_gate`nmain_branch: trunk`n---`n")
+        $r.Out | Should Match 'Basis main, erwartet trunk'
+        $r = Invoke-Merge (New-Rules (New-GateBody) "---`nmerge: nach_gate`nbase_branch: release`n---`n" -base 'release')
+        $r.Out | Should Not Match 'erwartet'
+        $r = Invoke-Merge (New-Rules (New-GateBody) "---`nmerge: nach_gate`nbase_branch: from-issue`n---`n")
+        $r.Out | Should Match 'base_branch: from-issue'
         (Get-MergeCalls $r).Count | Should Be 0
     }
 

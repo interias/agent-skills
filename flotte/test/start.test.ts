@@ -79,10 +79,10 @@ describe('B: freigegebene Epics', () => {
     const a: Aufrufer = (_p, args) => {
       aufrufe.push(args);
       const label = args[args.indexOf('--label') + 1];
-      const out = label === 'bereit' ? [{ number: 5 }, { number: 21 }] : [{ number: 3, body: '## Kinder\n- [ ] #5\n- [x] #6' }, { number: 4, body: '> **Reihenfolge:** Kinder: #7' }, { number: 21, body: '' }];
+      const out = label === 'bereit' ? [{ number: 5 }, { number: 21 }, { number: 9 }] : [{ number: 3, body: '## Kinder\n- [ ] #5\n- [x] #6' }, { number: 4, body: '> **Reihenfolge:** Kinder: #7' }, { number: 21, body: '' }];
       return { code: 0, stdout: JSON.stringify(out), stderr: '' };
     };
-    expect(freigegebene(a, 'o/r', liesAdapter('---\nready_label: bereit\nepic_label: type/epic\n---\n'))).toEqual([3, 21]);
+    expect(freigegebene(a, 'o/r', liesAdapter('---\nready_label: bereit\nepic_label: type/epic\n---\n'))).toEqual({ epics: [3, 21], ohneEpic: [9] });
     expect(aufrufe.map((x) => x[x.indexOf('--label') + 1])).toEqual(['bereit', 'type/epic']);
     expect(aufrufe.every((x) => x.includes('open'))).toBe(true);
     expect(liesAdapter('').ready_label).toBe('ready-for-agent');
@@ -118,6 +118,15 @@ describe('B: freigegebene Epics', () => {
     const wartet = aufbau({ freigegeben: () => ({ bereit: [], epics: [] }) });
     const z2 = await fahre(wartet.einstellung(drehbuch([]), [], { auto: true, dauerhaft: true, maxDauerMs: 800 }), wartet.welt);
     expect(z2.ereignisse.some((x) => /Zeitgrenze von 1 s erreicht/.test(x.text))).toBe(true);
+  }, T);
+
+  it('a released issue that is no epic and no child of one is reported once', async () => {
+    const t = aufbau({ freigegeben: () => ({ bereit: [3, 8], epics: [{ number: 3 }] }) });
+    const buch = drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [], { auto: true, sammelnMs: 150 }), t.welt);
+    const ohne = z.ereignisse.filter((x) => x.text.startsWith('freigegeben, aber kein Epic'));
+    expect(ohne.map((x) => x.text)).toEqual(['freigegeben, aber kein Epic: #8 (ohne epic und nicht Kind eines Epics; mit --epics fahren oder das Label setzen)']);
+    expect(Object.keys(z.epics)).toEqual(['3']);
   }, T);
 
   it('with --epics the list stays fixed: no epic is collected', async () => {

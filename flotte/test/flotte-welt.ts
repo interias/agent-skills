@@ -111,6 +111,7 @@ export function aufbau(o: Optionen = {}) {
       return ok('[]');
     }
     if (a === 'label') return ok();
+    if (a === 'repo' && b === 'view') return ok('main\n');
     if (a === 'issue' && b === 'create') return ok('https://github.com/o/r/issues/99\n');
     if (a === 'issue' && b === 'edit') {
       p.logbuch.push(opts?.eingabe ?? '');
@@ -228,11 +229,26 @@ export const admiral = (nr: number, antworten: { nr: number; antwort: string; be
 export const GATE_BLOCK = '== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  web grün 0:50\nGate grün.';
 export const GATE_BODY = `## Pakete\n- eins\n\n## Gate\n\`\`\`\n${GATE_BLOCK}\n\`\`\`\n`;
 
-/** a step of a run: the result of a tool call with this output (a real gate call, acceptance 3, finding 2) */
-export const werkzeugErgebnis = (text: string) => ({ zeile: { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'gate', content: text }] } } });
+let werkzeugId = 0;
+
+/**
+ * Two steps of a run: a tool call and its result (acceptance 3, finding 2). Only a Bash or
+ * PowerShell call of the gate command proves a gate run; spread them into the steps.
+ */
+export const werkzeug = (name: string, input: Record<string, unknown>, text: string, o: { parent?: string } = {}) => {
+  const id = `toolu_${++werkzeugId}`;
+  const p = o.parent ? { parent_tool_use_id: o.parent } : {};
+  return [
+    { zeile: { type: 'assistant', ...p, message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } } },
+    { zeile: { type: 'user', ...p, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text }] } } },
+  ];
+};
+
+/** the run called the gate command of the test adapters (gate_command: gate voll) */
+export const gateAufruf = (text: string, befehl = 'gate voll') => werkzeug('Bash', { command: befehl }, text);
 
 /** the run ran the gate of the default PR */
-export const gateGefahren = () => werkzeugErgebnis(`> gate\n${GATE_BLOCK}\n`);
+export const gateGefahren = () => gateAufruf(`> gate\n${GATE_BLOCK}\n`);
 
 export const ping =(anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
 

@@ -38,7 +38,9 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
 - **Epics:** ohne `--epics` alle offenen Epics (`epic_label`) mit `ready_label` des Adapters, an
   sich oder an einem offenen Kind, wie `/epic-flotte` Phase 0. Der Treiber sammelt sie etwa alle
   15 Minuten neu ein und nimmt neu freigegebene Epics auf; Belegung und Reihenfolge-Kanten gelten
-  für sie wie für die ersten. Ein unterwegs entstandenes Epic ohne das Label wartet. Mit
+  für sie wie für die ersten. Ein unterwegs entstandenes Epic ohne das Label wartet. Ein Issue mit
+  `ready_label`, das weder `epic_label` trägt noch Kind eines Epics ist, nimmt er nicht; er meldet
+  es einmal als Ereignis „freigegeben, aber kein Epic: #…“. Mit
   `--epics 15,21` bleibt der Einsatz fest auf diese Epics beschränkt.
 - **Ende:** Sind Schlange und Kandidaten leer, sammelt der Treiber ein letztes Mal ein und endet,
   wenn nichts Neues freigegeben ist. Mit `--dauerhaft` wartet er weiter auf neue Epics.
@@ -55,7 +57,7 @@ Mögliche Schalter:
 | `--skill` | `epic` |
 | `--modell` | Standard des Kontos |
 | `--admiral-modell` / `--admiral-effort` | `fable` / `high` |
-| `--admiral <konto>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen |
+| `--admiral <konto>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen; der Treiber bewertet seinen Verbrauch trotzdem (Pings, Stufe auf Tafel und im Logbuch). Bei Gelb warnt er im Logbuch vor, bei Rot gehen die Fragen ohne Admiral-Aufruf an den Menschen |
 | `--epics <n,n>` | die freigegebenen Epics, laufend neu eingesammelt |
 | `--dauerhaft` | Ende, wenn Schlange und Kandidaten leer sind |
 | `--ping-modell` | `haiku` |
@@ -103,12 +105,13 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 6. **Ende eines Laufs:**
    - Der PR aus `FLOTTE-ENDE` muss offen sein und den Epic-Branch `epic/<nr>-…` als Head haben. Sonst mergt und beobachtet der Treiber ihn nicht; die Frage, welcher PR zum Epic gehört, geht an den Menschen (Frage 99), und der ganze Lauf wartet.
    - Mit `merge: nach_gate` kommt das Epic in die **Merge-Schlange**, in der Reihenfolge seines `FLOTTE-ENDE`. Nur ihr Kopf ist dran, neben der Schleife: Während `merge.ps1` und das Gate laufen, beantwortet der Treiber andere Läufe.
-     - **Gate-Nachweis:** Der letzte Lauf im Gate-Block des PRs muss im Log des Laufs als Ergebnis eines Werkzeugaufrufs stehen: grün, mit derselben Basis, demselben Head und derselben Art (voll oder Immer-Teil). Ein Block, den der Lauf nur geschrieben hat, reicht nicht. Fehlt der Nachweis, fährt der Treiber das volle Gate selbst (wie unten); ohne `gate_command` mergt ein Mensch.
+     - **Basis:** Die Basis des PRs muss die erwartete sein: `base_branch` des Adapters, sonst `main_branch`, sonst der Standardzweig der Forge. Passt sie nicht oder steht `from-issue` im Adapter, mergt ein Mensch. `merge.ps1` prüft das noch einmal und liest den Adapter dafür vom Standardzweig, nicht von der Basis des PRs.
+     - **Gate-Nachweis:** Der letzte Lauf im Gate-Block des PRs muss im Log des Laufs als Ausgabe eines echten Gate-Aufrufs stehen: grün, mit derselben Basis, demselben Head und derselben Art (voll oder Immer-Teil). Es zählt nur das Ergebnis eines Bash- oder PowerShell-Aufrufs, dessen Befehl `gate_command` oder `gate_always_command` enthält (führende Env-Zuweisungen wie `$env:X='0';` abgeschnitten); das Ergebnis wird über seine `tool_use_id` dem Aufruf zugeordnet, auch in Subagenten. Ein Block, den der Lauf nur geschrieben, mit `gh pr view` gelesen, mit `echo` ausgegeben oder per Read aus einer Datei geholt hat, reicht nicht. Fehlt der Nachweis, fährt der Treiber das volle Gate selbst (wie unten); ohne `gate_command` mergt ein Mensch.
      - Mit Nachweis mergt `merge.ps1`, wenn der Block gültig ist.
      - Sonst holt der Treiber selbst die Basis in den Epic-Worktree (`git merge origin/<basis>`), fährt `gate_command` des Adapters dort, schreibt den Block in die PR-Beschreibung, pusht und mergt. Hat sich die Basis seit dem letzten vollen grünen Lauf nur in Bereichen bewegt, die das Epic nicht berührt (`gate_areas`), fährt er nur `gate_always_command`. Hat die Sitzung des Laufs den Epic-Worktree mitgenommen, legt der Treiber ihn mit `worktree.ps1 Up` neu an und baut ihn nach dem Merge mit `Down` ab.
      - Ein Konflikt oder ein rotes Gate geht mit der Ausgabe an den Lauf zurück (`--resume`); das Epic stellt sich hinten an, die Schlange läuft weiter. Ein rotes Gate setzt den Worktree auf den Stand des PRs zurück. Nach zwei Rückgaben wird das Epic bei der dritten blockiert.
      - Bei n Epics in der Schlange sind so höchstens n−1 Gate-Wiederholungen nötig. Der Zähler steht als `gateWiederholungen` je Epic und in der Statistik; nach drei eigenen Gate-Läufen für dasselbe Epic wird es blockiert.
-     - Ohne `gate_command` im Adapter bleibt es mit Nachweis beim alten Weg: Der Lauf bessert den Block selbst nach (zwei Nachbesserungen, fünf Basis-Nachzüge).
+     - Ohne `gate_command` im Adapter lässt sich kein Gate nachweisen: Der Treiber ruft `merge.ps1` nicht auf, ein Mensch mergt.
    - Mit `merge: mensch` (Standard) meldet er „PR bereit“ und erkennt den Merge später.
    - Nach dem Merge: die `nach_merge`-Befehle des Adapters, dann `CleanupStale`, dann der lokale Epic-Branch, wenn er ganz in `origin/<basis>` liegt. Bekommt ein anderer offener PR außerhalb der Schlange einen Konflikt, geht ein Auftrag an dessen Lauf.
 7. **Sichtbar:**

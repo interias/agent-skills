@@ -12,13 +12,14 @@ nicht**: Er bekommt die neue `merge.ps1` und mergt ab dem Einspielen in keinem P
    kein `bun install`.
 3. **Beide Konten sind angemeldet.** Ein Test je Konto kostet einen Haiku-Aufruf:
    `claude -p --model haiku "OK"`, für Konto 2 mit
-   `CLAUDE_CONFIG_DIR=C:\Users\stefa\.claude-arbeitspferd`.
+   `CLAUDE_CONFIG_DIR=<kontenordner 2>` (der Ordner aus `flotte/SKILL.md`, „Konten“).
 4. **Je Projekt mit `merge: nach_gate`, auch mit CI:** Das Gate des Projekts schreibt die Basis in
    seine Kopfzeile (`Basis <remote>/<basis> @ <sha>` und `(HEAD <sha>)`). Sonst mergt die
    Merge-Regel nie, und das Epic wird nach den Nachbesserungen blockiert. In hexanite fehlt die
    Basis bisher; dort erst `gate/gate.mts` anpassen, bis dahin `merge: mensch`.
 5. **Für die Merge-Schlange** braucht der Adapter `gate_command`: der Befehl, mit dem der Treiber
-   das Gate im Epic-Worktree selbst fährt. Ohne ihn bessert der Lauf den Block nach wie bisher.
+   das Gate im Epic-Worktree selbst fährt und an dem er den Gate-Aufruf eines Laufs erkennt. Ohne
+   ihn lässt sich kein Gate nachweisen, und ein Mensch mergt.
    Wer die Wiederholungen klein halten will, trägt dazu `gate_areas` und `gate_always_command` ein
    (`epic/references/adapter.md`, „Merge“).
 
@@ -40,7 +41,10 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    gerade. Einspielen, während eine davon läuft, ändert ihr die Merge-Regel und den Hook mitten im
    Einsatz.
 2. **Adapter zuerst:** im Projektadapter `.claude/epic.md`, über einen PR auf die Basis:
-   - `merge: mensch` (Standard) oder `merge: nach_gate`.
+   - `merge: mensch` (Standard) oder `merge: nach_gate`. **Achtung bei `nach_gate`:** Dann reicht
+     ein `ready-for-agent`-Label (`ready_label`), auch an einem einzigen Kind eines Epics, damit ein
+     Treiber ohne `--epics` das Epic einsammelt, baut und nach grünem Gate selbst mergt. Das Label
+     erst setzen, wenn das gewollt ist.
    - Die Gate-Schlüssel (`gate_heading`, `gate_green`, `gate_base`,
      `gate_head`, `gate_partial`), falls der Block anders aussieht als der Standard, und
      `gate_command`, `gate_always_command`, `gate_areas` für die Merge-Schlange
@@ -57,8 +61,8 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    - **`leitstand`** mit der neuen `merge.ps1`: `install.ps1` spielt ihn nicht ein, das tut
      `pwsh -File arbeitspferd\einrichten.ps1`. Das Skript fasst auch das Terminal-Profil und das
      Theme an, deshalb vorher mit `-DryRun` ansehen. Wer das nicht will, kopiert nur
-     `arbeitspferd\leitstand\scripts\merge.ps1` nach
-     `C:\Users\stefa\.claude\skills\leitstand\scripts\`.
+     `arbeitspferd\leitstand\scripts\merge.ps1` nach `<skills>\leitstand\scripts\`
+     (`<skills>`: der Skill-Ordner des Kontos, etwa `~/.claude/skills`).
 
    Eine alte `merge.ps1`, die den Schlüssel `merge` nicht kennt, ruft der Treiber nicht auf. Er
    meldet das beim Start, und ein Mensch mergt.
@@ -121,7 +125,7 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
 ## Rückweg zu `/epic-flotte` oder zum Leitstand
 
 1. **Treiber beenden** (Strg+C) und den Stand ansehen:
-   `bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts zustand <projekt>`. Dort steht je Epic Stufe,
+   `bun <skills>\flotte\src\cli.ts zustand <projekt>`. Dort steht je Epic Stufe,
    Konto, Sitzung, PR und ob gerade ein Prozess läuft (`pid`).
 2. **Laufende Prozesse** zu Ende laufen lassen oder mit `taskkill /PID <pid> /T` beenden.
 3. **Halter löschen:** `<projekt>\.git\flotte\halten\` leeren. Solange dort eine Datei je Epic
@@ -137,10 +141,10 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    `merge.ps1` des Leitstands liest ihn genauso.
 6. **Alte `merge.ps1` zurück,** nur wenn der Leitstand wieder ohne `merge: nach_gate` mergen soll:
    - `einrichten.ps1` hat die vorige Fassung gesichert, unter
-     `C:\Users\stefa\.claude\skills-backup\arbeitspferd-<zeit>\leitstand\scripts\merge.ps1`.
-   - Diese Datei nach `C:\Users\stefa\.claude\skills\leitstand\scripts\` zurückkopieren.
+     `<skills>-backup\arbeitspferd-<zeit>\leitstand\scripts\merge.ps1`.
+   - Diese Datei nach `<skills>\leitstand\scripts\` zurückkopieren.
    - Die alten `guard.ps1` und `worktree.ps1` liegen von `install.ps1` unter
-     `C:\Users\stefa\.claude\skills-backup\epic-<zeit>\scripts\`. Für den Merge durch den Leitstand
+     `<skills>-backup\epic-<zeit>\scripts\`. Für den Merge durch den Leitstand
      brauchen sie nicht zurück.
    - Danach ruft der Treiber `merge.ps1` nicht mehr auf (Befund 7), und ein Mensch mergt seine PRs.
 7. **Aufräumen:** `<projekt>\.git\flotte\` löschen, wenn der Zustand nicht mehr gebraucht wird.

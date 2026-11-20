@@ -166,20 +166,21 @@ describe('Drehbücher (#14)', () => {
   }, T);
 
   it('D10: FLOTTE-ENDE without a valid gate block: no merge, the order goes back to the run', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate', merge: (pr, n) => (n === 1 ? `GATE FEHLT #${pr}: der Head enthaelt die aktuelle Basis nicht (2 Commits dahinter)` : `GEMERGT #${pr} -> main`) });
-    const buch = drehbuch([lauf(3, [gateGefahren(), { text: ende(3, 13) }]), lauf(3, [gateGefahren(), { text: ende(3, 13) }])]);
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', merge: (pr, n) => (n === 1 ? `GATE FEHLT #${pr}: der Head enthaelt die aktuelle Basis nicht (2 Commits dahinter)` : `GEMERGT #${pr} -> main`) });
+    const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     const laeufe = fuer(buch.gesehen(), 3);
     expect(laeufe).toHaveLength(2);
     expect(laeufe[1].args).toEqual(expect.arrayContaining(['--resume', 's3']));
-    expect(laeufe[1].eingabe).toMatch(/Merge wurde abgelehnt: GATE FEHLT #13[\s\S]*Gate neu laufen/);
+    // without a worktree the driver cannot pull the base in itself: back to the run
+    expect(laeufe[1].eingabe).toMatch(/Die Basis zog davon[\s\S]*Gate-Block in der PR-Beschreibung ersetzen/);
     expect(t.p.merges).toEqual([13, 13]);
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
   it('D11: green gate with merge: nach_gate: merge.ps1 merges; the driver never merges or deletes a branch itself', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate' });
-    const buch = drehbuch([lauf(3, [gateGefahren(), { text: ende(3, 13) }])]);
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });
+    const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3], { sweepRoot: t.repo }), t.welt);
     const merge = t.p.aufrufe.find((a) => skriptVon(a.slice(1)) === 'merge.ps1')!;
     expect(merge.slice(merge.indexOf('-File') + 2)).toEqual(['-Repo', 'o/r', '-Pr', '13']);
@@ -223,8 +224,8 @@ describe('Drehbücher (#14)', () => {
   }, T);
 
   it('D14: with an order edge A before B, B starts only after A is merged', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate', bodies: { 3: '## Betroffene Module\n- a', 4: '> **Reihenfolge:** nach #3\n\n## Betroffene Module\n- b' } });
-    const buch = drehbuch([lauf(3, [{ warte: 200 }, gateGefahren(), { text: ende(3, 13) }]), lauf(4, [gateGefahren(), { text: ende(4, 14) }])]);
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: { 3: '## Betroffene Module\n- a', 4: '> **Reihenfolge:** nach #3\n\n## Betroffene Module\n- b' } });
+    const buch = drehbuch([lauf(3, [{ warte: 200 }, ...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [...gateGefahren(), { text: ende(4, 14) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
     expect(index(t.p.zeitleiste, /^gemergt 13$/)).toBeLessThan(index(t.p.zeitleiste, /^#4 Lauf gestartet/));
     expect(z.epics['4'].stufe).toBe('fertig');
@@ -338,8 +339,8 @@ describe('Drehbücher (#14)', () => {
   }, T);
 
   it('D21: a failing nach_merge command is reported; cleanup runs anyway', async () => {
-    const t = aufbau({ adapter: 'merge: nach_gate\nnach_merge:\n  - npm run deploy:lokal', nachMerge: 1 });
-    const buch = drehbuch([lauf(3, [gateGefahren(), { text: ende(3, 13) }])]);
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll\nnach_merge:\n  - npm run deploy:lokal', nachMerge: 1 });
+    const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(t.p.nachMerge).toEqual(['npm run deploy:lokal']);
     expect(t.p.meldungen.some((m) => /FEHLER nach_merge #3: npm run deploy:lokal/.test(m))).toBe(true);

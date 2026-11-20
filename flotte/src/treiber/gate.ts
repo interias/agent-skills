@@ -122,30 +122,56 @@ function laeufeIn(zeilen: string[], f: GateForm): GateLauf[] {
   });
 }
 
-/** The text of the tool results in one stream-json line of a run's log (main session and subagents). */
-function werkzeugErgebnisse(zeile: string): string[] {
-  let j: { type?: string; message?: { content?: unknown } };
-  try {
-    j = JSON.parse(zeile);
-  } catch {
-    return [];
+/**
+ * The core of a gate command: without leading environment assignments (`$env:X='0';`, `X=0 `,
+ * `set X=0 &&`), so that `$env:HIVE_TESTBETT='0'; npm run gate -- --voll` matches a call that sets
+ * the variable another way.
+ */
+export function gateKern(befehl: string): string {
+  let b = befehl.trim();
+  for (;;) {
+    const n = b.replace(/^\$env:\w+\s*=\s*('[^']*'|"[^"]*"|\S+)\s*;\s*/i, '').replace(/^set\s+\w+=\S*\s*&&\s*/i, '').replace(/^\w+=('[^']*'|"[^"]*"|\S*)\s+/, '');
+    if (n === b) return b;
+    b = n;
   }
-  if (j.type !== 'user' || !Array.isArray(j.message?.content)) return [];
-  return (j.message.content as { type?: string; content?: unknown }[])
-    .filter((c) => c.type === 'tool_result')
-    .map((c) => (typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? (c.content as { text?: string }[]).map((x) => x.text ?? '').join('\n') : ''));
 }
 
+type Inhalt = { type?: string; id?: string; name?: string; input?: { command?: unknown }; tool_use_id?: string; content?: unknown };
+
 /**
- * The gate runs that appear in a run's log as the result of a tool call (acceptance 3, finding 2): the
- * output of a real gate call, not a block the run wrote into its text or the PR. The line numbers of
- * a Read (a gate in the background, read from its output file) are dropped.
+ * The gate runs in a run's log that are the output of a real gate call (acceptance 3, finding 2;
+ * follow-up check of #27): each tool result is matched to its call by tool_use_id, also in subagents,
+ * and counts only when the call was Bash or PowerShell and its command holds the core of one of the
+ * gate commands. A PR text seen with `gh pr view`, the snippet after an Edit, an `echo` of a block or
+ * a Read of a gate's output file is no gate run; in doubt the driver runs the gate itself.
  */
-export function gateLaeufeImLog(log: string, f: GateForm): GateLauf[] {
-  return log
-    .split(/\r?\n/)
-    .flatMap(werkzeugErgebnisse)
-    .flatMap((t) => laeufeIn(t.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).map((z) => z.replace(/^\s*\d+(\t|→)/, '')), f));
+export function gateLaeufeImLog(log: string, f: GateForm, befehle: string[]): GateLauf[] {
+  const kerne = befehle.map(gateKern).filter(Boolean);
+  if (!kerne.length) return [];
+  const aufrufe = new Map<string, string>();
+  const ergebnisse: { id: string; text: string }[] = [];
+  for (const zeile of log.split(/\r?\n/)) {
+    let j: { type?: string; message?: { content?: unknown } };
+    try {
+      j = JSON.parse(zeile);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(j.message?.content)) continue;
+    for (const c of j.message.content as Inhalt[]) {
+      if (j.type === 'assistant' && c.type === 'tool_use' && c.id && (c.name === 'Bash' || c.name === 'PowerShell') && typeof c.input?.command === 'string') aufrufe.set(c.id, c.input.command);
+      if (j.type === 'user' && c.type === 'tool_result' && c.tool_use_id) {
+        const text = typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? (c.content as { text?: string }[]).map((x) => x.text ?? '').join('\n') : '';
+        ergebnisse.push({ id: c.tool_use_id, text });
+      }
+    }
+  }
+  return ergebnisse
+    .filter((e) => {
+      const befehl = aufrufe.get(e.id);
+      return befehl !== undefined && kerne.some((k) => befehl.includes(k));
+    })
+    .flatMap((e) => laeufeIn(e.text.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/), f));
 }
 
 /** Two SHAs name the same commit when the shorter is a prefix of the longer. */
