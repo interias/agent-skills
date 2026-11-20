@@ -30,14 +30,27 @@ class Frage(BaseModel):
     ganzerLauf: bool = True
     # the question as the run wrote it; the whole block when the driver could not parse it
     roh: str = Field('', max_length=20000)
+    # why it lies with the person: the admiral's herkunft and a short mark ('Schema', 'Kosten', ...)
+    herkunft: str = Field('', max_length=500)
+    marke: str = Field('', max_length=80)
+    # can the answer still change until the merge of the epic PR; None: unknown
+    umkehrbar: bool | None = None
+    # the packages that wait for it ([] when the whole run waits)
+    geparkt: list[str] = Field([], max_length=50)
     # identifies the question: numbers start at 1 in every question block
     seit: str = Field(max_length=40)
     beantwortet: str | None = None
 
 
 class Paket(BaseModel):
+    # a child ticket (nr and title, the board links it) or, in spec mode, a package by name
     name: str = Field(max_length=200)
-    stand: Literal['offen', 'laeuft', 'fertig', 'geparkt', 'blockiert'] = 'offen'
+    stand: Literal['offen', 'laeuft', 'fertig', 'geparkt', 'blockiert', 'zurueckgelassen'] = 'offen'
+    nr: int | None = None
+    titel: str = Field('', max_length=300)
+    # first seen working and closed (ISO): the board counts the duration itself
+    beginn: str | None = Field(None, max_length=40)
+    ende: str | None = Field(None, max_length=40)
 
 
 class Epic(BaseModel):
@@ -52,12 +65,54 @@ class Epic(BaseModel):
     schritt: str | None = Field(None, max_length=500)
     schrittZeit: str | None = Field(None, max_length=40)
     gemergtAm: str | None = Field(None, max_length=40)
+    # a run process works on it right now (the life sign of level 2)
+    prozess: bool = False
+    # blocked or aborted: the whole reason, since when, the last events of this epic
+    grund: str = Field('', max_length=4000)
+    haltZeit: str | None = Field(None, max_length=40)
+    log: list[str] = Field([], max_length=40)
+    # the person gave it up on the bridge: no longer level 1
+    aufgegebenAm: str | None = Field(None, max_length=40)
+    # the priority label (prio/hoch): first in the next occupancy, first in "Bereit"
+    prio: bool = False
+    # times for level 2 (ISO): first run started, joined the merge queue, the driver's gate started
+    gestartetAm: str | None = Field(None, max_length=40)
+    schlangeSeit: str | None = Field(None, max_length=40)
+    gateSeit: str | None = Field(None, max_length=40)
+
+
+class Fenster(BaseModel):
+    # used share in percent and the reset of the window
+    verbraucht: float = Field(ge=0, le=1000)
+    reset: str = Field(max_length=40)
 
 
 class Konto(BaseModel):
     konto: str = Field(max_length=100)
-    # a stage, never a percentage (#28)
     stufe: Literal['gruen', 'gelb', 'rot']
+    # the usage windows from the driver's verbrauch.json (5 hours, 7 days) and the age of the value
+    fuenf: Fenster | None = None
+    woche: Fenster | None = None
+    alterMin: float | None = None
+
+
+class Ereignis(BaseModel):
+    zeit: str = Field(max_length=40)
+    epic: int | None = None
+    text: str = Field(max_length=1000)
+
+
+class Entscheidung(BaseModel):
+    # what the admiral decided himself; (epic, nr, zeit) is the key
+    epic: int
+    nr: int
+    frage: str = Field('', max_length=4000)
+    antwort: str = Field('', max_length=4000)
+    herkunft: str = Field('', max_length=500)
+    grund: str = Field('', max_length=4000)
+    einflussreich: bool = False
+    zeit: str = Field(max_length=40)
+    widerrufen: str | None = Field(None, max_length=4000)
 
 
 class Ram(BaseModel):
@@ -86,6 +141,11 @@ class Bericht(BaseModel):
     platte: Platte | None = None
     obergrenze: int | None = None
     fragen: list[Frage] = Field([], max_length=200)
+    # idle limit of a run: the life sign runs out there
+    leerlaufS: int | None = Field(None, ge=1)
+    # the last events of the driver (the ticker) and the admiral's decisions (level 3)
+    ereignisse: list[Ereignis] = Field([], max_length=200)
+    entscheidungen: list[Entscheidung] = Field([], max_length=500)
 
 
 class Antwort(BaseModel):
@@ -103,4 +163,26 @@ class Antwort(BaseModel):
         self.text = (self.text or '').strip() or None
         if not self.option and not self.text:
             raise ValueError('Option oder Freitext')
+        return self
+
+
+class Handlung(BaseModel):
+    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision."""
+
+    forge: str = Field(max_length=200)
+    epic: int
+    art: Literal['einreihen', 'aufgeben', 'widerruf']
+    # widerruf: the decision (its nr and zeit)
+    nr: int | None = None
+    seit: str | None = Field(None, max_length=40)
+    # widerruf: the new decision, unchanged to the run
+    text: str | None = Field(None, max_length=4000)
+
+    @model_validator(mode='after')
+    def widerruf_braucht_bezug(self) -> 'Handlung':
+        self.text = (self.text or '').strip() or None
+        if self.art == 'widerruf' and (self.nr is None or not self.seit or not self.text):
+            raise ValueError('Widerruf: nr, seit und die neue Entscheidung')
+        if self.art != 'widerruf':
+            self.nr, self.seit, self.text = None, None, None
         return self

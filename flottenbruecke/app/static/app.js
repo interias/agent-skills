@@ -1,20 +1,21 @@
-// The board refreshes itself every 10 s. Cards change in place and only when their content
-// changed; a question card someone is answering is left alone, so nothing jumps.
+// Flottenbrücke v2 (#28): three levels by what the person has to do. The board refreshes itself
+// every 10 s; items change in place and only when their content changed, a card someone is
+// answering is left alone. Motion: the alarm of level 1, the life sign of each run, the beat in the
+// elbow, the ticker of the logbook, cards that move between levels. prefers-reduced-motion stops it.
 'use strict';
 
 const TAKT_MS = 10000;
 const PIN_KEY = 'flottenbruecke-pin';
-const FARBE = { bereit: 'var(--himmel)', laeuft: 'var(--orange)', frage: 'var(--lila)', schlange: 'var(--gold)', gemergt: 'var(--gruen)', blockiert: 'var(--rot)' };
-const KURZ = { bereit: 'Bereit', laeuft: 'Läuft', frage: 'Frage', schlange: 'Schlange', gemergt: 'Gemergt', blockiert: 'Blockiert' };
-
-const WORT = { gruen: 'grün', gelb: 'gelb', rot: 'rot', ok: 'ok', warn: 'warn', hold: 'halt' };
+const STILL = matchMedia('(prefers-reduced-motion: reduce)');
+const BREIT = matchMedia('(min-width: 701px)');
+const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
+const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
+const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf' };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const uhrzeit = (iso) => {
-  const t = iso ? new Date(iso) : null;
-  return t && !isNaN(t) ? t.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
-};
+const datum = (iso) => { const t = iso ? new Date(iso) : null; return t && !isNaN(t) ? t : null; };
+const uhrzeit = (iso) => datum(iso)?.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) ?? '';
 const lager = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window */ } },
@@ -22,28 +23,52 @@ const lager = {
 };
 
 let stand = null;
-const entwurf = new Map(); // question key -> { b, text, offen }
+let versatz = 0; // server time minus local time
+let erstes = true;
+const entwurf = new Map(); // question key -> { wahl, text, frei, aendern }
+const auf = new Set(); // opened details: lage, log, pakete, widerruf forms
 
-// option and free text go apart to the driver; the run gets the free text unchanged
-const antwortText = (a) => (a.option && a.text ? `${a.option} — ${a.text}` : a.option || a.text || '');
+const jetzt = () => Date.now() + versatz;
+const minuten = (s) => Math.max(0, Math.round(s / 60));
+function dauer(s) {
+  const m = minuten(s);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+// a duration the page counts itself between reports: {} in data-text becomes the time since data-ab
+// (or up to data-bis); the html stays the same, so a card is not drawn anew every minute
+const zeitHtml = (ab, text, bis, cls = 'rel') => (datum(ab) ? `<span class="${cls}" data-ab="${esc(ab)}"${bis ? ` data-bis="${esc(bis)}"` : ''} data-text="${esc(text)}"></span>` : '');
+const seitS = (iso) => (datum(iso) ? (jetzt() - datum(iso)) / 1000 : null);
 
-function frageKey(c, f) { return `${c.forge}#${f.epic}#${f.nr}#${f.seit}`; }
+// ---- header: clock, accounts as tanks, RAM and disk, projects
 
-// ---- header
+function rest(f) {
+  return f ? Math.max(0, Math.min(100, 100 - f.verbraucht)) : null;
+}
+function fensterHtml(name, f) {
+  if (!f) return '';
+  const r = rest(f);
+  const farbe = r < 20 ? 'var(--rot)' : r < 40 ? 'var(--gold)' : 'var(--gruen)';
+  const t = datum(f.reset);
+  const tag = t && t - jetzt() > 20 * 3600e3 ? t.toLocaleDateString('de-DE', { weekday: 'short' }) + ' ' : '';
+  return `<span class="fenster" title="${esc(name)}: ${Math.round(r)} % übrig, zurückgesetzt ${esc(tag)}${esc(uhrzeit(f.reset))}"><span>${esc(name)}</span><span class="roehre"><i style="--w:${r}%;--f:${farbe}"></i></span><span><b>${Math.round(r)} %</b> <span class="reset">bis ${esc(tag)}${esc(uhrzeit(f.reset))}</span></span></span>`;
+}
 
 function kopf(t) {
   $('uhr').textContent = uhrzeit(t.jetzt);
   const neuester = t.projekte.map((p) => p.empfangen).sort().pop();
   $('stand').textContent = neuester ? `Bericht ${uhrzeit(neuester)}` : 'Kein Bericht';
   const teile = [];
-  for (const k of t.konten) teile.push(`<span class="anzeige${k.veraltet ? ' veraltet' : ''}">${esc(k.konto)} <b class="${esc(k.stufe)}">${esc(WORT[k.stufe] ?? k.stufe)}</b></span>`);
+  for (const k of t.konten) {
+    const alt = k.veraltet || (k.alterMin != null && k.alterMin > 30);
+    const fenster = fensterHtml('5 h', k.fuenf) + fensterHtml('Woche', k.woche);
+    teile.push(`<span class="tank ${esc(k.stufe)}${alt ? ' veraltet' : ''}" title="Verbrauch ${esc(k.konto)}: Stufe ${esc(k.stufe)}${k.alterMin != null ? `, Wert ${Math.round(k.alterMin)} min alt` : ''}"><span class="tank-name">${esc(k.konto.replace(/^Konto /, 'K'))}</span>${fenster || `<span class="fenster">${esc(k.stufe)}</span>`}</span>`);
+  }
   const mehrere = t.rechner.length > 1;
   for (const r of t.rechner) {
     const wo = mehrere && r.name ? `${esc(r.name)} · ` : '';
     const v = r.veraltet ? ' veraltet' : '';
     if (r.ram) teile.push(`<span class="anzeige${v}">${wo}RAM <b class="${esc(r.ram.stufe)}">${esc(WORT[r.ram.stufe] ?? r.ram.stufe)}</b>${r.ram.prozent != null ? ` <span class="zahl">${Math.round(r.ram.prozent)} %</span>` : ''}</span>`);
-    if (r.platte) teile.push(`<span class="anzeige${v}">${wo}Platte <b class="${r.platte.genug ? 'ok' : 'rot'}">${r.platte.genug ? 'ok' : 'knapp'}</b>${r.platte.freiGb != null ? ` <span class="zahl">${Math.round(r.platte.freiGb)} GB</span>` : ''}</span>`);
-    if (r.obergrenze != null) teile.push(`<span class="anzeige${v}">${wo}Obergrenze <span class="zahl">${esc(r.obergrenze)}</span></span>`);
+    if (r.platte) teile.push(`<span class="anzeige${v}">${wo}Platte <b class="${r.platte.genug ? 'ok' : 'knapp'}">${r.platte.genug ? 'ok' : 'knapp'}</b>${r.platte.freiGb != null ? ` <span class="zahl">${Math.round(r.platte.freiGb)} GB</span>` : ''}</span>`);
   }
   setze($('anzeigen'), teile.join(''));
   setze($('projekte'), t.projekte.map((p) => {
@@ -62,181 +87,406 @@ function setze(el, html) {
   }
 }
 
-// ---- board
+// ---- keyed lists: an item changes only when its html changed and nobody works on it
 
-function spalten(t) {
-  const tafel = $('tafel');
-  setze($('sprung'), t.spalten.map((s) => `<a href="#s-${s.id}" style="background:${FARBE[s.id]}">${KURZ[s.id]} <span class="zahl">${s.karten.length}</span></a>`).join(''));
-  for (const s of t.spalten) {
-    let sp = $(`s-${s.id}`);
-    if (!sp) {
-      sp = document.createElement('section');
-      sp.id = `s-${s.id}`;
-      sp.className = `spalte s-${s.id}`;
-      sp.innerHTML = `<h2 class="spalte-kopf"><span>${esc(s.titel)}</span><span class="zahl"></span></h2><div class="karten"></div>`;
-      tafel.appendChild(sp);
+function liste(box, items, html, verdrahten, tag = 'article') {
+  const da = new Map([...box.children].filter((el) => el.dataset.id).map((el) => [el.dataset.id, el]));
+  const reihe = [];
+  for (const it of items) {
+    let el = da.get(it.id);
+    const h = html(it);
+    if (!el) {
+      el = document.createElement(tag);
+      el.dataset.id = it.id;
     }
-    sp.querySelector('.spalte-kopf .zahl').textContent = s.karten.length;
-    const liste = sp.querySelector('.karten');
-    const da = new Map([...liste.querySelectorAll(':scope > .karte')].map((el) => [el.dataset.id, el]));
-    const reihe = [];
-    for (const c of s.karten) {
-      let el = da.get(c.id) || document.querySelector(`.karte[data-id="${CSS.escape(c.id)}"]`);
-      const html = karte(c, t);
-      if (!el) {
-        el = document.createElement('article');
-        el.className = 'karte';
-        el.dataset.id = c.id;
-      }
-      if (el.dataset.sig !== html && !inArbeit(el)) {
-        el.innerHTML = html;
-        el.dataset.sig = html;
-        verdrahte(el, c);
-      }
-      reihe.push(el);
-      da.delete(c.id);
+    if (el.dataset.sig !== h && !inArbeit(el)) {
+      el.innerHTML = h;
+      el.dataset.sig = h;
+      verdrahten?.(el, it);
     }
-    for (const el of da.values()) if (!reihe.includes(el)) el.remove();
-    let leer = liste.querySelector(':scope > .keine');
-    if (!reihe.length && !leer) {
-      leer = document.createElement('div');
-      leer.className = 'keine';
-      leer.textContent = 'leer';
-      liste.appendChild(leer);
-    } else if (reihe.length && leer) leer.remove();
-    reihe.forEach((el, i) => { if (liste.children[i] !== el) liste.insertBefore(el, liste.children[i] || null); });
+    el.className = klasse(it);
+    if (it.flip) el.dataset.flip = it.flip;
+    reihe.push(el);
+    da.delete(it.id);
   }
-  // a card that left every column (an epic merged yesterday) goes
-  const ids = new Set(t.spalten.flatMap((s) => s.karten.map((c) => c.id)));
-  for (const el of tafel.querySelectorAll('.karte')) if (!ids.has(el.dataset.id)) el.remove();
+  for (const el of da.values()) el.remove();
+  for (const el of [...box.children]) if (!el.dataset.id) el.remove();
+  reihe.forEach((el, i) => { if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null); });
+}
+
+function klasse(it) {
+  return {
+    frage: 'karte frage', blockade: 'karte blockade',
+    lauf: `karte lauf${it.wartetAufDich ? ' wartet' : ''}`, schlange: 'karte lauf schlange',
+  }[it.form] ?? (it.form === 'zeile' ? `${it.art}${it.neu ? ' neu' : ''}` : '');
 }
 
 function inArbeit(el) {
   if (el.contains(document.activeElement) && document.activeElement !== document.body) return true;
-  return [...el.querySelectorAll('.frage')].some((f) => {
-    const e = entwurf.get(f.dataset.key);
-    return e && (e.wahl?.length || e.text);
-  });
+  const e = entwurf.get(el.dataset.id);
+  return Boolean(e && (e.wahl?.length || e.text || e.aendern));
 }
 
-function karte(c, t) {
-  const meta = [
-    c.position ? `<span class="pos">${c.position}.</span>` : '',
-    `<span>${esc(c.repo)}</span>`,
-    c.konto ? `<span>${esc(c.konto)}</span>` : '',
-    c.pr ? (c.prUrl ? `<a href="${esc(c.prUrl)}">PR #${c.pr}</a>` : `<span>PR #${c.pr}</span>`) : '',
-    c.gemergtAm && c.stufe !== 'pr' && ['gemergt', 'fertig'].includes(c.stufe) ? `<span>gemergt ${uhrzeit(c.gemergtAm)}</span>` : '',
-  ].join('');
-  const nr = c.issueUrl ? `<a class="karte-nr" href="${esc(c.issueUrl)}">#${c.nr}</a>` : `<span class="karte-nr">#${c.nr}</span>`;
-  const seg = c.pakete.length ? `<div class="segmente" title="${esc(c.pakete.map((p) => `${p.name}: ${p.stand}`).join(', '))}">${c.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</div>` : '';
-  const schritt = c.schritt ? `<div class="schritt"><time>${uhrzeit(c.schrittZeit)}</time>${esc(c.schritt)}</div>` : '';
-  const notiz = c.notiz && c.notiz !== c.schritt ? `<div class="notiz">${esc(c.notiz)}</div>` : '';
-  const fragen = c.fragen.map((f) => frage(c, f, t)).join('');
-  return `<div class="karte-kopf">${nr}<span class="karte-titel">${esc(c.titel)}</span></div><div class="karte-meta">${meta}</div>${seg}${schritt}${notiz}${fragen}`;
-}
+// ---- level 1: questions and blockades
 
-function frage(c, f, t) {
-  const key = frageKey(c, f);
-  const e = entwurf.get(key) || {};
-  // a block the driver could not parse: the run's wording itself, never nothing (#28)
-  const titel = f.frage ? esc(f.frage) : 'Wortlaut des Laufs';
-  const lage = f.frage ? (f.lage ? `<div class="lage">${esc(f.lage)}</div>` : '') : `<div class="lage roh">${esc(f.roh || '(leer)')}</div>`;
-  const wortlaut = f.frage && f.roh ? `<details class="wortlaut"><summary>Wortlaut</summary><div class="roh">${esc(f.roh)}</div></details>` : '';
-  const betrifft = f.betrifft && f.betrifft !== 'Lauf' ? ` · betrifft: ${esc(f.betrifft)}` : '';
-  const kopf = `<div class="frage-titel">Frage ${f.nr}: ${titel}</div>${lage}<div class="wartet">wartet: ${esc(f.wartet || 'der ganze Lauf')}${betrifft}</div>${wortlaut}`;
-  if (f.antwort && (f.antwort.abgeholt || !e.offen)) {
-    const st = f.antwort.quittiert ? 'quittiert, der Lauf setzt fort' : f.antwort.abgeholt ? 'vom Treiber abgeholt' : 'gespeichert, wartet auf den Treiber';
-    const aendern = f.antwort.abgeholt ? '' : ' <button type="button" class="knopf blau klein" data-aendern>ändern</button>';
-    return `<div class="frage" data-key="${esc(key)}">${kopf}<div class="gesendet">Antwort: <b>${esc(antwortText(f.antwort))}</b>${aendern}<span class="status gut">${uhrzeit(f.antwort.zeit)} · ${st}</span></div></div>`;
+function ebene1(t) {
+  const n = t.braucht.length;
+  const e1 = $('e1');
+  e1.classList.toggle('alarm', n > 0);
+  e1.classList.toggle('ruhig', n === 0);
+  $('e1-zahl').textContent = n;
+  const aeltest = Math.max(0, ...t.braucht.map((x) => seitS(x.seit) ?? 0));
+  $('e1-klein').textContent = n ? `älteste wartet ${dauer(aeltest)}` : '';
+  const box = $('e1-liste');
+  if (!n) {
+    setze(box, '<p class="ruhe">Nichts wartet auf dich.</p>');
+    return;
   }
-  const opts = f.optionen.map((o) => {
-    const emp = f.empfohlen.includes(o.buchstabe);
-    const an = (e.wahl || []).includes(o.buchstabe);
-    const rolle = f.mehrfach ? `role="checkbox" aria-checked="${an}"` : `aria-pressed="${an}"`;
-    return `<button type="button" class="opt${f.mehrfach ? ' kaestchen' : ''}${emp ? ' empfohlen' : ''}${an ? ' gewaehlt' : ''}" data-b="${esc(o.buchstabe)}" ${rolle}><span class="b">${esc(o.buchstabe)}</span><span>${esc(o.text)}${emp ? '<span class="empf">Empfehlung</span>' : ''}</span></button>`;
+  if (box.dataset.sig) { box.innerHTML = ''; delete box.dataset.sig; }
+  liste(box, t.braucht.map((x) => ({ ...x, form: x.art, flip: x.art === 'blockade' ? x.id : x.id })), (x) => (x.art === 'frage' ? frageHtml(x, t) : blockadeHtml(x, t)), (el, x) => (x.art === 'frage' ? frageVerdrahten(el, x) : blockadeVerdrahten(el, x)));
+}
+
+function nrLink(x, nr = x.epic) {
+  return x.issueUrl ? `<a class="nr" href="${esc(x.issueUrl)}">#${nr}</a>` : `<span class="nr">#${nr}</span>`;
+}
+
+function haelt(x) {
+  if (x.ganzerLauf) return 'hält den ganzen Lauf';
+  const n = x.geparkt?.length || 1;
+  return `hält ${n}${x.paketeGesamt ? ` von ${x.paketeGesamt}` : ''} ${n === 1 && !x.paketeGesamt ? 'Paket' : 'Paketen'}`.replace(/hält 1 Paketen/, 'hält 1 Paket');
+}
+
+// "A) <…, Folge>": the part after the first comma is the consequence, shown softer
+function teile(text) {
+  const i = text.indexOf(', ');
+  return i > 0 && i < text.length - 2 ? [text.slice(0, i), text.slice(i + 2)] : [text, ''];
+}
+
+function marken(x) {
+  const m = [];
+  if (x.umkehrbar === true) m.push('<span class="m um">umkehrbar bis Merge</span>');
+  else if (x.umkehrbar === false) m.push(`<span class="m bleibt">${esc(x.marke || 'Entscheidung')} · bleibt</span>`);
+  else if (x.marke) m.push(`<span class="m">${esc(x.marke)}</span>`);
+  return m.length ? `<div class="marken">${m.join('')}</div>` : '';
+}
+
+function frageHtml(x, t) {
+  const e = entwurf.get(x.id) || {};
+  const titel = x.frage ? esc(x.frage) : 'Der Lauf fragt (Wortlaut)';
+  const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">Frage ${x.nr} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'wartet {}')} · ${esc(haelt(x))}</span></div>`;
+  const lage = x.frage
+    ? (x.lage ? `<p class="lage kurz${auf.has(`lage:${x.id}`) ? ' auf' : ''}">${esc(x.lage)}</p>${x.lage.length > 220 ? `<button type="button" class="mehr-lage" data-lage>${auf.has(`lage:${x.id}`) ? 'weniger' : 'ganze Lage'}</button>` : ''}` : '')
+    : `<div class="roh">${esc(x.roh || '(leer)')}</div>`;
+  const warum = x.grund ? `<p class="warum"><b>Liegt bei dir:</b> ${esc(x.grund)}</p>` : '';
+  const wortlaut = x.frage && x.roh ? `<details class="wortlaut"><summary>Wortlaut des Laufs</summary><div class="roh">${esc(x.roh)}</div></details>` : '';
+  const vorne = `${kopfz}<h3>${titel}</h3>${lage}${marken(x)}${warum}`;
+  if (x.antwort && (x.antwort.abgeholt || !e.aendern)) {
+    const st = x.antwort.abgeholt ? 'Angekommen, Lauf setzt fort' : 'Angekommen · der Treiber holt sie im nächsten Takt ab';
+    const aendern = x.antwort.abgeholt ? '' : '<button type="button" class="knopf zweit klein" data-aendern>ändern</button>';
+    const text = [x.antwort.option, x.antwort.text].filter(Boolean).join(' — ');
+    return `${vorne}<div class="angekommen"><span>Deine Antwort: <b>${esc(text)}</b></span><span class="status gut">${uhrzeit(x.antwort.zeit)} · ${st}</span>${aendern ? `<div>${aendern}</div>` : ''}</div>${wortlaut}`;
+  }
+  const wahl = e.wahl || [];
+  const opts = x.optionen.map((o) => {
+    const emp = x.empfohlen.includes(o.buchstabe);
+    const an = wahl.includes(o.buchstabe);
+    const [haupt, folge] = teile(o.text);
+    const rolle = x.mehrfach ? `role="checkbox" aria-checked="${an}"` : `aria-pressed="${an}"`;
+    return `<button type="button" class="opt${x.mehrfach ? ' kaestchen' : ''}${emp ? ' empfohlen' : ''}${an ? ' gewaehlt' : ''}" data-b="${esc(o.buchstabe)}" ${rolle}><span class="b">${esc(o.buchstabe)}</span><span>${esc(haupt)}${emp ? '<span class="empf">Empfehlung</span>' : ''}</span>${folge ? `<span class="folge">${esc(folge)}</span>` : ''}</button>`;
   }).join('');
-  const mehr = f.mehrfach && f.optionen.length ? '<div class="wartet">mehrere möglich</div>' : '';
-  const empf = !f.empfohlen.length && f.empfehlung ? `<div class="lage">Empfehlung: ${esc(f.empfehlung)}</div>` : '';
+  const frei = e.frei || !x.optionen.length;
   const zu = t.pin ? '' : ' disabled';
-  return `<div class="frage" data-key="${esc(key)}">${kopf}${mehr}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
-<textarea placeholder="Freitext (optional)" aria-label="Freitext"${zu}>${esc(e.text || '')}</textarea>
-<div class="senden-zeile"><button type="button" class="knopf orange" data-senden${zu}>Antworten</button><span class="status">${t.pin ? '' : 'Antworten abgeschaltet: keine PIN gesetzt'}</span></div></div>`;
+  const empf = !x.empfohlen.length && x.empfehlung ? `<p class="warum"><b>Empfehlung:</b> ${esc(x.empfehlung)}</p>` : '';
+  return `${vorne}${x.mehrfach && x.optionen.length ? '<span class="hinweis">mehrere möglich</span>' : ''}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
+${frei ? `<textarea placeholder="${x.optionen.length ? 'Freitext, erreicht den Lauf unverändert (optional)' : 'Deine Antwort, erreicht den Lauf unverändert'}" aria-label="Freitext"${zu}>${esc(e.text || '')}</textarea>` : ''}
+<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Freitext</button>` : ''}<span class="status">${t.pin ? '' : 'Antworten abgeschaltet: keine PIN gesetzt'}</span></div>${wortlaut}`;
 }
 
-function verdrahte(el, c) {
-  for (const box of el.querySelectorAll('.frage')) {
-    const key = box.dataset.key;
-    const f = c.fragen.find((x) => frageKey(c, x) === key);
-    const e = () => entwurf.get(key) || {};
-    const neu = (x) => entwurf.set(key, { ...e(), ...x });
-    box.querySelector('[data-aendern]')?.addEventListener('click', () => {
-      neu({ offen: true, wahl: f.antwort?.option ? f.antwort.option.split(', ') : [], text: f.antwort?.text || '' });
-      el.dataset.sig = '';
-      el.innerHTML = karte(c, stand);
-      verdrahte(el, c);
+function sendeText(x, e) {
+  const wahl = e.wahl || [];
+  if (wahl.length) return `${wahl.join(', ')} senden`;
+  if (x.empfohlen.length && !(e.text || '').trim()) return `${x.empfohlen.join(', ')} nehmen · Empfehlung`;
+  return 'Senden';
+}
+
+function frageVerdrahten(el, x) {
+  const e = () => entwurf.get(x.id) || {};
+  const neu = (w) => entwurf.set(x.id, { ...e(), ...w });
+  const neuZeichnen = () => {
+    el.dataset.sig = '';
+    el.innerHTML = frageHtml(x, stand);
+    el.dataset.sig = el.innerHTML;
+    frageVerdrahten(el, x);
+    lebenszeichen();
+  };
+  el.querySelector('[data-lage]')?.addEventListener('click', () => {
+    auf.has(`lage:${x.id}`) ? auf.delete(`lage:${x.id}`) : auf.add(`lage:${x.id}`);
+    neuZeichnen();
+  });
+  el.querySelector('[data-aendern]')?.addEventListener('click', () => {
+    neu({ aendern: true, wahl: x.antwort?.option ? x.antwort.option.split(', ') : [], text: x.antwort?.text || '', frei: Boolean(x.antwort?.text) });
+    neuZeichnen();
+  });
+  el.querySelector('[data-frei]')?.addEventListener('click', () => {
+    neu({ frei: true });
+    neuZeichnen();
+    el.querySelector('textarea')?.focus();
+  });
+  for (const b of el.querySelectorAll('.opt')) {
+    b.addEventListener('click', () => {
+      // single choice: one or none; multiple choice: each box on its own
+      const alt = e().wahl || [];
+      const da = alt.includes(b.dataset.b);
+      const wahl = x.mehrfach ? (da ? alt.filter((y) => y !== b.dataset.b) : [...alt, b.dataset.b].sort()) : da ? [] : [b.dataset.b];
+      neu({ wahl });
+      for (const o of el.querySelectorAll('.opt')) {
+        const an = wahl.includes(o.dataset.b);
+        o.classList.toggle('gewaehlt', an);
+        o.setAttribute(x.mehrfach ? 'aria-checked' : 'aria-pressed', String(an));
+      }
+      el.querySelector('[data-senden]').textContent = sendeText(x, e());
     });
-    for (const b of box.querySelectorAll('.opt')) {
-      b.addEventListener('click', () => {
-        // single choice: one or none; multiple choice: each box on its own
-        const alt = e().wahl || [];
-        const da = alt.includes(b.dataset.b);
-        const wahl = f.mehrfach ? (da ? alt.filter((x) => x !== b.dataset.b) : [...alt, b.dataset.b].sort()) : da ? [] : [b.dataset.b];
-        neu({ wahl });
-        for (const x of box.querySelectorAll('.opt')) {
-          const an = wahl.includes(x.dataset.b);
-          x.classList.toggle('gewaehlt', an);
-          x.setAttribute(f.mehrfach ? 'aria-checked' : 'aria-pressed', String(an));
-        }
-      });
-    }
-    const feld = box.querySelector('textarea');
-    feld?.addEventListener('input', () => neu({ text: feld.value }));
-    box.querySelector('[data-senden]')?.addEventListener('click', () => senden(c, f, box));
   }
+  const feld = el.querySelector('textarea');
+  feld?.addEventListener('input', () => {
+    neu({ text: feld.value });
+    el.querySelector('[data-senden]').textContent = sendeText(x, e());
+  });
+  el.querySelector('[data-senden]')?.addEventListener('click', () => antworten(x, el));
 }
 
-async function senden(c, f, box) {
-  const key = frageKey(c, f);
-  const e = entwurf.get(key) || {};
+async function antworten(x, el) {
+  const e = entwurf.get(x.id) || {};
   const frei = (e.text || '').trim();
-  const status = box.querySelector('.status');
-  const option = (e.wahl || []).join(', ');
+  // one tap on the recommendation: nothing chosen and no text sends the recommended letters
+  const option = (e.wahl?.length ? e.wahl : frei ? [] : x.empfohlen).join(', ');
+  const status = el.querySelector('.status');
   if (!option && !frei) {
     status.className = 'status schlecht';
     status.textContent = 'Option wählen oder Text schreiben';
     return;
   }
-  const knopf = box.querySelector('[data-senden]');
-  for (let versuch = 0; versuch < 2; versuch++) {
-    const pin = lager.get(PIN_KEY) || (await pinFragen());
-    if (!pin) return;
-    knopf.disabled = true;
-    status.className = 'status';
-    status.textContent = 'sende …';
-    let r;
-    try {
-      r = await fetch('/api/antwort', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bruecke-Pin': pin }, body: JSON.stringify({ forge: c.forge, epic: f.epic, nr: f.nr, seit: f.seit, option: option || null, text: frei || null }) });
-    } catch {
-      knopf.disabled = false;
+  const r = await senden('/api/antwort', { forge: x.forge, epic: x.epic, nr: x.nr, seit: x.seit, option: option || null, text: frei || null }, el, status);
+  if (r) {
+    entwurf.delete(x.id);
+    await laden();
+  }
+}
+
+function blockadeHtml(x, t) {
+  const grund = x.grund || x.notiz || 'ohne Grund gemeldet';
+  const [erste, ...rest] = grund.split('\n');
+  const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">${x.stufe === 'abgebrochen' ? 'Abgebrochen' : 'Blockiert'} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · Epic steht ganz</span></div>`;
+  const titel = x.titel ? `<p class="lage">${esc(x.titel)}${x.prUrl ? ` · <a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : ''}</p>` : '';
+  const lage = rest.join('\n').trim() ? `<p class="lage kurz">${esc(rest.join('\n').trim())}</p>` : '';
+  const log = auf.has(`log:${x.id}`) ? `<ol class="log">${(x.log.length ? x.log : ['(keine Ereignisse gemeldet)']).map((z) => `<li>${esc(z)}</li>`).join('')}</ol>` : '';
+  let unten;
+  if (x.handlung) {
+    const st = x.handlung.abgeholt ? 'Angekommen, der Treiber führt es aus' : 'Angekommen · der Treiber holt es im nächsten Takt ab';
+    unten = `<div class="angekommen"><span>${esc(HANDLUNG[x.handlung.art])}</span><span class="status gut">${uhrzeit(x.handlung.zeit)} · ${st}</span></div>`;
+  } else {
+    const zu = t.pin ? '' : ' disabled';
+    unten = `<div class="knoepfe"><button type="button" class="knopf haupt" data-h="einreihen"${zu}>Neu einreihen</button><button type="button" class="knopf zweit" data-log aria-expanded="${auf.has(`log:${x.id}`)}">Log ansehen</button><button type="button" class="knopf zweit" data-h="aufgeben"${zu}>Aufgeben</button><span class="status"></span></div>${x.aktiv ? '' : '<span class="hinweis">Der Treiber meldet sich gerade nicht: die Handlung wirkt bei seinem nächsten Start.</span>'}`;
+  }
+  return `${kopfz}<h3>${esc(erste)}</h3>${titel}${lage}${log}${unten}`;
+}
+
+function blockadeVerdrahten(el, x) {
+  el.querySelector('[data-log]')?.addEventListener('click', () => {
+    auf.has(`log:${x.id}`) ? auf.delete(`log:${x.id}`) : auf.add(`log:${x.id}`);
+    el.dataset.sig = '';
+    el.innerHTML = blockadeHtml(x, stand);
+    blockadeVerdrahten(el, x);
+    lebenszeichen();
+  });
+  for (const b of el.querySelectorAll('[data-h]')) {
+    b.addEventListener('click', async () => {
+      const art = b.dataset.h;
+      if (art === 'aufgeben' && !(await bestaetigen(`Epic #${x.epic} aufgeben? Der Treiber setzt es auf „abgebrochen“ und startet es nicht mehr. Branch, Pull Request und Issue bleiben, wie sie sind.`, 'Aufgeben'))) return;
+      if (await senden('/api/handlung', { forge: x.forge, epic: x.epic, art }, el, el.querySelector('.status'))) await laden();
+    });
+  }
+}
+
+// ---- level 2: runs, the merge queue, the ready ones
+
+function ebene2(t) {
+  const u = t.unterwegs;
+  const laufen = u.laeufe.filter((l) => !l.wartetAufDich).length;
+  const warten = u.laeufe.length - laufen;
+  $('e2-zahl').textContent = u.laeufe.length + u.schlange.length;
+  $('e2-klein').textContent = [laufen ? `${laufen} ${laufen === 1 ? 'läuft' : 'laufen'}` : '', warten ? `${warten} wartet auf dich` : '', u.schlange.length ? `${u.schlange.length} in der Schlange` : '', u.bereit.length ? `${u.bereit.length} bereit` : ''].filter(Boolean).join(' · ') || 'nichts unterwegs';
+  const items = [...u.laeufe.map((l) => ({ ...l, form: 'lauf', flip: l.id })), ...u.schlange.map((s) => ({ ...s, id: `${s.id}:s`, form: 'schlange', flip: s.id }))];
+  liste($('e2-liste'), items, laufHtml, paketeVerdrahten);
+  setze($('bereit'), `<span>Bereit</span>${u.bereit.length ? u.bereit.map((b) => `<span class="b-ep">${b.prio ? '<span class="prio">prio</span>' : ''}#${b.nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}</span>`).join('') : '<span class="b-ep"><small>keins wartet</small></span>'}`);
+}
+
+function paketeHtml(x) {
+  if (!x.pakete.length) return '';
+  const fertig = x.pakete.filter((p) => p.stand === 'fertig').length;
+  const offen = auf.has(`pakete:${x.id}`);
+  const liste = offen ? `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span></li>`).join('')}</ol>` : '';
+  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete: antippen für die Liste"><span class="segmente">${x.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${fertig} von ${x.pakete.length} fertig</span></button>${liste}`;
+}
+
+function paketeVerdrahten(el, x) {
+  el.querySelector('[data-pakete]')?.addEventListener('click', () => {
+    auf.has(`pakete:${x.id}`) ? auf.delete(`pakete:${x.id}`) : auf.add(`pakete:${x.id}`);
+    el.dataset.sig = '';
+    el.innerHTML = laufHtml(x);
+    el.dataset.sig = el.innerHTML;
+    paketeVerdrahten(el, x);
+    lebenszeichen();
+  });
+}
+
+function laufHtml(x) {
+  const nr = x.issueUrl ? `<a class="nr" href="${esc(x.issueUrl)}">#${x.nr}</a>` : `<span class="nr">#${x.nr}</span>`;
+  // how long the epic runs (since its first run); a tap shows the start as clock time
+  const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf des Epics"></button>` : '';
+  const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
+  const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
+  if (x.form === 'schlange') {
+    const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
+    const gate = x.gateSeit ? zeitHtml(x.gateSeit, 'Gate seit {}', null, 'rel gate') : '';
+    return `${kopfz}${titel}<span class="schritt">${pr}${x.notiz ? ` · ${esc(x.notiz)}` : ''}</span>${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
+  }
+  const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
+  const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
+  return `${kopfz}${titel}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
+}
+
+// the life sign: a pulse while the run speaks, a bar up to the idle limit (yellow from half, red near it)
+function lebenHtml(x) {
+  if (!x.prozess || x.wartetAufDich) {
+    const was = x.wartetAufDich ? 'wartet auf dich' : 'kein Zug gerade';
+    return `<div class="leben ruht"><span class="puls"></span><span class="text">${esc(x.konto ?? '')} · ${was}${x.schrittZeit ? ` · letzter Schritt ${uhrzeit(x.schrittZeit)}` : ''}</span></div>`;
+  }
+  return `<div class="leben" data-schritt="${esc(x.schrittZeit ?? '')}" data-leerlauf="${x.leerlaufS ?? 3600}"><span class="puls"></span><span class="text"></span><span class="roehre"><i></i></span></div>`;
+}
+
+function lebenszeichen() {
+  for (const el of document.querySelectorAll('[data-ab]')) {
+    const ab = datum(el.dataset.ab);
+    const bis = datum(el.dataset.bis);
+    if (!ab) continue;
+    const neu = el.classList.contains('start') ? el.dataset.start : el.dataset.text.replace('{}', dauer(((bis ? bis.getTime() : jetzt()) - ab) / 1000));
+    if (el.textContent !== neu) el.textContent = neu;
+  }
+  for (const el of document.querySelectorAll('.leben[data-schritt]')) {
+    const s = seitS(el.dataset.schritt);
+    const grenze = Number(el.dataset.leerlauf) || 3600;
+    const anteil = s == null ? 0 : Math.min(1, s / grenze);
+    el.classList.toggle('gelb', anteil >= 0.5 && anteil < 0.85);
+    el.classList.toggle('rot', anteil >= 0.85);
+    el.querySelector('i').style.width = `${(anteil * 100).toFixed(2)}%`;
+    const konto = el.closest('.karte')?.querySelector('.art')?.textContent.split(' · ')[1] ?? '';
+    const text = s == null ? 'Lauf gestartet' : s < 60 ? 'letzter Schritt gerade eben' : `letzter Schritt vor ${dauer(s)}`;
+    const neu = `${konto ? `${konto} · ` : ''}${text}${anteil >= 0.85 ? ' · gleich Leerlauf' : ''}`;
+    const t = el.querySelector('.text');
+    if (t.textContent !== neu) t.textContent = neu;
+  }
+}
+
+// ---- level 3: merged, the admiral's decisions, your answers and actions
+
+function ebene3(t, vorher) {
+  const e = t.erledigt;
+  $('e3-zahl').textContent = e.length;
+  const n = (a) => e.filter((x) => x.art === a).length;
+  $('e3-klein').textContent = [n('gemergt') ? `${n('gemergt')} gemergt` : '', n('admiral') ? `${n('admiral')} vom Admiral entschieden` : '', n('antwort') + n('handlung') ? `${n('antwort') + n('handlung')} von dir` : '', n('aufgegeben') ? `${n('aufgegeben')} aufgegeben` : ''].filter(Boolean).join(' · ') + (e.length && !$('e3').open ? ' · antippen' : '');
+  const neueMerges = e.filter((x) => x.art === 'gemergt' && !erstes && !vorher.has(x.id));
+  if (neueMerges.length && !STILL.matches) {
+    const e3 = $('e3');
+    e3.classList.remove('blitz');
+    void e3.offsetWidth;
+    e3.classList.add('blitz');
+  }
+  liste($('e3-liste'), e.map((x) => ({ ...x, form: 'zeile', neu: neueMerges.includes(x), flip: x.art === 'gemergt' || x.art === 'aufgegeben' ? x.id : undefined })), zeileHtml, zeileVerdrahten, 'li');
+}
+
+function zeileHtml(x) {
+  const nr = `#${x.epic ?? x.nr}`;
+  const zeit = `<time>${uhrzeit(x.zeit)}</time>`;
+  if (x.art === 'gemergt') return `${zeit}<span><b>${nr} gemergt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
+  if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · ${esc(x.titel)}</span>`;
+  if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
+  if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${x.handlung === 'einreihen' ? 'neu eingereiht' : `Widerruf Frage ${x.nr} → ${esc(x.text)}`}</b></span>`;
+  // admiral
+  let rechts = '';
+  if (x.widerrufen) rechts = `<span class="widerrufen"> · widerrufen → ${esc(x.widerrufen)}</span>`;
+  else if (x.handlung) rechts = `<span class="status gut"> · Widerruf angekommen${x.handlung.abgeholt ? ', geht an den Lauf' : ''}</span>`;
+  else if (x.widerrufbar && stand?.pin) rechts = `<button type="button" class="wider" data-wider aria-expanded="${auf.has(`wider:${x.id}`)}">› Zurücknehmen</button>`;
+  const form = auf.has(`wider:${x.id}`) && !x.handlung && !x.widerrufen ? `<div class="wider-form"><textarea placeholder="Neue Entscheidung, erreicht den Lauf unverändert" aria-label="Neue Entscheidung"></textarea><div class="knoepfe"><button type="button" class="knopf haupt klein" data-wsenden>Widerruf senden</button><button type="button" class="knopf zweit klein" data-wzu>Abbrechen</button><span class="status"></span></div></div>` : '';
+  return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${rechts}${form}</span>`;
+}
+
+function zeileVerdrahten(el, x) {
+  const neu = () => {
+    el.dataset.sig = '';
+    el.innerHTML = zeileHtml(x);
+    zeileVerdrahten(el, x);
+    lebenszeichen();
+  };
+  el.querySelector('[data-wider]')?.addEventListener('click', () => {
+    auf.add(`wider:${x.id}`);
+    neu();
+    el.querySelector('textarea')?.focus();
+  });
+  el.querySelector('[data-wzu]')?.addEventListener('click', () => {
+    auf.delete(`wider:${x.id}`);
+    entwurf.delete(x.id);
+    neu();
+  });
+  const feld = el.querySelector('textarea');
+  feld?.addEventListener('input', () => entwurf.set(x.id, { text: feld.value }));
+  el.querySelector('[data-wsenden]')?.addEventListener('click', async () => {
+    const text = (feld?.value || '').trim();
+    const status = el.querySelector('.status');
+    if (!text) {
       status.className = 'status schlecht';
-      status.textContent = 'Brücke nicht erreichbar';
+      status.textContent = 'Neue Entscheidung schreiben';
       return;
     }
-    knopf.disabled = false;
-    if (r.status === 401) {
+    if (await senden('/api/handlung', { forge: x.forge, epic: x.epic, art: 'widerruf', nr: x.nr, seit: x.seit, text }, el, status)) {
+      auf.delete(`wider:${x.id}`);
+      entwurf.delete(x.id);
+      await laden();
+    }
+  });
+}
+
+// ---- sending with the PIN
+
+async function senden(pfad, body, el, status) {
+  for (let versuch = 0; versuch < 2; versuch++) {
+    const pin = lager.get(PIN_KEY) || (await pinFragen());
+    if (!pin) return false;
+    const knoepfe = [...el.querySelectorAll('button')];
+    knoepfe.forEach((b) => (b.disabled = true));
+    if (status) { status.className = 'status'; status.textContent = 'sende …'; }
+    let r;
+    try {
+      r = await fetch(pfad, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bruecke-Pin': pin }, body: JSON.stringify(body) });
+    } catch {
+      r = null;
+    }
+    knoepfe.forEach((b) => (b.disabled = false));
+    if (r && r.status === 401) {
       lager.weg(PIN_KEY);
       continue;
     }
-    if (!r.ok) {
-      status.className = 'status schlecht';
-      status.textContent = (await r.json().catch(() => ({}))).detail || `Fehler ${r.status}`;
-      return;
+    if (!r || !r.ok) {
+      if (status) {
+        status.className = 'status schlecht';
+        status.textContent = !r ? 'Brücke nicht erreichbar' : (await r.json().catch(() => ({}))).detail || `Fehler ${r.status}`;
+      }
+      return false;
     }
-    entwurf.delete(key);
     document.activeElement?.blur?.();
-    await laden();
-    return;
+    return true;
   }
+  return false;
 }
 
 function pinFragen() {
@@ -272,18 +522,171 @@ function pinFragen() {
   });
 }
 
+function bestaetigen(text, ja) {
+  const d = $('ja-dialog');
+  $('ja-text').textContent = text;
+  $('ja-knopf').textContent = ja;
+  return new Promise((fertig) => {
+    d.onclose = () => fertig(d.returnValue === 'ja');
+    d.returnValue = '';
+    d.showModal();
+  });
+}
+
+// ---- the alarm in tab title and favicon
+
+const ICONS = [...document.querySelectorAll('link[rel="icon"]')].map((l) => [l, l.href, l.type]);
+let alarmIcon = null;
+let alarmZahl = -1;
+function tabAlarm(n) {
+  if (n === alarmZahl) return;
+  alarmZahl = n;
+  document.title = n ? `(${n}) Flottenbrücke` : 'Flottenbrücke';
+  if (!n) {
+    for (const [l, href, type] of ICONS) { l.href = href; l.type = type; }
+    return;
+  }
+  const setzen = () => { for (const [l] of ICONS) { l.href = alarmIcon; l.type = 'image/png'; } };
+  if (alarmIcon) return setzen();
+  const bild = new Image();
+  bild.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 32;
+    const g = c.getContext('2d');
+    g.drawImage(bild, 0, 0, 32, 32);
+    g.fillStyle = '#e0605a';
+    g.strokeStyle = '#000';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(24, 8, 7, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    alarmIcon = c.toDataURL('image/png');
+    if (alarmZahl > 0) setzen();
+  };
+  bild.src = '/static/icon-32.png';
+}
+
+// ---- the beat in the elbow: fills smoothly until the next report, overruns red when it stays out
+
+function takt() {
+  const t = stand;
+  const ecke = document.querySelector('.ecke');
+  const balken = $('takt').firstElementChild;
+  const aktiv = t ? t.projekte.filter((p) => p.aktiv || p.veraltet) : [];
+  if (!aktiv.length) {
+    ecke.classList.add('still');
+    ecke.classList.remove('ueber');
+    balken.style.transform = 'scaleX(0)';
+    $('takt-text').textContent = t?.projekte.length ? 'Treiber beendet' : 'Takt';
+    return;
+  }
+  ecke.classList.remove('still');
+  // the project that is most overdue speaks
+  let anteil = 0;
+  for (const p of aktiv) anteil = Math.max(anteil, (seitS(p.empfangen) ?? 0) / Math.max(1, p.taktS));
+  const ueber = anteil > 1.5;
+  ecke.classList.toggle('ueber', ueber);
+  balken.style.transform = `scaleX(${Math.min(1, anteil).toFixed(4)})`;
+  const s = Math.round(Math.max(...aktiv.map((p) => seitS(p.empfangen) ?? 0)));
+  $('takt-text').textContent = ueber ? `Bericht fehlt · ${dauer(s)}` : 'Takt';
+}
+
+function schleife() {
+  takt();
+  if (STILL.matches) setTimeout(schleife, 1000);
+  else requestAnimationFrame(schleife);
+}
+
+// ---- the ticker of the logbook in the lower bar
+
+function laufband(t) {
+  const ev = t.ereignisse;
+  const mehrere = t.projekte.length > 1;
+  const eintrag = (e) => `<span><b>${uhrzeit(e.zeit)}</b> ${mehrere ? `${esc(e.kurz)} ` : ''}${e.epic ? `#${e.epic} ` : ''}${esc(e.text)}</span>`;
+  const spur = $('laufband-spur');
+  const html = ev.length ? ev.slice(0, 12).reverse().map(eintrag).join('') : '<span>Noch keine Ereignisse</span>';
+  if (spur.dataset.sig !== html) {
+    spur.innerHTML = html;
+    spur.dataset.sig = html;
+    const s = Math.max(30, Math.min(ev.length, 12) * 9);
+    spur.style.setProperty('--dauer', `${s}s`);
+    // start with the text already in view instead of an empty band (the track has the band's width as left padding)
+    const breite = $('laufband').clientWidth;
+    if (spur.scrollWidth) spur.style.animationDelay = `-${((breite * 0.85) / spur.scrollWidth) * s}s`;
+  }
+  setze($('logbuch'), ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>');
+}
+
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest?.('.laeuft-seit');
+  if (!b) return;
+  b.classList.toggle('start');
+  lebenszeichen();
+});
+
+$('laufband').addEventListener('click', () => {
+  const band = $('laufband');
+  const offen = band.classList.toggle('halt');
+  band.setAttribute('aria-expanded', String(offen));
+  $('logbuch').hidden = !offen;
+});
+
+// ---- moving cards: from where they stood to where they stand now (FLIP), once
+
+function positionen() {
+  const m = new Map();
+  for (const el of document.querySelectorAll('[data-flip]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width) m.set(el.dataset.flip, r);
+  }
+  return m;
+}
+
+function wandern(vorher) {
+  if (STILL.matches || erstes) return;
+  for (const el of document.querySelectorAll('[data-flip]')) {
+    const a = vorher.get(el.dataset.flip);
+    const b = el.getBoundingClientRect();
+    if (!a || !b.width) continue;
+    const dx = a.left - b.left;
+    const dy = a.top - b.top;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.2, .7, .2, 1)' });
+  }
+}
+
+// ---- loading
+
 async function laden() {
   try {
     const r = await fetch('/api/tafel', { cache: 'no-store' });
     if (!r.ok) throw new Error(String(r.status));
-    stand = await r.json();
-    kopf(stand);
-    spalten(stand);
-  } catch {
+    const t = await r.json();
+    versatz = Date.parse(t.jetzt) - Date.now();
+    const vorher = positionen();
+    const vorherErledigt = new Set((stand?.erledigt ?? []).map((x) => x.id));
+    stand = t;
+    // on the phone only level 1 is open, unless nothing waits there
+    if (erstes) $('e2').open = BREIT.matches || !t.braucht.length;
+    kopf(t);
+    ebene1(t);
+    ebene2(t);
+    ebene3(t, vorherErledigt);
+    laufband(t);
+    tabAlarm(t.braucht.length);
+    lebenszeichen();
+    wandern(vorher);
+    erstes = false;
+  } catch (err) {
     $('stand').textContent = 'Brücke nicht erreichbar';
+    console.error(err);
   }
 }
 
+$('e3').addEventListener('toggle', () => stand && ebene3(stand, new Set(stand.erledigt.map((x) => x.id))));
 laden();
+schleife();
+setInterval(lebenszeichen, 1000);
 setInterval(() => { if (!document.hidden) laden(); }, TAKT_MS);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) laden(); });

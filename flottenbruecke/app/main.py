@@ -1,6 +1,7 @@
 # Flottenbrücke (#28): the board of every deployment of the fleet driver and the way back for the
-# answers of the person. Viewing is free in the LAN; answering needs the PIN from .env. The bridge
-# steers nothing else: no start, stop or merge.
+# answers of the person. Viewing is free in the LAN; answering needs the PIN from .env. Besides the
+# answers the bridge carries three actions to the driver, which carries them out: requeue or give
+# up a blocked epic, revoke a decision of the admiral. No start, stop or merge.
 
 import hmac
 import os
@@ -15,7 +16,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .modelle import Antwort, Bericht
+from .modelle import Antwort, Bericht, Handlung
 from .speicher import Speicher
 from .tafel import HERKUNFT, tafel
 
@@ -99,11 +100,44 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(404, 'Keine solche Antwort.')
         return {'ok': True}
 
+    @app.get('/api/handlungen')
+    def handlungen_abholen(forge: str, x_bruecke_token: str | None = Header(None)) -> list[dict]:
+        treiber(x_bruecke_token)
+        return [{'id': h['id'], 'epic': h['epic'], 'art': h['art'], 'nr': h['nr'], 'seit': h['seit'], 'text': h['text'], 'zeit': h['zeit'], 'herkunft': HERKUNFT} for h in speicher.handlungen_abholen(forge, stempel())]
+
+    @app.post('/api/handlungen/{id_}/quittung')
+    def handlung_quittieren(id_: int, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        if not speicher.handlung_quittieren(id_, stempel()):
+            raise HTTPException(404, 'Keine solche Handlung.')
+        return {'ok': True}
+
     # ---- page
 
     @app.get('/api/tafel')
     def board() -> dict:
-        return tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin))
+        return tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen())
+
+    @app.post('/api/handlung')
+    def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        p = speicher.projekt(h.forge)
+        b = p['bericht'] if p else {}
+        ep = next((x for x in b.get('epics', []) if x['nr'] == h.epic), None)
+        if ep is None:
+            raise HTTPException(404, 'Dieses Epic kennt die Brücke nicht.')
+        if h.art == 'widerruf':
+            d = next((d for d in b.get('entscheidungen', []) if d['epic'] == h.epic and d['nr'] == h.nr and d['zeit'] == h.seit), None)
+            if d is None:
+                raise HTTPException(404, 'Diese Entscheidung kennt die Brücke nicht.')
+            if ep['stufe'] in ('gemergt', 'fertig') or d.get('widerrufen'):
+                raise HTTPException(409, 'Nach dem Merge oder ein zweites Mal geht kein Widerruf mehr über die Brücke.')
+        elif ep['stufe'] not in ('blockiert', 'abgebrochen') or ep.get('aufgegebenAm'):
+            raise HTTPException(409, 'Das Epic ist nicht blockiert.')
+        gespeichert = speicher.handlung_setzen(h.forge, h.epic, h.art, h.nr, h.seit, h.text, stempel())
+        if gespeichert is None:
+            raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
+        return {'ok': True, 'id': gespeichert['id']}
 
     @app.post('/api/pin', status_code=204)
     def pin(request: Request, x_bruecke_pin: str | None = Header(None)) -> Response:

@@ -13,7 +13,11 @@
 </head>
 <body>
 <header class="kopf">
-  <div class="ecke"><span class="ecke-nr" id="uhr">--:--</span></div>
+  <div class="ecke" title="Takt: füllt sich bis zum nächsten Bericht des Treibers">
+    <span class="ecke-nr" id="uhr">--:--</span>
+    <span class="takt" id="takt"><i></i></span>
+    <span class="takt-text" id="takt-text">Takt</span>
+  </div>
   <div class="kopf-rechts">
     <div class="kopf-balken">
       <h1>Flottenbrücke</h1>
@@ -24,9 +28,34 @@
   </div>
 </header>
 <nav class="projekte" id="projekte" aria-label="Projekte"></nav>
-<nav class="sprung" id="sprung" aria-label="Spalten"></nav>
-<main class="tafel" id="tafel"></main>
+
+<main class="ebenen">
+  <section class="ebene e1" id="e1" aria-labelledby="e1-kopf">
+    <h2 class="ek" id="e1-kopf"><span>Braucht dich</span><span class="zahl" id="e1-zahl">0</span><small id="e1-klein"></small></h2>
+    <div class="reihe" id="e1-liste"></div>
+  </section>
+
+  <details class="ebene e2" id="e2">
+    <summary class="ek"><span>Unterwegs</span><span class="zahl" id="e2-zahl">0</span><small id="e2-klein"></small></summary>
+    <div class="reihe" id="e2-liste"></div>
+    <p class="bereit" id="bereit"></p>
+  </details>
+
+  <details class="ebene e3" id="e3">
+    <summary class="ek"><span>Erledigt heute</span><span class="zahl" id="e3-zahl">0</span><small id="e3-klein"></small></summary>
+    <ol class="erledigt" id="e3-liste"></ol>
+  </details>
+</main>
 <p class="leer" id="leer" hidden>Noch kein Bericht. Der erste Bericht eines Treibers legt sein Projekt an.</p>
+
+<footer class="fuss">
+  <div class="fuss-ecke"></div>
+  <button type="button" class="laufband" id="laufband" aria-expanded="false" aria-controls="logbuch" title="Logbuch des Treibers: antippen hält an und klappt die Liste auf">
+    <span class="laufband-spur" id="laufband-spur"></span>
+  </button>
+  <span class="fuss-stueck">Logbuch</span>
+</footer>
+<ol class="logbuch" id="logbuch" hidden></ol>
 
 <dialog id="pin-dialog">
   <form method="dialog" id="pin-form">
@@ -35,8 +64,19 @@
     <input id="pin-feld" type="password" inputmode="numeric" autocomplete="off" required aria-label="PIN">
     <p class="fehler" id="pin-fehler"></p>
     <div class="dialog-knoepfe">
-      <button type="button" class="knopf blau" id="pin-abbruch">Abbrechen</button>
-      <button type="submit" class="knopf orange">Freigeben</button>
+      <button type="button" class="knopf zweit" id="pin-abbruch">Abbrechen</button>
+      <button type="submit" class="knopf haupt">Freigeben</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ja-dialog">
+  <form method="dialog">
+    <div class="dialog-balken rot">Bestätigen</div>
+    <p id="ja-text"></p>
+    <div class="dialog-knoepfe">
+      <button type="submit" class="knopf zweit" value="nein">Abbrechen</button>
+      <button type="submit" class="knopf warn" value="ja" id="ja-knopf">Ja</button>
     </div>
   </form>
 </dialog>

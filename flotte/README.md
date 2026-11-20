@@ -24,14 +24,34 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/epic-nacharbeit` abarbeiten |
 
-Strg+C hält nur den Treiber an; die Läufe arbeiten weiter, und ein Neustart setzt aus
-`zustand.json` fort. Ein weiteres Konto zuschalten: [`SKILL.md`](SKILL.md), „Weiteres Konto
+## Anhalten und neu starten
+
+Ein Lauf ist ein eigener `claude -p` in einer eigenen Prozessgruppe. Er schreibt sein Log selbst
+und überlebt den Treiber; der Zustand steht nach jedem Takt in `zustand.json`. Ein Neustart prüft
+je Epic PID und Startzeit: Ein Lauf, der noch lebt, wird nur beobachtet; einer, der inzwischen
+endete, wird aus seinem Log ausgewertet. Nichts startet doppelt.
+
+Anders der Merge: `merge.ps1`, das Gate des Treibers und die `nach_merge`-Befehle sind Kinder des
+Treibers und sterben mit Strg+C mitten im Schritt. Deshalb zum Aktualisieren:
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" anhalten .
+```
+
+Der Treiber startet dann nichts Neues mehr, lässt einen begonnenen Merge zu Ende laufen und endet
+mit dem Ereignis „Angehalten auf Wunsch“. Danach aktualisieren und mit demselben Aufruf neu
+starten. Läuft kein Treiber, wirkt die Datei `anhalten` beim nächsten Start sofort; löschen, wenn
+das nicht gewollt ist.
+
+Ein weiteres Konto zuschalten: [`SKILL.md`](SKILL.md), „Weiteres Konto
 zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/README.md).
 
 ## Was der Treiber tut
 
 1. **Belegen:** Kollisionsstufen und Reihenfolge-Kanten aus Adapter und Issues bestimmen, wie
-   viele Epics gleichzeitig laufen (nie mehr als vier).
+   viele Epics gleichzeitig laufen (nie mehr als vier). Ein Epic mit dem Label `prio/hoch` (am Epic
+   oder an einem Kind) kommt als erstes in die nächste Belegung; kollidiert es mit einem laufenden,
+   wartet es, und nichts Kollidierendes überholt es. Laufende Epics werden nie abgebrochen.
 2. **Bremsen** in jedem Takt: RAM, Plattenplatz und Verbrauch je Konto. Gelb startet nichts Neues,
    Rot hält auch Fortsetzungen an.
 3. **Fragen** eines Laufs gehen an den Admiral. Er entscheidet, was sich bis zum Merge widerrufen
@@ -51,4 +71,5 @@ Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-I
 ## Bei dir
 
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
-wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue.
+wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
+Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch`.

@@ -12,20 +12,37 @@
       "stufe": "wartend",
       "konto": null,
       "pr": null,
-      "notiz": "wartet auf #38 (nach)",
+      "notiz": "wartet auf den Merge von #38",
       "geparkt": [],
       "pakete": [
         {
+          "nr": null,
+          "titel": "",
           "name": "P1",
-          "stand": "offen"
+          "stand": "offen",
+          "beginn": null,
+          "ende": null
         },
         {
+          "nr": null,
+          "titel": "",
           "name": "P2",
-          "stand": "offen"
+          "stand": "offen",
+          "beginn": null,
+          "ende": null
         }
       ],
       "schritt": null,
-      "schrittZeit": null
+      "schrittZeit": null,
+      "prozess": false,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": true,
+      "gestartetAm": null,
+      "schlangeSeit": null,
+      "gateSeit": null
     },
     {
       "nr": 38,
@@ -37,41 +54,89 @@
       "geparkt": [],
       "pakete": [
         {
-          "name": "P1",
-          "stand": "fertig"
+          "name": "#46",
+          "stand": "fertig",
+          "nr": 46,
+          "titel": "Zählerdatei anlegen",
+          "beginn": "2026-11-20T12:20:00Z",
+          "ende": "2026-11-20T13:02:30Z"
         },
         {
-          "name": "P2",
-          "stand": "laeuft"
+          "name": "#47",
+          "stand": "laeuft",
+          "nr": 47,
+          "titel": "Zähler beim Start erhöhen",
+          "beginn": "2026-11-20T13:05:10Z",
+          "ende": null
         },
         {
-          "name": "P3",
-          "stand": "offen"
+          "name": "#48",
+          "stand": "offen",
+          "nr": 48,
+          "titel": "Changelog-Eintrag",
+          "beginn": null,
+          "ende": null
         }
       ],
       "schritt": "Paket P2: Tests grün, Review läuft",
-      "schrittZeit": "2026-11-20T14:29:40Z"
+      "schrittZeit": "2026-11-20T14:29:40Z",
+      "prozess": true,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": "2026-11-20T12:06:40Z",
+      "schlangeSeit": null,
+      "gateSeit": null
     },
     {
       "nr": 39,
       "titel": "Mini-Epic: Konfigurationsdatei",
-      "stufe": "frage",
+      "stufe": "laeuft",
       "konto": "Konto 2",
       "pr": null,
-      "notiz": "wartet auf den Menschen",
-      "geparkt": [],
+      "notiz": "",
+      "geparkt": [
+        "P2"
+      ],
       "pakete": [
         {
+          "nr": null,
+          "titel": "",
           "name": "P1",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         },
         {
+          "nr": null,
+          "titel": "",
           "name": "P2",
-          "stand": "geparkt"
+          "stand": "geparkt",
+          "beginn": null,
+          "ende": null
+        },
+        {
+          "nr": null,
+          "titel": "",
+          "name": "P3",
+          "stand": "laeuft",
+          "beginn": null,
+          "ende": null
         }
       ],
-      "schritt": "FLOTTE-FRAGE tor",
-      "schrittZeit": "2026-11-20T14:12:03Z"
+      "schritt": "Paket P3: Implementer arbeitet",
+      "schrittZeit": "2026-11-20T14:24:10Z",
+      "prozess": true,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": "2026-11-20T12:51:10Z",
+      "schlangeSeit": null,
+      "gateSeit": null
     },
     {
       "nr": 36,
@@ -83,16 +148,33 @@
       "geparkt": [],
       "pakete": [
         {
+          "nr": null,
+          "titel": "",
           "name": "P1",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         },
         {
+          "nr": null,
+          "titel": "",
           "name": "P2",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         }
       ],
       "schritt": "FLOTTE-ENDE",
-      "schrittZeit": "2026-11-20T13:58:11Z"
+      "schrittZeit": "2026-11-20T13:58:11Z",
+      "prozess": false,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": "2026-11-20T10:12:00Z",
+      "schlangeSeit": "2026-11-20T14:05:20Z",
+      "gateSeit": "2026-11-20T14:27:45Z"
     },
     {
       "nr": 37,
@@ -104,16 +186,33 @@
       "geparkt": [],
       "pakete": [
         {
+          "nr": null,
+          "titel": "",
           "name": "P1",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         },
         {
+          "nr": null,
+          "titel": "",
           "name": "P2",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         }
       ],
       "schritt": "FLOTTE-ENDE",
-      "schrittZeit": "2026-11-20T14:20:30Z"
+      "schrittZeit": "2026-11-20T14:20:30Z",
+      "prozess": false,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": "2026-11-20T10:40:00Z",
+      "schlangeSeit": "2026-11-20T14:12:00Z",
+      "gateSeit": null
     },
     {
       "nr": 35,
@@ -125,17 +224,34 @@
       "geparkt": [],
       "pakete": [
         {
+          "nr": null,
+          "titel": "",
           "name": "P1",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         },
         {
+          "nr": null,
+          "titel": "",
           "name": "P2",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         }
       ],
       "schritt": "aufgeräumt",
       "schrittZeit": "2026-11-20T13:40:00Z",
-      "gemergtAm": "2026-11-20T13:35:12Z"
+      "gemergtAm": "2026-11-20T13:35:12Z",
+      "prozess": false,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": "2026-11-20T09:02:00Z",
+      "schlangeSeit": null,
+      "gateSeit": null
     },
     {
       "nr": 40,
@@ -147,16 +263,39 @@
       "geparkt": [],
       "pakete": [
         {
+          "nr": null,
+          "titel": "",
           "name": "P1",
-          "stand": "fertig"
+          "stand": "fertig",
+          "beginn": null,
+          "ende": null
         },
         {
+          "nr": null,
+          "titel": "",
           "name": "P2",
-          "stand": "blockiert"
+          "stand": "blockiert",
+          "beginn": null,
+          "ende": null
         }
       ],
       "schritt": "Gate rot (3/3)",
-      "schrittZeit": "2026-11-20T14:05:44Z"
+      "schrittZeit": "2026-11-20T14:05:44Z",
+      "prozess": false,
+      "grund": "3 Gate-Läufe des Treibers, die Basis zog jedes Mal davon: Gate rot, Testgruppe start, 2 Fehler (Zeitabhängigkeit, nicht das Paket).",
+      "haltZeit": "2026-11-20T14:05:44Z",
+      "log": [
+        "13:41 Kopf der Schlange",
+        "13:44 Gate des Treibers (voll, Basis neu) rot nach 212 s (Exit 1)",
+        "13:52 Gate des Treibers (voll, Basis neu) rot nach 208 s (Exit 1)",
+        "14:05 Gate des Treibers (voll, Basis neu) rot nach 215 s (Exit 1)",
+        "14:05 blockiert: 3 Gate-Läufe des Treibers, die Basis zog jedes Mal davon"
+      ],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": "2026-11-20T11:20:00Z",
+      "schlangeSeit": null,
+      "gateSeit": null
     }
   ],
   "schlange": [
@@ -166,11 +305,29 @@
   "konten": [
     {
       "konto": "Konto 1",
-      "stufe": "gruen"
+      "stufe": "gruen",
+      "fuenf": {
+        "verbraucht": 38.5,
+        "reset": "2026-11-20T17:40:00Z"
+      },
+      "woche": {
+        "verbraucht": 52.0,
+        "reset": "2026-11-24T08:00:00Z"
+      },
+      "alterMin": 3.2
     },
     {
       "konto": "Konto 2",
-      "stufe": "gelb"
+      "stufe": "gelb",
+      "fuenf": {
+        "verbraucht": 71.0,
+        "reset": "2026-11-20T16:10:00Z"
+      },
+      "woche": {
+        "verbraucht": 64.5,
+        "reset": "2026-11-23T19:00:00Z"
+      },
+      "alterMin": 6.0
     }
   ],
   "ram": {
@@ -192,95 +349,99 @@
       "optionen": [
         {
           "buchstabe": "A",
-          "text": "config/flotte.json neben den Skript-Konfigurationen"
+          "text": "config/flotte.json neben den Skript-Konfigurationen, folgt dem vorhandenen Muster"
         },
         {
           "buchstabe": "B",
-          "text": "flotte.json im Wurzelverzeichnis"
+          "text": "flotte.json im Wurzelverzeichnis, ein Eintrag mehr in der Wurzel"
         },
         {
           "buchstabe": "C",
-          "text": "Beides weglassen, Werte als Konstanten im Code"
+          "text": "Werte als Konstanten im Code, keine Datei, später nur mit neuem Release änderbar"
         }
       ],
       "mehrfach": false,
       "empfehlung": "A",
-      "grund": "Hält das Wurzelverzeichnis frei und folgt dem vorhandenen Muster.",
-      "betrifft": "Lauf",
-      "wartet": "der ganze Lauf",
-      "ganzerLauf": true,
-      "seit": "2026-11-20T14:12:30Z",
-      "roh": "1. Wo liegt die neue Konfigurationsdatei? — Betrifft: Lauf — Lage: Das Epic nennt nur „eine Konfigurationsdatei“. Im Repository gibt es schon config/ für Skripte und das Wurzelverzeichnis für Werkzeuge. — Optionen: A) config/flotte.json neben den Skript-Konfigurationen B) flotte.json im Wurzelverzeichnis C) Beides weglassen, Werte als Konstanten im Code — Empfehlung: A — Grund: Hält das Wurzelverzeichnis frei und folgt dem vorhandenen Muster. — Regel/Quelle: Skill",
-      "beantwortet": null
+      "grund": "Der Ort der Datei ist für Nutzer sichtbar; bei merge: nach_gate entscheidet das der Mensch.",
+      "betrifft": "P2",
+      "wartet": "P2",
+      "ganzerLauf": false,
+      "seit": "2026-11-20T13:52:30Z",
+      "roh": "1. Wo liegt die neue Konfigurationsdatei? — Betrifft: P2 — Lage: Das Epic nennt nur „eine Konfigurationsdatei“. Im Repository gibt es schon config/ für Skripte und das Wurzelverzeichnis für Werkzeuge. — Optionen: A) config/flotte.json neben den Skript-Konfigurationen, folgt dem vorhandenen Muster B) flotte.json im Wurzelverzeichnis, ein Eintrag mehr in der Wurzel C) Werte als Konstanten im Code, keine Datei, später nur mit neuem Release änderbar — Empfehlung: A — Grund: Hält das Wurzelverzeichnis frei und folgt dem vorhandenen Muster. — Regel/Quelle: Skill",
+      "beantwortet": null,
+      "herkunft": "Eigenes Urteil: nach außen sichtbar",
+      "marke": "nach außen sichtbar",
+      "umkehrbar": false,
+      "geparkt": [
+        "P2"
+      ]
+    }
+  ],
+  "leerlaufS": 3600,
+  "ereignisse": [
+    {
+      "zeit": "2026-11-20T13:35:12Z",
+      "epic": 35,
+      "text": "PR #43 gemergt"
     },
+    {
+      "zeit": "2026-11-20T13:52:30Z",
+      "epic": 39,
+      "text": "❓ Frage 1 liegt beim Menschen (wartet: P2)"
+    },
+    {
+      "zeit": "2026-11-20T13:58:11Z",
+      "epic": 36,
+      "text": "FLOTTE-ENDE, PR #44"
+    },
+    {
+      "zeit": "2026-11-20T14:05:44Z",
+      "epic": 40,
+      "text": "blockiert: 3 Gate-Läufe des Treibers, die Basis zog jedes Mal davon"
+    },
+    {
+      "zeit": "2026-11-20T14:18:02Z",
+      "epic": 38,
+      "text": "✔ Frage 1: B — Skill-Empfehlung"
+    },
+    {
+      "zeit": "2026-11-20T14:20:30Z",
+      "epic": 37,
+      "text": "Schlange: Platz 2 (#36, #37)"
+    },
+    {
+      "zeit": "2026-11-20T14:24:10Z",
+      "epic": 39,
+      "text": "Lauf fortgesetzt"
+    },
+    {
+      "zeit": "2026-11-20T14:29:40Z",
+      "epic": null,
+      "text": "Verbrauch Konto 2: gelb (verbraucht 71 %, Hochrechnung 88 %)"
+    }
+  ],
+  "entscheidungen": [
     {
       "epic": 39,
       "nr": 2,
-      "frage": "Wie soll der Schlüssel für das Protokoll heißen?",
-      "lage": "Der Lauf braucht einen Namen für den neuen Abschnitt in der Konfiguration; das Epic nennt keinen.",
-      "optionen": [],
-      "mehrfach": false,
-      "empfehlung": "",
-      "grund": "",
-      "betrifft": "P2",
-      "wartet": "P2",
-      "ganzerLauf": false,
-      "seit": "2026-11-20T14:12:30Z",
-      "roh": "2. Wie soll der Schlüssel für das Protokoll heißen? — Betrifft: P2 — Lage: Der Lauf braucht einen Namen für den neuen Abschnitt in der Konfiguration; das Epic nennt keinen.",
-      "beantwortet": null
+      "frage": "Wie heißt der Schlüssel für das Protokoll?",
+      "antwort": "Antwort: protokoll, klein wie die anderen Schlüssel",
+      "herkunft": "Präzedenz: config/skripte.json",
+      "grund": "Alle Schlüssel der vorhandenen Konfiguration sind klein geschrieben.",
+      "einflussreich": false,
+      "zeit": "2026-11-20T13:52:30Z",
+      "widerrufen": null
     },
     {
-      "epic": 39,
-      "nr": 3,
-      "frage": "In welchen Sprachen erscheint der Gruß?",
-      "lage": "Die Datei kann mehrere Sprachen nebeneinander tragen.",
-      "optionen": [
-        {
-          "buchstabe": "A",
-          "text": "Deutsch"
-        },
-        {
-          "buchstabe": "B",
-          "text": "Englisch"
-        },
-        {
-          "buchstabe": "C",
-          "text": "Französisch"
-        },
-        {
-          "buchstabe": "D",
-          "text": "Spanisch"
-        },
-        {
-          "buchstabe": "E",
-          "text": "Italienisch"
-        },
-        {
-          "buchstabe": "F",
-          "text": "Niederländisch"
-        },
-        {
-          "buchstabe": "G",
-          "text": "Polnisch"
-        },
-        {
-          "buchstabe": "H",
-          "text": "Tschechisch"
-        },
-        {
-          "buchstabe": "I",
-          "text": "Dänisch"
-        }
-      ],
-      "mehrfach": true,
-      "empfehlung": "A, B",
-      "grund": "die beiden Sprachen der Besucher",
-      "betrifft": "P2",
-      "wartet": "P2",
-      "ganzerLauf": false,
-      "seit": "2026-11-20T14:12:30Z",
-      "roh": "3. In welchen Sprachen erscheint der Gruß? — Betrifft: P2 — Lage: Die Datei kann mehrere Sprachen nebeneinander tragen. — Optionen: A) Deutsch B) Englisch C) Französisch D) Spanisch E) Italienisch F) Niederländisch G) Polnisch H) Tschechisch I) Dänisch — Auswahl: mehrere — Empfehlung: A, B — Grund: die beiden Sprachen der Besucher — Regel/Quelle: Skill",
-      "beantwortet": null
+      "epic": 38,
+      "nr": 1,
+      "frage": "Changelog-Eintrag unter „Unreleased“ oder unter der nächsten Version?",
+      "antwort": "B",
+      "herkunft": "Skill-Empfehlung",
+      "grund": "Folgt der Empfehlung des Laufs; bis zum Merge umkehrbar.",
+      "einflussreich": true,
+      "zeit": "2026-11-20T14:18:02Z",
+      "widerrufen": null
     }
   ]
 }
