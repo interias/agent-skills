@@ -3,10 +3,11 @@
 # it. Prints one summary line.
 # Who merges is the adapter key `merge` in .claude/epic.md of the base branch (epic/references/adapter.md,
 # "Merge"): only `nach_gate` lets this script merge; `mensch` or a missing key refuses. With checks it
-# waits for them; a repo that reports no check for -LeerMinuten has none (without a workflow and without
-# checks on the base it does not wait at all), and then the gate block in the pull request description
-# must be there, green, run against the current base on the current head, and the head must contain the
-# current base. A last run of only the part that always runs (gate_partial) counts when the base moved,
+# waits for them, and a red one refuses; a repo that reports no check for -LeerMinuten has none (without
+# a workflow and without checks on the base it does not wait at all). Checks or not, the gate block in
+# the pull request description must be there, green, run against the current base on the current head,
+# and the head must contain the current base: a check of something else (a website build) never stands
+# in for the gate (acceptance 3, #14). A last run of only the part that always runs (gate_partial) counts when the base moved,
 # since the last full green run, only in gate_areas the pull request does not touch.
 # Usage: merge.ps1 -Repo <owner/name> -Pr 164 [-MaxMinuten 30] [-BranchBehalten]
 # -GhCommand, -LeerMinuten and -TaktSekunden exist for the tests (merge.Tests.ps1).
@@ -156,11 +157,11 @@ function Test-OhneCi([string]$base) {
 if (Test-OhneCi $info.baseRefName) { $LeerMinuten = 0 }
 
 # Checks need a moment to register after a push; a repo without CI never reports any
-$ende = (Get-Date).AddMinutes($MaxMinuten); $leerSeit = Get-Date; $ohneChecks = $false
+$ende = (Get-Date).AddMinutes($MaxMinuten); $leerSeit = Get-Date
 while ($true) {
     $checks = @(gh pr checks $Pr --repo $Repo --json 'name,bucket' 2>$null | ConvertFrom-Json)
     if ($checks.Count -eq 0) {
-        if (((Get-Date) - $leerSeit).TotalMinutes -ge $LeerMinuten) { $ohneChecks = $true; break }
+        if (((Get-Date) - $leerSeit).TotalMinutes -ge $LeerMinuten) { break }
     } else {
         $rot = @($checks | Where-Object bucket -in 'fail', 'cancel')
         if ($rot) { "CHECKS ROT #${Pr}: $(($rot | ForEach-Object name) -join ', ')"; exit 1 }
@@ -170,25 +171,24 @@ while ($true) {
     Start-Sleep $TaktSekunden
 }
 
-if ($ohneChecks) {
-    $settings = @{
-        Heading = if ($adapter['gate_heading']) { $adapter['gate_heading'] } else { '## Gate' }
-        Green   = if ($adapter['gate_green']) { $adapter['gate_green'] } else { "Gate gr$([char]0x00FC)n." }
-        Base    = if ($adapter['gate_base']) { $adapter['gate_base'] } else { 'Basis \S+ @ ([0-9a-f]{7,40})' }
-        Head    = if ($adapter['gate_head']) { $adapter['gate_head'] } else { '\(HEAD ([0-9a-f]{7,40})\)' }
-        Partial = if ($adapter['gate_partial']) { $adapter['gate_partial'] } else { 'Immer-Teil' }
-        Areas   = @(@($adapter['gate_areas']) | Where-Object { $_ -match '^\s*(\S+)\s*=\s*(\S+)\s*$' } | ForEach-Object {
-            @{ Regex = (ConvertTo-GlobRegex $Matches[1]); Name = $Matches[2] } })
-    }
-    $baseSha = gh api "repos/$Repo/commits/$($info.baseRefName)" --jq .sha 2>$null
-    if ($LASTEXITCODE -or -not $baseSha) { "GATE UNGEPRUEFT #${Pr}: Basis $($info.baseRefName) nicht lesbar"; exit 1 }
-    # an error inside the check never lets the merge through
-    try { $grund = Test-GateBlock $info.body $settings ([string]$baseSha).Trim() $info.headRefOid }
-    catch { $grund = "Pruefung gescheitert: $($_.Exception.Message)" }
-    if ($grund) { "GATE FEHLT #${Pr}: $grund"; exit 1 }
-    $hinter = gh api "repos/$Repo/compare/$($info.baseRefName)...$($info.headRefOid)" --jq .behind_by 2>$null
-    if ($LASTEXITCODE -or "$hinter".Trim() -ne '0') { "GATE FEHLT #${Pr}: der Head enthaelt die aktuelle Basis nicht ($("$hinter".Trim()) Commits dahinter)"; exit 1 }
+# green checks are not the gate: the gate block decides, with checks or without (acceptance 3, #14)
+$settings = @{
+    Heading = if ($adapter['gate_heading']) { $adapter['gate_heading'] } else { '## Gate' }
+    Green   = if ($adapter['gate_green']) { $adapter['gate_green'] } else { "Gate gr$([char]0x00FC)n." }
+    Base    = if ($adapter['gate_base']) { $adapter['gate_base'] } else { 'Basis \S+ @ ([0-9a-f]{7,40})' }
+    Head    = if ($adapter['gate_head']) { $adapter['gate_head'] } else { '\(HEAD ([0-9a-f]{7,40})\)' }
+    Partial = if ($adapter['gate_partial']) { $adapter['gate_partial'] } else { 'Immer-Teil' }
+    Areas   = @(@($adapter['gate_areas']) | Where-Object { $_ -match '^\s*(\S+)\s*=\s*(\S+)\s*$' } | ForEach-Object {
+        @{ Regex = (ConvertTo-GlobRegex $Matches[1]); Name = $Matches[2] } })
 }
+$baseSha = gh api "repos/$Repo/commits/$($info.baseRefName)" --jq .sha 2>$null
+if ($LASTEXITCODE -or -not $baseSha) { "GATE UNGEPRUEFT #${Pr}: Basis $($info.baseRefName) nicht lesbar"; exit 1 }
+# an error inside the check never lets the merge through
+try { $grund = Test-GateBlock $info.body $settings ([string]$baseSha).Trim() $info.headRefOid }
+catch { $grund = "Pruefung gescheitert: $($_.Exception.Message)" }
+if ($grund) { "GATE FEHLT #${Pr}: $grund"; exit 1 }
+$hinter = gh api "repos/$Repo/compare/$($info.baseRefName)...$($info.headRefOid)" --jq .behind_by 2>$null
+if ($LASTEXITCODE -or "$hinter".Trim() -ne '0') { "GATE FEHLT #${Pr}: der Head enthaelt die aktuelle Basis nicht ($("$hinter".Trim()) Commits dahinter)"; exit 1 }
 
 $head = $info.headRefOid
 $info = gh pr view $Pr --repo $Repo --json mergeable | ConvertFrom-Json

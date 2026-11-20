@@ -159,7 +159,7 @@ Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `merge` | `mensch`: ein Mensch mergt. `nach_gate`: genau ein Akteur mergt nach grünen Checks oder, ohne Checks, nach grünem Gate-Block — der Flotten-Treiber, bis zum Umschalten `merge.ps1` des Leitstands. Immer mit Merge-Commit | `mensch` |
+| `merge` | `mensch`: ein Mensch mergt. `nach_gate`: genau ein Akteur mergt nach grünem Gate-Block und, wo es Checks gibt, nach grünen Checks — der Flotten-Treiber, bis zum Umschalten `merge.ps1` des Leitstands. Immer mit Merge-Commit | `mensch` |
 | `gate_heading` | Überschrift des Abschnitts mit dem Gate-Block in der PR-Beschreibung | `## Gate` |
 | `gate_green` | Zeile, die einen grünen Gate-Lauf abschließt | `Gate grün.` |
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die das Gate lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
@@ -169,10 +169,12 @@ Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
 | `gate_areas` | Liste `<muster> = <name>`: welche Dateien zu welchem Bereich des Gates gehören. `**` geht über Ordner, `*` und `?` bleiben in einem, ein `/` am Ende meint den ganzen Ordner | keine |
 | `gate_partial` | regulärer Ausdruck, der in der Kopfzeile einen Teil-Lauf (nur `gate_always_command`) erkennt | `Immer-Teil` |
 
-**Der Gate-Block** gilt nur in Repositorys **ohne Checks** (meldet die Forge zwei Minuten lang
-keinen Check, hat das Repository keine; hat es weder Workflows noch Checks oder Status auf der
-Basis, wartet `merge.ps1` gar nicht). Er steht in der PR-Beschreibung unter `gate_heading`, bis
-zur nächsten Überschrift gleicher oder höherer Ebene; meist als Codeblock, so wie das Gate ihn
+**Der Gate-Block** gilt bei `merge: nach_gate` immer, auch in Repositorys mit Checks: Ein Check
+prüft oft etwas anderes (in hexanite baut er nur die Website) und ersetzt das Gate nie; ein roter
+Check sperrt den Merge trotzdem. Auf Checks wartet `merge.ps1` vorher (meldet die Forge zwei
+Minuten lang keinen Check, hat das Repository keine; hat es weder Workflows noch Checks oder
+Status auf der Basis, wartet es gar nicht). Der Block steht in der PR-Beschreibung unter
+`gate_heading`, bis zur nächsten Überschrift gleicher oder höherer Ebene; meist als Codeblock, so wie das Gate ihn
 ausgibt:
 
 ```

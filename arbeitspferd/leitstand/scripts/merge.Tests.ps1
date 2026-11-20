@@ -95,11 +95,25 @@ Describe 'merge.ps1: the adapter key merge decides who merges' {
 }
 
 Describe 'merge.ps1: with checks' {
-    It 'merges with a merge commit after green checks and ignores the gate block' {
-        $r = Invoke-Merge (New-Rules 'kein Gate' -checks '[{"name":"ci","bucket":"pass"}]')
+    It 'merges with a merge commit after green checks and a green gate' {
+        $r = Invoke-Merge (New-Rules (New-GateBody) -checks '[{"name":"ci","bucket":"pass"}]')
         $r.Exit | Should Be 0
         $r.Out | Should Match 'GEMERGT #7 -> main'
         (Get-MergeCalls $r) | Should Be @("pr merge 7 --repo o/r --merge --match-head-commit $headSha")
+    }
+
+    It 'never lets a green foreign check stand in for the gate (acceptance 3: a website build on every PR)' {
+        $checks = '[{"name":"Workers Builds: hexanite","bucket":"pass"}]'
+        $r = Invoke-Merge (New-Rules 'kein Gate' -checks $checks)
+        $r.Exit | Should Be 1
+        $r.Out | Should Match "GATE FEHLT #7: kein Abschnitt '## Gate'"
+        (Get-MergeCalls $r).Count | Should Be 0
+        $r = Invoke-Merge (New-Rules (New-GateBody -end 'Gate rot.') -checks $checks)
+        $r.Out | Should Match 'GATE FEHLT #7'
+        (Get-MergeCalls $r).Count | Should Be 0
+        $r = Invoke-Merge (New-Rules (New-GateBody -base 'ccccccc') -checks $checks)
+        $r.Out | Should Match 'GATE FEHLT #7: Gate lief gegen ccccccc'
+        (Get-MergeCalls $r).Count | Should Be 0
     }
 
     It 'stops on red checks' {
@@ -109,7 +123,7 @@ Describe 'merge.ps1: with checks' {
     }
 }
 
-Describe 'merge.ps1: without checks the gate block decides' {
+Describe 'merge.ps1: the gate block decides' {
     It 'merges after a green gate on the current base and head' {
         $r = Invoke-Merge (New-Rules (New-GateBody))
         $r.Exit | Should Be 0
