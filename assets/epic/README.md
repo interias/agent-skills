@@ -1,6 +1,6 @@
 # Paketbild
 
-`epic.png` im README des Repositorys wird aus `epic.html` gerendert: 1200 × 620 px, doppelte
+`epic.png` in [`epic/README.md`](../../epic/README.md) wird aus `epic.html` gerendert: 1200 × 620 px, doppelte
 Auflösung, transparenter Grund. Gestaltung wie beim [Prozessbild](../prozess/README.md).
 
 Ändert sich `/epic`, erst `epic.html` anpassen, dann neu rendern (Git Bash, aus diesem Ordner):

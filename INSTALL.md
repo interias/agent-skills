@@ -15,6 +15,9 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   `epic-nacharbeit` und `epic-lagebesprechung` setzen daraus `grilling` voraus.
 - **Optional: Graphify** für den Code-Graphen von `/epic` (`uv tool install graphifyy`). Ohne es
   läuft `/epic` ohne Graph.
+- **Bun** im Benutzer-`PATH` für den Flotten-Treiber `flotte` (`bun --version`); zur Laufzeit braucht er
+  keine Pakete.
+- **Optional: Docker** für die [Flottenbrücke](flottenbruecke/README.md); `install.ps1` lässt sie aus.
 - **Python mit Pillow** für die Skripte von `mail-antwort`.
 - **Python mit Playwright und Chromium** für das Kit von `persona-review`; prüfen mit
   `python -P persona-review/scripts/selftest.py`.
@@ -43,7 +46,7 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 ## Was das Skript tut
 
 - **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
-  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `mail-antwort`, `persona-review` — nach
+  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `flotte`, `mail-antwort`, `persona-review` — nach
   `~/.claude/skills/<name>`. `mattpocock-skills/` (ohne `SKILL.md`) und `arbeitspferd/` bleiben
   außen vor. Ein vorhandener Zielordner
   wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,

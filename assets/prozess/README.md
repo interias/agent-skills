@@ -1,6 +1,6 @@
 # Prozessbild
 
-`prozess.png` im README des Repositorys wird aus `prozess.html` gerendert: 1200 × 560 px, doppelte
+`prozess.png` in [`epic/README.md`](../../epic/README.md) wird aus `prozess.html` gerendert: 1200 × 560 px, doppelte
 Auflösung, transparenter Grund. Jede Beschriftung steht auf einem weißen Schild, damit das Bild in
 einem hellen und einem dunklen Gitea-Theme gleich lesbar ist. Die Schilder bemisst ein Skript beim
 Rendern aus den echten Textmaßen; die Schriften kommen von Google Fonts, das Rendern braucht also

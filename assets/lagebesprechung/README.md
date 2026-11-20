@@ -1,6 +1,6 @@
 # Lagebesprechung
 
-`lagebesprechung.png` im README des Repositorys wird aus `lagebesprechung.html` gerendert:
+`lagebesprechung.png` in [`epic-lagebesprechung/README.md`](../../epic-lagebesprechung/README.md) wird aus `lagebesprechung.html` gerendert:
 1200 × 520 px, doppelte Auflösung, transparenter Grund. Gestaltung wie beim
 [Prozessbild](../prozess/README.md).
 
