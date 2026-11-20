@@ -98,7 +98,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(laeufe[1].eingabe).toMatch(/Antworten des Menschen[\s\S]*\n1\. B — Antwort: mit Testdaten, siehe #5$/);
       const kommentare = t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Antwort des Menschen'));
       expect(kommentare).toHaveLength(1);
-      expect(kommentare[0].text).toMatch(/Herkunft: Mensch über die Brücke/);
+      expect(kommentare[0].text).toMatch(/\nAntwort: B — mit Testdaten, siehe #5\nHerkunft: Mensch über die Brücke$/);
       expect(z.epics['3'].stufe).toBe('fertig');
       expect(z.fragen[0]).toMatchObject({ beantwortet: 'B — Antwort: mit Testdaten, siehe #5', brueckeId: 1, lage: 'Sachverhalt', optionen: [{ buchstabe: 'A', text: 'vorsichtig' }, { buchstabe: 'B', text: 'riskant' }], betrifft: 'Lauf' });
       expect(z.fragen[0].roh).toMatch(/^1\. Frage 1 zu #3\?/);

@@ -139,5 +139,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def seite() -> FileResponse:
         return FileResponse(STATIC / 'index.html', headers={'Cache-Control': 'no-cache'})
 
+    @app.get('/favicon.ico')
+    def favicon() -> FileResponse:
+        return FileResponse(STATIC / 'icon-32.png', media_type='image/png')
+
     app.mount('/static', StaticFiles(directory=STATIC), name='static')
     return app

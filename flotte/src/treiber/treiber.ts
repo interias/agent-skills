@@ -906,7 +906,7 @@ class Treiber {
   }
 
   /** One answer of the person, from `flotte antworten` or the bridge; false when it fits no open question. */
-  antwortAnwenden(a: { epic: number; nr: number; text: string; seit?: string; brueckeId?: number }): boolean {
+  antwortAnwenden(a: { epic: number; nr: number; text: string; seit?: string; brueckeId?: number; anzeige?: string }): boolean {
     const f = this.z.fragen.find((x) => x.epic === a.epic && x.nr === a.nr && (a.seit === undefined || x.seit === a.seit) && !x.beantwortet);
     const ep = this.epic(a.epic);
     if (!f || !ep) return false;
@@ -914,7 +914,7 @@ class Treiber {
     f.beantwortet = a.text;
     if (ueberBruecke) f.brueckeId = a.brueckeId;
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
-    kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
+    kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
     const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
     if (ep.stufe === 'frage' && !offen) {
@@ -952,7 +952,7 @@ class Treiber {
       const schon = this.z.fragen.find((f) => f.epic === a.epic && f.nr === a.nr && f.seit === a.seit && f.beantwortet);
       if (schon) {
         if (schon.brueckeId !== a.id) this.ereignis(a.epic, `Antwort über die Brücke auf Frage ${a.nr} kam zu spät: schon beantwortet`);
-      } else if (!this.antwortAnwenden({ epic: a.epic, nr: a.nr, seit: a.seit, text: antwortZeile(a), brueckeId: a.id })) {
+      } else if (!this.antwortAnwenden({ epic: a.epic, nr: a.nr, seit: a.seit, text: antwortZeile(a), anzeige: [a.option, a.text].filter(Boolean).join(' — '), brueckeId: a.id })) {
         this.ereignis(a.epic, `Antwort über die Brücke auf Frage ${a.nr} passt zu keiner offenen Frage`);
       }
       if (!this.zuQuittieren.includes(a.id)) this.zuQuittieren.push(a.id);

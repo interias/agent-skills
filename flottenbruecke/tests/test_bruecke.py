@@ -319,3 +319,13 @@ def test_empfehlung_bei_einzelwahl_nur_ein_buchstabe(client, bericht):
     bericht['fragen'][0]['empfehlung'] = 'A, B'
     client.post('/api/bericht', json=bericht)
     assert frage39(client.get('/api/tafel').json())['empfohlen'] == ['A']
+
+
+def test_icons_und_manifest(client):
+    seite = client.get('/').text
+    for pfad in ['/static/icon.svg', '/static/icon-32.png', '/static/apple-touch-icon.png', '/static/manifest.webmanifest']:
+        assert pfad in seite and client.get(pfad).status_code == 200
+    m = client.get('/static/manifest.webmanifest').json()
+    assert {i['src'] for i in m['icons']} >= {'/static/icon-192.png', '/static/icon-512.png'}
+    assert all(client.get(i['src']).status_code == 200 for i in m['icons'])
+    assert client.get('/favicon.ico').headers['content-type'] == 'image/png'
