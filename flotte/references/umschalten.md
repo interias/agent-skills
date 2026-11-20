@@ -13,7 +13,7 @@ nicht**: Er bekommt die neue `merge.ps1` und mergt ab dem Einspielen in keinem P
 3. **Beide Konten sind angemeldet.** Ein Test je Konto kostet einen Haiku-Aufruf:
    `claude -p --model haiku "OK"`, für Konto 2 mit
    `CLAUDE_CONFIG_DIR=C:\Users\stefa\.claude-arbeitspferd`.
-4. **Je Projekt mit `merge: nach_gate` ohne CI:** Das Gate des Projekts schreibt die Basis in
+4. **Je Projekt mit `merge: nach_gate`, auch mit CI:** Das Gate des Projekts schreibt die Basis in
    seine Kopfzeile (`Basis <remote>/<basis> @ <sha>` und `(HEAD <sha>)`). Sonst mergt die
    Merge-Regel nie, und das Epic wird nach den Nachbesserungen blockiert. In hexanite fehlt die
    Basis bisher; dort erst `gate/gate.mts` anpassen, bis dahin `merge: mensch`.
@@ -41,7 +41,7 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    Einsatz.
 2. **Adapter zuerst:** im Projektadapter `.claude/epic.md`, über einen PR auf die Basis:
    - `merge: mensch` (Standard) oder `merge: nach_gate`.
-   - Bei Repositorys ohne CI die Gate-Schlüssel (`gate_heading`, `gate_green`, `gate_base`,
+   - Die Gate-Schlüssel (`gate_heading`, `gate_green`, `gate_base`,
      `gate_head`, `gate_partial`), falls der Block anders aussieht als der Standard, und
      `gate_command`, `gate_always_command`, `gate_areas` für die Merge-Schlange
      (`epic/references/adapter.md`, „Merge“).

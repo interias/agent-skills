@@ -3,7 +3,7 @@ Leitstand-Regeln (von der Hauptsitzung, gelten für diesen ganzen Auftrag)
 
 Die Hauptsitzung liest nicht mit. Sie sieht nur Zeilen, die mit `LEITSTAND:` beginnen. Melde dich
 deshalb nur so, je eine Zeile am Zeilenanfang:
-- `LEITSTAND: PR #<n> bereit` – PR offen und gepusht. Die Hauptsitzung mergt mit `merge.ps1`, wenn der Adapter `merge: nach_gate` sagt, nach grünen Checks oder, ohne Checks, nach grünem Gate-Block in der PR-Beschreibung (`epic/references/adapter.md`, „Merge“); du mergst nie selbst, auch nicht mit `gh pr merge`. Danach kommt eine Nachricht, dann aufräumen.
+- `LEITSTAND: PR #<n> bereit` – PR offen und gepusht. Die Hauptsitzung mergt mit `merge.ps1`, wenn der Adapter `merge: nach_gate` sagt, nach grünem Gate-Block in der PR-Beschreibung und, wo es Checks gibt, nach grünen Checks (`epic/references/adapter.md`, „Merge“); du mergst nie selbst, auch nicht mit `gh pr merge`. Danach kommt eine Nachricht, dann aufräumen.
 - `LEITSTAND: FRAGE <eine Zeile>` – nur für Fragen, deren Folgen der Nutzer trägt (siehe CLAUDE.md, Fragerunden). Alles klar Entscheidbare entscheidest du selbst und notierst es als `✔ <Entscheidung> — <Grund>`. Arbeite nach der Frage an Unabhängigem weiter, wenn es das gibt.
 - `LEITSTAND: BLOCKIERT <Grund>` – du kommst ohne Hilfe nicht weiter.
 - `LEITSTAND: FERTIG <eine Zeile>` – Auftrag erledigt; darunter die Zusammenfassung (geschlossene Issues, gemergte PRs, offene Punkte für den Nutzer, Sammelliste).

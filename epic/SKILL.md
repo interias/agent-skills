@@ -807,7 +807,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
-  - **Gate-Block**, bei `merge: nach_gate` in einem Repository ohne Checks: Die Merge-Regel
+  - **Gate-Block**, bei `merge: nach_gate`, auch in einem Repository mit Checks: Die Merge-Regel
     (`merge.ps1`, der Flotten-Treiber) mergt nur mit ihm (`references/adapter.md`, „Merge").
     Er steht unter genau der Überschrift `gate_heading`, Standard `## Gate`, nicht unter
     „Verifikation" oder „Prüfung". Darunter steht die Ausgabe des Merge-Gates des Projekts als
