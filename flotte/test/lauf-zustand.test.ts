@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import { starte, laufUmgebung, fehlerart, liesLog } from '../src/werkzeuge/lauf.ts';
 import { lies as liesVerbrauch } from '../src/werkzeuge/verbrauch.ts';
 import { sperren, entsperren, lies, schreibe, leer, neuesEpic } from '../src/werkzeuge/zustand.ts';
@@ -83,6 +84,17 @@ describe('zustand', () => {
     writeFileSync(join(dir, 'treiber.lock'), '{kaputt');
     expect(sperren(dir, 5, () => true).ok).toBe(true);
   });
+
+  it('keeps writing the state while another process keeps reading it (D16 flake, Windows EPERM)', async () => {
+    const dir = tmp();
+    schreibe(dir, leer('repo'));
+    const datei = join(dir, 'zustand.json').replace(/\\/g, '/');
+    const leser = spawn(process.execPath, ['-e', `const fs = require('node:fs'); const ende = Date.now() + 1500; while (Date.now() < ende) { try { fs.readFileSync('${datei}'); } catch {} }`]);
+    await new Promise((r) => setTimeout(r, 200));
+    for (let i = 0; i < 300; i++) schreibe(dir, { ...leer('repo'), stand: String(i) } as never);
+    await new Promise((r) => leser.on('exit', r));
+    expect(lies(dir, 'repo').stand).toBe('299');
+  }, 20_000);
 
   it('writes and reads the state', () => {
     const dir = tmp();

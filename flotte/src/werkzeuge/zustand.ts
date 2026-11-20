@@ -122,7 +122,24 @@ export function schreibe(dir: string, z: Zustand): void {
   const datei = join(dir, 'zustand.json');
   const tmp = `${datei}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(z, null, 2));
-  renameSync(tmp, datei);
+  ersetze(tmp, datei);
+}
+
+/**
+ * renameSync over a file that a reader holds open fails on Windows with EPERM, EBUSY or EACCES
+ * (`flotte zustand`, a test polling the state): retry for up to two seconds instead of killing the
+ * driver (D16 was flaky by this).
+ */
+export function ersetze(tmp: string, datei: string): void {
+  for (let i = 0; ; i++) {
+    try {
+      renameSync(tmp, datei);
+      return;
+    } catch (e) {
+      if (i >= 40 || !['EPERM', 'EBUSY', 'EACCES'].includes((e as NodeJS.ErrnoException).code ?? '')) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
 }
 
 export function neuesEpic(nr: number): EpicZustand {

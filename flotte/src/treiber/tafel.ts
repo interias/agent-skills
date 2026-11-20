@@ -1,8 +1,9 @@
 // The fleet board (#14, decision 7): a local HTML page from the state file, no artifact. It
 // reloads itself; the driver rewrites it on every event.
 
-import { renameSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { ersetze } from '../werkzeuge/zustand.ts';
 import type { FlottenZustand } from './treiber.ts';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -38,6 +39,6 @@ ${z.schlange?.length ? `<p>Merge-Schlange: ${z.schlange.map((n, i) => `${i ? '' 
 export function schreibeTafel(dir: string, z: FlottenZustand, forge: string): string {
   const datei = join(dir, 'tafel.html');
   writeFileSync(`${datei}.tmp`, tafelHtml(z, forge));
-  renameSync(`${datei}.tmp`, datei);
+  ersetze(`${datei}.tmp`, datei);
   return datei;
 }
