@@ -53,6 +53,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `ram`, `platte`, `obergrenze` | RAM-Messung und -Bremse, `freiGb` und Schwelle, `bremse.obergrenze` |
 | `fragen[]` | die **offenen** `MenschFrage`n, vollständig (unten) |
 | `ereignisse[]` | die letzten 30 Logbuch-Ereignisse `{zeit, epic, text}`: das Laufband |
+| `prognose` | `{status, ab, bisher, treffer, geprueft, backlog, berechnet}`: `zu_wenig` unter `ab` Messungen, `ungenau` bei unter 60 % Treffern (ausgeblendet), sonst `ok`; `backlog` `{p50, p90}` in Sekunden ab `berechnet`, ohne Wartezeit auf den Menschen. Fehlt bei einem älteren Treiber |
 | `entscheidungen[]` | die letzten 100 Entscheidungen des Admirals `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen}`: „Erledigt heute“ mit Zurücknehmen |
 
 Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo nennt weiter nur
@@ -66,6 +67,7 @@ dazu
 | `prozess` | ein `claude -p` arbeitet gerade für das Epic: das Lebenszeichen pulst |
 | `grund`, `haltZeit`, `log[]` | bei `blockiert`/`abgebrochen`: der Grund, seit wann, die letzten 12 Ereignisse des Epics als Zeilen `HH:MM Text` |
 | `aufgegebenAm` | der Mensch hat das Epic über die Brücke aufgegeben |
+| `prognose` | nur bei `wartend`: `{p50, p90}` in Sekunden, sonst `null` |
 | `prio` | Label `prio/hoch` (Adapter `prio_label`) am Epic oder einem Kind; `notiz` sagt, warum es trotzdem wartet |
 | `pakete[]` | `{name, nr, titel, stand}` je Kind-Ticket; `stand` `fertig` (geschlossen), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer |
 

@@ -254,6 +254,10 @@ textarea {
 .bereit { margin: 8px 2px 0; font-size: 13px; letter-spacing: .05em; color: var(--matt); text-transform: uppercase; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .bereit .b-ep { text-transform: none; letter-spacing: .02em; color: var(--text); }
 .bereit .b-ep small { color: var(--matt); }
+.bereit .b-ep .prognose { color: var(--himmel); }
+.erledigt li.prognose { color: var(--himmel); }
+.erledigt li.prognose b { color: var(--himmel); }
+.erledigt li.prognose small { color: var(--matt); font-size: 12px; }
 .prio { display: inline-block; background: var(--orange); color: #000; border-radius: var(--rund); padding: 0 7px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-right: 4px; }
 
 /* ---- level 3 */

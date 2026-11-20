@@ -53,6 +53,12 @@ class Paket(BaseModel):
     ende: str | None = Field(None, max_length=40)
 
 
+class Spanne(BaseModel):
+    # seconds: the forecast shows p50–p90
+    p50: float = Field(ge=0)
+    p90: float = Field(ge=0)
+
+
 class Epic(BaseModel):
     nr: int
     titel: str = Field('', max_length=300)
@@ -79,6 +85,8 @@ class Epic(BaseModel):
     gestartetAm: str | None = Field(None, max_length=40)
     schlangeSeit: str | None = Field(None, max_length=40)
     gateSeit: str | None = Field(None, max_length=40)
+    # forecast of a waiting epic (Prognose), none below the threshold
+    prognose: Spanne | None = None
 
 
 class Fenster(BaseModel):
@@ -126,6 +134,18 @@ class Platte(BaseModel):
     genug: bool = True
 
 
+class Prognose(BaseModel):
+    # zu_wenig: below `ab` measured epics; ungenau: hit rate under 60 %, hidden; ok
+    status: Literal['zu_wenig', 'ungenau', 'ok']
+    ab: int = Field(ge=1)
+    bisher: int = Field(ge=0)
+    treffer: int = Field(0, ge=0)
+    geprueft: int = Field(0, ge=0)
+    # seconds from `berechnet` until the backlog is empty, waits for the person not included
+    backlog: Spanne | None = None
+    berechnet: str = Field(max_length=40)
+
+
 class Bericht(BaseModel):
     # forge name, owner/name: the first report creates the project
     forge: str = Field(pattern=r'^[\w-][\w.-]*/[\w-][\w.-]*$', max_length=200)
@@ -146,6 +166,7 @@ class Bericht(BaseModel):
     # the last events of the driver (the ticker) and the admiral's decisions (level 3)
     ereignisse: list[Ereignis] = Field([], max_length=200)
     entscheidungen: list[Entscheidung] = Field([], max_length=500)
+    prognose: Prognose | None = None
 
 
 class Antwort(BaseModel):

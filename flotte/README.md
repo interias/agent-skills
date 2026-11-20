@@ -68,6 +68,39 @@ Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-I
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und
 `flotte zuschauen` stehen in [`SKILL.md`](SKILL.md).
 
+## Prognose
+
+Die Brücke sagt je wartendem Epic „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
+Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dort gemessen hat:
+
+- **Messen:** Je fertigem Epic schreibt der Treiber eine Zeile in
+  `<git common dir>/flotte/messungen.jsonl`. Sie überdauert Einsätze. In der Zeile stehen:
+  - die Arbeitszeit vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der der ganze
+    Lauf auf dich wartete;
+  - die Gate-Zeit des Treibers und das Konto;
+  - je Paket die Klasse (mechanisch, Standard, Urteil, Urteil-hoch) und die Eskalationen, gelesen
+    aus den Implementer-Aufrufen im Log des Laufs.
+- **Rechnen:** Monte-Carlo über die gemessenen Verteilungen statt eines Mittelwerts, 2000 Züge mit
+  festem Seed. Je Zug kommen aus den Messungen:
+  - ein Tempo (Arbeitszeit je gewichtetem Paket eines fertigen Epics);
+  - die Pakete des neuen Epics mit Klasse und Eskalationen;
+  - eine Gate-Zeit.
+
+  Die Komplexität zählt über die Klasse (Gewicht 0,5 / 1 / 2 / 3, je Eskalation +1), verteilt auf
+  bis zu drei Pakete gleichzeitig, nicht über die bloße Zahl der Tickets. Für den Backlog verteilt
+  die Rechnung alle freigegebenen, noch offenen Epics auf die Plätze der Obergrenze. Ein laufendes
+  Epic braucht dabei nur noch seinen Rest. Angezeigt wird die Spanne P50–P90.
+- **Schwelle:** erst ab 5 gemessenen Epics (Adapter `prognose_ab`). Vorher zeigt die Brücke
+  „Prognose ab 5 Epics · bisher N“. Jedes weitere Epic rechnet sie von selbst mit.
+- **Selbstprüfung:** Beim ersten Start eines Epics merkt sich der Treiber die Prognose; am Ende hält
+  er fest, ob die echte Dauer samt Gate zwischen P10 und P90 lag. Die Brücke zeigt „traf 7 von 10“.
+  Liegt die Quote ab 5 geprüften Epics unter 60 %, blendet sie die Prognose aus: „zu ungenau für
+  dieses Projekt“.
+- **Wartezeit auf dich** ist nirgends eingerechnet; die Brücke sagt das dazu.
+
+`flotte messen` gibt die Messungen unter `prognose` mit aus: Anzahl, Verteilungen, Pakete je Klasse
+und Trefferquote.
+
 ## Bei dir
 
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,

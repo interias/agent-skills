@@ -59,7 +59,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         takt = b.get('taktS', 60)
         veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=max(3 * takt, 180))
         aktiv = b.get('aktiv', True) and not veraltet
-        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS')})
+        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose')})
         # the newest report of a machine speaks for its RAM and disk, of an account for its usage
         r = rechner.get(b.get('rechner', ''))
         if r is None or r['empfangen'] < p['empfangen']:
@@ -142,7 +142,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     erledigt.append({**karte, 'art': 'gemergt', 'zeit': t.isoformat()})
                 continue
             if stufe == 'wartend':
-                bereit.append({'forge': forge, 'repo': kurz, 'nr': nr, 'titel': ep.get('titel', ''), 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio'))})
+                bereit.append({'forge': forge, 'repo': kurz, 'nr': nr, 'titel': ep.get('titel', ''), 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose')})
                 continue
             if stufe == 'pr':
                 rein = zeit(ep.get('schlangeSeit')) or seit_stufe

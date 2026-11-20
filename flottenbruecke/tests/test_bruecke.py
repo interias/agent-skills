@@ -552,3 +552,23 @@ def test_zeiten_in_unterwegs(client, bericht):
     client.post('/api/bericht', json=bericht)
     s36 = next(s for s in tafel(client)['unterwegs']['schlange'] if s['nr'] == 36)
     assert s36['seit'] and s36['gateSeit'] is None
+
+
+def test_prognose_in_bereit_und_fuer_den_backlog(client, bericht):
+    client.post('/api/bericht', json=bericht)
+    t = tafel(client)
+    b41 = t['unterwegs']['bereit'][0]
+    assert b41['nr'] == 41 and b41['prognose'] == {'p50': 10800, 'p90': 18000}
+    assert t['projekte'][0]['prognose'] == {'status': 'ok', 'ab': 5, 'bisher': 12, 'treffer': 7, 'geprueft': 10, 'backlog': {'p50': 19800, 'p90': 34200}, 'berechnet': '2026-11-20T14:31:05Z'}
+    # an older driver without it, and below the threshold
+    del bericht['prognose']
+    client.post('/api/bericht', json=bericht)
+    assert tafel(client)['projekte'][0]['prognose'] is None
+    bericht['prognose'] = {'status': 'zu_wenig', 'ab': 5, 'bisher': 2, 'backlog': None, 'berechnet': '2026-11-20T14:31:05Z'}
+    for e in bericht['epics']:
+        e['prognose'] = None
+    client.post('/api/bericht', json=bericht)
+    t = tafel(client)
+    assert t['projekte'][0]['prognose']['status'] == 'zu_wenig' and t['unterwegs']['bereit'][0]['prognose'] is None
+    bericht['prognose']['status'] = 'vielleicht'
+    assert client.post('/api/bericht', json=bericht).status_code == 422

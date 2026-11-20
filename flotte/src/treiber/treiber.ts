@@ -19,6 +19,7 @@ import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } fr
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, HERKUNFT_BRUECKE, rechnerName } from './bruecke.ts';
 import { schreibeTafel } from './tafel.ts';
+import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface Einstellung {
   repo: string;
@@ -156,6 +157,8 @@ export interface MenschFrage {
   ganzerLauf: boolean;
   seit: string;
   beantwortet?: string;
+  /** when the answer came: the wait for the person is left out of the measurement (Prognose) */
+  beantwortetAm?: string;
 }
 
 export interface Entscheidung {
@@ -214,6 +217,10 @@ export interface FlottenEpic extends EpicZustand {
   gestartetAm?: string | null;
   schlangeSeit?: string | null;
   gateSeit?: string | null;
+  /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
+  endeAm?: string | null;
+  gateS?: number;
+  prognose?: Spanne | null;
 }
 
 export interface FlottenZustand extends Zustand {
@@ -313,6 +320,9 @@ class Treiber {
   /** a report right after an event is on its way */
   meldungGeplant = false;
   haltGemeldet = false;
+  /** the finished epics of this repository (messungen.jsonl), the forecast reads them */
+  messungen: Messung[] = [];
+  prognoseCache: { schluessel: string; wert: Bericht['prognose'] } | null = null;
   /** stage and parked packages of an epic when its children were last read */
   paketeStand = new Map<number, string>();
 
@@ -359,6 +369,7 @@ class Treiber {
       this.mergeAlt = this.pruefeMergeSkript();
       if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch mergt`);
     }
+    this.messungen = liesMessungen(this.dir);
     this.wiederaufnehmen();
     if (this.e.bruecke) this.bruecke = new Bruecke(this.e.bruecke, this.e.brueckeToken);
 
@@ -686,7 +697,11 @@ class Treiber {
       .finally(() => this.laufend.delete(nr));
     this.laufend.set(nr, p);
     this.z.statistik.maxLaeufe = Math.max(this.z.statistik.maxLaeufe, this.laufend.size);
-    ep.gestartetAm ??= new Date(this.w.jetzt()).toISOString();
+    if (!ep.gestartetAm) {
+      ep.gestartetAm = new Date(this.w.jetzt()).toISOString();
+      // the forecast shown before the run, kept for the self check at the end
+      ep.prognose = prognoseEpic(this.messungen, this.kinderZahl(nr), this.adapter.prognose_ab);
+    }
     this.ereignis(nr, resume ? 'Lauf fortgesetzt' : 'Lauf gestartet');
   }
 
@@ -984,6 +999,7 @@ class Treiber {
     if (!f || !ep) return false;
     const ueberBruecke = a.brueckeId !== undefined;
     f.beantwortet = a.text;
+    f.beantwortetAm = new Date(this.w.jetzt()).toISOString();
     if (ueberBruecke) f.brueckeId = a.brueckeId;
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
@@ -1185,6 +1201,87 @@ class Treiber {
     }
   }
 
+  kinderZahl(nr: number): number | null {
+    return this.bilder.find((b) => b.nr === nr)?.kinder?.length || null;
+  }
+
+  /** seconds the whole run of an epic waited for the person (answered or still open) */
+  menschWartenS(nr: number): number {
+    const jetzt = this.w.jetzt();
+    return Math.round(
+      this.z.fragen
+        .filter((f) => f.epic === nr && f.ganzerLauf)
+        .reduce((s, f) => s + Math.max(0, (f.beantwortetAm ? Date.parse(f.beantwortetAm) : f.beantwortet ? Date.parse(f.seit) : jetzt) - Date.parse(f.seit)), 0) / 1000,
+    );
+  }
+
+  /**
+   * One record per finished epic (Prognose): work time without the waits for the person, the
+   * driver's gate time, the packages with class and escalations from all logs of its runs, and
+   * whether it fell into the span shown at its start.
+   */
+  epicMessen(ep: FlottenEpic): void {
+    if (!ep.gestartetAm || !ep.endeAm) return;
+    const laeufe = join(this.dir, 'laeufe');
+    const logs = existsSync(laeufe)
+      ? readdirSync(laeufe)
+          .filter((d) => d.startsWith(`${ep.nr}-`) && d.endsWith('.jsonl'))
+          .map((d) => {
+            try {
+              return readFileSync(join(laeufe, d), 'utf8');
+            } catch {
+              return '';
+            }
+          })
+      : [];
+    const warten = this.menschWartenS(ep.nr);
+    const arbeitS = Math.max(0, Math.round((Date.parse(ep.endeAm) - Date.parse(ep.gestartetAm)) / 1000) - warten);
+    const m: Messung = {
+      epic: ep.nr,
+      titel: ep.titel ?? '',
+      konto: ep.konto ? kurzname(ep.konto, this.e.admiralKonto) : null,
+      start: ep.gestartetAm,
+      ende: ep.endeAm,
+      arbeitS,
+      menschWartenS: warten,
+      gateS: ep.gateS ?? 0,
+      pakete: paketeAusLogs(logs),
+      prognose: ep.prognose ?? null,
+      treffer: getroffen(ep.prognose ?? null, arbeitS + (ep.gateS ?? 0)),
+    };
+    try {
+      schreibeMessung(this.dir, m);
+      this.messungen.push(m);
+      this.prognoseCache = null;
+      this.ereignis(ep.nr, `Gemessen für die Prognose: ${Math.round(arbeitS / 60)} min Arbeit, ${m.pakete.length} Pakete${m.treffer === null ? '' : m.treffer ? ', lag in der Spanne' : ', lag außerhalb der Spanne'}`);
+    } catch (err) {
+      this.ereignis(ep.nr, `Messung nicht geschrieben: ${String(err).slice(0, 200)}`);
+    }
+  }
+
+  /** the forecast for the bridge; recomputed only when the measurements or the open epics change */
+  prognoseBericht(): Bericht['prognose'] {
+    const ab = this.adapter?.prognose_ab ?? 5;
+    const offen = Object.values(this.z.epics).filter((ep) => ['wartend', 'laeuft', 'frage', 'nacharbeit', 'pr'].includes(ep.stufe));
+    const schluessel = `${this.messungen.length}|${ab}|${this.z.bremse?.obergrenze ?? ''}|${offen.map((ep) => `${ep.nr}:${ep.stufe}`).join(',')}|${Math.floor(this.w.jetzt() / 600_000)}`;
+    if (this.prognoseCache?.schluessel === schluessel) return this.prognoseCache.wert;
+    const st = prognoseStand(this.messungen, ab);
+    const jetzt = this.w.jetzt();
+    // running ones first, they hold their places; then the waiting ones in the order of the occupancy
+    const reihe = [...offen.filter((ep) => ep.stufe !== 'wartend'), ...offen.filter((ep) => ep.stufe === 'wartend')];
+    const backlog = st.status === 'ok' ? prognoseBacklog(this.messungen, reihe.map((ep) => ({ n: this.kinderZahl(ep.nr), bisherS: ep.gestartetAm ? Math.max(0, (jetzt - Date.parse(ep.gestartetAm)) / 1000 - this.menschWartenS(ep.nr)) : 0 })), this.z.bremse?.obergrenze ?? 1, ab) : null;
+    const wert = { ...st, backlog: backlog ? { p50: Math.round(backlog.p50), p90: Math.round(backlog.p90) } : null, berechnet: new Date(jetzt).toISOString() };
+    this.prognoseCache = { schluessel, wert };
+    return wert;
+  }
+
+  /** the span of a waiting epic for the line "Bereit" */
+  prognoseFuer(ep: FlottenEpic): { p50: number; p90: number } | null {
+    if (ep.stufe !== 'wartend' || this.prognoseBericht().status !== 'ok') return null;
+    const s = prognoseEpic(this.messungen, this.kinderZahl(ep.nr), this.adapter?.prognose_ab ?? 5, ep.nr);
+    return s ? { p50: Math.round(s.p50), p90: Math.round(s.p90) } : null;
+  }
+
   titel(ep: FlottenEpic): string {
     if (ep.titel == null) {
       const r = this.w.aufrufer('gh', ['issue', 'view', String(ep.nr), '--repo', this.e.forge, '--json', 'title']);
@@ -1229,6 +1326,7 @@ class Treiber {
           gestartetAm: ep.gestartetAm ?? null,
           schlangeSeit: this.z.schlange.includes(ep.nr) ? (ep.schlangeSeit ?? null) : null,
           gateSeit: ep.gateSeit ?? null,
+          prognose: this.prognoseFuer(ep),
         };
       }),
       schlange: this.z.schlange,
@@ -1249,6 +1347,7 @@ class Treiber {
       ereignisse: this.z.ereignisse.slice(-30).map((x) => ({ zeit: x.zeit, epic: x.epic, text: x.text.slice(0, 300) })),
       // the bridge shows today's; with the reason, for a revocation
       entscheidungen: this.z.entscheidungen.slice(-100).map((d) => ({ epic: d.epic, nr: d.nr, frage: d.frage, antwort: d.antwort, herkunft: d.herkunft, grund: d.grund ?? '', einflussreich: d.einflussreich, zeit: d.zeit, widerrufen: d.widerrufen ?? null })),
+      prognose: this.prognoseBericht(),
     };
   }
 
@@ -1284,6 +1383,7 @@ class Treiber {
     const fremd = this.fremderPr(ep);
     if (fremd) return this.prFrage(ep, fremd);
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
+    ep.endeAm = new Date(this.w.jetzt()).toISOString();
     if (this.adapter.merge !== 'nach_gate') return this.prBereit(ep, 'merge: mensch');
     if (this.mergeAlt) return this.prBereit(ep, this.mergeAlt);
     // the merge queue (#14, round 5): in the order of FLOTTE-ENDE, only the head is up; beside the
@@ -1574,6 +1674,7 @@ class Treiber {
       ep.gateSeit = null;
     }
     ep.gateWiederholungen = (ep.gateWiederholungen ?? 0) + 1;
+    ep.gateS = (ep.gateS ?? 0) + Math.round((this.w.jetzt() - t0) / 1000);
     this.z.statistik.gateWiederholungen = (this.z.statistik.gateWiederholungen ?? 0) + 1;
     const b = blockAus(r.stdout, form);
     const s = Math.round((this.w.jetzt() - t0) / 1000);
@@ -1638,6 +1739,7 @@ class Treiber {
     this.lokalerBranchWeg(ep);
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
+    this.epicMessen(ep);
   }
 
   /**

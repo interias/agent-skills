@@ -103,7 +103,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 - `flotte zuschauen <repo> <epic> [--einmal]`: folgt dem Log eines Laufs, je Zeile ein Schritt (Werkzeug und Ziel, Text des Laufs).
 - `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). Vor dem Einspielen aufrufen: In diesen Projekten mergt danach ein Mensch.
 - `flotte belegung`, `verbrauch`, `ressourcen`, `bloecke`, `lauf`: die Werkzeuge einzeln.
-- `flotte messen <einsaetze.json>`: Kennzahlen aus den Transkripten. Unter dem Treiber liest es Fragen, Wartezeit, kalte Zeit und Starts aus `zustand.json` (`treiberZustand` im Einsatz).
+- `flotte messen <einsaetze.json>`: Kennzahlen aus den Transkripten; unter dem Treiber auch die Messungen der Prognose (`messungen.jsonl` neben `zustand.json`, Abschnitt `prognose`). Unter dem Treiber liest es Fragen, Wartezeit, kalte Zeit und Starts aus `zustand.json` (`treiberZustand` im Einsatz).
 
 ## Was der Treiber tut
 
@@ -140,6 +140,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 7. **Sichtbar:**
    - Tafel: `<git common dir>/flotte/tafel.html` im Browser öffnen; sie lädt sich selbst neu. Sie zeigt je Lauf den letzten Schritt und seine Zeit und die Merge-Schlange.
    - Logbuch: ein Issue mit Label `flotte`, mit dem KIBO-Block. Die Bremse steht dort nur als Stufe, nie in Prozent.
+   - **Prognose:** Je fertigem Epic schreibt der Treiber eine Messung nach `messungen.jsonl` (Arbeitszeit ohne Warten auf den Menschen, Gate-Zeit, Pakete mit Klasse und Eskalationen aus dem Log). Ab `prognose_ab` (Standard 5) Messungen meldet er der Brücke je wartendem Epic und für den Backlog eine Monte-Carlo-Spanne (P50–P90) und prüft sich selbst; unter 60 % Treffern blendet die Brücke sie aus. Einzelheiten: `README.md`, „Prognose“.
    - **Flottenbrücke** (`flottenbruecke/`, mit `--bruecke`): Der Treiber meldet ihr in jedem Takt seinen Zustand (mit Kind-Tickets je Epic, Verbrauch je Konto, Ereignissen und Admiral-Entscheidungen) und holt die Antworten und Handlungen ab, die der Mensch dort gegeben hat: blockiertes Epic neu einreihen oder aufgeben, eine Entscheidung des Admirals zurücknehmen. Nur der Treiber spricht mit ihr, Läufe und Admiral sehen sie nicht. Ein Ereignis (neue Frage, Stufenwechsel, Merge) meldet er sofort; solange eine Frage offen ist, fragt er alle 10 s nach Antworten. Ist sie aus, arbeitet er weiter (ein Ereignis, kein Fehler). Schnittstelle: `flottenbruecke/SCHNITTSTELLE.md`.
 
 ## Was beim Menschen liegt

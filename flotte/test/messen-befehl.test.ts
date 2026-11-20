@@ -127,6 +127,11 @@ describe('messeEinsatz', () => {
       { sitzung: 'treiber/#13', minuten: 0 },
     ]);
     expect(r.fehlstarts).toMatchObject({ starts: 5, fehlstarts: 1 });
+    // no forecast records yet: the threshold says how many are missing
+    expect(r.prognose).toMatchObject({ status: 'zu_wenig', ab: 5, bisher: 0 });
+    writeFileSync(join(dir, 'messungen.jsonl'), [1, 2].map((e) => JSON.stringify({ epic: e, titel: '', konto: null, start: '', ende: '', arbeitS: 3600 * e, menschWartenS: 600, gateS: 300, pakete: [{ name: '#1', klasse: 'urteil', eskalationen: 1 }], prognose: null, treffer: e === 1 })).join('\n') + '\n');
+    const r2 = messeEinsatz(konf, konf.einsaetze[0], { aufrufer: stub, usageSkript: 'u' });
+    expect(r2.prognose).toMatchObject({ status: 'zu_wenig', bisher: 2, treffer: 1, geprueft: 2, pakete_je_klasse: { urteil: 2 }, eskalationen: 2, arbeit_min: { n: 2, summe: 180 } });
   });
 
   it('names a session it cannot find instead of guessing', () => {
