@@ -1,0 +1,5 @@
+# Probe 3: a tiny service the gate of the area gamma asks for a line.
+services:
+  dienst:
+    image: alpine:3.20
+    command: [sleep, '900']

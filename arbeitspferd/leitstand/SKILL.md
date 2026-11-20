@@ -23,7 +23,7 @@ die Transkripte.
 | `lage.ps1` | Überblick: Sitzungen, offene PRs, RAM. Dazu `-Eintragen <id> -Repo <pfad>` (eine von Hand gestartete Sitzung übernehmen) und `-Abhaken <id>` |
 | `start.ps1 -Repo <name> -Auftrag <datei> -Titel "<#ticket Kurzname>" -Modus <m>` | Neues Fenster mit festem Titel starten, Flottenregeln anhängen, Sitzung ins Register eintragen, Fenster anordnen |
 | `nachricht.ps1 -SessionId <id> -Datei <datei>` | Nachricht ohne Neustart zustellen (Haiku-Helfer per SendMessage). Bestätigt erst, wenn sie im Transkript steht. Neustart nur, wenn der Prozess fehlt |
-| `merge.ps1 -Repo <owner/name> -Pr <n>` | Nur bei `merge: nach_gate` im Adapter: auf die Checks warten, ohne Checks den Gate-Block prüfen, Merge-Commit, geprüften Branch löschen, eine Ergebniszeile |
+| `merge.ps1 -Repo <owner/name> -Pr <n>` | Nur bei `merge: nach_gate` im Adapter: auf die Checks warten, immer den Gate-Block prüfen, Merge-Commit, geprüften Branch löschen, eine Ergebniszeile |
 | `waechter.ps1` | Der einzige Wächter, unter Monitor (persistent) |
 | `fenster-ordnen.ps1` | Alle Terminalfenster nach Titel in ein Raster aus Achteln des Bildschirms legen: die ersten vier 2 × 2 links, weitere rechts. Verschiebt nur |
 | `fenster-schliessen.ps1 -SessionId <id>` | Fenster einer still wartenden Sitzung aus dem Register schließen, Sitzung abhaken, Rest neu anordnen |

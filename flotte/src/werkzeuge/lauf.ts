@@ -37,6 +37,24 @@ export function hookRegel(text: string): string {
 
 export type Fehlerart = 'netz' | 'anmeldung' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | null;
 
+const kurz = (s: unknown, n = 100) => String(s ?? '').split(/\r?\n/).find((z) => z.trim())?.trim().slice(0, n) ?? '';
+
+/** What a stream-json line shows of the run's work, for the board and `flotte zuschauen` (C4); null: nothing. */
+export function schrittAus(d: any): string | null {
+  if (d?.type === 'result') return `Zugende${d.is_error ? ' (Fehler)' : ''}: ${kurz(d.result, 80)}`;
+  if (d?.type !== 'assistant' || !Array.isArray(d.message?.content)) return null;
+  const unter = d.parent_tool_use_id ? '↳ ' : '';
+  let s: string | null = null;
+  for (const c of d.message.content) {
+    if (c?.type === 'text' && c.text?.trim()) s = `${unter}${kurz(c.text)}`;
+    if (c?.type !== 'tool_use') continue;
+    const i = c.input ?? {};
+    const was = i.command ?? i.skill ?? i.description ?? i.file_path ?? i.pattern ?? i.url ?? '';
+    s = `${unter}${c.name}${was ? `: ${kurz(was)}` : ''}`;
+  }
+  return s;
+}
+
 export interface LaufErgebnis {
   sitzung: string | null;
   code: number | null;
@@ -64,6 +82,8 @@ export class Auswertung {
   /** the tool list of the init event */
   werkzeuge: string[] | null = null;
   sperren: HookSperre[] = [];
+  /** the last step of the run (schrittAus) */
+  schritt: string | null = null;
   zeile(roh: string, jetzt = Date.now()): void {
     let d: any;
     try {
@@ -71,6 +91,7 @@ export class Auswertung {
     } catch {
       return;
     }
+    this.schritt = schrittAus(d) ?? this.schritt;
     if (d?.session_id && !this.sitzung) this.sitzung = String(d.session_id);
     if (d?.type === 'system' && d.subtype === 'init' && Array.isArray(d.tools)) this.werkzeuge = d.tools.map(String);
     if (d?.type === 'rate_limit_event' && d.rate_limit_info) this.verbrauch = ausEreignis(d.rate_limit_info, jetzt);
@@ -144,6 +165,10 @@ export interface Start {
   werkzeuge?: (tools: string[]) => string | null;
   /** called right after the spawn with the pid, before any output (D16) */
   beimStart?: (pid: number) => void;
+  /** a new step of the run, or its silence while a child process lives (C1, C4) */
+  beiSchritt?: (schritt: string) => void;
+  /** silence with a living child process counts as work up to this long (C1); default 4 × leerlaufMs */
+  stilleMaxMs?: number;
   /** the program instead of claude: a stand-in that plays a script (stage 3) */
   programm?: string;
   programmArgs?: string[];
@@ -195,7 +220,47 @@ export function starte(s: Start): Promise<LaufErgebnis> {
   });
   kind.stdin?.on('error', () => {});
   kind.stdin?.end(s.auftrag);
-  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true });
+  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, stilleMaxMs: s.stilleMaxMs });
+}
+
+/**
+ * The names of the living descendants of a process (a gate, a test run the run started), without
+ * conhost.exe, which Windows hangs on every console program. Empty when none lives or the process
+ * table is unreadable.
+ */
+export function kinderVon(pid: number): Promise<string[]> {
+  const [programm, args] =
+    process.platform === 'win32'
+      ? ['powershell.exe', ['-NoProfile', '-Command', 'Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $($_.Name)" }']]
+      : ['ps', ['-A', '-o', 'pid=,ppid=,comm=']];
+  return new Promise((fertig) => {
+    const k = spawn(programm as string, args as string[], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    let out = '';
+    k.stdout?.setEncoding('utf8').on('data', (x: string) => (out += x));
+    k.on('error', () => fertig([]));
+    k.on('close', () => {
+      const kinder = new Map<number, { pid: number; name: string }[]>();
+      for (const z of out.split(/\r?\n/)) {
+        const m = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/.exec(z);
+        if (!m) continue;
+        const eintrag = { pid: Number(m[1]), name: m[3] };
+        kinder.set(Number(m[2]), [...(kinder.get(Number(m[2])) ?? []), eintrag]);
+      }
+      const namen: string[] = [];
+      const offen = [pid];
+      const gesehen = new Set<number>();
+      while (offen.length) {
+        const p = offen.pop()!;
+        for (const k of kinder.get(p) ?? []) {
+          if (gesehen.has(k.pid) || k.pid === p) continue;
+          gesehen.add(k.pid);
+          offen.push(k.pid);
+          if (!/^conhost(\.exe)?$/i.test(k.name)) namen.push(k.name);
+        }
+      }
+      fertig(namen);
+    });
+  });
 }
 
 export interface Beobachtung {
@@ -211,6 +276,10 @@ export interface Beobachtung {
   werkzeuge?: (tools: string[]) => string | null;
   /** false: the identity of the pid is not proven, so it is never killed (D16) */
   beenden: boolean;
+  beiSchritt?: (schritt: string) => void;
+  stilleMaxMs?: number;
+  /** the living descendants of the run's process (C1); replaceable in tests */
+  kinder?: (pid: number) => Promise<string[]>;
 }
 
 /** Follows the log of a run until its process ends, kills it on idling or on a forbidden tool list. */
@@ -225,6 +294,13 @@ export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
   let leerlauf = false;
   let werkzeugFehler: string | null = null;
   let zuletzt = Date.now();
+  // C1: silence while a child process lives (a gate, a test run) is work, up to stilleMax
+  const stilleMax = b.stilleMaxMs ?? 4 * grenze;
+  const kinder = b.kinder ?? kinderVon;
+  let kindBis = 0;
+  let pruefe = false;
+  let ohneKind = false;
+  let letzterSchritt: string | null = null;
   let code: number | null | undefined;
   b.ende?.then((c) => (code = c));
   const lies = (datei: string, von: number): { text: string; bis: number } => {
@@ -247,6 +323,10 @@ export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
     for (const z of teile) {
       if (!z.trim()) continue;
       auswertung.zeile(z);
+      if (auswertung.schritt && auswertung.schritt !== letzterSchritt) {
+        letzterSchritt = auswertung.schritt;
+        b.beiSchritt?.(letzterSchritt);
+      }
       if (auswertung.verbrauch) schreibeVerbrauch(b.konto, auswertung.verbrauch);
       if (auswertung.werkzeuge && b.werkzeuge && werkzeugFehler === null) {
         werkzeugFehler = b.werkzeuge(auswertung.werkzeuge);
@@ -257,7 +337,10 @@ export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
   const schritt = () => {
     const o = lies(b.log, pos);
     const e = lies(`${b.log}.err`, errPos);
-    if (o.bis > pos || e.bis > errPos) zuletzt = Date.now();
+    if (o.bis > pos || e.bis > errPos) {
+      zuletzt = Date.now();
+      ohneKind = false;
+    }
     pos = o.bis;
     errPos = e.bis;
     stderr += e.text;
@@ -268,7 +351,21 @@ export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
     const uhr = setInterval(() => {
       schritt();
       const vorbei = b.ende ? code !== undefined : !b.pid || !lebt(b.pid);
-      if (!vorbei && !leerlauf && Date.now() - zuletzt > grenze) {
+      if (!vorbei && !leerlauf && Date.now() - Math.max(zuletzt, kindBis) > grenze) {
+        if (b.pid && !ohneKind && Date.now() - zuletzt < stilleMax) {
+          if (pruefe) return;
+          pruefe = true;
+          kinder(b.pid).then((namen) => {
+            pruefe = false;
+            if (!namen.length) {
+              ohneKind = true;
+              return;
+            }
+            kindBis = Date.now();
+            b.beiSchritt?.(`still seit ${Math.round((Date.now() - zuletzt) / 60_000)} min, Kindprozess lebt: ${[...new Set(namen)].slice(0, 4).join(', ')}`);
+          });
+          return;
+        }
         leerlauf = true;
         if (b.pid && b.beenden) beende(b.pid);
         // a pid of unproven identity is not killed: stop following it

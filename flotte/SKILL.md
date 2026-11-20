@@ -50,18 +50,21 @@ Mögliche Schalter:
 | `--ohne-nacharbeit` | Nacharbeit läuft |
 | `--merge-skript` | `merge.ps1` des Leitstands |
 | `--max-min` | ohne Grenze |
+| `--konto-max <dir>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss) |
 
 Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
 - `flotte zustand <repo>`: Zustand und Sperre.
 - `flotte antworten <repo> <epic> <frage> <Antwort>`: eine Antwort des Menschen an den laufenden Treiber.
+- `flotte zuschauen <repo> <epic> [--einmal]`: folgt dem Log eines Laufs, je Zeile ein Schritt (Werkzeug und Ziel, Text des Laufs).
+- `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). Vor dem Einspielen aufrufen: In diesen Projekten mergt danach ein Mensch.
 - `flotte belegung`, `verbrauch`, `ressourcen`, `bloecke`, `lauf`: die Werkzeuge einzeln.
 - `flotte messen <einsaetze.json>`: Kennzahlen aus den Transkripten. Unter dem Treiber liest es Fragen, Wartezeit, kalte Zeit und Starts aus `zustand.json` (`treiberZustand` im Einsatz).
 
 ## Was der Treiber tut
 
 1. **Einer je Repository.** Die Sperre liegt in `<git common dir>/flotte/treiber.lock`, der Zustand daneben in `zustand.json`. Nach einem Neustart setzt der Treiber aus der Datei fort. Ein Lauf schreibt sein Log selbst und überlebt den Treiber. Läufe, die noch leben (PID und Startzeit passen), beobachtet der Treiber nur.
-2. **Belegung** aus Adapter und Issues: Kollisionsstufen (keine 4, klein 3, mittel 2, groß 1 gleichzeitig, nie mehr als vier) und Reihenfolge-Kanten. Ein Epic startet erst nach dem Merge seines Vorgängers. Jede neue Belegung nennt ihren Beleg.
+2. **Belegung** aus Adapter und Issues: Kollisionsstufen (keine 4, klein 3, mittel 2, groß 1 gleichzeitig, nie mehr als vier) und Reihenfolge-Kanten. Ein Epic startet erst nach dem Merge seines Vorgängers. Bei Gleichstand gewinnt die Wahl, deren Epics weniger Gate-Bereiche (`gate_areas`) teilen. Jede neue Belegung nennt ihren Beleg.
 3. **Bremsen** in jedem Takt:
    - RAM über `ram.ps1`: `warn` und `hold` halten an, weiter geht es erst 5 Punkte unter der Warnschwelle. Ein Messfehler gilt als `hold`, mit seinem Fehlertext; die nächste gute Messung gibt frei.
    - Plattenplatz.
@@ -71,7 +74,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
    - Ein Fehlstart wird höchstens zweimal neu gestartet.
    - Bei einem Netzfehler setzt der Treiber höchstens zweimal mit `--resume` fort.
    - Endet ein Zug ohne Block, fragt der Treiber einmal nach; danach gilt der Lauf als abgebrochen.
-   - Nach `--leerlauf-min` ohne Ausgabe beendet er den Zug und setzt ihn einmal fort. Beim zweiten Mal bricht er das Epic ab.
+   - Nach `--leerlauf-min` ohne Ausgabe beendet er den Zug und setzt ihn einmal fort. Beim zweiten Mal bricht er das Epic ab. Lebt unter dem Lauf ein Kindprozess (ein Gate, eine Testsuite), gilt die Stille als Arbeit, bis zum Vierfachen von `--leerlauf-min`; das Ereignis nennt den Kindprozess.
    - `permission_denials` blockieren das Epic, ohne zweiten Versuch.
    - Ausnahme sind Sperren von `guard.ps1`. Der Treiber gibt den Hook jedem Zug über `--settings` mit, weil der Hook des Skills nach `--resume` nicht mehr gilt. Nach einer Sperre darf der Lauf seinen Weg ändern, wie im Fenster. Blockiert wird das Epic erst in einem dieser Fälle:
      - Der Zug scheitert an der Sperre.
@@ -79,13 +82,16 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
      - Im Epic kommt die dritte Sperre.
    - Nach jedem toten Lauf räumt `CleanupStale` auf. Es verschont die Worktrees der Epics, die noch laufen oder warten: Jeder Lauf bekommt `EPIC_LOCK_HOLDER`, eine Datei in `<git common dir>/flotte/halten/`. Der Treiber löscht sie erst, wenn das Epic endet.
 6. **Ende eines Laufs:**
-   - Mit `merge: nach_gate` ruft der Treiber `merge.ps1` auf, neben der Schleife und einer nach dem anderen: Während `merge.ps1` auf Checks wartet, beantwortet der Treiber andere Läufe. Fehlt der Gate-Block oder ist er veraltet, geht der Auftrag zurück an den Lauf.
-     - Nach zwei eigenen Nachbesserungen wird das Epic blockiert.
-     - Zieht die Basis davon, weil ein anderes Epic gemergt wurde, zählt das getrennt, bis fünf.
+   - Mit `merge: nach_gate` kommt das Epic in die **Merge-Schlange**, in der Reihenfolge seines `FLOTTE-ENDE`. Nur ihr Kopf ist dran, neben der Schleife: Während `merge.ps1` und das Gate laufen, beantwortet der Treiber andere Läufe.
+     - Ist der Gate-Block im PR gültig, mergt `merge.ps1`.
+     - Sonst holt der Treiber selbst die Basis in den Epic-Worktree (`git merge origin/<basis>`), fährt `gate_command` des Adapters dort, schreibt den Block in die PR-Beschreibung, pusht und mergt. Hat sich die Basis seit dem letzten vollen grünen Lauf nur in Bereichen bewegt, die das Epic nicht berührt (`gate_areas`), fährt er nur `gate_always_command`. Hat die Sitzung des Laufs den Epic-Worktree mitgenommen, legt der Treiber ihn mit `worktree.ps1 Up` neu an und baut ihn nach dem Merge mit `Down` ab.
+     - Ein Konflikt oder ein rotes Gate geht mit der Ausgabe an den Lauf zurück (`--resume`); das Epic stellt sich hinten an, die Schlange läuft weiter. Ein rotes Gate setzt den Worktree auf den Stand des PRs zurück. Nach zwei Rückgaben wird das Epic bei der dritten blockiert.
+     - Bei n Epics in der Schlange sind so höchstens n−1 Gate-Wiederholungen nötig. Der Zähler steht als `gateWiederholungen` je Epic und in der Statistik; nach drei eigenen Gate-Läufen für dasselbe Epic wird es blockiert.
+     - Ohne `gate_command` im Adapter bleibt es beim alten Weg: Der Lauf bessert den Block selbst nach (zwei Nachbesserungen, fünf Basis-Nachzüge).
    - Mit `merge: mensch` (Standard) meldet er „PR bereit“ und erkennt den Merge später.
-   - Nach dem Merge: die `nach_merge`-Befehle des Adapters, dann `CleanupStale`. Bekommt ein anderer offener PR einen Konflikt, geht ein Auftrag an dessen Lauf.
+   - Nach dem Merge: die `nach_merge`-Befehle des Adapters, dann `CleanupStale`, dann der lokale Epic-Branch, wenn er ganz in `origin/<basis>` liegt. Bekommt ein anderer offener PR außerhalb der Schlange einen Konflikt, geht ein Auftrag an dessen Lauf.
 7. **Sichtbar:**
-   - Tafel: `<git common dir>/flotte/tafel.html` im Browser öffnen; sie lädt sich selbst neu.
+   - Tafel: `<git common dir>/flotte/tafel.html` im Browser öffnen; sie lädt sich selbst neu. Sie zeigt je Lauf den letzten Schritt und seine Zeit und die Merge-Schlange.
    - Logbuch: ein Issue mit Label `flotte`, mit dem KIBO-Block. Die Bremse steht dort nur als Stufe, nie in Prozent.
 
 ## Was beim Menschen liegt

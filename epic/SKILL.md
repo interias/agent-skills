@@ -77,6 +77,10 @@ Ende nur noch geparkte Pakete übrig, beendest du den Zug mit demselben Frageblo
 
 „Durch Hook durchgesetzt" heißt: `scripts/guard.ps1` sperrt die Befehle dafür (Frontmatter oben).
 Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleibt ein Regelverstoß.
+Der Hook im Frontmatter gilt nur im Zug, der den Skill aufruft. **Eine `/epic`-Sitzung wird deshalb
+nur mit `scripts/fortsetzen.ps1 -Session <id>` fortgesetzt** (für Konto 2 dazu `-ConfigDir`), nie mit
+blankem `claude --resume`: Das Skript gibt `guard.ps1` als Hook der Sitzung mit, wie der
+Flotten-Treiber.
 
 1. **Der Lauf mergt und pusht nie in den Hauptzweig und nie in `<basis>`**, er endet mit einem
    offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
@@ -803,7 +807,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
-  - **Gate-Block**, bei `merge: nach_gate` in einem Repository ohne Checks: Die Merge-Regel
+  - **Gate-Block**, bei `merge: nach_gate`, auch in einem Repository mit Checks: Die Merge-Regel
     (`merge.ps1`, der Flotten-Treiber) mergt nur mit ihm (`references/adapter.md`, „Merge").
     Er steht unter genau der Überschrift `gate_heading`, Standard `## Gate`, nicht unter
     „Verifikation" oder „Prüfung". Darunter steht die Ausgabe des Merge-Gates des Projekts als
@@ -815,7 +819,9 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     Das Gate läuft nach dem letzten Commit und gegen den aktuellen Stand der Basis. Jeder Commit
     danach verlangt einen neuen Lauf und einen neuen Block, auch einer nur für die Doku oder den
     PR-Text. Den alten Block ersetzt du. Gibt das Gate des Projekts keine Basis aus, ist das ein
-    offener Punkt, und gemergt wird von Hand.
+    offener Punkt, und gemergt wird von Hand. Nennt der Adapter `gate_command`, ist das der Befehl
+    für das Gate. Unter dem Flotten-Treiber holt danach der Treiber die Basis nach und fährt das
+    Gate selbst; ein Konflikt oder ein rotes Gate kommt mit seiner Ausgabe zu dir zurück.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
     Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Kind, in beiden Modi. **Ein
     Zielissue mit Kindern nie** (Begründung ebenda). Das

@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
+import { bereicheAus, bereicheVon } from '../treiber/gate.ts';
 
 export type Kollision = 'keine' | 'klein' | 'mittel' | 'gross';
 
@@ -21,6 +22,8 @@ export interface EpicBild {
   migration: boolean;
   /** epics that must be merged before this one starts */
   nach: number[];
+  /** gate_areas of the files the epic names (#14, round 5); empty when it names none */
+  bereiche?: string[];
 }
 
 export interface Adapter {
@@ -32,6 +35,17 @@ export interface Adapter {
   merge: 'mensch' | 'nach_gate';
   /** commands after a merge, run in the main checkout (#14, stage 3) */
   nach_merge: string[];
+  /** the merge gate of the project, run by the driver in the epic worktree (#14, round 5); null: the run does it */
+  gate_command: string | null;
+  /** only the part of the gate that always runs (hexanite: wurzel) */
+  gate_always_command: string | null;
+  /** `<pattern> = <name>` per area of the gate */
+  gate_areas: string[];
+  gate_heading: string | null;
+  gate_green: string | null;
+  gate_base: string | null;
+  gate_head: string | null;
+  gate_partial: string | null;
 }
 
 export interface Paar {
@@ -72,6 +86,14 @@ export function liesAdapter(text: string): Adapter {
     epic_label: werte.get('epic_label')?.[0] ?? 'epic',
     merge: werte.get('merge')?.[0] === 'nach_gate' ? 'nach_gate' : 'mensch',
     nach_merge: werte.get('nach_merge') ?? [],
+    gate_command: werte.get('gate_command')?.[0] ?? null,
+    gate_always_command: werte.get('gate_always_command')?.[0] ?? null,
+    gate_areas: werte.get('gate_areas') ?? [],
+    gate_heading: werte.get('gate_heading')?.[0] ?? null,
+    gate_green: werte.get('gate_green')?.[0] ?? null,
+    gate_base: werte.get('gate_base')?.[0] ?? null,
+    gate_head: werte.get('gate_head')?.[0] ?? null,
+    gate_partial: werte.get('gate_partial')?.[0] ?? null,
   };
 }
 
@@ -117,7 +139,9 @@ export function bildAus(nr: number, bodies: string[], adapter: Adapter, epicNumm
     }
   });
   for (const d of dateien) if (/(^|\/)migrations?\//i.test(d)) migration = true;
-  return { nr, module: [...module].sort(), dateien: [...dateien].sort(), exklusiv, migration, nach: [...nach].filter((n) => n !== nr && epicNummern.includes(n)).sort((a, b) => a - b) };
+  const bild: EpicBild = { nr, module: [...module].sort(), dateien: [...dateien].sort(), exklusiv, migration, nach: [...nach].filter((n) => n !== nr && epicNummern.includes(n)).sort((a, b) => a - b) };
+  if (adapter.gate_areas.length) bild.bereiche = dateien.size ? [...bereicheVon([...dateien], bereicheAus(adapter.gate_areas))].sort() : [];
+  return bild;
 }
 
 const trifft = (datei: string, muster: string) => datei === muster || datei.startsWith(muster.endsWith('/') ? muster : `${muster}/`) || datei.endsWith(`/${muster}`);
@@ -169,7 +193,15 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
     return menge.length <= Math.min(kappe, GRENZE[schlecht]);
   };
   let beste: number[] = [...opts.laufend];
-  const wert = (m: number[]) => [m.length, m.reduce((s, n) => s + entsperrt(n), 0), -m.reduce((s, n) => s + n, 0)];
+  // on a tie, epics from different gate areas: after a merge the next one then often needs only the
+  // part of the gate that always runs (#14, round 5)
+  const bereich = new Map(bilder.map((b) => [b.nr, b.bereiche ?? []]));
+  const geteilt = (m: number[]) => {
+    let n = 0;
+    for (let i = 0; i < m.length; i++) for (let j = i + 1; j < m.length; j++) if (bereich.get(m[i])!.some((x) => bereich.get(m[j])!.includes(x))) n++;
+    return n;
+  };
+  const wert = (m: number[]) => [m.length, m.reduce((s, n) => s + entsperrt(n), 0), -geteilt(m), -m.reduce((s, n) => s + n, 0)];
   const besser = (x: number[], y: number[]) => {
     const [a, b] = [wert(x), wert(y)];
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i];
@@ -215,7 +247,8 @@ export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, numm
 
 export function belegung(argv: string[], aufrufer: Aufrufer = aufrufen): unknown {
   const [repo, forgeRepo, ...rest] = argv;
-  const nummern = rest.filter((a) => /^#?\d+$/.test(a)).map((a) => Number(a.replace('#', '')));
+  // the value after a switch (--obergrenze 3) is no epic
+  const nummern = rest.filter((a, i) => /^#?\d+$/.test(a) && !rest[i - 1]?.startsWith('--')).map((a) => Number(a.replace('#', '')));
   if (!repo || !forgeRepo || !nummern.length) throw new Error('Aufruf: flotte belegung <repo> <owner/name> #a #b ... [--laufend #x,#y] [--gemergt #z] [--obergrenze 4]');
   const { bilder, adapter } = sammle(aufrufer, repo, forgeRepo, nummern);
   const i = rest.indexOf('--obergrenze');

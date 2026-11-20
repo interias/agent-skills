@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { belege, bildAus, kollision, liesAdapter, sammle, type EpicBild } from '../src/werkzeuge/belegung.ts';
+import { belege, belegung, bildAus, kollision, liesAdapter, sammle, type EpicBild } from '../src/werkzeuge/belegung.ts';
 import type { Aufrufer } from '../src/aufruf.ts';
 
 const adapter = liesAdapter('---\nexclusive_paths: [package-lock.json, db/migrations/]\nalways_collide:\n  - CHANGELOG.md   # patch notes\n  - version.txt\n---\n');
@@ -89,5 +89,11 @@ describe('sammle', () => {
       { nr: 10, module: ['api'], dateien: ['api/x.ts'], exklusiv: false, migration: false, nach: [] },
       { nr: 20, module: ['web'], dateien: [], exklusiv: false, migration: false, nach: [10] },
     ]);
+  });
+
+  it('the command takes the value of --obergrenze for no epic', () => {
+    const gh: Aufrufer = (_p, args) => ({ code: 0, stdout: JSON.stringify({ body: `## Betroffene Module\n- m${args[2]}` }), stderr: '' });
+    const r = belegung(['C:/gibt-es-nicht', 'o/r', '#10', '#20', '--obergrenze', '3'], gh) as { bilder: EpicBild[] };
+    expect(r.bilder.map((b) => b.nr)).toEqual([10, 20]);
   });
 });

@@ -39,6 +39,14 @@ export interface Optionen {
   mergeDauerMs?: number;
   /** an existing repository and accounts instead of fresh ones (a second driver process, D16) */
   vorhanden?: { repo: string; konten: string[] };
+  /** merge.ps1 as a function of the call (async: it may merge for real); wins over merge */
+  mergeEcht?: (pr: number, n: number) => string;
+  /** the gate command of the adapter (-Command starting with "gate"): output and exit code */
+  gate?: (befehl: string, cwd: string, n: number) => { code: number; stdout: string };
+  /** `gh pr view --json headRefName,...` of a PR */
+  prInfo?: (pr: number) => { headRefName: string; baseRefName: string; headRefOid: string; body: string };
+  /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
+  worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
 }
 
 export interface Protokoll {
@@ -51,6 +59,9 @@ export interface Protokoll {
   nachMerge: string[];
   meldungen: string[];
   zeitleiste: string[];
+  /** bodies written with `gh pr edit` */
+  prEdits: { pr: number; body: string }[];
+  gates: { befehl: string; cwd: string }[];
 }
 
 export function aufbau(o: Optionen = {}) {
@@ -71,7 +82,8 @@ export function aufbau(o: Optionen = {}) {
     }
     return k;
   });
-  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [] };
+  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [] };
+  let gateN = 0;
   let ramN = 0;
   const prN = new Map<number, number>();
   const mergeN = new Map<number, number>();
@@ -95,6 +107,11 @@ export function aufbau(o: Optionen = {}) {
       p.logbuch.push(opts?.eingabe ?? '');
       return ok();
     }
+    if (a === 'pr' && b === 'view' && args.join(' ').includes('headRefName') && o.prInfo) return ok(JSON.stringify(o.prInfo(nr)));
+    if (a === 'pr' && b === 'edit') {
+      p.prEdits.push({ pr: nr, body: opts?.eingabe ?? '' });
+      return ok();
+    }
     if (a === 'pr' && b === 'view') {
       const n = (prN.get(nr) ?? 0) + 1;
       prN.set(nr, n);
@@ -105,9 +122,16 @@ export function aufbau(o: Optionen = {}) {
     return { code: 1, stdout: '', stderr: `gh unerwartet: ${args.join(' ')}` };
   };
 
-  const langsam: AsyncAufrufer = async (programm, args) => {
+  const langsam: AsyncAufrufer = async (programm, args, opts) => {
     p.aufrufe.push([programm, ...args]);
+    if (programm === 'git') return aufrufen(programm, args, opts);
     const skript = skriptVon(args);
+    const befehl = args[args.indexOf('-Command') + 1] ?? '';
+    if (args.includes('-Command') && befehl.startsWith('gate') && o.gate) {
+      p.gates.push({ befehl, cwd: opts?.cwd ?? '' });
+      p.zeitleiste.push(`gate ${befehl}`);
+      return { ...o.gate(befehl, opts?.cwd ?? '', ++gateN), stderr: '' };
+    }
     if (skript === 'ram.ps1') {
       const liste = o.ram ?? ['{"level":"ok","percent_used":50,"free_gb":30}'];
       const z = liste[Math.min(ramN++, liste.length - 1)];
@@ -119,9 +143,14 @@ export function aufbau(o: Optionen = {}) {
       mergeN.set(pr, n);
       p.merges.push(pr);
       if (o.mergeDauerMs) await new Promise((r) => setTimeout(r, o.mergeDauerMs));
-      const zeile = o.merge?.(pr, n) ?? `GEMERGT #${pr} -> main`;
+      const zeile = o.mergeEcht?.(pr, n) ?? o.merge?.(pr, n) ?? `GEMERGT #${pr} -> main`;
       if (zeile.startsWith('GEMERGT')) p.zeitleiste.push(`gemergt ${pr}`);
       return ok(`${zeile}\n`);
+    }
+    const aktion = args[args.indexOf('-Action') + 1];
+    if (skript === 'worktree.ps1' && o.worktree && aktion !== 'CleanupStale') {
+      p.zeitleiste.push(`worktree ${aktion}`);
+      return ok(o.worktree(aktion, args, opts?.env));
     }
     if (skript === 'worktree.ps1') {
       p.aufraeumen++;
