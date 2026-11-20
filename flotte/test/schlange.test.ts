@@ -158,6 +158,25 @@ describe('A: die Merge-Schlange', () => {
     expect(git(t.epics[1].wt, 'rev-parse', 'HEAD')).toBe(git(t.repo, 'rev-parse', 'origin/epic/5-x'));
   }, T);
 
+  it('after the merge the local epic branch goes when it lies wholly in origin; one a worktree holds stays', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }]);
+    git(t.repo, 'worktree', 'remove', t.epics[0].wt);
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ warte: 1500 }, { text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
+    const e = texte(z);
+    expect(e).toContain('#3 lokaler Branch epic/3-x gelöscht (liegt ganz in origin/main)');
+    expect(e.some((x) => /^#4 lokaler Branch epic\/4-x bleibt: .*(checked out|ausgecheckt|used by worktree)/.test(x))).toBe(true);
+    expect(aufrufen('git', ['-C', t.repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/epic/3-x']).code).not.toBe(0);
+  }, T);
+
+  it('--konto-max keeps an account to its share of the epics', async () => {
+    const t = aufbau();
+    const buch = drehbuch([3, 4, 5].map((n) => lauf(n, [{ warte: 300 }, { text: ende(n, 10 + n) }])));
+    const z = await fahre(t.einstellung(buch, [3, 4, 5], { kontoMax: { [t.konten[1]]: 1 } }), t.welt);
+    expect(Object.values(z.epics).filter((e) => e.konto === t.konten[1])).toHaveLength(1);
+    expect(Object.values(z.epics).every((e) => e.stufe === 'fertig')).toBe(true);
+  }, T);
+
   it('blocks after three gate runs of the driver when the base keeps moving', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { mergeImmerAbgelehnt: 13 });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);

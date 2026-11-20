@@ -36,6 +36,8 @@ export interface Einstellung {
   ramWarn: number | null;
   /** --obergrenze: a fixed fleet limit instead of the one from the 7-day projection (dress rehearsals) */
   obergrenze: number | null;
+  /** --konto-max <dir>=<n>: at most n epics of this deployment on that account (an account that must last) */
+  kontoMax: Record<string, number>;
   verbrauchMaxAlterMin: number;
   /** /epic-nacharbeit while the PR is open when FLOTTE-ENDE names open points (Phase 4.1) */
   nacharbeit: boolean;
@@ -69,6 +71,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     plattMinGb: 20,
     ramWarn: null,
     obergrenze: null,
+    kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
     sweepRoot: null,
@@ -547,7 +550,7 @@ class Treiber {
       }
     }
     if (this.ramBremse.halt || !this.platteGenug) return;
-    const gruen = this.e.konten.filter((k) => this.bewertung.get(k)?.stufe === 'gruen');
+    const gruen = this.e.konten.filter((k) => this.bewertung.get(k)?.stufe === 'gruen' && this.epicsAuf(k) < (this.e.kontoMax[k] ?? Infinity));
     if (!gruen.length) return;
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
@@ -1045,8 +1048,31 @@ class Treiber {
       if (r.code) this.w.melde(`FEHLER nach_merge #${ep.nr}: ${befehl}: ${(r.stderr || r.stdout).trim().slice(-500)}`);
     }
     await this.aufraeumen(ep.nr);
+    this.lokalerBranchWeg(ep);
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
+  }
+
+  /**
+   * The local epic branch of the main checkout, once all its commits are provably in the base on
+   * origin (merge.ps1 does the same for the remote branch). A branch a worktree still holds stays.
+   */
+  lokalerBranchWeg(ep: FlottenEpic): void {
+    const v = this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName']);
+    let j: { headRefName?: string; baseRefName?: string } = {};
+    try {
+      j = JSON.parse(v.stdout);
+    } catch {
+      return;
+    }
+    const { headRefName: kopf, baseRefName: basis } = j;
+    if (!kopf || !basis) return;
+    const git = (...a: string[]) => this.w.aufrufer('git', ['-C', this.e.repo, ...a]);
+    if (git('rev-parse', '--verify', '--quiet', `refs/heads/${kopf}`).code) return;
+    git('fetch', '-q', 'origin', basis);
+    if (git('merge-base', '--is-ancestor', `refs/heads/${kopf}`, `origin/${basis}`).code) return this.ereignis(ep.nr, `lokaler Branch ${kopf} bleibt: nicht ganz in origin/${basis}`);
+    const d = git('branch', '-D', kopf);
+    this.ereignis(ep.nr, d.code ? `lokaler Branch ${kopf} bleibt: ${d.stderr.trim().split('\n')[0]}` : `lokaler Branch ${kopf} gelöscht (liegt ganz in origin/${basis})`);
   }
 
   // ---- end of the deployment
@@ -1084,7 +1110,7 @@ export async function fahren(argv: string[]): Promise<unknown> {
   const epics = nummern(wert(argv, '--epics'));
   const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
   if (!repo || repo.startsWith('--') || !forge || !epics.length || !konten.length) {
-    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
+    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <dir>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
   }
   const e = standard(repo, forge, epics, konten);
   e.skill = wert(argv, '--skill') ?? e.skill;
@@ -1100,6 +1126,12 @@ export async function fahren(argv: string[]): Promise<unknown> {
   e.ramWarn = ramWarn ? Number(ramWarn) : null;
   const grenze = wert(argv, '--obergrenze');
   e.obergrenze = grenze ? Number(grenze) : null;
+  for (const t of (wert(argv, '--konto-max') ?? '').split(',').filter(Boolean)) {
+    const i = t.lastIndexOf('=');
+    const k = standard(repo, forge, epics, [t.slice(0, i)]).konten[0];
+    if (i < 0 || !e.konten.includes(k) || !(Number(t.slice(i + 1)) >= 0)) throw new Error(`--konto-max ${t}: <kontenverzeichnis aus --konten>=<zahl>`);
+    e.kontoMax[k] = Number(t.slice(i + 1));
+  }
   e.sweepRoot = wert(argv, '--sweep-root') ?? null;
   e.sweepTemp = wert(argv, '--sweep-temp') ?? null;
   e.sweepDocker = !argv.includes('--ohne-docker');
