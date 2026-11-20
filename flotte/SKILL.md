@@ -39,6 +39,7 @@ Mögliche Schalter:
 | `--skill` | `epic` |
 | `--modell` | Standard des Kontos |
 | `--admiral-modell` / `--admiral-effort` | `fable` / `high` |
+| `--admiral-konto <dir>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen |
 | `--ping-modell` | `haiku` |
 | `--leerlauf-min` | `60` |
 | `--takt-s` | `60` |
@@ -50,7 +51,7 @@ Mögliche Schalter:
 | `--ohne-nacharbeit` | Nacharbeit läuft |
 | `--merge-skript` | `merge.ps1` des Leitstands |
 | `--max-min` | ohne Grenze |
-| `--konto-max <dir>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss) |
+| `--konto-max <dir>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
 Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
@@ -69,7 +70,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
    - RAM über `ram.ps1`: `warn` und `hold` halten an, weiter geht es erst 5 Punkte unter der Warnschwelle. Ein Messfehler gilt als `hold`, mit seinem Fehlertext; die nächste gute Messung gibt frei.
    - Plattenplatz.
    - Verbrauch je Konto aus dem `rate_limit_event` der Läufe, in `<CLAUDE_CONFIG_DIR>/flotte/verbrauch.json`. Gelb startet nichts Neues, Rot hält auch Fortsetzungen an. Ein Wert, der älter als 30 Minuten ist, gilt als rot. Ein Lauf meldet nur etwa ein- bis zweimal je Zug, deshalb holt ab 15 Minuten ein Mini-Lauf mit Haiku einen frischen Wert, auch während auf dem Konto ein Lauf arbeitet. Das geschieht nur, wenn auf dem Konto etwas starten oder weiterlaufen will, also nicht, während alles auf den Menschen wartet.
-4. **Fragen:** Der Admiral entscheidet, was sich bis zum Merge widerrufen lässt. Sein Schema lässt als `nr` nur die Nummern der Fragen zu. Jede Entscheidung kommt als Kommentar ans Issue; einflussreiche Entscheidungen kommen zusätzlich ins Logbuch. Was beim Menschen liegt, parkt nur die Pakete aus `Betrifft:`; die übrigen laufen weiter (`weiter ohne <Pakete>`).
+4. **Fragen:** Der Admiral entscheidet, was sich bis zum Merge widerrufen lässt. Sein Schema lässt als `nr` nur die Nummern der Fragen zu. Jede Entscheidung kommt als Kommentar ans Issue; einflussreiche Entscheidungen kommen zusätzlich ins Logbuch. Was beim Menschen liegt, parkt nur die Pakete aus `Betrifft:`; die übrigen laufen weiter (`weiter ohne <Pakete>`). Mit `merge: nach_gate` sieht vor dem Merge kein Mensch den PR; dann liegen zusätzlich Schema und Migration, ADRs, der Umfang des Epics, das Löschen von Daten und alles nach außen Sichtbare beim Menschen, auch gegen eine Empfehlung des Laufs.
 5. **Fehler:**
    - Ein Fehlstart wird höchstens zweimal neu gestartet.
    - Bei einem Netzfehler setzt der Treiber höchstens zweimal mit `--resume` fort.
@@ -82,12 +83,14 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
      - Im Epic kommt die dritte Sperre.
    - Nach jedem toten Lauf räumt `CleanupStale` auf. Es verschont die Worktrees der Epics, die noch laufen oder warten: Jeder Lauf bekommt `EPIC_LOCK_HOLDER`, eine Datei in `<git common dir>/flotte/halten/`. Der Treiber löscht sie erst, wenn das Epic endet.
 6. **Ende eines Laufs:**
+   - Der PR aus `FLOTTE-ENDE` muss offen sein und den Epic-Branch `epic/<nr>-…` als Head haben. Sonst mergt und beobachtet der Treiber ihn nicht; die Frage, welcher PR zum Epic gehört, geht an den Menschen (Frage 99), und der ganze Lauf wartet.
    - Mit `merge: nach_gate` kommt das Epic in die **Merge-Schlange**, in der Reihenfolge seines `FLOTTE-ENDE`. Nur ihr Kopf ist dran, neben der Schleife: Während `merge.ps1` und das Gate laufen, beantwortet der Treiber andere Läufe.
-     - Ist der Gate-Block im PR gültig, mergt `merge.ps1`.
+     - **Gate-Nachweis:** Der letzte Lauf im Gate-Block des PRs muss im Log des Laufs als Ergebnis eines Werkzeugaufrufs stehen: grün, mit derselben Basis, demselben Head und derselben Art (voll oder Immer-Teil). Ein Block, den der Lauf nur geschrieben hat, reicht nicht. Fehlt der Nachweis, fährt der Treiber das volle Gate selbst (wie unten); ohne `gate_command` mergt ein Mensch.
+     - Mit Nachweis mergt `merge.ps1`, wenn der Block gültig ist.
      - Sonst holt der Treiber selbst die Basis in den Epic-Worktree (`git merge origin/<basis>`), fährt `gate_command` des Adapters dort, schreibt den Block in die PR-Beschreibung, pusht und mergt. Hat sich die Basis seit dem letzten vollen grünen Lauf nur in Bereichen bewegt, die das Epic nicht berührt (`gate_areas`), fährt er nur `gate_always_command`. Hat die Sitzung des Laufs den Epic-Worktree mitgenommen, legt der Treiber ihn mit `worktree.ps1 Up` neu an und baut ihn nach dem Merge mit `Down` ab.
      - Ein Konflikt oder ein rotes Gate geht mit der Ausgabe an den Lauf zurück (`--resume`); das Epic stellt sich hinten an, die Schlange läuft weiter. Ein rotes Gate setzt den Worktree auf den Stand des PRs zurück. Nach zwei Rückgaben wird das Epic bei der dritten blockiert.
      - Bei n Epics in der Schlange sind so höchstens n−1 Gate-Wiederholungen nötig. Der Zähler steht als `gateWiederholungen` je Epic und in der Statistik; nach drei eigenen Gate-Läufen für dasselbe Epic wird es blockiert.
-     - Ohne `gate_command` im Adapter bleibt es beim alten Weg: Der Lauf bessert den Block selbst nach (zwei Nachbesserungen, fünf Basis-Nachzüge).
+     - Ohne `gate_command` im Adapter bleibt es mit Nachweis beim alten Weg: Der Lauf bessert den Block selbst nach (zwei Nachbesserungen, fünf Basis-Nachzüge).
    - Mit `merge: mensch` (Standard) meldet er „PR bereit“ und erkennt den Merge später.
    - Nach dem Merge: die `nach_merge`-Befehle des Adapters, dann `CleanupStale`, dann der lokale Epic-Branch, wenn er ganz in `origin/<basis>` liegt. Bekommt ein anderer offener PR außerhalb der Schlange einen Konflikt, geht ein Auftrag an dessen Lauf.
 7. **Sichtbar:**

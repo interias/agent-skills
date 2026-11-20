@@ -15,7 +15,7 @@ import { blockAus, blockEinsetzen, gateForm, gateLaeufe, gemeinsameBereiche, glo
 import { belege, bildAus, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { beobachte, schrittAus } from '../src/werkzeuge/lauf.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
-import { aufbau, drehbuch, ende, lauf, type Optionen } from './flotte-welt.ts';
+import { aufbau, drehbuch, ende, lauf, type Optionen, werkzeugErgebnis } from './flotte-welt.ts';
 
 const T = 60_000;
 const ADAPTER = 'merge: nach_gate\ngate_command: gate voll\ngate_always_command: gate teil\ngate_areas:\n  - a/ = A\n  - b/ = B';
@@ -99,15 +99,18 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
     bodies.set(10 + e.nr, `## Pakete\n- eins\n\n## Gate\n\`\`\`\n== Gate: Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n  A grün\nGate grün.\n\`\`\`\n\nCloses #${e.nr}\n`);
     liste.push({ nr: e.nr, pr: 10 + e.nr, branch, wt });
   }
-  return { ...t, epics: liste, origin };
+  /** the run ran the gate of its PR body (acceptance 3, finding 2) */
+  const nachweis = (nr: number) => werkzeugErgebnis(/```\n([\s\S]*?)\n```/.exec(bodies.get(10 + nr)!)![1]);
+  return { ...t, epics: liste, origin, nachweis };
 }
 
 const texte = (z: { ereignisse: { epic: number | null; text: string }[] }) => z.ereignisse.map((e) => `${e.epic ? `#${e.epic} ` : ''}${e.text}`);
+const index = (liste: string[], muster: RegExp) => liste.findIndex((z) => muster.test(z));
 
 describe('A: die Merge-Schlange', () => {
   it('merges in the order of FLOTTE-ENDE; n epics need n−1 gate runs of the driver, the part that always runs when the areas allow', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }, { nr: 5, datei: 'a/fuenf.txt' }]);
-    const buch = drehbuch([lauf(3, [{ warte: 100 }, { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, { text: ende(4, 14) }]), lauf(5, [{ warte: 2400 }, { text: ende(5, 15) }])]);
+    const buch = drehbuch([lauf(3, [{ warte: 100 }, t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, t.nachweis(4), { text: ende(4, 14) }]), lauf(5, [{ warte: 2400 }, t.nachweis(5), { text: ende(5, 15) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4, 5], { maxDauerMs: 40_000 }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig', 'fertig']);
     expect(z.statistik.gateWiederholungen).toBe(2);
@@ -130,9 +133,25 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['4'].mergeVersuche ?? 0).toBe(0);
   }, T);
 
+  it('without a gate call in the run\'s log the driver runs the full gate on the head before merge.ps1 (acceptance 3, finding 2)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
+    // the run wrote a valid block into the PR but never ran the gate
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', t.epics[0].wt]]);
+    const e = texte(z);
+    const ohne = index(e, /^#3 kein Gate-Aufruf im Log des Laufs zum Gate-Block .*: der Treiber fährt das Gate selbst$/);
+    expect(ohne).toBeGreaterThanOrEqual(0);
+    expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+    expect(e.some((x) => /^#3 Gate des Treibers \(voll, kein Gate-Aufruf im Log/.test(x))).toBe(true);
+    // the driver's block is the last run of the PR, and merge.ps1 merged on it
+    expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [false, true]]);
+  }, T);
+
   it('a red gate goes back to its run with the output, the queue goes on, the epic queues up again at the end', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }, { nr: 5, datei: 'a/fuenf.txt' }], { rot: (cwd, n) => n === 1 && cwd.endsWith('e4') });
-    const buch = drehbuch([lauf(3, [{ warte: 100 }, { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, { text: ende(4, 14) }]), lauf(5, [{ warte: 2400 }, { text: ende(5, 15) }]), lauf(4, [{ warte: 3000 }, { text: ende(4, 14) }])]);
+    const buch = drehbuch([lauf(3, [{ warte: 100 }, t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, t.nachweis(4), { text: ende(4, 14) }]), lauf(5, [{ warte: 2400 }, t.nachweis(5), { text: ende(5, 15) }]), lauf(4, [{ warte: 3000 }, t.nachweis(4), { text: ende(4, 14) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4, 5], { maxDauerMs: 45_000 }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig', 'fertig']);
     const zuege4 = buch.gesehen().filter((g) => /^Flotte, Epic #4\b/.test(g.eingabe));
@@ -147,7 +166,7 @@ describe('A: die Merge-Schlange', () => {
 
   it('a conflict when the base comes in goes back to the run; the worktree is left as it was; the third time blocks', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/x.txt', inhalt: 'drei\n' }, { nr: 5, datei: 'a/x.txt', inhalt: 'fünf\n' }]);
-    const buch = drehbuch([lauf(3, [{ warte: 100 }, { text: ende(3, 13) }]), lauf(5, [{ warte: 1500 }, { text: ende(5, 15) }])]);
+    const buch = drehbuch([lauf(3, [{ warte: 100 }, t.nachweis(3), { text: ende(3, 13) }]), lauf(5, [{ warte: 1500 }, t.nachweis(5), { text: ende(5, 15) }])]);
     const z = await fahre(t.einstellung(buch, [3, 5], { maxDauerMs: 40_000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(z.epics['5']).toMatchObject({ stufe: 'blockiert', mergeVersuche: 3 });
@@ -161,7 +180,7 @@ describe('A: die Merge-Schlange', () => {
   it('after the merge the local epic branch goes when it lies wholly in origin; one a worktree holds stays', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }]);
     git(t.repo, 'worktree', 'remove', t.epics[0].wt);
-    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ warte: 1500 }, { text: ende(4, 14) }])]);
+    const buch = drehbuch([lauf(3, [t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ warte: 1500 }, t.nachweis(4), { text: ende(4, 14) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
     const e = texte(z);
     expect(e).toContain('#3 lokaler Branch epic/3-x gelöscht (liegt ganz in origin/main)');
@@ -203,7 +222,7 @@ describe('A: die Merge-Schlange', () => {
     });
     // the session of #4 ended: its epic worktree is gone, the branch stays
     git(t.repo, 'worktree', 'remove', t.epics[1].wt);
-    const buch = drehbuch([lauf(3, [{ warte: 100 }, { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, { text: ende(4, 14) }])]);
+    const buch = drehbuch([lauf(3, [{ warte: 100 }, t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, t.nachweis(4), { text: ende(4, 14) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 30_000 }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
     expect(aufrufe.map((a) => a.aktion)).toEqual(['Up', 'Down']);

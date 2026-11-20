@@ -93,6 +93,12 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts fahren C:\Users\stefa\git\<projekt> --forge interias/<projekt> --epics 15,21 --konten C:\Users\stefa\.claude,C:\Users\stefa\.claude-arbeitspferd
    ```
 
+   **Läufe auf Konto 2, Admiral auf Konto 1:** `--konten <konto 2> --admiral-konto <konto 1>`.
+   Alle Admiral-Aufrufe laufen dann auf Konto 1, jeder Lauf auf Konto 2. Sollen Läufe Konto 1
+   nur begrenzt nutzen, nimmt man beide Konten in `--konten` und setzt
+   `--konto-max <konto 1>=<n>`: höchstens n Epics arbeiten dort gleichzeitig. Ein gemergtes,
+   blockiertes oder abgebrochenes Epic gibt seinen Platz frei.
+
 3. **Tafel öffnen:** `<projekt>\.git\flotte\tafel.html`. Einem Lauf zusehen:
    `flotte zuschauen <projekt> <epic>` in einem zweiten Terminal.
 4. **Fragen** kommen als `FRAGE AN DEN MENSCHEN` ans Issue, mit GitHub-Benachrichtigung, und

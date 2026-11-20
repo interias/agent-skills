@@ -105,19 +105,51 @@ function abschnitt(body: string, heading: string): { zeilen: string[]; von: numb
 /** The runs of the gate section in order; null without a section. */
 export function gateLaeufe(body: string, f: GateForm): GateLauf[] | null {
   const a = abschnitt(body, f.heading);
-  if (!a) return null;
-  const teil = a.zeilen.slice(a.von + 1, a.bis);
-  const starts = teil.map((z, i) => (f.base.test(z) ? i : -1)).filter((i) => i >= 0);
+  return a ? laeufeIn(a.zeilen.slice(a.von + 1, a.bis), f) : null;
+}
+
+/** The runs in a text, each from a line with a base to the next one. */
+function laeufeIn(zeilen: string[], f: GateForm): GateLauf[] {
+  const starts = zeilen.map((z, i) => (f.base.test(z) ? i : -1)).filter((i) => i >= 0);
   return starts.map((s, k) => {
-    const bis = starts[k + 1] ?? teil.length;
+    const bis = starts[k + 1] ?? zeilen.length;
     return {
-      base: f.base.exec(teil[s])![1],
-      head: f.head.exec(teil[s])?.[1] ?? null,
-      gruen: teil.slice(s + 1, bis).some((z) => z.trim() === f.green),
-      teil: f.teil.test(teil[s]),
+      base: f.base.exec(zeilen[s])![1],
+      head: f.head.exec(zeilen[s])?.[1] ?? null,
+      gruen: zeilen.slice(s + 1, bis).some((z) => z.trim() === f.green),
+      teil: f.teil.test(zeilen[s]),
     };
   });
 }
+
+/** The text of the tool results in one stream-json line of a run's log (main session and subagents). */
+function werkzeugErgebnisse(zeile: string): string[] {
+  let j: { type?: string; message?: { content?: unknown } };
+  try {
+    j = JSON.parse(zeile);
+  } catch {
+    return [];
+  }
+  if (j.type !== 'user' || !Array.isArray(j.message?.content)) return [];
+  return (j.message.content as { type?: string; content?: unknown }[])
+    .filter((c) => c.type === 'tool_result')
+    .map((c) => (typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? (c.content as { text?: string }[]).map((x) => x.text ?? '').join('\n') : ''));
+}
+
+/**
+ * The gate runs that appear in a run's log as the result of a tool call (acceptance 3, finding 2): the
+ * output of a real gate call, not a block the run wrote into its text or the PR. The line numbers of
+ * a Read (a gate in the background, read from its output file) are dropped.
+ */
+export function gateLaeufeImLog(log: string, f: GateForm): GateLauf[] {
+  return log
+    .split(/\r?\n/)
+    .flatMap(werkzeugErgebnisse)
+    .flatMap((t) => laeufeIn(t.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).map((z) => z.replace(/^\s*\d+(\t|→)/, '')), f));
+}
+
+/** Two SHAs name the same commit when the shorter is a prefix of the longer. */
+export const gleich = (a: string | null, b: string | null) => !!a && !!b && (a.length <= b.length ? b.startsWith(a) : a.startsWith(b));
 
 /** The last full green run before the end (the base of a part run), or null. */
 export function letzterVollLauf(laeufe: GateLauf[]): GateLauf | null {

@@ -3,7 +3,7 @@
 // call per question block. Everything the driver decides is in this file and tested by the
 // scripts D1–D21 (test/drehbuecher.test.ts).
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
@@ -15,7 +15,7 @@ import { type Bewertung, bewerte, lies as liesVerbrauch } from '../werkzeuge/ver
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
-import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gemeinsameBereiche, letzterVollLauf } from './gate.ts';
+import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { schreibeTafel } from './tafel.ts';
 
 export interface Einstellung {
@@ -27,6 +27,8 @@ export interface Einstellung {
   skill: string;
   modell: string | null;
   admiralModell: string | null;
+  /** --admiral-konto: CLAUDE_CONFIG_DIR of the admiral calls; null: the account of the epic (acceptance 3, finding 7) */
+  admiralKonto: string | null;
   admiralEffort: string | null;
   pingModell: string;
   leerlaufMs: number;
@@ -36,7 +38,7 @@ export interface Einstellung {
   ramWarn: number | null;
   /** --obergrenze: a fixed fleet limit instead of the one from the 7-day projection (dress rehearsals) */
   obergrenze: number | null;
-  /** --konto-max <dir>=<n>: at most n epics of this deployment on that account (an account that must last) */
+  /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
   kontoMax: Record<string, number>;
   verbrauchMaxAlterMin: number;
   /** /epic-nacharbeit while the PR is open when FLOTTE-ENDE names open points (Phase 4.1) */
@@ -64,6 +66,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     skill: 'epic',
     modell: null,
     admiralModell: 'fable',
+    admiralKonto: null,
     admiralEffort: 'high',
     pingModell: 'haiku',
     leerlaufMs: 60 * 60_000,
@@ -178,6 +181,11 @@ export interface FlottenZustand extends Zustand {
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
 type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean };
 
+type PrInfo = { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
+
+/** number of the driver's own question when the PR of FLOTTE-ENDE is not the epic's */
+export const PR_FRAGE = 99;
+
 /** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
 export const GATE_GRENZE = 3;
 const GATE_MAX_MS = 90 * 60_000;
@@ -258,7 +266,7 @@ class Treiber {
       aktiv: true,
       stand: '',
     };
-    const fehlt = this.e.konten.filter((k) => !existsSync(k));
+    const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
     if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
@@ -557,7 +565,7 @@ class Treiber {
       }
     }
     if (this.ramBremse.halt || !this.platteGenug) return;
-    const gruen = this.e.konten.filter((k) => this.bewertung.get(k)?.stufe === 'gruen' && this.epicsAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    const gruen = this.e.konten.filter((k) => this.bewertung.get(k)?.stufe === 'gruen' && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
     if (!gruen.length) return;
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
@@ -573,9 +581,10 @@ class Treiber {
     for (const nr of plan.neu) {
       const ep = this.epic(nr);
       // fewest running runs; on a tie the account with fewer epics so far (dress rehearsal: with
-      // a limit of 1 every tie went to account 1). --konto-max counts the epics placed in this
-      // tick too (probe 3: two new epics in one tick both went to the capped account).
-      const frei = gruen.filter((k) => this.epicsAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+      // a limit of 1 every tie went to account 1). --konto-max counts the epics at work on the
+      // account, those placed in this tick too (probe 3: two new epics in one tick both went to the
+      // capped account).
+      const frei = gruen.filter((k) => this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
       if (!frei.length) break;
       const konto = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
       ep.konto = konto;
@@ -591,6 +600,11 @@ class Treiber {
 
   aufKonto(k: string): number {
     return Object.values(this.z.epics).filter((ep) => ep.konto === k && this.laufend.has(ep.nr)).length;
+  }
+
+  /** epics of the account that are not done: running, asking, at the PR or waiting for their merge (--konto-max) */
+  aktivAuf(k: string): number {
+    return Object.values(this.z.epics).filter((ep) => ep.konto === k && !ENDE.has(ep.stufe) && ep.stufe !== 'wartend').length;
   }
 
   epicsAuf(k: string): number {
@@ -707,8 +721,8 @@ class Treiber {
     const r = await this.w.starte({
       ...this.programm(),
       repo: this.e.repo,
-      konto: ep.konto!,
-      auftrag: admiralAuftrag(block, kontext),
+      konto: this.e.admiralKonto ?? ep.konto!,
+      auftrag: admiralAuftrag(block, kontext, this.adapter.merge),
       modell: this.e.admiralModell,
       extraArgs: [...admiralArgs(block), ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
       werkzeuge: admiralWerkzeuge,
@@ -811,6 +825,8 @@ class Treiber {
     }
     ep.stufe = 'pr';
     if (!ep.pr) return this.halt(ep, 'blockiert', 'FLOTTE-ENDE ohne Pull Request');
+    const fremd = this.fremderPr(ep);
+    if (fremd) return this.prFrage(ep, fremd);
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
     if (this.adapter.merge !== 'nach_gate') return this.prBereit(ep, 'merge: mensch');
     if (this.mergeAlt) return this.prBereit(ep, this.mergeAlt);
@@ -820,6 +836,41 @@ class Treiber {
     ep.notiz = `PR #${ep.pr}: Merge-Schlange, Platz ${this.z.schlange.indexOf(nr) + 1}`;
     this.ereignis(nr, `Schlange: Platz ${this.z.schlange.indexOf(nr) + 1} (${this.z.schlange.map((n) => `#${n}`).join(', ')})`);
     this.schlangeWeiter();
+  }
+
+  prInfo(pr: number): PrInfo | null {
+    const v = this.w.aufrufer('gh', ['pr', 'view', String(pr), '--repo', this.e.forge, '--json', 'state,headRefName,baseRefName,headRefOid,body']);
+    try {
+      return JSON.parse(v.stdout) as PrInfo;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Acceptance 3, finding 4: the PR of FLOTTE-ENDE must be the open PR of this epic's branch
+   * (epic/<nr>-<slug>, epic/SKILL.md, Phase 3); a foreign one is never watched or merged.
+   */
+  fremderPr(ep: FlottenEpic): string | null {
+    const info = this.prInfo(ep.pr!);
+    if (!info) return `PR #${ep.pr} aus FLOTTE-ENDE ist nicht lesbar`;
+    if (!new RegExp(`^epic/${ep.nr}(-|$)`).test(info.headRefName ?? '')) return `PR #${ep.pr} aus FLOTTE-ENDE hat den Head ${info.headRefName ?? '?'}, nicht den Epic-Branch epic/${ep.nr}-…`;
+    if (info.state !== 'OPEN') return `PR #${ep.pr} aus FLOTTE-ENDE ist nicht offen (${info.state ?? '?'})`;
+    return null;
+  }
+
+  /** The PR of FLOTTE-ENDE does not belong to the epic: no merge, the whole run waits for the person. */
+  prFrage(ep: FlottenEpic, grund: string): void {
+    const nr = ep.nr;
+    const zeit = new Date(this.w.jetzt()).toISOString();
+    const frage = `${grund}. Welcher Pull Request gehört zu Epic #${nr}?`;
+    this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, empfehlung: 'den PR des Epic-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
+    kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber mergt und beobachtet diesen PR nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
+    this.ereignis(nr, `❓ ${grund}: kein Merge, Frage an den Menschen`);
+    ep.pr = null;
+    ep.stufe = 'frage';
+    ep.notiz = 'wartet auf den Menschen (PR gehört nicht zum Epic)';
+    ep.festgehalten = this.an(nr, `${grund}. Der Treiber hat ihn nicht übernommen. Prüfe, welcher Pull Request zu deinem Epic-Branch gehört, und beende den Zug mit FLOTTE-ENDE und diesem PR. ${this.blockForm(nr)}`);
   }
 
   /** Starts the head of the merge queue when nothing works on it; an epic that left 'pr' drops out. */
@@ -866,6 +917,18 @@ class Treiber {
    */
   async kopf(ep: FlottenEpic): Promise<void> {
     let selbst: 'voll' | 'teil' | null = null;
+    // acceptance 3, finding 2: a block the run only wrote is no gate. The last run of the gate
+    // section must appear in the run's log as the result of a tool call; else the driver gates.
+    const info = this.prInfo(ep.pr!);
+    const nachweis = info ? this.gateNachweis(ep, info.body) : 'PR nicht lesbar';
+    if (nachweis) {
+      if (!this.adapter.gate_command) return this.prBereit(ep, `${nachweis}, und der Adapter hat kein gate_command`);
+      this.ereignis(ep.nr, `${nachweis}: der Treiber fährt das Gate selbst`);
+      const g = await this.nachziehen(ep, nachweis);
+      if (g.art === 'mensch') return this.prBereit(ep, g.text);
+      if (g.art === 'zurueck') return this.zurueck(ep, g.text);
+      selbst = 'voll';
+    }
     for (;;) {
       const zeile = await this.mergeAufruf(ep);
       if (/^GEMERGT/.test(zeile)) return this.nachMerge(ep);
@@ -883,7 +946,7 @@ class Treiber {
         voll = !basisWeg;
       }
       if ((ep.gateWiederholungen ?? 0) >= GATE_GRENZE) return this.halt(ep, 'blockiert', `${GATE_GRENZE} Gate-Läufe des Treibers, die Basis zog jedes Mal davon: ${zeile}`);
-      const g = await this.nachziehen(ep, voll);
+      const g = await this.nachziehen(ep, voll ? 'Teil-Lauf von merge.ps1 abgelehnt' : null);
       if (g.art === 'gruen') {
         selbst = g.teil ? 'teil' : 'voll';
         continue;
@@ -891,6 +954,23 @@ class Treiber {
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
       return this.zurueck(ep, g.text);
     }
+  }
+
+  /**
+   * null when the last run of the PR's gate section is green and appears, with the same base, head
+   * and kind, as the result of a tool call in a log of this epic's runs; else why not.
+   */
+  gateNachweis(ep: FlottenEpic, body: string): string | null {
+    const form = gateForm(this.adapter);
+    const letzter = gateLaeufe(body ?? '', form)?.at(-1);
+    if (!letzter || !letzter.gruen || !letzter.head) return 'kein grüner Gate-Lauf in der PR-Beschreibung';
+    const laeufe = join(this.dir, 'laeufe');
+    const logs = existsSync(laeufe) ? readdirSync(laeufe).filter((d) => d.startsWith(`${ep.nr}-`) && d.endsWith('.jsonl')) : [];
+    for (const d of logs) {
+      const im = gateLaeufeImLog(readFileSync(join(laeufe, d), 'utf8'), form);
+      if (im.some((l) => l.gruen && l.teil === letzter.teil && gleich(l.base, letzter.base) && gleich(l.head, letzter.head))) return null;
+    }
+    return `kein Gate-Aufruf im Log des Laufs zum Gate-Block (Basis ${letzter.base}, HEAD ${letzter.head})`;
   }
 
   /** Back to the run with what failed; counts against the run (two, then blocked). */
@@ -959,7 +1039,7 @@ class Treiber {
    * pushed and the block appended to the gate section of the PR. Red or a conflict: nothing pushed,
    * the text goes to the run. 'mensch': the gate cannot give a block merge.ps1 would read.
    */
-  async nachziehen(ep: FlottenEpic, voll: boolean): Promise<GateErgebnis> {
+  async nachziehen(ep: FlottenEpic, voll: string | null): Promise<GateErgebnis> {
     const nr = ep.nr;
     const v = this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName,headRefOid,body']);
     let info: { headRefName: string; baseRefName: string; headRefOid: string; body: string };
@@ -996,13 +1076,14 @@ class Treiber {
     return r;
   }
 
-  async gateFahren(ep: FlottenEpic, wt: string, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }, ziel: string, voll: boolean): Promise<GateErgebnis> {
+  /** voll: why the full gate runs regardless of the areas, or null */
+  async gateFahren(ep: FlottenEpic, wt: string, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }, ziel: string, voll: string | null): Promise<GateErgebnis> {
     const nr = ep.nr;
     const git = (...a: string[]) => this.w.aufrufer('git', ['-C', wt, ...a]);
     const form = gateForm(this.adapter);
     let teil = false;
     let warum = 'Adapter ohne gate_always_command oder gate_areas';
-    if (voll) warum = 'Teil-Lauf von merge.ps1 abgelehnt';
+    if (voll) warum = voll;
     else if (this.adapter.gate_always_command && this.adapter.gate_areas.length) {
       const vorher = letzterVollLauf(gateLaeufe(info.body, form) ?? []);
       const d = (...a: string[]) => {
@@ -1151,7 +1232,7 @@ export async function fahren(argv: string[]): Promise<unknown> {
   const epics = nummern(wert(argv, '--epics'));
   const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
   if (!repo || repo.startsWith('--') || !forge || !epics.length || !konten.length) {
-    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <dir>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
+    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--admiral-konto <dir>] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <dir>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
   }
   const e = standard(repo, forge, epics, konten);
   e.skill = wert(argv, '--skill') ?? e.skill;
@@ -1159,6 +1240,8 @@ export async function fahren(argv: string[]): Promise<unknown> {
   e.admiralModell = wert(argv, '--admiral-modell') ?? e.admiralModell;
   e.admiralEffort = wert(argv, '--admiral-effort') ?? e.admiralEffort;
   if (e.admiralEffort === 'keine') e.admiralEffort = null;
+  const ak = wert(argv, '--admiral-konto');
+  if (ak) e.admiralKonto = standard(repo, forge, epics, [ak]).konten[0];
   e.pingModell = wert(argv, '--ping-modell') ?? e.pingModell;
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;

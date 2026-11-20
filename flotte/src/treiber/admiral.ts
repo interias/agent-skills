@@ -61,7 +61,13 @@ einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht o
 
 antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn.`;
 
-export function admiralAuftrag(block: FrageBlock, kontext: string): string {
+/**
+ * merge: nach_gate (acceptance 3, finding 3): no person sees the PR before the merge, so "revocable
+ * until the merge" means follow-up work on the base. These questions then go to the person.
+ */
+export const NACH_GATE = `Dieses Projekt mergt mit merge: nach_gate: Vor dem Merge sieht kein Mensch den Pull Request, und Widerrufen hieße Folgearbeit auf der Basis. Deshalb liegen hier zusätzlich beim Menschen (beim_menschen: true), auch wenn der Lauf eine Empfehlung hat und auch wenn sie vorsichtig ist: Schema oder Migration (Datenbank, Datenformat, gespeicherte Daten); ein ADR (neu, geändert, abgelöst, oder ein Widerspruch zu einem); der Umfang des Epics (etwas weglassen, dazunehmen, in ein Ticket verschieben); Löschen von Daten; alles nach außen Sichtbare (öffentliche Schnittstelle, Oberfläche und Texte für Nutzer, Veröffentlichtes, Nachrichten an Dritte). Für diese Fragen gilt „Folge der Empfehlung des Laufs" nicht. Alle anderen Fragen entscheidest du wie oben.`;
+
+export function admiralAuftrag(block: FrageBlock, kontext: string, merge: string | null = null): string {
   const fragen = block.fragen
     .map((f) => [
       `${f.nr}. ${f.frage}`,
@@ -72,7 +78,7 @@ export function admiralAuftrag(block: FrageBlock, kontext: string): string {
       `   Regel/Quelle: ${f.quelle}`,
     ].join('\n'))
     .join('\n');
-  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
+  return `FLOTTE-ADMIRAL\n${RECHT}${merge === 'nach_gate' ? `\n\n${NACH_GATE}` : ''}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
 }
 
 export function admiralArgs(block: FrageBlock): string[] {

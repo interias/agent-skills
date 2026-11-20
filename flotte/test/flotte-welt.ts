@@ -43,8 +43,8 @@ export interface Optionen {
   mergeEcht?: (pr: number, n: number) => string;
   /** the gate command of the adapter (-Command starting with "gate"): output and exit code */
   gate?: (befehl: string, cwd: string, n: number) => { code: number; stdout: string };
-  /** `gh pr view --json headRefName,...` of a PR */
-  prInfo?: (pr: number) => { headRefName: string; baseRefName: string; headRefOid: string; body: string };
+  /** `gh pr view --json headRefName,...` of a PR; default: open, on epic/<pr - 10>-x, with GATE_BODY */
+  prInfo?: (pr: number) => { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
   /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
   worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
 }
@@ -107,7 +107,7 @@ export function aufbau(o: Optionen = {}) {
       p.logbuch.push(opts?.eingabe ?? '');
       return ok();
     }
-    if (a === 'pr' && b === 'view' && args.join(' ').includes('headRefName') && o.prInfo) return ok(JSON.stringify(o.prInfo(nr)));
+    if (a === 'pr' && b === 'view' && args.join(' ').includes('headRefName')) return ok(JSON.stringify({ state: 'OPEN', ...(o.prInfo?.(nr) ?? { headRefName: `epic/${nr - 10}-x`, baseRefName: 'main', headRefOid: `bbbbbbbb${'2'.repeat(32)}`, body: GATE_BODY }) }));
     if (a === 'pr' && b === 'edit') {
       p.prEdits.push({ pr: nr, body: opts?.eingabe ?? '' });
       return ok();
@@ -215,6 +215,16 @@ export const admiral = (nr: number, antworten: { nr: number; antwort: string; be
   schritte: [{ zeile: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { antworten: antworten.map((a) => ({ herkunft: 'Skill-Empfehlung', grund: 'vorsichtig', einflussreich: false, ...a })) } } }],
 });
 
-export const ping = (anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
+/** the gate block of the default PR (prInfo) */
+export const GATE_BLOCK = '== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  web grün 0:50\nGate grün.';
+export const GATE_BODY = `## Pakete\n- eins\n\n## Gate\n\`\`\`\n${GATE_BLOCK}\n\`\`\`\n`;
+
+/** a step of a run: the result of a tool call with this output (a real gate call, acceptance 3, finding 2) */
+export const werkzeugErgebnis = (text: string) => ({ zeile: { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'gate', content: text }] } } });
+
+/** the run ran the gate of the default PR */
+export const gateGefahren = () => werkzeugErgebnis(`> gate\n${GATE_BLOCK}\n`);
+
+export const ping =(anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
 
 export { drehbuch };

@@ -9,7 +9,7 @@ import { fahre, SPERREN_GRENZE, standard } from '../src/treiber/treiber.ts';
 import { hookRegel } from '../src/werkzeuge/lauf.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
-import { admiral, aufbau, drehbuch, ende, frage, lauf, ping } from './flotte-welt.ts';
+import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, ping } from './flotte-welt.ts';
 
 const T = 30_000;
 const fuer = <G extends { eingabe: string }>(gesehen: G[], nr: number): G[] => gesehen.filter((g) => new RegExp(`^Flotte, Epic #${nr}\\b`).test(g.eingabe));
@@ -32,7 +32,7 @@ describe('Befund 1: Admiral-Antworten mit falscher nr', () => {
 
   it('the driver takes the decision of an admiral that answered with the epic number (dress rehearsal #12)', async () => {
     const t = aufbau();
-    const buch = drehbuch([lauf(12, [{ text: frage(12, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(12, [{ nr: 12, antwort: 'A', beim_menschen: false }]), lauf(12, [{ text: ende(12, 20) }])]);
+    const buch = drehbuch([lauf(12, [{ text: frage(12, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(12, [{ nr: 12, antwort: 'A', beim_menschen: false }]), lauf(12, [{ text: ende(12, 22) }])]);
     const z = await fahre(t.einstellung(buch, [12]), t.welt);
     expect(z.fragen).toHaveLength(0);
     expect(z.entscheidungen).toHaveLength(1);
@@ -86,7 +86,7 @@ describe('Befund 3: CleanupStale verschont wartende Läufe', () => {
   it('a run carries its holder file; it stays while the epic waits and goes when the epic is merged', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate' });
     const buch = drehbuch([
-      lauf(3, [{ warte: 300 }, { text: ende(3, 13) }]),
+      lauf(3, [{ warte: 300 }, gateGefahren(), { text: ende(3, 13) }]),
       lauf(4, [{ text: frage(4, 'tor', [{ betrifft: 'Lauf' }]) }]),
       admiral(4, [{ nr: 1, antwort: 'A', beim_menschen: true }]),
     ]);
@@ -155,7 +155,7 @@ describe('Befund 7: eine alte merge.ps1 mergt nicht', () => {
 describe('Befund 9: eine bewegte Basis zählt nicht als Nachbesserung', () => {
   it('three refusals because another merge moved the base do not block the epic', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate', merge: (pr, n) => (n <= 3 ? `GATE FEHLT #${pr}: Gate lief gegen abc1234, die Basis steht auf def5678` : `GEMERGT #${pr} -> main`) });
-    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const buch = drehbuch([lauf(3, [gateGefahren(), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(t.p.merges).toEqual([13, 13, 13, 13]);
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', basisNachzuege: 3 });
@@ -167,10 +167,10 @@ describe('Befund 12: merge.ps1 hält die Schleife nicht an', () => {
   it('while merge.ps1 waits, the driver answers another run', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate', mergeDauerMs: 2000 });
     const buch = drehbuch([
-      lauf(3, [{ text: ende(3, 13) }]),
+      lauf(3, [gateGefahren(), { text: ende(3, 13) }]),
       lauf(4, [{ warte: 400 }, { text: frage(4, 'tor', [{ betrifft: 'Lauf' }]) }]),
       admiral(4, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
-      lauf(4, [{ warte: 2500 }, { text: ende(4, 14) }]),
+      lauf(4, [{ warte: 2500 }, gateGefahren(), { text: ende(4, 14) }]),
     ]);
     const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
     expect(index(t.p.zeitleiste, /^#4 Lauf fortgesetzt/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
