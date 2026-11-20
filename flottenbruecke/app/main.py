@@ -3,6 +3,7 @@
 # answers the bridge carries three actions to the driver, which carries them out: requeue or give
 # up a blocked epic, revoke a decision of the admiral. No start, stop or merge.
 
+import hashlib
 import hmac
 import os
 import threading
@@ -13,7 +14,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .modelle import Antwort, Bericht, Handlung
@@ -169,9 +170,16 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def gesund() -> dict:
         return {'ok': True}
 
+    # app.css and app.js get a content hash in their URL, so a browser that cached an older version
+    # (a phone after an update) loads the new one instead of mixing old script with new markup
+    stand = hashlib.sha256(b''.join((STATIC / n).read_bytes() for n in ('app.css', 'app.js'))).hexdigest()[:12]
+    seite_html = (STATIC / 'index.html').read_text(encoding='utf-8')
+    for n in ('app.css', 'app.js'):
+        seite_html = seite_html.replace(f'/static/{n}"', f'/static/{n}?v={stand}"')
+
     @app.get('/')
-    def seite() -> FileResponse:
-        return FileResponse(STATIC / 'index.html', headers={'Cache-Control': 'no-cache'})
+    def seite() -> HTMLResponse:
+        return HTMLResponse(seite_html, headers={'Cache-Control': 'no-cache'})
 
     @app.get('/favicon.ico')
     def favicon() -> FileResponse:
