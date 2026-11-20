@@ -247,7 +247,8 @@ export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, numm
 
 export function belegung(argv: string[], aufrufer: Aufrufer = aufrufen): unknown {
   const [repo, forgeRepo, ...rest] = argv;
-  const nummern = rest.filter((a) => /^#?\d+$/.test(a)).map((a) => Number(a.replace('#', '')));
+  // the value after a switch (--obergrenze 3) is no epic
+  const nummern = rest.filter((a, i) => /^#?\d+$/.test(a) && !rest[i - 1]?.startsWith('--')).map((a) => Number(a.replace('#', '')));
   if (!repo || !forgeRepo || !nummern.length) throw new Error('Aufruf: flotte belegung <repo> <owner/name> #a #b ... [--laufend #x,#y] [--gemergt #z] [--obergrenze 4]');
   const { bilder, adapter } = sammle(aufrufer, repo, forgeRepo, nummern);
   const i = rest.indexOf('--obergrenze');
