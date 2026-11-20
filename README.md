@@ -277,7 +277,7 @@ leichter wurde. Eine Abnahme-Probe mit Gegenprobe schließt ab.
 
 Der Leitstand ist kein zweiter Flotten-Mechanismus: Er delegiert Aufträge an ein zweites
 Claude-Konto in eigenen Terminalfenstern, überwacht sie mit einem Wächter und mergt ihre PRs, wenn der Adapter
-`merge: nach_gate` sagt: nach grünen Checks oder, ohne Checks, nach grünem Gate-Block. Skill und Konto richtet [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md) ein.
+`merge: nach_gate` sagt: nach grünem Gate-Block und, wo es Checks gibt, nach grünen Checks. Skill und Konto richtet [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md) ein.
 Prüfe danach, dass `skills` und `agents` in `~/.claude-arbeitspferd` Verknüpfungen auf `~/.claude`
 sind: Das Skript lässt vorhandene Ordner stehen, und ein eigener Ordner dort veraltet unbemerkt.
 

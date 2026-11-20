@@ -4,9 +4,10 @@
 // decision 6 as answered at HALT 1) and reads only that file. A value older than the threshold is
 // red. /api/oauth/usage is not used.
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { ersetze } from './zustand.ts';
 
 const STUNDE = 3_600_000;
 
@@ -56,7 +57,7 @@ export function schreibe(configDir: string, v: Verbrauch): void {
   mkdirSync(join(datei, '..'), { recursive: true });
   const tmp = `${datei}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify({ ...v, zeit_iso: new Date(v.zeit).toISOString() }, null, 2));
-  renameSync(tmp, datei);
+  ersetze(tmp, datei);
 }
 
 export function lies(configDir: string): Verbrauch | null {

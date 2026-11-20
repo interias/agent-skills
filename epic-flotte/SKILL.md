@@ -394,6 +394,10 @@ vorläufig, und der Pull Request trug `WIP:`, bis ein Mensch sie bestätigt hatt
 | Widerspruch zu einem ADR oder Out-of-Scope (Tor-Punkt 6), in eine Richtung: Der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil des Issues wird offener Punkt | Ein Adaptereintrag oder eine Antwort würde eine Regel lockern (Tor-Punkt 3) |
 | Nacharbeit: Handgriffe (lokal, reversibel), „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge | Eine Freigabe trotz RAM-`hold` (die Umkehr wäre ein Absturz) |
 | Einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen | PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde, und alles nach dem Merge des Epic-PRs |
+| | Kosten (bezahlte Aufrufe, Dienste, jedes Budget, auch „keine Kosten"), Ausrollen (Deploy, Produktion, Betrieb, ein laufender Dienst), Personendaten im Repository (Namen, Geburtsdaten, Kontakte echter Personen) — auch wenn die Antwort vorsichtig wäre |
+
+Herkunft der letzten Zeile: Nachspiel von 41 alten Fragen mit dem Admiral des Flotten-Treibers
+(#14, 20.11.2026). Er entschied Kosten und Ausrollen selbst, vorsichtig, aber nicht in seinem Recht.
 
 **Worauf du dich stützt**, in dieser Rangfolge. Die erste, die greift, ist die **Herkunft** deiner
 Entscheidung:
@@ -414,9 +418,14 @@ Entscheidung:
 Der Mensch kann jede deiner Entscheidungen widerrufen; eine Frage, auf die er die Empfehlung
 anklickt, kostet dagegen Wartezeit für nichts. Herkunft: Auswertung vom 18.11.2026 (hexanite) —
 von rund 55 Einzelfragen in drei Tagen folgten 48 der Empfehlung, etwa die Hälfte lag nach der
-Tabelle oben schon bei dir, und eine davon ließ die Flotte 545 Minuten warten. Drei Regeln:
+Tabelle oben schon bei dir, und eine davon ließ die Flotte 545 Minuten warten. Vier Regeln:
 
-1. **Die vorsichtige Variante entscheidest du.** Ist deine Empfehlung die abwartende oder
+0. **Eine klare Empfehlung des Laufs übernimmst du.** Ist sie begründet, wirkt nur lokal und lässt
+   sich bis zum Merge umkehren, folgst du ihr. Warten, Aufschieben oder Weglassen ist keine neutrale
+   Wahl; gegen eine solche Empfehlung nur mit einem Grund aus dem Repository (ADR, Adapter,
+   Out-of-Scope, ein Befund), den du nennst. Herkunft: Nachspiel vom 20.11.2026 (#14) — in sieben
+   der Abweichungen wartete der Admiral, wo der Mensch die Empfehlung des Laufs nahm.
+1. **Sonst entscheidest du die vorsichtige Variante.** Ist deine Empfehlung die abwartende oder
    sichere Option — später mergen, die Wegwerf-Datenbank statt der echten, nichts Zusätzliches
    starten — und die Alternative die riskante, fragst du nicht: Du nimmst die vorsichtige und
    legst sie vor. Gefragt wird nur, wenn du die riskante willst.

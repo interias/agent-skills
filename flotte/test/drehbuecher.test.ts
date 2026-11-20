@@ -197,7 +197,7 @@ describe('Drehbücher (#14)', () => {
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(t.p.merges).toEqual([]);
     expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**PR bereit'))).toHaveLength(1);
-    expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'pr' && a[2] === 'view').length).toBe(4);
+    expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'pr' && a[2] === 'view' && !a.join(' ').includes('headRefName')).length).toBe(4);
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pr: 13 });
   }, T);
 

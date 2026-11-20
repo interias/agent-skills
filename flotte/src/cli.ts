@@ -2,7 +2,9 @@
 // flotte <befehl> [...]: every command prints exactly one JSON object on stdout; messages go to
 // stderr. Exit 1 when the command could not do its job, 2 on a usage error.
 
+import { adapter } from './befehle/adapter.ts';
 import { messen } from './befehle/messen.ts';
+import { zuschauen } from './befehle/zuschauen.ts';
 import { belegung } from './werkzeuge/belegung.ts';
 import { bloecke } from './werkzeuge/bloecke.ts';
 import { lauf } from './werkzeuge/lauf.ts';
@@ -21,6 +23,8 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   belegung: (argv) => belegung(argv),
   fahren,
   antworten,
+  zuschauen: (argv) => zuschauen(argv),
+  adapter: (argv) => adapter(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {

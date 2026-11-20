@@ -87,12 +87,12 @@ function jsonAus(r: Ergebnis): { code: number; json: unknown; stderr: string } {
   return { code: r.code, json, stderr: r.stderr };
 }
 
-export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number }) => Promise<Ergebnis>;
+export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number; env?: Record<string, string> }) => Promise<Ergebnis>;
 
 /** For the slow scripts (merge.ps1 waits for checks): the event loop keeps reading the runs meanwhile. */
 export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
   new Promise((fertig) => {
-    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
+    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, env: opts.env ? { ...process.env, ...opts.env } : process.env, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '';
     let stderr = '';
     const uhr = opts.timeoutMs
