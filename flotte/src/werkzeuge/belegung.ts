@@ -24,6 +24,10 @@ export interface EpicBild {
   nach: number[];
   /** gate_areas of the files the epic names (#14, round 5); empty when it names none */
   bereiche?: string[];
+  /** prio_label on the epic or one of its children: goes into the next occupancy first */
+  prio?: boolean;
+  /** child tickets of the epic (its checklist and Kinder: list), for the package bar of the bridge */
+  kinder?: number[];
 }
 
 export interface Adapter {
@@ -33,6 +37,8 @@ export interface Adapter {
   epic_label: string;
   /** release label: without --epics the driver takes the open epics that carry it, or one of whose children does */
   ready_label: string;
+  /** priority label (default prio/hoch): a startable epic with it goes into the next occupancy first */
+  prio_label: string;
   /** the base of the epic PRs (from-issue: per epic); null: main_branch, else the default branch */
   base_branch: string | null;
   main_branch: string | null;
@@ -90,6 +96,7 @@ export function liesAdapter(text: string): Adapter {
     modules_section: werte.get('modules_section')?.[0] ?? '## Betroffene Module',
     epic_label: werte.get('epic_label')?.[0] ?? 'epic',
     ready_label: werte.get('ready_label')?.[0] ?? 'ready-for-agent',
+    prio_label: werte.get('prio_label')?.[0] ?? 'prio/hoch',
     base_branch: werte.get('base_branch')?.[0] ?? null,
     main_branch: werte.get('main_branch')?.[0] ?? null,
     merge: werte.get('merge')?.[0] === 'nach_gate' ? 'nach_gate' : 'mensch',
@@ -122,7 +129,7 @@ function abschnitt(body: string, kopf: string): string {
 const PFAD = /`([^`\s]+\/[^`\s]*|[^`\s]+\.[a-z0-9]{1,6})`/gi;
 
 /** What an epic touches, from its body and the bodies of its children. */
-export function bildAus(nr: number, bodies: string[], adapter: Adapter, epicNummern: number[]): EpicBild {
+export function bildAus(nr: number, bodies: string[], adapter: Adapter, epicNummern: number[], prio = false): EpicBild {
   const module = new Set<string>();
   const dateien = new Set<string>();
   let exklusiv = false;
@@ -148,6 +155,7 @@ export function bildAus(nr: number, bodies: string[], adapter: Adapter, epicNumm
   });
   for (const d of dateien) if (/(^|\/)migrations?\//i.test(d)) migration = true;
   const bild: EpicBild = { nr, module: [...module].sort(), dateien: [...dateien].sort(), exklusiv, migration, nach: [...nach].filter((n) => n !== nr && epicNummern.includes(n)).sort((a, b) => a - b) };
+  if (prio) bild.prio = true;
   if (adapter.gate_areas.length) bild.bereiche = dateien.size ? [...bereicheVon([...dateien], bereicheAus(adapter.gate_areas))].sort() : [];
   return bild;
 }
@@ -176,12 +184,17 @@ export interface Plan {
   wartend: { nr: number; wartetAuf: number[] }[];
   belegung: number[];
   neu: number[];
+  /** startable epics with the priority label: started now, or why they wait */
+  vorrang: { nr: number; startet: boolean; grund: string }[];
 }
 
 /**
  * The occupancy: running epics stay; startable ones are those whose predecessors are merged.
  * Largest set in which the size keeps the limit of its worst pair, never more than the cap (at
- * most 4). Ties: the set that unblocks most other epics, then the smaller numbers.
+ * most 4). Ties: the set that unblocks most other epics, then the smaller numbers. Before all of
+ * that, the startable epics with the priority label: as many of them as fit. One that does not fit
+ * because of a collision is not overtaken: nothing new starts that collides with it. Order edges and
+ * levels stay as they are, running epics are never stopped.
  */
 export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: number[]; gemergt: number[]; obergrenze?: number }): Plan {
   const kappe = Math.min(4, opts.obergrenze ?? 4);
@@ -209,13 +222,14 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
     for (let i = 0; i < m.length; i++) for (let j = i + 1; j < m.length; j++) if (bereich.get(m[i])!.some((x) => bereich.get(m[j])!.includes(x))) n++;
     return n;
   };
-  const wert = (m: number[]) => [m.length, m.reduce((s, n) => s + entsperrt(n), 0), -geteilt(m), -m.reduce((s, n) => s + n, 0)];
+  const prio = new Set(bilder.filter((b) => b.prio).map((b) => b.nr));
+  const wert = (m: number[]) => [m.filter((n) => prio.has(n)).length, m.length, m.reduce((s, n) => s + entsperrt(n), 0), -geteilt(m), -m.reduce((s, n) => s + n, 0)];
   const besser = (x: number[], y: number[]) => {
     const [a, b] = [wert(x), wert(y)];
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i];
     return false;
   };
-  const kandidaten = [...startbereit].sort((a, b) => a - b);
+  let kandidaten = [...startbereit].sort((a, b) => a - b);
   const suche = (start: number, menge: number[]) => {
     if (passt(menge) && besser(menge, beste)) beste = [...menge];
     if (menge.length >= kappe) return;
@@ -223,7 +237,26 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
   };
   // the running ones stay even when they break a limit (a brake lowered the cap); nothing joins them then
   if (passt(opts.laufend)) suche(0, [...opts.laufend]);
-  return { paare, startbereit, wartend, belegung: [...beste].sort((a, b) => a - b), neu: beste.filter((n) => !opts.laufend.includes(n)).sort((a, b) => a - b) };
+  // a priority epic left out because it collides: no new epic that collides with it overtakes it
+  const draussen = startbereit.filter((n) => prio.has(n) && !beste.includes(n));
+  const kollidiert = (a: number, b: number) => stufe(a, b) !== 'keine';
+  if (draussen.length && passt(opts.laufend)) {
+    kandidaten = kandidaten.filter((n) => prio.has(n) || !draussen.some((d) => kollidiert(n, d)));
+    beste = [...opts.laufend];
+    suche(0, [...opts.laufend]);
+  }
+  const vorrang = startbereit
+    .filter((n) => prio.has(n))
+    .sort((a, b) => a - b)
+    .map((nr) => {
+      if (beste.includes(nr)) return { nr, startet: true, grund: `${adapter.prio_label}: in dieser Belegung zuerst` };
+      const mit = beste.filter((n) => n !== nr && kollidiert(n, nr)).map((n) => paare.find((p) => (p.a === n && p.b === nr) || (p.a === nr && p.b === n))!);
+      const grund = mit.length
+        ? `${adapter.prio_label}, wartet: kollidiert mit ${mit.map((p) => `#${p.a === nr ? p.b : p.a} (${p.stufe}: ${p.beleg})`).join('; ')}; nichts Kollidierendes überholt`
+        : `${adapter.prio_label}, wartet: die Plätze sind belegt (Obergrenze ${kappe})`;
+      return { nr, startet: false, grund };
+    });
+  return { paare, startbereit, wartend, belegung: [...beste].sort((a, b) => a - b), neu: beste.filter((n) => !opts.laufend.includes(n)).sort((a, b) => a - b), vorrang };
 }
 
 function liste(argv: string[], name: string): number[] {
@@ -264,15 +297,25 @@ export function freigegebene(aufrufer: Aufrufer, forgeRepo: string, adapter: Ada
 
 export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, nummern: number[]): { bilder: EpicBild[]; adapter: Adapter } {
   const adapter = adapterAus(repo);
+  // the priority label on the epic or on one of its children
+  const hatPrio = (j: { labels?: { name?: string }[] }) => (j.labels ?? []).some((l) => l?.name === adapter.prio_label);
   const bilder = nummern.map((nr) => {
-    const r = aufrufer('gh', ['issue', 'view', String(nr), '--repo', forgeRepo, '--json', 'body']);
+    const r = aufrufer('gh', ['issue', 'view', String(nr), '--repo', forgeRepo, '--json', 'body,labels']);
     if (r.code) throw new Error(`gh issue view ${nr}: ${r.stderr.trim()}`);
-    const body = String(JSON.parse(r.stdout).body ?? '');
+    const j = JSON.parse(r.stdout);
+    const body = String(j.body ?? '');
+    let prio = hatPrio(j);
     const kinderBodies = kinderAus(body).map((k) => {
-      const c = aufrufer('gh', ['issue', 'view', String(k), '--repo', forgeRepo, '--json', 'body']);
-      return c.code ? '' : String(JSON.parse(c.stdout).body ?? '');
+      const c = aufrufer('gh', ['issue', 'view', String(k), '--repo', forgeRepo, '--json', 'body,labels']);
+      if (c.code) return '';
+      const kj = JSON.parse(c.stdout);
+      prio ||= hatPrio(kj);
+      return String(kj.body ?? '');
     });
-    return bildAus(nr, [body, ...kinderBodies], adapter, nummern);
+    const bild = bildAus(nr, [body, ...kinderBodies], adapter, nummern, prio);
+    const kinder = kinderAus(body);
+    if (kinder.length) bild.kinder = kinder;
+    return bild;
   });
   return { bilder, adapter };
 }

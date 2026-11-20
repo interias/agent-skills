@@ -96,6 +96,9 @@ Jede Entscheidung, ob vom Admiral oder von dir, steht danach als Kommentar am Is
    lässt drei Pakete gleichzeitig laufen. Mit `merge: nach_gate` mergt der Treiber nach grünem
    Gate; dafür braucht er `gate_command`.
 
+   Labels im Repository: `ready-for-agent` (Freigabe), `epic` und für den Flotten-Treiber
+   `prio/hoch` (Vorrang in der nächsten Belegung, Name über `prio_label` änderbar).
+
 3. **Erster Lauf:** ein Epic mit `ready-for-agent` freigeben, in Claude Code im Projekt
    `/epic #<nr>` aufrufen, am Vorab-Tor antworten, am Ende den Pull Request prüfen und mergen.
    Danach `/epic-nacharbeit` und nach dem Merge `/epic-aufraeumen`.

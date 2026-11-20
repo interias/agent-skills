@@ -76,6 +76,54 @@ describe('belege', () => {
   });
 });
 
+describe('prio/hoch', () => {
+  it('a startable priority epic goes into the next occupancy first; the old tie rules come after', () => {
+    // #1 and #3 collide (gross); without priority {1, 2} wins on the smaller numbers
+    const bilder = [bild(1, { dateien: ['api/a.ts'] }), bild(2, { module: ['web'] }), bild(3, { dateien: ['api/a.ts'], prio: true })];
+    expect(belege(bilder.map((b) => ({ ...b, prio: false })), adapter, { laufend: [], gemergt: [] }).belegung).toEqual([1, 2]);
+    const plan = belege(bilder, adapter, { laufend: [], gemergt: [] });
+    expect(plan.belegung).toEqual([2, 3]);
+    expect(plan.vorrang).toEqual([{ nr: 3, startet: true, grund: 'prio/hoch: in dieser Belegung zuerst' }]);
+  });
+
+  it('waits only because of a collision: nothing new that collides with it overtakes it, the rest still starts', () => {
+    // #1 runs and collides with #3 (prio); #2 collides with #3 too, #4 does not
+    const bilder = [bild(1, { dateien: ['api/a.ts'] }), bild(2, { module: ['api'] }), bild(3, { dateien: ['api/a.ts'], module: ['api'], prio: true }), bild(4, { module: ['web'] })];
+    const plan = belege(bilder, adapter, { laufend: [1], gemergt: [] });
+    expect(plan.neu).toEqual([4]);
+    expect(plan.vorrang[0]).toMatchObject({ nr: 3, startet: false });
+    expect(plan.vorrang[0].grund).toMatch(/^prio\/hoch, wartet: kollidiert mit #1 \(gross: dieselben Dateien: api\/a\.ts\)/);
+    // without the label #2 would have joined #1
+    expect(belege(bilder.map((b) => ({ ...b, prio: false })), adapter, { laufend: [1], gemergt: [] }).neu).toEqual([2, 4]);
+  });
+
+  it('order edges stay hard, the label name comes from the adapter, a running epic is never dropped', () => {
+    const bilder = [bild(1, { module: ['m1'] }), bild(2, { nach: [1], prio: true })];
+    const plan = belege(bilder, adapter, { laufend: [], gemergt: [] });
+    expect(plan).toMatchObject({ belegung: [1], wartend: [{ nr: 2, wartetAuf: [1] }], vorrang: [] });
+    const eigen = liesAdapter('---\nprio_label: dringend\n---\n');
+    expect(eigen.prio_label).toBe('dringend');
+    expect(liesAdapter('').prio_label).toBe('prio/hoch');
+    const gross = [bild(1, { dateien: ['x/a.ts'] }), bild(2, { dateien: ['x/a.ts'], prio: true })];
+    expect(belege(gross, eigen, { laufend: [1], gemergt: [] })).toMatchObject({ belegung: [1], neu: [], vorrang: [{ nr: 2, startet: false }] });
+    expect(belege(gross, eigen, { laufend: [1], gemergt: [] }).vorrang[0].grund).toMatch(/^dringend, wartet/);
+  });
+
+  it('reads the label from the epic or one of its children', () => {
+    const issues: Record<string, { body: string; labels: { name: string }[] }> = {
+      '10': { body: '- [ ] #11', labels: [] },
+      '11': { body: '', labels: [{ name: 'prio/hoch' }] },
+      '20': { body: '', labels: [{ name: 'epic' }] },
+    };
+    const gh: Aufrufer = (_p, args) => ({ code: 0, stdout: JSON.stringify(issues[args[2]] ?? { body: '' }), stderr: '' });
+    const { bilder } = sammle(gh, 'C:/gibt-es-nicht', 'o/r', [10, 20]);
+    expect(bilder.map((b) => [b.nr, Boolean(b.prio)])).toEqual([
+      [10, true],
+      [20, false],
+    ]);
+  });
+});
+
 describe('sammle', () => {
   it('reads epic and child bodies through gh', () => {
     const bodies: Record<string, string> = {
@@ -86,7 +134,7 @@ describe('sammle', () => {
     const gh: Aufrufer = (_p, args) => ({ code: 0, stdout: JSON.stringify({ body: bodies[args[2]] ?? '' }), stderr: '' });
     const { bilder } = sammle(gh, 'C:/gibt-es-nicht', 'o/r', [10, 20]);
     expect(bilder).toEqual([
-      { nr: 10, module: ['api'], dateien: ['api/x.ts'], exklusiv: false, migration: false, nach: [] },
+      { nr: 10, module: ['api'], dateien: ['api/x.ts'], exklusiv: false, migration: false, nach: [], kinder: [11] },
       { nr: 20, module: ['web'], dateien: [], exklusiv: false, migration: false, nach: [10] },
     ]);
   });

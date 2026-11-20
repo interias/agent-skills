@@ -1,7 +1,8 @@
 // The driver's side of the Flottenbrücke (#28): one report per turn, fetching and acknowledging the
-// answers of the person. Only the driver talks to the bridge; runs and admiral never see it. A bridge
+// answers and actions of the person (requeue or give up a blocked epic, revoke a decision). Only the driver talks to the bridge; runs and admiral never see it. A bridge
 // that is off or slow is no error: every call has a short time limit and yields undefined.
-// The contract is flottenbruecke/beispiel/bericht.json and antworten.json, tested on both sides.
+// The contract is flottenbruecke/beispiel/bericht.json, antworten.json and handlungen.json, tested on
+// both sides.
 
 import { hostname } from 'node:os';
 import type { Option } from '../werkzeuge/bloecke.ts';
@@ -16,6 +17,18 @@ export interface BrueckenAntwort {
   nr: number;
   seit: string;
   option: string | null;
+  text: string | null;
+  zeit: string;
+  herkunft: string;
+}
+
+/** One action as GET /api/handlungen delivers it; nr, seit and text only for a revocation. */
+export interface BrueckenHandlung {
+  id: number;
+  epic: number;
+  art: 'einreihen' | 'aufgeben' | 'widerruf';
+  nr: number | null;
+  seit: string | null;
   text: string | null;
   zeit: string;
   herkunft: string;
@@ -36,6 +49,55 @@ export interface BerichtFrage {
   seit: string;
   roh: string;
   beantwortet: string | null;
+  herkunft: string;
+  marke: string;
+  umkehrbar: boolean | null;
+  geparkt: string[];
+}
+
+/**
+ * A package of an epic for the bar on the bridge: a child ticket with number and title (the bridge
+ * links it), in spec mode a name only. stand: fertig (closed), laeuft (status/in-arbeit), geparkt
+ * (waits for an answer of the person), zurueckgelassen (status/haengt), blockiert (status/blockiert), offen.
+ */
+export interface BerichtPaket {
+  name: string;
+  stand: 'offen' | 'laeuft' | 'fertig' | 'geparkt' | 'blockiert' | 'zurueckgelassen';
+  nr: number | null;
+  titel: string;
+  /** first seen working (the driver reads the children at most every PAKETE_MS) and closed, ISO */
+  beginn: string | null;
+  ende: string | null;
+}
+
+/** a usage window: used share in percent, reset as ISO time */
+export interface BerichtFenster {
+  verbraucht: number;
+  reset: string;
+}
+
+export interface BerichtEpic {
+  nr: number;
+  titel: string;
+  stufe: EpicStufe;
+  konto: string | null;
+  pr: number | null;
+  notiz: string;
+  geparkt: string[];
+  pakete: BerichtPaket[];
+  schritt: string | null;
+  schrittZeit: string | null;
+  prozess: boolean;
+  grund: string;
+  haltZeit: string | null;
+  log: string[];
+  aufgegebenAm: string | null;
+  /** the priority label (prio/hoch) on the epic or a child */
+  prio: boolean;
+  /** ISO times for level 2: first run started, joined the merge queue, the driver's gate started */
+  gestartetAm: string | null;
+  schlangeSeit: string | null;
+  gateSeit: string | null;
 }
 
 export interface Bericht {
@@ -45,13 +107,16 @@ export interface Bericht {
   stand: string;
   aktiv: boolean;
   taktS: number;
-  epics: { nr: number; titel: string; stufe: EpicStufe; konto: string | null; pr: number | null; notiz: string; geparkt: string[]; pakete: { name: string; stand: string }[]; schritt: string | null; schrittZeit: string | null }[];
+  epics: BerichtEpic[];
   schlange: number[];
-  konten: { konto: string; stufe: string }[];
+  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; alterMin: number | null }[];
   ram: { stufe: string; halt: boolean; prozent: number | null } | null;
   platte: { freiGb: number | null; genug: boolean } | null;
   obergrenze: number | null;
   fragen: BerichtFrage[];
+  leerlaufS: number;
+  ereignisse: { zeit: string; epic: number | null; text: string }[];
+  entscheidungen: { epic: number; nr: number; frage: string; antwort: string; herkunft: string; grund: string; einflussreich: boolean; zeit: string; widerrufen: string | null }[];
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
@@ -76,6 +141,19 @@ export function antwortenAusJson(roh: unknown): BrueckenAntwort[] {
       (a.option === null || typeof a.option === 'string') &&
       (a.text === null || typeof a.text === 'string') &&
       Boolean(a.option?.trim() || a.text?.trim()),
+  );
+}
+
+/** The actions of GET /api/handlungen; entries that do not fit the contract are dropped. */
+export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
+  if (!Array.isArray(roh)) return [];
+  return roh.filter(
+    (h): h is BrueckenHandlung =>
+      h !== null &&
+      typeof h === 'object' &&
+      Number.isInteger(h.id) &&
+      Number.isInteger(h.epic) &&
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim()))),
   );
 }
 
@@ -115,5 +193,15 @@ export class Bruecke {
 
   async quittiere(id: number): Promise<boolean> {
     return (await this.rufe(`api/antworten/${id}/quittung`, { method: 'POST' })) !== undefined;
+  }
+
+  /** the open actions; undefined when the bridge is not reachable or older than v2 */
+  async holeHandlungen(forge: string): Promise<BrueckenHandlung[] | undefined> {
+    const r = await this.rufe(`api/handlungen?forge=${encodeURIComponent(forge)}`);
+    return r === undefined ? undefined : handlungenAusJson(r);
+  }
+
+  async quittiereHandlung(id: number): Promise<boolean> {
+    return (await this.rufe(`api/handlungen/${id}/quittung`, { method: 'POST' })) !== undefined;
   }
 }

@@ -80,7 +80,7 @@ Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber; d
 es nicht. Eingerichtet und angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto
 einrichten“. Zugeschaltet wird es nur, wenn der Mensch es sagt:
 
-1. Treiber mit Strg+C anhalten. Die Läufe arbeiten weiter, der Zustand steht schon in `zustand.json`.
+1. Treiber mit `flotte anhalten <repo>` anhalten (unten). Die Läufe arbeiten weiter, der Zustand steht schon in `zustand.json`.
 2. Mit demselben Aufruf neu starten, `--konten` um das Konto erweitert (Kurzname oder Ordner; `~`
    versteht der Treiber selbst), im Projektordner:
 
@@ -99,6 +99,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
 - `flotte zustand <repo>`: Zustand und Sperre.
 - `flotte antworten <repo> <epic> <frage> <Antwort>`: eine Antwort des Menschen an den laufenden Treiber.
+- `flotte anhalten <repo>`: hält den Treiber sicher an, etwa zum Aktualisieren. Er startet nichts Neues mehr (kein Lauf, kein Zug, kein Merge aus der Schlange), lässt einen begonnenen Merge mit Gate und `nach_merge` zu Ende laufen und endet dann mit dem Ereignis „Angehalten auf Wunsch“. Läufe arbeiten in ihrer eigenen Prozessgruppe weiter, ein Neustart übernimmt sie. Strg+C beendet dagegen auch einen laufenden `merge.ps1`, ein Gate oder `nach_merge` mitten im Schritt.
 - `flotte zuschauen <repo> <epic> [--einmal]`: folgt dem Log eines Laufs, je Zeile ein Schritt (Werkzeug und Ziel, Text des Laufs).
 - `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). Vor dem Einspielen aufrufen: In diesen Projekten mergt danach ein Mensch.
 - `flotte belegung`, `verbrauch`, `ressourcen`, `bloecke`, `lauf`: die Werkzeuge einzeln.
@@ -107,7 +108,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 ## Was der Treiber tut
 
 1. **Einer je Repository.** Die Sperre liegt in `<git common dir>/flotte/treiber.lock`, der Zustand daneben in `zustand.json`. Nach einem Neustart setzt der Treiber aus der Datei fort. Ein Lauf schreibt sein Log selbst und überlebt den Treiber. Läufe, die noch leben (PID und Startzeit passen), beobachtet der Treiber nur.
-2. **Belegung** aus Adapter und Issues: Kollisionsstufen (keine 4, klein 3, mittel 2, groß 1 gleichzeitig, nie mehr als vier) und Reihenfolge-Kanten. Ein Epic startet erst nach dem Merge seines Vorgängers. Bei Gleichstand gewinnt die Wahl, deren Epics weniger Gate-Bereiche (`gate_areas`) teilen. Jede neue Belegung nennt ihren Beleg.
+2. **Belegung** aus Adapter und Issues: Kollisionsstufen (keine 4, klein 3, mittel 2, groß 1 gleichzeitig, nie mehr als vier) und Reihenfolge-Kanten. Ein Epic startet erst nach dem Merge seines Vorgängers. Ein startbereites Epic mit `prio_label` (Standard `prio/hoch`, am Epic oder an einem Kind) kommt in die nächste Belegung; harte Kanten und Kollisionsstufen gelten weiter. Hält es nur eine Kollision zurück, startet nichts Neues, das mit ihm kollidiert; laufende Epics bricht der Treiber nie ab. Erst danach gilt der Gleichstand: Es gewinnt die Wahl, deren Epics weniger Gate-Bereiche (`gate_areas`) teilen. Jede neue Belegung nennt ihren Beleg, auch das prio-Label und warum ein prio-Epic wartet.
 3. **Bremsen** in jedem Takt:
    - RAM über `ram.ps1`: `warn` und `hold` halten an, weiter geht es erst 5 Punkte unter der Warnschwelle. Ein Messfehler gilt als `hold`, mit seinem Fehlertext; die nächste gute Messung gibt frei.
    - Plattenplatz.
@@ -139,14 +140,15 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 7. **Sichtbar:**
    - Tafel: `<git common dir>/flotte/tafel.html` im Browser öffnen; sie lädt sich selbst neu. Sie zeigt je Lauf den letzten Schritt und seine Zeit und die Merge-Schlange.
    - Logbuch: ein Issue mit Label `flotte`, mit dem KIBO-Block. Die Bremse steht dort nur als Stufe, nie in Prozent.
-   - **Flottenbrücke** (`flottenbruecke/`, mit `--bruecke`): Der Treiber meldet ihr in jedem Takt seinen Zustand und holt die Antworten ab, die der Mensch dort gegeben hat. Nur der Treiber spricht mit ihr, Läufe und Admiral sehen sie nicht. Ein Ereignis (neue Frage, Stufenwechsel, Merge) meldet er sofort; solange eine Frage offen ist, fragt er alle 10 s nach Antworten. Ist sie aus, arbeitet er weiter (ein Ereignis, kein Fehler). Schnittstelle: `flottenbruecke/SCHNITTSTELLE.md`.
+   - **Flottenbrücke** (`flottenbruecke/`, mit `--bruecke`): Der Treiber meldet ihr in jedem Takt seinen Zustand (mit Kind-Tickets je Epic, Verbrauch je Konto, Ereignissen und Admiral-Entscheidungen) und holt die Antworten und Handlungen ab, die der Mensch dort gegeben hat: blockiertes Epic neu einreihen oder aufgeben, eine Entscheidung des Admirals zurücknehmen. Nur der Treiber spricht mit ihr, Läufe und Admiral sehen sie nicht. Ein Ereignis (neue Frage, Stufenwechsel, Merge) meldet er sofort; solange eine Frage offen ist, fragt er alle 10 s nach Antworten. Ist sie aus, arbeitet er weiter (ein Ereignis, kein Fehler). Schnittstelle: `flottenbruecke/SCHNITTSTELLE.md`.
 
 ## Was beim Menschen liegt
 
 - **Fragen**, die der Admiral nicht entscheiden darf. Sie stehen als `FRAGE AN DEN MENSCHEN` am Issue, auf der Tafel und vollständig auf der Brücke (Frage, Lage, Optionen, Empfehlung, Betrifft, Wortlaut). Lässt sich ein Block nicht in Fragen zerlegen, geht sein Wortlaut an den Menschen; keine Frage verschwindet still. Antwort mit `flotte antworten …` oder auf der Brücke (Option, bei `— Auswahl: mehrere` mehrere als Kästchen, Freitext oder beides; der Freitext erreicht den Lauf unverändert als `Antwort: <Text>`).
 - **Mergen** bei `merge: mensch`, und das Umstellen auf `nach_gate` im Adapter.
 - **Konto anmelden**, wenn ein Lauf mit einem Anmeldefehler endet (das Epic steht dann auf „blockiert“).
-- **Widerruf** einer Entscheidung: als Kommentar am Issue. Der Lauf setzt ihn im nächsten Zug oder in der Nacharbeit um.
-- **Blockierte und abgebrochene Epics:** Der Grund steht am Issue.
+- **Widerruf** einer Entscheidung: als Kommentar am Issue oder auf der Brücke („Zurücknehmen“ bis zum Merge). Der Lauf setzt ihn im nächsten Zug oder in der Nacharbeit um; ein Epic in der Merge-Schlange geht dafür zurück an den Lauf.
+- **Blockierte und abgebrochene Epics:** Der Grund steht am Issue und auf der Brücke. Dort lässt sich das Epic neu einreihen (Zähler zurück, der Lauf setzt mit dem Grund fort) oder aufgeben (`abgebrochen`, Branch, PR und Issue bleiben). Endete der Einsatz, weil alles blockiert war, wirkt die Handlung beim nächsten Start.
+- **Vorrang** eines Epics: das Label `prio/hoch` (Adapter `prio_label`) am Epic oder an einem Kind.
 
 Umschalten von `/epic-flotte` und zurück: `references/umschalten.md`.

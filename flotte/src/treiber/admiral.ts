@@ -12,6 +12,9 @@ export interface AdmiralAntwort {
   grund: string;
   beim_menschen: boolean;
   einflussreich: boolean;
+  /** for the person (#28, v2): why it lies with them, in a word or two, and whether it stays revocable until the merge */
+  marke?: string;
+  umkehrbar?: boolean;
 }
 
 /** The answer schema of one block: nr can only be a number of its questions (acceptance finding 1). */
@@ -35,6 +38,8 @@ export const SCHEMA = {
           grund: { type: 'string' },
           beim_menschen: { type: 'boolean' },
           einflussreich: { type: 'boolean' },
+          marke: { type: 'string' },
+          umkehrbar: { type: 'boolean' },
         },
         required: ['nr', 'antwort', 'herkunft', 'grund', 'beim_menschen', 'einflussreich'],
       },
@@ -59,7 +64,7 @@ Herkunft, die erste, die greift: „Projektregel: <welche>" (Abschnitt Entscheid
 
 einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist, sich nur auf eigenes Urteil stützt, einen Widerspruch auflöst, den Umfang ändert, etwas ungeprüft lässt oder mehr als ein Paket betrifft. Im Zweifel true.
 
-antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn.`;
+antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „Kosten", „Schema", „Umfang", „nach außen sichtbar", „Ausrollen"), und umkehrbar sagt, ob sich seine Antwort bis zum Merge des Epic-PRs noch ändern lässt.`;
 
 /**
  * merge: nach_gate (acceptance 3, finding 3): no person sees the PR before the merge, so "revocable
@@ -116,8 +121,17 @@ export function antwortenAus(strukturiert: unknown, block: FrageBlock): AdmiralA
   return block.fragen.map((f, i) => {
     const a = (nachReihe ? liste[i] : liste.find((x) => Number((x as AdmiralAntwort)?.nr) === f.nr)) as Partial<AdmiralAntwort> | undefined;
     if (!a || typeof a.antwort !== 'string' || typeof a.beim_menschen !== 'boolean') {
-      return { nr: f.nr, antwort: f.empfehlung ?? '', herkunft: 'Treiber: keine verwertbare Antwort des Admirals', grund: 'Der Admiral-Aufruf lieferte für diese Frage nichts; sie liegt deshalb beim Menschen.', beim_menschen: true, einflussreich: false };
+      return { nr: f.nr, antwort: f.empfehlung ?? '', herkunft: 'Treiber: keine verwertbare Antwort des Admirals', grund: 'Der Admiral-Aufruf lieferte für diese Frage nichts; sie liegt deshalb beim Menschen.', beim_menschen: true, einflussreich: false, marke: 'Admiral ohne Antwort' };
     }
-    return { nr: f.nr, antwort: a.antwort, herkunft: String(a.herkunft ?? ''), grund: String(a.grund ?? ''), beim_menschen: a.beim_menschen, einflussreich: a.einflussreich !== false };
+    return {
+      nr: f.nr,
+      antwort: a.antwort,
+      herkunft: String(a.herkunft ?? ''),
+      grund: String(a.grund ?? ''),
+      beim_menschen: a.beim_menschen,
+      einflussreich: a.einflussreich !== false,
+      ...(typeof a.marke === 'string' && a.marke.trim() ? { marke: a.marke.trim().slice(0, 60) } : {}),
+      ...(typeof a.umkehrbar === 'boolean' ? { umkehrbar: a.umkehrbar } : {}),
+    };
   });
 }

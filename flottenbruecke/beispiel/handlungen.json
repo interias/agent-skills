@@ -1,0 +1,22 @@
+[
+  {
+    "id": 3,
+    "epic": 40,
+    "art": "einreihen",
+    "nr": null,
+    "seit": null,
+    "text": null,
+    "zeit": "2026-11-20T14:36:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 4,
+    "epic": 38,
+    "art": "widerruf",
+    "nr": 1,
+    "seit": "2026-11-20T14:18:02Z",
+    "text": "Unter der nächsten Version, nicht unter Unreleased",
+    "zeit": "2026-11-20T14:37:30+00:00",
+    "herkunft": "Mensch über die Brücke"
+  }
+]
