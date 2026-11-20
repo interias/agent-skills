@@ -1,9 +1,10 @@
 # The report of a driver (POST /api/bericht) and the answer of the person. SCHNITTSTELLE.md
 # describes every field and where the driver takes it from.
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 
@@ -18,11 +19,17 @@ class Frage(BaseModel):
     nr: int
     frage: str = Field(max_length=4000)
     lage: str = Field('', max_length=8000)
-    optionen: list[Option] = []
+    optionen: list[Option] = Field([], max_length=26)
+    # `— Auswahl: mehrere`: several options at once
+    mehrfach: bool = False
     empfehlung: str = Field('', max_length=2000)
     grund: str = Field('', max_length=4000)
+    # Betrifft as the run wrote it: 'Lauf', the packages, or ''
+    betrifft: str = Field('', max_length=500)
     wartet: str = Field('', max_length=500)
     ganzerLauf: bool = True
+    # the question as the run wrote it; the whole block when the driver could not parse it
+    roh: str = Field('', max_length=20000)
     # identifies the question: numbers start at 1 in every question block
     seit: str = Field(max_length=40)
     beantwortet: str | None = None
@@ -86,4 +93,14 @@ class Antwort(BaseModel):
     epic: int
     nr: int
     seit: str = Field(max_length=40)
-    text: str = Field(min_length=1, max_length=4000)
+    # the letter of a chosen option ('A, C' for a multiple choice) and the free text; at least one of them
+    option: str | None = Field(None, max_length=80)
+    text: str | None = Field(None, max_length=4000)
+
+    @model_validator(mode='after')
+    def eins_von_beiden(self) -> 'Antwort':
+        self.option = ', '.join(b for b in re.split(r'[\s,;]+', self.option or '') if b) or None
+        self.text = (self.text or '').strip() or None
+        if not self.option and not self.text:
+            raise ValueError('Option oder Freitext')
+        return self

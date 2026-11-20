@@ -1,6 +1,7 @@
 # The board from the last reports: one card per epic in one of six columns, the header with the
 # brakes per account, RAM and disk per machine.
 
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -41,14 +42,17 @@ def spalte(stufe: str, offene_frage: bool, gemergt: datetime | None, heute: date
     return 'gemergt' if gemergt is not None and gemergt >= heute else None
 
 
-def empfohlen(f: dict) -> str | None:
-    """The letter of the recommended option: the recommendation is a letter or starts with one."""
-    e = (f.get('empfehlung') or '').strip()
-    for o in f.get('optionen', []):
-        b = o['buchstabe'].strip().rstrip(')')
-        if e == b or e.startswith(f'{b})') or e.startswith(f'{b} ') or e.startswith(f'{b}:'):
-            return o['buchstabe']
-    return None
+def buchstaben(text: str | None) -> list[str]:
+    """The letters at the start of an answer or recommendation: 'B', 'A, C', 'B) mit Zusatz'."""
+    m = re.match(r'\s*([A-Z](?:\s*[,;]\s*[A-Z])*)(?![\wÄÖÜäöüß])', text or '')
+    return re.split(r'\s*[,;]\s*', m.group(1)) if m else []
+
+
+def empfohlen(f: dict) -> list[str]:
+    """The letters of the recommended options (several only for a multiple choice)."""
+    da = [o['buchstabe'] for o in f.get('optionen', [])]
+    wahl = [b for b in buchstaben(f.get('empfehlung')) if b in da]
+    return wahl if f.get('mehrfach') else wahl[:1]
 
 
 def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool) -> dict:
@@ -75,7 +79,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             if f.get('beantwortet'):
                 continue
             a = zu_antwort.get((forge, f['epic'], f['nr'], f['seit']))
-            offen.setdefault(f['epic'], []).append({**f, 'empfohlen': empfohlen(f), 'antwort': None if a is None else {'text': a['text'], 'zeit': a['zeit'], 'abgeholt': bool(a['abgeholt']), 'quittiert': bool(a['quittiert'])}})
+            offen.setdefault(f['epic'], []).append({**f, 'empfohlen': empfohlen(f), 'antwort': None if a is None else {'option': a['option'], 'text': a['text'] or None, 'zeit': a['zeit'], 'abgeholt': bool(a['abgeholt']), 'quittiert': bool(a['quittiert'])}})
         schlange = b.get('schlange', [])
         for ep in b.get('epics', []):
             gemergt = zeit(ep.get('gemergtAm')) or (zeit(stufen_seit.get((forge, ep['nr']))) if ep['stufe'] in ('gemergt', 'fertig') else None)

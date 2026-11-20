@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Flottenbrücke: an LCARS elbow with two bars on a black tile; own drawing, no insignia -->
+  <rect width="512" height="512" rx="112" fill="#000"/>
+  <path d="M80 432V212A132 132 0 0 1 212 80H392A40 40 0 0 1 392 160H232A48 48 0 0 0 184 208V432Z" fill="#ff9c33"/>
+  <rect x="232" y="224" width="200" height="80" rx="40" fill="#cc99cc"/>
+  <rect x="232" y="352" width="200" height="80" rx="40" fill="#8899ff"/>
+</svg>

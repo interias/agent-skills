@@ -71,6 +71,7 @@ Mögliche Schalter:
 | `--ohne-nacharbeit` | Nacharbeit läuft |
 | `--merge-skript` | `merge.ps1` des Leitstands |
 | `--max-min` | ohne Grenze |
+| `--bruecke <url>` | Umgebung `FLOTTE_BRUECKE`, sonst keine Brücke; etwa `http://127.0.0.1:4747`. Den Token einer Brücke mit `BRUECKE_TOKEN` liest der Treiber aus `FLOTTE_BRUECKE_TOKEN` |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
 ### Weiteres Konto zuschalten
@@ -138,10 +139,11 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 7. **Sichtbar:**
    - Tafel: `<git common dir>/flotte/tafel.html` im Browser öffnen; sie lädt sich selbst neu. Sie zeigt je Lauf den letzten Schritt und seine Zeit und die Merge-Schlange.
    - Logbuch: ein Issue mit Label `flotte`, mit dem KIBO-Block. Die Bremse steht dort nur als Stufe, nie in Prozent.
+   - **Flottenbrücke** (`flottenbruecke/`, mit `--bruecke`): Der Treiber meldet ihr in jedem Takt seinen Zustand und holt die Antworten ab, die der Mensch dort gegeben hat. Nur der Treiber spricht mit ihr, Läufe und Admiral sehen sie nicht. Ein Ereignis (neue Frage, Stufenwechsel, Merge) meldet er sofort; solange eine Frage offen ist, fragt er alle 10 s nach Antworten. Ist sie aus, arbeitet er weiter (ein Ereignis, kein Fehler). Schnittstelle: `flottenbruecke/SCHNITTSTELLE.md`.
 
 ## Was beim Menschen liegt
 
-- **Fragen**, die der Admiral nicht entscheiden darf. Sie stehen als `FRAGE AN DEN MENSCHEN` am Issue und auf der Tafel. Antwort mit `flotte antworten …`.
+- **Fragen**, die der Admiral nicht entscheiden darf. Sie stehen als `FRAGE AN DEN MENSCHEN` am Issue, auf der Tafel und vollständig auf der Brücke (Frage, Lage, Optionen, Empfehlung, Betrifft, Wortlaut). Lässt sich ein Block nicht in Fragen zerlegen, geht sein Wortlaut an den Menschen; keine Frage verschwindet still. Antwort mit `flotte antworten …` oder auf der Brücke (Option, bei `— Auswahl: mehrere` mehrere als Kästchen, Freitext oder beides; der Freitext erreicht den Lauf unverändert als `Antwort: <Text>`).
 - **Mergen** bei `merge: mensch`, und das Umstellen auf `nach_gate` im Adapter.
 - **Konto anmelden**, wenn ein Lauf mit einem Anmeldefehler endet (das Epic steht dann auf „blockiert“).
 - **Widerruf** einer Entscheidung: als Kommentar am Issue. Der Lauf setzt ihn im nächsten Zug oder in der Nacharbeit um.

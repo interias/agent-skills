@@ -85,7 +85,7 @@ time, .zahl { font-variant-numeric: tabular-nums; }
 .spalte-kopf {
   display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 12px;
   border-radius: var(--rund) 6px 6px var(--rund); color: #000; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .04em; font-size: 14px; position: sticky; top: 0; z-index: 2;
+  letter-spacing: .04em; font-size: 14px;
 }
 .spalte-kopf .zahl { background: #000; color: var(--text); border-radius: var(--rund); padding: 0 8px; font-size: 12px; line-height: 18px; }
 .s-bereit .spalte-kopf { background: var(--himmel); }
@@ -125,7 +125,10 @@ time, .zahl { font-variant-numeric: tabular-nums; }
 .frage { margin-top: 8px; padding-top: 8px; border-top: 2px solid #2a2a40; }
 .frage-titel { font-weight: 700; color: var(--lila); font-size: 14px; overflow-wrap: anywhere; }
 .lage { font-size: 13px; color: var(--text); margin: 4px 0 6px; overflow-wrap: anywhere; white-space: pre-line; }
-.wartet { font-size: 11px; color: var(--matt); text-transform: uppercase; letter-spacing: .04em; }
+.roh { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; background: #05050a; border-radius: 6px; padding: 6px 8px; max-height: 260px; overflow: auto; }
+.wortlaut { margin-top: 4px; font-size: 12px; }
+.wortlaut summary { cursor: pointer; color: var(--himmel); text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
+.wartet {font-size: 11px; color: var(--matt); text-transform: uppercase; letter-spacing: .04em; }
 .optionen { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .opt {
   display: flex; gap: 8px; align-items: flex-start; text-align: left; width: 100%;
@@ -136,6 +139,8 @@ time, .zahl { font-variant-numeric: tabular-nums; }
 .opt.empfohlen .b { background: var(--orange); }
 .opt .empf { display: inline-block; margin-left: 6px; font-size: 10px; color: #000; background: var(--orange); border-radius: var(--rund); padding: 0 6px; text-transform: uppercase; font-weight: 700; letter-spacing: .05em; vertical-align: 1px; }
 .opt.gewaehlt { border-color: var(--orange); background: #2a1e10; }
+.opt.kaestchen .b { border-radius: 4px; }
+.opt.kaestchen.gewaehlt .b::after { content: " ✓"; }
 .opt:focus-visible, .knopf:focus-visible, textarea:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
 textarea {
   width: 100%; min-height: 54px; resize: vertical; background: #05050a; color: var(--text); border: 2px solid #2a2a40;
@@ -197,7 +202,7 @@ dialog form { padding: 0 16px 16px; }
   .tafel { grid-template-columns: 1fr; gap: 14px; margin-top: 4px; }
   .s-frage { order: -1; }
   .spalte { scroll-margin-top: 48px; }
-  .spalte-kopf { top: 42px; }
+  .spalte-kopf { position: sticky; top: 42px; z-index: 2; }
   .opt { min-height: 44px; font-size: 14px; }
   .knopf { height: 40px; }
   textarea { font-size: 16px; }

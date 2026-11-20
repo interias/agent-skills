@@ -37,8 +37,10 @@ Sprungleiste oben.
 
 ## Antworten
 
-Eine Karte in „Frage an dich“ zeigt Lage, Optionen als Knöpfe (die Empfehlung markiert) und ein
-Freitextfeld. Beim ersten Antworten fragt die Seite die PIN ab und merkt sie sich auf dem Gerät.
+Eine Karte in „Frage an dich“ zeigt Lage, Optionen als Knöpfe (die Empfehlung markiert), den
+Wortlaut des Laufs zum Aufklappen und immer ein Freitextfeld. Du wählst eine Option, schreibst
+Freitext oder beides; der Freitext erreicht den Lauf unverändert. Ließ sich ein Block nicht in
+Fragen zerlegen, steht sein Wortlaut selbst auf der Karte. Beim ersten Antworten fragt die Seite die PIN ab und merkt sie sich auf dem Gerät.
 Bis der Treiber die Antwort abholt, lässt sie sich ändern. Der Treiber holt sie in seinem nächsten
 Takt ab, behandelt sie wie `flotte antworten`, kommentiert am Issue mit der Herkunft „Mensch über
 die Brücke“ und quittiert sie.
@@ -48,8 +50,11 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 
 ## Treiber
 
-Die HTTP-Schnittstelle (Bericht, Abholen, Quittieren) steht in [`SCHNITTSTELLE.md`](SCHNITTSTELLE.md),
-ein Beispielbericht in [`beispiel/bericht.json`](beispiel/bericht.json). Zum Ausprobieren ohne Treiber:
+Der Treiber meldet sich mit `flotte fahren … --bruecke http://127.0.0.1:4747` (oder Umgebung
+`FLOTTE_BRUECKE`). Die HTTP-Schnittstelle (Bericht, Abholen, Quittieren) steht in
+[`SCHNITTSTELLE.md`](SCHNITTSTELLE.md), der gemeinsame Vertrag in
+[`beispiel/bericht.json`](beispiel/bericht.json) und [`beispiel/antworten.json`](beispiel/antworten.json).
+Zum Ausprobieren ohne Treiber:
 
 ```
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht.json http://127.0.0.1:4747/api/bericht

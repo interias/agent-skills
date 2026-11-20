@@ -26,6 +26,7 @@ create table if not exists antworten (
   epic integer not null,
   nr integer not null,
   seit text not null,
+  option text,
   text text not null,
   zeit text not null,
   abgeholt text,
@@ -44,6 +45,9 @@ class Speicher:
         self.lock = threading.Lock()
         with self.lock, self.db:
             self.db.executescript(SCHEMA)
+            # databases of the first version have no option column
+            if 'option' not in [z['name'] for z in self.db.execute('pragma table_info(antworten)')]:
+                self.db.execute('alter table antworten add column option text')
 
     def bericht_speichern(self, forge: str, bericht: dict, jetzt: str) -> bool:
         """Stores the report; True when it created the project."""
@@ -83,16 +87,17 @@ class Speicher:
         with self.lock:
             return [dict(z) for z in self.db.execute(sql + ' order by id', args)]
 
-    def antwort_setzen(self, forge: str, epic: int, nr: int, seit: str, text: str, jetzt: str) -> dict | None:
+    def antwort_setzen(self, forge: str, epic: int, nr: int, seit: str, option: str | None, text: str | None, jetzt: str) -> dict | None:
         """New or changed answer; None when the driver already fetched the old one."""
         with self.lock, self.db:
             alt = self.db.execute('select * from antworten where forge = ? and epic = ? and nr = ? and seit = ?', (forge, epic, nr, seit)).fetchone()
             if alt is not None and (alt['abgeholt'] or alt['quittiert']):
                 return None
+            # no free text is stored as ''
             if alt is None:
-                self.db.execute('insert into antworten (forge, epic, nr, seit, text, zeit) values (?, ?, ?, ?, ?, ?)', (forge, epic, nr, seit, text, jetzt))
+                self.db.execute('insert into antworten (forge, epic, nr, seit, option, text, zeit) values (?, ?, ?, ?, ?, ?, ?)', (forge, epic, nr, seit, option, text or '', jetzt))
             else:
-                self.db.execute('update antworten set text = ?, zeit = ? where id = ?', (text, jetzt, alt['id']))
+                self.db.execute('update antworten set option = ?, text = ?, zeit = ? where id = ?', (option, text or '', jetzt, alt['id']))
             return dict(self.db.execute('select * from antworten where forge = ? and epic = ? and nr = ? and seit = ?', (forge, epic, nr, seit)).fetchone())
 
     def abholen(self, forge: str, jetzt: str) -> list[dict]:

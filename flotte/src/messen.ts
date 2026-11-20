@@ -218,7 +218,7 @@ export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleM
     const q = ev.find((e) => e.epic === f.epic && e.text.includes(`Frage ${f.nr} liegt beim Menschen`));
     if (!q) continue;
     const a = ev.find((e) => e.epic === f.epic && e.t >= q.t && e.text.includes(`Antwort des Menschen auf Frage ${f.nr}`));
-    const buchstabe = /^[A-H]$/.test(f.empfehlung.trim()) ? f.empfehlung.trim() : null;
+    const buchstabe = /^[A-Z]$/.test(f.empfehlung.trim()) ? f.empfehlung.trim() : null;
     fragen.push({
       zeit: q.t,
       wartenMin: a ? (a.t - q.t) / MIN : null,

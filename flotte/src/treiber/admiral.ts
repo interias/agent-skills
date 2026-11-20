@@ -74,6 +74,7 @@ export function admiralAuftrag(block: FrageBlock, kontext: string, merge: string
       `   Betrifft: ${f.betrifft === null ? '(fehlt)' : f.betrifft === 'Lauf' ? 'Lauf' : f.betrifft.join(', ')}`,
       `   Lage: ${f.lage}`,
       `   Optionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}`,
+      ...(f.mehrfach ? ['   Auswahl: mehrere — antwort nennt alle gewählten Buchstaben, durch Komma getrennt (etwa „A, C")'] : []),
       `   Empfehlung des Laufs: ${f.empfehlung ?? '(keine)'} — Grund: ${f.grund}`,
       `   Regel/Quelle: ${f.quelle}`,
     ].join('\n'))
