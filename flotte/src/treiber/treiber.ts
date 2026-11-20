@@ -566,8 +566,11 @@ class Treiber {
     for (const nr of plan.neu) {
       const ep = this.epic(nr);
       // fewest running runs; on a tie the account with fewer epics so far (dress rehearsal: with
-      // a limit of 1 every tie went to account 1)
-      const konto = [...gruen].sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
+      // a limit of 1 every tie went to account 1). --konto-max counts the epics placed in this
+      // tick too (probe 3: two new epics in one tick both went to the capped account).
+      const frei = gruen.filter((k) => this.epicsAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+      if (!frei.length) break;
+      const konto = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
       ep.konto = konto;
       ep.stufe = 'laeuft';
       ep.notiz = '';

@@ -177,6 +177,14 @@ describe('A: die Merge-Schlange', () => {
     expect(Object.values(z.epics).every((e) => e.stufe === 'fertig')).toBe(true);
   }, T);
 
+  it('--konto-max also counts the epics placed in the same tick (probe 3)', async () => {
+    const t = aufbau();
+    const buch = drehbuch([3, 4, 5].map((n) => lauf(n, [{ warte: 300 }, { text: ende(n, 10 + n) }])));
+    const z = await fahre(t.einstellung(buch, [3, 4, 5], { kontoMax: { [t.konten[0]]: 1 } }), t.welt);
+    expect(Object.values(z.epics).filter((e) => e.konto === t.konten[0])).toHaveLength(1);
+    expect(Object.values(z.epics).every((e) => e.stufe === 'fertig')).toBe(true);
+  }, T);
+
   it('blocks after three gate runs of the driver when the base keeps moving', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { mergeImmerAbgelehnt: 13 });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
