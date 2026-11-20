@@ -563,6 +563,32 @@ Describe 'worktree.ps1 CleanupStale' {
         }
     }
 
+    It 'keeps the package of a fleet run between two turns while its holder file exists' {
+        $t = New-AdapterRepo
+        $holder = Join-Path $TestDrive 'halten-1.json'
+        Set-Content -Path $holder -Value '{"epic":1}'
+        $session = Start-Session
+        $saved = $env:EPIC_LOCK_HOLDER
+        try {
+            $env:EPIC_LOCK_HOLDER = $holder
+            (Invoke-Up $t $session.Id).Exit | Should Be 0
+        } finally { $env:EPIC_LOCK_HOLDER = $saved }
+        # claude -p ended its turn: the process of the lock is gone
+        Stop-Session $session
+        $lockPath = Join-Path $t.Repo '.git\epic-locks\1.json'
+        (Get-Content $lockPath -Raw | ConvertFrom-Json).holder | Should Be $holder
+        $r = Invoke-Cleanup $t
+        $r.Exit | Should Be 0
+        (Find-Entry $r 'lock' '1')[0].action | Should Be 'skipped'
+        (Find-Entry $r 'lock' '1')[0].reason | Should Match 'held by'
+        Test-Path $t.Worktree | Should Be $true
+        # the epic ended: the driver deleted the file, the next cleanup removes the package
+        Remove-Item $holder
+        $r = Invoke-Cleanup $t
+        (Find-Entry $r 'lock' '1')[0].action | Should Be 'removed'
+        Test-Path $t.Worktree | Should Be $false
+    }
+
     It 'counts a reused PID as dead' {
         $t = New-AdapterRepo
         $session = Start-Session

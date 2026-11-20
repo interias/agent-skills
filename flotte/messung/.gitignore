@@ -1,0 +1,3 @@
+# Echte Einsatzlisten nennen Sitzungen und Themen; sie bleiben außerhalb des Repos.
+einsaetze*.json
+!einsaetze.beispiel.json

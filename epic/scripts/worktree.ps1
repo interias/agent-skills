@@ -52,7 +52,9 @@
       reported with path, branch and reason (its processes are already stopped, as in Down). A lock
       whose worktree folder is gone or no longer registered: compose and processes of that path are
       stopped, a registered entry without folder is pruned (`git worktree prune`), the lock goes.
-    - A lock whose session lives is left alone.
+    - A lock whose session lives is left alone. So is a lock whose holder file exists: Up records
+      EPIC_LOCK_HOLDER as holder; the fleet driver sets it for its runs (claude -p has no process
+      between two turns) and deletes the file when the epic ends.
     - Narrowed reading of #36 AC 2: a worktree registered in `git worktree list` without a lock (one
       that Up did not create, or whose lock is gone) is not touched - no process stopped, no
       compose project, nothing removed - and is reported as skipped with "no lock (not created by
@@ -631,6 +633,12 @@ if ($Action -eq 'CleanupStale') {
                 $lock = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
                 $reason = Get-DeadSessionReason $lock
                 $heir = if ($reason) { Find-RestartedSession $lock } else { 0 }
+                $held = $reason -and $lock.holder -and (Test-Path -LiteralPath $lock.holder -PathType Leaf)
+                if ($held) {
+                    $keptLocks[$name] = "held by $($lock.holder) (a fleet run between two turns)"
+                    Add-Entry 'lock' $name $file.FullName 'skipped' $keptLocks[$name]
+                    continue
+                }
                 if (-not $reason -or $heir) {
                     $keptLocks[$name] = if ($heir) { "session $($lock.sessionId) is alive as PID $heir (restarted; the lock names PID $($lock.sessionPid))" } else { "session $($lock.sessionPid) is alive" }
                     Add-Entry 'lock' $name $file.FullName 'skipped' $keptLocks[$name]
@@ -899,9 +907,12 @@ if ($Action -eq 'Up') {
 
     $started = $null
     try { $started = $session.StartTime.ToString('o') } catch { }
+    # A run of the fleet driver (claude -p) has no process between its turns; the driver names a
+    # holder file that lives as long as the epic (flotte, acceptance of #14, finding 3).
+    $holder = if ($env:EPIC_LOCK_HOLDER) { $env:EPIC_LOCK_HOLDER } else { $null }
     $lock = [ordered]@{
         package = $Package; branch = $Branch; sessionPid = $SessionPid; sessionStarted = $started
-        sessionId = $sessionId; sessionsDir = $sessionsDir
+        sessionId = $sessionId; sessionsDir = $sessionsDir; holder = $holder
         created = (Get-Date).ToString('o'); worktree = $WorktreePath; repoRoot = $RepoRoot
         port = $port; project = $project
     }

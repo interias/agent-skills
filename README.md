@@ -27,6 +27,7 @@ Rückfrage; den Stand zeigen Gitea und KIBO.
 | `epic-nacharbeit` | Die offenen Punkte eines abgeschlossenen Laufs in Fragerunden klären und erledigen |
 | `epic-aufraeumen` | Nach dem Merge Worktrees und Branches abräumen, nur was nachweislich gemergt ist |
 | `epic-flotte` | Optional: mehrere Epics gleichzeitig, geführt von einem Admiral |
+| `flotte` | Optional: dasselbe als Programm (Bun), die Läufe als `claude -p` auf einem oder zwei Konten; Start im Terminal, siehe `flotte/SKILL.md` |
 | `epic-lagebesprechung` | Optional: im laufenden Chat alles abholen, was bei dir liegt |
 | `mail-antwort` | Eine Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen |
 | `persona-review` | Eine Funktion von Persona-Agenten lokal durchspielen lassen, Befunde nachprüfen, Runden vergleichen |
@@ -276,7 +277,7 @@ leichter wurde. Eine Abnahme-Probe mit Gegenprobe schließt ab.
 
 Der Leitstand ist kein zweiter Flotten-Mechanismus: Er delegiert Aufträge an ein zweites
 Claude-Konto in eigenen Terminalfenstern, überwacht sie mit einem Wächter und mergt ihre PRs, wenn der Adapter
-`merge: nach_gate` sagt: nach grünen Checks oder, ohne Checks, nach grünem Gate-Block. Skill und Konto richtet [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md) ein.
+`merge: nach_gate` sagt: nach grünem Gate-Block und, wo es Checks gibt, nach grünen Checks. Skill und Konto richtet [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md) ein.
 Prüfe danach, dass `skills` und `agents` in `~/.claude-arbeitspferd` Verknüpfungen auf `~/.claude`
 sind: Das Skript lässt vorhandene Ordner stehen, und ein eigener Ordner dort veraltet unbemerkt.
 
