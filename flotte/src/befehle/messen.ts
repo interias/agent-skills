@@ -8,6 +8,8 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { leseDatei, type Eintrag } from '../transkript.ts';
 import { istFehlstart, kalteZeit, prDauern, rueckfragen, runde, treiberKennzahlen, verteilung, type Fenster, type PullRequest, type Rueckfrage, type TreiberZustand } from '../messen.ts';
+import { adapterAus } from '../werkzeuge/belegung.ts';
+import { liesMessungen, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface SitzungRef {
   konto: string;
@@ -243,7 +245,34 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
     pr_bereit_bis_gemergt_min: { ...verteilung(dauern.map((d) => d.minuten)), geschaetzt: dauern.filter((d) => d.geschaetzt).length, prs: dauern.map((d) => ({ pr: d.pr, minuten: runde(d.minuten), geschaetzt: d.geschaetzt })) },
     orchestrierung: { weighted: Math.round(summe), je_epic: e.epics.length ? Math.round(summe / e.epics.length) : null, sitzungen: gewichte, methode: 'usage.ps1 ohne Modellgewichte, im Fenster der Sitzung' },
     reste: reste(u, e),
+    prognose: prognoseKennzahlen(e),
     fehler,
+  };
+}
+
+/**
+ * The records of the forecast next to the driver state (messungen.jsonl, per repository, across
+ * deployments): how many, work time per epic without waits for the person, the hit rate of the
+ * self check, and whether the bridge shows the forecast.
+ */
+function prognoseKennzahlen(e: Einsatz): unknown {
+  if (!e.treiberZustand) return null;
+  const m = liesMessungen(dirname(pfadAus(e.treiberZustand)));
+  let ab = 5;
+  try {
+    if (e.repoPfad) ab = adapterAus(e.repoPfad).prognose_ab;
+  } catch {
+    ab = 5;
+  }
+  const st = prognoseStand(m, ab);
+  return {
+    ...st,
+    arbeit_min: verteilung(m.map((x) => x.arbeitS / 60)),
+    mensch_warten_min: verteilung(m.map((x) => x.menschWartenS / 60)),
+    gate_min: verteilung(m.map((x) => x.gateS / 60)),
+    pakete_je_klasse: m.flatMap((x) => x.pakete).reduce<Record<string, number>>((acc, p) => ({ ...acc, [p.klasse]: (acc[p.klasse] ?? 0) + 1 }), {}),
+    eskalationen: m.flatMap((x) => x.pakete).reduce((s, p) => s + p.eskalationen, 0),
+    methode: 'messungen.jsonl des Treibers: Arbeitszeit = erster Start bis letztes FLOTTE-ENDE ohne die Zeit, in der der ganze Lauf auf den Menschen wartete; Treffer = Dauer samt Gate zwischen P10 und P90 der Prognose beim Start',
   };
 }
 

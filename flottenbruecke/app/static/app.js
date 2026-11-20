@@ -318,7 +318,7 @@ function ebene2(t) {
   $('e2-klein').textContent = [laufen ? `${laufen} ${laufen === 1 ? 'läuft' : 'laufen'}` : '', warten ? `${warten} wartet auf dich` : '', u.schlange.length ? `${u.schlange.length} in der Schlange` : '', u.bereit.length ? `${u.bereit.length} bereit` : ''].filter(Boolean).join(' · ') || 'nichts unterwegs';
   const items = [...u.laeufe.map((l) => ({ ...l, form: 'lauf', flip: l.id })), ...u.schlange.map((s) => ({ ...s, id: `${s.id}:s`, form: 'schlange', flip: s.id }))];
   liste($('e2-liste'), items, laufHtml, paketeVerdrahten);
-  setze($('bereit'), `<span>Bereit</span>${u.bereit.length ? u.bereit.map((b) => `<span class="b-ep">${b.prio ? '<span class="prio">prio</span>' : ''}#${b.nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}</span>`).join('') : '<span class="b-ep"><small>keins wartet</small></span>'}`);
+  setze($('bereit'), `<span>Bereit</span>${u.bereit.length ? u.bereit.map((b) => `<span class="b-ep">${b.prio ? '<span class="prio">prio</span>' : ''}#${b.nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>`).join('') : '<span class="b-ep"><small>keins wartet</small></span>'}`);
 }
 
 function paketeHtml(x) {
@@ -402,10 +402,40 @@ function ebene3(t, vorher) {
     void e3.offsetWidth;
     e3.classList.add('blitz');
   }
-  liste($('e3-liste'), e.map((x) => ({ ...x, form: 'zeile', neu: neueMerges.includes(x), flip: x.art === 'gemergt' || x.art === 'aufgegeben' ? x.id : undefined })), zeileHtml, zeileVerdrahten, 'li');
+  // first the forecast of each project: when the backlog is empty
+  const prognosen = t.projekte.filter((p) => p.prognose).map((p) => ({ id: `prognose:${p.forge}`, art: 'prognose', form: 'zeile', kurz: p.kurz, mehrere: t.projekte.length > 1, ...p.prognose }));
+  liste($('e3-liste'), [...prognosen, ...e.map((x) => ({ ...x, form: 'zeile', neu: neueMerges.includes(x), flip: x.art === 'gemergt' || x.art === 'aufgegeben' ? x.id : undefined }))], zeileHtml, zeileVerdrahten, 'li');
+}
+
+// a span of seconds as the board says it: "40–70 min" or "3–5 h"
+function spanne(s) {
+  const [a, b] = [s.p50 / 60, s.p90 / 60];
+  if (b < 90) return `${Math.max(1, Math.round(a))}–${Math.max(1, Math.round(b))} min`;
+  const h = (m) => (m < 600 ? Math.round(m / 30) / 2 : Math.round(m / 60)).toLocaleString('de-DE');
+  return h(a) === h(b) ? `etwa ${h(a)} h` : `${h(a)}–${h(b)} h`;
+}
+
+// a point in time ahead: today with the clock, else the weekday
+function wann(iso, sekunden) {
+  const t = new Date(Date.parse(iso) + sekunden * 1000);
+  const tag = (d) => new Date(jetzt() + d * 864e5).toDateString();
+  const uhr = t.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  if (tag(0) === t.toDateString()) return `heute ${uhr}`;
+  if (tag(1) === t.toDateString()) return `morgen ${uhr}`;
+  return t.toLocaleString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function prognoseHtml(x) {
+  const wo = x.mehrere ? `${esc(x.kurz)}: ` : '';
+  const quote = x.geprueft ? ` · traf ${x.treffer} von ${x.geprueft}` : '';
+  if (x.status === 'zu_wenig') return `<time></time><span>${wo}Prognose ab ${x.ab} Epics · bisher ${x.bisher}</span>`;
+  if (x.status === 'ungenau') return `<time></time><span>${wo}Prognose ausgeblendet: zu ungenau für dieses Projekt${quote}</span>`;
+  if (!x.backlog) return `<time></time><span>${wo}Backlog leer · Prognose aus ${x.bisher} Epics${quote}</span>`;
+  return `<time></time><span>${wo}<b>Backlog leer etwa ${esc(wann(x.berechnet, x.backlog.p50))} – ${esc(wann(x.berechnet, x.backlog.p90))}</b>${quote} · <small>aus ${x.bisher} Epics, ohne Wartezeit auf deine Antworten</small></span>`;
 }
 
 function zeileHtml(x) {
+  if (x.art === 'prognose') return prognoseHtml(x);
   const nr = `#${x.epic ?? x.nr}`;
   const zeit = `<time>${uhrzeit(x.zeit)}</time>`;
   if (x.art === 'gemergt') return `${zeit}<span><b>${nr} gemergt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;

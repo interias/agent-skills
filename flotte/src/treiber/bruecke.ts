@@ -98,6 +98,23 @@ export interface BerichtEpic {
   gestartetAm: string | null;
   schlangeSeit: string | null;
   gateSeit: string | null;
+  /** forecast of a waiting epic in seconds (p50–p90), null below the threshold or when hidden */
+  prognose: { p50: number; p90: number } | null;
+}
+
+/**
+ * The forecast as a whole: status zu_wenig (below `ab` measured epics, so far `bisher`), ungenau (hit
+ * rate under 60 %, hidden) or ok; the backlog in seconds from `berechnet`. Waits for the person are
+ * not included.
+ */
+export interface BerichtPrognose {
+  status: 'zu_wenig' | 'ungenau' | 'ok';
+  ab: number;
+  bisher: number;
+  treffer: number;
+  geprueft: number;
+  backlog: { p50: number; p90: number } | null;
+  berechnet: string;
 }
 
 export interface Bericht {
@@ -117,6 +134,7 @@ export interface Bericht {
   leerlaufS: number;
   ereignisse: { zeit: string; epic: number | null; text: string }[];
   entscheidungen: { epic: number; nr: number; frage: string; antwort: string; herkunft: string; grund: string; einflussreich: boolean; zeit: string; widerrufen: string | null }[];
+  prognose: BerichtPrognose;
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
