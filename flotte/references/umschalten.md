@@ -17,6 +17,10 @@ nicht**: Er bekommt die neue `merge.ps1` und mergt ab dem Einspielen in keinem P
    seine Kopfzeile (`Basis <remote>/<basis> @ <sha>` und `(HEAD <sha>)`). Sonst mergt die
    Merge-Regel nie, und das Epic wird nach den Nachbesserungen blockiert. In hexanite fehlt die
    Basis bisher; dort erst `gate/gate.mts` anpassen, bis dahin `merge: mensch`.
+5. **Für die Merge-Schlange** braucht der Adapter `gate_command`: der Befehl, mit dem der Treiber
+   das Gate im Epic-Worktree selbst fährt. Ohne ihn bessert der Lauf den Block nach wie bisher.
+   Wer die Wiederholungen klein halten will, trägt dazu `gate_areas` und `gate_always_command` ein
+   (`epic/references/adapter.md`, „Merge“).
 
 ## Vor dem Umschalten, in dieser Reihenfolge
 
@@ -28,6 +32,8 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
 - In hexanite heißt das: von Hand mergen, bis `gate/gate.mts` die Basis ausgibt und der Adapter auf
   `nach_gate` steht.
 - Deshalb kommt der Adapter zuerst.
+- Welche Projekte das trifft, sagt `bun <stapel>\flotte\src\cli.ts adapter`: die Projektadapter unter
+  `~/git` ohne Schlüssel `merge`, gelesen von `origin/HEAD`. Einzelne Ordner gehen als Argumente.
 
 1. **Auf der ganzen Maschine läuft keine Flotte und kein `/epic`,** in keinem Projekt und auf
    keinem Konto. Weder der Leitstand noch `/epic-flotte` noch ein Fenster mit `/epic` arbeitet
@@ -36,8 +42,11 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
 2. **Adapter zuerst:** im Projektadapter `.claude/epic.md`, über einen PR auf die Basis:
    - `merge: mensch` (Standard) oder `merge: nach_gate`.
    - Bei Repositorys ohne CI die Gate-Schlüssel (`gate_heading`, `gate_green`, `gate_base`,
-     `gate_head`), falls der Block anders aussieht als der Standard
+     `gate_head`, `gate_partial`), falls der Block anders aussieht als der Standard, und
+     `gate_command`, `gate_always_command`, `gate_areas` für die Merge-Schlange
      (`epic/references/adapter.md`, „Merge“).
+   - Ein Repository ohne CI erkennt `merge.ps1` selbst (keine Workflows, keine Checks auf der
+     Basis) und wartet dort nicht mehr zwei Minuten auf Checks.
    - Optional `nach_merge:`, eine Liste von Befehlen, die nach jedem Merge im Hauptverzeichnis
      laufen.
 3. **Dann einspielen,** alle drei Skills. Der Treiber braucht ihre Skripte als Nachbarn:
@@ -81,7 +90,8 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts fahren C:\Users\stefa\git\<projekt> --forge interias/<projekt> --epics 15,21 --konten C:\Users\stefa\.claude,C:\Users\stefa\.claude-arbeitspferd
    ```
 
-3. **Tafel öffnen:** `<projekt>\.git\flotte\tafel.html`.
+3. **Tafel öffnen:** `<projekt>\.git\flotte\tafel.html`. Einem Lauf zusehen:
+   `flotte zuschauen <projekt> <epic>` in einem zweiten Terminal.
 4. **Fragen** kommen als `FRAGE AN DEN MENSCHEN` ans Issue, mit GitHub-Benachrichtigung, und
    stehen auf der Tafel. Beantwortet werden sie im Projektordner mit `flotte antworten . <epic>
    <frage> "<Antwort>"`. Die Zeile zum Kopieren steht im Kommentar.

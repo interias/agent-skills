@@ -815,7 +815,9 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     Das Gate läuft nach dem letzten Commit und gegen den aktuellen Stand der Basis. Jeder Commit
     danach verlangt einen neuen Lauf und einen neuen Block, auch einer nur für die Doku oder den
     PR-Text. Den alten Block ersetzt du. Gibt das Gate des Projekts keine Basis aus, ist das ein
-    offener Punkt, und gemergt wird von Hand.
+    offener Punkt, und gemergt wird von Hand. Nennt der Adapter `gate_command`, ist das der Befehl
+    für das Gate. Unter dem Flotten-Treiber holt danach der Treiber die Basis nach und fährt das
+    Gate selbst; ein Konflikt oder ein rotes Gate kommt mit seiner Ausgabe zu dir zurück.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
     Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Kind, in beiden Modi. **Ein
     Zielissue mit Kindern nie** (Begründung ebenda). Das

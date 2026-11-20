@@ -164,9 +164,14 @@ Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
 | `gate_green` | Zeile, die einen grünen Gate-Lauf abschließt | `Gate grün.` |
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die das Gate lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
 | `gate_head` | regulärer Ausdruck mit einer Gruppe: die SHA, auf der das Gate lief | `\(HEAD ([0-9a-f]{7,40})\)` |
+| `gate_command` | Befehl (PowerShell), der das ganze Merge-Gate im Worktree fährt und den Block ausgibt; mit ihm fährt der Flotten-Treiber das Gate in seiner Merge-Schlange selbst | keiner |
+| `gate_always_command` | Befehl für den Teil des Gates, der immer läuft, egal welche Bereiche sich bewegt haben (hexanite: `wurzel`) | keiner |
+| `gate_areas` | Liste `<muster> = <name>`: welche Dateien zu welchem Bereich des Gates gehören. `**` geht über Ordner, `*` und `?` bleiben in einem, ein `/` am Ende meint den ganzen Ordner | keine |
+| `gate_partial` | regulärer Ausdruck, der in der Kopfzeile einen Teil-Lauf (nur `gate_always_command`) erkennt | `Immer-Teil` |
 
 **Der Gate-Block** gilt nur in Repositorys **ohne Checks** (meldet die Forge zwei Minuten lang
-keinen Check, hat das Repository keine). Er steht in der PR-Beschreibung unter `gate_heading`, bis
+keinen Check, hat das Repository keine; hat es weder Workflows noch Checks oder Status auf der
+Basis, wartet `merge.ps1` gar nicht). Er steht in der PR-Beschreibung unter `gate_heading`, bis
 zur nächsten Überschrift gleicher oder höherer Ebene; meist als Codeblock, so wie das Gate ihn
 ausgibt:
 
@@ -188,6 +193,18 @@ letzte Zeile, auf die `gate_base` passt, und was danach folgt. Gemergt wird nur,
 
 Fehlt etwas davon, wird nicht gemergt, und der Lauf fährt das Gate neu (`epic/SKILL.md`, Phase 6).
 Ein Commit nach dem Gate, auch nur Doku, verlangt ein neues Gate.
+
+**Der Teil-Lauf.** Ist der letzte Lauf ein Teil-Lauf (`gate_partial` in der Kopfzeile, nur
+`gate_always_command`), gelten 1 bis 5 auch für ihn, und dazu:
+
+- Davor steht ein **voller** grüner Lauf mit Basis und Head.
+- Die Basis hat sich seit diesem vollen Lauf **nur in Bereichen bewegt, die der Pull Request nicht
+  berührt** (`gate_areas`). Eine Datei in keinem Bereich zählt als jeder Bereich.
+- Der Head hat seit dem vollen Lauf nur Dateien der Basis dazubekommen (den Merge der Basis).
+
+Ohne `gate_areas` im Adapter zählt ein Teil-Lauf nie: Jede Bewegung der Basis verlangt dann ein
+volles Gate. `merge.ps1` prüft das selbst über die Forge; kann es den Vergleich nicht lesen,
+mergt es nicht.
 
 ## Auslegung
 
