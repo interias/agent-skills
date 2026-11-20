@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { leseDatei, type Eintrag } from '../transkript.ts';
-import { istFehlstart, kalteZeit, prDauern, rueckfragen, runde, verteilung, type Fenster, type PullRequest, type Rueckfrage } from '../messen.ts';
+import { istFehlstart, kalteZeit, prDauern, rueckfragen, runde, treiberKennzahlen, verteilung, type Fenster, type PullRequest, type Rueckfrage, type TreiberZustand } from '../messen.ts';
 
 export interface SitzungRef {
   konto: string;
@@ -35,6 +35,8 @@ export interface Einsatz {
   laeufeAusOrdnern?: boolean;
   /** session ids (or first characters) in startOrdner that belong to something else */
   ausschliessen?: string[];
+  /** zustand.json of the driver (<git common dir>/flotte): questions, waits, cold time and starts come from there */
+  treiberZustand?: string;
   quelle?: string;
 }
 
@@ -134,7 +136,7 @@ function prs(u: Umgebung, e: Einsatz): { liste: PullRequest[]; fehler?: string }
 
 function weighted(u: Umgebung, t: Transkript, f: Fenster): number | null {
   const args = ['-Transcript', t.pfad, '-Since', new Date(f.von).toISOString(), '-Until', new Date(f.bis).toISOString()];
-  const r = pwshJson(u.aufrufer, u.usageSkript, args, { timeoutMs: 600_000 });
+  const r = pwshJson(u.aufrufer, u.usageSkript, args);
   // only the session itself: its subagents (Lauf-Agenten, implementers) are not orchestration
   const j = r.json as { roles?: { role: string; weighted: number }[] } | null;
   if (r.code || !j) return null;
@@ -187,6 +189,8 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
   // 1, 2: questions to a person and the wait for the answer (orchestrators and runs alike)
   const fragen: Rueckfrage[] = [];
   for (const t of [...orchestrierung, ...laeufe]) fragen.push(...rueckfragen(t.eintraege, e.epics, fensterVon(e, t.ref)));
+  const treiber = e.treiberZustand ? treiberKennzahlen(JSON.parse(readFileSync(pfadAus(e.treiberZustand), 'utf8')) as TreiberZustand, f) : null;
+  if (treiber) fragen.push(...treiber.fragen);
   const mitUrteil = fragen.filter((q) => q.gefolgt !== null);
   const jeEpic: Record<string, { anzahl: number; wartenMin: number }> = {};
   for (const q of fragen) {
@@ -197,7 +201,9 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
   }
 
   // 3: cold time of the runs
-  const kalt = laeufe.map((t) => ({ sitzung: `${t.ref.konto}/${basename(t.pfad, '.jsonl').slice(0, 14)}`, minuten: runde(kalteZeit(t.eintraege, fensterVon(e, t.ref))) }));
+  const kalt = treiber
+    ? treiber.kalt.map((k) => ({ sitzung: `treiber/#${k.epic}`, minuten: runde(k.minuten) }))
+    : laeufe.map((t) => ({ sitzung: `${t.ref.konto}/${basename(t.pfad, '.jsonl').slice(0, 14)}`, minuten: runde(kalteZeit(t.eintraege, fensterVon(e, t.ref))) }));
 
   // 4: misses per start
   const starts = e.laeufeAusOrdnern ? laeufe.filter((t) => !t.ref.agentType) : [...laeufe.filter((t) => !t.ref.agentType), ...extra];
@@ -224,13 +230,16 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
       anzahl: fragen.length,
       je_epic: e.epics.length ? runde(fragen.length / e.epics.length) : null,
       verteilung_epics: jeEpic,
-      form: { ask: fragen.filter((q) => q.form === 'ask').length, text: fragen.filter((q) => q.form === 'text').length },
+      form: { ask: fragen.filter((q) => q.form === 'ask').length, text: fragen.filter((q) => q.form === 'text').length, treiber: fragen.filter((q) => q.form === 'treiber').length },
+      entscheidungen_admiral: treiber?.entscheidungen ?? null,
       empfehlung_gefolgt: { beurteilbar: mitUrteil.length, gefolgt: mitUrteil.filter((q) => q.gefolgt).length },
-      methode: 'AskUserQuestion mit Antwort und Empfehlungslabel; Textrunden je ❓ ohne Urteil über die Empfehlung',
+      methode: 'AskUserQuestion mit Antwort und Empfehlungslabel; Textrunden je ❓ ohne Urteil über die Empfehlung; unter dem Treiber seine Fragen an den Menschen aus zustand.json',
     },
     wartezeit_min: { ...verteilung(fragen.map((q) => q.wartenMin).filter((x): x is number => x !== null)), je_epic: e.epics.length ? runde(fragen.reduce((s, q) => s + (q.wartenMin ?? 0), 0) / e.epics.length) : null },
-    kalte_zeit_min: { summe: runde(kalt.reduce((s, k) => s + k.minuten, 0)), je_lauf: kalt, methode: 'Zugende ohne eigene Hintergrundarbeit bis zur nächsten Eingabe von außen, ab 2 min; Warten nach dem letzten Zug nicht gezählt' },
-    fehlstarts: { starts: starts.length, fehlstarts: fehlstarts.length, anteil: starts.length ? runde(fehlstarts.length / starts.length) : null, sitzungen: fehlstarts.map((t) => `${t.ref.konto}/${t.ref.id}`), methode: 'keine Antwort des Modells in den ersten 3 min; Lauf-Agenten zählen nicht als Start' },
+    kalte_zeit_min: { summe: runde(kalt.reduce((s, k) => s + k.minuten, 0)), je_lauf: kalt, methode: treiber ? 'Treiber: „Zug zu Ende" bis zum nächsten Start des Epics, ohne das Warten auf den Menschen dazwischen, ab 2 min' : 'Zugende ohne eigene Hintergrundarbeit bis zur nächsten Eingabe von außen, ab 2 min; Warten nach dem letzten Zug nicht gezählt' },
+    fehlstarts: treiber
+      ? { starts: treiber.starts, fehlstarts: treiber.fehlstarts, anteil: treiber.starts ? runde(treiber.fehlstarts / treiber.starts) : null, sitzungen: [], methode: 'Treiber: Starts und Fortsetzungen; Fehlstart = „Start ohne Ergebnis"' }
+      : { starts: starts.length, fehlstarts: fehlstarts.length, anteil: starts.length ? runde(fehlstarts.length / starts.length) : null, sitzungen: fehlstarts.map((t) => `${t.ref.konto}/${t.ref.id}`), methode: 'keine Antwort des Modells in den ersten 3 min; Lauf-Agenten zählen nicht als Start' },
     pr_bereit_bis_gemergt_min: { ...verteilung(dauern.map((d) => d.minuten)), geschaetzt: dauern.filter((d) => d.geschaetzt).length, prs: dauern.map((d) => ({ pr: d.pr, minuten: runde(d.minuten), geschaetzt: d.geschaetzt })) },
     orchestrierung: { weighted: Math.round(summe), je_epic: e.epics.length ? Math.round(summe / e.epics.length) : null, sitzungen: gewichte, methode: 'usage.ps1 ohne Modellgewichte, im Fenster der Sitzung' },
     reste: reste(u, e),

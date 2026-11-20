@@ -19,7 +19,7 @@ describe('lauf', () => {
     expect(r.ergebnisse).toHaveLength(3);
     const [g] = d.gesehen();
     expect(g.eingabe).toBe('Rufe /epic #7 auf');
-    expect(g.args).toEqual(['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none', '--model', 'haiku']);
+    expect(g.args).toEqual(['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none', '--strict-mcp-config', '--model', 'haiku']);
     expect(g.decke).toBe('0');
     expect(g.konto).toBe(konto);
     expect(liesVerbrauch(konto)?.fuenf?.anteil).toBe(0.4);

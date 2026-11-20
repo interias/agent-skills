@@ -8,6 +8,7 @@ import { basename, join } from 'node:path';
 import { aufrufen, type Aufrufer, type AsyncAufrufer, type Ergebnis } from '../src/aufruf.ts';
 import { standard, type Einstellung, type Welt } from '../src/treiber/treiber.ts';
 import { starte } from '../src/werkzeuge/lauf.ts';
+import { startZeit } from '../src/werkzeuge/zustand.ts';
 import { schreibe as schreibeVerbrauch } from '../src/werkzeuge/verbrauch.ts';
 import { drehbuch, mitAttrappe } from './attrappe.ts';
 
@@ -32,6 +33,12 @@ export interface Optionen {
   nachMerge?: number;
   /** usage share of the 5-hour window per account; null: no file; 'alt': 40 min old */
   verbrauch?: (number | null | 'alt')[];
+  /** text of the installed merge.ps1; default: a version that knows the key merge */
+  mergeSkript?: string;
+  /** how long merge.ps1 takes (it waits for checks) */
+  mergeDauerMs?: number;
+  /** an existing repository and accounts instead of fresh ones (a second driver process, D16) */
+  vorhanden?: { repo: string; konten: string[] };
 }
 
 export interface Protokoll {
@@ -47,12 +54,16 @@ export interface Protokoll {
 }
 
 export function aufbau(o: Optionen = {}) {
-  const repo = mkdtempSync(join(tmpdir(), 'flotte-repo-'));
-  aufrufen('git', ['init', '-q', repo]);
-  mkdirSync(join(repo, '.claude'));
-  writeFileSync(join(repo, '.claude', 'epic.md'), `---\n${o.adapter ?? 'merge: mensch'}\n---\n# Adapter\n`);
+  const repo = o.vorhanden?.repo ?? mkdtempSync(join(tmpdir(), 'flotte-repo-'));
+  if (!o.vorhanden) {
+    aufrufen('git', ['init', '-q', repo]);
+    mkdirSync(join(repo, '.claude'));
+    writeFileSync(join(repo, '.claude', 'epic.md'), `---\n${o.adapter ?? 'merge: mensch'}\n---\n# Adapter\n`);
+    mkdirSync(join(repo, 'skripte'));
+    writeFileSync(join(repo, 'skripte', 'merge.ps1'), o.mergeSkript ?? '# merge: nach_gate, gate_heading\n');
+  }
   const verbrauch = o.verbrauch ?? [0.1, 0.1];
-  const konten = verbrauch.map((anteil, i) => {
+  const konten = o.vorhanden?.konten ?? verbrauch.map((anteil, i) => {
     const k = mkdtempSync(join(tmpdir(), `flotte-konto${i + 1}-`));
     if (anteil !== null) {
       const zeit = anteil === 'alt' ? Date.now() - 40 * 60_000 : Date.now();
@@ -69,11 +80,6 @@ export function aufbau(o: Optionen = {}) {
   const aufrufer: Aufrufer = (programm, args, opts) => {
     p.aufrufe.push([programm, ...args]);
     if (programm === 'git') return aufrufen(programm, args, opts);
-    if (programm === 'pwsh' && skriptVon(args) === 'ram.ps1') {
-      const liste = o.ram ?? ['{"level":"ok","percent_used":50,"free_gb":30}'];
-      const z = liste[Math.min(ramN++, liste.length - 1)];
-      return z === null ? { code: 1, stdout: '', stderr: 'kaputt' } : ok(z);
-    }
     if (programm !== 'gh') return { code: 1, stdout: '', stderr: `unerwartet: ${programm}` };
     const [a, b] = args;
     const nr = Number(args[2]);
@@ -102,11 +108,17 @@ export function aufbau(o: Optionen = {}) {
   const langsam: AsyncAufrufer = async (programm, args) => {
     p.aufrufe.push([programm, ...args]);
     const skript = skriptVon(args);
+    if (skript === 'ram.ps1') {
+      const liste = o.ram ?? ['{"level":"ok","percent_used":50,"free_gb":30}'];
+      const z = liste[Math.min(ramN++, liste.length - 1)];
+      return z === null ? { code: 1, stdout: '', stderr: 'kaputt' } : ok(z);
+    }
     if (skript === 'merge.ps1') {
       const pr = Number(args[args.indexOf('-Pr') + 1]);
       const n = (mergeN.get(pr) ?? 0) + 1;
       mergeN.set(pr, n);
       p.merges.push(pr);
+      if (o.mergeDauerMs) await new Promise((r) => setTimeout(r, o.mergeDauerMs));
       const zeile = o.merge?.(pr, n) ?? `GEMERGT #${pr} -> main`;
       if (zeile.startsWith('GEMERGT')) p.zeitleiste.push(`gemergt ${pr}`);
       return ok(`${zeile}\n`);
@@ -134,6 +146,7 @@ export function aufbau(o: Optionen = {}) {
     langsam,
     starte,
     freiGb: () => (o.frei === undefined ? 100 : o.frei),
+    startZeit: (pid) => startZeit(pid),
     jetzt: Date.now,
     melde: (z) => {
       p.meldungen.push(z);
@@ -141,7 +154,7 @@ export function aufbau(o: Optionen = {}) {
     },
   };
 
-  function einstellung(buch: ReturnType<typeof drehbuch>, epics: number[], e: Partial<Einstellung> = {}): Einstellung {
+  function einstellung(buch: { datei: string }, epics: number[], e: Partial<Einstellung> = {}): Einstellung {
     return {
       ...standard(repo, 'o/r', epics, konten),
       ...mitAttrappe(buch.datei),

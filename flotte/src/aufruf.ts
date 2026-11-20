@@ -11,7 +11,10 @@ export interface Ergebnis {
   stderr: string;
 }
 
-export type Aufrufer = (programm: string, args: string[], opts?: { cwd?: string; env?: NodeJS.ProcessEnv; eingabe?: string; timeoutMs?: number }) => Ergebnis;
+/** Without a timeout on purpose: under Bun 1.3.14 spawnSync with a timeout fails at once (ETIMEDOUT) once the
+ * program has waited longer than that on a child before (acceptance finding 8). Whatever needs a
+ * timeout goes through AsyncAufrufer. */
+export type Aufrufer = (programm: string, args: string[], opts?: { cwd?: string; env?: NodeJS.ProcessEnv; eingabe?: string }) => Ergebnis;
 
 export const aufrufen: Aufrufer = (programm, args, opts = {}) => {
   const r = spawnSync(programm === 'pwsh' ? pwshPfad() : programm, args, {
@@ -21,7 +24,6 @@ export const aufrufen: Aufrufer = (programm, args, opts = {}) => {
     // without input the child gets no open stdin: pwsh -File would otherwise wait on it
     stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     encoding: 'utf8',
-    timeout: opts.timeoutMs,
     maxBuffer: 256 * 1024 * 1024,
     windowsHide: true,
   });
@@ -59,8 +61,15 @@ export function pwshPfad(): string {
 }
 
 /** pwsh -NoProfile -File <script> <args>; the scripts of epic/ print exactly one JSON object. */
-export function pwshJson(aufrufer: Aufrufer, skript: string, args: string[], opts: { timeoutMs?: number } = {}): { code: number; json: unknown; stderr: string } {
-  const r = aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args], { timeoutMs: opts.timeoutMs });
+export function pwshJson(aufrufer: Aufrufer, skript: string, args: string[]): { code: number; json: unknown; stderr: string } {
+  return jsonAus(aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args]));
+}
+
+export async function pwshJsonAsync(aufrufer: AsyncAufrufer, skript: string, args: string[], opts: { timeoutMs?: number } = {}): Promise<{ code: number; json: unknown; stderr: string }> {
+  return jsonAus(await aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args], { timeoutMs: opts.timeoutMs }));
+}
+
+function jsonAus(r: Ergebnis): { code: number; json: unknown; stderr: string } {
   let json: unknown = null;
   const text = r.stdout.trim();
   if (text) {
@@ -86,7 +95,12 @@ export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
     const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '';
     let stderr = '';
-    const uhr = opts.timeoutMs ? setTimeout(() => kind.kill(), opts.timeoutMs) : null;
+    const uhr = opts.timeoutMs
+      ? setTimeout(() => {
+          stderr += `Zeitgrenze ${opts.timeoutMs} ms`;
+          kind.kill();
+        }, opts.timeoutMs)
+      : null;
     kind.stdout?.setEncoding('utf8').on('data', (x: string) => (stdout += x));
     kind.stderr?.setEncoding('utf8').on('data', (x: string) => (stderr += x));
     kind.on('error', (e) => (stderr += e.message));

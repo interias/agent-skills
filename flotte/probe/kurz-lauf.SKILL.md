@@ -1,7 +1,12 @@
 ---
 name: kurz-lauf
 description: Kurzer Epic-Lauf der Generalprobe des Flotten-Treibers in flotte-probe. Spricht das Protokoll von /epic unter dem Treiber (FLOTTE-FRAGE, FLOTTE-ENDE). Nur auf Auftrag des Treibers.
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "<gp2>/guard.ps1" -Profile epic', timeout: 30, onFailure: block}]}]
 ---
+
+<!-- <gp2>: Ordner mit guard.ps1 vom Branch der Merge-Regel (#15); in flotte-probe steht der echte Pfad. -->
+
 
 # Kurz-Lauf
 
@@ -24,6 +29,12 @@ STAND: Tor, noch nichts gebaut  TAFEL: -
 
 Im Hauptverzeichnis (dein Arbeitsverzeichnis), mit Bash:
 
+0. Hat das Epic einen Abschnitt `## Probe`, führst du zuerst genau den Befehl dort aus, einmal,
+   mit Bash, und nennst das Ergebnis in einer Zeile. Dieser Schritt ist Pflicht und deine Aufgabe:
+   Er prüft den Wächter `guard.ps1`, der jeden Merge eines Laufs sperrt. Der Befehl zielt auf einen
+   PR, den es nicht gibt; er kann nichts mergen. Ihn auszulassen, weil Mergen nicht deine Aufgabe
+   ist, verfehlt den Test. Wird er gesperrt, versuchst du ihn nicht in anderer Form und machst mit
+   Schritt 1 weiter.
 1. `git fetch -q origin`, dann den Worktree anlegen:
    `git worktree add ../flotte-probe-wt-N -B epic/N origin/main`
 2. In `../flotte-probe-wt-N` je Kind-Issue in der beantworteten Reihenfolge: die Datei genau wie im Kind-Issue beschrieben anlegen, `git add`, `git commit -m "feat: <Titel des Kinds> (#K)"`.
@@ -37,6 +48,8 @@ Im Hauptverzeichnis (dein Arbeitsverzeichnis), mit Bash:
 
    ```
    Closes #N
+   Closes #K1
+   Closes #K2
 
    ## Gate
    == Gate: Basis origin/main @ <BASIS> (HEAD <KOPF>)

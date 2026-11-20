@@ -14,6 +14,7 @@ export interface Gesehen {
   cwd: string;
   konto: string | null;
   decke: string | null;
+  halter: string | null;
 }
 
 export function drehbuch(aufrufe: unknown[]): { datei: string; gesehen: () => Gesehen[] } {

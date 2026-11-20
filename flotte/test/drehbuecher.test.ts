@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { antworten, fahre } from '../src/treiber/treiber.ts';
-import { flotteDir, neuesEpic, schreibe as schreibeZustand, leer } from '../src/werkzeuge/zustand.ts';
+import { flotteDir, lebt, neuesEpic, schreibe as schreibeZustand, leer } from '../src/werkzeuge/zustand.ts';
 import { admiral, aufbau, drehbuch, ende, frage, lauf, ping, skriptVon } from './flotte-welt.ts';
 
 const T = 30_000;
@@ -248,24 +249,52 @@ describe('Drehbücher (#14)', () => {
     expect(nrs.every((n) => z2.epics[String(n)].stufe === 'fertig')).toBe(true);
   }, T);
 
-  it('D16: a restarted driver continues from the state file and starts nothing twice', async () => {
-    for (const lebendig of [false, true]) {
+  it('D16: a driver killed in the middle of a turn; the run finishes its turn, a new driver takes it from the log', async () => {
+    const t = aufbau();
+    const dir = flotteDir(t.repo);
+    const buch = drehbuch([lauf(3, [{ text: 'Zwischenstand' }, { warte: 2500 }, { text: ende(3, 13) }])]);
+    const alt = spawn(process.execPath, [fileURLToPath(new URL('./treiber-prozess.ts', import.meta.url)), JSON.stringify({ repo: t.repo, konten: t.konten, datei: buch.datei, epics: [3] })], { stdio: 'ignore' });
+    let z0: { epics: Record<string, { pid?: number; log?: string }> } = { epics: {} };
+    for (let i = 0; i < 100 && !z0.epics['3']?.pid; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      try {
+        z0 = JSON.parse(readFileSync(join(dir, 'zustand.json'), 'utf8'));
+      } catch {
+        /* not written yet */
+      }
+    }
+    const laufPid = z0.epics['3'].pid!;
+    // the driver dies hard (worse than Ctrl+C, which only takes its lock along); the run lives on
+    process.kill(alt.pid!, 'SIGKILL');
+    await new Promise((r) => alt.on('exit', r));
+    expect(lebt(laufPid)).toBe(true);
+    expect(readFileSync(z0.epics['3'].log!, 'utf8')).not.toMatch(/FLOTTE-ENDE/);
+
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(buch.gesehen()).toHaveLength(1);
+    expect(t.p.meldungen.some((m) => /lebt noch: wird beobachtet/.test(m))).toBe(true);
+    expect(readFileSync(z0.epics['3'].log!, 'utf8')).toMatch(/FLOTTE-ENDE 3/);
+    expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pr: 13 });
+  }, T);
+
+  it('D16: a dead run is read from its log; a reused pid is no run and is never killed', async () => {
+    for (const fall of ['tot', 'fremd'] as const) {
       const t = aufbau();
       const dir = flotteDir(t.repo);
       const log = join(dir, 'alt.jsonl');
       writeFileSync(log, `${ergebnisZeile(ende(3, 13))}\n`);
-      const kind = prozess(lebendig ? 700 : 0);
-      if (!lebendig) await kind;
+      const kind = prozess(fall === 'tot' ? 0 : 5000);
+      if (fall === 'tot') await kind;
       const z0 = leer(t.repo);
-      z0.epics['3'] = { ...neuesEpic(3), stufe: 'laeuft', konto: t.konten[0], sitzung: 's3', pid: kind.pid, log } as never;
+      // fremd: the pid lives, but it started an hour after the driver spawned its run
+      z0.epics['3'] = { ...neuesEpic(3), stufe: 'laeuft', konto: t.konten[0], sitzung: 's3', pid: kind.pid, pidSeit: Date.now() - 3_600_000, log } as never;
       schreibeZustand(dir, z0);
       const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
-      const anfang = Date.now();
       const z = await fahre(t.einstellung(buch, [3]), t.welt);
       expect(buch.gesehen()).toHaveLength(0);
       expect(z.epics['3'].stufe).toBe('fertig');
-      expect(t.p.meldungen.some((m) => (lebendig ? /lebt noch: wird beobachtet/ : /endete ohne Treiber/).test(m))).toBe(true);
-      if (lebendig) expect(Date.now() - anfang).toBeGreaterThan(300);
+      expect(t.p.meldungen.some((m) => /endete ohne Treiber/.test(m))).toBe(true);
+      if (fall === 'fremd') expect(lebt(kind.pid)).toBe(true);
     }
   }, T);
 

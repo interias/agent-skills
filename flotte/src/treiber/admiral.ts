@@ -14,6 +14,13 @@ export interface AdmiralAntwort {
   einflussreich: boolean;
 }
 
+/** The answer schema of one block: nr can only be a number of its questions (acceptance finding 1). */
+export function schemaFuer(block: FrageBlock) {
+  const s = structuredClone(SCHEMA);
+  (s.properties.antworten.items.properties.nr as { type: string; enum?: number[] }).enum = block.fragen.map((f) => f.nr);
+  return s;
+}
+
 export const SCHEMA = {
   type: 'object',
   properties: {
@@ -63,10 +70,28 @@ export function admiralAuftrag(block: FrageBlock, kontext: string): string {
       `   Regel/Quelle: ${f.quelle}`,
     ].join('\n'))
     .join('\n');
-  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage (nr wie oben).`;
+  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
 }
 
-export const ADMIRAL_ARGS = ['--json-schema', JSON.stringify(SCHEMA), '--tools', 'Read,Grep,Glob'];
+export function admiralArgs(block: FrageBlock): string[] {
+  return ['--json-schema', JSON.stringify(schemaFuer(block)), '--tools', 'Read,Grep,Glob'];
+}
+
+/** What the init event of an admiral call may list: the read tools and the answer tool of --json-schema. */
+export const ADMIRAL_WERKZEUGE = ['Glob', 'Grep', 'Read', 'StructuredOutput'];
+
+/** Built-in tools of a run that reach outside the repository and that no skill of the fleet uses. */
+export const LAUF_VERBOTEN = ['RemoteTrigger', 'PushNotification', 'PublishPlugin', 'ShareOnboardingGuide', 'DesignSync'];
+
+export function admiralWerkzeuge(tools: string[]): string | null {
+  const fremd = tools.filter((t) => !ADMIRAL_WERKZEUGE.includes(t));
+  return fremd.length ? `Admiral mit unerwarteten Werkzeugen: ${fremd.slice(0, 8).join(', ')}${fremd.length > 8 ? ` und ${fremd.length - 8} weitere` : ''}` : null;
+}
+
+export function laufWerkzeuge(tools: string[]): string | null {
+  const fremd = tools.filter((t) => t.startsWith('mcp__') || LAUF_VERBOTEN.includes(t));
+  return fremd.length ? `Lauf mit verbotenen Werkzeugen: ${fremd.slice(0, 8).join(', ')}${fremd.length > 8 ? ` und ${fremd.length - 8} weitere` : ''}` : null;
+}
 
 /**
  * The answers per question. A missing or broken output, or a question without answer, goes to the
@@ -75,8 +100,12 @@ export const ADMIRAL_ARGS = ['--json-schema', JSON.stringify(SCHEMA), '--tools',
 export function antwortenAus(strukturiert: unknown, block: FrageBlock): AdmiralAntwort[] {
   const roh = (strukturiert as { antworten?: unknown })?.antworten;
   const liste = Array.isArray(roh) ? roh : [];
-  return block.fragen.map((f) => {
-    const a = liste.find((x) => Number((x as AdmiralAntwort)?.nr) === f.nr) as Partial<AdmiralAntwort> | undefined;
+  // a model that numbers by something else (the epic, from 0): as many answers as questions and not
+  // one fitting number are taken in order (dress rehearsal: nr 12 for question 1)
+  const keinePasst = !liste.some((x) => block.fragen.some((f) => Number((x as AdmiralAntwort)?.nr) === f.nr));
+  const nachReihe = keinePasst && liste.length === block.fragen.length;
+  return block.fragen.map((f, i) => {
+    const a = (nachReihe ? liste[i] : liste.find((x) => Number((x as AdmiralAntwort)?.nr) === f.nr)) as Partial<AdmiralAntwort> | undefined;
     if (!a || typeof a.antwort !== 'string' || typeof a.beim_menschen !== 'boolean') {
       return { nr: f.nr, antwort: f.empfehlung ?? '', herkunft: 'Treiber: keine verwertbare Antwort des Admirals', grund: 'Der Admiral-Aufruf lieferte für diese Frage nichts; sie liegt deshalb beim Menschen.', beim_menschen: true, einflussreich: false };
     }

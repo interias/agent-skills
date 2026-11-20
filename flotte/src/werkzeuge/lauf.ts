@@ -7,10 +7,11 @@
 // stays alive after its first result while background agents report (stage 0, probe 2).
 
 import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { ausEreignis, schreibe as schreibeVerbrauch, type Verbrauch } from './verbrauch.ts';
+import { lebt } from './zustand.ts';
 
 export interface Ergebnis {
   text: string;
@@ -19,7 +20,22 @@ export interface Ergebnis {
   verweigert: unknown[];
 }
 
-export type Fehlerart = 'netz' | 'anmeldung' | 'leerlauf' | 'kein_ergebnis' | 'exit' | null;
+/** a PreToolUse hook (guard.ps1) refused a tool call; the run saw the reason and can change its way */
+export interface HookSperre {
+  id: string;
+  /** "Skill epic, Regel 1" from guard.ps1's text, else the start of the text */
+  regel: string;
+  text: string;
+}
+
+const HOOK = /^(?:Error: )?PreToolUse:\w+ hook error:\s*/;
+
+export function hookRegel(text: string): string {
+  const t = text.replace(HOOK, '');
+  return /Gesperrt durch Hook \(([^:)]+)/.exec(t)?.[1].trim() ?? t.slice(0, 80);
+}
+
+export type Fehlerart = 'netz' | 'anmeldung' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | null;
 
 export interface LaufErgebnis {
   sitzung: string | null;
@@ -29,6 +45,8 @@ export interface LaufErgebnis {
   /** the last non-empty result text: there stands the block */
   text: string;
   verweigert: unknown[];
+  /** the denials a hook made (part of verweigert, matched by tool_use_id) */
+  sperren: HookSperre[];
   verbrauch: Verbrauch | null;
   /** structured_output of the last result that has one (--json-schema) */
   strukturiert: unknown;
@@ -43,6 +61,9 @@ export class Auswertung {
   ergebnisse: Ergebnis[] = [];
   verbrauch: Verbrauch | null = null;
   strukturiert: unknown = null;
+  /** the tool list of the init event */
+  werkzeuge: string[] | null = null;
+  sperren: HookSperre[] = [];
   zeile(roh: string, jetzt = Date.now()): void {
     let d: any;
     try {
@@ -51,7 +72,15 @@ export class Auswertung {
       return;
     }
     if (d?.session_id && !this.sitzung) this.sitzung = String(d.session_id);
+    if (d?.type === 'system' && d.subtype === 'init' && Array.isArray(d.tools)) this.werkzeuge = d.tools.map(String);
     if (d?.type === 'rate_limit_event' && d.rate_limit_info) this.verbrauch = ausEreignis(d.rate_limit_info, jetzt);
+    if (d?.type === 'user' && Array.isArray(d.message?.content)) {
+      for (const c of d.message.content) {
+        if (c?.type !== 'tool_result' || !c.is_error) continue;
+        const text = typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? c.content.map((x: any) => x?.text ?? '').join('') : '';
+        if (HOOK.test(text)) this.sperren.push({ id: String(c.tool_use_id ?? ''), regel: hookRegel(text), text: text.replace(HOOK, '').slice(0, 300) });
+      }
+    }
     if (d?.type === 'result') {
       if (d.structured_output !== undefined && d.structured_output !== null) this.strukturiert = d.structured_output;
       this.ergebnisse.push({
@@ -65,12 +94,13 @@ export class Auswertung {
   ergebnis(code: number | null, leerlauf: boolean, dauerMs: number, stderr: string): LaufErgebnis {
     const text = [...this.ergebnisse].reverse().find((e) => e.text.trim())?.text ?? '';
     const verweigert = this.ergebnisse.flatMap((e) => e.verweigert);
-    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, verbrauch: this.verbrauch, strukturiert: this.strukturiert, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
+    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, sperren: this.sperren, verbrauch: this.verbrauch, strukturiert: this.strukturiert, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
   }
 }
 
-const NETZ = /ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed|network|Overloaded|\b5\d\d\b|connection error/i;
-const ANMELDUNG = /authenticat|OAuth|log ?in|credential/i;
+// narrow on purpose (acceptance, low): a 5xx number or "login" anywhere in a text is no evidence
+const NETZ = /ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed|network error|Overloaded|API Error: (500|502|503|504|529)\b|connection error/i;
+const ANMELDUNG = /Failed to authenticate|OAuth (token|session) (has )?expired|not logged in|Please run \/login|Invalid API key|authentication_error/i;
 
 export function fehlerart(ergebnisse: Ergebnis[], code: number | null, leerlauf: boolean, stderr: string): Fehlerart {
   if (leerlauf) return 'leerlauf';
@@ -108,6 +138,10 @@ export interface Start {
   log?: string | null;
   /** further arguments for claude (--json-schema, --tools, ...) */
   extraArgs?: string[];
+  /** further environment variables for the run (EPIC_LOCK_HOLDER) */
+  env?: Record<string, string>;
+  /** checks the tool list of the init event; a text names what is wrong and the run is killed */
+  werkzeuge?: (tools: string[]) => string | null;
   /** called right after the spawn with the pid, before any output (D16) */
   beimStart?: (pid: number) => void;
   /** the program instead of claude: a stand-in that plays a script (stage 3) */
@@ -116,14 +150,15 @@ export interface Start {
 }
 
 export function claudeArgs(s: Start): string[] {
-  const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none'];
+  // --strict-mcp-config: no MCP server of the account, no claude.ai connector (acceptance finding 2)
+  const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none', '--strict-mcp-config'];
   if (s.modell) a.push('--model', s.modell);
   if (s.resume) a.push('--resume', s.resume);
   if (s.extraArgs) a.push(...s.extraArgs);
   return a;
 }
 
-function beende(pid: number): void {
+export function beende(pid: number): void {
   if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
   else {
     try {
@@ -134,57 +169,124 @@ function beende(pid: number): void {
   }
 }
 
-/** Starts or resumes a run and resolves when its process has ended or idled too long (D5). */
+/**
+ * Starts or resumes a run and resolves when its process has ended or idled too long (D5). The run
+ * writes stream-json straight into its log (stderr next to it as <log>.err) in a process group of
+ * its own: when the driver dies or gets Ctrl+C, the run finishes its turn and the restarted driver
+ * reads the rest from the log (D16, acceptance finding 10).
+ */
 export function starte(s: Start): Promise<LaufErgebnis> {
   const programm = s.programm ?? process.env.FLOTTE_CLAUDE ?? 'claude';
   const args = [...(s.programmArgs ?? []), ...claudeArgs(s)];
+  const log = s.log ?? join(tmpdir(), `flotte-lauf-${process.pid}-${Date.now()}.jsonl`);
+  mkdirSync(dirname(log), { recursive: true });
+  const ab = existsSync(log) ? statSync(log).size : 0;
+  const errAb = existsSync(`${log}.err`) ? statSync(`${log}.err`).size : 0;
+  const out = openSync(log, 'a');
+  const err = openSync(`${log}.err`, 'a');
+  const env = { ...laufUmgebung(process.env, s.konto), ...(s.env ?? {}) };
+  const kind = spawn(programm, args, { cwd: s.repo, env, stdio: ['pipe', out, err], windowsHide: true, detached: true });
+  closeSync(out);
+  closeSync(err);
+  if (kind.pid) s.beimStart?.(kind.pid);
+  const ende = new Promise<number | null>((fertig) => {
+    kind.on('error', () => fertig(null));
+    kind.on('close', (code) => fertig(code));
+  });
+  kind.stdin?.on('error', () => {});
+  kind.stdin?.end(s.auftrag);
+  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true });
+}
+
+export interface Beobachtung {
+  log: string;
+  /** byte offsets where this turn starts in the log and in <log>.err */
+  ab?: number;
+  errAb?: number;
+  pid: number | null;
+  /** the exit code once the process ended; without it (a run of an earlier driver) the pid is polled */
+  ende?: Promise<number | null>;
+  leerlaufMs?: number;
+  konto: string;
+  werkzeuge?: (tools: string[]) => string | null;
+  /** false: the identity of the pid is not proven, so it is never killed (D16) */
+  beenden: boolean;
+}
+
+/** Follows the log of a run until its process ends, kills it on idling or on a forbidden tool list. */
+export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
   const anfang = Date.now();
   const auswertung = new Auswertung();
-  if (s.log) mkdirSync(dirname(s.log), { recursive: true });
+  const grenze = b.leerlaufMs ?? 60 * 60_000;
+  let pos = b.ab ?? 0;
+  let errPos = b.errAb ?? 0;
+  let rest = '';
+  let stderr = '';
+  let leerlauf = false;
+  let werkzeugFehler: string | null = null;
+  let zuletzt = Date.now();
+  let code: number | null | undefined;
+  b.ende?.then((c) => (code = c));
+  const lies = (datei: string, von: number): { text: string; bis: number } => {
+    if (!existsSync(datei)) return { text: '', bis: von };
+    const groesse = statSync(datei).size;
+    if (groesse <= von) return { text: '', bis: von };
+    const fd = openSync(datei, 'r');
+    try {
+      const puffer = Buffer.alloc(groesse - von);
+      readSync(fd, puffer, 0, puffer.length, von);
+      return { text: puffer.toString('utf8'), bis: groesse };
+    } finally {
+      closeSync(fd);
+    }
+  };
+  const zeilen = (text: string) => {
+    rest += text;
+    const teile = rest.split(/\r?\n/);
+    rest = teile.pop() ?? '';
+    for (const z of teile) {
+      if (!z.trim()) continue;
+      auswertung.zeile(z);
+      if (auswertung.verbrauch) schreibeVerbrauch(b.konto, auswertung.verbrauch);
+      if (auswertung.werkzeuge && b.werkzeuge && werkzeugFehler === null) {
+        werkzeugFehler = b.werkzeuge(auswertung.werkzeuge);
+        if (werkzeugFehler && b.pid && b.beenden) beende(b.pid);
+      }
+    }
+  };
+  const schritt = () => {
+    const o = lies(b.log, pos);
+    const e = lies(`${b.log}.err`, errPos);
+    if (o.bis > pos || e.bis > errPos) zuletzt = Date.now();
+    pos = o.bis;
+    errPos = e.bis;
+    stderr += e.text;
+    if (o.text) zeilen(o.text);
+  };
   return new Promise((fertig) => {
-    const kind = spawn(programm, args, { cwd: s.repo, env: laufUmgebung(process.env, s.konto), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' });
-    if (kind.pid) s.beimStart?.(kind.pid);
-    let rest = '';
-    let stderr = '';
-    let leerlauf = false;
-    let zuletzt = Date.now();
-    const grenze = s.leerlaufMs ?? 30 * 60_000;
-    const wache = setInterval(() => {
-      if (Date.now() - zuletzt > grenze && kind.pid) {
+    const takt = Math.min(250, Math.max(20, grenze / 4));
+    const uhr = setInterval(() => {
+      schritt();
+      const vorbei = b.ende ? code !== undefined : !b.pid || !lebt(b.pid);
+      if (!vorbei && !leerlauf && Date.now() - zuletzt > grenze) {
         leerlauf = true;
-        beende(kind.pid);
+        if (b.pid && b.beenden) beende(b.pid);
+        // a pid of unproven identity is not killed: stop following it
+        if (!b.beenden) code = null;
+        return;
       }
-    }, Math.min(10_000, Math.max(50, grenze / 4)));
-    kind.stdout.setEncoding('utf8');
-    kind.stdout.on('data', (stueck: string) => {
-      zuletzt = Date.now();
-      rest += stueck;
-      const zeilen = rest.split(/\r?\n/);
-      rest = zeilen.pop() ?? '';
-      for (const z of zeilen) {
-        if (!z.trim()) continue;
-        if (s.log) appendFileSync(s.log, z + '\n');
-        auswertung.zeile(z);
-        if (auswertung.verbrauch) schreibeVerbrauch(s.konto, auswertung.verbrauch);
+      if (!vorbei && !(leerlauf && !b.beenden)) return;
+      clearInterval(uhr);
+      schritt();
+      if (rest.trim()) zeilen('\n');
+      const c = b.ende ? (code ?? null) : auswertung.ergebnisse.length ? 0 : null;
+      const r = auswertung.ergebnis(leerlauf ? null : c, leerlauf, Date.now() - anfang, stderr);
+      if (werkzeugFehler) {
+        r.fehler = 'werkzeuge';
+        r.stderr = `${werkzeugFehler}\n${r.stderr}`.slice(-2000);
       }
-    });
-    kind.stderr.setEncoding('utf8');
-    kind.stderr.on('data', (x: string) => {
-      zuletzt = Date.now();
-      stderr += x;
-    });
-    kind.on('error', (e) => {
-      stderr += String(e.message);
-    });
-    kind.on('close', (code) => {
-      clearInterval(wache);
-      if (rest.trim()) {
-        if (s.log) appendFileSync(s.log, rest + '\n');
-        auswertung.zeile(rest);
-      }
-      fertig(auswertung.ergebnis(leerlauf ? null : code, leerlauf, Date.now() - anfang, stderr));
-    });
-    kind.stdin.end(s.auftrag);
+      fertig(r);
+    }, takt);
   });
 }
 

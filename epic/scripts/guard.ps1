@@ -33,7 +33,9 @@
                     git merge (except --abort/--quit) while on a protected branch; git pull
                     while on a protected branch, except --ff-only (no --rebase) from that
                     branch itself or without refspec; git switch and
-                    git checkout in the main worktree (git dir equals common dir).
+                    git checkout in the main worktree (git dir equals common dir);
+                    gh pr merge and gh api .../pulls/<n>/merge - a run never merges a pull
+                    request, the adapter key merge names who does (references/adapter.md).
       kundschafter  Agent epic-kundschafter. A deny list of writing commands - no guarantee:
                     Bash has no real read-only mode, and a command this script does not know
                     (Start-Process, an alias from git config, an encoded command, ...) passes.
@@ -457,7 +459,17 @@ function Get-PushRemote($info, $dir, $location, $adapter) {
 
 function New-Verdict([string]$decision, [string]$reason) { @{ Decision = $decision; Reason = $reason } }
 
-function Test-Epic($seg, $git, [string]$dir, [string]$shown) {
+function Test-Epic($seg, $git, [string]$name, $rest, [string]$dir, [string]$shown) {
+    if ($name -eq 'gh') {
+        # Rule 1: a run never merges a pull request. Who merges is the adapter key merge
+        # (references/adapter.md, "Merge"): the person, or the driver after the gate.
+        $prMerge = $rest.Count -ge 2 -and $rest[0] -eq 'pr' -and $rest[1] -eq 'merge'
+        $apiMerge = $rest.Count -ge 1 -and $rest[0] -eq 'api' -and ($rest | Where-Object { $_ -match '(^|/)pulls/\d+/merge$' })
+        if ($prMerge -or $apiMerge) {
+            return New-Verdict 'deny' "Gesperrt durch Hook (Skill epic, Regel 1: Ein Lauf mergt nie einen Pull Request; wer mergt, sagt der Adapterschlüssel merge): '$shown'. Den Pull Request offen lassen und melden. $retry"
+        }
+        return $null
+    }
     if (-not $git -or $git.Sub -notin @('push', 'merge', 'pull', 'switch', 'checkout')) { return $null }
     $info = Get-RepoInfo $dir $git.Location
     if (-not $info) { return $null }
@@ -527,7 +539,7 @@ function Test-Epic($seg, $git, [string]$dir, [string]$shown) {
     }
     foreach ($t in $targets) {
         if ($t -and $adapter.Protected -contains $t) {
-            return New-Verdict 'deny' "Gesperrt durch Hook ($rule1): '$shown' pusht auf '$t'. Der Lauf endet mit einem Pull Request, den ein Mensch mergt. $retry"
+            return New-Verdict 'deny' "Gesperrt durch Hook ($rule1): '$shown' pusht auf '$t'. Der Lauf endet mit einem Pull Request; wer ihn mergt, sagt der Adapterschlüssel merge. $retry"
         }
     }
     $null
@@ -665,7 +677,7 @@ try {
         }
         $git = if ($name -eq 'git') { Read-GitCommand $words $k } else { $null }
         $verdict = switch ($Profile) {
-            'epic' { Test-Epic $seg $git $dir $shown }
+            'epic' { Test-Epic $seg $git $name $rest $dir $shown }
             'kundschafter' { Test-Kundschafter $seg $git $name $rest $shown }
             'aufraeumen' { Test-Aufraeumen $seg $git $shown }
         }

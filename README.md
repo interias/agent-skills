@@ -16,7 +16,7 @@ Rückfrage; den Stand zeigen Gitea und KIBO.
    `to-tickets`).
 2. **Freigeben:** Label `ready-for-agent` an der Spec oder an den Kind-Tickets.
 3. **`/epic #<nr>` starten** und am Vorab-Tor einmal alle Fragen beantworten.
-4. **Pull Request prüfen und mergen.** Das tut kein Agent.
+4. **Pull Request prüfen und mergen.** Das tut kein Lauf. Ob ein Mensch mergt oder nach grünem Gate genau ein Akteur außerhalb des Laufs, sagt der Adapterschlüssel `merge` (Standard: der Mensch).
 5. **`/epic-nacharbeit`** für die offenen Punkte, nach dem Merge **`/epic-aufraeumen`**.
 
 ## Die Skills
@@ -111,7 +111,7 @@ guten Viertel in Testläufe.
 **Was ein Lauf nie tut**
 
 - Er mergt und pusht nie in den Hauptzweig oder die Basis; er endet mit einem offenen Pull
-  Request. Gepusht wird nur auf das Remote aus dem Adapter. Das Hauptverzeichnis wird nie auf einen
+  Request, auch `gh pr merge` ist gesperrt. Gepusht wird nur auf das Remote aus dem Adapter. Das Hauptverzeichnis wird nie auf einen
   anderen Branch umgeschaltet. Diese drei sperrt ein Hook (`guard.ps1`).
 - Er führt keine Datenmigration aus, löscht oder überspringt keine Tests und baut nichts über die
   Abnahmeliste hinaus. Reviewer legen keine Issues an.
@@ -276,8 +276,8 @@ leichter wurde. Eine Abnahme-Probe mit Gegenprobe schließt ab.
 ## `leitstand` — Arbeit an das zweite Konto geben
 
 Der Leitstand ist kein zweiter Flotten-Mechanismus: Er delegiert Aufträge an ein zweites
-Claude-Konto in eigenen Terminalfenstern, überwacht sie mit einem Wächter und mergt ihre PRs nach
-grünen Checks. Skill und Konto richtet [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md) ein.
+Claude-Konto in eigenen Terminalfenstern, überwacht sie mit einem Wächter und mergt ihre PRs, wenn der Adapter
+`merge: nach_gate` sagt: nach grünen Checks oder, ohne Checks, nach grünem Gate-Block. Skill und Konto richtet [`arbeitspferd/einrichten.ps1`](arbeitspferd/README.md) ein.
 Prüfe danach, dass `skills` und `agents` in `~/.claude-arbeitspferd` Verknüpfungen auf `~/.claude`
 sind: Das Skript lässt vorhandene Ordner stehen, und ein eigener Ordner dort veraltet unbemerkt.
 

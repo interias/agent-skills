@@ -6,7 +6,9 @@
 // order is not fixed: "wenn" ties an Aufruf to its epic. Every start is logged next to the script
 // (<drehbuch>.aufrufe.jsonl: args, stdin, cwd, account) so a test can check what the driver sent.
 //
-// Aufruf: { "wenn"?: string, "sitzung"?: string, "schritte": Schritt[], "exit"?: number }
+// Aufruf: { "wenn"?: string, "sitzung"?: string, "schritte": Schritt[], "exit"?: number, "werkzeuge"?: string[] }
+// The init event lists "werkzeuge", else what --tools names (plus StructuredOutput with --json-schema),
+// else a run's built-in tools.
 // Schritt: { "text": string, "fehler"?: boolean, "grund"?: string, "verweigert"?: unknown[] }  -> a result line
 //        | { "zeile": object }                                                                -> any stream-json line
 //        | { "verbrauch": [fuenf, sieben] }                                                   -> a rate_limit_event (shares 0..1)
@@ -27,6 +29,7 @@ interface Aufruf {
   sitzung?: string;
   schritte: Schritt[];
   exit?: number;
+  werkzeuge?: string[];
 }
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -61,12 +64,14 @@ async function main(): Promise<number> {
     return 3;
   }
   const { a: aufruf, i } = wahl;
-  appendFileSync(log, JSON.stringify({ n, i, args, eingabe, cwd: process.cwd(), konto: process.env.CLAUDE_CONFIG_DIR ?? null, decke: process.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS ?? null }) + '\n');
+  appendFileSync(log, JSON.stringify({ n, i, args, eingabe, cwd: process.cwd(), konto: process.env.CLAUDE_CONFIG_DIR ?? null, decke: process.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS ?? null, halter: process.env.EPIC_LOCK_HOLDER ?? null }) + '\n');
 
   const resume = args.includes('--resume') ? args[args.indexOf('--resume') + 1] : null;
   const sitzung = resume ?? aufruf.sitzung ?? `sitzung-${n}`;
   const raus = (o: unknown) => process.stdout.write(JSON.stringify(o) + '\n');
-  raus({ type: 'system', subtype: 'init', session_id: sitzung, permissionMode: 'auto' });
+  const t = args.indexOf('--tools');
+  const werkzeuge = aufruf.werkzeuge ?? (t >= 0 ? [...args[t + 1].split(',').filter(Boolean), ...(args.includes('--json-schema') ? ['StructuredOutput'] : [])] : ['Bash', 'Edit', 'Read', 'Skill', 'Task']);
+  raus({ type: 'system', subtype: 'init', session_id: sitzung, permissionMode: 'auto', tools: werkzeuge });
   for (const s of aufruf.schritte) {
     if ('warte' in s) await pause(s.warte);
     else if ('stderr' in s) process.stderr.write(s.stderr + '\n');

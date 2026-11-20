@@ -60,7 +60,18 @@ export function lebt(pid: number): boolean {
   }
 }
 
-export type Sperre = { ok: true; datei: string } | { ok: false; pid: number; seit: string };
+/** Start of a process in epoch ms; null when it does not run or the time is unreadable. */
+export function startZeit(pid: number, aufrufer: Aufrufer = aufrufen): number | null {
+  if (!lebt(pid)) return null;
+  const r =
+    process.platform === 'win32'
+      ? aufrufer('pwsh', ['-NoProfile', '-Command', `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')`])
+      : aufrufer('ps', ['-o', 'lstart=', '-p', String(pid)]);
+  const t = Date.parse(r.stdout.trim());
+  return r.code || Number.isNaN(t) ? null : t;
+}
+
+export type Sperre ={ ok: true; datei: string } | { ok: false; pid: number; seit: string };
 
 /** Takes the driver lock of the repository (D20). A lock of a dead process is stale and taken over. */
 export function sperren(dir: string, pid = process.pid, istLebendig: (p: number) => boolean = lebt): Sperre {
