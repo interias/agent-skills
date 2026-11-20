@@ -27,6 +27,75 @@ Gemessen ist alles mit `flotte messen`, für beide Proben mit demselben Programm
 Transkripte, `usage.ps1` und `zustand.json` des Treibers. **Mit den alten Läufen nicht
 vergleichbar:** Haiku, Mini-Epics.
 
+## Probe 3 vom 20.11.2026 (Runde 5: Merge-Schlange und Bereiche)
+
+**Aufbau,** zusätzlich zu Probe 1 und 2:
+
+- Der echte Skill `/epic` aus dem Stapel, nicht `kurz-lauf`: als Projekt-Skill
+  `.claude/skills/epic-stapel/` im Probe-Repo, ohne Installation. Geändert sind nur `name` (ein
+  persönlicher Skill `epic` ginge sonst vor) und der Pfad des Hooks auf die Kopie. Die Agenten des
+  Stapels liegen in `.claude/agents/` mit `model: haiku`.
+- Adapter: hier `epic-probe3.md`. `merge: nach_gate`, `gate_command`, `gate_always_command`,
+  `gate_areas` (`alpha/`, `beta/`, `gamma/`), `worktree_may_start: [compose]`.
+- Gate: hier `gate.ps1`, dieselbe Ausgabeform wie ein echtes Projekt-Gate (Kontexte je Bereich,
+  `wurzel` immer, Kopfzeile mit Basis und HEAD, `-Alle`, `-Immer`). Der Bereich `gamma` startet den
+  Compose-Dienst aus `compose.yaml` und fragt ihn ab. Zwei Auslöser in `.git`, je einmal: 300 s
+  Stille vor dem Gate (über der Leerlaufgrenze von 4 min) und ein rotes Gate beim ersten Lauf auf
+  einem Merge der Basis.
+- Vier Specs ohne Kinder, je ein Paket: #43 und #44 im Bereich `alpha`, #45 in `beta`, #46 in
+  `gamma`.
+- Aufruf wie Probe 2, dazu `--skill epic-stapel --konto-max <konto 1>=1 --obergrenze 3
+  --leerlauf-min 4`. Läufe und Admiral mit Haiku (`claude-haiku-5-5`).
+
+| Kennzahl | #43 | #44 | #45 | #46 |
+|---|---|---|---|---|
+| Konto | 1 | 2 | 2 | 2 ¹ |
+| Starts (Start und Fortsetzungen) | 4 | 1 | 3 | 4 |
+| Aufrufe von `merge.ps1` | 3 | 1 | 2 | 2 |
+| Gate-Läufe des Treibers | voll (rot ²), Immer-Teil | – | Immer-Teil | Immer-Teil |
+| Rückgaben an den Lauf | 1 ² | 0 | 0 | 0 |
+| Epic-Worktree vom Treiber neu angelegt ³ | ja | nein | ja | ja |
+| PR bereit bis gemergt (min, `mergedAt`) | 10,0 | 0,1 | 9,8 | 10,3 |
+
+`flotte messen`: 12 Starts, 0 Fehlstarts, 0 Rückfragen, 0 Entscheidungen des Admirals (Haiku
+stellte am Tor keine Frage), kalte Zeit 21,6 min (davon rund 3 min die Pause zwischen Anlauf 1
+und 2), Reste 0 Worktrees, 0 Branches, 0 Container. Offen ist nur das Logbuch-Issue.
+
+1. #46 startete zuerst auf Konto 1: `--konto-max` zählte die Epics nicht mit, die im selben Takt
+   belegt wurden. Treiber und Lauf beendet, behoben, mit Test; danach Konto 2.
+2. Der künstliche Auslöser. Das Epic stellte sich hinten an, die Schlange lief weiter (#45 und #46
+   gemergt), der Lauf holte die Basis selbst nach.
+3. Die Sitzung eines Laufs nimmt ihren Epic-Worktree mit (`epic/SKILL.md`, Phase 3). Der Treiber
+   legt ihn jetzt mit `worktree.ps1 Up` neu an und baut ihn nach dem Merge mit `Down` ab.
+
+### Was die Probe belegt
+
+- **Merge-Schlange:** Gate-Läufe des Treibers 4 bei 4 Epics. Erwartet n−1 = 3, dazu einer durch
+  das künstlich rote Gate. #44 kam mit gültigem Block und wurde ohne Gate gemergt.
+- **Bereiche, live auf der Forge:** #45, #46 und zuletzt #43 wurden nach einem Lauf nur des
+  Immer-Teils gemergt; `merge.ps1` prüfte die Bereiche selbst. #43 bekam nach dem Merge von #44
+  (gleicher Bereich) das volle Gate.
+- **Beide Konten gleichzeitig:** #43 auf Konto 1, #45 und #46 auf Konto 2, zur selben Zeit.
+- **Abbruch des Treibers mit lebenden Läufen:** Treiber hart beendet, #43 und #45 liefen weiter;
+  der Neustart meldete „lebt noch: wird beobachtet, nicht neu gestartet“.
+- **Kein wartender Lauf weggeräumt:** Die Epic-Worktrees der Schlange überstanden jedes
+  `CleanupStale` nach einem Merge und gingen erst mit ihrem eigenen Merge.
+- **Docker:** Die Gates der Läufe starteten Compose-Projekte (etwa `probe3-epic-43`); am Ende war
+  kein Container, kein Netz und kein Volume des Probe-Repos mehr da. Wer welches Projekt abräumte
+  (Lauf, `Down` oder `CleanupStale`), ist nicht einzeln nachgesehen.
+- **Langes Gate über der Leerlaufgrenze:** Der Zug mit 300 s Gate dauerte 332 s, ohne Abbruch.
+  Die Stille-Regel (C1) griff dabei nicht: `claude -p` meldet während eines Werkzeugaufrufs
+  `tool_progress`, das Log steht also nicht still. Die Regel ist durch Tests belegt, live nicht
+  ausgelöst.
+
+### Was schiefging
+
+- **Anlauf 1:** Drei Läufe beendeten den Zug mit einem nackten `FLOTTE-ENDE` ohne Nummer und URL,
+  auch nach der Nachfrage; der Treiber brach sie ab. Haiku fand die Blockform nicht. Der Treiber
+  nennt die Kopfzeilen jetzt im Auftrag und in der Nachfrage. In Anlauf 2 kamen alle Blöcke lesbar.
+- Ein Lauf legte zwei Gate-Ausgaben als Dateien in `worktree_root` ab, neben den Worktrees. Kein
+  Worktree, aber ein Rest.
+
 ## Kurzprobe vom 19.11.2026, nach der Nachprüfung
 
 Ein Epic über den Treiber, mit `guard.ps1` aus dem Stapel (#21 mit #15) über `--settings` und
