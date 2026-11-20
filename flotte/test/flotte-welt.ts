@@ -47,6 +47,8 @@ export interface Optionen {
   prInfo?: (pr: number) => { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
   /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
   worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
+  /** the forge's open issues with ready-for-agent and with epic, per call (without --epics) */
+  freigegeben?: () => { bereit: number[]; epics: { number: number; body?: string }[] };
 }
 
 export interface Protokoll {
@@ -100,7 +102,14 @@ export function aufbau(o: Optionen = {}) {
       p.kommentare.push({ nr, text: opts?.eingabe ?? '' });
       return ok();
     }
-    if (a === 'issue' && b === 'list') return ok('[]');
+    if (a === 'issue' && b === 'list') {
+      // without --epics: the open issues with ready-for-agent and with epic (the adapter's defaults)
+      const label = args[args.indexOf('--label') + 1];
+      const f = o.freigegeben?.();
+      if (f && label === 'ready-for-agent') return ok(JSON.stringify(f.bereit.map((n) => ({ number: n }))));
+      if (f && label === 'epic') return ok(JSON.stringify(f.epics.map((e) => ({ body: '', ...e }))));
+      return ok('[]');
+    }
     if (a === 'label') return ok();
     if (a === 'issue' && b === 'create') return ok('https://github.com/o/r/issues/99\n');
     if (a === 'issue' && b === 'edit') {

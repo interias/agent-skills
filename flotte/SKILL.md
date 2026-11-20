@@ -26,11 +26,27 @@ Eine ältere `merge.ps1` ruft der Treiber nicht auf.
 
 ## Starten
 
-Aus einem Terminal, im Hauptverzeichnis des Projekts oder mit Pfad:
+Aus einem Terminal, im Projektordner:
 
 ```
-bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts fahren <repo> --forge <owner/name> --epics 15,21,32 --konten C:\Users\stefa\.claude,C:\Users\stefa\.claude-arbeitspferd
+bun <skills>\flotte\src\cli.ts fahren --konten 1,2
 ```
+
+- **Repository und Forge:** ohne `<repo>` das Repository des aktuellen Ordners (sein
+  Hauptverzeichnis, auch aus einem Worktree), ohne `--forge` das GitHub-Repository von `origin`.
+  Beides lässt sich angeben: `fahren <repo> --forge <owner/name>`.
+- **Epics:** ohne `--epics` alle offenen Epics (`epic_label`) mit `ready_label` des Adapters, an
+  sich oder an einem offenen Kind, wie `/epic-flotte` Phase 0. Der Treiber sammelt sie etwa alle
+  15 Minuten neu ein und nimmt neu freigegebene Epics auf; Belegung und Reihenfolge-Kanten gelten
+  für sie wie für die ersten. Ein unterwegs entstandenes Epic ohne das Label wartet. Mit
+  `--epics 15,21` bleibt der Einsatz fest auf diese Epics beschränkt.
+- **Ende:** Sind Schlange und Kandidaten leer, sammelt der Treiber ein letztes Mal ein und endet,
+  wenn nichts Neues freigegeben ist. Mit `--dauerhaft` wartet er weiter auf neue Epics.
+- **Konten** als Kurzname: `1`, `2`, `3` oder der Ordnername im Benutzerverzeichnis
+  (`.claude-arbeitspferd`), sonst ein Pfad. Die Nummern stehen in `konten.json` neben dem Skill
+  (`{ "1": "~/.claude", "2": "~/.claude-arbeitspferd" }`); ohne die Datei gelten `~/.claude`,
+  `~/.claude-arbeitspferd` und `~/.claude-arbeitspferd-3`. Die Konten aus `--konten` sind
+  gleichrangig; ein neues Epic geht auf das Konto mit den wenigsten laufenden Läufen.
 
 Mögliche Schalter:
 
@@ -39,7 +55,9 @@ Mögliche Schalter:
 | `--skill` | `epic` |
 | `--modell` | Standard des Kontos |
 | `--admiral-modell` / `--admiral-effort` | `fable` / `high` |
-| `--admiral-konto <dir>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen |
+| `--admiral <konto>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen |
+| `--epics <n,n>` | die freigegebenen Epics, laufend neu eingesammelt |
+| `--dauerhaft` | Ende, wenn Schlange und Kandidaten leer sind |
 | `--ping-modell` | `haiku` |
 | `--leerlauf-min` | `60` |
 | `--takt-s` | `60` |
@@ -51,7 +69,7 @@ Mögliche Schalter:
 | `--ohne-nacharbeit` | Nacharbeit läuft |
 | `--merge-skript` | `merge.ps1` des Leitstands |
 | `--max-min` | ohne Grenze |
-| `--konto-max <dir>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
+| `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
 Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 

@@ -103,7 +103,7 @@ describe('Befund 4: der PR aus FLOTTE-ENDE gehört zum Epic', () => {
 });
 
 describe('Befund 7: Konto des Admirals und --konto-max', () => {
-  it('--admiral-konto: the runs on their account, every admiral call on its own', async () => {
+  it('--admiral: the runs on their account, every admiral call on its own', async () => {
     const t = aufbau({ verbrauch: [0.1, 0.1, 0.1] });
     const [k1, k2, admiralKonto] = t.konten;
     const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);

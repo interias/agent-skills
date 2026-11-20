@@ -7,7 +7,8 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSyn
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
-import { type Adapter, belege, type EpicBild, sammle } from '../werkzeuge/belegung.ts';
+import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
+import { kontoAus } from '../werkzeuge/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock } from '../werkzeuge/bloecke.ts';
 import { beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -22,12 +23,17 @@ export interface Einstellung {
   repo: string;
   forge: string;
   epics: number[];
+  /** without --epics: the released epics of the forge, collected again every sammelnMs (acceptance 3, decision B) */
+  auto: boolean;
+  sammelnMs: number;
+  /** --dauerhaft: with nothing left the driver waits for new released epics instead of ending */
+  dauerhaft: boolean;
   /** CLAUDE_CONFIG_DIR per account; ~/.claude is account 1 */
   konten: string[];
   skill: string;
   modell: string | null;
   admiralModell: string | null;
-  /** --admiral-konto: CLAUDE_CONFIG_DIR of the admiral calls; null: the account of the epic (acceptance 3, finding 7) */
+  /** --admiral: CLAUDE_CONFIG_DIR of the admiral calls; null: the account of the epic (acceptance 3, decision D) */
   admiralKonto: string | null;
   admiralEffort: string | null;
   pingModell: string;
@@ -61,8 +67,12 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     repo: resolve(repo),
     forge,
     epics,
-    // a second ~ in "~/.claude,~/.claude-arbeitspferd" reaches us unexpanded (acceptance finding 5)
-    konten: konten.map((k) => resolve(k.startsWith('~') ? join(homedir(), k.slice(1)) : k)),
+    auto: false,
+    sammelnMs: 15 * 60_000,
+    dauerhaft: false,
+    // a second ~ in "~/.claude,~/.claude-arbeitspferd" reaches us unexpanded (acceptance finding 5);
+    // short names 1, 2, 3 or a folder name in the home directory (acceptance 3, decision D)
+    konten: konten.map((k) => kontoAus(k)),
     skill: 'epic',
     modell: null,
     admiralModell: 'fable',
@@ -239,6 +249,8 @@ class Treiber {
   /** why merge.ps1 cannot merge for us (missing or an old version), null when it can */
   mergeAlt: string | null = null;
   geaendert = true;
+  /** when the released epics were last collected (auto) */
+  gesammelt = 0;
 
   constructor(
     readonly e: Einstellung,
@@ -268,12 +280,16 @@ class Treiber {
     };
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
     if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
+    if (this.e.auto) {
+      this.e.epics = freigegebene(this.w.aufrufer, this.e.forge, adapterAus(this.e.repo));
+      this.gesammelt = this.w.jetzt();
+    }
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
     this.bilder = bilder;
     this.adapter = adapter;
     this.z.logbuch ??= logbuchFinden(this.w.aufrufer, this.e.forge, this.logbuchText());
-    this.ereignis(null, `Einsatz gestartet: ${this.e.epics.map((n) => `#${n}`).join(', ')}`);
+    this.ereignis(null, `Einsatz gestartet: ${this.e.epics.map((n) => `#${n}`).join(', ') || 'keine freigegebenen Epics'}${this.e.auto ? ` (freigegeben mit ${this.adapter.ready_label}, neu eingesammelt alle ${Math.round(this.e.sammelnMs / 60_000)} min)` : ''}`);
     if (this.adapter.merge === 'nach_gate') {
       this.mergeAlt = this.pruefeMergeSkript();
       if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch mergt`);
@@ -281,6 +297,7 @@ class Treiber {
     this.wiederaufnehmen();
 
     for (;;) {
+      this.nachsammeln(false);
       this.antwortenLesen();
       await this.messen();
       this.pings();
@@ -289,7 +306,8 @@ class Treiber {
       this.verteile();
       this.belege();
       this.speichern();
-      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde()) break;
+      // nothing left: one more look for released epics, then the end (acceptance 3, decision C)
+      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.nachsammeln(true)) break;
       if (this.e.maxDauerMs !== null && this.w.jetzt() - anfang > this.e.maxDauerMs) {
         this.ereignis(null, `Zeitgrenze von ${Math.round(this.e.maxDauerMs / 1000)} s erreicht, Treiber hält an`);
         await Promise.all(this.laufend.values());
@@ -303,6 +321,28 @@ class Treiber {
     await Promise.all(this.nebenher);
     await this.abschluss();
     return this.z;
+  }
+
+  /**
+   * Without --epics: every sammelnMs (or now, when jetzt) the released epics of the forge; new ones
+   * join the deployment, occupancy and order edges count for them. True when one joined.
+   */
+  nachsammeln(jetzt: boolean): boolean {
+    if (!this.e.auto || (!jetzt && this.w.jetzt() - this.gesammelt < this.e.sammelnMs)) return false;
+    this.gesammelt = this.w.jetzt();
+    let neu: number[];
+    try {
+      neu = freigegebene(this.w.aufrufer, this.e.forge, this.adapter).filter((n) => !this.e.epics.includes(n));
+    } catch (err) {
+      this.ereignis(null, `Epics nicht eingesammelt: ${String(err).slice(0, 200)}`);
+      return false;
+    }
+    if (!neu.length) return false;
+    this.e.epics = [...this.e.epics, ...neu];
+    for (const nr of neu) this.z.epics[nr] ??= neuesEpic(nr);
+    this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+    this.ereignis(null, `Neu freigegeben: ${neu.map((n) => `#${n}`).join(', ')}`);
+    return true;
   }
 
   nebenbei(p: Promise<void>): void {
@@ -1226,22 +1266,47 @@ function wert(argv: string[], name: string): string | undefined {
 
 const nummern = (s: string | undefined) => (s ?? '').split(',').map((x) => Number(x.trim().replace('#', ''))).filter((n) => n > 0);
 
-export async function fahren(argv: string[]): Promise<unknown> {
-  const repo = argv[0];
-  const forge = wert(argv, '--forge');
-  const epics = nummern(wert(argv, '--epics'));
-  const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
-  if (!repo || repo.startsWith('--') || !forge || !epics.length || !konten.length) {
-    throw new Error('Aufruf: flotte fahren <repo> --forge <owner/name> --epics 3,4 --konten <dir>[,<dir>] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--admiral-konto <dir>] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <dir>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]');
+/** owner/name of a GitHub remote URL (https or ssh), or null */
+export function forgeAus(url: string): string | null {
+  return /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(url.trim())?.[1] ?? null;
+}
+
+const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
+
+/**
+ * The settings of `flotte fahren` (acceptance 3, decisions A, B, D): without <repo> the repository of
+ * the current folder (its main checkout), without --forge the GitHub repository of origin, without
+ * --epics the released epics.
+ */
+export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufrufer: Aufrufer = aufrufen): Einstellung {
+  const explizit = argv[0] && !argv[0].startsWith('--') ? argv[0] : null;
+  let repo = explizit;
+  if (!repo) {
+    const r = aufrufer('git', ['-C', cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir']);
+    if (r.code) throw new Error(`Kein Git-Repository in ${cwd}. ${AUFRUF}`);
+    const common = r.stdout.trim();
+    repo = /[\\/]\.git$/.test(common) ? resolve(common, '..') : resolve(cwd);
   }
+  let forge = wert(argv, '--forge') ?? null;
+  if (!forge) {
+    const r = aufrufer('git', ['-C', repo, 'remote', 'get-url', 'origin']);
+    forge = r.code ? null : forgeAus(r.stdout);
+    if (!forge) throw new Error(`Die Forge lässt sich nicht aus origin lesen (${(r.stdout || r.stderr).trim() || 'kein origin'}); --forge <owner/name> angeben. ${AUFRUF}`);
+  }
+  const epics = nummern(wert(argv, '--epics'));
+  if (argv.includes('--epics') && !epics.length) throw new Error(`--epics ohne Nummern. ${AUFRUF}`);
+  const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
+  if (!konten.length) throw new Error(AUFRUF);
   const e = standard(repo, forge, epics, konten);
+  e.auto = !epics.length;
+  e.dauerhaft = argv.includes('--dauerhaft');
   e.skill = wert(argv, '--skill') ?? e.skill;
   e.modell = wert(argv, '--modell') ?? e.modell;
   e.admiralModell = wert(argv, '--admiral-modell') ?? e.admiralModell;
   e.admiralEffort = wert(argv, '--admiral-effort') ?? e.admiralEffort;
   if (e.admiralEffort === 'keine') e.admiralEffort = null;
-  const ak = wert(argv, '--admiral-konto');
-  if (ak) e.admiralKonto = standard(repo, forge, epics, [ak]).konten[0];
+  const ak = wert(argv, '--admiral');
+  if (ak) e.admiralKonto = kontoAus(ak);
   e.pingModell = wert(argv, '--ping-modell') ?? e.pingModell;
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
@@ -1252,8 +1317,8 @@ export async function fahren(argv: string[]): Promise<unknown> {
   e.obergrenze = grenze ? Number(grenze) : null;
   for (const t of (wert(argv, '--konto-max') ?? '').split(',').filter(Boolean)) {
     const i = t.lastIndexOf('=');
-    const k = standard(repo, forge, epics, [t.slice(0, i)]).konten[0];
-    if (i < 0 || !e.konten.includes(k) || !(Number(t.slice(i + 1)) >= 0)) throw new Error(`--konto-max ${t}: <kontenverzeichnis aus --konten>=<zahl>`);
+    const k = i < 0 ? '' : kontoAus(t.slice(0, i));
+    if (i < 0 || !e.konten.includes(k) || !(Number(t.slice(i + 1)) >= 0)) throw new Error(`--konto-max ${t}: <konto aus --konten>=<zahl>`);
     e.kontoMax[k] = Number(t.slice(i + 1));
   }
   e.sweepRoot = wert(argv, '--sweep-root') ?? null;
@@ -1263,6 +1328,11 @@ export async function fahren(argv: string[]): Promise<unknown> {
   e.nacharbeit = !argv.includes('--ohne-nacharbeit');
   const max = wert(argv, '--max-min');
   e.maxDauerMs = max ? Number(max) * 60_000 : null;
+  return e;
+}
+
+export async function fahren(argv: string[]): Promise<unknown> {
+  const e = einstellungAus(argv);
   // Ctrl+C: the lock goes, the state is already written; the runs finish their turn in their own
   // process group and a new start reads their logs (D16)
   process.once('SIGINT', () => {

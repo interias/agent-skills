@@ -31,6 +31,8 @@ export interface Adapter {
   always_collide: string[];
   modules_section: string;
   epic_label: string;
+  /** release label: without --epics the driver takes the open epics that carry it, or one of whose children does */
+  ready_label: string;
   /** who merges (references/adapter.md, "Merge"): only nach_gate lets the driver call merge.ps1 */
   merge: 'mensch' | 'nach_gate';
   /** commands after a merge, run in the main checkout (#14, stage 3) */
@@ -84,6 +86,7 @@ export function liesAdapter(text: string): Adapter {
     always_collide: werte.get('always_collide') ?? [],
     modules_section: werte.get('modules_section')?.[0] ?? '## Betroffene Module',
     epic_label: werte.get('epic_label')?.[0] ?? 'epic',
+    ready_label: werte.get('ready_label')?.[0] ?? 'ready-for-agent',
     merge: werte.get('merge')?.[0] === 'nach_gate' ? 'nach_gate' : 'mensch',
     nach_merge: werte.get('nach_merge') ?? [],
     gate_command: werte.get('gate_command')?.[0] ?? null,
@@ -223,20 +226,42 @@ function liste(argv: string[], name: string): number[] {
   return i >= 0 ? (argv[i + 1] ?? '').split(',').map((x) => Number(x.replace('#', ''))).filter((n) => n > 0) : [];
 }
 
-export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, nummern: number[]): { bilder: EpicBild[]; adapter: Adapter } {
-  let adapterText = '';
+export function adapterAus(repo: string): Adapter {
   try {
-    adapterText = readFileSync(join(repo, '.claude', 'epic.md'), 'utf8');
+    return liesAdapter(readFileSync(join(repo, '.claude', 'epic.md'), 'utf8'));
   } catch {
-    /* defaults */
+    return liesAdapter('');
   }
-  const adapter = liesAdapter(adapterText);
+}
+
+/** Children of an epic: its checklist lines and the Kinder: list of its header. */
+export const kinderAus = (body: string) => [...new Set([...body.matchAll(/^\s*[-*]\s+\[[ xX]\]\s+#(\d+)/gm), ...(/Kinder:\s*((?:#\d+[\s,]*)+)/.exec(body)?.[1].matchAll(/#(\d+)/g) ?? [])].map((m) => Number(m[1])))];
+
+/**
+ * Without --epics (acceptance 3, decision B): the open issues with epic_label that carry ready_label
+ * themselves or have an open child that does, as /epic-flotte collects them in Phase 0. An epic made
+ * along the way waits for the person's label.
+ */
+export function freigegebene(aufrufer: Aufrufer, forgeRepo: string, adapter: Adapter): number[] {
+  const liste = (label: string, felder: string) => {
+    const r = aufrufer('gh', ['issue', 'list', '--repo', forgeRepo, '--state', 'open', '--label', label, '--limit', '500', '--json', felder]);
+    if (r.code) throw new Error(`gh issue list --label ${label}: ${r.stderr.trim()}`);
+    return JSON.parse(r.stdout || '[]') as { number: number; body?: string }[];
+  };
+  const bereit = new Set(liste(adapter.ready_label, 'number').map((i) => i.number));
+  return liste(adapter.epic_label, 'number,body')
+    .filter((e) => bereit.has(e.number) || kinderAus(e.body ?? '').some((k) => bereit.has(k)))
+    .map((e) => e.number)
+    .sort((a, b) => a - b);
+}
+
+export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, nummern: number[]): { bilder: EpicBild[]; adapter: Adapter } {
+  const adapter = adapterAus(repo);
   const bilder = nummern.map((nr) => {
     const r = aufrufer('gh', ['issue', 'view', String(nr), '--repo', forgeRepo, '--json', 'body']);
     if (r.code) throw new Error(`gh issue view ${nr}: ${r.stderr.trim()}`);
     const body = String(JSON.parse(r.stdout).body ?? '');
-    const kinder = [...body.matchAll(/^\s*[-*]\s+\[[ xX]\]\s+#(\d+)/gm), ...(/Kinder:\s*((?:#\d+[\s,]*)+)/.exec(body)?.[1].matchAll(/#(\d+)/g) ?? [])].map((m) => Number(m[1]));
-    const kinderBodies = [...new Set(kinder)].map((k) => {
+    const kinderBodies = kinderAus(body).map((k) => {
       const c = aufrufer('gh', ['issue', 'view', String(k), '--repo', forgeRepo, '--json', 'body']);
       return c.code ? '' : String(JSON.parse(c.stdout).body ?? '');
     });

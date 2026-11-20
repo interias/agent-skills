@@ -84,20 +84,22 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
 
 1. **Keine Flotte im selben Repository.** Weder `/epic-flotte` noch der Leitstand führt dort Epics.
    Der Treiber sperrt nur gegen einen zweiten Treiber, nicht gegen einen Admiral-Chat.
-2. **Starten:** im Terminal, nicht in einer Claude-Sitzung. Das Fenster bleibt offen, solange der
-   Einsatz läuft. Die Konten mit vollem Pfad angeben, ohne `~`: Die Shell löst nur die erste
-   Tilde auf. Der Treiber erweitert zwar jede und bricht bei einem fehlenden Kontenordner ab, aber
-   so bleibt der Befehl eindeutig.
+2. **Starten:** im Terminal im Projektordner, nicht in einer Claude-Sitzung. Das Fenster bleibt
+   offen, solange der Einsatz läuft. Repository und Forge nimmt der Treiber aus dem Ordner und
+   aus `origin`. Ohne `--epics` nimmt er die Epics mit `ready_label` und sammelt alle 15 Minuten
+   neu ein; er endet, wenn nichts mehr offen und nichts Neues freigegeben ist (`--dauerhaft`:
+   er wartet weiter). Konten gehen als Kurzname (`1`, `2`, `3`, siehe `flotte/SKILL.md`).
 
    ```
-   bun C:\Users\stefa\.claude\skills\flotte\src\cli.ts fahren C:\Users\stefa\git\<projekt> --forge interias/<projekt> --epics 15,21 --konten C:\Users\stefa\.claude,C:\Users\stefa\.claude-arbeitspferd
+   bun <skills>\flotte\src\cli.ts fahren --konten 1,2
    ```
 
-   **Läufe auf Konto 2, Admiral auf Konto 1:** `--konten <konto 2> --admiral-konto <konto 1>`.
-   Alle Admiral-Aufrufe laufen dann auf Konto 1, jeder Lauf auf Konto 2. Sollen Läufe Konto 1
-   nur begrenzt nutzen, nimmt man beide Konten in `--konten` und setzt
-   `--konto-max <konto 1>=<n>`: höchstens n Epics arbeiten dort gleichzeitig. Ein gemergtes,
-   blockiertes oder abgebrochenes Epic gibt seinen Platz frei.
+   Fest auf einige Epics: `--epics 15,21`. Ein anderes Repository: `fahren <repo> --forge <owner/name>`.
+
+   **Läufe auf Konto 2, Admiral auf Konto 1:** `--konten 2 --admiral 1`. Alle Admiral-Aufrufe
+   laufen dann auf Konto 1, jeder Lauf auf Konto 2. Sollen Läufe Konto 1 nur begrenzt nutzen,
+   nimmt man beide Konten in `--konten` und setzt `--konto-max 1=<n>`: höchstens n Epics arbeiten
+   dort gleichzeitig. Ein gemergtes, blockiertes oder abgebrochenes Epic gibt seinen Platz frei.
 
 3. **Tafel öffnen:** `<projekt>\.git\flotte\tafel.html`. Einem Lauf zusehen:
    `flotte zuschauen <projekt> <epic>` in einem zweiten Terminal.
