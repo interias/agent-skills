@@ -1,0 +1,116 @@
+<!doctype html>
+<!-- Source of ablauf.png (880 px wide) and ablauf-schmal.png (400 px wide), both at twice the resolution in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Ablauf: wer startet, wer mergt</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@500;700&family=Figtree:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  :root {
+    --orange: #ff9c33; --pfirsich: #ffcc99; --lila: #cc99cc; --violett: #9977cc; --blau: #8899ff;
+    --himmel: #99ccff; --gruen: #66cc99; --text: #f2e6d9; --matt: #c9bfb4; --flaeche: #15151f;
+  }
+  html, body { margin: 0; background: #000; color: var(--text); }
+  body { width: 880px; padding: 20px; box-sizing: border-box; font: 17px/1.35 Figtree, system-ui, sans-serif; }
+  .kopf { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: stretch; margin-bottom: 18px; }
+  .ecke { background: var(--orange); border-radius: 40px 0 0 0; min-height: 60px; }
+  .titel { display: flex; align-items: center; gap: 14px; }
+  .titel h1 { margin: 0; font: 700 34px/1 Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+  .titel .leiste { flex: 1; height: 26px; background: var(--lila); border-radius: 0 13px 13px 0; }
+  .band { display: grid; grid-template-columns: 90px 1fr; gap: 8px; margin-bottom: 10px; }
+  .seite { border-radius: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px 10px; font: 700 18px Antonio, sans-serif; letter-spacing: .08em; color: #000; text-transform: uppercase; }
+  .s1 { background: var(--blau); } .s2 { background: var(--orange); } .s3 { background: var(--lila); }
+  .inhalt { background: var(--flaeche); border-radius: 0 18px 18px 0; padding: 14px 18px 16px; }
+  .frage { font: 700 21px Antonio, sans-serif; letter-spacing: .05em; text-transform: uppercase; margin: 0 0 10px; }
+  .s1 + .inhalt .frage { color: var(--himmel); } .s2 + .inhalt .frage { color: var(--orange); } .s3 + .inhalt .frage { color: var(--lila); }
+  .reihe { display: flex; align-items: center; gap: 10px; }
+  .pfeil { align-self: center; color: var(--matt); font: 700 22px Antonio, sans-serif; flex: none; }
+  .pfeil::before { content: "▶"; }
+  .karte { background: #000; border: 3px solid var(--k, var(--orange)); border-radius: 16px; padding: 10px 14px; flex: 1; min-width: 0; }
+  .karte b { display: block; font: 700 21px Antonio, sans-serif; letter-spacing: .04em; color: var(--k, var(--orange)); text-transform: uppercase; margin-bottom: 2px; }
+  .karte span { color: var(--matt); }
+  code { font: 500 16px "JetBrains Mono", monospace; color: var(--pfirsich); text-transform: none; letter-spacing: 0; }
+  .karte b code { font-size: 18px; color: inherit; }
+  .frage code { font-size: 18px; }
+  .oder { align-self: center; font: 700 18px Antonio, sans-serif; color: var(--matt); text-transform: uppercase; letter-spacing: .08em; flex: none; }
+  .k-blau { --k: var(--himmel); } .k-lila { --k: var(--lila); } .k-gruen { --k: var(--gruen); } .k-pfirsich { --k: var(--pfirsich); }
+  .pakete { display: grid; gap: 6px; flex: 1.1; }
+  .pakete .karte { padding: 6px 12px; }
+  .hinweis { margin: 10px 0 0; color: var(--matt); }
+  .hinweis b { color: var(--text); }
+  .bruecke { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .bruecke .linie { flex: none; width: 60px; height: 6px; background: var(--violett); border-radius: 3px; }
+
+  /* narrow version for phones: everything below each other */
+  body.schmal { width: 400px; padding: 12px; font-size: 18px; }
+  .schmal .kopf, .schmal .band { grid-template-columns: 26px 1fr; }
+  .schmal .ecke { border-radius: 26px 0 0 0; }
+  .schmal .titel h1 { font-size: 28px; }
+  .schmal .kopf, .schmal .band { grid-template-columns: 18px 1fr; }
+  .schmal .inhalt { padding: 12px 12px 14px; }
+  .schmal code { font-size: 17px; }
+  .schmal .seite { font-size: 0; padding: 0; }
+  .schmal .reihe { flex-direction: column; align-items: stretch; }
+  .schmal .pfeil { align-self: center; }
+  .schmal .pfeil { transform: rotate(90deg); }
+  .schmal .oder { align-self: flex-start; }
+  .schmal .bruecke { flex-direction: column; align-items: stretch; }
+  .schmal .bruecke .linie { width: 6px; height: 22px; align-self: center; }
+</style>
+<body>
+<div class="kopf"><div class="ecke"></div><div class="titel"><h1>Vom Epic zum Merge</h1><div class="leiste"></div></div></div>
+
+<div class="band">
+  <div class="seite s1">Start</div>
+  <div class="inhalt">
+    <p class="frage">Frage 1 · Wer startet den Lauf?</p>
+    <div class="reihe">
+      <div class="karte k-pfirsich"><b>Epic oder Spec</b><span>mit dem Label <code>ready-for-agent</code></span></div>
+      <div class="pfeil"></div>
+      <div class="karte k-blau"><b>Treiber · Regelweg</b><span><code>flotte fahren</code>: ein <code>claude -p</code> je Epic, verteilt auf Konto 1 · 2 · 3</span></div>
+      <div class="oder">oder</div>
+      <div class="karte k-blau"><b>Du im Chat</b><span><code>/epic #nr</code>, wenn du ein Epic begleiten willst</span></div>
+    </div>
+    <div class="bruecke">
+      <div class="karte k-lila"><b>Flottenbrücke</b><span>zeigt den Stand, nimmt deine Antworten und Handlungen an; nur der Treiber spricht mit ihr</span></div>
+      <div class="linie"></div>
+      <div class="karte k-blau" style="flex:.6"><b>Treiber</b><span>meldet jeden Takt, holt ab</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="band">
+  <div class="seite s2">Lauf</div>
+  <div class="inhalt">
+    <p class="frage">/epic · der Orchestrator</p>
+    <div class="reihe">
+      <div class="karte"><b>Vorab-Tor</b><span>schneidet das Epic in Pakete, fragt einmal</span></div>
+      <div class="pfeil"></div>
+      <div class="pakete">
+        <div class="karte"><b>Paket</b><span>eigener Worktree</span></div>
+        <div class="karte"><b>Paket</b><span>eigener Worktree</span></div>
+        <div class="karte"><b>Paket</b><span>bis zu drei gleichzeitig</span></div>
+      </div>
+      <div class="pfeil"></div>
+      <div class="karte"><b>Epic-Branch</b><span>Review, Verifikation, Sofortmerge je Paket</span></div>
+      <div class="pfeil"></div>
+      <div class="karte"><b>Pull Request</b><span>mit Gate-Block; der Lauf mergt nie</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="band">
+  <div class="seite s3">Merge</div>
+  <div class="inhalt">
+    <p class="frage">Frage 2 · Wer mergt? Allein der Adapterschlüssel <code>merge</code></p>
+    <div class="reihe">
+      <div class="karte k-lila"><b><code>merge: mensch</code></b><span>du mergst</span></div>
+      <div class="oder">oder</div>
+      <div class="karte k-lila" style="flex:1.6"><b><code>merge: nach_gate</code></b><span>ein Akteur außerhalb des Laufs: die Merge-Schlange des Treibers oder <code>merge.ps1</code> des Leitstands, nur mit gültigem Gate-Nachweis</span></div>
+      <div class="pfeil"></div>
+      <div class="karte k-gruen"><b>/epic-aufraeumen</b><span>Worktrees und Branches weg, die nachweislich in der Basis liegen</span></div>
+    </div>
+    <p class="hinweis"><b>Die beiden Fragen hängen nicht zusammen:</b> Wer startet, ändert nichts daran, wer mergt.</p>
+  </div>
+</div>
+<script>
+  if (location.hash === '#schmal') document.body.classList.add('schmal');
+</script>
