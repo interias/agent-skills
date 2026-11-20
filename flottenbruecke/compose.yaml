@@ -1,0 +1,17 @@
+# Flottenbrücke (#28): docker compose up -d in this folder. Port and bind address from .env.
+name: flottenbruecke
+services:
+  bruecke:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      BRUECKE_DB: /data/bruecke.db
+    ports:
+      - "${BRUECKE_BIND:-0.0.0.0}:${BRUECKE_PORT:-4747}:8000"
+    volumes:
+      - daten:/data
+volumes:
+  daten:

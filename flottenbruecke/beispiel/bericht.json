@@ -1,0 +1,122 @@
+{
+  "forge": "interias/flotte-probe",
+  "url": "https://github.com/interias/flotte-probe",
+  "rechner": "werkstatt",
+  "stand": "2026-11-20T14:31:05Z",
+  "aktiv": true,
+  "taktS": 60,
+  "epics": [
+    {
+      "nr": 41,
+      "titel": "Mini-Epic: Begrüßungsdatei",
+      "stufe": "wartend",
+      "konto": null,
+      "pr": null,
+      "notiz": "wartet auf #38 (nach)",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "offen" }, { "name": "P2", "stand": "offen" }],
+      "schritt": null,
+      "schrittZeit": null
+    },
+    {
+      "nr": 38,
+      "titel": "Mini-Epic: Zählerdatei und Changelog",
+      "stufe": "laeuft",
+      "konto": ".claude",
+      "pr": null,
+      "notiz": "",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "fertig" }, { "name": "P2", "stand": "laeuft" }, { "name": "P3", "stand": "offen" }],
+      "schritt": "Paket P2: Tests grün, Review läuft",
+      "schrittZeit": "2026-11-20T14:29:40Z"
+    },
+    {
+      "nr": 39,
+      "titel": "Mini-Epic: Konfigurationsdatei",
+      "stufe": "frage",
+      "konto": ".claude-arbeitspferd",
+      "pr": null,
+      "notiz": "wartet auf den Menschen",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "fertig" }, { "name": "P2", "stand": "geparkt" }],
+      "schritt": "FLOTTE-FRAGE tor",
+      "schrittZeit": "2026-11-20T14:12:03Z"
+    },
+    {
+      "nr": 36,
+      "titel": "Mini-Epic: Hilfetext",
+      "stufe": "pr",
+      "konto": ".claude",
+      "pr": 44,
+      "notiz": "Gate grün, Kopf der Schlange",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "fertig" }, { "name": "P2", "stand": "fertig" }],
+      "schritt": "FLOTTE-ENDE",
+      "schrittZeit": "2026-11-20T13:58:11Z"
+    },
+    {
+      "nr": 37,
+      "titel": "Mini-Epic: Versionsdatei",
+      "stufe": "pr",
+      "konto": ".claude-arbeitspferd",
+      "pr": 45,
+      "notiz": "",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "fertig" }, { "name": "P2", "stand": "fertig" }],
+      "schritt": "FLOTTE-ENDE",
+      "schrittZeit": "2026-11-20T14:20:30Z"
+    },
+    {
+      "nr": 35,
+      "titel": "Mini-Epic: Lizenzhinweis",
+      "stufe": "fertig",
+      "konto": ".claude",
+      "pr": 43,
+      "notiz": "",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "fertig" }, { "name": "P2", "stand": "fertig" }],
+      "schritt": "aufgeräumt",
+      "schrittZeit": "2026-11-20T13:40:00Z",
+      "gemergtAm": "2026-11-20T13:35:12Z"
+    },
+    {
+      "nr": 40,
+      "titel": "Mini-Epic: Startskript",
+      "stufe": "blockiert",
+      "konto": ".claude-arbeitspferd",
+      "pr": null,
+      "notiz": "Gate dreimal rot: Basis zog während des Gates weiter",
+      "geparkt": [],
+      "pakete": [{ "name": "P1", "stand": "fertig" }, { "name": "P2", "stand": "blockiert" }],
+      "schritt": "Gate rot (3/3)",
+      "schrittZeit": "2026-11-20T14:05:44Z"
+    }
+  ],
+  "schlange": [36, 37],
+  "konten": [
+    { "konto": ".claude", "stufe": "gruen" },
+    { "konto": ".claude-arbeitspferd", "stufe": "gelb" }
+  ],
+  "ram": { "stufe": "ok", "halt": false, "prozent": 61.4 },
+  "platte": { "freiGb": 212.5, "genug": true },
+  "obergrenze": 3,
+  "fragen": [
+    {
+      "epic": 39,
+      "nr": 1,
+      "frage": "Wo liegt die neue Konfigurationsdatei?",
+      "lage": "Das Epic nennt nur „eine Konfigurationsdatei“. Im Repository gibt es schon config/ für Skripte und das Wurzelverzeichnis für Werkzeuge.",
+      "optionen": [
+        { "buchstabe": "A", "text": "config/flotte.json neben den Skript-Konfigurationen" },
+        { "buchstabe": "B", "text": "flotte.json im Wurzelverzeichnis" },
+        { "buchstabe": "C", "text": "Beides weglassen, Werte als Konstanten im Code" }
+      ],
+      "empfehlung": "A",
+      "grund": "Hält das Wurzelverzeichnis frei und folgt dem vorhandenen Muster.",
+      "wartet": "der ganze Lauf",
+      "ganzerLauf": true,
+      "seit": "2026-11-20T14:12:30Z",
+      "beantwortet": null
+    }
+  ]
+}
