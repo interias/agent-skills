@@ -1,0 +1,82 @@
+<!doctype html>
+<!-- Source of rueckfrage.png (880 px wide) and rueckfrage-schmal.png (400 px wide), both at twice the resolution, in the README. Render: see README.md in this folder. -->
+<meta charset="utf-8">
+<title>Rückfrage: vom Lauf zum Menschen und zurück</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@500;700&family=Figtree:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  :root {
+    --orange: #ff9c33; --pfirsich: #ffcc99; --lila: #cc99cc; --violett: #9977cc; --blau: #8899ff;
+    --himmel: #99ccff; --gruen: #66cc99; --rot: #e0605a; --text: #f2e6d9; --matt: #c9bfb4; --flaeche: #15151f;
+  }
+  html, body { margin: 0; background: #000; color: var(--text); }
+  body { width: 880px; padding: 20px; box-sizing: border-box; font: 17px/1.35 Figtree, system-ui, sans-serif; }
+  .kopf { display: grid; grid-template-columns: 90px 1fr; gap: 8px; margin-bottom: 14px; }
+  .ecke { background: var(--lila); border-radius: 40px 0 0 0; min-height: 60px; }
+  .titel { display: flex; align-items: center; gap: 14px; }
+  .titel h1 { margin: 0; font: 700 34px/1 Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--lila); }
+  .titel .leiste { flex: 1; height: 26px; background: var(--orange); border-radius: 0 13px 13px 0; }
+  code { font: 500 16px "JetBrains Mono", monospace; color: var(--pfirsich); }
+
+  .ablauf { display: grid; grid-template-columns: 34px repeat(5, 1fr); column-gap: 0; row-gap: 6px; background: var(--flaeche); border-radius: 18px; padding: 12px 14px 16px; }
+  .wer { grid-row: 1; text-align: center; padding: 6px 4px; margin: 0 6px 8px; border-radius: 20px; color: #000; font: 700 19px Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+  .linie { grid-row: 2 / 10; justify-self: center; width: 4px; border-radius: 2px; opacity: .55; }
+  .c1 { grid-column: 2; --f: var(--orange); } .c2 { grid-column: 3; --f: var(--himmel); } .c3 { grid-column: 4; --f: var(--blau); }
+  .c4 { grid-column: 5; --f: var(--lila); } .c5 { grid-column: 6; --f: var(--gruen); }
+  .wer, .linie { background: var(--f); }
+  .nr { grid-column: 1; align-self: end; font: 700 19px Antonio, sans-serif; color: var(--matt); padding-bottom: 2px; }
+  .schritt { position: relative; z-index: 1; text-align: center; padding: 4px 0 0; }
+  .schritt .text { display: inline-block; background: var(--flaeche); padding: 0 8px; border-radius: 6px; }
+  .schritt .text b { color: var(--pfirsich); font-weight: 600; }
+  .pfeil { height: 6px; border-radius: 3px; background: var(--f); margin: 6px calc(100% / (2 * var(--k))) 0; position: relative; }
+  .pfeil::after { content: ""; position: absolute; top: -6px; border: 9px solid transparent; }
+  .rechts::after { right: -8px; border-left: 12px solid var(--f); border-right: 0; }
+  .links::after { left: -8px; border-right: 12px solid var(--f); border-left: 0; }
+  .zurueck .text { color: var(--matt); }
+  .zurueck .pfeil { background: repeating-linear-gradient(90deg, var(--f) 0 12px, transparent 12px 20px); }
+  .unten { margin: 12px 4px 0; color: var(--matt); }
+  .unten b { color: var(--text); }
+
+  /* narrow version for phones: numbered steps below each other */
+  body.schmal { width: 400px; padding: 12px; font-size: 18px; }
+  .schmal .kopf { grid-template-columns: 18px 1fr; }
+  .schmal .ecke { border-radius: 26px 0 0 0; }
+  .schmal .titel h1 { font-size: 28px; }
+  .schmal .ablauf { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+  .schmal .wer, .schmal .linie, .schmal .nr { display: none; }
+  .schmal .schritt { text-align: left; border-left: 6px solid var(--f); background: #000; border-radius: 0 12px 12px 0; padding: 8px 12px; }
+  .schmal .schritt .text { background: none; padding: 0; }
+  .schmal .schritt::before { content: attr(data-kopf); display: block; font: 700 19px Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--f); }
+  .schmal .pfeil { display: none; }
+  .schmal code { font-size: 17px; }
+</style>
+<body>
+<div class="kopf"><div class="ecke"></div><div class="titel"><h1>Wenn ein Lauf fragt</h1><div class="leiste"></div></div></div>
+<div class="ablauf" id="ablauf"></div>
+<p class="unten"><b>Jede Entscheidung</b>, ob vom Admiral oder von dir, steht danach als Kommentar am Issue. Eine Entscheidung des Admirals nimmst du auf der Brücke zurück, solange nicht gemergt ist.</p>
+<script>
+  const WER = ['Lauf', 'Treiber', 'Admiral', 'Brücke', 'Mensch'];
+  // [from, to, text, colour of the sender, dashed]
+  const SCHRITTE = [
+    [1, 2, '<code>FLOTTE-FRAGE</code>: der Frageblock'],
+    [2, 3, 'der Frageblock, als eigener <code>claude -p</code>'],
+    [3, 2, 'entscheidet, was bis zum Merge <b>umkehrbar</b> ist, mit Grund und Marke'],
+    [2, 4, 'der Rest als Fragekarte in „Braucht dich“'],
+    [5, 4, 'Empfehlung mit einem Tipp, Option oder Freitext, mit PIN'],
+    [4, 2, 'die Antwort, abgeholt im nächsten Takt und quittiert'],
+    [2, 1, 'weiter mit den Antworten'],
+    [5, 2, '„Zurücknehmen“ bis zum Merge: die neue Entscheidung geht über Brücke und Treiber an den Lauf', true],
+  ];
+  if (location.hash === '#schmal') document.body.classList.add('schmal');
+  const box = document.getElementById('ablauf');
+  WER.forEach((w, i) => {
+    box.insertAdjacentHTML('beforeend', `<div class="wer c${i + 1}">${w}</div><div class="linie c${i + 1}"></div>`);
+  });
+  SCHRITTE.forEach(([von, nach, text, zurueck], i) => {
+    const a = Math.min(von, nach), b = Math.max(von, nach), k = b - a + 1;
+    const zeile = i + 2;
+    box.insertAdjacentHTML('beforeend',
+      `<div class="nr" style="grid-row:${zeile}">${i + 1}</div>` +
+      `<div class="schritt c${von}${zurueck ? ' zurueck' : ''}" data-kopf="${i + 1} · ${WER[von - 1]} ▶ ${WER[nach - 1]}" style="grid-row:${zeile};grid-column:${a + 1} / ${b + 2};--k:${k}">` +
+      `<span class="text">${text}</span><div class="pfeil ${nach > von ? 'rechts' : 'links'}"></div></div>`);
+  });
+</script>

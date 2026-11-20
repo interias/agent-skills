@@ -3,31 +3,15 @@
 Claude-Code-Skills, mit denen Agenten freigegebene Epics aus der Forge (Gitea oder GitHub)
 umsetzen: vom Issue bis zum Pull Request, in parallelen Paketen, jedes geprüft. Ein Programm, der
 Flotten-Treiber, führt mehrere solcher Läufe gleichzeitig auf einem oder mehreren Claude-Konten;
-die Flottenbrücke zeigt sie als Board und nimmt deine Antworten an. Gemergt wird nur so, wie der
-Adapter des Projekts es erlaubt.
+die Flottenbrücke zeigt, was dich braucht, nimmt deine Antworten an und reicht Handlungen bei
+Blockaden an den Treiber. Gemergt wird nur so, wie der Adapter des Projekts es erlaubt.
 
 ## Das Bild
 
-```mermaid
-flowchart TD
-  I["Epic oder Spec<br/>mit ready-for-agent"]
-  subgraph S["Frage 1 · Wer startet den Lauf?"]
-    T["Treiber · Regelweg<br/>flotte fahren<br/>claude -p je Epic, Konto 1 · 2 · 3"]
-    C["du im Chat<br/>/epic #nr"]
-  end
-  I --> T & C
-  T & C --> E["/epic · Orchestrator"]
-  E --> P1["Paket<br/>eigener Worktree"] & P2["Paket<br/>eigener Worktree"] & P3["Paket<br/>eigener Worktree"]
-  P1 & P2 & P3 -->|"Review, Verifikation,<br/>Sofortmerge"| B["Epic-Branch"]
-  B --> PR["Pull Request mit Gate-Block<br/>der Lauf mergt nie"]
-  subgraph G["Frage 2 · Wer mergt? Allein der Adapterschlüssel merge"]
-    M["merge: mensch<br/>du mergst"]
-    Q["merge: nach_gate<br/>ein Akteur außerhalb des Laufs:<br/>Merge-Schlange des Treibers<br/>oder merge.ps1 des Leitstands,<br/>nur mit gültigem Gate-Nachweis"]
-  end
-  PR --> M & Q
-  M & Q --> N["/epic-aufraeumen"]
-  T <-->|"Stand / Antworten"| BR["Flottenbrücke"]
-```
+<picture>
+  <source media="(max-width: 600px)" srcset="assets/readme/ablauf-schmal.png">
+  <img src="assets/readme/ablauf.png" width="880" alt="Vom Epic zum Merge, in drei Bändern. Start, Frage 1, wer startet den Lauf: Ein Epic oder eine Spec mit dem Label ready-for-agent startet entweder über den Treiber als Regelweg (flotte fahren, ein claude -p je Epic, verteilt auf Konto 1, 2 und 3) oder durch dich im Chat mit /epic #nr. Die Flottenbrücke zeigt den Stand und nimmt deine Antworten und Handlungen an; nur der Treiber spricht mit ihr, er meldet jeden Takt und holt ab. Lauf, /epic als Orchestrator: Das Vorab-Tor schneidet das Epic in Pakete und fragt einmal; bis zu drei Pakete laufen gleichzeitig in eigenen Worktrees; Review, Verifikation und Sofortmerge je Paket auf den Epic-Branch; am Ende ein Pull Request mit Gate-Block, der Lauf mergt nie. Merge, Frage 2, wer mergt, allein der Adapterschlüssel merge: bei merge: mensch mergst du; bei merge: nach_gate ein Akteur außerhalb des Laufs, die Merge-Schlange des Treibers oder merge.ps1 des Leitstands, nur mit gültigem Gate-Nachweis. Danach /epic-aufraeumen. Die beiden Fragen hängen nicht zusammen.">
+</picture>
 
 Die beiden Fragen hängen nicht zusammen: Ob der Treiber oder du im Chat einen Lauf startet, ändert
 nichts daran, wer mergt. **Welchen Weg wann:** Der Treiber ist der Regelweg, auch für ein einzelnes
@@ -42,25 +26,22 @@ Nachprüfung. Er endet mit einem offenen Pull Request. Der **Treiber** startet v
 sie auf Konten, bremst bei vollem Speicher oder Limit und mergt nur bei `merge: nach_gate`.
 Was ein Lauf fragt, geht so weiter:
 
-```mermaid
-sequenceDiagram
-  participant L as Lauf (/epic)
-  participant T as Treiber
-  participant A as Admiral (claude -p)
-  participant B as Flottenbrücke
-  participant M as Mensch
-  L->>T: FLOTTE-FRAGE (Frageblock)
-  T->>A: Frageblock
-  A-->>T: entscheidet, was bis zum Merge umkehrbar ist
-  T->>B: der Rest als Karte „Frage an dich“
-  M->>B: Option oder Freitext (mit PIN)
-  B-->>T: Antwort im nächsten Takt
-  T->>L: weiter mit den Antworten
-```
+<picture>
+  <source media="(max-width: 600px)" srcset="assets/readme/rueckfrage-schmal.png">
+  <img src="assets/readme/rueckfrage.png" width="880" alt="Wenn ein Lauf fragt, in acht Schritten zwischen Lauf, Treiber, Admiral, Brücke und Mensch. 1: Der Lauf schickt dem Treiber FLOTTE-FRAGE, den Frageblock. 2: Der Treiber gibt den Frageblock dem Admiral, einem eigenen claude -p. 3: Der Admiral entscheidet, was bis zum Merge umkehrbar ist, mit Grund und Marke. 4: Den Rest legt der Treiber als Fragekarte in „Braucht dich“ auf die Brücke. 5: Der Mensch antwortet dort mit einem Tipp auf die Empfehlung, mit einer Option oder mit Freitext, mit PIN. 6: Der Treiber holt die Antwort im nächsten Takt ab und quittiert sie. 7: Der Lauf macht mit den Antworten weiter. 8: Mit „Zurücknehmen“ geht bis zum Merge eine neue Entscheidung über Brücke und Treiber an den Lauf. Jede Entscheidung steht danach als Kommentar am Issue.">
+</picture>
 
 Jede Entscheidung, ob vom Admiral oder von dir, steht danach als Kommentar am Issue.
 
-![Flottenbrücke mit den Beispieldaten: Spalten Bereit, Läuft, Frage an dich, Merge-Schlange, Gemergt (heute) und Blockiert; oben die Bremsen je Konto, RAM und Platte; in „Frage an dich“ eine offene Frage mit Lage, Optionen A bis C, markierter Empfehlung und Freitextfeld.](assets/flottenbruecke/board.png)
+Die Brücke ordnet alles danach, was du tun musst: **Braucht dich** (Fragen und blockierte Epics,
+mit „Neu einreihen“ und „Aufgeben“), **Unterwegs** (Läufe mit Lebenszeichen, Kind-Tickets und
+Merge-Schlange) und **Erledigt heute** (Gemergtes und die Entscheidungen des Admirals, die du
+zurücknehmen kannst). Auf dem Handy ist nur die erste Ebene offen.
+
+<picture>
+  <source media="(max-width: 600px)" srcset="assets/flottenbruecke/board-v2-handy.png">
+  <img src="assets/flottenbruecke/board-v2.png" alt="Flottenbrücke v2 mit den Beispieldaten. Oben je Konto ein Tank mit dem Rest im 5-Stunden- und im Wochenfenster samt Reset-Zeit, dazu RAM und Platte. Ebene „Braucht dich“ mit zwei Karten: Epic #40 blockiert (Grund, Knöpfe Neu einreihen, Log ansehen, Aufgeben) und Frage 1 von #39 (Frage als Überschrift, Lage, Marke „nach außen sichtbar · bleibt“, warum sie bei dir liegt, Optionen A bis C mit ihrer Folge, Knopf „A nehmen · Empfehlung“, Freitext). Ebene „Unterwegs“ mit zwei Läufen (läuft seit, Paketleiste „1 von 3 fertig“, Lebenszeichen) und zwei Pull Requests in der Merge-Schlange; darunter die Zeile Bereit mit einem prio-Epic. Ebene „Erledigt heute“ mit zwei Entscheidungen des Admirals samt „Zurücknehmen“ und einem Merge. Unten das Logbuch als Laufband.">
+</picture>
 
 ## Schnellstart
 
