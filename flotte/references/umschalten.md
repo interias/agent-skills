@@ -70,8 +70,11 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
      Treiber den Hook jedem Zug über `--settings` mitgibt. Eine Sperre blockiert das Epic erst,
      wenn der Zug daran scheitert, wenn dieselbe Regel ein zweites Mal sperrt oder bei der dritten
      Sperre im Epic.
-   - **Außerhalb des Treibers gilt das nicht:** Der Hook im Kopf von `/epic` gilt nur im Zug, der
-     den Skill aufruft. Eine `/epic`-Sitzung, die mit `claude --resume` fortgesetzt wird, läuft
+   - **Außerhalb des Treibers:** Der Hook im Kopf von `/epic` gilt nur im Zug, der den Skill
+     aufruft. Eine `/epic`-Sitzung deshalb mit
+     `powershell -NoProfile -File C:\Users\stefa\.claude\skills\epic\scripts\fortsetzen.ps1 -Session <id>`
+     fortsetzen (Konto 2: `-ConfigDir C:\Users\stefa\.claude-arbeitspferd`). Das Skript gibt
+     `guard.ps1` über `--settings` mit, wie der Treiber. Mit blankem `claude --resume` läuft sie
      ohne `guard.ps1`.
 5. **Das erste echte Epic mit `merge: mensch` fahren.** Es zeigt, was die Generalprobe nicht
    zeigen kann: den Anteil der Rückfragen mit einem Fable-Admiral, lange Züge von `/epic` unter
@@ -120,9 +123,8 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    - Am sichersten übernimmt `/epic-flotte` bzw. der Leitstand die Epics neu. Epic-Branches und PRs
      bleiben dabei bestehen.
    - Eine Sitzung lässt sich auf ihrem Konto auch mit vollem Kontext fortsetzen: im Projekt
-     `claude --resume <sitzung>`, für Konto 2 mit `CLAUDE_CONFIG_DIR`. **Dann ohne `guard.ps1`:**
-     Der Hook kam vom Treiber, und der Hook des Skills gilt nach `--resume` nicht. Die Sitzung
-     deshalb nur unter Aufsicht weiterarbeiten lassen.
+     `fortsetzen.ps1 -Session <sitzung>` aus `epic\scripts`, für Konto 2 mit `-ConfigDir`. Das
+     Skript gibt `guard.ps1` mit; blankes `claude --resume` liefe ohne den Hook.
 5. **Offene PRs** bleiben offen. Wer mergt, bestimmt weiter der Adapterschlüssel `merge`, denn
    `merge.ps1` des Leitstands liest ihn genauso.
 6. **Alte `merge.ps1` zurück,** nur wenn der Leitstand wieder ohne `merge: nach_gate` mergen soll:

@@ -77,6 +77,10 @@ Ende nur noch geparkte Pakete übrig, beendest du den Zug mit demselben Frageblo
 
 „Durch Hook durchgesetzt" heißt: `scripts/guard.ps1` sperrt die Befehle dafür (Frontmatter oben).
 Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleibt ein Regelverstoß.
+Der Hook im Frontmatter gilt nur im Zug, der den Skill aufruft. **Eine `/epic`-Sitzung wird deshalb
+nur mit `scripts/fortsetzen.ps1 -Session <id>` fortgesetzt** (für Konto 2 dazu `-ConfigDir`), nie mit
+blankem `claude --resume`: Das Skript gibt `guard.ps1` als Hook der Sitzung mit, wie der
+Flotten-Treiber.
 
 1. **Der Lauf mergt und pusht nie in den Hauptzweig und nie in `<basis>`**, er endet mit einem
    offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
