@@ -89,7 +89,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/api/antworten')
     def abholen(forge: str, x_bruecke_token: str | None = Header(None)) -> list[dict]:
         treiber(x_bruecke_token)
-        return [{'id': a['id'], 'epic': a['epic'], 'nr': a['nr'], 'seit': a['seit'], 'text': a['text'], 'zeit': a['zeit'], 'herkunft': HERKUNFT} for a in speicher.abholen(forge, stempel())]
+        # the contract: beispiel/antworten.json
+        return [{'id': a['id'], 'epic': a['epic'], 'nr': a['nr'], 'seit': a['seit'], 'option': a['option'], 'text': a['text'] or None, 'zeit': a['zeit'], 'herkunft': HERKUNFT} for a in speicher.abholen(forge, stempel())]
 
     @app.post('/api/antworten/{id_}/quittung')
     def quittieren(id_: int, x_bruecke_token: str | None = Header(None)) -> dict:
@@ -118,7 +119,14 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(404, 'Diese Frage ist nicht offen.')
         if f.get('beantwortet'):
             raise HTTPException(409, 'Die Frage ist schon beantwortet.')
-        gespeichert = speicher.antwort_setzen(a.forge, a.epic, a.nr, a.seit, a.text.strip(), stempel())
+        if a.option:
+            wahl = a.option.split(', ')
+            fremd = [b for b in wahl if b not in [o['buchstabe'] for o in f.get('optionen', [])]]
+            if fremd:
+                raise HTTPException(422, f"Option {', '.join(fremd)} gibt es bei dieser Frage nicht.")
+            if len(wahl) != len(set(wahl)) or (len(wahl) > 1 and not f.get('mehrfach')):
+                raise HTTPException(422, 'Bei dieser Frage gilt genau eine Option.')
+        gespeichert = speicher.antwort_setzen(a.forge, a.epic, a.nr, a.seit, a.option, a.text, stempel())
         if gespeichert is None:
             raise HTTPException(409, 'Der Treiber hat die Antwort schon abgeholt.')
         return {'ok': True, 'id': gespeichert['id']}

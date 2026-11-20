@@ -125,7 +125,10 @@ time, .zahl { font-variant-numeric: tabular-nums; }
 .frage { margin-top: 8px; padding-top: 8px; border-top: 2px solid #2a2a40; }
 .frage-titel { font-weight: 700; color: var(--lila); font-size: 14px; overflow-wrap: anywhere; }
 .lage { font-size: 13px; color: var(--text); margin: 4px 0 6px; overflow-wrap: anywhere; white-space: pre-line; }
-.wartet { font-size: 11px; color: var(--matt); text-transform: uppercase; letter-spacing: .04em; }
+.roh { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: pre-wrap; background: #05050a; border-radius: 6px; padding: 6px 8px; max-height: 260px; overflow: auto; }
+.wortlaut { margin-top: 4px; font-size: 12px; }
+.wortlaut summary { cursor: pointer; color: var(--himmel); text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
+.wartet {font-size: 11px; color: var(--matt); text-transform: uppercase; letter-spacing: .04em; }
 .optionen { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .opt {
   display: flex; gap: 8px; align-items: flex-start; text-align: left; width: 100%;
@@ -136,6 +139,8 @@ time, .zahl { font-variant-numeric: tabular-nums; }
 .opt.empfohlen .b { background: var(--orange); }
 .opt .empf { display: inline-block; margin-left: 6px; font-size: 10px; color: #000; background: var(--orange); border-radius: var(--rund); padding: 0 6px; text-transform: uppercase; font-weight: 700; letter-spacing: .05em; vertical-align: 1px; }
 .opt.gewaehlt { border-color: var(--orange); background: #2a1e10; }
+.opt.kaestchen .b { border-radius: 4px; }
+.opt.kaestchen.gewaehlt .b::after { content: " ✓"; }
 .opt:focus-visible, .knopf:focus-visible, textarea:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
 textarea {
   width: 100%; min-height: 54px; resize: vertical; background: #05050a; color: var(--text); border: 2px solid #2a2a40;

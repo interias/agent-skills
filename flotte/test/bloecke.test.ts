@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { leseBlock } from '../src/werkzeuge/bloecke.ts';
+import { leseBlock, nurBuchstaben } from '../src/werkzeuge/bloecke.ts';
 
 const frage = `Bericht des Laufs.
 
@@ -41,6 +41,21 @@ describe('leseBlock', () => {
   it('is null without a block, also for a mention inside a sentence', () => {
     expect(leseBlock('Fertig. Ich schicke gleich FLOTTE-ENDE.')).toBeNull();
     expect(leseBlock('')).toBeNull();
+  });
+
+  it('reads any number of options in order, a multiple choice and the raw wording (#28)', () => {
+    const zeile = '1. Welche Sprachen? — Betrifft: Lauf — Optionen: A) de B) en C) fr D) es E) it F) nl G) pl H) cs I) da (siehe X) unten) — Auswahl: mehrere — Empfehlung: A, C — Grund: g';
+    const b = leseBlock(`FLOTTE-FRAGE 5 tor\n${zeile}\nSTAND: x`);
+    if (b?.art !== 'frage') throw new Error('kein Frageblock');
+    const f = b.fragen[0];
+    expect(f.optionen.map((o) => o.buchstabe)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+    expect(f.optionen[8].text).toBe('da (siehe X) unten)');
+    expect(f).toMatchObject({ mehrfach: true, empfehlung: 'A, C', roh: zeile });
+    expect(b.roh).toBe(`FLOTTE-FRAGE 5 tor\n${zeile}\nSTAND: x`);
+    const einzeln = leseBlock('FLOTTE-FRAGE 5 tor\n1. x — Optionen: A) a B) b — Empfehlung: B, weil sicher\nSTAND: x');
+    expect(einzeln?.art === 'frage' && einzeln.fragen[0]).toMatchObject({ mehrfach: false, empfehlung: 'B' });
+    expect(nurBuchstaben('A, C')).toBe(true);
+    expect(nurBuchstaben('Ab sofort')).toBe(false);
   });
 
   it('joins a question that runs over several lines', () => {

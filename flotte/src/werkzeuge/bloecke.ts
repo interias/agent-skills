@@ -15,9 +15,13 @@ export interface Frage {
   betrifft: 'Lauf' | string[] | null;
   lage: string;
   optionen: Option[];
+  /** `— Auswahl: mehrere`: the answer may name several options (`A, C`); default single choice */
+  mehrfach: boolean;
   empfehlung: string | null;
   grund: string;
   quelle: string;
+  /** the question as the run wrote it, for the board when the fields do not parse (#28) */
+  roh: string;
 }
 
 export interface FrageBlock {
@@ -27,6 +31,8 @@ export interface FrageBlock {
   fragen: Frage[];
   stand: string;
   tafel: string;
+  /** the whole block as the run wrote it: what the person sees when no question parses (#28) */
+  roh: string;
 }
 
 export interface EndeBlock {
@@ -62,12 +68,30 @@ function betrifftAus(wert: string | undefined): Frage['betrifft'] {
   return pakete.length ? pakete : null;
 }
 
+/** A) … B) … in alphabetical order, as many as there are; a letter out of order is part of a text. */
 function optionenAus(wert: string | undefined): Option[] {
   if (!wert) return [];
-  const out: Option[] = [];
-  const re = /(?:^|\s)([A-H])\)\s*(.*?)(?=\s+[A-H]\)\s|$)/gs;
-  for (const m of wert.matchAll(re)) out.push({ buchstabe: m[1], text: m[2].trim() });
-  return out;
+  const stellen: { buchstabe: string; von: number; text: number }[] = [];
+  let ab = 0;
+  for (let c = 65; c <= 90; c++) {
+    const buchstabe = String.fromCharCode(c);
+    const re = new RegExp(`(?:^|\\s)${buchstabe}\\)\\s*`, 'g');
+    re.lastIndex = ab;
+    const m = re.exec(wert);
+    if (!m) break;
+    stellen.push({ buchstabe, von: m.index, text: m.index + m[0].length });
+    ab = m.index + m[0].length;
+  }
+  return stellen.map((st, i) => ({ buchstabe: st.buchstabe, text: wert.slice(st.text, stellen[i + 1]?.von ?? wert.length).trim() }));
+}
+
+/** `B` or `A, C`: an answer that only names options */
+export const nurBuchstaben = (text: string) => /^[A-Z](?:\s*[,;]\s*[A-Z])*$/.test(text.trim());
+
+/** The letters at the start of an answer or recommendation (`B`, `A, C`), null when it starts with none. */
+export function buchstabenAus(text: string): string | null {
+  const m = /^\s*([A-Z](?:\s*[,;]\s*[A-Z])*)(?![\wÄÖÜäöüß])/.exec(text);
+  return m ? m[1].split(/\s*[,;]\s*/).join(', ') : null;
 }
 
 function frageAus(nr: number, zeile: string): Frage {
@@ -79,9 +103,11 @@ function frageAus(nr: number, zeile: string): Frage {
     betrifft: betrifftAus(f.get('Betrifft')),
     lage: f.get('Lage') ?? '',
     optionen: optionenAus(f.get('Optionen')),
-    empfehlung: empf ? (/^([A-H])\b/.exec(empf)?.[1] ?? empf) : null,
+    mehrfach: /^(mehrere|mehrfach)/i.test(f.get('Auswahl') ?? ''),
+    empfehlung: empf ? (buchstabenAus(empf) ?? empf) : null,
     grund: f.get('Grund') ?? '',
     quelle: f.get('Regel/Quelle') ?? f.get('Quelle') ?? '',
+    roh: zeile.trim(),
   };
 }
 
@@ -130,7 +156,7 @@ export function leseBlock(text: string): Block | null {
     if (aktuell && z.trim()) aktuell.text += ' ' + z.trim();
   }
   abschliessen();
-  return { art: 'frage', epic, phase, fragen, stand, tafel };
+  return { art: 'frage', epic, phase, fragen, stand, tafel, roh: zeilen.slice(start).join('\n').trim() };
 }
 
 export function bloecke(argv: string[]): unknown {

@@ -153,6 +153,11 @@ FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 ```
 
+Optionen sind Großbuchstaben ab `A`, beliebig viele. Darf die Antwort mehrere Optionen zugleich
+wählen, steht nach den Optionen `— Auswahl: mehrere`; die Empfehlung nennt dann alle Buchstaben,
+durch Komma getrennt (`— Empfehlung: A, C`), und so kommt auch die Antwort (`A, C`, mit eigenem
+Text `A, C — Antwort: <…>`). Ohne das Feld gilt Einzelwahl.
+
 Die Optionen braucht der Admiral, um die Frage dem Menschen vorzulegen; an sie gebunden ist er
 nicht. `Lage` nennt deshalb den Sachverhalt so, dass er ohne Nachlesen auch anders antworten kann.
 Seine Antwort ist ein Buchstabe oder ein eigener Text (`Antwort: <…>`, siehe „Eigene Antwort");

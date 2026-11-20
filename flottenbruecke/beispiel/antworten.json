@@ -1,0 +1,32 @@
+[
+  {
+    "id": 7,
+    "epic": 39,
+    "nr": 1,
+    "seit": "2026-11-20T14:12:30Z",
+    "option": "A",
+    "text": "config/ ist richtig, aber ohne Unterordner",
+    "zeit": "2026-11-20T14:33:02+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 8,
+    "epic": 39,
+    "nr": 2,
+    "seit": "2026-11-20T14:12:30Z",
+    "option": null,
+    "text": "protokoll — klein geschrieben, wie die anderen Schlüssel",
+    "zeit": "2026-11-20T14:34:40+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 9,
+    "epic": 39,
+    "nr": 3,
+    "seit": "2026-11-20T14:12:30Z",
+    "option": "A, C, I",
+    "text": null,
+    "zeit": "2026-11-20T14:35:10+00:00",
+    "herkunft": "Mensch über die Brücke"
+  }
+]

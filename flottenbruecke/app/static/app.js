@@ -24,6 +24,9 @@ const lager = {
 let stand = null;
 const entwurf = new Map(); // question key -> { b, text, offen }
 
+// option and free text go apart to the driver; the run gets the free text unchanged
+const antwortText = (a) => (a.option && a.text ? `${a.option} — ${a.text}` : a.option || a.text || '');
+
 function frageKey(c, f) { return `${c.forge}#${f.epic}#${f.nr}#${f.seit}`; }
 
 // ---- header
@@ -112,7 +115,7 @@ function inArbeit(el) {
   if (el.contains(document.activeElement) && document.activeElement !== document.body) return true;
   return [...el.querySelectorAll('.frage')].some((f) => {
     const e = entwurf.get(f.dataset.key);
-    return e && (e.b || e.text);
+    return e && (e.wahl?.length || e.text);
   });
 }
 
@@ -135,19 +138,27 @@ function karte(c, t) {
 function frage(c, f, t) {
   const key = frageKey(c, f);
   const e = entwurf.get(key) || {};
-  const kopf = `<div class="frage-titel">Frage ${f.nr}: ${esc(f.frage)}</div>${f.lage ? `<div class="lage">${esc(f.lage)}</div>` : ''}<div class="wartet">wartet: ${esc(f.wartet || 'der ganze Lauf')}</div>`;
+  // a block the driver could not parse: the run's wording itself, never nothing (#28)
+  const titel = f.frage ? esc(f.frage) : 'Wortlaut des Laufs';
+  const lage = f.frage ? (f.lage ? `<div class="lage">${esc(f.lage)}</div>` : '') : `<div class="lage roh">${esc(f.roh || '(leer)')}</div>`;
+  const wortlaut = f.frage && f.roh ? `<details class="wortlaut"><summary>Wortlaut</summary><div class="roh">${esc(f.roh)}</div></details>` : '';
+  const betrifft = f.betrifft && f.betrifft !== 'Lauf' ? ` · betrifft: ${esc(f.betrifft)}` : '';
+  const kopf = `<div class="frage-titel">Frage ${f.nr}: ${titel}</div>${lage}<div class="wartet">wartet: ${esc(f.wartet || 'der ganze Lauf')}${betrifft}</div>${wortlaut}`;
   if (f.antwort && (f.antwort.abgeholt || !e.offen)) {
     const st = f.antwort.quittiert ? 'quittiert, der Lauf setzt fort' : f.antwort.abgeholt ? 'vom Treiber abgeholt' : 'gespeichert, wartet auf den Treiber';
     const aendern = f.antwort.abgeholt ? '' : ' <button type="button" class="knopf blau klein" data-aendern>ändern</button>';
-    return `<div class="frage" data-key="${esc(key)}">${kopf}<div class="gesendet">Antwort: <b>${esc(f.antwort.text)}</b>${aendern}<span class="status gut">${uhrzeit(f.antwort.zeit)} · ${st}</span></div></div>`;
+    return `<div class="frage" data-key="${esc(key)}">${kopf}<div class="gesendet">Antwort: <b>${esc(antwortText(f.antwort))}</b>${aendern}<span class="status gut">${uhrzeit(f.antwort.zeit)} · ${st}</span></div></div>`;
   }
   const opts = f.optionen.map((o) => {
-    const emp = o.buchstabe === f.empfohlen;
-    return `<button type="button" class="opt${emp ? ' empfohlen' : ''}${e.b === o.buchstabe ? ' gewaehlt' : ''}" data-b="${esc(o.buchstabe)}" aria-pressed="${e.b === o.buchstabe}"><span class="b">${esc(o.buchstabe)}</span><span>${esc(o.text)}${emp ? '<span class="empf">Empfehlung</span>' : ''}</span></button>`;
+    const emp = f.empfohlen.includes(o.buchstabe);
+    const an = (e.wahl || []).includes(o.buchstabe);
+    const rolle = f.mehrfach ? `role="checkbox" aria-checked="${an}"` : `aria-pressed="${an}"`;
+    return `<button type="button" class="opt${f.mehrfach ? ' kaestchen' : ''}${emp ? ' empfohlen' : ''}${an ? ' gewaehlt' : ''}" data-b="${esc(o.buchstabe)}" ${rolle}><span class="b">${esc(o.buchstabe)}</span><span>${esc(o.text)}${emp ? '<span class="empf">Empfehlung</span>' : ''}</span></button>`;
   }).join('');
-  const empf = !f.empfohlen && f.empfehlung ? `<div class="lage">Empfehlung: ${esc(f.empfehlung)}</div>` : '';
+  const mehr = f.mehrfach && f.optionen.length ? '<div class="wartet">mehrere möglich</div>' : '';
+  const empf = !f.empfohlen.length && f.empfehlung ? `<div class="lage">Empfehlung: ${esc(f.empfehlung)}</div>` : '';
   const zu = t.pin ? '' : ' disabled';
-  return `<div class="frage" data-key="${esc(key)}">${kopf}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
+  return `<div class="frage" data-key="${esc(key)}">${kopf}${mehr}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
 <textarea placeholder="Freitext (optional)" aria-label="Freitext"${zu}>${esc(e.text || '')}</textarea>
 <div class="senden-zeile"><button type="button" class="knopf orange" data-senden${zu}>Antworten</button><span class="status">${t.pin ? '' : 'Antworten abgeschaltet: keine PIN gesetzt'}</span></div></div>`;
 }
@@ -159,18 +170,22 @@ function verdrahte(el, c) {
     const e = () => entwurf.get(key) || {};
     const neu = (x) => entwurf.set(key, { ...e(), ...x });
     box.querySelector('[data-aendern]')?.addEventListener('click', () => {
-      neu({ offen: true, text: f.antwort?.text || '' });
+      neu({ offen: true, wahl: f.antwort?.option ? f.antwort.option.split(', ') : [], text: f.antwort?.text || '' });
       el.dataset.sig = '';
       el.innerHTML = karte(c, stand);
       verdrahte(el, c);
     });
     for (const b of box.querySelectorAll('.opt')) {
       b.addEventListener('click', () => {
-        const wahl = e().b === b.dataset.b ? null : b.dataset.b;
-        neu({ b: wahl });
+        // single choice: one or none; multiple choice: each box on its own
+        const alt = e().wahl || [];
+        const da = alt.includes(b.dataset.b);
+        const wahl = f.mehrfach ? (da ? alt.filter((x) => x !== b.dataset.b) : [...alt, b.dataset.b].sort()) : da ? [] : [b.dataset.b];
+        neu({ wahl });
         for (const x of box.querySelectorAll('.opt')) {
-          x.classList.toggle('gewaehlt', x.dataset.b === wahl);
-          x.setAttribute('aria-pressed', String(x.dataset.b === wahl));
+          const an = wahl.includes(x.dataset.b);
+          x.classList.toggle('gewaehlt', an);
+          x.setAttribute(f.mehrfach ? 'aria-checked' : 'aria-pressed', String(an));
         }
       });
     }
@@ -184,9 +199,9 @@ async function senden(c, f, box) {
   const key = frageKey(c, f);
   const e = entwurf.get(key) || {};
   const frei = (e.text || '').trim();
-  const text = e.b && frei ? `${e.b} — ${frei}` : e.b || frei;
   const status = box.querySelector('.status');
-  if (!text) {
+  const option = (e.wahl || []).join(', ');
+  if (!option && !frei) {
     status.className = 'status schlecht';
     status.textContent = 'Option wählen oder Text schreiben';
     return;
@@ -200,7 +215,7 @@ async function senden(c, f, box) {
     status.textContent = 'sende …';
     let r;
     try {
-      r = await fetch('/api/antwort', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bruecke-Pin': pin }, body: JSON.stringify({ forge: c.forge, epic: f.epic, nr: f.nr, seit: f.seit, text }) });
+      r = await fetch('/api/antwort', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bruecke-Pin': pin }, body: JSON.stringify({ forge: c.forge, epic: f.epic, nr: f.nr, seit: f.seit, option: option || null, text: frei || null }) });
     } catch {
       knopf.disabled = false;
       status.className = 'status schlecht';

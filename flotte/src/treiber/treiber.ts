@@ -8,8 +8,8 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
-import { kontoAus } from '../werkzeuge/konten.ts';
-import { type EndeBlock, type FrageBlock, leseBlock } from '../werkzeuge/bloecke.ts';
+import { kontoAus, kurzname } from '../werkzeuge/konten.ts';
+import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch } from '../werkzeuge/verbrauch.ts';
@@ -17,6 +17,7 @@ import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neu
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
+import { antwortZeile, type Bericht, Bruecke, HERKUNFT_BRUECKE, rechnerName } from './bruecke.ts';
 import { schreibeTafel } from './tafel.ts';
 
 export interface Einstellung {
@@ -60,6 +61,12 @@ export interface Einstellung {
   maxDauerMs: number | null;
   programm?: string;
   programmArgs?: string[];
+  /** --bruecke / FLOTTE_BRUECKE: base URL of the Flottenbrücke (#28); null: no reports */
+  bruecke: string | null;
+  /** FLOTTE_BRUECKE_TOKEN: X-Bruecke-Token when the bridge sets BRUECKE_TOKEN */
+  brueckeToken: string | null;
+  /** while questions wait for the person: how often the driver asks the bridge for answers */
+  brueckeAbfrageMs: number;
 }
 
 export function standard(repo: string, forge: string, epics: number[], konten: string[]): Einstellung {
@@ -95,6 +102,9 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     mergeSkript: [resolve(SKRIPTE, '../../arbeitspferd/leitstand/scripts/merge.ps1'), resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1')].find((p) => existsSync(p)) ?? resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1'),
     admiralName: 'Treiber',
     maxDauerMs: null,
+    bruecke: null,
+    brueckeToken: null,
+    brueckeAbfrageMs: 10_000,
   };
 }
 
@@ -124,6 +134,18 @@ export interface MenschFrage {
   epic: number;
   nr: number;
   frage: string;
+  /** the question complete, so the board shows it after a restart too (#28) */
+  lage?: string;
+  optionen?: Option[];
+  /** several options at once (`— Auswahl: mehrere`) */
+  mehrfach?: boolean;
+  grund?: string;
+  /** Betrifft as the run wrote it: 'Lauf', the packages, or '' */
+  betrifft?: string;
+  /** the question as the run wrote it; the whole block when it did not parse */
+  roh?: string;
+  /** id of the answer at the bridge that answered it */
+  brueckeId?: number;
   empfehlung: string;
   /** what waits: 'der ganze Lauf' or the parked packages */
   wartet: string;
@@ -169,6 +191,8 @@ export interface FlottenEpic extends EpicZustand {
   sperren?: string[];
   konfliktGemeldet?: boolean;
   prBereitGemeldet?: boolean;
+  /** title of the issue, read once for the bridge */
+  titel?: string | null;
 }
 
 export interface FlottenZustand extends Zustand {
@@ -253,6 +277,14 @@ class Treiber {
   standardZweig: string | null | undefined;
   /** issues with ready_label that are no epic and no child of one, already reported */
   ohneEpicGemeldet = new Set<number>();
+  bruecke: Bruecke | null = null;
+  /** null: not yet tried */
+  brueckeDa: boolean | null = null;
+  /** answers of the bridge in the state, to acknowledge after the next save */
+  zuQuittieren: number[] = [];
+  freiGbWert: number | null = null;
+  /** a report right after an event is on its way */
+  meldungGeplant = false;
 
   constructor(
     readonly e: Einstellung,
@@ -297,9 +329,11 @@ class Treiber {
       if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch mergt`);
     }
     this.wiederaufnehmen();
+    if (this.e.bruecke) this.bruecke = new Bruecke(this.e.bruecke, this.e.brueckeToken);
 
     for (;;) {
       this.nachsammeln(false);
+      await this.brueckeHolen();
       this.antwortenLesen();
       await this.messen();
       this.pings();
@@ -308,6 +342,7 @@ class Treiber {
       this.verteile();
       this.belege();
       this.speichern();
+      await this.brueckeMelden();
       // nothing left: one more look for released epics, then the end (acceptance 3, decision C)
       if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.nachsammeln(true)) break;
       if (this.e.maxDauerMs !== null && this.w.jetzt() - anfang > this.e.maxDauerMs) {
@@ -317,7 +352,10 @@ class Treiber {
         while (this.kopfAktiv !== null) await Promise.race([...this.nebenher, pause(this.e.taktMs)]);
         break;
       }
-      if (!this.fertig.length) await Promise.race([...this.laufend.values(), ...this.nebenher, pause(this.e.taktMs)]);
+      // while the person has open questions, an answer on the bridge wakes the loop (#28, Zeitnähe)
+      const wache = this.bruecke && this.z.fragen.some((f) => !f.beantwortet) ? this.antwortWache() : null;
+      if (!this.fertig.length) await Promise.race([...this.laufend.values(), ...this.nebenher, pause(this.e.taktMs), ...(wache ? [wache.p] : [])]);
+      wache?.stop();
       while (this.fertig.length) await this.verarbeite(this.fertig.shift()!);
     }
     await Promise.all(this.nebenher);
@@ -374,6 +412,7 @@ class Treiber {
     this.z.ereignisse.push({ zeit: new Date(this.w.jetzt()).toISOString(), epic, text });
     this.w.melde(`${epic ? `#${epic} ` : ''}${text}`);
     this.geaendert = true;
+    this.brueckeBald();
   }
 
   epic(nr: number): FlottenEpic {
@@ -452,6 +491,7 @@ class Treiber {
       this.ereignis(null, !this.ramBremse.halt ? `RAM wieder ok (${this.ram.percent_used} %): es geht weiter` : this.ram.fehler ? `RAM-Messung fehlgeschlagen (${this.ram.fehler}): nichts Neues` : `RAM ${this.ram.level} (${this.ram.percent_used ?? '?'} %): nichts Neues`);
     }
     const frei = this.w.freiGb(this.e.repo);
+    this.freiGbWert = frei;
     const genug = frei !== null && frei >= this.e.plattMinGb;
     if (genug !== this.platteGenug) this.ereignis(null, genug ? 'Platte wieder über der Schwelle' : `Platte: ${frei ?? 'unbekannt'} GB frei, Schwelle ${this.e.plattMinGb} GB: kein Start`);
     this.platteGenug = genug;
@@ -783,6 +823,7 @@ class Treiber {
       this.ereignis(nr, 'RAM-Frage: weiter, sobald die Bremse frei ist');
       return;
     }
+    if (!block.fragen.length) return this.rohFrage(ep, block);
     const konto = this.e.admiralKonto ?? ep.konto!;
     if (this.e.admiralKonto && this.bewertung.get(konto)?.stufe === 'rot') {
       // the admiral's own account would fail the call; the questions go to the person at once, with
@@ -818,7 +859,7 @@ class Treiber {
       const f = block.fragen.find((x) => x.nr === a.nr)!;
       const zeit = new Date(this.w.jetzt()).toISOString();
       if (!a.beim_menschen) {
-        zeilen.push(`${a.nr}. ${/^[A-H]$/.test(a.antwort.trim()) ? a.antwort.trim() : `Antwort: ${a.antwort}`} — Herkunft: ${a.herkunft}`);
+        zeilen.push(`${a.nr}. ${nurBuchstaben(a.antwort) ? a.antwort.trim() : `Antwort: ${a.antwort}`} — Herkunft: ${a.herkunft}`);
         this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit });
         const text = `**Entschieden von der Flotte (Admiral ${this.e.admiralName})** — ${f.frage}\nEntscheidung: ${a.antwort}\nHerkunft: ${a.herkunft}\nGrund: ${a.grund}\nVerworfen: ${f.empfehlung && f.empfehlung !== a.antwort ? `Empfehlung des Laufs ${f.empfehlung}` : '—'}\nWiderrufen: Kommentar hier; der Lauf setzt es als nächstes Paket oder in der Nacharbeit um.`;
         kommentar(this.w.aufrufer, this.e.forge, nr, text);
@@ -830,7 +871,8 @@ class Treiber {
       if (lauf) ganzerLauf = true;
       else geparkt.push(...f.betrifft as string[]);
       const wartet = lauf ? 'der ganze Lauf' : (f.betrifft as string[]).join(', ');
-      this.z.fragen.push({ epic: nr, nr: a.nr, frage: f.frage, empfehlung: a.antwort, wartet, ganzerLauf: lauf, seit: zeit });
+      const betrifft = f.betrifft === null ? '' : f.betrifft === 'Lauf' ? 'Lauf' : f.betrifft.join(', ');
+      this.z.fragen.push({ epic: nr, nr: a.nr, frage: f.frage, lage: f.lage, optionen: f.optionen, mehrfach: f.mehrfach, grund: a.grund, betrifft, roh: f.roh, empfehlung: a.antwort, wartet, ganzerLauf: lauf, seit: zeit });
       zeilen.push(`${a.nr}. liegt beim Menschen${lauf ? '' : `; geparkt: ${wartet}`}`);
       kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.\nAntworten, im Repository: \`flotte antworten . ${nr} ${a.nr} "<Antwort>"\``);
       this.ereignis(nr, `❓ Frage ${a.nr} liegt beim Menschen (wartet: ${wartet})`);
@@ -858,28 +900,138 @@ class Treiber {
       } catch {
         continue;
       }
-      const f = this.z.fragen.find((x) => x.epic === a.epic && x.nr === a.nr && !x.beantwortet);
-      const ep = this.epic(a.epic);
-      if (!f || !ep) {
-        this.ereignis(a.epic ?? null, `Antwort auf Frage ${a.nr} passt zu keiner offenen Frage`);
-        continue;
-      }
-      f.beantwortet = a.text;
-      ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
-      kommentar(this.w.aufrufer, this.e.forge, a.epic, `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
-      this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}`);
-      const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
-      if (ep.stufe === 'frage' && !offen) {
-        ep.stufe = 'laeuft';
-        ep.notiz = '';
-        ep.auftrag = { resume: true, text: ep.festgehalten ?? this.an(a.epic, 'weiter') };
-        ep.festgehalten = null;
-      } else if (!this.laufend.has(a.epic) && !ep.auftrag && ep.stufe === 'pr') {
-        ep.stufe = 'laeuft';
-        ep.auftrag = { resume: true, text: this.an(a.epic, 'Arbeite die geparkten Pakete ab, dann FLOTTE-ENDE.') };
-      }
+      if (!this.antwortAnwenden(a)) this.ereignis(a.epic ?? null, `Antwort auf Frage ${a.nr} passt zu keiner offenen Frage`);
     }
     this.z.antwortenGelesen = zeilen.length;
+  }
+
+  /** One answer of the person, from `flotte antworten` or the bridge; false when it fits no open question. */
+  antwortAnwenden(a: { epic: number; nr: number; text: string; seit?: string; brueckeId?: number }): boolean {
+    const f = this.z.fragen.find((x) => x.epic === a.epic && x.nr === a.nr && (a.seit === undefined || x.seit === a.seit) && !x.beantwortet);
+    const ep = this.epic(a.epic);
+    if (!f || !ep) return false;
+    const ueberBruecke = a.brueckeId !== undefined;
+    f.beantwortet = a.text;
+    if (ueberBruecke) f.brueckeId = a.brueckeId;
+    ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
+    kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
+    this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
+    const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
+    if (ep.stufe === 'frage' && !offen) {
+      ep.stufe = 'laeuft';
+      ep.notiz = '';
+      ep.auftrag = { resume: true, text: ep.festgehalten ?? this.an(a.epic, 'weiter') };
+      ep.festgehalten = null;
+    } else if (!this.laufend.has(a.epic) && !ep.auftrag && ep.stufe === 'pr') {
+      ep.stufe = 'laeuft';
+      ep.auftrag = { resume: true, text: this.an(a.epic, 'Arbeite die geparkten Pakete ab, dann FLOTTE-ENDE.') };
+    }
+    return true;
+  }
+
+  /** A question block without a parsable question: the whole block goes to the person (#28, Rückfall). */
+  rohFrage(ep: FlottenEpic, block: FrageBlock): void {
+    const nr = ep.nr;
+    const zeit = new Date(this.w.jetzt()).toISOString();
+    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: '', optionen: [], grund: '', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
+    kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — Der Block FLOTTE-FRAGE ${block.phase} ließ sich nicht in Fragen zerlegen. Wortlaut:\n\n${block.roh}\n\nAntworten, im Repository: \`flotte antworten . ${nr} 1 "<Antwort>"\``);
+    this.ereignis(nr, `❓ FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut liegt beim Menschen`);
+    ep.stufe = 'frage';
+    ep.notiz = 'wartet auf den Menschen';
+    ep.festgehalten = this.an(nr, `Antwort auf FLOTTE-FRAGE ${block.phase}: Der Block ließ sich nicht in Fragen zerlegen; der Mensch hat ihn gelesen und antwortet.`);
+  }
+
+  // ---- the Flottenbrücke (#28): only the driver talks to it; off or slow is no error
+
+  async brueckeHolen(): Promise<void> {
+    if (!this.bruecke) return;
+    const liste = await this.bruecke.hole(this.e.forge);
+    this.brueckeErreichbar(liste !== undefined);
+    for (const a of liste ?? []) {
+      // fetched again (the acknowledgement did not reach the bridge): the question already has it
+      const schon = this.z.fragen.find((f) => f.epic === a.epic && f.nr === a.nr && f.seit === a.seit && f.beantwortet);
+      if (schon) {
+        if (schon.brueckeId !== a.id) this.ereignis(a.epic, `Antwort über die Brücke auf Frage ${a.nr} kam zu spät: schon beantwortet`);
+      } else if (!this.antwortAnwenden({ epic: a.epic, nr: a.nr, seit: a.seit, text: antwortZeile(a), brueckeId: a.id })) {
+        this.ereignis(a.epic, `Antwort über die Brücke auf Frage ${a.nr} passt zu keiner offenen Frage`);
+      }
+      if (!this.zuQuittieren.includes(a.id)) this.zuQuittieren.push(a.id);
+    }
+  }
+
+  /** The report of this turn; acknowledgements only after the state with the answers is written. */
+  async brueckeMelden(): Promise<void> {
+    if (!this.bruecke) return;
+    const ok = await this.bruecke.melde(this.bericht());
+    this.brueckeErreichbar(ok);
+    if (!ok) return;
+    for (const id of [...this.zuQuittieren]) if (await this.bruecke.quittiere(id)) this.zuQuittieren = this.zuQuittieren.filter((x) => x !== id);
+  }
+
+  /**
+   * An event (a question for the person, a change of stage, a merge) goes to the board at once, not
+   * only with the turn. Without acknowledgements: those wait for the saved state.
+   */
+  brueckeBald(): void {
+    if (!this.bruecke || this.meldungGeplant) return;
+    this.meldungGeplant = true;
+    setTimeout(() => {
+      this.meldungGeplant = false;
+      this.bruecke?.melde(this.bericht()).then((ok) => this.brueckeErreichbar(ok));
+    }, 50);
+  }
+
+  /** Asks the bridge every brueckeAbfrageMs; resolves when it holds an answer. */
+  antwortWache(): { p: Promise<void>; stop: () => void } {
+    let aus = false;
+    let uhr: ReturnType<typeof setTimeout> | undefined;
+    const schlaf = () => new Promise<void>((r) => (uhr = setTimeout(r, this.e.brueckeAbfrageMs)));
+    const p = (async () => {
+      while (!aus) {
+        await schlaf();
+        if (aus) return;
+        if ((await this.bruecke!.hole(this.e.forge))?.length) return;
+      }
+    })();
+    return { p, stop: () => ((aus = true), clearTimeout(uhr)) };
+  }
+
+  brueckeErreichbar(ja: boolean): void {
+    if (this.brueckeDa === ja) return;
+    this.brueckeDa = ja;
+    this.ereignis(null, ja ? `Flottenbrücke erreichbar (${this.e.bruecke})` : `Flottenbrücke nicht erreichbar (${this.e.bruecke}): der Treiber arbeitet ohne sie weiter`);
+  }
+
+  titel(ep: FlottenEpic): string {
+    if (ep.titel == null) {
+      const r = this.w.aufrufer('gh', ['issue', 'view', String(ep.nr), '--repo', this.e.forge, '--json', 'title']);
+      try {
+        ep.titel = r.code ? '' : String((JSON.parse(r.stdout) as { title?: string }).title ?? '');
+      } catch {
+        ep.titel = '';
+      }
+    }
+    return ep.titel;
+  }
+
+  bericht(): Bericht {
+    const konto = (k: string) => kurzname(k, this.e.admiralKonto);
+    return {
+      forge: this.e.forge,
+      url: `https://github.com/${this.e.forge}`,
+      rechner: rechnerName(),
+      stand: this.z.stand,
+      aktiv: this.z.aktiv,
+      taktS: Math.max(1, Math.round(this.e.taktMs / 1000)),
+      epics: Object.values(this.z.epics).map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, konto: ep.konto ? konto(ep.konto) : null, pr: ep.pr, notiz: ep.notiz, geparkt: ep.geparkt, pakete: [], schritt: ep.schritt ?? null, schrittZeit: ep.schrittZeit ?? null })),
+      schlange: this.z.schlange,
+      konten: this.alleKonten().filter((k) => this.bewertung.has(k)).map((k) => ({ konto: konto(k), stufe: this.bewertung.get(k)!.stufe })),
+      ram: this.ram ? { stufe: this.ram.level, halt: this.ramBremse.halt, prozent: this.ram.percent_used } : null,
+      platte: { freiGb: this.freiGbWert, genug: this.platteGenug },
+      obergrenze: this.z.bremse?.obergrenze ?? null,
+      // the open questions only: an answered one leaves the board
+      fragen: this.z.fragen.filter((f) => !f.beantwortet).map((f) => ({ epic: f.epic, nr: f.nr, frage: f.frage, lage: f.lage ?? '', optionen: f.optionen ?? [], mehrfach: f.mehrfach ?? false, empfehlung: f.empfehlung, grund: f.grund ?? '', betrifft: f.betrifft ?? '', wartet: f.wartet, ganzerLauf: f.ganzerLauf, seit: f.seit, roh: f.roh ?? '', beantwortet: null })),
+    };
   }
 
   // ---- end blocks, merge (D10–D13, D21)
@@ -944,7 +1096,7 @@ class Treiber {
     const nr = ep.nr;
     const zeit = new Date(this.w.jetzt()).toISOString();
     const frage = `${grund}. Welcher Pull Request gehört zu Epic #${nr}?`;
-    this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, empfehlung: 'den PR des Epic-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
+    this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, lage: '', optionen: [], grund, betrifft: 'Lauf', roh: frage, empfehlung: 'den PR des Epic-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
     kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber mergt und beobachtet diesen PR nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
     this.ereignis(nr, `❓ ${grund}: kein Merge, Frage an den Menschen`);
     ep.pr = null;
@@ -1295,6 +1447,7 @@ class Treiber {
     }
     this.geaendert = true;
     this.speichern();
+    await this.brueckeMelden();
   }
 }
 
@@ -1310,7 +1463,7 @@ export function forgeAus(url: string): string | null {
   return /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(url.trim())?.[1] ?? null;
 }
 
-const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
+const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
 
 /**
  * The settings of `flotte fahren` (acceptance 3, decisions A, B, D): without <repo> the repository of
@@ -1367,6 +1520,9 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   e.nacharbeit = !argv.includes('--ohne-nacharbeit');
   const max = wert(argv, '--max-min');
   e.maxDauerMs = max ? Number(max) * 60_000 : null;
+  e.bruecke = wert(argv, '--bruecke') ?? process.env.FLOTTE_BRUECKE ?? null;
+  if (e.bruecke && !/^https?:\/\//.test(e.bruecke)) throw new Error(`--bruecke ${e.bruecke}: eine URL wie http://127.0.0.1:4747`);
+  e.brueckeToken = process.env.FLOTTE_BRUECKE_TOKEN || null;
   return e;
 }
 

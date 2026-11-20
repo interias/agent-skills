@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const KONTEN_DATEI = fileURLToPath(new URL('../../konten.json', import.meta.url));
@@ -19,6 +19,13 @@ export function kontenTafel(datei = KONTEN_DATEI): Record<string, string> {
   } catch {
     throw new Error(`${datei} ist kein JSON der Form { "1": "<kontenordner>", ... }`);
   }
+}
+
+/** The short name of an account for the board (#28): `Konto 2` by the table, else its folder name, never the path. */
+export function kurzname(dir: string, admiral: string | null = null, tafel: Record<string, string> = kontenTafel()): string {
+  const nr = Object.keys(tafel).find((n) => resolve(tilde(tafel[n])).toLowerCase() === resolve(dir).toLowerCase());
+  if (nr) return `Konto ${nr}`;
+  return dir === admiral ? 'Admiral-Konto' : basename(dir);
 }
 
 /** The CLAUDE_CONFIG_DIR of an account: a number from the table, a folder name in the home directory, or a path. */
