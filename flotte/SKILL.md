@@ -50,7 +50,27 @@ Mögliche Schalter:
 | `--ohne-nacharbeit` | Nacharbeit läuft |
 | `--merge-skript` | `merge.ps1` des Leitstands |
 | `--max-min` | ohne Grenze |
-| `--konto-max <dir>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss) |
+| `--konto-max <dir>=<n>` | ohne Grenze; höchstens n Epics dieses Einsatzes auf diesem Konto (ein Konto, das noch reichen muss) |
+
+### Weiteres Konto zuschalten
+
+Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber; der Leitstand kennt
+es nicht. Eingerichtet und angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto
+einrichten“. Zugeschaltet wird es nur, wenn der Mensch es sagt:
+
+1. Treiber mit Strg+C anhalten. Die Läufe arbeiten weiter, der Zustand steht schon in `zustand.json`.
+2. Mit demselben Aufruf neu starten, `--konten` um den Ordner erweitert. `~` versteht der Treiber selbst:
+
+   ```
+   bun ~\.claude\skills\flotte\src\cli.ts fahren <repo> --forge <owner/name> --epics 15,21,32 --konten ~\.claude,~\.claude-arbeitspferd,~\.claude-arbeitspferd-3 --konto-max ~\.claude-arbeitspferd-3=1
+   ```
+
+3. `--konto-max <ordner>=<n>` ist die Grenze: Das Konto übernimmt in diesem Einsatz höchstens n
+   Epics. Gezählt wird jedes Epic, das ihm schon zugeteilt ist, auch ein fertiges. Ohne die Angabe
+   verteilt der Treiber neue Epics auf alle Konten mit grünem Verbrauch.
+
+Ein Epic bleibt bei dem Konto, dem es zugeteilt ist, auch für Fortsetzungen und Nacharbeit. Ein
+Konto deshalb erst wieder aus `--konten` nehmen, wenn keines seiner Epics mehr offen ist.
 
 Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
