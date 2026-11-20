@@ -15,6 +15,7 @@ import { type Bewertung, bewerte, lies as liesVerbrauch } from '../werkzeuge/ver
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
+import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gemeinsameBereiche, letzterVollLauf } from './gate.ts';
 import { schreibeTafel } from './tafel.ts';
 
 export interface Einstellung {
@@ -137,10 +138,15 @@ export interface FlottenEpic extends EpicZustand {
   /** answers of the person to deliver with the next turn */
   nachzureichen?: string[];
   nacharbeitGemacht?: boolean;
-  /** merge refusals the run has to answer for (gate red or missing on an unchanged base) */
+  /** merge refusals the run has to answer for: gate red or missing, a conflict when the base came in */
   mergeVersuche?: number;
-  /** merge refusals because the base moved on (another merge): not the run's fault */
+  /** without gate_command: merge refusals because the base moved on (another merge), not the run's fault */
   basisNachzuege?: number;
+  /** gate runs of the driver in this epic's worktree after it merged the base in (merge queue) */
+  gateWiederholungen?: number;
+  /** the last step of the run from its log, for the board (#14, round 5, C4) */
+  schritt?: string | null;
+  schrittZeit?: string | null;
   /** resumes after a silent turn (acceptance finding 13) */
   leerlaeufe?: number;
   /** rules of guard.ps1 that refused a call of this epic's run, in order (acceptance finding B) */
@@ -159,8 +165,17 @@ export interface FlottenZustand extends Zustand {
   logbuch: number | null;
   ram: { at: string; epic: number; level: string; percent_used: number | null; free_gb: number | null }[];
   bremse: { ram: string; ramHalt: boolean; platteGenug: boolean; obergrenze: number; konten: { konto: string; stufe: string; grund: string }[] } | null;
-  statistik: { starts: number; maxLaeufe: number; admiral: number; pings: number; immerGruen: boolean };
+  statistik: { starts: number; maxLaeufe: number; admiral: number; pings: number; immerGruen: boolean; gateWiederholungen?: number };
+  /** merge: nach_gate: the epics with a finished PR in the order of their FLOTTE-ENDE; only the head is up */
+  schlange: number[];
 }
+
+/** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
+type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean };
+
+/** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
+export const GATE_GRENZE = 3;
+const GATE_MAX_MS = 90 * 60_000;
 
 /**
  * guard.ps1 as a hook of the session, not only of the skill: the hook in the frontmatter of /epic
@@ -203,8 +218,11 @@ class Treiber {
   letzterPing = new Map<string, number>();
   /** pings and merges run beside the loop; the loop wakes up when one ends */
   nebenher = new Set<Promise<void>>();
-  mergeKette: Promise<void> = Promise.resolve();
+  /** the head of the merge queue while the driver works on it */
+  kopfAktiv: number | null = null;
   mergesOffen = new Set<number>();
+  /** the board needs a new page (a step of a run), the logbook not */
+  tafelAlt = false;
   /** why merge.ps1 cannot merge for us (missing or an old version), null when it can */
   mergeAlt: string | null = null;
   geaendert = true;
@@ -225,7 +243,8 @@ class Treiber {
       logbuch: null,
       ram: [],
       bremse: null,
-      statistik: { starts: 0, maxLaeufe: 0, admiral: 0, pings: 0, immerGruen: true },
+      statistik: { starts: 0, maxLaeufe: 0, admiral: 0, pings: 0, immerGruen: true, gateWiederholungen: 0 },
+      schlange: [],
       ...alt,
       version: 1,
       repo: this.e.repo,
@@ -253,6 +272,7 @@ class Treiber {
       await this.messen();
       this.pings();
       await this.mergeWache();
+      this.schlangeWeiter();
       this.verteile();
       this.belege();
       this.speichern();
@@ -261,7 +281,7 @@ class Treiber {
         this.ereignis(null, `Zeitgrenze von ${Math.round(this.e.maxDauerMs / 1000)} s erreicht, Treiber hält an`);
         await Promise.all(this.laufend.values());
         while (this.fertig.length) await this.verarbeite(this.fertig.shift()!);
-        await this.mergeKette;
+        while (this.kopfAktiv !== null) await Promise.race([...this.nebenher, pause(this.e.taktMs)]);
         break;
       }
       if (!this.fertig.length) await Promise.race([...this.laufend.values(), ...this.nebenher, pause(this.e.taktMs)]);
@@ -299,8 +319,14 @@ class Treiber {
   speichern(): void {
     this.z.stand = new Date(this.w.jetzt()).toISOString();
     schreibeZustand(this.dir, this.z);
-    if (!this.geaendert) return;
+    if (!this.geaendert) {
+      // a new step of a run changes the board, not the logbook
+      if (this.tafelAlt) schreibeTafel(this.dir, this.z, this.e.forge);
+      this.tafelAlt = false;
+      return;
+    }
     this.geaendert = false;
+    this.tafelAlt = false;
     schreibeTafel(this.dir, this.z, this.e.forge);
     if (this.z.logbuch) logbuchSchreiben(this.w.aufrufer, this.e.forge, this.z.logbuch, this.logbuchText());
   }
@@ -334,7 +360,7 @@ class Treiber {
       const verfolgen = derselbe || unklar;
       this.ereignis(ep.nr, verfolgen ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
       const log = ep.log && existsSync(ep.log) ? ep.log : this.leeresLog(ep.nr);
-      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge })
+      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s) })
         .then((r) => {
           this.fertig.push({ nr: ep.nr, r });
         })
@@ -462,6 +488,7 @@ class Treiber {
         env: { EPIC_LOCK_HOLDER: this.halten(nr) },
         extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(','), ...guardArgs(join(this.e.skripte, 'guard.ps1'))],
         werkzeuge: laufWerkzeuge,
+        beiSchritt: (s) => this.schritt(ep, s),
         beimStart: (pid) => {
           ep.pid = pid;
           ep.pidSeit = Date.now();
@@ -475,6 +502,14 @@ class Treiber {
     this.laufend.set(nr, p);
     this.z.statistik.maxLaeufe = Math.max(this.z.statistik.maxLaeufe, this.laufend.size);
     this.ereignis(nr, resume ? 'Lauf fortgesetzt' : 'Lauf gestartet');
+  }
+
+  /** C4: the board shows the last step of each run; C1: a silence carried by a child process is an event. */
+  schritt(ep: FlottenEpic, s: string): void {
+    ep.schritt = s;
+    ep.schrittZeit = new Date(this.w.jetzt()).toISOString();
+    this.tafelAlt = true;
+    if (s.startsWith('still seit')) this.ereignis(ep.nr, s);
   }
 
   /** The holder file: while it exists, CleanupStale keeps the worktree locks of this epic's runs. */
@@ -766,14 +801,210 @@ class Treiber {
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
     if (this.adapter.merge !== 'nach_gate') return this.prBereit(ep, 'merge: mensch');
     if (this.mergeAlt) return this.prBereit(ep, this.mergeAlt);
-    // beside the loop and one at a time: merge.ps1 waits minutes for checks (acceptance finding 12)
+    // the merge queue (#14, round 5): in the order of FLOTTE-ENDE, only the head is up; beside the
+    // loop, since merge.ps1 and the gate take minutes (acceptance finding 12)
+    if (!this.z.schlange.includes(nr)) this.z.schlange.push(nr);
+    ep.notiz = `PR #${ep.pr}: Merge-Schlange, Platz ${this.z.schlange.indexOf(nr) + 1}`;
+    this.ereignis(nr, `Schlange: Platz ${this.z.schlange.indexOf(nr) + 1} (${this.z.schlange.map((n) => `#${n}`).join(', ')})`);
+    this.schlangeWeiter();
+  }
+
+  /** Starts the head of the merge queue when nothing works on it; an epic that left 'pr' drops out. */
+  schlangeWeiter(): void {
+    if (this.kopfAktiv !== null) return;
+    while (this.z.schlange.length) {
+      const ep = this.epic(this.z.schlange[0]);
+      if (ep?.stufe === 'pr' && ep.pr && !ep.auftrag && !this.laufend.has(ep.nr)) break;
+      this.z.schlange.shift();
+    }
+    const nr = this.z.schlange[0];
+    if (nr === undefined) return;
+    const ep = this.epic(nr);
+    this.kopfAktiv = nr;
     this.mergesOffen.add(nr);
-    ep.notiz = `PR #${ep.pr}: merge.ps1 prüft`;
-    this.mergeKette = this.mergeKette
-      .then(() => this.mergen(ep))
-      .catch((e) => this.ereignis(nr, `merge.ps1: ${e}`))
-      .finally(() => this.mergesOffen.delete(nr));
-    this.nebenbei(this.mergeKette);
+    ep.notiz = `PR #${ep.pr}: Kopf der Merge-Schlange`;
+    this.ereignis(nr, `Kopf der Schlange${this.z.schlange.length > 1 ? `, dahinter ${this.z.schlange.slice(1).map((n) => `#${n}`).join(', ')}` : ''}`);
+    this.nebenbei(
+      this.kopf(ep)
+        .catch((e) => this.prBereit(ep, `Fehler in der Merge-Schlange: ${e}`))
+        .finally(() => {
+          this.mergesOffen.delete(nr);
+          this.kopfAktiv = null;
+          this.z.schlange = this.z.schlange.filter((n) => n !== nr);
+          this.geaendert = true;
+          this.schlangeWeiter();
+        }),
+    );
+  }
+
+  async mergeAufruf(ep: FlottenEpic): Promise<string> {
+    const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', this.e.mergeSkript, '-Repo', this.e.forge, '-Pr', String(ep.pr)], { cwd: this.e.repo, timeoutMs: 40 * 60_000 });
+    const zeile = (r.stdout.trim().split(/\r?\n/).pop() || r.stderr.trim().split(/\r?\n/).pop() || `merge.ps1 Exit ${r.code}`).trim();
+    this.ereignis(ep.nr, `merge.ps1: ${zeile}`);
+    return zeile;
+  }
+
+  /**
+   * The head of the queue: a gate block that is still valid is merged. Otherwise the driver merges
+   * the base into the epic branch, runs the gate of the adapter in the epic worktree (only the part
+   * that always runs when the base moved beside the epic's areas), writes the block into the PR,
+   * pushes and merges. A conflict or a red gate goes back to the run; the epic queues up again at
+   * its next FLOTTE-ENDE. Without gate_command in the adapter the run brings its PR in order, as before.
+   */
+  async kopf(ep: FlottenEpic): Promise<void> {
+    let selbst: 'voll' | 'teil' | null = null;
+    for (;;) {
+      const zeile = await this.mergeAufruf(ep);
+      if (/^GEMERGT/.test(zeile)) return this.nachMerge(ep);
+      if (/^NICHT GEMERGT.*Zustand MERGED/.test(zeile)) return this.nachMerge(ep);
+      if (/^NICHT GEMERGT.*merge:/.test(zeile)) return this.prBereit(ep, 'Adapter auf der Basis sagt merge: mensch');
+      if (/^CHECKS ROT/.test(zeile)) return this.zurueck(ep, `Der Merge wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung, dann FLOTTE-ENDE.`);
+      if (!/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT)/.test(zeile)) return this.prBereit(ep, zeile);
+      if (!this.adapter.gate_command) return this.zurueckOhneGate(ep, zeile);
+      const basisWeg = /Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile);
+      let voll = false;
+      if (selbst) {
+        // the driver's own block was refused: the base moved again (a person merged), or the forge
+        // judged the areas differently; then once the full gate, else a person looks
+        if (!basisWeg && selbst === 'voll') return this.prBereit(ep, `${zeile} (nach dem Gate des Treibers)`);
+        voll = !basisWeg;
+      }
+      if ((ep.gateWiederholungen ?? 0) >= GATE_GRENZE) return this.halt(ep, 'blockiert', `${GATE_GRENZE} Gate-Läufe des Treibers, die Basis zog jedes Mal davon: ${zeile}`);
+      const g = await this.nachziehen(ep, voll);
+      if (g.art === 'gruen') {
+        selbst = g.teil ? 'teil' : 'voll';
+        continue;
+      }
+      if (g.art === 'mensch') return this.prBereit(ep, g.text);
+      return this.zurueck(ep, g.text);
+    }
+  }
+
+  /** Back to the run with what failed; counts against the run (two, then blocked). */
+  zurueck(ep: FlottenEpic, text: string): void {
+    ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
+    if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter nicht möglich:\n\n${text}`);
+    ep.stufe = 'laeuft';
+    ep.auftrag = { resume: true, text: this.an(ep.nr, text) };
+    this.ereignis(ep.nr, `zurück an den Lauf (${ep.mergeVersuche} von 2), danach ans Ende der Schlange: ${text.split('\n')[0].slice(0, 160)}`);
+  }
+
+  /** Without gate_command the run merges the base and gates again itself (acceptance finding 9, D10). */
+  zurueckOhneGate(ep: FlottenEpic, zeile: string): void {
+    if (/^KONFLIKT|Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile)) {
+      ep.basisNachzuege = (ep.basisNachzuege ?? 0) + 1;
+      if (ep.basisNachzuege > 5) return this.halt(ep, 'blockiert', `Die Basis zog fünfmal davon, Merge weiter abgelehnt: ${zeile}`);
+    } else {
+      ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
+      if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter abgelehnt: ${zeile}`);
+    }
+    ep.stufe = 'laeuft';
+    ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Merge wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung: Basis in den Epic-Branch mergen, nur mechanische Konflikte lösen, das Gate neu laufen lassen und den Gate-Block in der PR-Beschreibung ersetzen. Dann FLOTTE-ENDE.`) };
+  }
+
+  /** The worktree that has the head branch checked out, or null. */
+  epicWorktree(branch: string): string | null {
+    const r = this.w.aufrufer('git', ['-C', this.e.repo, 'worktree', 'list', '--porcelain']);
+    if (r.code) return null;
+    let pfad: string | null = null;
+    for (const z of r.stdout.split(/\r?\n/)) {
+      if (z.startsWith('worktree ')) pfad = z.slice(9).trim();
+      else if (z.trim() === `branch refs/heads/${branch}` && pfad) return pfad;
+    }
+    return null;
+  }
+
+  /**
+   * Merges the base into the epic branch in its worktree and runs the gate there. Green: the merge is
+   * pushed and the block appended to the gate section of the PR. Red or a conflict: nothing pushed,
+   * the text goes to the run. 'mensch': the gate cannot give a block merge.ps1 would read.
+   */
+  async nachziehen(ep: FlottenEpic, voll: boolean): Promise<GateErgebnis> {
+    const nr = ep.nr;
+    const v = this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName,headRefOid,body']);
+    let info: { headRefName: string; baseRefName: string; headRefOid: string; body: string };
+    try {
+      info = JSON.parse(v.stdout);
+    } catch {
+      return { art: 'mensch', text: `PR #${ep.pr} nicht lesbar: ${v.stderr.trim().slice(0, 200)}` };
+    }
+    const wt = this.epicWorktree(info.headRefName);
+    const auftrag = 'Bring den Pull Request in Ordnung: Basis in den Epic-Branch mergen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), Suiten und Gate neu, Gate-Block in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.';
+    if (!wt) return { art: 'zurueck', text: `Die Basis zog davon, und kein Worktree hat den Branch ${info.headRefName} ausgecheckt; der Treiber kann nicht nachziehen. ${auftrag}` };
+    const git = (...a: string[]) => this.w.aufrufer('git', ['-C', wt, ...a]);
+    if (git('status', '--porcelain').stdout.trim()) return { art: 'zurueck', text: `Die Basis zog davon, aber der Epic-Worktree ${wt} ist nicht sauber; der Treiber zieht nicht nach. ${auftrag}` };
+    if (!git('rev-parse', 'HEAD').stdout.trim().startsWith(info.headRefOid)) return { art: 'zurueck', text: `Der Epic-Worktree steht nicht auf dem Head des PR (${info.headRefOid.slice(0, 8)}); der Treiber zieht nicht nach. ${auftrag}` };
+    // a gate is a heavy step: never while the RAM brake holds
+    while (this.ramBremse.halt) await pause(this.e.taktMs);
+    const f = await this.w.langsam('git', ['-C', wt, 'fetch', 'origin', info.baseRefName], { timeoutMs: 5 * 60_000 });
+    if (f.code) return { art: 'mensch', text: `git fetch origin ${info.baseRefName} scheiterte: ${f.stderr.trim().slice(0, 200)}` };
+    const ziel = `origin/${info.baseRefName}`;
+    const m = git('merge', '--no-ff', '--no-edit', ziel);
+    if (m.code) {
+      const konflikt = git('diff', '--name-only', '--diff-filter=U').stdout.split(/\r?\n/).filter(Boolean);
+      git('merge', '--abort');
+      this.ereignis(nr, `Nachziehen: Konflikt mit ${ziel} in ${konflikt.join(', ') || '?'}`);
+      return { art: 'zurueck', text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat den Merge abgebrochen, nichts gepusht. ${auftrag}` };
+    }
+    // from here the worktree holds the driver's merge commit; unless it is green and pushed, the
+    // worktree goes back to the head the run left (checked clean above), so the run finds its state
+    const r = await this.gateFahren(ep, wt, info, ziel, voll);
+    if (!r.gepusht) {
+      const z = git('reset', '--hard', info.headRefOid);
+      if (z.code) this.ereignis(nr, `Epic-Worktree nicht zurückgesetzt: ${z.stderr.trim().slice(0, 200)}`);
+    }
+    return r;
+  }
+
+  async gateFahren(ep: FlottenEpic, wt: string, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }, ziel: string, voll: boolean): Promise<GateErgebnis> {
+    const nr = ep.nr;
+    const git = (...a: string[]) => this.w.aufrufer('git', ['-C', wt, ...a]);
+    const form = gateForm(this.adapter);
+    let teil = false;
+    let warum = 'Adapter ohne gate_always_command oder gate_areas';
+    if (voll) warum = 'Teil-Lauf von merge.ps1 abgelehnt';
+    else if (this.adapter.gate_always_command && this.adapter.gate_areas.length) {
+      const vorher = letzterVollLauf(gateLaeufe(info.body, form) ?? []);
+      const d = (...a: string[]) => {
+        const r = git('diff', '--name-only', '--no-renames', ...a);
+        return r.code ? null : r.stdout.split(/\r?\n/).filter(Boolean);
+      };
+      const bewegt = vorher ? d(vorher.base, ziel) : null;
+      const epic = d(`${ziel}...HEAD`);
+      const seit = vorher ? d(vorher.head!, 'HEAD') : null;
+      if (!vorher) warum = 'kein grüner Voll-Lauf im Gate-Block';
+      else if (!bewegt || !epic || !seit) warum = 'Dateilisten nicht lesbar';
+      else {
+        const eigene = seit.filter((x) => !bewegt.includes(x));
+        const beide = gemeinsameBereiche(bewegt, epic, bereicheAus(this.adapter.gate_areas));
+        teil = !eigene.length && !beide.length;
+        warum = eigene.length ? `eigene Änderungen seit dem Voll-Lauf: ${eigene.slice(0, 3).join(', ')}` : beide.length ? `Basis bewegte sich in Bereichen des Epics: ${beide.join(', ')}` : 'Basis bewegte sich nur in fremden Bereichen';
+      }
+    }
+    const befehl = teil ? this.adapter.gate_always_command! : this.adapter.gate_command!;
+    const kopf = git('rev-parse', 'HEAD').stdout.trim();
+    const basis = git('rev-parse', ziel).stdout.trim();
+    this.ereignis(nr, `Gate des Treibers (${teil ? 'Immer-Teil' : 'voll'}, ${warum}) auf ${kopf.slice(0, 8)} gegen ${ziel} @ ${basis.slice(0, 7)}`);
+    const t0 = this.w.jetzt();
+    const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', befehl], { cwd: wt, timeoutMs: GATE_MAX_MS });
+    ep.gateWiederholungen = (ep.gateWiederholungen ?? 0) + 1;
+    this.z.statistik.gateWiederholungen = (this.z.statistik.gateWiederholungen ?? 0) + 1;
+    const b = blockAus(r.stdout, form);
+    const s = Math.round((this.w.jetzt() - t0) / 1000);
+    const ende = (r.stdout + r.stderr).trim().split(/\r?\n/).slice(-25).join('\n');
+    if (!b) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` nennt keine Basis (gate_base); merge.ps1 kann sie nicht prüfen` };
+    const gruen = b.gruen && r.code === 0;
+    this.ereignis(nr, `Gate des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})`);
+    if (!gruen) return { art: 'zurueck', text: `Die Basis zog davon. Der Treiber hat ${ziel} in den Epic-Branch gemergt und das Gate gefahren (\`${befehl}\`): rot. Nichts gepusht, der Epic-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst in den Epic-Branch mergen, das Gate grün machen, Gate-Block in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
+    if (b.teil !== teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ${b.teil ? '' : 'k'}ein Teil-Lauf (gate_partial); der Treiber schreibt sie nicht in den PR` };
+    const [bBase, bHead] = [form.base.exec(b.block)?.[1] ?? '', form.head.exec(b.block)?.[1] ?? ''];
+    if (!basis.startsWith(bBase) || !bHead || !kopf.startsWith(bHead)) return { art: 'mensch', text: `Die Gate-Ausgabe nennt Basis ${bBase} und HEAD ${bHead || '?'}, der Worktree steht auf ${basis.slice(0, 7)} und ${kopf.slice(0, 8)}` };
+    const p = await this.w.langsam('git', ['-C', wt, 'push', 'origin', `HEAD:refs/heads/${info.headRefName}`], { timeoutMs: 5 * 60_000 });
+    if (p.code) return { art: 'mensch', text: `git push scheiterte: ${p.stderr.trim().slice(0, 200)}` };
+    const e = this.w.aufrufer('gh', ['pr', 'edit', String(ep.pr), '--repo', this.e.forge, '--body-file', '-'], { eingabe: blockEinsetzen(info.body, form, b.block) });
+    // pushed but without a block: a person looks; the worktree keeps the pushed state
+    if (e.code) return { art: 'mensch', text: `gepusht, aber die PR-Beschreibung nicht geschrieben: ${e.stderr.trim().slice(0, 200)}`, gepusht: true };
+    return { art: 'gruen', text: '', teil, gepusht: true };
   }
 
   prBereit(ep: FlottenEpic, warum: string): void {
@@ -785,30 +1016,7 @@ class Treiber {
     this.ereignis(ep.nr, `PR #${ep.pr} bereit, ein Mensch mergt`);
   }
 
-  async mergen(ep: FlottenEpic): Promise<void> {
-    const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', this.e.mergeSkript, '-Repo', this.e.forge, '-Pr', String(ep.pr)], { cwd: this.e.repo, timeoutMs: 40 * 60_000 });
-    const zeile = (r.stdout.trim().split(/\r?\n/).pop() || r.stderr.trim().split(/\r?\n/).pop() || `merge.ps1 Exit ${r.code}`).trim();
-    this.ereignis(ep.nr, `merge.ps1: ${zeile}`);
-    if (/^GEMERGT/.test(zeile)) return this.nachMerge(ep);
-    if (/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT|CHECKS ROT)/.test(zeile)) {
-      // D10: never merged; the run brings its PR in order. A base that moved on (another epic was
-      // merged) is not the run's fault and counts apart (acceptance finding 9).
-      if (/^KONFLIKT|Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile)) {
-        ep.basisNachzuege = (ep.basisNachzuege ?? 0) + 1;
-        if (ep.basisNachzuege > 5) return this.halt(ep, 'blockiert', `Die Basis zog fünfmal davon, Merge weiter abgelehnt: ${zeile}`);
-      } else {
-        ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
-        if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter abgelehnt: ${zeile}`);
-      }
-      ep.stufe = 'laeuft';
-      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Merge wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung: Basis in den Epic-Branch mergen, nur mechanische Konflikte lösen, das Gate neu laufen lassen und den Gate-Block in der PR-Beschreibung ersetzen. Dann FLOTTE-ENDE.`) };
-      return;
-    }
-    if (/^NICHT GEMERGT.*merge:/.test(zeile)) return this.prBereit(ep, 'Adapter auf der Basis sagt merge: mensch');
-    this.prBereit(ep, zeile);
-  }
-
-  /** D12/D13: merged by a person, or a conflict after another merge. */
+  /** D12/D13: merged by a person, or a conflict after another merge (the queue handles its own conflicts). */
   async mergeWache(): Promise<void> {
     for (const ep of Object.values(this.z.epics)) {
       if (ep.stufe !== 'pr' || !ep.pr || this.laufend.has(ep.nr) || ep.auftrag || this.mergesOffen.has(ep.nr)) continue;
@@ -818,7 +1026,7 @@ class Treiber {
         this.ereignis(ep.nr, `PR #${ep.pr} gemergt`);
         await this.nachMerge(ep);
       } else if (pz.state === 'CLOSED') this.halt(ep, 'abgebrochen', `PR #${ep.pr} wurde ohne Merge geschlossen`);
-      else if (pz.mergeable === 'CONFLICTING' && !ep.konfliktGemeldet) {
+      else if (pz.mergeable === 'CONFLICTING' && !ep.konfliktGemeldet && !this.z.schlange.includes(ep.nr)) {
         ep.konfliktGemeldet = true;
         ep.stufe = 'laeuft';
         ep.prBereitGemeldet = false;
