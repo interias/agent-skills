@@ -72,8 +72,8 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
      Sperre im Epic.
    - **Außerhalb des Treibers:** Der Hook im Kopf von `/epic` gilt nur im Zug, der den Skill
      aufruft. Eine `/epic`-Sitzung deshalb mit
-     `powershell -NoProfile -File C:\Users\stefa\.claude\skills\epic\scripts\fortsetzen.ps1 -Session <id>`
-     fortsetzen (Konto 2: `-ConfigDir C:\Users\stefa\.claude-arbeitspferd`). Das Skript gibt
+     `powershell -NoProfile -File <skills>\epic\scripts\fortsetzen.ps1 -Session <id>`
+     fortsetzen (Konto 2: `-ConfigDir <kontenordner 2>`). Das Skript gibt
      `guard.ps1` über `--settings` mit, wie der Treiber. Mit blankem `claude --resume` läuft sie
      ohne `guard.ps1`.
 5. **Das erste echte Epic mit `merge: mensch` fahren.** Es zeigt, was die Generalprobe nicht
