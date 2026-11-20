@@ -50,7 +50,7 @@ function New-Rules([string]$body, [string]$adapter = $nachGate, [string]$checks 
     $rules
 }
 
-function Invoke-Merge($rules, [switch]$Native) {
+function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$TaktSekunden = 0) {
     $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $dir | Out-Null
     $stubFile = Join-Path $dir 'gh-stub.ps1'
@@ -64,7 +64,7 @@ function Invoke-Merge($rules, [switch]$Native) {
     [IO.File]::WriteAllText($fixture, (ConvertTo-Json -Depth 5 -InputObject @($rules)), (New-Object Text.UTF8Encoding $false))
     $log = Join-Path $dir 'calls.log'
     $env:MERGE_GH_FIXTURE = $fixture; $env:MERGE_GH_LOG = $log
-    $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -GhCommand $stubFile -LeerMinuten 0 -TaktSekunden 0 2>$null
+    $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -GhCommand $stubFile -LeerMinuten $LeerMinuten -TaktSekunden $TaktSekunden 2>$null
     $exit = $LASTEXITCODE
     $calls = if (Test-Path $log) { @(Get-Content $log -Encoding UTF8) } else { @() }
     @{ Exit = $exit; Out = (@($out) -join "`n"); Calls = $calls }
@@ -171,6 +171,98 @@ Describe 'merge.ps1: without checks the gate block decides' {
         $adapter = "---`nmerge: nach_gate`ngate_heading: '### Pruefung'`ngate_green: 'OK alles'`ngate_base: 'base=([0-9a-f]+)'`ngate_head: 'head=([0-9a-f]+)'   # own form`n---`n"
         $body = "### Pruefung`nbase=aaaaaaa head=bbbbbbbb`nOK alles"
         (Invoke-Merge (New-Rules $body $adapter)).Out | Should Match 'GEMERGT #7'
+    }
+}
+
+Describe 'merge.ps1: a repository without CI (#14, C2)' {
+    $ohneCi = @(
+        @{ match = '^api repos/o/r/actions/workflows'; out = '0'; exit = 0 }
+        @{ match = '^api repos/o/r/commits/main/check-runs'; out = '0'; exit = 0 }
+        @{ match = '^api repos/o/r/commits/main/status'; out = '0'; exit = 0 }
+    )
+
+    It 'does not wait for checks without a workflow and without checks on the base' {
+        $t = Get-Date
+        $r = Invoke-Merge ($ohneCi + (New-Rules (New-GateBody))) -LeerMinuten 5 -TaktSekunden 1
+        $r.Out | Should Match 'GEMERGT #7'
+        ((Get-Date) - $t).TotalSeconds | Should BeLessThan 60
+        @($r.Calls | Where-Object { $_ -match '^pr checks' }).Count | Should Be 1
+    }
+
+    It 'still waits when the repository has a workflow' {
+        $mitWorkflow = @(@{ match = '^api repos/o/r/actions/workflows'; out = '1'; exit = 0 }) + $ohneCi[1..2]
+        $r = Invoke-Merge ($mitWorkflow + (New-Rules (New-GateBody))) -LeerMinuten 0.05 -TaktSekunden 1
+        $r.Out | Should Match 'GEMERGT #7'
+        @($r.Calls | Where-Object { $_ -match '^pr checks' }).Count | Should BeGreaterThan 1
+    }
+}
+
+Describe 'merge.ps1: a last run of only the part that always runs (#14, B)' {
+    $areas = "---`nmerge: nach_gate`ngate_areas:`n  - 'apps/web/ = web'`n  - apps/api/** = api   # the server`ngate_always_command: npm run gate -- --immer`n---`n"
+    # full green run on base ccccccc and head eeeeeeee, then the part that always runs on the current state
+    $body = "## Gate`n``````n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`n$green`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n  wurzel gr$([char]0x00FC)n`n$green`n``````"
+    function New-Compare([string]$moved = 'apps/api/x.ts', [string]$epic = 'apps/web/y.ts', [string]$since = 'apps/api/x.ts') {
+        $list = { param($f) $l = @($f -split ',' | Where-Object { $_ }); (@("$($l.Count)") + $l) -join "`n" }
+        @(
+            @{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = (& $list $moved); exit = 0 }
+            @{ match = "^api repos/o/r/compare/$baseSha\.\.\.$headSha"; out = (& $list $epic); exit = 0 }
+            @{ match = "^api repos/o/r/compare/eeeeeeee\.\.\.$headSha"; out = (& $list $since); exit = 0 }
+        )
+    }
+
+    It 'merges when the base moved only in an area the epic does not touch' {
+        $r = Invoke-Merge ((New-Compare) + (New-Rules $body $areas))
+        $r.Out | Should Match 'GEMERGT #7'
+    }
+
+    It 'refuses when the base moved in an area of the epic' {
+        $r = Invoke-Merge ((New-Compare -moved 'apps/web/z.ts' -since 'apps/web/z.ts') + (New-Rules $body $areas))
+        $r.Out | Should Match 'GATE FEHLT #7: die Basis bewegte sich seit dem Voll-Lauf in Bereichen des Epics: web'
+        (Get-MergeCalls $r).Count | Should Be 0
+    }
+
+    It 'refuses when the base moved a file outside every area' {
+        $r = Invoke-Merge ((New-Compare -moved 'package.json' -since 'package.json') + (New-Rules $body $areas))
+        $r.Out | Should Match 'Bereichen des Epics: \(ohne Bereich\)'
+    }
+
+    It 'refuses when the epic touches a file outside every area and the base moved' {
+        $r = Invoke-Merge ((New-Compare -epic 'apps/web/y.ts,README.md') + (New-Rules $body $areas))
+        $r.Out | Should Match 'Bereichen des Epics: .*\(ohne Bereich\)'
+    }
+
+    It 'refuses own changes after the full run' {
+        $r = Invoke-Merge ((New-Compare -since 'apps/api/x.ts,apps/web/neu.ts') + (New-Rules $body $areas))
+        $r.Out | Should Match 'nach dem Voll-Lauf kamen eigene Aenderungen: apps/web/neu.ts'
+    }
+
+    It 'refuses a renamed file whose old name lies in the area of the epic' {
+        $r = Invoke-Merge ((New-Compare -moved 'apps/api/x.ts,apps/web/alt.ts' -since 'apps/api/x.ts,apps/web/alt.ts') + (New-Rules $body $areas))
+        $r.Out | Should Match 'Bereichen des Epics: web'
+    }
+
+    It 'refuses when the forge cuts a file list' {
+        $cut = @(@{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = "300`napps/api/x.ts"; exit = 0 }) + (New-Compare)
+        $r = Invoke-Merge ($cut + (New-Rules $body $areas))
+        $r.Out | Should Match 'Dateilisten fuer die Bereiche nicht lesbar'
+    }
+
+    It 'never merges when the check itself fails (an unreadable answer of the forge)' {
+        $kaputt = @(@{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = "keine Zahl`napps/api/x.ts"; exit = 0 }) + (New-Compare)
+        $r = Invoke-Merge ($kaputt + (New-Rules $body $areas))
+        $r.Out | Should Match 'GATE FEHLT #7: Pruefung gescheitert'
+        (Get-MergeCalls $r).Count | Should Be 0
+    }
+
+    It 'refuses a part run without gate_areas in the adapter' {
+        $r = Invoke-Merge ((New-Compare) + (New-Rules $body))
+        $r.Out | Should Match 'Teil-Lauf, der Adapter nennt keine gate_areas'
+    }
+
+    It 'refuses a part run without a green full run before it' {
+        $nurTeil = "## Gate`n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`nGate ROT.`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green"
+        $r = Invoke-Merge ((New-Compare) + (New-Rules $nurTeil $areas))
+        $r.Out | Should Match 'vor dem Teil-Lauf steht kein gruener Voll-Lauf'
     }
 }
 
