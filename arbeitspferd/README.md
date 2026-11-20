@@ -11,6 +11,8 @@ pwsh -File arbeitspferd\einrichten.ps1
 
 Danach einmal das Profil „Claude Arbeitspferd“ in Windows Terminal öffnen, `claude` starten und
 `/login` mit dem zweiten Konto. Was das Skript im Einzelnen tut, steht in seinem Kopfkommentar.
+Prüfe danach, dass `skills` und `agents` im Konfigordner Verknüpfungen auf `~/.claude` sind: Das
+Skript lässt vorhandene Ordner stehen, und ein eigener Ordner dort veraltet unbemerkt.
 
 ## Konten
 

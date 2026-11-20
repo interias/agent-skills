@@ -1,6 +1,6 @@
 # Mailbild
 
-`mail-antwort.png` im README des Repositorys wird aus `mail-antwort.html` gerendert: 1200 × 620 px,
+`mail-antwort.png` in [`mail-antwort/README.md`](../../mail-antwort/README.md) wird aus `mail-antwort.html` gerendert: 1200 × 620 px,
 doppelte Auflösung, transparenter Grund. Gestaltung wie beim [Prozessbild](../prozess/README.md).
 
 Ändert sich `mail-antwort`, erst `mail-antwort.html` anpassen, dann neu rendern (Git Bash, aus

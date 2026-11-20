@@ -1,6 +1,6 @@
 # Flottenbild
 
-`flotte.png` im README des Repositorys wird aus `flotte.html` gerendert: 1200 × 630 px, doppelte
+`flotte.png` in [`epic-flotte/README.md`](../../epic-flotte/README.md) wird aus `flotte.html` gerendert: 1200 × 630 px, doppelte
 Auflösung, transparenter Grund. Gestaltung wie beim [Prozessbild](../prozess/README.md): jede
 Beschriftung auf einem weißen Schild, Schilder beim Rendern aus den echten Textmaßen bemessen,
 Schriften von Google Fonts (das Rendern braucht Netz).
