@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { admiralWerkzeuge, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
+import { admiralAuftrag, admiralWerkzeuge, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
 import { fahre, SPERREN_GRENZE, standard } from '../src/treiber/treiber.ts';
 import { hookRegel } from '../src/werkzeuge/lauf.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
@@ -299,4 +299,19 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
     expect(z.epics['3'].stufe).toBe('blockiert');
     expect(z.epics['3'].notiz).toMatch(/Erlaubnis verweigert: Write/);
   }, T);
+});
+
+describe('Runde 6: Zuständigkeit und Empfehlung des Laufs im Auftrag des Admirals', () => {
+  const text = admiralAuftrag(block(3, 1), 'Epic #3 in o/r.');
+  const mensch = text.slice(text.indexOf('Immer beim Menschen'), text.indexOf('\n', text.indexOf('Immer beim Menschen')));
+
+  it('names costs, rollout and personal data as the person\'s, even when cautious', () => {
+    for (const w of ['Kosten', 'Ausrollen', 'Deploy', 'Produktion', 'Personendaten', 'Geburtsdaten', 'auch wenn die Antwort vorsichtig wäre']) expect(mensch).toContain(w);
+  });
+
+  it('follows a clear, local, reversible recommendation of the run; waiting needs a reason from the repository', () => {
+    expect(text).toMatch(/Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Merge umkehren lässt/);
+    expect(text).toMatch(/Warten, Aufschieben oder Weglassen ist keine neutrale Wahl/);
+    expect(text.indexOf('Folge der Empfehlung')).toBeLessThan(text.indexOf('Im Zweifel, ohne begründete Empfehlung'));
+  });
 });
