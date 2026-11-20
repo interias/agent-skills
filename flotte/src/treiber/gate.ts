@@ -105,19 +105,77 @@ function abschnitt(body: string, heading: string): { zeilen: string[]; von: numb
 /** The runs of the gate section in order; null without a section. */
 export function gateLaeufe(body: string, f: GateForm): GateLauf[] | null {
   const a = abschnitt(body, f.heading);
-  if (!a) return null;
-  const teil = a.zeilen.slice(a.von + 1, a.bis);
-  const starts = teil.map((z, i) => (f.base.test(z) ? i : -1)).filter((i) => i >= 0);
+  return a ? laeufeIn(a.zeilen.slice(a.von + 1, a.bis), f) : null;
+}
+
+/** The runs in a text, each from a line with a base to the next one. */
+function laeufeIn(zeilen: string[], f: GateForm): GateLauf[] {
+  const starts = zeilen.map((z, i) => (f.base.test(z) ? i : -1)).filter((i) => i >= 0);
   return starts.map((s, k) => {
-    const bis = starts[k + 1] ?? teil.length;
+    const bis = starts[k + 1] ?? zeilen.length;
     return {
-      base: f.base.exec(teil[s])![1],
-      head: f.head.exec(teil[s])?.[1] ?? null,
-      gruen: teil.slice(s + 1, bis).some((z) => z.trim() === f.green),
-      teil: f.teil.test(teil[s]),
+      base: f.base.exec(zeilen[s])![1],
+      head: f.head.exec(zeilen[s])?.[1] ?? null,
+      gruen: zeilen.slice(s + 1, bis).some((z) => z.trim() === f.green),
+      teil: f.teil.test(zeilen[s]),
     };
   });
 }
+
+/**
+ * The core of a gate command: without leading environment assignments (`$env:X='0';`, `X=0 `,
+ * `set X=0 &&`), so that `$env:HIVE_TESTBETT='0'; npm run gate -- --voll` matches a call that sets
+ * the variable another way.
+ */
+export function gateKern(befehl: string): string {
+  let b = befehl.trim();
+  for (;;) {
+    const n = b.replace(/^\$env:\w+\s*=\s*('[^']*'|"[^"]*"|\S+)\s*;\s*/i, '').replace(/^set\s+\w+=\S*\s*&&\s*/i, '').replace(/^\w+=('[^']*'|"[^"]*"|\S*)\s+/, '');
+    if (n === b) return b;
+    b = n;
+  }
+}
+
+type Inhalt = { type?: string; id?: string; name?: string; input?: { command?: unknown }; tool_use_id?: string; content?: unknown };
+
+/**
+ * The gate runs in a run's log that are the output of a real gate call (acceptance 3, finding 2;
+ * follow-up check of #27): each tool result is matched to its call by tool_use_id, also in subagents,
+ * and counts only when the call was Bash or PowerShell and its command holds the core of one of the
+ * gate commands. A PR text seen with `gh pr view`, the snippet after an Edit, an `echo` of a block or
+ * a Read of a gate's output file is no gate run; in doubt the driver runs the gate itself.
+ */
+export function gateLaeufeImLog(log: string, f: GateForm, befehle: string[]): GateLauf[] {
+  const kerne = befehle.map(gateKern).filter(Boolean);
+  if (!kerne.length) return [];
+  const aufrufe = new Map<string, string>();
+  const ergebnisse: { id: string; text: string }[] = [];
+  for (const zeile of log.split(/\r?\n/)) {
+    let j: { type?: string; message?: { content?: unknown } };
+    try {
+      j = JSON.parse(zeile);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(j.message?.content)) continue;
+    for (const c of j.message.content as Inhalt[]) {
+      if (j.type === 'assistant' && c.type === 'tool_use' && c.id && (c.name === 'Bash' || c.name === 'PowerShell') && typeof c.input?.command === 'string') aufrufe.set(c.id, c.input.command);
+      if (j.type === 'user' && c.type === 'tool_result' && c.tool_use_id) {
+        const text = typeof c.content === 'string' ? c.content : Array.isArray(c.content) ? (c.content as { text?: string }[]).map((x) => x.text ?? '').join('\n') : '';
+        ergebnisse.push({ id: c.tool_use_id, text });
+      }
+    }
+  }
+  return ergebnisse
+    .filter((e) => {
+      const befehl = aufrufe.get(e.id);
+      return befehl !== undefined && kerne.some((k) => befehl.includes(k));
+    })
+    .flatMap((e) => laeufeIn(e.text.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/), f));
+}
+
+/** Two SHAs name the same commit when the shorter is a prefix of the longer. */
+export const gleich = (a: string | null, b: string | null) => !!a && !!b && (a.length <= b.length ? b.startsWith(a) : a.startsWith(b));
 
 /** The last full green run before the end (the base of a part run), or null. */
 export function letzterVollLauf(laeufe: GateLauf[]): GateLauf | null {

@@ -43,10 +43,12 @@ export interface Optionen {
   mergeEcht?: (pr: number, n: number) => string;
   /** the gate command of the adapter (-Command starting with "gate"): output and exit code */
   gate?: (befehl: string, cwd: string, n: number) => { code: number; stdout: string };
-  /** `gh pr view --json headRefName,...` of a PR */
-  prInfo?: (pr: number) => { headRefName: string; baseRefName: string; headRefOid: string; body: string };
+  /** `gh pr view --json headRefName,...` of a PR; default: open, on epic/<pr - 10>-x, with GATE_BODY */
+  prInfo?: (pr: number) => { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
   /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
   worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
+  /** the forge's open issues with ready-for-agent and with epic, per call (without --epics) */
+  freigegeben?: () => { bereit: number[]; epics: { number: number; body?: string }[] };
 }
 
 export interface Protokoll {
@@ -100,14 +102,22 @@ export function aufbau(o: Optionen = {}) {
       p.kommentare.push({ nr, text: opts?.eingabe ?? '' });
       return ok();
     }
-    if (a === 'issue' && b === 'list') return ok('[]');
+    if (a === 'issue' && b === 'list') {
+      // without --epics: the open issues with ready-for-agent and with epic (the adapter's defaults)
+      const label = args[args.indexOf('--label') + 1];
+      const f = o.freigegeben?.();
+      if (f && label === 'ready-for-agent') return ok(JSON.stringify(f.bereit.map((n) => ({ number: n }))));
+      if (f && label === 'epic') return ok(JSON.stringify(f.epics.map((e) => ({ body: '', ...e }))));
+      return ok('[]');
+    }
     if (a === 'label') return ok();
+    if (a === 'repo' && b === 'view') return ok('main\n');
     if (a === 'issue' && b === 'create') return ok('https://github.com/o/r/issues/99\n');
     if (a === 'issue' && b === 'edit') {
       p.logbuch.push(opts?.eingabe ?? '');
       return ok();
     }
-    if (a === 'pr' && b === 'view' && args.join(' ').includes('headRefName') && o.prInfo) return ok(JSON.stringify(o.prInfo(nr)));
+    if (a === 'pr' && b === 'view' && args.join(' ').includes('headRefName')) return ok(JSON.stringify({ state: 'OPEN', ...(o.prInfo?.(nr) ?? { headRefName: `epic/${nr - 10}-x`, baseRefName: 'main', headRefOid: `bbbbbbbb${'2'.repeat(32)}`, body: GATE_BODY }) }));
     if (a === 'pr' && b === 'edit') {
       p.prEdits.push({ pr: nr, body: opts?.eingabe ?? '' });
       return ok();
@@ -215,6 +225,31 @@ export const admiral = (nr: number, antworten: { nr: number; antwort: string; be
   schritte: [{ zeile: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { antworten: antworten.map((a) => ({ herkunft: 'Skill-Empfehlung', grund: 'vorsichtig', einflussreich: false, ...a })) } } }],
 });
 
-export const ping = (anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
+/** the gate block of the default PR (prInfo) */
+export const GATE_BLOCK = '== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  web grün 0:50\nGate grün.';
+export const GATE_BODY = `## Pakete\n- eins\n\n## Gate\n\`\`\`\n${GATE_BLOCK}\n\`\`\`\n`;
+
+let werkzeugId = 0;
+
+/**
+ * Two steps of a run: a tool call and its result (acceptance 3, finding 2). Only a Bash or
+ * PowerShell call of the gate command proves a gate run; spread them into the steps.
+ */
+export const werkzeug = (name: string, input: Record<string, unknown>, text: string, o: { parent?: string } = {}) => {
+  const id = `toolu_${++werkzeugId}`;
+  const p = o.parent ? { parent_tool_use_id: o.parent } : {};
+  return [
+    { zeile: { type: 'assistant', ...p, message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } } },
+    { zeile: { type: 'user', ...p, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text }] } } },
+  ];
+};
+
+/** the run called the gate command of the test adapters (gate_command: gate voll) */
+export const gateAufruf = (text: string, befehl = 'gate voll') => werkzeug('Bash', { command: befehl }, text);
+
+/** the run ran the gate of the default PR */
+export const gateGefahren = () => gateAufruf(`> gate\n${GATE_BLOCK}\n`);
+
+export const ping =(anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
 
 export { drehbuch };

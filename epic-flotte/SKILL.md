@@ -399,6 +399,13 @@ vorläufig, und der Pull Request trug `WIP:`, bis ein Mensch sie bestätigt hatt
 Herkunft der letzten Zeile: Nachspiel von 41 alten Fragen mit dem Admiral des Flotten-Treibers
 (#14, 20.11.2026). Er entschied Kosten und Ausrollen selbst, vorsichtig, aber nicht in seinem Recht.
 
+**Bei `merge: nach_gate`** sieht vor dem Merge kein Mensch den Pull Request; „bis zum Merge
+umkehrbar" heißt dann Folgearbeit auf der Basis. Dort liegen zusätzlich beim Menschen: Schema oder
+Migration, ein ADR (neu, geändert, abgelöst oder ein Widerspruch zu einem), der Umfang des Epics,
+das Löschen von Daten und alles nach außen Sichtbare (öffentliche Schnittstelle, Oberfläche und
+Texte für Nutzer, Veröffentlichtes, Nachrichten an Dritte). Regel 0 unten gilt für diese Fragen
+nicht. Herkunft: Abnahme 3 an #14, Entscheidung des Menschen vom 20.11.2026.
+
 **Worauf du dich stützt**, in dieser Rangfolge. Die erste, die greift, ist die **Herkunft** deiner
 Entscheidung:
 

@@ -173,7 +173,9 @@ Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
 prüft oft etwas anderes (in hexanite baut er nur die Website) und ersetzt das Gate nie; ein roter
 Check sperrt den Merge trotzdem. Auf Checks wartet `merge.ps1` vorher (meldet die Forge zwei
 Minuten lang keinen Check, hat das Repository keine; hat es weder Workflows noch Checks oder
-Status auf der Basis, wartet es gar nicht). Der Block steht in der PR-Beschreibung unter
+Status auf der Basis, wartet es gar nicht). Den Adapter liest `merge.ps1` vom Standardzweig, nicht
+von der Basis des PRs, und es mergt nur einen PR auf der erwarteten Basis (`base_branch`, sonst
+`main_branch`, sonst der Standardzweig; bei `from-issue` mergt ein Mensch). Der Block steht in der PR-Beschreibung unter
 `gate_heading`, bis zur nächsten Überschrift gleicher oder höherer Ebene; meist als Codeblock, so wie das Gate ihn
 ausgibt:
 

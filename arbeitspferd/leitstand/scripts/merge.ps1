@@ -138,12 +138,21 @@ if (-not $info) { "NICHT GEMERGT #${Pr}: Pull Request nicht lesbar"; exit 1 }
 if ($info.state -ne 'OPEN') { "NICHT GEMERGT #${Pr}: Zustand $($info.state)"; exit 1 }
 if ($info.isDraft) { "NICHT GEMERGT #${Pr}: Entwurf"; exit 1 }
 
+# The adapter comes from the default branch, not from the base of the pull request: a branch of its own
+# never decides that it may be merged into (follow-up check of #27 at #14).
+$standard = "$(gh api "repos/$Repo" --jq .default_branch 2>$null)".Trim()
+if ($LASTEXITCODE -or -not $standard) { "NICHT GEMERGT #${Pr}: Standardzweig von $Repo nicht lesbar"; exit 1 }
 $adapterText = ''
-$encoded = gh api "repos/$Repo/contents/.claude/epic.md?ref=$($info.baseRefName)" --jq .content 2>$null
+$encoded = gh api "repos/$Repo/contents/.claude/epic.md?ref=$standard" --jq .content 2>$null
 if (-not $LASTEXITCODE -and $encoded) { $adapterText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((($encoded -join '') -replace '\s', ''))) }
 $adapter = Read-Frontmatter $adapterText
 $merge = if ($adapter['merge']) { $adapter['merge'] } else { 'mensch' }
-if ($merge -ne 'nach_gate') { "NICHT GEMERGT #${Pr}: merge: $merge (Adapter .claude/epic.md auf $($info.baseRefName)), ein Mensch mergt"; exit 1 }
+if ($merge -ne 'nach_gate') { "NICHT GEMERGT #${Pr}: merge: $merge (Adapter .claude/epic.md auf $standard), ein Mensch mergt"; exit 1 }
+# the expected base: base_branch of the adapter, else main_branch, else the default branch; from-issue
+# names a base per epic that this script cannot read, so a person merges
+$basis = @($adapter['base_branch'], $adapter['main_branch'], $standard) | Where-Object { $_ } | Select-Object -First 1
+if ($basis -eq 'from-issue') { "NICHT GEMERGT #${Pr}: base_branch: from-issue, die erwartete Basis ist nicht lesbar; ein Mensch mergt"; exit 1 }
+if ($info.baseRefName -ne $basis) { "NICHT GEMERGT #${Pr}: Basis $($info.baseRefName), erwartet $basis; ein Mensch mergt"; exit 1 }
 
 # A repo without CI: no workflow, and the tip of the base has neither a check run nor a commit status.
 # Then no check will come and nothing is waited for (#14, C2). Anything unreadable counts as CI.
