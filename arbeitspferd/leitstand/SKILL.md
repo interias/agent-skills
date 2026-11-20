@@ -1,6 +1,6 @@
 ---
 name: leitstand
-description: Leitstand der Hauptsitzung über das zweite Konto „Arbeitspferd“ — startet dort Aufträge (/epic, /epic-flotte, /epic-nacharbeit, /epic-aufraeumen oder eine freie Issue-Liste), stellt Nachrichten ohne Neustart zu, überwacht alle Sitzungen mit einem einzigen Wächter, mergt PRs nach grünen Checks, löscht geprüfte Branches und berichtet dem Nutzer knapp. Nur in der Hauptsitzung (Claude Desktop) aufrufen, nie im Arbeitspferd selbst.
+description: Leitstand der Hauptsitzung über das zweite Konto „Arbeitspferd“ — startet dort Aufträge (/epic, /epic-flotte, /epic-nacharbeit, /epic-aufraeumen oder eine freie Issue-Liste), stellt Nachrichten ohne Neustart zu, überwacht alle Sitzungen mit einem einzigen Wächter, mergt PRs nach dem Adapterschlüssel `merge` (Checks oder Gate-Block), löscht geprüfte Branches und berichtet dem Nutzer knapp. Nur in der Hauptsitzung (Claude Desktop) aufrufen, nie im Arbeitspferd selbst.
 ---
 
 # Leitstand
@@ -23,7 +23,7 @@ die Transkripte.
 | `lage.ps1` | Überblick: Sitzungen, offene PRs, RAM. Dazu `-Eintragen <id> -Repo <pfad>` (eine von Hand gestartete Sitzung übernehmen) und `-Abhaken <id>` |
 | `start.ps1 -Repo <name> -Auftrag <datei> -Titel "<#ticket Kurzname>" -Modus <m>` | Neues Fenster mit festem Titel starten, Flottenregeln anhängen, Sitzung ins Register eintragen, Fenster anordnen |
 | `nachricht.ps1 -SessionId <id> -Datei <datei>` | Nachricht ohne Neustart zustellen (Haiku-Helfer per SendMessage). Bestätigt erst, wenn sie im Transkript steht. Neustart nur, wenn der Prozess fehlt |
-| `merge.ps1 -Repo <owner/name> -Pr <n>` | Auf die Checks warten, Merge-Commit, geprüften Branch löschen, eine Ergebniszeile |
+| `merge.ps1 -Repo <owner/name> -Pr <n>` | Nur bei `merge: nach_gate` im Adapter: auf die Checks warten, ohne Checks den Gate-Block prüfen, Merge-Commit, geprüften Branch löschen, eine Ergebniszeile |
 | `waechter.ps1` | Der einzige Wächter, unter Monitor (persistent) |
 | `fenster-ordnen.ps1` | Alle Terminalfenster nach Titel in ein Raster aus Achteln des Bildschirms legen: die ersten vier 2 × 2 links, weitere rechts. Verschiebt nur |
 | `fenster-schliessen.ps1 -SessionId <id>` | Fenster einer still wartenden Sitzung aus dem Register schließen, Sitzung abhaken, Rest neu anordnen |
@@ -84,6 +84,8 @@ Skript `KEINE SITZUNG`, und der Nutzer muss einmal „Vertrauen“ klicken. Die 
 | `HAENGT` / `BEENDET` | Ursache prüfen. Bei `BEENDET` mit offener Arbeit stellt `nachricht.ps1` per Neustart zu |
 | `RAM` | Bei Hold keine neuen Starts. Der Wächter leert den Docker-Cache schon selbst |
 | `CHECKS ROT` (merge.ps1) | Per Nachricht an die Sitzung: welche Checks, bitte beheben und neu melden |
+| `GATE FEHLT` (merge.ps1) | Per Nachricht an die Sitzung: Gate gegen die aktuelle Basis auf dem aktuellen Head neu fahren, Block in die PR-Beschreibung, neu melden |
+| `NICHT GEMERGT … merge: mensch` | Der Adapter lässt keinen automatischen Merge zu. Dem Nutzer „PR bereit“ melden; er mergt |
 
 Ist der letzte PR einer Sitzung gemergt und wartet sie still, schließt du ihr Fenster sofort mit
 `fenster-schliessen.ps1`. Offene, untätige Fenster lässt du nicht stehen.
@@ -115,7 +117,7 @@ Wächter beenden.
 
 ## Grenzen, die nicht verhandelbar sind
 
-- **Mergen:** nur Merge-Commits nach grünen Checks, nur in Repositorys, für die der Nutzer das freigegeben hat (Lagebuch-Kopf).
+- **Mergen:** nur mit `merge.ps1`, also nur Merge-Commits und nur, wenn der Adapter des Repositorys `merge: nach_gate` sagt (`epic/references/adapter.md`, „Merge“). Der Schlüssel ist die einzige Freigabe; das Lagebuch wiederholt sie nicht.
 - **Branches löschen:** nur Remote-Branches, deren Commits nachweislich im Basiszweig liegen (`merge.ps1` prüft das). Sitzungen löschen nie Remote-Branches.
 - **Nicht ins Fenster tippen:** keine Tastatureingaben und kein Umgehen des Auto-Modus.
 - **Nichts Fremdes beenden:** Claude Desktop, Docker-Dienste, andere Programme und Sitzungen, dazu alles, was `lokal.md` schützt. Arbeitspferd-Fenster schließt du nur mit `fenster-schliessen.ps1`, wenn ihre Sitzung fertig ist oder still wartet und niemand sie braucht.
