@@ -10,19 +10,31 @@ Adapter des Projekts es erlaubt.
 
 ```mermaid
 flowchart TD
-  I["Epic oder Spec<br/>mit ready-for-agent"] --> W{"wer fährt?"}
-  W -->|"ein Epic, im Chat"| E
-  W -->|"mehrere Epics"| T["Treiber<br/>flotte fahren"]
-  T -->|"claude -p je Epic<br/>auf Konto 1 · 2 · 3"| E["/epic<br/>Orchestrator"]
+  I["Epic oder Spec<br/>mit ready-for-agent"]
+  subgraph S["Frage 1 · Wer startet den Lauf?"]
+    T["Treiber · Regelweg<br/>flotte fahren<br/>claude -p je Epic, Konto 1 · 2 · 3"]
+    C["du im Chat<br/>/epic #nr"]
+  end
+  I --> T & C
+  T & C --> E["/epic · Orchestrator"]
   E --> P1["Paket<br/>eigener Worktree"] & P2["Paket<br/>eigener Worktree"] & P3["Paket<br/>eigener Worktree"]
-  P2 -->|"Review, Verifikation,<br/>Sofortmerge"| B["Epic-Branch"]
-  P1 & P3 --> B
-  B --> PR["Pull Request<br/>mit Gate-Block"]
-  PR -->|"merge: mensch"| M["du mergst"]
-  PR -->|"merge: nach_gate<br/>Gate-Nachweis"| Q["Merge-Schlange<br/>des Treibers"]
-  M & Q --> N["/epic-nacharbeit<br/>/epic-aufraeumen"]
+  P1 & P2 & P3 -->|"Review, Verifikation,<br/>Sofortmerge"| B["Epic-Branch"]
+  B --> PR["Pull Request mit Gate-Block<br/>der Lauf mergt nie"]
+  subgraph G["Frage 2 · Wer mergt? Allein der Adapterschlüssel merge"]
+    M["merge: mensch<br/>du mergst"]
+    Q["merge: nach_gate<br/>ein Akteur außerhalb des Laufs:<br/>Merge-Schlange des Treibers<br/>oder merge.ps1 des Leitstands,<br/>nur mit gültigem Gate-Nachweis"]
+  end
+  PR --> M & Q
+  M & Q --> N["/epic-aufraeumen"]
   T <-->|"Stand / Antworten"| BR["Flottenbrücke"]
 ```
+
+Die beiden Fragen hängen nicht zusammen: Ob der Treiber oder du im Chat einen Lauf startet, ändert
+nichts daran, wer mergt. **Welchen Weg wann:** Der Treiber ist der Regelweg, auch für ein einzelnes
+Epic; er verteilt Läufe auf Konten, bremst und legt dir nur die Fragen vor, die bei dir liegen.
+Einen Lauf im Chat startest du, wenn du ein Epic interaktiv begleiten willst, etwa das Vorab-Tor
+selbst beantworten oder zuschauen. `/epic-nacharbeit` gehört vor den Merge, solange der PR offen
+ist (danach braucht sie einen eigenen PR); unter dem Treiber läuft sie von selbst.
 
 Ein **Lauf** (`/epic`) liest das Epic, schneidet es in Pakete, fragt einmal am Vorab-Tor und setzt
 dann bis zu drei Pakete gleichzeitig um, jedes in eigenem Worktree mit Implementer, Reviewer und
@@ -103,13 +115,13 @@ Jede Entscheidung, ob vom Admiral oder von dir, steht danach als Kommentar am Is
 | Teil | Was es tut | Doku |
 |---|---|---|
 | `epic` | Ein Epic auf einem Epic-Branch umsetzen, endet mit offenem PR | [für Menschen](epic/README.md), [Skill](epic/SKILL.md), [Skripte](epic/scripts/README.md) |
-| `epic-nacharbeit` | Offene Punkte eines Laufs in Fragerunden klären und erledigen | [Skill](epic-nacharbeit/SKILL.md) |
-| `epic-aufraeumen` | Nach dem Merge Worktrees und Branches abräumen, nur nachweislich Gemergtes | [Skill](epic-aufraeumen/SKILL.md) |
-| `flotte` | Treiber: mehrere Läufe als `claude -p` auf mehreren Konten, Bremsen, Merge-Schlange, Logbuch | [Skill](flotte/SKILL.md), [Umschalten](flotte/references/umschalten.md) |
+| `epic-nacharbeit` | Offene Punkte eines Laufs in Fragerunden klären und erledigen | [für Menschen](epic-nacharbeit/README.md), [Skill](epic-nacharbeit/SKILL.md) |
+| `epic-aufraeumen` | Nach dem Merge Worktrees und Branches abräumen, nur nachweislich Gemergtes | [für Menschen](epic-aufraeumen/README.md), [Skill](epic-aufraeumen/SKILL.md) |
+| `flotte` | Treiber: mehrere Läufe als `claude -p` auf mehreren Konten, Bremsen, Merge-Schlange, Logbuch | [für Menschen](flotte/README.md), [Skill](flotte/SKILL.md), [Umschalten](flotte/references/umschalten.md) |
 | `flottenbruecke/` | Dauerdienst im LAN: Board aller Einsätze, Antworten per PIN; steuert sonst nichts | [README](flottenbruecke/README.md), [Schnittstelle](flottenbruecke/SCHNITTSTELLE.md) |
 | `epic-flotte` | Dasselbe wie `flotte`, aber als Admiral-Chat | [für Menschen](epic-flotte/README.md), [Skill](epic-flotte/SKILL.md) |
 | `epic-lagebesprechung` | Im laufenden Chat abholen, was bei dir liegt | [für Menschen](epic-lagebesprechung/README.md) |
-| `arbeitspferd/` mit `leitstand` | Weitere Konten einrichten; aus der Hauptsitzung Aufträge an Konto 2 geben, überwachen, PRs nach `merge` mergen | [README](arbeitspferd/README.md), [Skill](arbeitspferd/leitstand/SKILL.md) |
+| `arbeitspferd/` mit `leitstand` | Weitere Konten einrichten; aus der Hauptsitzung Aufträge an Konto 2 geben, überwachen, PRs nach `merge` mergen | [README](arbeitspferd/README.md), [Leitstand für Menschen](arbeitspferd/leitstand/README.md), [Skill](arbeitspferd/leitstand/SKILL.md) |
 | `agents/` | Agent-Typen der Modellstaffel (Kundschafter, Implementer, Reviewer, Lauf) | [Staffel](epic/README.md#modelle-und-denkstufen) |
 | `mail-antwort` | Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen | [für Menschen](mail-antwort/README.md) |
 | `persona-review` | Bedienung mit Persona-Agenten über Runden messen | [für Menschen](persona-review/README.md) |
