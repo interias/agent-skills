@@ -1,0 +1,788 @@
+// flotte epic: the package loop of /epic as a program (#69). A state machine per package —
+// wartend → startbereit → implementer → reviewer → pruefung → merge → fertig or zurueckgelassen —
+// and around it the window, the RAM brake, the escalation ladder, max_rounds, blocking successors,
+// state and resume. Language models are only the content of a state, each one call (Aufrufe);
+// scripts, tests, git and the forge stand behind Mechanik. Stage 1 (#65) runs both as stand-ins
+// with a script (attrappe.ts); stages 2 and 3 put the real ones behind the same interfaces.
+//
+// One takt: apply what has finished, take answers, then fill the window. Everything that waits
+// (a call, the test runs of 4c, a merge) runs beside the loop; the loop never waits on it. The
+// state is written after every transition; each transition can be repeated without harm.
+
+import { buchstabenAus } from '../werkzeuge/bloecke.ts';
+import type { LaufErgebnis } from '../werkzeuge/lauf.ts';
+import type { Ram } from '../werkzeuge/ressourcen.ts';
+import { entsperren, lebt, sperren } from '../werkzeuge/zustand.ts';
+import { alleNachfolger, bewerteAufruf, endeBlock, flakeKandidaten, frageBlock, hoeher, IMPLEMENTER, istEnde, laeuft, nachpruefung, REVIEWER, rot, startbereit, wahl, geparkt, type BlockFrage, type Nachpruefung } from './regeln.ts';
+import type { Paket, Rolle } from './schema.ts';
+import { epicDir, liesLauf, neuesPaket, schreibeLauf, type AufrufStand, type EpicLaufZustand, type Ereignis, type PaketZustand, type Testlauf } from './zustand.ts';
+
+export interface Aufruf {
+  rolle: Rolle;
+  paket: string | null;
+  runde: number;
+  /** agent type of the role (agents/), null for cut and conflict */
+  agent: string | null;
+  modell: string;
+  effort: string;
+  /** CLAUDE_CONFIG_DIR of the account the driver gives the epic */
+  konto: string;
+  cwd: string;
+  auftrag: string;
+  /** the session to continue; null: a new call */
+  resume: string | null;
+}
+
+/** the language-model points: each a `claude -p --output-format stream-json --json-schema` (decision 2) */
+export interface Aufrufe {
+  /** beiSitzung as soon as the init event names the session, before any result */
+  rufe(a: Aufruf, beiSitzung: (sitzung: string) => void): Promise<LaufErgebnis>;
+  /** the account takes calls again after a limit (P20) */
+  kontoFrei(): Promise<boolean>;
+}
+
+export type MergeVersuch = { ok: true; commit: string } | { ok: false; dateien: string[] };
+
+/** scripts of epic/scripts (called, not rebuilt), the adapter's test commands, git and the forge */
+export interface Mechanik {
+  /** worktree.ps1 Up: takes an existing branch again */
+  up(name: string, branch: string, von: string): Promise<{ worktree: string }>;
+  /** worktree.ps1 Down; a dirty worktree stays */
+  down(name: string): Promise<{ schmutzig: boolean }>;
+  /** git branch -d in the epic worktree */
+  branchLoeschen(branch: string): Promise<void>;
+  /** ram.ps1 */
+  ram(): Promise<Ram>;
+  /** the slot (epic/SKILL.md, rule 12): busy while a full stack of the project runs */
+  slot(): Promise<{ belegt: boolean }>;
+  /** test_commands of the adapter, all suites */
+  volllauf(worktree: string): Promise<Testlauf>;
+  /** one red file alone, with the adapter's worker limit: true when green */
+  einzeln(worktree: string, datei: string): Promise<boolean>;
+  /** lint_commands: findings per file */
+  lint(worktree: string): Promise<Record<string, number>>;
+  /** files the package changed against its start */
+  beruehrt(worktree: string): Promise<string[]>;
+  /** the merge commit that brought the package branch into the epic branch; null when it is not there (git merge-base --is-ancestor, git log --merges) */
+  imEpic(branch: string): Promise<string | null>;
+  /** git merge --no-ff in the epic worktree */
+  merge(branch: string): Promise<MergeVersuch>;
+  /** commits a merge whose conflict the conflict call resolved; the merge commit */
+  mergeAbschliessen(): Promise<string>;
+  /** git merge --abort; nothing to do when no merge is in progress (a repeated abort after a stop) */
+  mergeAbbrechen(): Promise<void>;
+  /** git diff --quiet <branch> HEAD: the tree after the merge is the one 4c checked */
+  baumGleich(branch: string): Promise<boolean>;
+  /** git revert -m 1 <commit>; the revert commit */
+  revert(commit: string): Promise<string>;
+  /** graph.ps1: rebuild the code graph after a merge */
+  graph(): Promise<void>;
+  kommentare(ticket: number): Promise<string[]>;
+  kommentar(ticket: number, text: string): Promise<void>;
+  /** sets one status label and takes the other two off (epic/SKILL.md, "Die Statuslabels") */
+  status(ticket: number, label: 'status/in-arbeit' | 'status/blockiert' | 'status/haengt'): Promise<void>;
+  /** Phase 6: push and pull request; the URL of the PR, null without one */
+  abschluss(): Promise<{ pr: string | null }>;
+}
+
+/** the driver protocol (decision 5): FLOTTE-FRAGE and FLOTTE-ENDE out, answers in */
+export interface Leitung {
+  melde(block: string): void;
+  antworten(): { frage: number; antwort: string }[];
+}
+
+export interface Umgebung {
+  aufrufe: Aufrufe;
+  mechanik: Mechanik;
+  leitung: Leitung;
+  /** until the next takt */
+  warte(): Promise<void>;
+  jetzt(): number;
+}
+
+export interface EpicEinstellung {
+  repo: string;
+  epic: number;
+  epicBranch: string;
+  /** where the epic branch comes from: <push_remote>/<basis> */
+  basis: string;
+  /** places of the window, at most 3 */
+  fenster: number;
+  maxRunden: number;
+  konto: string;
+  /** the lock's owner; tests set another pid and liveness */
+  pid?: number;
+  istLebendig?: (pid: number) => boolean;
+}
+
+type MergeErgebnis = { art: 'gemergt' } | { art: 'rot' } | { art: 'konflikt' } | { art: 'inhaltlich'; grund: string };
+
+type Erledigt = { art: 'aufruf'; schluessel: string; rolle: Rolle; r: LaufErgebnis } | { art: 'pruefung'; nr: string; n: Nachpruefung } | { art: 'merge'; nr: string; m: MergeErgebnis };
+
+const SCHNITT = 'schnitt';
+const FORTSETZEN = 'Setze deine Arbeit an der Stelle fort, an der du warst, und gib dein Ergebnis im Schema aus.';
+
+/** Runs one epic until FLOTTE-ENDE. A second program for the same epic is refused (P21). */
+export async function fahreEpic(e: EpicEinstellung, u: Umgebung): Promise<EpicLaufZustand> {
+  const dir = epicDir(e.repo, e.epic);
+  const pid = e.pid ?? process.pid;
+  const sperre = sperren(dir, pid, e.istLebendig ?? lebt);
+  if (!sperre.ok) throw new Error(`flotte epic ${e.epic} läuft schon (PID ${sperre.pid} seit ${sperre.seit}); kein zweites Programm für dasselbe Epic`);
+  try {
+    return await new EpicLauf({ ...e, fenster: Math.min(3, Math.max(1, e.fenster)) }, u, dir).fahre();
+  } finally {
+    entsperren(dir, pid);
+  }
+}
+
+class EpicLauf {
+  readonly z: EpicLaufZustand;
+  private readonly m: Mechanik;
+  private readonly erledigt: Erledigt[] = [];
+  /** calls started whose result is not applied yet */
+  private readonly laufend = new Set<string>();
+  /** the package in the command channel (4c or merge): never two full runs at once */
+  private befehl: string | null = null;
+  private fehler: unknown = null;
+
+  constructor(
+    private readonly e: EpicEinstellung,
+    private readonly u: Umgebung,
+    private readonly dir: string,
+  ) {
+    this.z = liesLauf(dir, e.epic);
+    this.m = u.mechanik;
+  }
+
+  private speichere() {
+    schreibeLauf(this.dir, this.z);
+  }
+
+  private zeit() {
+    return new Date(this.u.jetzt()).toISOString();
+  }
+
+  private ereignis(art: Ereignis['art'], paket: string | null, text: string, rolle?: Rolle) {
+    this.z.ereignisse.push({ takt: this.z.takt, zeit: this.zeit(), paket, art, ...(rolle ? { rolle } : {}), text });
+  }
+
+  private paket(nr: string): Paket {
+    return this.z.schnitt.ergebnis!.pakete.find((p) => p.nr === nr)!;
+  }
+
+  private ticket(nr: string): number {
+    return /^\d+$/.test(nr) ? Number(nr) : this.e.epic;
+  }
+
+  /** a comment only once: the marker says it is there already (decision 7) */
+  private async kommentiere(nr: string, art: string, text: string) {
+    const ticket = this.ticket(nr);
+    const marker = `<!-- flotte-epic:${this.e.epic}:${nr}:${art} -->`;
+    if ((await this.m.kommentare(ticket)).some((k) => k.includes(marker))) return;
+    await this.m.kommentar(ticket, `${text}\n\n${marker}`);
+  }
+
+  /** status labels go to a package's own ticket; a package of a spec without children has none */
+  private async status(nr: string, label: 'status/in-arbeit' | 'status/blockiert' | 'status/haengt') {
+    if (/^\d+$/.test(nr)) await this.m.status(Number(nr), label);
+  }
+
+  async fahre(): Promise<EpicLaufZustand> {
+    const z = this.z;
+    if (z.phase === 'fertig' || z.phase === 'abgebrochen') return z;
+    // Phase 0 and 3: epic worktree and Ausgangszahlen
+    if (!z.epicWorktree) {
+      z.epicWorktree = (await this.m.up(`epic-${this.e.epic}`, this.e.epicBranch, this.e.basis)).worktree;
+      this.speichere();
+    }
+    if (!z.basis) {
+      z.basis = await this.m.volllauf(z.epicWorktree);
+      z.basisLint = await this.m.lint(z.epicWorktree);
+      this.speichere();
+    }
+    if (z.phase === 'ruesten') {
+      z.phase = 'schnitt';
+      this.speichere();
+    }
+    for (;;) {
+      if (this.fehler) throw this.fehler;
+      z.takt++;
+      for (const x of this.erledigt.splice(0)) await this.anwenden(x);
+      await this.antworten();
+      if (z.phase === 'schnitt') await this.schnitt();
+      if (z.phase === 'tor') await this.tor();
+      // schnitt() and tor() may have ended the run
+      if ((z.phase as string) === 'abgebrochen') return z;
+      if (z.phase === 'pakete') {
+        await this.blockiereNachfolger();
+        await this.konto();
+        await this.starte();
+        this.aufrufe();
+        this.befehle();
+        this.startbereitNachtragen();
+        if (Object.values(z.pakete).every(istEnde) && !this.laufend.size && !this.befehl) {
+          await this.abschluss();
+          return z;
+        }
+      }
+      this.speichere();
+      await this.u.warte();
+    }
+  }
+
+  // ---- calls
+
+  private rufe(schluessel: string, stand: AufrufStand, a: Omit<Aufruf, 'auftrag' | 'resume' | 'konto'>, auftrag: () => string) {
+    const resume = stand.sitzung;
+    const text = resume ? (stand.fortsetzen ?? FORTSETZEN) : auftrag();
+    stand.fortsetzen = null;
+    this.laufend.add(schluessel);
+    this.ereignis('aufruf', a.paket, `${a.rolle}${a.agent ? ` (${a.agent})` : ''}, Runde ${a.runde}${resume ? `, --resume ${resume}` : ''}`, a.rolle);
+    this.u.aufrufe
+      .rufe({ ...a, konto: this.e.konto, auftrag: text, resume }, (sitzung) => {
+        stand.sitzung = sitzung;
+        this.speichere();
+      })
+      .then(
+        (r) => this.erledigt.push({ art: 'aufruf', schluessel, rolle: a.rolle, r }),
+        (f) => (this.fehler ??= f),
+      );
+  }
+
+  /**
+   * A call without usable result: permission_denials block, an account limit waits, otherwise one
+   * --resume with the error (P8, P9); after that the call is used up and the caller starts anew.
+   */
+  private fehlschlag(stand: AufrufStand, b: { art: string; fehler: string }, paket: string | null): 'fortsetzen' | 'verbraucht' | 'verweigert' | 'konto' {
+    if (b.art === 'verweigert') return 'verweigert';
+    if (b.art === 'konto') {
+      stand.wartet = 'konto';
+      this.z.konto.gesperrt = true;
+      this.ereignis('konto', paket, `wartet: ${b.fehler}`);
+      return 'konto';
+    }
+    if (stand.resumes === 0 && stand.sitzung) {
+      stand.resumes = 1;
+      stand.fortsetzen =
+        b.art === 'ungueltig'
+          ? `Deine Ausgabe passt nicht zum Schema: ${b.fehler}. Gib dein Ergebnis im Schema aus.`
+          : `Dein Aufruf endete ohne Ergebnis (${b.fehler}). Fahre jeden Befehl im Vordergrund zu Ende und gib dein Ergebnis im Schema aus.`;
+      return 'fortsetzen';
+    }
+    stand.sitzung = null;
+    stand.resumes = 0;
+    stand.fortsetzen = null;
+    return 'verbraucht';
+  }
+
+  private neuerAufruf(p: PaketZustand) {
+    p.sitzung = null;
+    p.resumes = 0;
+    p.fortsetzen = null;
+  }
+
+  /** starts the call of every package and of the cut that has none running (also after a restart: --resume) */
+  private aufrufe() {
+    if (this.z.konto.gesperrt) return;
+    for (const p of Object.values(this.z.pakete)) {
+      if ((p.stufe !== 'implementer' && p.stufe !== 'reviewer') || p.wartet || this.laufend.has(p.nr)) continue;
+      const b = p.stufe === 'implementer' ? IMPLEMENTER[p.klasse] : REVIEWER[p.klasse];
+      this.rufe(p.nr, p, { rolle: p.stufe, paket: p.nr, runde: p.runde, agent: b.agent, modell: b.modell, effort: b.effort, cwd: p.worktree ?? '' }, () => (p.stufe === 'implementer' ? this.implementerAuftrag(p) : this.reviewerAuftrag(p)));
+    }
+    // an open merge conflict: the conflict call in the epic worktree, like any other call (session, --resume, account limit)
+    for (const p of Object.values(this.z.pakete)) {
+      const k = p.konflikt;
+      if (p.stufe !== 'merge' || !k || k.ergebnis || p.wartet || this.laufend.has(p.nr)) continue;
+      const b = IMPLEMENTER[p.klasse];
+      this.rufe(p.nr, p, { rolle: 'konflikt', paket: p.nr, runde: p.runde, agent: null, modell: b.modell, effort: b.effort, cwd: this.z.epicWorktree! }, () => `Merge-Konflikt im Epic-Worktree ${this.z.epicWorktree} beim Merge von ${p.branch}, Dateien: ${k.dateien.join(', ')}. Löse ihn nur, wenn er mechanisch ist (getrennte Zeilen, Importlisten, benachbarte Einträge); alles Inhaltliche meldest du als inhaltlich. Schema konflikt (version 1).`);
+    }
+  }
+
+  private async schnitt() {
+    const s = this.z.schnitt;
+    if (s.wartet) await this.konto();
+    if (s.wartet || this.z.konto.gesperrt || this.laufend.has(SCHNITT)) return;
+    this.rufe(SCHNITT, s, { rolle: 'schnitt', paket: null, runde: 1, agent: null, modell: 'opus', effort: 'medium', cwd: this.z.epicWorktree! }, () => `Schnitt und Vorab-Tor für Epic #${this.e.epic} (epic/SKILL.md, Phase 1 und 2). Epic-Worktree: ${this.z.epicWorktree}. Gib das Ergebnis im Schema schnitt (version 1) aus.`);
+  }
+
+  // ---- applying results
+
+  private async anwenden(x: Erledigt) {
+    if (x.art === 'aufruf') {
+      this.laufend.delete(x.schluessel);
+      if (x.schluessel === SCHNITT) return this.schnittZurueck(x.r);
+      const p = this.z.pakete[x.schluessel];
+      if (!p || p.stufe !== (x.rolle === 'konflikt' ? 'merge' : x.rolle)) return;
+      p.sitzung = x.r.sitzung ?? p.sitzung;
+      if (x.rolle === 'konflikt') return this.konfliktZurueck(p, x.r);
+      return x.rolle === 'implementer' ? this.implementerZurueck(p, x.r) : this.reviewerZurueck(p, x.r);
+    }
+    this.befehl = null;
+    const p = this.z.pakete[x.nr];
+    if (x.art === 'pruefung') return this.pruefungZurueck(p, x.n);
+    return this.mergeZurueck(p, x.m);
+  }
+
+  private async schnittZurueck(r: LaufErgebnis) {
+    const s = this.z.schnitt;
+    s.sitzung = r.sitzung ?? s.sitzung;
+    const b = bewerteAufruf('schnitt', r);
+    if (b.art !== 'ok') {
+      const folge = this.fehlschlag(s, b, null);
+      if (folge === 'fortsetzen' || folge === 'konto') return this.speichere();
+      return this.abbrechen(`Schnitt ohne gültiges Ergebnis: ${b.fehler}`);
+    }
+    s.ergebnis = b.daten;
+    s.sitzung = null;
+    s.resumes = 0;
+    for (const p of b.daten.pakete) this.z.pakete[p.nr] ??= neuesPaket(p);
+    const fragen: BlockFrage[] = [];
+    b.daten.tor.forEach((t, i) => {
+      const nr = this.z.fragen.length + 1;
+      this.z.fragen.push({ nr, art: 'tor', punkt: i, betrifft: t.betrifft, antwort: null, abgelehnt: false, erledigt: false });
+      fragen.push({ nr, frage: t.frage, betrifft: t.betrifft, lage: t.lage, optionen: t.optionen.map((o) => o.text), empfehlung: t.empfehlung, grund: t.grund, quelle: t.quelle });
+    });
+    this.z.phase = b.daten.tor.some((t) => t.betrifft === 'Lauf') ? 'tor' : 'pakete';
+    if (fragen.length) {
+      this.ereignis('frage', null, `Vorab-Tor: ${fragen.length} Punkte`);
+      this.u.leitung.melde(frageBlock(this.e.epic, 'tor', fragen, `Vorab-Tor, ${b.daten.pakete.length} Pakete geschnitten`));
+    }
+    this.speichere();
+  }
+
+  private async implementerZurueck(p: PaketZustand, r: LaufErgebnis) {
+    const b = bewerteAufruf('implementer', r);
+    if (b.art === 'ok') {
+      p.bericht = b.daten;
+      p.zeiten.implementerZurueck = this.zeit();
+      p.stufe = 'reviewer';
+      p.uebernehmen = false;
+      p.befund = [];
+      this.neuerAufruf(p);
+      this.ereignis('zurueck', p.nr, `Implementer zurück, Runde ${p.runde}`, 'implementer');
+      return this.speichere();
+    }
+    const folge = this.fehlschlag(p, b, p.nr);
+    if (folge === 'verweigert') return this.zuruecklassen(p, `Implementer: ${b.fehler}`);
+    if (folge === 'verbraucht') return this.neueRunde(p, [`Implementer ohne gültigen Bericht: ${b.fehler}`], false, 'implementer', true);
+    this.speichere();
+  }
+
+  private async reviewerZurueck(p: PaketZustand, r: LaufErgebnis) {
+    const b = bewerteAufruf('reviewer', r);
+    if (b.art === 'ok') {
+      p.review = b.daten;
+      p.zeiten.reviewerZurueck = this.zeit();
+      this.neuerAufruf(p);
+      this.ereignis('zurueck', p.nr, `Reviewer zurück, Runde ${p.runde}, ${b.daten.befunde.length} Befunde${b.daten.strukturell ? ', strukturell' : ''}`, 'reviewer');
+      // only a Muss finding starts a round (epic/SKILL.md, 4b); a structural one a rung higher
+      const muss = b.daten.befunde.filter((f) => f.gruppe === 'muss');
+      if (!muss.length) {
+        p.stufe = 'pruefung';
+        return this.speichere();
+      }
+      return this.neueRunde(p, muss.map((f) => `${f.fundstelle}: ${f.text}`), b.daten.strukturell, 'implementer', false);
+    }
+    const folge = this.fehlschlag(p, b, p.nr);
+    if (folge === 'verweigert') return this.zuruecklassen(p, `Reviewer: ${b.fehler}`);
+    if (folge === 'verbraucht') return this.neueRunde(p, [`Reviewer ohne gültigen Bericht: ${b.fehler}`], false, 'reviewer', false);
+    this.speichere();
+  }
+
+  /** the next round, or left behind after max_rounds (P5, P6, P7) */
+  private async neueRunde(p: PaketZustand, befund: string[], strukturell: boolean, rolle: 'implementer' | 'reviewer', uebernehmen: boolean) {
+    if (p.runde >= this.e.maxRunden) return this.zuruecklassen(p, `max_rounds (${this.e.maxRunden}) erreicht; letzter Befund: ${befund.join('; ')}`);
+    p.runde++;
+    p.stufe = rolle;
+    p.befund = rolle === 'implementer' ? befund : p.befund;
+    p.uebernehmen = uebernehmen;
+    this.neuerAufruf(p);
+    if (strukturell && hoeher(p.klasse) !== p.klasse) {
+      const von = p.klasse;
+      p.klasse = hoeher(von);
+      const grund = befund.join('; ');
+      p.eskalationen.push({ runde: p.runde, von, nach: p.klasse, grund });
+      this.ereignis('eskalation', p.nr, `${von} → ${p.klasse}: ${grund}`);
+      this.speichere();
+      await this.kommentiere(p.nr, `eskalation-${p.runde}`, `**Eskalation** Paket ${p.nr}, Runde ${p.runde}: ${von} → ${p.klasse}, der Reviewer folgt (${REVIEWER[p.klasse].agent}). Die Paketklasse war falsch geschätzt.\nBefund: ${grund}`);
+    }
+    this.speichere();
+  }
+
+  private async pruefungZurueck(p: PaketZustand, n: Nachpruefung) {
+    if (p.stufe !== 'pruefung') return;
+    for (const f of n.lastflakes) {
+      p.lastflakes.push(f);
+      this.ereignis('lastflake', p.nr, f);
+    }
+    if (!n.ok) return this.neueRunde(p, n.befunde, false, 'implementer', false);
+    p.stufe = 'merge';
+    p.zeiten.abgenommen = this.zeit();
+    this.ereignis('abgenommen', p.nr, n.lastflakes.length ? `abgenommen, Lastflake vermerkt` : 'abgenommen');
+    this.speichere();
+  }
+
+  /**
+   * The verdict of the conflict call; the merge job finishes or aborts the merge. A call without a
+   * usable result is resumed once, an account limit waits (P20); after that, or on denials, the
+   * conflict counts as not resolved.
+   */
+  private async konfliktZurueck(p: PaketZustand, r: LaufErgebnis) {
+    const k = p.konflikt!;
+    const b = bewerteAufruf('konflikt', r);
+    if (b.art === 'ok') {
+      k.ergebnis = b.daten.ergebnis;
+      k.begruendung = b.daten.begruendung;
+      this.neuerAufruf(p);
+      this.ereignis('zurueck', p.nr, `Konflikt-Aufruf zurück: ${k.ergebnis}`, 'konflikt');
+      return this.speichere();
+    }
+    const folge = this.fehlschlag(p, b, p.nr);
+    if (folge === 'verweigert' || folge === 'verbraucht') {
+      k.ergebnis = 'inhaltlich';
+      k.begruendung = `Konflikt-Aufruf ohne gültiges Ergebnis: ${b.fehler}`;
+      this.neuerAufruf(p);
+    }
+    this.speichere();
+  }
+
+  private async mergeZurueck(p: PaketZustand, m: MergeErgebnis) {
+    if (p.stufe !== 'merge') return;
+    // the conflict call runs as a call of its own; the state already holds the conflict
+    if (m.art === 'konflikt') return this.speichere();
+    if (m.art === 'rot') return this.zuruecklassen(p, `Epic-Branch nach dem Merge rot, zurückgenommen mit Revert ${p.revertCommit}`);
+    if (m.art === 'inhaltlich') return this.zuruecklassen(p, `Merge-Konflikt, inhaltlich: ${m.grund}`);
+    p.stufe = 'fertig';
+    p.zeiten.gemergt = this.zeit();
+    p.zeiten.ende = p.zeiten.gemergt;
+    this.ereignis('gemergt', p.nr, `${p.branch} gemergt (${p.mergeCommit})`);
+    this.speichere();
+    const z = p.zeiten;
+    await this.kommentiere(
+      p.nr,
+      'gemergt',
+      [
+        `**Gemergt** Paket ${p.nr}: ${p.branch} im Epic-Branch ${this.e.epicBranch}, Merge-Commit ${p.mergeCommit}.`,
+        ...(p.lastflakes.length ? [`Lastflakes: ${p.lastflakes.join('; ')}`] : []),
+        ...(p.eskalationen.length ? [`Eskalationen: ${p.eskalationen.map((x) => `Runde ${x.runde} ${x.von} → ${x.nach}`).join('; ')}`] : []),
+        `Zeiten: Start ${z.start}, Implementer zurück ${z.implementerZurueck}, Reviewer zurück ${z.reviewerZurueck}, abgenommen ${z.abgenommen}, gemergt ${z.gemergt}`,
+      ].join('\n'),
+    );
+  }
+
+  // ---- leaving behind and blocking
+
+  /** epic/SKILL.md, "Zurücklassen": the branch stays, Down, comment, status/haengt; the run goes on */
+  private async zuruecklassen(p: PaketZustand, grund: string) {
+    if (istEnde(p)) return;
+    if (p.worktree) {
+      const d = await this.m.down(p.nr);
+      if (d.schmutzig) grund += '; der Worktree ist schmutzig und bleibt stehen';
+    }
+    await this.kommentiere(p.nr, 'zurueckgelassen', `**Zurückgelassen** Paket ${p.nr}: ${grund}. Der Branch ${p.branch} bleibt stehen.${p.revertCommit ? ` Revert-Commit ${p.revertCommit}; zurückholen = Revert des Reverts.` : ''}`);
+    await this.status(p.nr, 'status/haengt');
+    p.stufe = 'zurueckgelassen';
+    p.grund = grund;
+    p.wartet = null;
+    p.zeiten.ende = this.zeit();
+    this.neuerAufruf(p);
+    this.ereignis('zurueckgelassen', p.nr, grund);
+    this.speichere();
+  }
+
+  /** every successor of a package left behind or blocked: blocked, commented, status/blocked (P7) */
+  private async blockiereNachfolger() {
+    for (const q of Object.values(this.z.pakete)) {
+      if (q.stufe !== 'zurueckgelassen' && q.stufe !== 'blockiert') continue;
+      for (const n of alleNachfolger(this.z, q.nr)) {
+        const s = this.z.pakete[n];
+        if (!s || !['wartend', 'startbereit'].includes(s.stufe)) continue;
+        const durch = q.stufe === 'blockiert' ? (q.blockiertDurch ?? q.nr) : q.nr;
+        await this.kommentiere(n, 'blockiert', `**Blockiert** Paket ${n}: es hängt an Paket ${durch}, das zurückgelassen wurde.`);
+        await this.status(n, 'status/blockiert');
+        s.stufe = 'blockiert';
+        s.blockiertDurch = durch;
+        s.grund = `blockiert durch ${durch}`;
+        s.zeiten.ende = this.zeit();
+        this.ereignis('blockiert', n, `blockiert durch ${durch}`);
+        this.speichere();
+      }
+    }
+  }
+
+  // ---- the window
+
+  /** RAM brake and slot before starting (epic/SKILL.md, "Die RAM-Bremse", rule 12): hold or a busy slot starts nothing; ok, a release or a free slot goes on (P19) */
+  private async starte() {
+    if (this.z.konto.gesperrt) return;
+    const kandidaten = wahl(this.z, this.e.fenster);
+    if (!kandidaten.length) return;
+    const ram = await this.m.ram();
+    const hold = ram.level === 'hold' || Boolean(ram.fehler);
+    let starts = kandidaten;
+    if (hold && !this.z.ram.freigabe) {
+      if (!this.z.ram.halt) {
+        this.z.ram.halt = true;
+        this.ereignis('ram', null, `hold${ram.percent_used !== null ? ` bei ${ram.percent_used} %` : ''}${ram.fehler ? `: ${ram.fehler}` : ''}; kein neuer Start, laufende Pakete laufen weiter`);
+      }
+      if (this.z.ram.frage === null) {
+        const nr = this.z.fragen.length + 1;
+        this.z.fragen.push({ nr, art: 'ram', punkt: null, betrifft: kandidaten, antwort: null, abgelehnt: false, erledigt: false });
+        this.z.ram.frage = nr;
+        this.u.leitung.melde(
+          frageBlock(this.e.epic, 'ram', [{ nr, frage: 'Die RAM-Bremse steht auf hold. Warten oder trotzdem starten?', betrifft: kandidaten, lage: ram.fehler ? `Messung fehlgeschlagen: ${ram.fehler}` : `ram.ps1 meldet hold (${ram.percent_used ?? '?'} % belegt); laufende Pakete laufen weiter`, optionen: ['warten bis ok', 'trotz hold starten (gilt für den nächsten Start)'], empfehlung: 'A', grund: 'ein voller Speicher reißt alle laufenden Pakete mit', quelle: 'epic/SKILL.md, Die RAM-Bremse' }], 'RAM-Bremse hold, kein neuer Start'),
+        );
+      }
+      this.speichere();
+      return;
+    }
+    // the slot is busy (a full stack of the project runs): wait like hold, running packages go on (P19)
+    const slot = await this.m.slot();
+    if (slot.belegt !== this.z.slot.belegt) {
+      this.z.slot.belegt = slot.belegt;
+      this.ereignis('slot', null, slot.belegt ? 'belegt: ein voller Stack des Projekts läuft; kein neuer Start, laufende Pakete laufen weiter' : 'frei, Starts gehen weiter');
+      this.speichere();
+    }
+    if (slot.belegt) return;
+    if (hold) {
+      // a release counts for the next start
+      starts = kandidaten.slice(0, 1);
+      this.z.ram.freigabe = false;
+    } else if (this.z.ram.halt) {
+      this.z.ram.halt = false;
+      const f = this.z.fragen.find((x) => x.nr === this.z.ram.frage);
+      if (f && f.antwort === null) f.erledigt = true;
+      this.z.ram.frage = null;
+      this.ereignis('ram', null, `${ram.level}, Starts gehen weiter`);
+    }
+    // warn starts; the reading stands with the start (epic/SKILL.md, "Die RAM-Bremse")
+    if (ram.level === 'warn') this.ereignis('ram', null, `warn bei ${ram.percent_used ?? '?'} %, Start: ${starts.join(', ')}`);
+    for (const nr of starts) await this.starteEines(this.z.pakete[nr]);
+  }
+
+  private async starteEines(p: PaketZustand) {
+    const { worktree } = await this.m.up(p.nr, p.branch, this.e.epicBranch);
+    await this.status(p.nr, 'status/in-arbeit');
+    p.worktree = worktree;
+    p.stufe = 'implementer';
+    p.zeiten.start = this.zeit();
+    this.ereignis('start', p.nr, `gestartet auf ${this.e.epicBranch}, Klasse ${p.klasse}`);
+    this.speichere();
+  }
+
+  private startbereitNachtragen() {
+    const laufend = Object.values(this.z.pakete).filter(laeuft).map((p) => p.nr);
+    const park = geparkt(this.z);
+    for (const p of Object.values(this.z.pakete)) {
+      if (p.stufe !== 'wartend' && p.stufe !== 'startbereit') continue;
+      p.stufe = startbereit(this.z, p.nr, laufend, park) ? 'startbereit' : 'wartend';
+    }
+  }
+
+  private async konto() {
+    if (!this.z.konto.gesperrt || !(await this.u.aufrufe.kontoFrei())) return;
+    this.z.konto.gesperrt = false;
+    for (const s of [this.z.schnitt, ...Object.values(this.z.pakete)]) {
+      if (s.wartet !== 'konto') continue;
+      s.wartet = null;
+      s.fortsetzen = 'Das Kontolimit ist vorbei. Setze an derselben Stelle fort und gib dein Ergebnis im Schema aus.';
+    }
+    this.ereignis('konto', null, 'Konto wieder frei');
+    this.speichere();
+  }
+
+  // ---- the command channel: 4c and the merge, one after the other
+
+  private befehle() {
+    if (this.befehl) return;
+    const z = this.z;
+    // an open conflict leaves the epic worktree mid-merge: nothing else goes there until its verdict
+    if (Object.values(z.pakete).some((p) => p.stufe === 'merge' && p.konflikt && !p.konflikt.ergebnis)) return;
+    const reihe = (stufe: 'merge' | 'pruefung', zeit: 'abgenommen' | 'reviewerZurueck') =>
+      Object.values(z.pakete)
+        .filter((p) => p.stufe === stufe)
+        .sort((a, b) => (a.zeiten[zeit] ?? '').localeCompare(b.zeiten[zeit] ?? '') || a.nr.localeCompare(b.nr));
+    // a merge frees a place: it goes before a verification
+    const p = reihe('merge', 'abgenommen')[0] ?? reihe('pruefung', 'reviewerZurueck')[0];
+    if (!p) return;
+    this.befehl = p.nr;
+    const job: Promise<Erledigt> = p.stufe === 'pruefung' ? this.pruefe(p).then((n) => ({ art: 'pruefung', nr: p.nr, n })) : this.merge(p).then((m) => ({ art: 'merge', nr: p.nr, m }));
+    job.then(
+      (x) => this.erledigt.push(x),
+      (f) => (this.fehler ??= f),
+    );
+  }
+
+  /** 4c as code (decision 6): full run, Lastflake rule, counts and lint against phase 0 */
+  private async pruefe(p: PaketZustand): Promise<Nachpruefung> {
+    const wt = p.worktree!;
+    const lauf = await this.m.volllauf(wt);
+    const beruehrt = await this.m.beruehrt(wt);
+    const einzeln: Record<string, boolean> = {};
+    for (const d of flakeKandidaten(lauf, beruehrt)) einzeln[d] = await this.m.einzeln(wt, d);
+    const lint = await this.m.lint(wt);
+    return nachpruefung({ basis: this.z.basis!, lauf, beruehrt, einzeln, basisLint: this.z.basisLint ?? {}, lint });
+  }
+
+  /**
+   * Phase 5: merge only when the branch is not in the epic branch yet; then its merge commit is taken
+   * over (P17, also after a stop before the state was written). A conflict adds an edge and ends the
+   * job: the conflict call runs as a call of its own, and the next merge job finishes or aborts the
+   * merge with its verdict. Tests on the epic branch unless the tree is the one 4c checked; red is
+   * reverted with -m 1 (P13); then Down, branch, graph.
+   */
+  private async merge(p: PaketZustand): Promise<MergeErgebnis> {
+    if (p.revertCommit) return { art: 'rot' };
+    if (!p.mergeCommit) {
+      const drin = await this.m.imEpic(p.branch);
+      if (drin) p.mergeCommit = drin;
+      else if (p.konflikt?.ergebnis === 'inhaltlich') {
+        await this.m.mergeAbbrechen();
+        return { art: 'inhaltlich', grund: p.konflikt.begruendung };
+      } else if (p.konflikt?.ergebnis === 'geloest') {
+        p.mergeCommit = await this.m.mergeAbschliessen();
+      } else {
+        const v = await this.m.merge(p.branch);
+        if (!v.ok) {
+          p.konflikt = { dateien: v.dateien, ergebnis: null, begruendung: '' };
+          this.kanteNachtragen(p, v.dateien);
+          return { art: 'konflikt' };
+        }
+        p.mergeCommit = v.commit;
+      }
+      this.speichere();
+    }
+    if (!p.epicGeprueft) {
+      if (p.konflikt?.ergebnis === 'geloest' || !(await this.m.baumGleich(p.branch))) {
+        const t = await this.m.volllauf(this.z.epicWorktree!);
+        if (rot(t)) {
+          p.revertCommit = await this.m.revert(p.mergeCommit);
+          this.speichere();
+          return { art: 'rot' };
+        }
+      }
+      p.epicGeprueft = true;
+      this.speichere();
+    }
+    await this.m.down(p.nr);
+    await this.m.branchLoeschen(p.branch);
+    await this.m.graph();
+    return { art: 'gemergt' };
+  }
+
+  /** a conflict is a statement about the graph: the packages merged since this one started collide with it */
+  private kanteNachtragen(p: PaketZustand, dateien: string[]) {
+    // merged after this package started: its worktree did not contain them
+    const start = this.z.ereignisse.findIndex((e) => e.paket === p.nr && e.art === 'start');
+    const partner = Object.values(this.z.pakete).filter((q) => q.nr !== p.nr && q.stufe === 'fertig' && this.z.ereignisse.findIndex((e) => e.paket === q.nr && e.art === 'gemergt') > start);
+    for (const q of partner) if (!this.z.kanten.some((k) => (k.a === q.nr && k.b === p.nr) || (k.a === p.nr && k.b === q.nr))) this.z.kanten.push({ a: q.nr, b: p.nr, art: 'kollision', grund: `Merge-Konflikt in ${dateien.join(', ')}` });
+    this.ereignis('kante', p.nr, `Merge-Konflikt in ${dateien.join(', ')}; Kollisionskante nachgetragen zu ${partner.map((q) => q.nr).join(', ') || 'keinem bekannten Paket'}`);
+    this.speichere();
+  }
+
+  // ---- questions and answers
+
+  private async antworten() {
+    for (const a of this.u.leitung.antworten()) {
+      const f = this.z.fragen.find((x) => x.nr === a.frage);
+      if (!f || f.antwort !== null || f.erledigt) continue;
+      f.antwort = a.antwort;
+      const buchstabe = buchstabenAus(a.antwort)?.split(', ')[0] ?? null;
+      this.ereignis('antwort', null, `Frage ${f.nr}: ${a.antwort}`);
+      if (f.art === 'ram') {
+        if (buchstabe === 'B') this.z.ram.freigabe = true;
+        // a release asks again at the next hold; waiting keeps the question until the reading is ok
+        if (buchstabe === 'B' && this.z.ram.frage === f.nr) this.z.ram.frage = null;
+        this.speichere();
+        continue;
+      }
+      const punkt = this.z.schnitt.ergebnis!.tor[f.punkt!];
+      const option = buchstabe ? punkt.optionen[buchstabe.charCodeAt(0) - 65] : undefined;
+      f.abgelehnt = Boolean(option?.abbruch);
+      this.speichere();
+      if (f.abgelehnt && Array.isArray(f.betrifft)) for (const nr of f.betrifft) if (this.z.pakete[nr]) await this.zuruecklassen(this.z.pakete[nr], `am Vorab-Tor abgelehnt: ${punkt.frage} → ${a.antwort}`);
+    }
+  }
+
+  /** a gate point about the whole run holds every start; rejected: nothing starts, the run ends (P22) */
+  private async tor() {
+    const lauf = this.z.fragen.filter((f) => f.art === 'tor' && f.betrifft === 'Lauf');
+    const nein = lauf.find((f) => f.abgelehnt);
+    if (nein) {
+      const punkt = this.z.schnitt.ergebnis!.tor[nein.punkt!];
+      return this.abbrechen(`Vorab-Tor abgelehnt: ${punkt.frage} → ${nein.antwort}. Kein Paket gestartet.`);
+    }
+    if (lauf.every((f) => f.antwort !== null)) {
+      this.z.phase = 'pakete';
+      this.speichere();
+    }
+  }
+
+  // ---- end
+
+  private async abbrechen(grund: string) {
+    await this.m.down(`epic-${this.e.epic}`);
+    this.z.phase = 'abgebrochen';
+    this.z.ende = endeBlock(this.e.epic, null, grund, `- ${grund} Der Epic-Worktree ist abgeräumt, der Epic-Branch ${this.e.epicBranch} bleibt.`);
+    this.ereignis('ende', null, grund);
+    this.speichere();
+    this.u.leitung.melde(this.z.ende);
+  }
+
+  private async abschluss() {
+    const pakete = Object.values(this.z.pakete);
+    const { pr } = await this.m.abschluss();
+    const anzahl = (s: string) => pakete.filter((p) => p.stufe === s).length;
+    const offen = [
+      ...pakete.filter((p) => p.stufe === 'zurueckgelassen').map((p) => `- Paket ${p.nr} zurückgelassen: ${p.grund} (Branch ${p.branch})`),
+      ...pakete.filter((p) => p.stufe === 'blockiert').map((p) => `- Paket ${p.nr} blockiert durch ${p.blockiertDurch}`),
+      ...pakete.flatMap((p) => p.eskalationen.map((x) => `- Eskalation Paket ${p.nr}, Runde ${x.runde}: ${x.von} → ${x.nach} (${x.grund})`)),
+      ...this.z.kanten.map((k) => `- Kante nachgetragen: ${k.a} – ${k.b} (${k.grund})`),
+      ...pakete.flatMap((p) => p.lastflakes.map((f) => `- Lastflake in Paket ${p.nr}: ${f}`)),
+    ].join('\n');
+    this.z.phase = 'fertig';
+    this.z.ende = endeBlock(this.e.epic, pr, `Epic #${this.e.epic}: ${anzahl('fertig')} Pakete gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert.`, offen);
+    this.ereignis('ende', null, `${anzahl('fertig')} gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert`);
+    this.speichere();
+    this.u.leitung.melde(this.z.ende);
+  }
+
+  // ---- orders (stage 3 writes the prompts; here the fields the state machine owns)
+
+  private torAntworten(nr: string): string[] {
+    return this.z.fragen
+      .filter((f) => f.art === 'tor' && f.antwort !== null && (f.betrifft === 'Lauf' || f.betrifft.includes(nr)))
+      .map((f) => `${this.z.schnitt.ergebnis!.tor[f.punkt!].frage} → ${f.antwort}`);
+  }
+
+  private implementerAuftrag(p: PaketZustand): string {
+    const k = this.paket(p.nr);
+    const b = IMPLEMENTER[p.klasse];
+    const vorgaenger = k.nach.map((v) => this.z.pakete[v]?.review?.schnittstelle).filter(Boolean);
+    return [
+      `Implementer (${b.agent}) für Paket ${p.nr} „${k.titel}“ des Epics #${this.e.epic}, Runde ${p.runde}, Paketklasse ${p.klasse}.`,
+      `Worktree: ${p.worktree}`,
+      `Abnahmeliste:\n${k.abnahme.map((a) => `- ${a}`).join('\n')}`,
+      ...(k.decisions.length ? [`Implementation Decisions:\n${k.decisions.map((d) => `- ${d}`).join('\n')}`] : []),
+      `Ausgangszahlen: ${(this.z.basis ?? []).map((s) => `${s.name} ${s.tests} Tests in ${s.dateien} Dateien`).join(', ')}`,
+      ...(p.uebernehmen ? ['Ein früherer Aufruf endete ohne gültigen Bericht: Übernimm den Stand im Worktree und arbeite von dort weiter.'] : []),
+      ...(p.befund.length ? [`Befund der letzten Runde:\n${p.befund.map((x) => `- ${x}`).join('\n')}`] : []),
+      ...this.torAntworten(p.nr).map((a) => `Am Vorab-Tor entschieden: ${a}`),
+      ...vorgaenger.map((s) => `Schnittstelle des Vorgängers (Reviewer, wörtlich):\n${s}`),
+      'Gib dein Ergebnis im Schema implementer (version 1) aus.',
+    ].join('\n\n');
+  }
+
+  private reviewerAuftrag(p: PaketZustand): string {
+    const k = this.paket(p.nr);
+    const b = REVIEWER[p.klasse];
+    return [
+      `Reviewer (${b.agent}) für Paket ${p.nr} „${k.titel}“ des Epics #${this.e.epic}, Runde ${p.runde}, Paketklasse ${p.klasse}.`,
+      `Diff: git -C ${p.worktree} diff HEAD`,
+      `Neue Dateien, direkt lesen: ${p.bericht?.neueDateien.join(', ') || 'keine'}`,
+      `Abnahmeliste:\n${k.abnahme.map((a) => `- ${a}`).join('\n')}`,
+      `Bericht des Implementers:\n${JSON.stringify(p.bericht)}`,
+      'Kein Volllauf. Gib dein Ergebnis im Schema reviewer (version 1) aus.',
+    ].join('\n\n');
+  }
+}
