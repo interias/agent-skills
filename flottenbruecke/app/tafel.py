@@ -2,7 +2,11 @@
 # 1 "Braucht dich": open questions and blocked epics, sorted by the cost of waiting;
 # 2 "Unterwegs": running epics, the merge queue, the ready ones as one line;
 # 3 "Erledigt heute": merged epics, the admiral's decisions, the person's own answers and actions.
-# Above them the accounts with their usage, RAM and disk per machine; below them the ticker.
+# Each epic not merged carries its decisions (#52): the person's always, the admiral's and the run's
+# only when influential, revocable until the merge.
+# Above them the accounts with their usage, RAM and disk per machine; below them the ticker. Beside
+# them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
+# The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`).
 
 import re
 from datetime import datetime, timedelta
@@ -11,6 +15,12 @@ from zoneinfo import ZoneInfo
 HERKUNFT = 'Mensch über die Brücke'
 HALT = ('blockiert', 'abgebrochen')
 FERTIG = ('gemergt', 'fertig')
+# the order of the open epics on the Sternenkarte: what holds the person first, then what runs, then the backlog
+# #51: a package that runs longer than LANG_FAKTOR times the median of the project's finished packages, from LANG_AB of them
+LANG_FAKTOR = 1.5
+LANG_AB = 3
+VON = ('mensch', 'admiral', 'lauf')
+KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nacharbeit': 2, 'pr': 3, 'wartend': 4}
 
 
 def zeit(text: str | None) -> datetime | None:
@@ -36,6 +46,37 @@ def empfohlen(f: dict) -> list[str]:
     return wahl if f.get('mehrfach') else wahl[:1]
 
 
+def schwelle_lang(epics: list[dict]) -> float | None:
+    """Seconds above which a running package counts as "longer than usual": 1.5 times the median duration
+    (first seen working to merged) of the finished packages of this project; None below three of them.
+    It lives here, not in the driver: the bridge sees every epic of the project and its own clock, and
+    it holds for reports of older drivers too."""
+    dauern = sorted(
+        (e - b).total_seconds()
+        for pk in (p for ep in epics for p in ep.get('pakete', []) if p.get('stand') == 'fertig')
+        if (b := zeit(pk.get('beginn'))) and (e := zeit(pk.get('ende'))) and e >= b
+    )
+    if len(dauern) < LANG_AB:
+        return None
+    n = len(dauern)
+    return LANG_FAKTOR * (dauern[n // 2] if n % 2 else (dauern[n // 2 - 1] + dauern[n // 2]) / 2)
+
+
+def _pakete(pakete: list[dict], url: str | None, schwelle: float | None, jetzt: datetime) -> list[dict]:
+    def lang(pk: dict) -> bool:
+        b = zeit(pk.get('beginn'))
+        return schwelle is not None and pk.get('stand') == 'laeuft' and b is not None and (jetzt - b).total_seconds() > schwelle
+
+    return [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None, 'lang': lang(pk)} for pk in pakete]
+
+
+def _von(d: dict) -> str:
+    """Who decided: the driver says so since #52; an older one is read from herkunft."""
+    if d.get('von') in VON:
+        return d['von']
+    return 'mensch' if (d.get('herkunft') or '').startswith('Mensch') else 'admiral'
+
+
 def _antwort(a: dict | None) -> dict | None:
     return None if a is None else {'option': a['option'], 'text': a['text'] or None, 'zeit': a['zeit'], 'abgeholt': bool(a['abgeholt']), 'quittiert': bool(a['quittiert'])}
 
@@ -44,12 +85,13 @@ def _handlung(h: dict | None) -> dict | None:
     return None if h is None else {'id': h['id'], 'art': h['art'], 'text': h['text'], 'zeit': h['zeit'], 'abgeholt': bool(h['abgeholt']), 'quittiert': bool(h['quittiert'])}
 
 
-def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None) -> dict:
+def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None) -> dict:
     heute = jetzt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     handlungen = handlungen or []
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
     liste, rechner, konten = [], {}, {}
+    sitzungen = {}
 
     for p in projekte:
         b, forge = p['bericht'], p['forge']
@@ -67,7 +109,12 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         for k in b.get('konten', []):
             alt = konten.get(k['konto'])
             if alt is None or alt['empfangen'] < p['empfangen']:
-                konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'alterMin': k.get('alterMin'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
+                konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'alterMin': k.get('alterMin'), 'grund': k.get('grund'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
+        # the sessions of a silent project are old: only live reports count, the newest one wins a session
+        for s in b.get('sitzungen', []) if not veraltet else []:
+            schluessel = (s['konto'], s['projekt'], s['name'], s['seit'])
+            if schluessel not in sitzungen or sitzungen[schluessel][0] < p['empfangen']:
+                sitzungen[schluessel] = (p['empfangen'], s)
         for e in b.get('ereignisse', []):
             ereignisse.append({'zeit': e['zeit'], 'forge': forge, 'kurz': kurz, 'epic': e.get('epic'), 'text': e['text']})
 
@@ -76,6 +123,28 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             if h['forge'] == forge and not h['quittiert']:
                 offen_h[(h['epic'], h['art'] if h['art'] == 'widerruf' else 'halt', h['nr'], h['seit'])] = h
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
+        schwelle = schwelle_lang(b.get('epics', []))
+        # #52: the decisions of each epic not merged, newest first; the rest stays in the logbook and at the issues
+        entscheidungen: dict[int, list[dict]] = {}
+        for d in b.get('entscheidungen', []):
+            stufe = epics.get(d['epic'], {}).get('stufe')
+            von = _von(d)
+            t = zeit(d.get('zeit'))
+            if stufe is None or stufe in FERTIG or not t or not (von == 'mensch' or d.get('einflussreich')):
+                continue
+            entscheidungen.setdefault(d['epic'], []).append({
+                'id': f"entscheidung:{forge}#{d['epic']}#{d['nr']}#{d['zeit']}",
+                'forge': forge,
+                'epic': d['epic'],
+                'zeit': t.isoformat(),
+                'seit': d['zeit'],
+                **{k: d.get(k, v) for k, v in [('nr', 0), ('frage', ''), ('antwort', ''), ('herkunft', ''), ('grund', ''), ('einflussreich', False), ('widerrufen', None)]},
+                'von': von,
+                'widerrufbar': not d.get('widerrufen'),
+                'handlung': _handlung(offen_h.get((d['epic'], 'widerruf', d['nr'], d['zeit']))),
+            })
+        for liste_e in entscheidungen.values():
+            liste_e.sort(key=lambda x: x['zeit'], reverse=True)
         basis = lambda nr: {'forge': forge, 'repo': kurz, 'epic': nr, 'titel': epics.get(nr, {}).get('titel', ''), 'konto': epics.get(nr, {}).get('konto'), 'issueUrl': f'{url}/issues/{nr}' if url else None, 'aktiv': aktiv}
 
         # ---- level 1: questions
@@ -113,10 +182,13 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
                 'notiz': ep.get('notiz', ''),
                 'geparkt': ep.get('geparkt', []),
-                'pakete': [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None} for pk in ep.get('pakete', [])],
+                'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
+                'neustarts': ep.get('neustarts'),
+                'plaetze': ep.get('plaetze'),
                 'schritt': ep.get('schritt'),
                 'schrittZeit': ep.get('schrittZeit'),
                 'gestartetAm': ep.get('gestartetAm'),
+                'entscheidungen': entscheidungen.get(nr, []),
             }
             if stufe in HALT and ep.get('aufgegebenAm'):
                 t = zeit(ep['aufgegebenAm'])
@@ -142,7 +214,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     erledigt.append({**karte, 'art': 'gemergt', 'zeit': t.isoformat()})
                 continue
             if stufe == 'wartend':
-                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete']})
+                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen']})
                 continue
             if stufe == 'pr':
                 rein = zeit(ep.get('schlangeSeit')) or seit_stufe
@@ -151,10 +223,39 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             # laeuft, nacharbeit, frage: a run; one that waits for the person entirely has no life sign
             laeufe.append({**karte, 'prozess': bool(ep.get('prozess')), 'leerlaufS': b.get('leerlaufS'), 'fragen': offen_je_epic.get(nr, 0), 'wartetAufDich': stufe == 'frage'})
 
+        # ---- the Sternenkarte: the open epics of this project, merged and given-up ones are no backlog
+        offen = [ep for ep in b.get('epics', []) if ep['stufe'] not in FERTIG and not (ep['stufe'] in HALT and ep.get('aufgegebenAm'))]
+        offene_nr = {ep['nr'] for ep in offen}
+        karte = []
+        for ep in offen:
+            nr = ep['nr']
+            kante = lambda n: {'nr': n, 'titel': epics.get(n, {}).get('titel', ''), 'stufe': epics.get(n, {}).get('stufe'), 'offen': n in offene_nr, 'issueUrl': f'{url}/issues/{n}' if url else None}
+            karte.append({
+                'id': f'epic:{forge}#{nr}',
+                'nr': nr,
+                'titel': ep.get('titel', ''),
+                'stufe': ep['stufe'],
+                'prio': bool(ep.get('prio')),
+                'konto': ep.get('konto'),
+                'issueUrl': f'{url}/issues/{nr}' if url else None,
+                'pr': ep.get('pr'),
+                'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
+                # why it waits or halts: the whole reason of a blockade, else the note
+                'warum': (ep.get('grund') or ep.get('notiz', '')) if ep['stufe'] in HALT else ep.get('notiz', ''),
+                'fragen': offen_je_epic.get(nr, 0),
+                'prognose': ep.get('prognose'),
+                'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
+                'nach': [kante(n) for n in sorted(set(ep.get('nach', []))) if n != nr],
+                'folgen': sorted(o['nr'] for o in offen if nr in o.get('nach', []) and o['nr'] != nr),
+            })
+        karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
+        liste[-1]['epics'] = karte
+
         # ---- level 3: the admiral's decisions of today, revocable until the merge
         for d in b.get('entscheidungen', []):
             t = zeit(d.get('zeit'))
-            if not t or t < heute:
+            # the person's answers are on this level from the bridge's own store (#52: the driver reports them too)
+            if not t or t < heute or _von(d) == 'mensch':
                 continue
             stufe = epics.get(d['epic'], {}).get('stufe')
             erledigt.append({
@@ -185,6 +286,12 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     bereit.sort(key=lambda c: (not c['prio'], c['forge'], c['nr']))
     erledigt.sort(key=lambda x: x['zeit'], reverse=True)
     ereignisse.sort(key=lambda e: e['zeit'], reverse=True)
+    # a session belongs to the project whose repository name is its folder name, else to none ("Sonstige")
+    forge_von = {p['kurz'].lower(): p['forge'] for p in reversed(liste)}
+    sitzungen_liste = sorted(
+        ({**{k: s[k] for k in ('konto', 'projekt', 'name', 'status', 'kind', 'seit')}, 'forge': forge_von.get(s['projekt'].lower())} for _, s in sitzungen.values()),
+        key=lambda s: (s['konto'], s['projekt'], s['seit'], s['name']),
+    )
     return {
         'jetzt': jetzt.isoformat(),
         'pin': pin_gesetzt,
@@ -196,4 +303,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'unterwegs': {'laeufe': laeufe, 'schlange': schlange_karten, 'bereit': bereit},
         'erledigt': erledigt,
         'ereignisse': ereignisse[:40],
+        # Holodeck (#44): name and forge are checked on receipt, the page opens url in its sealed frame
+        'sitzungen': sitzungen_liste,
+        'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
     }

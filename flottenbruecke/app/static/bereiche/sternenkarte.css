@@ -1,0 +1,45 @@
+/* Sternenkarte (#43): the styles of this area only, every rule below .bereich[data-bereich="sternenkarte"]. */
+.bereich[data-bereich="sternenkarte"] .sk-projekt { margin: 0 0 18px; min-width: 0; }
+.bereich[data-bereich="sternenkarte"] .sk-projekt.veraltet { opacity: .65; }
+.bereich[data-bereich="sternenkarte"] .sk-kopf { margin: 14px 0 4px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--lila); }
+.bereich[data-bereich="sternenkarte"] .sk-name { color: var(--lila); font-weight: 700; }
+.bereich[data-bereich="sternenkarte"] .sk-zahl { color: var(--matt); font-size: 12px; }
+/* the forecast line of the board, without its time column */
+.bereich[data-bereich="sternenkarte"] .sk-prognose { margin: 0 0 8px; font: 13px/1.4 var(--lesen); color: var(--himmel); overflow-wrap: anywhere; }
+.bereich[data-bereich="sternenkarte"] .sk-prognose time { display: none; }
+.bereich[data-bereich="sternenkarte"] .sk-prognose small { color: var(--matt); }
+.bereich[data-bereich="sternenkarte"] .sk-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bereich[data-bereich="sternenkarte"] .sk-epic { background: var(--flaeche); border-left: 8px solid var(--c, var(--violett)); border-radius: 0 14px 14px 0; padding: 8px 12px 8px; min-width: 0; display: grid; gap: 4px; }
+.bereich[data-bereich="sternenkarte"] .sk-epic.laeuft, .bereich[data-bereich="sternenkarte"] .sk-epic.nacharbeit { --c: var(--orange); }
+.bereich[data-bereich="sternenkarte"] .sk-epic.pr { --c: var(--himmel); }
+.bereich[data-bereich="sternenkarte"] .sk-epic.wartend { --c: var(--violett); }
+/* red only where the person is needed: a question or a blockade, no blinking */
+.bereich[data-bereich="sternenkarte"] .sk-epic.frage { --c: var(--lila); }
+.bereich[data-bereich="sternenkarte"] .sk-epic.blockiert, .bereich[data-bereich="sternenkarte"] .sk-epic.abgebrochen { --c: var(--rot); }
+.bereich[data-bereich="sternenkarte"] .sk-zeile { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.bereich[data-bereich="sternenkarte"] .sk-zeile .nr { color: var(--pfirsich); font-weight: 700; font-size: 16px; flex: none; }
+.bereich[data-bereich="sternenkarte"] .sk-titel { flex: 1 1 14em; min-width: 0; overflow-wrap: anywhere; font: 14.5px/1.35 var(--lesen); }
+.bereich[data-bereich="sternenkarte"] .sk-marken { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.bereich[data-bereich="sternenkarte"] .sk-marken .prio { margin: 0; }
+.bereich[data-bereich="sternenkarte"] .sk-stufe { min-height: 28px; padding: 0 12px; border: 0; border-radius: var(--rund); background: var(--violett); color: #000; font: 700 11.5px var(--disp); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.bereich[data-bereich="sternenkarte"] .sk-stufe.laeuft, .bereich[data-bereich="sternenkarte"] .sk-stufe.nacharbeit { background: var(--orange); }
+.bereich[data-bereich="sternenkarte"] .sk-stufe.pr { background: var(--himmel); }
+.bereich[data-bereich="sternenkarte"] .sk-stufe.frage { background: var(--lila); }
+.bereich[data-bereich="sternenkarte"] .sk-stufe.blockiert, .bereich[data-bereich="sternenkarte"] .sk-stufe.abgebrochen { background: var(--rot); }
+.bereich[data-bereich="sternenkarte"] .sk-stufe:hover, .bereich[data-bereich="sternenkarte"] .sk-kante:hover { filter: brightness(1.15); }
+.bereich[data-bereich="sternenkarte"] .sk-warum { font: 13px/1.4 var(--lesen); color: var(--matt); overflow-wrap: anywhere; }
+.bereich[data-bereich="sternenkarte"] .sk-prog { color: var(--himmel); }
+.bereich[data-bereich="sternenkarte"] .sk-kantenzeile { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 13px/1.4 var(--lesen); }
+.bereich[data-bereich="sternenkarte"] .sk-kanten { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.bereich[data-bereich="sternenkarte"] .sk-eti { color: var(--leise); font: 11.5px var(--disp); letter-spacing: .08em; text-transform: uppercase; }
+.bereich[data-bereich="sternenkarte"] .sk-kante { min-height: 28px; display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; border: 1px solid var(--linie); border-radius: var(--rund); background: var(--flaeche2); color: var(--himmel); font: 700 13px var(--lesen); cursor: pointer; text-decoration: none; }
+.bereich[data-bereich="sternenkarte"] .sk-kante small { color: var(--matt); font-weight: 400; font-size: 11.5px; }
+.bereich[data-bereich="sternenkarte"] .sk-kante.erledigt { color: var(--matt); cursor: pointer; }
+/* the ticket list: the bar and rows come from app.css (.segmente, .pakete) */
+.bereich[data-bereich="sternenkarte"] .sk-pakete summary { list-style: none; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; min-height: 32px; cursor: pointer; color: var(--matt); font: 11.5px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.bereich[data-bereich="sternenkarte"] .sk-pakete summary::-webkit-details-marker { display: none; }
+.bereich[data-bereich="sternenkarte"] .sk-pakete summary .segmente { height: 7px; }
+.bereich[data-bereich="sternenkarte"] .sk-pakete summary:hover .pz, .bereich[data-bereich="sternenkarte"] .sk-pakete[open] summary .pz { color: var(--himmel); }
+@media (max-width: 700px) {
+  .bereich[data-bereich="sternenkarte"] .sk-marken { margin-left: 0; }
+}

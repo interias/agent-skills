@@ -77,9 +77,9 @@ export function schreibeMessung(dir: string, m: Messung): void {
   appendFileSync(join(dir, DATEI), JSON.stringify(m) + '\n');
 }
 
-const KLASSE = /^epic-implementer-(mechanisch|standard|urteil-hoch|urteil)$/;
+export const KLASSE = /^epic-implementer-(mechanisch|standard|urteil-hoch|urteil)$/;
 const PAKET = /#\d+|\bP\d+\b/;
-const RANG: Klasse[] = ['mechanisch', 'standard', 'urteil', 'urteil-hoch'];
+export const RANG: Klasse[] = ['mechanisch', 'standard', 'urteil', 'urteil-hoch'];
 
 /**
  * The packages of a run from its logs (stream-json of claude -p, all turns): each Agent call of an

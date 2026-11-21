@@ -114,7 +114,8 @@ describe('messeEinsatz', () => {
         ev(1.5, 13, 'Lauf gestartet'),
       ],
       fragen: [{ epic: 12, nr: 1, frage: 'Tor?', empfehlung: 'A', beantwortet: 'A, wie empfohlen' }],
-      entscheidungen: [{ epic: 13 }],
+      // #52: an answer of the person kept as a decision is no decision of the admiral
+      entscheidungen: [{ epic: 13 }, { epic: 12, von: 'mensch' }],
     };
     writeFileSync(join(dir, 'zustand.json'), JSON.stringify(zustand));
     const konf: Konfiguration = { konten: { k1: konto() }, einsaetze: [{ name: 'probe', repo: 'o/korb', von: min(-1), bis: min(200), epics: [12, 13], orchestrierung: [], laeufe: [], treiberZustand: join(dir, 'zustand.json') }] };

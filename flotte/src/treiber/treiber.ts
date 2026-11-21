@@ -17,8 +17,11 @@ import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neu
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
-import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, HERKUNFT_BRUECKE, rechnerName } from './bruecke.ts';
+import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
+import { liesPrototypen, prototypenStand } from './holodeck.ts';
+import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
+import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface Einstellung {
@@ -172,6 +175,8 @@ export interface Entscheidung {
   grund?: string;
   /** the person's new decision, revoked on the bridge */
   widerrufen?: string | null;
+  /** who decided (#52): the person, the admiral, or the admiral following the run's recommendation */
+  von?: 'mensch' | 'admiral' | 'lauf';
 }
 
 export interface FlottenEpic extends EpicZustand {
@@ -210,6 +215,9 @@ export interface FlottenEpic extends EpicZustand {
   aufgegebenAm?: string | null;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
+  /** detail view (#51): the Agent calls of the runs with their returns, and how often a process was started or continued */
+  agenten?: AgentEintrag[];
+  starts?: number;
   /** the child tickets for the bridge, read from the forge at most every PAKETE_MS */
   pakete?: BerichtPaket[];
   paketeZeit?: number;
@@ -328,6 +336,13 @@ class Treiber {
   prognoseCache: { schluessel: string; wert: Bericht['prognose'] } | null = null;
   /** stage and parked packages of an epic when its children were last read */
   paketeStand = new Map<number, string>();
+  /** the set of prototypes the bridge holds (names and contents) and the messages reported once */
+  holodeckStand: string | null = null;
+  holodeckGemeldet = new Set<string>();
+  /** the sessions of the accounts (#41), read in the background at most every SITZUNGEN_MS; the report carries the last reading */
+  sitzungen: BerichtSitzung[] = [];
+  sitzungenGelesen = 0;
+  sitzungenLaeuft = false;
 
   constructor(
     readonly e: Einstellung,
@@ -531,7 +546,7 @@ class Treiber {
       const verfolgen = derselbe || unklar;
       this.ereignis(ep.nr, verfolgen ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
       const log = ep.log && existsSync(ep.log) ? ep.log : this.leeresLog(ep.nr);
-      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s) })
+      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s), beiZeile: (z, t) => this.agentZeile(ep, z, t, true) })
         .then((r) => {
           this.fertig.push({ nr: ep.nr, r });
         })
@@ -673,6 +688,7 @@ class Treiber {
     mkdirSync(laeufe, { recursive: true });
     ep.log = join(laeufe, `${nr}-${this.w.jetzt()}-${this.z.statistik.starts}.jsonl`);
     this.z.statistik.starts++;
+    ep.starts = (ep.starts ?? 0) + 1;
     const p = this.w
       .starte({
         ...this.programm(),
@@ -688,6 +704,7 @@ class Treiber {
         extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(','), ...guardArgs(join(this.e.skripte, 'guard.ps1'))],
         werkzeuge: laufWerkzeuge,
         beiSchritt: (s) => this.schritt(ep, s),
+        beiZeile: (z, t) => this.agentZeile(ep, z, t, false),
         beimStart: (pid) => {
           ep.pid = pid;
           ep.pidSeit = Date.now();
@@ -706,6 +723,20 @@ class Treiber {
       ep.prognose = prognoseEpic(this.messungen, this.kinderZahl(nr), this.adapter.prognose_ab);
     }
     this.ereignis(nr, resume ? 'Lauf fortgesetzt' : 'Lauf gestartet');
+  }
+
+  /**
+   * #51: what a log line says about the Agent calls of the run, for phase, round and class on the
+   * bridge. `nachlese`: a run taken over after a restart is read from its first line again; calls and
+   * returns known already are kept, the times of work below a call are not taken anew. Without a
+   * bridge nobody reads the fields: nothing is parsed or kept. The quick test lets calls, results and
+   * the `task_notification` of a background agent pass (all carry `"tool_use`, the latter as `"tool_use_id"`).
+   */
+  agentZeile(ep: FlottenEpic, zeile: string, zeit: number, nachlese: boolean): void {
+    if (!this.e.bruecke) return;
+    if (!zeile.includes('"tool_use') && !zeile.includes('"parent_tool_use_id":"')) return;
+    const neu = eintraegeAus(zeile, zeit).filter((e) => !(nachlese && e.art === 'unter'));
+    if (neu.length) fuegeAn((ep.agenten ??= []), neu);
   }
 
   /** C4: the board shows the last step of each run; C1: a silence carried by a child process is an event. */
@@ -922,7 +953,8 @@ class Treiber {
       return this.antwortenVerteilen(ep, block, antwortenAus(null, block).map((a) => ({ ...a, herkunft: 'Treiber: Admiral-Konto rot', marke: 'Admiral-Konto rot', grund: `${this.kontoName(konto)} ist rot (${this.bewertung.get(konto)!.grund}); der Admiral wurde nicht gefragt.` })));
     }
     this.z.statistik.admiral++;
-    const frueher = this.z.entscheidungen.filter((d) => d.epic === nr).map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
+    // the admiral's own, as before #52: the person's answers are no precedent of his
+    const frueher = this.z.entscheidungen.filter((d) => d.epic === nr && d.von !== 'mensch').map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
     const kontext = `Epic #${nr} in ${this.e.forge}, Repository ${this.e.repo}.${frueher.length ? `\nFrühere Entscheidungen zu diesem Epic:\n${frueher.join('\n')}` : ''}`;
     const r = await this.w.starte({
       ...this.programm(),
@@ -950,7 +982,7 @@ class Treiber {
       const zeit = new Date(this.w.jetzt()).toISOString();
       if (!a.beim_menschen) {
         zeilen.push(`${a.nr}. ${nurBuchstaben(a.antwort) ? a.antwort.trim() : `Antwort: ${a.antwort}`} — Herkunft: ${a.herkunft}`);
-        this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit, grund: a.grund });
+        this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit, grund: a.grund, von: f.empfehlung && f.empfehlung === a.antwort ? 'lauf' : 'admiral' });
         const text = `**Entschieden von der Flotte (Admiral ${this.e.admiralName})** — ${f.frage}\nEntscheidung: ${a.antwort}\nHerkunft: ${a.herkunft}\nGrund: ${a.grund}\nVerworfen: ${f.empfehlung && f.empfehlung !== a.antwort ? `Empfehlung des Laufs ${f.empfehlung}` : '—'}\nWiderrufen: Kommentar hier; der Lauf setzt es als nächstes Paket oder in der Nacharbeit um.`;
         kommentar(this.w.aufrufer, this.e.forge, nr, text);
         if (a.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte (Admiral ${this.e.admiralName})** — Epic #${nr}, ${zeit.slice(0, 10)}\nFrage: ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')} (Empfehlung des Laufs: ${f.empfehlung ?? '—'})\nEntscheidung: ${a.antwort}\nWarum: ${a.grund}\nHerkunft: ${a.herkunft}`);
@@ -1002,8 +1034,11 @@ class Treiber {
     if (!f || !ep) return false;
     const ueberBruecke = a.brueckeId !== undefined;
     f.beantwortet = a.text;
-    f.beantwortetAm = new Date(this.w.jetzt()).toISOString();
+    const am = new Date(this.w.jetzt()).toISOString();
+    f.beantwortetAm = am;
     if (ueberBruecke) f.brueckeId = a.brueckeId;
+    // #52: the answer is a decision of the person, revocable on the bridge until the merge like the admiral's
+    this.z.entscheidungen.push({ epic: a.epic, nr: a.nr, frage: f.frage || `Frage ${a.nr}`, antwort: a.anzeige ?? a.text, herkunft: ueberBruecke ? HERKUNFT_BRUECKE : HERKUNFT_FLOTTE, einflussreich: false, zeit: am, von: 'mensch' });
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
@@ -1062,7 +1097,7 @@ class Treiber {
 
   /**
    * An action of the person on the bridge (#28, v2), carried out like an answer: requeue or give up a
-   * blocked or aborted epic, revoke a decision of the admiral. One that no longer fits is an event.
+   * blocked or aborted epic, revoke a decision of the admiral or an answer of the person (#52). One that no longer fits is an event.
    */
   handlungAnwenden(h: BrueckenHandlung): void {
     const ep = this.epic(h.epic);
@@ -1072,6 +1107,8 @@ class Treiber {
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
       if (!d) return this.ereignis(h.epic, `Widerruf über die Brücke zu Frage ${h.nr}: keine solche Entscheidung`);
+      // once only, like the bridge (409): a report the bridge had not yet seen let a second one through
+      if (d.widerrufen) return this.ereignis(h.epic, `Widerruf über die Brücke zu Frage ${h.nr}: schon widerrufen`);
       const text = h.text!.trim();
       d.widerrufen = text;
       amIssue(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — ${d.frage}\nwiderrufen vom Menschen: ${text}\nVorher: ${d.antwort} (${d.herkunft})`);
@@ -1116,11 +1153,41 @@ class Treiber {
   /** The report of this turn; acknowledgements only after the state with the answers is written. */
   async brueckeMelden(): Promise<void> {
     if (!this.bruecke) return;
+    this.sitzungenLesen();
     const ok = await this.bruecke.melde(this.bericht());
     this.brueckeErreichbar(ok);
     if (!ok) return;
     for (const id of [...this.zuQuittieren]) if (await this.bruecke.quittiere(id)) this.zuQuittieren = this.zuQuittieren.filter((x) => x !== id);
     for (const id of [...this.handlungenZuQuittieren]) if (await this.bruecke.quittiereHandlung(id)) this.handlungenZuQuittieren = this.handlungenZuQuittieren.filter((x) => x !== id);
+    await this.holodeckMelden();
+  }
+
+  /** Reads the sessions of all accounts without holding the turn up; a failure leaves the list empty. */
+  sitzungenLesen(): void {
+    if (this.sitzungenLaeuft || this.w.jetzt() - this.sitzungenGelesen < SITZUNGEN_MS) return;
+    this.sitzungenLaeuft = true;
+    this.sitzungenGelesen = this.w.jetzt();
+    liesSitzungen(this.alleKonten().map((dir) => ({ dir, konto: kurzname(dir, this.e.admiralKonto) })), this.w.langsam)
+      .then((s) => (this.sitzungen = s))
+      .catch(() => (this.sitzungen = []))
+      .finally(() => (this.sitzungenLaeuft = false));
+  }
+
+  /**
+   * The prototypes of the project (Holodeck, #44), only when the set changed since the bridge last
+   * took it; a removed file disappears there with the next set. A bridge without the Holodeck or one
+   * that is off costs nothing more than the report.
+   */
+  async holodeckMelden(): Promise<void> {
+    if (!this.bruecke) return;
+    const { dateien, meldungen } = liesPrototypen(this.e.repo, this.adapter.prototype_dir);
+    for (const m of meldungen) {
+      if (this.holodeckGemeldet.has(m)) continue;
+      this.holodeckGemeldet.add(m);
+      this.ereignis(null, `Holodeck: ${m}`);
+    }
+    const stand = prototypenStand(dateien);
+    if (stand !== this.holodeckStand && (await this.bruecke.holodeck(this.e.forge, dateien))) this.holodeckStand = stand;
   }
 
   /**
@@ -1210,7 +1277,7 @@ class Treiber {
    * (status/in-arbeit) until the epic PR closes it. One git log per epic read: the local branch
    * epic/<nr>-… (often only in the epic worktree), else origin/epic/<nr>-…, without the commits of
    * other branches (the base); a commit counts by
-   * `Merge … agent/<kind>-…` or `(#<kind>)` in its subject.
+   * `Merge … agent/<kind>-…`, `(#<kind>)` or `Merge #<kind>: …` in its subject (kinderAusBetreff).
    */
   imEpicBranch(nr: number): Map<number, string> {
     const fertig = new Map<number, string>();
@@ -1225,8 +1292,7 @@ class Treiber {
     // newest first: the last hit of a child is its first merge
     for (const zeile of log.stdout.split('\n')) {
       const [zeit, betreff = ''] = zeile.split('\t');
-      const kinder = [...betreff.matchAll(/^Merge\b.*?\bagent\/(\d+)(?:-|\b)/g), ...betreff.matchAll(/\(#(\d+)\)/g)].map((m) => Number(m[1]));
-      for (const k of kinder) fertig.set(k, new Date(zeit).toISOString());
+      for (const k of kinderAusBetreff(betreff)) fertig.set(k, new Date(zeit).toISOString());
     }
     return fertig;
   }
@@ -1324,6 +1390,21 @@ class Treiber {
     return ep.titel;
   }
 
+  /**
+   * #51: phase, round and class per child from the Agent calls of the runs. A package merged into the
+   * epic branch has no phase; while the epic is not at work (PR, queue) none has, the rest stays.
+   */
+  paketDetail(ep: FlottenEpic): ReturnType<typeof ableiten> {
+    const alle = ableiten(ep.agenten ?? [], new Set((ep.pakete ?? []).filter((p) => p.stand === 'fertig' && p.nr != null).map((p) => p.nr!)));
+    if (!['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe)) {
+      for (const d of alle.values()) {
+        delete d.phase;
+        delete d.phaseSeit;
+      }
+    }
+    return alle;
+  }
+
   bericht(): Bericht {
     const konto = (k: string) => kurzname(k, this.e.admiralKonto);
     return {
@@ -1335,6 +1416,7 @@ class Treiber {
       taktS: Math.max(1, Math.round(this.e.taktMs / 1000)),
       epics: Object.values(this.z.epics).map((ep) => {
         const halt = ep.stufe === 'blockiert' || ep.stufe === 'abgebrochen';
+        const detail = this.paketDetail(ep);
         return {
           nr: ep.nr,
           titel: this.titel(ep),
@@ -1343,7 +1425,7 @@ class Treiber {
           pr: ep.pr,
           notiz: ep.notiz,
           geparkt: ep.geparkt,
-          pakete: ep.pakete ?? [],
+          pakete: (ep.pakete ?? []).map((p) => ({ ...p, ...(p.nr == null ? undefined : detail.get(p.nr)) })),
           schritt: ep.schritt ?? null,
           schrittZeit: ep.schrittZeit ?? null,
           prozess: this.laufend.has(ep.nr),
@@ -1357,6 +1439,9 @@ class Treiber {
           schlangeSeit: this.z.schlange.includes(ep.nr) ? (ep.schlangeSeit ?? null) : null,
           gateSeit: ep.gateSeit ?? null,
           prognose: this.prognoseFuer(ep),
+          nach: this.bilder.find((b) => b.nr === ep.nr)?.nach ?? [],
+          ...(ep.starts ? { neustarts: ep.starts - 1 } : {}),
+          ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
       }),
       schlange: this.z.schlange,
@@ -1366,7 +1451,7 @@ class Treiber {
         .map((k) => {
           const b = this.bewertung.get(k)!;
           const fenster = (f: Bewertung['fuenf']) => (f ? { verbraucht: f.verbraucht, reset: f.reset } : null);
-          return { konto: konto(k), stufe: b.stufe, fuenf: fenster(b.fuenf), woche: fenster(b.sieben), alterMin: b.alterMin };
+          return { konto: konto(k), stufe: b.stufe, fuenf: fenster(b.fuenf), woche: fenster(b.sieben), alterMin: b.alterMin, ...(b.stufe === 'gruen' ? {} : { grund: b.grund.slice(0, 4000) }) };
         }),
       ram: this.ram ? { stufe: this.ram.level, halt: this.ramBremse.halt, prozent: this.ram.percent_used } : null,
       platte: { freiGb: this.freiGbWert, genug: this.platteGenug },
@@ -1375,9 +1460,14 @@ class Treiber {
       fragen: this.z.fragen.filter((f) => !f.beantwortet).map((f) => ({ epic: f.epic, nr: f.nr, frage: f.frage, lage: f.lage ?? '', optionen: f.optionen ?? [], mehrfach: f.mehrfach ?? false, empfehlung: f.empfehlung, grund: f.grund ?? '', betrifft: f.betrifft ?? '', wartet: f.wartet, ganzerLauf: f.ganzerLauf, seit: f.seit, roh: f.roh ?? '', beantwortet: null, herkunft: f.herkunft ?? '', marke: f.marke ?? '', umkehrbar: f.umkehrbar ?? null, geparkt: f.ganzerLauf ? [] : (f.betrifft ?? '').split(', ').filter(Boolean) })),
       leerlaufS: Math.round(this.e.leerlaufMs / 1000),
       ereignisse: this.z.ereignisse.slice(-30).map((x) => ({ zeit: x.zeit, epic: x.epic, text: x.text.slice(0, 300) })),
-      // the bridge shows today's; with the reason, for a revocation
-      entscheidungen: this.z.entscheidungen.slice(-100).map((d) => ({ epic: d.epic, nr: d.nr, frage: d.frage, antwort: d.antwort, herkunft: d.herkunft, grund: d.grund ?? '', einflussreich: d.einflussreich, zeit: d.zeit, widerrufen: d.widerrufen ?? null })),
+      // #52: the bridge shows them until the merge: every decision of an epic not merged, besides the
+      // latest 100 (today's of merged ones); with the reason, for a revocation; the newest within the schema's limit
+      entscheidungen: this.z.entscheidungen
+        .filter((d, i, alle) => i >= alle.length - 100 || !['gemergt', 'fertig'].includes(this.epic(d.epic)?.stufe ?? 'fertig'))
+        .slice(-ENTSCHEIDUNGEN_MAX)
+        .map(entscheidungFuerBericht),
       prognose: this.prognoseBericht(),
+      sitzungen: this.sitzungen,
     };
   }
 

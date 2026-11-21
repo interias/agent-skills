@@ -1,11 +1,13 @@
 # Flottenbrücke (#28): the board of every deployment of the fleet driver and the way back for the
 # answers of the person. Viewing is free in the LAN; answering needs the PIN from .env. Besides the
 # answers the bridge carries three actions to the driver, which carries them out: requeue or give
-# up a blocked epic, revoke a decision of the admiral. No start, stop or merge.
+# up a blocked epic, revoke a decision of the admiral. No start, stop or merge. The Holodeck (#44)
+# shows the prototypes each driver sends, sealed off from the bridge.
 
 import hashlib
 import hmac
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -17,13 +19,35 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .modelle import Antwort, Bericht, Handlung
+from .modelle import Antwort, Bericht, Handlung, Holodeck
 from .speicher import Speicher
 from .tafel import HERKUNFT, tafel
 
 STATIC = Path(__file__).parent / 'static'
 FEHLVERSUCHE = 5
 SPERRE_S = 300
+
+# A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
+# bridge's localStorage (the PIN) nor its cookies nor the answers of its API. Static resources from
+# https: may load (fonts, scripts from CDNs), connections may not.
+HOLODECK_KOEPFE = {
+    'Content-Security-Policy': '; '.join([
+        'sandbox allow-scripts',
+        "default-src 'none'",
+        "script-src https: 'unsafe-inline' 'unsafe-eval'",
+        "style-src https: 'unsafe-inline'",
+        'img-src https: data: blob:',
+        'font-src https: data:',
+        'media-src https: data: blob:',
+        "connect-src 'none'",
+        "form-action 'none'",
+        "base-uri 'none'",
+        "frame-ancestors 'self'",
+    ]),
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Cache-Control': 'no-cache',
+}
 
 
 @dataclass
@@ -113,11 +137,25 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(404, 'Keine solche Handlung.')
         return {'ok': True}
 
+    @app.post('/api/holodeck')
+    def holodeck(h: Holodeck, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        speicher.prototypen_setzen(h.forge, [d.model_dump() for d in h.dateien])
+        return {'ok': True, 'dateien': len(h.dateien)}
+
     # ---- page
 
     @app.get('/api/tafel')
     def board() -> dict:
-        return tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen())
+        return tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen())
+
+    # a prototype only from the store: any name or project it does not hold is 404, never a file
+    @app.get('/holodeck/{besitzer}/{repo}/{name}')
+    def prototyp(besitzer: str, repo: str, name: str) -> HTMLResponse:
+        inhalt = speicher.prototyp(f'{besitzer}/{repo}', name)
+        if inhalt is None:
+            raise HTTPException(404, 'Keinen solchen Prototyp.')
+        return HTMLResponse(inhalt, headers=HOLODECK_KOEPFE)
 
     @app.post('/api/handlung')
     def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
@@ -170,11 +208,13 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def gesund() -> dict:
         return {'ok': True}
 
-    # app.css and app.js get a content hash in their URL, so a browser that cached an older version
-    # (a phone after an update) loads the new one instead of mixing old script with new markup
-    stand = hashlib.sha256(b''.join((STATIC / n).read_bytes() for n in ('app.css', 'app.js'))).hexdigest()[:12]
+    # every script and style the page names (app, shell, areas) gets a content hash in its URL, so a
+    # browser that cached an older version (a phone after an update) loads the new one instead of
+    # mixing old script with new markup
     seite_html = (STATIC / 'index.html').read_text(encoding='utf-8')
-    for n in ('app.css', 'app.js'):
+    dateien = re.findall(r'/static/([\w/.-]+\.(?:css|js))"', seite_html)
+    stand = hashlib.sha256(b''.join((STATIC / n).read_bytes() for n in dateien)).hexdigest()[:12]
+    for n in dateien:
         seite_html = seite_html.replace(f'/static/{n}"', f'/static/{n}?v={stand}"')
 
     @app.get('/')

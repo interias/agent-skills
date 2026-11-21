@@ -1,0 +1,86 @@
+/* Holodeck (#44): the styles of this area only, every rule below .bereich[data-bereich="holodeck"].
+   Tiles with a small preview (a frame four times the tile, scaled down), the view above them with
+   the choice desk/phone. Yellow marks what is new and does not blink. */
+.bereich[data-bereich="holodeck"] .holo-galerie { display: grid; gap: 14px; margin-top: 10px; }
+.bereich[data-bereich="holodeck"] code { font: 12.5px ui-monospace, Consolas, monospace; color: var(--pfirsich); overflow-wrap: anywhere; }
+.bereich[data-bereich="holodeck"] .holo-unsichtbar {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ---- filter by project */
+.bereich[data-bereich="holodeck"] .holo-filter { display: flex; flex-wrap: wrap; gap: 4px; }
+.bereich[data-bereich="holodeck"] .holo-pille {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px; border: 0;
+  border-radius: var(--rund); background: #2a2a38; color: var(--matt); font: 700 12px var(--disp);
+  letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+}
+.bereich[data-bereich="holodeck"] .holo-pille span { background: #000; color: var(--text); border-radius: var(--rund); padding: 0 7px; line-height: 18px; }
+.bereich[data-bereich="holodeck"] .holo-pille[aria-pressed="true"] { background: var(--violett); color: #000; }
+
+/* ---- tiles per project */
+.bereich[data-bereich="holodeck"] .holo-projekt-kopf {
+  margin: 0 0 6px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--lila);
+}
+.bereich[data-bereich="holodeck"] .holo-projekt-kopf small { color: var(--leise); font: 12px var(--lesen); text-transform: none; letter-spacing: 0; }
+.bereich[data-bereich="holodeck"] .holo-kacheln {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px;
+  margin: 0; padding: 0; list-style: none;
+}
+.bereich[data-bereich="holodeck"] .holo-kachel {
+  position: relative; display: grid; gap: 2px; padding: 8px 10px 10px; min-width: 0;
+  background: var(--flaeche); border-left: 8px solid var(--lila); border-radius: 0 14px 14px 0;
+}
+.bereich[data-bereich="holodeck"] .holo-kachel.offen { border-left-color: var(--orange); }
+.bereich[data-bereich="holodeck"] .holo-vorschau {
+  position: relative; aspect-ratio: 16 / 10; overflow: hidden; margin-bottom: 4px;
+  border-radius: 4px 10px 10px 4px; background: var(--flaeche2);
+}
+.bereich[data-bereich="holodeck"] .holo-vorschau iframe {
+  position: absolute; top: 0; left: 0; width: 400%; height: 400%; border: 0; background: #fff;
+  transform: scale(.25); transform-origin: 0 0; pointer-events: none;
+}
+.bereich[data-bereich="holodeck"] .holo-oeffnen {
+  padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer;
+  font: 600 14px/1.3 var(--lesen); overflow-wrap: anywhere;
+}
+/* the whole tile opens the view */
+.bereich[data-bereich="holodeck"] .holo-oeffnen::after { content: ""; position: absolute; inset: 0; border-radius: 0 14px 14px 0; }
+.bereich[data-bereich="holodeck"] .holo-oeffnen:focus-visible { outline: none; }
+.bereich[data-bereich="holodeck"] .holo-oeffnen:focus-visible::after { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.bereich[data-bereich="holodeck"] .holo-kachel:hover .holo-oeffnen { color: var(--pfirsich); }
+.bereich[data-bereich="holodeck"] .holo-meta { color: var(--leise); font: 11.5px var(--lesen); overflow-wrap: anywhere; }
+.bereich[data-bereich="holodeck"] .holo-neu {
+  position: absolute; top: 14px; right: 14px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--gelb); box-shadow: 0 0 0 3px #000; pointer-events: none;
+}
+
+/* ---- the view: sealed frame, desk or phone */
+.bereich[data-bereich="holodeck"] .holo-ansicht {
+  margin-top: 10px; padding: 10px 12px 12px; background: var(--flaeche);
+  border-left: 8px solid var(--orange); border-radius: 0 14px 14px 0;
+}
+.bereich[data-bereich="holodeck"] .holo-ansicht[hidden] { display: none; }
+.bereich[data-bereich="holodeck"] .holo-ansicht-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bereich[data-bereich="holodeck"] .holo-ansicht-titel { display: grid; flex: 1 1 220px; min-width: 0; }
+.bereich[data-bereich="holodeck"] .holo-ansicht-titel b { font: 600 15px/1.3 var(--lesen); overflow-wrap: anywhere; }
+.bereich[data-bereich="holodeck"] .holo-ansicht-titel small { color: var(--leise); font: 11.5px var(--lesen); overflow-wrap: anywhere; }
+.bereich[data-bereich="holodeck"] .holo-geraete { display: flex; gap: 4px; }
+.bereich[data-bereich="holodeck"] .holo-geraete .knopf[aria-pressed="true"] { background: var(--violett); color: #000; border-color: var(--violett); }
+.bereich[data-bereich="holodeck"] .holo-meldung { margin: 6px 0 0; min-height: 1.2em; color: var(--matt); font: 12.5px var(--lesen); }
+.bereich[data-bereich="holodeck"] .holo-meldung:empty { min-height: 0; margin: 0; }
+.bereich[data-bereich="holodeck"] .holo-buehne { margin-top: 8px; }
+.bereich[data-bereich="holodeck"] .holo-buehne iframe {
+  display: block; width: 100%; height: max(420px, 72vh); margin: 0 auto; border: 0; border-radius: 6px; background: #fff;
+}
+.bereich[data-bereich="holodeck"] .holo-buehne.telefon iframe {
+  width: 390px; max-width: 100%; height: min(844px, 78vh); border: 6px solid #2a2a38; border-radius: 28px;
+}
+.bereich[data-bereich="holodeck"] .holo-pille:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+
+@media (max-width: 700px) {
+  .bereich[data-bereich="holodeck"] .holo-pille { min-height: 36px; }
+  .bereich[data-bereich="holodeck"] .holo-ansicht-kopf .knopf { min-height: 36px; }
+  /* above the pills and the footer */
+  .bereich[data-bereich="holodeck"] .holo-buehne iframe,
+  .bereich[data-bereich="holodeck"] .holo-buehne.telefon iframe { height: max(360px, calc(100dvh - var(--pillen) - 230px)); }
+}

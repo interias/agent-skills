@@ -148,7 +148,8 @@ describe('Flottenbrücke (#28)', () => {
       const muster = beispiel('bericht.json');
       const mitFrage = b.berichte.find((x) => x.fragen.length)!;
       expect(schluessel(mitFrage)).toEqual(schluessel(muster));
-      expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]));
+      // `plaetze` (#51) only with Agent calls in the log: the sample has them, this run has none
+      expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]).filter((k) => k !== 'plaetze'));
       expect(schluessel(mitFrage.fragen[0])).toEqual(schluessel(muster.fragen[0]));
       expect(schluessel(mitFrage.konten[0])).toEqual(schluessel(muster.konten[0]));
       expect(schluessel(mitFrage.ereignisse[0])).toEqual(schluessel(muster.ereignisse[0]));
@@ -164,6 +165,37 @@ describe('Flottenbrücke (#28)', () => {
       expect(b.berichte.some((x) => x.epics[0].prozess)).toBe(true);
       // the person sees why the question lies with them
       expect(mitFrage.fragen[0]).toMatchObject({ herkunft: 'Skill-Empfehlung', geparkt: ['p2'], ganzerLauf: false });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('the sessions of the accounts go into the report in the shape of beispiel/bericht.json, by folder name only (#41)', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      const dirs: (string | undefined)[] = [];
+      const welt = {
+        ...t.welt,
+        langsam: async (p: string, a: string[], o?: { env?: Record<string, string> }) => {
+          if (p !== 'claude') return t.welt.langsam(p, a, o as never);
+          dirs.push(o?.env?.CLAUDE_CONFIG_DIR);
+          const cwd = 'C:\\Users\\beispiel\\git\\flotte-probe';
+          return { code: 0, stdout: JSON.stringify([{ pid: 4242, cwd, kind: 'interactive', startedAt: Date.parse('2026-11-20T12:02:00Z'), sessionId: 'abc-123', name: 'flotte-probe-ab', status: 'busy' }]), stderr: '' };
+        },
+      };
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'p2' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url, maxDauerMs: 3000 }), welt);
+      const muster = beispiel('bericht.json');
+      expect(b.berichte[0].sitzungen).toEqual([]);
+      const mit = b.berichte.find((x) => x.sitzungen.length)!;
+      expect(schluessel(mit.sitzungen[0])).toEqual(schluessel(muster.sitzungen[0]));
+      expect(mit.sitzungen).toHaveLength(t.konten.length);
+      expect(mit.sitzungen.map((s) => s.konto)).toEqual(mit.konten.map((k) => k.konto));
+      expect(mit.sitzungen[0]).toMatchObject({ projekt: 'flotte-probe', name: 'flotte-probe-ab', status: 'busy', kind: 'interactive' });
+      // one reading per minute at most, not one per turn
+      expect(dirs).toHaveLength(t.konten.length);
+      for (const x of b.berichte) expect(JSON.stringify(x.sitzungen)).not.toMatch(/beispiel|Users|4242|abc-123/);
     } finally {
       await b.zu();
     }
@@ -241,6 +273,23 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('the reason of a braked account goes into the report, cut to the length the bridge takes; a green account has none', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      // 90 % used in the 5-hour window: red, with a reason; the other accounts stay green or red by their own value
+      const buch = drehbuch([lauf(3, [{ verbrauch: [0.9, 0.2] }, { text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const konten = b.berichte.at(-1)!.konten;
+      const rot = konten.find((k) => k.stufe === 'rot');
+      expect(rot?.grund).toMatch(/verbraucht 90 %/);
+      expect(rot!.grund!.length).toBeLessThanOrEqual(4000);
+      for (const k of konten) expect('grund' in k).toBe(k.stufe !== 'gruen');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('a blocked epic requeued on the bridge: the run continues where it stopped; fetched twice it acts once', async () => {
     const b = await attrappe(() => null, { handlung: (x) => (x.epics.find((e) => e.nr === 3)?.stufe === 'blockiert' ? { epic: 3, art: 'einreihen' } : null), handlungDoppelt: true });
     try {
@@ -297,6 +346,52 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('an answer of the person is a decision too (#52): revoked on the bridge it reaches the run and the issue', async () => {
+    const neu = 'A, doch vorsichtig';
+    const mensch = (x: Bericht) => x.entscheidungen.find((d) => d.von === 'mensch');
+    const b = await attrappe(() => ({ option: 'B', text: null }), { handlung: (x) => (mensch(x) ? { epic: 3, art: 'widerruf', nr: mensch(x)!.nr, seit: mensch(x)!.zeit, text: neu } : null) });
+    try {
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ warte: 600 }, { text: ende(3, 13) }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const gemeldet = b.berichte.map(mensch).find(Boolean)!;
+      expect(gemeldet).toMatchObject({ epic: 3, nr: 1, frage: 'Frage 1 zu #3?', antwort: 'B', herkunft: 'Mensch über die Brücke', einflussreich: false, widerrufen: null, von: 'mensch' });
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      expect(laeufe).toHaveLength(3);
+      expect(laeufe[2].eingabe).toMatch(/Setze den Widerruf um[\s\S]*\nwiderruf: Frage 1 zu #3\? → A, doch vorsichtig$/);
+      expect(z.entscheidungen).toEqual([expect.objectContaining({ von: 'mensch', antwort: 'B', zeit: gemeldet.zeit, widerrufen: neu })]);
+      const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**Widerruf des Menschen'))!;
+      expect(k.text).toMatch(/widerrufen vom Menschen: A, doch vorsichtig\nVorher: B \(Mensch über die Brücke\)/);
+      expect(z.epics['3'].stufe).toBe('fertig');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('after the merge a revocation of the person no longer reaches the run, and a second one is refused (#52)', async () => {
+    const mensch = (x: Bericht) => x.entscheidungen.find((d) => d.von === 'mensch');
+    const b = await attrappe(() => ({ option: 'B', text: null }), {
+      handlung: (x) => {
+        const d = mensch(x);
+        return d && x.epics[0]?.stufe === 'fertig' ? { epic: 3, art: 'widerruf', nr: d.nr, seit: d.zeit, text: d.widerrufen ? 'zweites Mal' : 'zu spät' } : null;
+      },
+    });
+    try {
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
+      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(2);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig' });
+      expect(z.epics['3'].widerrufe ?? []).toEqual([]);
+      expect(z.entscheidungen[0].widerrufen).toBe('zu spät');
+      const texte = z.ereignisse.filter((e) => e.epic === 3).map((e) => e.text);
+      expect(texte.some((x) => /Widerruf zu Frage 1 kam nach dem Merge/.test(x))).toBe(true);
+      expect(texte.some((x) => /Widerruf über die Brücke zu Frage 1: schon widerrufen/.test(x))).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('prio/hoch: of two colliding epics the marked one starts first, the other waits with the reason on the bridge', async () => {
     const b = await attrappe(() => null);
     try {
@@ -311,6 +406,22 @@ describe('Flottenbrücke (#28)', () => {
       expect(bericht.epics.find((e) => e.nr === 4)!.prio).toBe(true);
       expect(bericht.epics.find((e) => e.nr === 3)!.prio).toBe(false);
       expect(z.epics['3'].stufe).toBe('fertig');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('the order edges of an epic go into the report for the Sternenkarte (#43)', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau({ bodies: { 3: '## Betroffene Module\n- a', 4: '> **Reihenfolge:** nach #3, #99\n\n## Betroffene Module\n- b' } });
+      const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      const bericht = b.berichte.find((x) => x.epics.length === 2)!;
+      // only edges to epics of this deployment; the stranger #99 stays out
+      expect(bericht.epics.find((e) => e.nr === 4)!.nach).toEqual([3]);
+      expect(bericht.epics.find((e) => e.nr === 3)!.nach).toEqual([]);
+      for (const x of b.berichte) for (const e of x.epics) expect(Array.isArray(e.nach)).toBe(true);
     } finally {
       await b.zu();
     }
