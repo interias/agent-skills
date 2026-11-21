@@ -126,4 +126,5 @@ und Trefferquote.
 
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
 wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
-Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch`.
+Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
+der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen (Brücke, Sternenkarte).

@@ -59,6 +59,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `entscheidungen[]` | `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen, von}`: die Entscheidungen des Admirals und (#52) die Antworten des Menschen, `von` `mensch`, `admiral` oder `lauf` (der Admiral folgte der Empfehlung des Laufs). Der Treiber schickt **alle Entscheidungen jedes nicht gemergten Epics** und dazu die letzten 100, zusammen höchstens die neuesten 500 (Grenze der Brücke); Texte kürzt er auf 4000 Zeichen (`herkunft` 500), damit nie der ganze Bericht abgelehnt wird. Eine Antwort des Menschen wird beim Anwenden zur Entscheidung (`herkunft` `Mensch über die Brücke` oder `Mensch über die Flotte`, `einflussreich` `false`, `zeit` = Zeitpunkt der Antwort). Ein älterer Treiber ohne `von`: Die Brücke liest `mensch` aus einer `herkunft`, die mit „Mensch“ beginnt, sonst `admiral`; ein unbekanntes Wort ist kein `422`. „Erledigt heute“ zeigt die des Admirals von heute, die Detailansicht des Epics alle bis zum Merge (unten) |
 | `sitzungen[]` | optional (Schiffsliste, #41): die Sitzungen aller Konten des Treibers aus `claude agents --json` je Konto (nur lesend, höchstens einmal je Minute): `{konto, projekt, name, status, kind, seit}`. `konto` wie in `konten[]`, `projekt` **nur der letzte Ordnername** des Arbeitsverzeichnisses (nie der Pfad; ein Wert mit `/` oder `\` wird mit `422` abgelehnt), `status` etwa `busy`/`idle`, `kind` etwa `interactive`, `seit` ISO aus `startedAt`. Kein `cwd`, keine `pid`, keine Sitzungs-ID; die Brücke verwirft unbekannte Felder. Fehlt das Feld (älterer Treiber) oder ist es leer, bleibt die Liste ohne Sitzungen |
 | `einstellungen[]` | optional (#58): die wirksamen Einstellungen des Treibers, die der Mensch auf der Brücke ändern kann (unten). Fehlt das Feld (älterer Treiber), zeigt die Brücke keine |
+| `freigegeben[]` | optional (#61): `{nr, titel}` der offenen Epics der Forge mit `epic_label` und `ready_label` (am Epic oder an einem Kind, wie ohne `--epics`), die **nicht** im Einsatz sind. Der Treiber liest sie nur mit Brücke, höchstens alle 5 min; die Brücke bietet für sie „Aufnehmen“ an. Fehlt das Feld (älterer Treiber), gilt `[]` |
 
 Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo nennt weiter nur
 Stufen.
@@ -102,7 +103,10 @@ dazu
 | `grund`, `haltZeit`, `log[]` | bei `blockiert`/`abgebrochen`: der Grund, seit wann, die letzten 12 Ereignisse des Epics als Zeilen `HH:MM Text` |
 | `aufgegebenAm` | der Mensch hat das Epic über die Brücke aufgegeben |
 | `prognose` | nur bei `wartend`: `{p50, p90}` in Sekunden, sonst `null` |
-| `prio` | Label `prio/hoch` (Adapter `prio_label`) am Epic oder einem Kind; `notiz` sagt, warum es trotzdem wartet |
+| `prio` | die wirksame Priorität: `prioritaet` der Brücke, sonst das Label `prio/hoch` (Adapter `prio_label`) am Epic oder einem Kind; `notiz` sagt, warum es trotzdem wartet |
+| `imEinsatz` | optional (#61): das Epic gehört zum Einsatz dieses Treibers (`--epics`, eingesammelt oder aufgenommen). Ein Epic eines früheren Einsatzes kann im Zustand stehen, ohne gefahren zu werden: `false`. Fehlt es (älterer Treiber), gilt `true` |
+| `pausiert` | optional (#61): ISO-Zeit, seit der der Mensch das Epic pausiert hat, sonst `null` |
+| `prioritaet` | optional (#61): `hoch` oder `normal`, wie der Mensch sie auf der Brücke gesetzt hat; `null`: keine, es gilt das Label |
 | `pakete[]` | `{name, nr, titel, stand, beginn, ende}` je Kind-Ticket, in jeder Stufe, auch `wartend`; `stand` `fertig` (geschlossen oder schon in den Epic-Branch gemergt, `ende` dann die Zeit dieses Merges), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer. Dazu optional die Detailfelder (unten) |
 | `neustarts` | optional (Detailansicht, #51): wie oft der Treiber für das Epic nach dem ersten Start einen Prozess gestartet oder fortgesetzt hat (jede Fortsetzung nach einer Antwort, jeder Neustart nach einem Fehlstart). Zählt über ein Neu-Einreihen durch den Menschen weiter (seit dem ersten Start, wie `runde`). Fehlt bei einem älteren Treiber und bei einem Epic ohne Start |
 | `plaetze` | optional (#51): `{belegt, von?}`, nur bei `laeuft`/`nacharbeit`/`frage` und wenn der Treiber Agent-Aufrufe des Laufs sah. `belegt` = Pakete in Implementer, Review oder Nachbesserung (Merge belegt keinen Platz; 0, wenn gerade kein Prozess läuft), `von` = `window` des Projektadapters (Standard nach `epic/references/adapter.md`: 3 mit `test_isolation_env` oder `isolation: none-needed`, sonst 1; höchstens 3), fehlt, wenn unbekannt |
@@ -216,9 +220,49 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 | `aufgeben` | wie `einreihen` | Stufe `abgebrochen`, `aufgegebenAm`; Branch, PR und Issue bleiben |
 | `widerruf` | `nr`, `seit` (= `zeit` der Entscheidung) und `text`; Epic nicht `gemergt`/`fertig`, noch kein Widerruf; eine Entscheidung des Admirals oder (#52) eine Antwort des Menschen | Kommentar am Issue, bei einflussreichen Entscheidungen auch ins Protokoll; der Lauf bekommt `widerruf: <Frage> → <Text>` im nächsten Zug, ein Epic in `pr` geht dafür zurück auf `laeuft`. Nach dem Merge nur der Kommentar und ein Ereignis, nichts an den Lauf; ein zweiter Widerruf derselben Entscheidung bleibt ein Ereignis |
 | `einstellen` | `epic` `0`, `text` = `{"name", "wert"}` als JSON (unten), mit PIN | prüft die Grenzen, setzt den Wert ab diesem Takt, speichert ihn im Zustand, Ereignis und Flottenlogbuch; ein ungültiger Wert wird ein Ereignis |
+| `aufnehmen` | `epic` steht in `freigegeben[]` des Berichts, mit PIN | prüft an der Forge: offen, `epic_label`, `ready_label` am Epic oder einem Kind, noch nicht im Einsatz; nimmt es in den Einsatz (Belegung wie jedes Epic), merkt es im Zustand (`aufgenommen`, gilt nach einem Neustart bis zum Merge), Ereignis und Flottenlogbuch |
+| `pausieren` | Epic im Bericht, `imEinsatz`, nicht `gemergt`/`fertig`/aufgegeben, nicht `pausiert`, mit PIN | `pausiert` = jetzt, auch als Feld `pausiert` in der Haltedatei des Epics: ein wartendes Epic startet nicht; ein laufender Lauf erfährt die Pause vor seinem nächsten Paketstart über die RAM-Messung (`ram.ps1` meldet `hold` mit `reason: "paused"`), startet kein weiteres Paket, laufende Pakete laufen zu Ende, der Zug endet mit `FLOTTE-FRAGE ram`; der nächste Zug (Antwort des Admirals, Fortsetzung, Nacharbeit) bleibt zurückgehalten; Merge-Schlange und Merge laufen weiter. Ereignis und Flottenlogbuch |
+| `fortsetzen` | Epic `pausiert`, sonst wie `pausieren` | hebt die Pause auf (auch in der Haltedatei); der zurückgehaltene Zug geht unverändert an den Lauf, ein wartendes Epic startet nach der Belegung. Ereignis und Flottenlogbuch |
+| `prioritaet` | `text` `hoch` oder `normal` (sonst `422`), sonst wie `pausieren` ohne die Pause | setzt die Priorität des Epics; sie gilt vor dem Label `prio/hoch`: hoch geht unter den startbereiten bei freiem Platz zuerst, Reihenfolge-Kanten und Kollisionen bleiben vorrangig. Ereignis und Flottenlogbuch |
 
 `einreihen` und `aufgeben` schließen sich aus: Bis zum Abholen gilt die letzte. Danach antwortet die
 Brücke `409`. Endet der Einsatz, weil alles blockiert ist, wirkt die Handlung beim nächsten Start.
+Ebenso schließen sich `pausieren` und `fortsetzen` je Epic aus; von `prioritaet` und `aufnehmen` gilt
+je Epic die letzte bis zum Abholen.
+
+**Epics steuern** (#61): `aufnehmen`, `pausieren`, `fortsetzen` und `prioritaet` betreffen ein Epic
+(`epic` ≥ 1, sonst `422`), `nr` und `seit` sind `null`, `text` ist nur bei `prioritaet` gesetzt
+(`hoch` oder `normal`). Angenommen werden sie wie `widerruf` nur mit PIN; `404`, wenn die Brücke das
+Epic nicht kennt (`aufnehmen`: `409`, wenn es nicht in `freigegeben[]` steht), `409`, wenn es nicht
+passt (Spalte oben). Der Treiber prüft selbst noch einmal; was nicht passt (Epic unbekannt oder nicht
+im Einsatz, nicht freigegeben, schon pausiert, nicht pausiert, unbekannte Priorität), ändert nichts und
+wird ein Ereignis `<Handlung> über die Brücke abgelehnt: <Grund>` (`Aufnehmen`, `Pausieren`,
+`Fortsetzen`, `Priorität`); quittiert wird beides. Wirkung ab dem Takt, in dem der Treiber sie abholt;
+nichts Laufendes wird abgebrochen. `aufnehmen` umgeht weder `ready_label` noch die Merge-Regel noch
+ein Tor. Ereignis und Kommentar im Flottenlogbuch:
+`Epic #<nr> in den Einsatz aufgenommen, Mensch über die Brücke`,
+`Epic #<nr> pausiert, <Lage>; Mensch über die Brücke`, `Epic #<nr> fortgesetzt[, der zurückgehaltene
+Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt> → auf <neu>, Mensch
+über die Brücke`. Beispiel beim Abholen:
+
+```json
+{
+  "id": 9,
+  "epic": 41,
+  "art": "prioritaet",
+  "nr": null,
+  "seit": null,
+  "text": "hoch",
+  "zeit": "2026-11-20T14:44:00+00:00",
+  "herkunft": "Mensch über die Brücke"
+}
+```
+
+In `GET /api/tafel` trägt jede Zeile in `projekte[].epics[]` dazu `imEinsatz`, `pausiert`,
+`prioritaet` und die noch nicht quittierten Handlungen `pause` (`pausieren`/`fortsetzen`) und
+`vorrang` (`prioritaet`), je `{id, art, text, zeit, abgeholt, quittiert}` oder `null`; jedes Projekt
+trägt `freigegeben[]` `{nr, titel, issueUrl, handlung}`. Die Karten der Brücke tragen `pausiert` und
+`prio` (die Schiffsliste zeigt beides).
 
 **`einstellen`** (#58) gehört zum Projekt, nicht zu einem Epic: `epic` ist `0`, `nr` und `seit` sind
 `null`, `text` ist das JSON `{"name": <name>, "wert": <wert>}` mit einem `name` aus `einstellungen[]`

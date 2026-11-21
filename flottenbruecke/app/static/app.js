@@ -12,7 +12,7 @@ const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
 const PHASE = { implementer: 'Implementer', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Merge' };
 const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
-const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf' };
+const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf', aufnehmen: 'Aufnehmen', pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität' };
 const VON = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
 
 const $ = (id) => document.getElementById(id);
@@ -505,9 +505,17 @@ function zeileHtml(x) {
   if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · ${esc(x.titel)}</span>`;
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
-  if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${x.handlung === 'einreihen' ? 'neu eingereiht' : `Widerruf Frage ${x.nr} → ${esc(x.text)}`}</b></span>`;
+  if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${handlungWort(x)}</b></span>`;
   // admiral
   return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
+}
+
+// what an acknowledged action of the person did, for "Erledigt heute" and the logbook (escaped)
+function handlungWort(x) {
+  const wort = { einreihen: 'neu eingereiht', aufnehmen: 'in den Einsatz aufgenommen', pausieren: 'pausiert', fortsetzen: 'fortgesetzt' }[x.handlung];
+  if (wort) return wort;
+  if (x.handlung === 'prioritaet') return `Priorität ${esc(x.text)}`;
+  return `Widerruf Frage ${x.nr} → ${esc(x.text)}`;
 }
 
 function zeileVerdrahten(el, x) {

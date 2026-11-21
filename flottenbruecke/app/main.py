@@ -1,7 +1,8 @@
 # Flottenbrücke (#28): the board of every deployment of the fleet driver and the way back for the
 # answers of the person. Viewing is free in the LAN; answering needs the PIN from .env. Besides the
-# answers the bridge carries three actions to the driver, which carries them out: requeue or give
-# up a blocked epic, revoke a decision of the admiral, change a setting of the driver (#59). No start, stop or merge. The Holodeck (#44)
+# answers the bridge carries actions to the driver, which carries them out: requeue or give up a
+# blocked epic, revoke a decision of the admiral, change a setting of the driver (#59), take a released
+# epic in, pause or continue an epic and set its priority (#61). No merge, no abort. The Holodeck (#44)
 # shows the prototypes each driver sends, sealed off from the bridge.
 
 import hashlib
@@ -179,8 +180,19 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             grund = einstellung_pruefen(liste, z['name'], z['wert'], andere)
             if grund:
                 raise HTTPException(422, grund)
+        elif h.art == 'aufnehmen':
+            # the driver checks ready_label and epic_label against the forge again
+            if h.epic not in [f['nr'] for f in b.get('freigegeben', [])]:
+                raise HTTPException(409, 'Das Epic ist nicht freigegeben oder schon im Einsatz.')
         elif ep is None:
             raise HTTPException(404, 'Dieses Epic kennt die Brücke nicht.')
+        elif h.art in ('pausieren', 'fortsetzen', 'prioritaet'):
+            if ep['stufe'] in ('gemergt', 'fertig') or ep.get('aufgegebenAm') or not ep.get('imEinsatz', True):
+                raise HTTPException(409, 'Das Epic ist nicht im Einsatz.')
+            if h.art == 'pausieren' and ep.get('pausiert'):
+                raise HTTPException(409, 'Das Epic ist schon pausiert.')
+            if h.art == 'fortsetzen' and not ep.get('pausiert'):
+                raise HTTPException(409, 'Das Epic ist nicht pausiert.')
         elif h.art == 'widerruf':
             d = next((d for d in b.get('entscheidungen', []) if d['epic'] == h.epic and d['nr'] == h.nr and d['zeit'] == h.seit), None)
             if d is None:

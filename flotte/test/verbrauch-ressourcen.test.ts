@@ -91,6 +91,12 @@ describe('ressourcen', () => {
     expect(gesehen.at(-1)?.slice(-2)).toEqual(['-WarnPercent', '80']);
   });
 
+  it('measures the machine only: the pause of an epic in a holder file never reaches the driver (#61)', async () => {
+    let env: Record<string, string> | undefined;
+    await messeRam(async (_p, _a, o) => ((env = o?.env), { code: 0, stdout: '{"level":"ok"}', stderr: '' }), 'C:/r');
+    expect(env).toEqual({ EPIC_LOCK_HOLDER: '' });
+  });
+
   it('counts a failed measurement as hold (D7)', async () => {
     expect(await messeRam(ramStub('', 1), 'C:/r')).toMatchObject({ level: 'hold', percent_used: null });
     expect((await messeRam(ramStub('kein json'), 'C:/r')).level).toBe('hold');

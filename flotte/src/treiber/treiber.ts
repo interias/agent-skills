@@ -231,6 +231,13 @@ export interface FlottenEpic extends EpicZustand {
   widerrufe?: string[];
   /** the limit of packages at once changed on the bridge (#60), handed to the run when it is continued */
   grenze?: number;
+  /**
+   * #61: paused by the person since (ISO): it does not start, and its next turn is held (auftrag stays)
+   * until it is continued; a turn under way runs to its end
+   */
+  pausiert?: string | null;
+  /** #61: the priority set on the bridge; it wins over the label for this epic */
+  prioritaet?: 'hoch' | 'normal';
   /** detail view (#51): the Agent calls of the runs with their returns, and how often a process was started or continued */
   agenten?: AgentEintrag[];
   starts?: number;
@@ -264,6 +271,8 @@ export interface FlottenZustand extends Zustand {
   handlungenErledigt?: number[];
   /** #58: the settings the person changed on the bridge, as the bridge sees them; they outlive a restart */
   einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string }>>;
+  /** #61: epics taken into the deployment on the bridge; they join it again after a restart until they are done */
+  aufgenommen?: number[];
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -364,6 +373,10 @@ class Treiber {
   /** #58: where each setting comes from and since when; --konten as given at the start (its standard) */
   herkunft = new Map<EinstellungName, { herkunft: Herkunft; seit: string }>();
   startKonten: string[] = [];
+  /** #61: the released epics of the forge outside the deployment, read for the bridge at most every PAKETE_MS, and their titles */
+  freigegeben: number[] = [];
+  freigegebenZeit = 0;
+  freiTitel = new Map<number, string>();
 
   constructor(
     readonly e: Einstellung,
@@ -399,6 +412,13 @@ class Treiber {
       this.e.epics = this.einsammeln(adapterAus(this.e.repo));
       this.gesammelt = this.w.jetzt();
     }
+    // #61: taken in on the bridge, the epic stays in the deployment until it is done
+    this.z.aufgenommen = (this.z.aufgenommen ?? []).filter((n) => !['gemergt', 'fertig'].includes(this.z.epics[n]?.stufe ?? '') && !this.z.epics[n]?.aufgegebenAm);
+    const wieder = this.z.aufgenommen.filter((n) => !this.e.epics.includes(n));
+    if (wieder.length) {
+      this.e.epics = [...this.e.epics, ...wieder];
+      this.ereignis(null, `Über die Brücke aufgenommen, bleibt im Einsatz: ${wieder.map((n) => `#${n}`).join(', ')}`);
+    }
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
     this.bilder = bilder;
@@ -411,6 +431,8 @@ class Treiber {
     }
     this.messungen = liesMessungen(this.dir);
     this.wiederaufnehmen();
+    // #61: a pause outlives the restart in the holder file as well; a field the state no longer carries goes
+    for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
     if (this.e.bruecke) this.bruecke = new Bruecke(this.e.bruecke, this.e.brueckeToken);
 
     for (;;) {
@@ -427,6 +449,7 @@ class Treiber {
         this.belege();
       }
       this.paketeLesen();
+      this.freigegebenLesen();
       this.speichern();
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
@@ -548,7 +571,7 @@ class Treiber {
       admiral: this.e.admiralName,
       brake,
       ram: this.z?.ram ?? [],
-      epics: Object.values(this.z?.epics ?? {}).map((ep) => ({ number: ep.nr, stage: stage[ep.stufe] ?? 'waiting', carrier: 'agent' as const, paused: Boolean(ep.auftrag) && !this.laufend.has(ep.nr), note: ep.notiz })),
+      epics: Object.values(this.z?.epics ?? {}).map((ep) => ({ number: ep.nr, stage: stage[ep.stufe] ?? 'waiting', carrier: 'agent' as const, paused: (Boolean(ep.auftrag) && !this.laufend.has(ep.nr)) || Boolean(ep.pausiert), note: ep.notiz })),
       questions: (this.z?.fragen ?? []).filter((f) => !f.beantwortet).map((f) => ({ number: f.epic, text: f.frage })),
       history: { deployments: 0, max_runs: this.z?.statistik.maxLaeufe ?? 0, all_green: 0 },
     });
@@ -793,8 +816,27 @@ class Treiber {
     const d = join(this.dir, 'halten');
     mkdirSync(d, { recursive: true });
     const f = join(d, `${nr}.json`);
-    if (!existsSync(f)) writeFileSync(f, JSON.stringify({ epic: nr, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString() }));
+    const pausiert = this.z.epics[nr]?.pausiert;
+    if (!existsSync(f)) writeFileSync(f, JSON.stringify({ epic: nr, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString(), ...(pausiert ? { pausiert } : {}) }));
     return f;
+  }
+
+  /**
+   * #61: the pause in the holder file of a running epic. The run sees the file as EPIC_LOCK_HOLDER;
+   * ram.ps1 answers hold while it carries pausiert, so the run starts no further package and ends its
+   * turn with FLOTTE-FRAGE ram. Only the field changes; a missing or unreadable file stays as it is.
+   */
+  pauseVermerken(ep: FlottenEpic): void {
+    const f = join(this.dir, 'halten', `${ep.nr}.json`);
+    if (!existsSync(f)) return;
+    try {
+      const j = JSON.parse(readFileSync(f, 'utf8')) as Record<string, unknown>;
+      if (ep.pausiert) j.pausiert = ep.pausiert;
+      else delete j.pausiert;
+      writeFileSync(f, JSON.stringify(j));
+    } catch {
+      this.ereignis(ep.nr, 'Haltedatei unlesbar, die Pause erreicht den laufenden Zug nicht');
+    }
   }
 
   loslassen(nr: number): void {
@@ -803,7 +845,8 @@ class Treiber {
 
   verteile(): void {
     for (const ep of Object.values(this.z.epics)) {
-      if (!ep.auftrag || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
+      // #61: a paused epic keeps its next turn until the person continues it
+      if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
       const a = ep.auftrag;
       ep.auftrag = null;
       const fortsetzen = a.resume && Boolean(ep.sitzung);
@@ -827,10 +870,13 @@ class Treiber {
     if (!gruen.length) return;
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
-    const im = this.bilder.filter((b) => {
-      const s = this.epic(b.nr).stufe;
-      return s === 'wartend' || laufend.includes(b.nr) || gemergt.includes(b.nr);
-    });
+    // #61: a paused epic does not start; the priority of the bridge wins over the label
+    const im = this.bilder
+      .filter((b) => {
+        const s = this.epic(b.nr).stufe;
+        return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
+      })
+      .map((b) => ({ ...b, prio: this.prio(b.nr) }));
     const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze() });
     for (const w of plan.wartend) {
       const notiz = `wartet auf den Merge von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
@@ -863,6 +909,12 @@ class Treiber {
       laufend.push(nr);
       this.starteLauf(ep, this.startText(nr), false);
     }
+  }
+
+  /** the priority in effect (#61): the one set on the bridge, else the label on the epic or a child */
+  prio(nr: number): boolean {
+    const p = this.epic(nr)?.prioritaet;
+    return p ? p === 'hoch' : Boolean(this.bilder.find((b) => b.nr === nr)?.prio);
   }
 
   aufKonto(k: string): number {
@@ -980,6 +1032,13 @@ class Treiber {
   async frage(ep: FlottenEpic, block: FrageBlock): Promise<void> {
     const nr = ep.nr;
     if (block.phase === 'ram') {
+      if (ep.pausiert) {
+        // #61: ram.ps1 said hold because of the pause; verteile keeps the answer until fortsetzen
+        ep.auftrag = { resume: true, text: this.an(nr, 'Antwort auf FLOTTE-FRAGE ram: A) warten bis ok. Der Mensch hat die Pause aufgehoben, weiter.') };
+        ep.notiz = 'pausiert vom Menschen';
+        this.ereignis(nr, 'RAM-Frage wegen der Pause: weiter nach fortsetzen');
+        return;
+      }
       ep.auftrag = { resume: true, text: this.an(nr, 'Antwort auf FLOTTE-FRAGE ram: A) warten bis ok. Der Speicher ist wieder unter der Schwelle, weiter.') };
       ep.notiz = 'wartet auf RAM ok';
       this.ereignis(nr, 'RAM-Frage: weiter, sobald die Bremse frei ist');
@@ -1145,6 +1204,7 @@ class Treiber {
     const jetzt = new Date(this.w.jetzt()).toISOString();
     const amIssue = (text: string) => kommentar(this.w.aufrufer, this.e.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
     if (h.art === 'einstellen') return this.einstellen(h);
+    if (h.art === 'aufnehmen') return this.aufnehmen(h);
     if (!ep) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic gehört nicht zu diesem Einsatz`);
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
@@ -1167,6 +1227,7 @@ class Treiber {
       }
       return this.ereignis(h.epic, `Widerruf des Menschen zu Frage ${h.nr} (über die Brücke): ${text.slice(0, 120)}`);
     }
+    if (h.art === 'pausieren' || h.art === 'fortsetzen' || h.art === 'prioritaet') return this.steuern(h, ep);
     if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || ep.aufgegebenAm) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic ist ${ep.stufe}, nichts zu tun`);
     if (h.art === 'aufgeben') {
       ep.stufe = 'abgebrochen';
@@ -1190,6 +1251,99 @@ class Treiber {
     }
     amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
     this.ereignis(h.epic, `neu eingereiht vom Menschen (über die Brücke)${ep.stufe === 'wartend' ? ', wartet auf einen Platz' : ', der Lauf setzt fort'}`);
+  }
+
+  // ---- steering epics (#61)
+
+  /** an event and a comment in the fleet logbook, like a setting */
+  imLogbuch(epic: number | null, text: string): void {
+    this.ereignis(epic, text);
+    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+  }
+
+  /**
+   * aufnehmen: an open epic with epic_label and the release label (on it or a child) joins the
+   * deployment now, checked against the forge here; ready_label, merge rule and gate stay as they are.
+   * It starts by the occupancy like every other epic and stays after a restart.
+   */
+  aufnehmen(h: BrueckenHandlung): void {
+    const nr = h.epic;
+    const nein = (grund: string) => this.ereignis(nr, `Aufnehmen über die Brücke abgelehnt: ${grund}`);
+    if (this.e.epics.includes(nr)) return nein('schon im Einsatz');
+    const ep = this.epic(nr);
+    if (ep && (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm)) return nein(`Epic ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    try {
+      if (!freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.includes(nr)) return nein(`kein offenes Epic mit ${this.adapter.epic_label} und ${this.adapter.ready_label}`);
+      this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, [...this.e.epics, nr]).bilder;
+    } catch (err) {
+      return nein(`Forge nicht lesbar (${String(err).slice(0, 200)})`);
+    }
+    this.e.epics = [...this.e.epics, nr];
+    this.z.epics[nr] ??= neuesEpic(nr);
+    (this.z.aufgenommen ??= []).push(nr);
+    this.freigegeben = this.freigegeben.filter((n) => n !== nr);
+    this.imLogbuch(nr, `Epic #${nr} in den Einsatz aufgenommen, ${HERKUNFT_BRUECKE}`);
+  }
+
+  /**
+   * pausieren, fortsetzen, prioritaet of an epic in the deployment. A pause stops nothing: a waiting
+   * epic does not start, a turn under way runs to its end (its ram.ps1 reads the pause from the
+   * holder file and holds before the next package start), the next turn (the admiral's answer, a
+   * continuation) waits in auftrag until fortsetzen hands it over unchanged. The priority orders the
+   * startable epics only; order edges and collisions keep their say (belege).
+   */
+  steuern(h: BrueckenHandlung, ep: FlottenEpic): void {
+    const nr = ep.nr;
+    const was = { pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität' }[h.art as 'pausieren' | 'fortsetzen' | 'prioritaet'];
+    const nein = (grund: string) => this.ereignis(nr, `${was} über die Brücke abgelehnt: ${grund}`);
+    if (!this.e.epics.includes(nr)) return nein('Epic ist nicht im Einsatz');
+    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Epic ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    if (h.art === 'prioritaet') {
+      const p = h.text?.trim();
+      if (p !== 'hoch' && p !== 'normal') return nein(`unbekannte Priorität ${JSON.stringify(h.text ?? null).slice(0, 40)}`);
+      const vorher = this.prio(nr) ? 'hoch' : 'normal';
+      ep.prioritaet = p;
+      return this.imLogbuch(nr, `Priorität von #${nr} von ${vorher} → auf ${p}, ${HERKUNFT_BRUECKE}`);
+    }
+    if (h.art === 'pausieren') {
+      if (ep.pausiert) return nein('schon pausiert');
+      ep.pausiert = new Date(this.w.jetzt()).toISOString();
+      this.pauseVermerken(ep);
+      if (ep.stufe === 'wartend') ep.notiz = 'pausiert vom Menschen';
+      const lage = this.laufend.has(nr) ? ', der laufende Zug läuft zu Ende, danach wartet es' : ep.stufe === 'wartend' ? ', startet nicht' : ', kein weiterer Zug';
+      return this.imLogbuch(nr, `Epic #${nr} pausiert${lage}; ${HERKUNFT_BRUECKE}`);
+    }
+    if (!ep.pausiert) return nein('nicht pausiert');
+    ep.pausiert = null;
+    this.pauseVermerken(ep);
+    if (ep.notiz === 'pausiert vom Menschen') ep.notiz = '';
+    this.imLogbuch(nr, `Epic #${nr} fortgesetzt${ep.auftrag && !this.laufend.has(nr) ? ', der zurückgehaltene Zug geht an den Lauf' : ''}; ${HERKUNFT_BRUECKE}`);
+  }
+
+  /** #61: the released epics outside the deployment for the bridge; a forge that does not answer keeps the last list */
+  freigegebenLesen(): void {
+    if (!this.bruecke || this.w.jetzt() - this.freigegebenZeit < PAKETE_MS) return;
+    this.freigegebenZeit = this.w.jetzt();
+    try {
+      this.freigegeben = freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.filter((n) => !this.e.epics.includes(n));
+    } catch {
+      // the list only offers aufnehmen; the driver asks the forge again when the action comes
+    }
+  }
+
+  /** the title of a released epic outside the deployment, read once */
+  freiTitelVon(nr: number): string {
+    if (!this.freiTitel.has(nr)) {
+      const r = this.w.aufrufer('gh', ['issue', 'view', String(nr), '--repo', this.e.forge, '--json', 'title']);
+      let t = '';
+      try {
+        t = r.code ? '' : String((JSON.parse(r.stdout) as { title?: string }).title ?? '');
+      } catch {
+        t = '';
+      }
+      this.freiTitel.set(nr, t);
+    }
+    return this.freiTitel.get(nr)!;
   }
 
   // ---- settings (#58)
@@ -1574,7 +1728,10 @@ class Treiber {
           // "Log ansehen" on the blockade card: the driver's last events of this epic
           log: halt ? this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => `${new Date(x.zeit).toTimeString().slice(0, 5)} ${x.text.slice(0, 300)}`) : [],
           aufgegebenAm: ep.aufgegebenAm ?? null,
-          prio: Boolean(this.bilder.find((b) => b.nr === ep.nr)?.prio),
+          prio: this.prio(ep.nr),
+          imEinsatz: this.e.epics.includes(ep.nr),
+          pausiert: ep.pausiert ?? null,
+          prioritaet: ep.prioritaet ?? null,
           gestartetAm: ep.gestartetAm ?? null,
           schlangeSeit: this.z.schlange.includes(ep.nr) ? (ep.schlangeSeit ?? null) : null,
           gateSeit: ep.gateSeit ?? null,
@@ -1609,6 +1766,7 @@ class Treiber {
       prognose: this.prognoseBericht(),
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
+      freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
     };
   }
 
