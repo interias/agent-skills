@@ -504,6 +504,7 @@ function zeileHtml(x) {
   if (x.art === 'gemergt') return `${zeit}<span><b>${nr} gemergt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
   if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · ${esc(x.titel)}</span>`;
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
+  if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
   if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${x.handlung === 'einreihen' ? 'neu eingereiht' : `Widerruf Frage ${x.nr} → ${esc(x.text)}`}</b></span>`;
   // admiral
   return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
