@@ -51,6 +51,24 @@ class Paket(BaseModel):
     # first seen working and closed (ISO): the board counts the duration itself
     beginn: str | None = Field(None, max_length=40)
     ende: str | None = Field(None, max_length=40)
+    # detail view (#51), from the Agent calls in the run's log; an older driver, spec mode and a package
+    # without a call have none. phase: implementer, review, nachbesserung, merge (none once merged)
+    phase: Literal['implementer', 'review', 'nachbesserung', 'merge'] | None = None
+    runde: int | None = Field(None, ge=1)
+    # the class of the latest implementer call, `stufeStart` the one of the first call when it differs
+    stufe: Literal['mechanisch', 'standard', 'urteil', 'urteil-hoch'] | None = None
+    stufeStart: Literal['mechanisch', 'standard', 'urteil', 'urteil-hoch'] | None = None
+    eskaliert: bool | None = None
+    # first call, start of the phase, last entry of the log that concerns the package (ISO)
+    erstAufruf: str | None = Field(None, max_length=40)
+    phaseSeit: str | None = Field(None, max_length=40)
+    lebenszeichen: str | None = Field(None, max_length=40)
+
+
+class Plaetze(BaseModel):
+    # packages in implementer, review or nachbesserung; `von` the window of the project adapter (at most 3), None: unknown
+    belegt: int = Field(ge=0)
+    von: int | None = Field(None, ge=1)
 
 
 class Spanne(BaseModel):
@@ -89,6 +107,9 @@ class Epic(BaseModel):
     prognose: Spanne | None = None
     # order edges (Sternenkarte, #43): the epics of this repository it comes after (`> **Reihenfolge:**`, ## Blocked by); older drivers have none
     nach: list[int] = Field([], max_length=200)
+    # detail view (#51): how often the driver started or continued a process after the first start; places in use
+    neustarts: int | None = Field(None, ge=0)
+    plaetze: Plaetze | None = None
 
 
 class Fenster(BaseModel):

@@ -9,6 +9,7 @@ import type { Option } from '../werkzeuge/bloecke.ts';
 import type { Prototyp } from './holodeck.ts';
 import type { BerichtSitzung } from './sitzungen.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
+import type { PaketDetail } from '../werkzeuge/detail.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** a set of prototypes may weigh megabytes: a longer limit than the report's */
@@ -64,7 +65,7 @@ export interface BerichtFrage {
  * links it), in spec mode a name only. stand: fertig (closed), laeuft (status/in-arbeit), geparkt
  * (waits for an answer of the person), zurueckgelassen (status/haengt), blockiert (status/blockiert), offen.
  */
-export interface BerichtPaket {
+export interface BerichtPaket extends Partial<PaketDetail> {
   name: string;
   stand: 'offen' | 'laeuft' | 'fertig' | 'geparkt' | 'blockiert' | 'zurueckgelassen';
   nr: number | null;
@@ -106,6 +107,9 @@ export interface BerichtEpic {
   prognose: { p50: number; p90: number } | null;
   /** order edges for the Sternenkarte: the epics of this repository it comes after (`> **Reihenfolge:**`, ## Blocked by) */
   nach: number[];
+  /** detail view (#51), optional: runs and continuations of the driver after the first start; places in use against the window */
+  neustarts?: number;
+  plaetze?: { belegt: number; von?: number };
 }
 
 /**

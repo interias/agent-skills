@@ -9,6 +9,8 @@ const PIN_KEY = 'flottenbruecke-pin';
 const STILL = matchMedia('(prefers-reduced-motion: reduce)');
 const BREIT = matchMedia('(min-width: 701px)');
 const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
+const PHASE = { implementer: 'Implementer', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Merge' };
+const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
 const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf' };
 
@@ -333,12 +335,31 @@ function bereitHtml(b) {
   return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
 }
 
+// #51: phase, round, class and times of a package; every part only when the driver reported it
+function paketDetail(p) {
+  const t = [];
+  if (p.phase) t.push(`<b>${esc(PHASE[p.phase] ?? p.phase)}</b>${p.phaseSeit ? ` ${zeitHtml(p.phaseSeit, 'seit {}')}` : ''}`);
+  if (p.erstAufruf) t.push(zeitHtml(p.erstAufruf, 'gesamt {}', p.ende));
+  if (p.runde) t.push(`Runde ${p.runde}`);
+  if (p.stufe) t.push(`Stufe ${esc(p.stufeStart ? `${STUFE[p.stufeStart] ?? p.stufeStart} → ` : '')}${esc(STUFE[p.stufe] ?? p.stufe)}`);
+  if (p.phase && p.lebenszeichen) t.push(`<span title="letzter Protokolleintrag des Laufs zu diesem Paket">Lebenszeichen ${esc(uhrzeit(p.lebenszeichen))}</span>`);
+  const lang = p.lang ? '<span class="lang" title="läuft seit mehr als dem 1,5-Fachen des Medians der fertigen Pakete dieses Projekts">länger als üblich</span>' : '';
+  return t.length || lang ? `<span class="pd">${t.join(' · ')}${lang}</span>` : '';
+}
+
+function paketeListe(x) {
+  return `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span>${paketDetail(p)}</li>`).join('')}</ol>`;
+}
+
+// the opened detail of an epic: one section per entry; the decisions of the epic (#52) add theirs below the list
+const abschnitte = (x) => [paketeListe(x)];
+
 function paketeHtml(x) {
   if (!x.pakete?.length) return '';
   const n = x.pakete.length;
   const fertig = x.pakete.filter((p) => p.stand === 'fertig').length;
   const offen = auf.has(`pakete:${x.id}`);
-  const liste = offen ? `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span></li>`).join('')}</ol>` : '';
+  const liste = offen ? `<div class="detail">${abschnitte(x).join('')}</div>` : '';
   const zahl = x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`;
   return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete: antippen für die Liste"><span class="segmente">${x.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
 }
@@ -360,6 +381,9 @@ function laufHtml(x) {
   const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf des Epics"></button>` : '';
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
   const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
+  // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
+  const meta = x.form === 'lauf' ? [x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
+  const kopfmeta = meta.length ? `<span class="epic-meta">${meta.join(' · ')}</span>` : '';
   if (x.form === 'schlange') {
     const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
     const gate = x.gateSeit ? zeitHtml(x.gateSeit, 'Gate seit {}', null, 'rel gate') : '';
@@ -367,7 +391,7 @@ function laufHtml(x) {
   }
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
   const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
-  return `${kopfz}${titel}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
+  return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
 }
 
 // the life sign: a pulse while the run speaks, a bar up to the idle limit (yellow from half, red near it)

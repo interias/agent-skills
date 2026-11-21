@@ -21,6 +21,7 @@ import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHa
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
+import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface Einstellung {
@@ -212,6 +213,9 @@ export interface FlottenEpic extends EpicZustand {
   aufgegebenAm?: string | null;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
+  /** detail view (#51): the Agent calls of the runs with their returns, and how often a process was started or continued */
+  agenten?: AgentEintrag[];
+  starts?: number;
   /** the child tickets for the bridge, read from the forge at most every PAKETE_MS */
   pakete?: BerichtPaket[];
   paketeZeit?: number;
@@ -537,7 +541,7 @@ class Treiber {
       const verfolgen = derselbe || unklar;
       this.ereignis(ep.nr, verfolgen ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
       const log = ep.log && existsSync(ep.log) ? ep.log : this.leeresLog(ep.nr);
-      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s) })
+      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s), beiZeile: (z, t) => this.agentZeile(ep, z, t, true) })
         .then((r) => {
           this.fertig.push({ nr: ep.nr, r });
         })
@@ -679,6 +683,7 @@ class Treiber {
     mkdirSync(laeufe, { recursive: true });
     ep.log = join(laeufe, `${nr}-${this.w.jetzt()}-${this.z.statistik.starts}.jsonl`);
     this.z.statistik.starts++;
+    ep.starts = (ep.starts ?? 0) + 1;
     const p = this.w
       .starte({
         ...this.programm(),
@@ -694,6 +699,7 @@ class Treiber {
         extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(','), ...guardArgs(join(this.e.skripte, 'guard.ps1'))],
         werkzeuge: laufWerkzeuge,
         beiSchritt: (s) => this.schritt(ep, s),
+        beiZeile: (z, t) => this.agentZeile(ep, z, t, false),
         beimStart: (pid) => {
           ep.pid = pid;
           ep.pidSeit = Date.now();
@@ -712,6 +718,20 @@ class Treiber {
       ep.prognose = prognoseEpic(this.messungen, this.kinderZahl(nr), this.adapter.prognose_ab);
     }
     this.ereignis(nr, resume ? 'Lauf fortgesetzt' : 'Lauf gestartet');
+  }
+
+  /**
+   * #51: what a log line says about the Agent calls of the run, for phase, round and class on the
+   * bridge. `nachlese`: a run taken over after a restart is read from its first line again; calls and
+   * returns known already are kept, the times of work below a call are not taken anew. Without a
+   * bridge nobody reads the fields: nothing is parsed or kept. The quick test lets calls, results and
+   * the `task_notification` of a background agent pass (all carry `"tool_use`, the latter as `"tool_use_id"`).
+   */
+  agentZeile(ep: FlottenEpic, zeile: string, zeit: number, nachlese: boolean): void {
+    if (!this.e.bruecke) return;
+    if (!zeile.includes('"tool_use') && !zeile.includes('"parent_tool_use_id":"')) return;
+    const neu = eintraegeAus(zeile, zeit).filter((e) => !(nachlese && e.art === 'unter'));
+    if (neu.length) fuegeAn((ep.agenten ??= []), neu);
   }
 
   /** C4: the board shows the last step of each run; C1: a silence carried by a child process is an event. */
@@ -1246,7 +1266,7 @@ class Treiber {
    * (status/in-arbeit) until the epic PR closes it. One git log per epic read: the local branch
    * epic/<nr>-… (often only in the epic worktree), else origin/epic/<nr>-…, without the commits of
    * other branches (the base); a commit counts by
-   * `Merge … agent/<kind>-…` or `(#<kind>)` in its subject.
+   * `Merge … agent/<kind>-…`, `(#<kind>)` or `Merge #<kind>: …` in its subject (kinderAusBetreff).
    */
   imEpicBranch(nr: number): Map<number, string> {
     const fertig = new Map<number, string>();
@@ -1261,8 +1281,7 @@ class Treiber {
     // newest first: the last hit of a child is its first merge
     for (const zeile of log.stdout.split('\n')) {
       const [zeit, betreff = ''] = zeile.split('\t');
-      const kinder = [...betreff.matchAll(/^Merge\b.*?\bagent\/(\d+)(?:-|\b)/g), ...betreff.matchAll(/\(#(\d+)\)/g)].map((m) => Number(m[1]));
-      for (const k of kinder) fertig.set(k, new Date(zeit).toISOString());
+      for (const k of kinderAusBetreff(betreff)) fertig.set(k, new Date(zeit).toISOString());
     }
     return fertig;
   }
@@ -1360,6 +1379,21 @@ class Treiber {
     return ep.titel;
   }
 
+  /**
+   * #51: phase, round and class per child from the Agent calls of the runs. A package merged into the
+   * epic branch has no phase; while the epic is not at work (PR, queue) none has, the rest stays.
+   */
+  paketDetail(ep: FlottenEpic): ReturnType<typeof ableiten> {
+    const alle = ableiten(ep.agenten ?? [], new Set((ep.pakete ?? []).filter((p) => p.stand === 'fertig' && p.nr != null).map((p) => p.nr!)));
+    if (!['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe)) {
+      for (const d of alle.values()) {
+        delete d.phase;
+        delete d.phaseSeit;
+      }
+    }
+    return alle;
+  }
+
   bericht(): Bericht {
     const konto = (k: string) => kurzname(k, this.e.admiralKonto);
     return {
@@ -1371,6 +1405,7 @@ class Treiber {
       taktS: Math.max(1, Math.round(this.e.taktMs / 1000)),
       epics: Object.values(this.z.epics).map((ep) => {
         const halt = ep.stufe === 'blockiert' || ep.stufe === 'abgebrochen';
+        const detail = this.paketDetail(ep);
         return {
           nr: ep.nr,
           titel: this.titel(ep),
@@ -1379,7 +1414,7 @@ class Treiber {
           pr: ep.pr,
           notiz: ep.notiz,
           geparkt: ep.geparkt,
-          pakete: ep.pakete ?? [],
+          pakete: (ep.pakete ?? []).map((p) => ({ ...p, ...(p.nr == null ? undefined : detail.get(p.nr)) })),
           schritt: ep.schritt ?? null,
           schrittZeit: ep.schrittZeit ?? null,
           prozess: this.laufend.has(ep.nr),
@@ -1394,6 +1429,8 @@ class Treiber {
           gateSeit: ep.gateSeit ?? null,
           prognose: this.prognoseFuer(ep),
           nach: this.bilder.find((b) => b.nr === ep.nr)?.nach ?? [],
+          ...(ep.starts ? { neustarts: ep.starts - 1 } : {}),
+          ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
       }),
       schlange: this.z.schlange,

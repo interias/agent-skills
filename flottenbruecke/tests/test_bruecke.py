@@ -110,7 +110,7 @@ def test_lauf_mit_lebenszeichen(client, bericht):
     client.post('/api/bericht', json=bericht)
     l38 = tafel(client)['unterwegs']['laeufe'][0]
     assert (l38['prozess'], l38['leerlaufS'], l38['schrittZeit']) == (True, 3600, '2026-11-20T14:29:40Z')
-    assert [p['stand'] for p in l38['pakete']] == ['fertig', 'laeuft', 'offen']
+    assert [p['stand'] for p in l38['pakete']] == ['fertig', 'laeuft', 'offen', 'laeuft', 'laeuft', 'laeuft']
 
 
 def test_pakete_als_links_auf_die_tickets(client, bericht):

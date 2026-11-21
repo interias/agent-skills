@@ -109,6 +109,16 @@ Drei Ebenen, sortiert danach, was du tun musst:
    (Rechnung in `flotte/README.md`, „Prognose“), dann Gemergtes, Entscheidungen des Admirals mit „Zurücknehmen“,
    deine Antworten und Handlungen. Ein neuer Merge leuchtet einmal grün auf.
 
+**Detailansicht eines Epics** (#51): Unter der Segmentleiste eines Laufs stehen **Plätze 3/3** (Pakete
+in Implementer, Review oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
+**Neustarts** des Laufs; die Laufzeit ist der Knopf „läuft seit …“. In der aufgeklappten Paketliste
+hat jedes Paket, zu dem der Treiber Agent-Aufrufe im Protokoll des Laufs sah, eine zweite Zeile:
+Phase (Implementer, Review, Nachbesserung, Merge) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
+(eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
+(ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
+fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
+(älterer Treiber, spec-Modus, Paket ohne Aufruf), bleibt es weg. Felder: `SCHNITTSTELLE.md`.
+
 Im Kopf je Konto ein Tank mit dem Rest im 5-h- und im Wochenfenster samt Reset-Zeit, RAM und
 Platte je Rechner. Der Takt im Ellbogen füllt sich bis zum nächsten Bericht und wird rot, wenn er
 ausbleibt. Unten läuft das Logbuch als Laufband; antippen hält es an und klappt die Liste auf.
