@@ -367,4 +367,25 @@ describe('Flottenbrücke (#28)', () => {
       await b.zu();
     }
   }, T);
+
+  it('a waiting epic ("Bereit") reports its child tickets too, read at most every 5 min per epic', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const body = '## Betroffene Module\n- core\n\nÄndert `core/a.ts`.';
+      const t = aufbau({ bodies: { 3: body, 4: `${body}\n\n- [ ] #21\n- [ ] #22` }, titel: { 21: 'Modell', 22: 'Seite' }, zu: [21] });
+      const buch = drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      const wartend = b.berichte.find((x) => x.epics.some((e) => e.nr === 4 && e.stufe === 'wartend'))!;
+      expect(wartend.epics.find((e) => e.nr === 4)!.pakete).toEqual([
+        { name: '#21', nr: 21, titel: 'Modell', stand: 'fertig', beginn: null, ende: '2026-01-01T10:00:00Z' },
+        { name: '#22', nr: 22, titel: 'Seite', stand: 'offen', beginn: null, ende: null },
+      ]);
+      // one read while waiting, one after the stage changed: never one per turn
+      const gelesen = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'view' && a[3] === '22' && a.includes('number,title,state,labels,closedAt'));
+      expect(gelesen.length).toBeGreaterThanOrEqual(1);
+      expect(gelesen.length).toBeLessThanOrEqual(new Set(b.berichte.map((x) => x.epics.find((e) => e.nr === 4)!.stufe)).size);
+    } finally {
+      await b.zu();
+    }
+  }, T);
 });

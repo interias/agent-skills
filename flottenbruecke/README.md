@@ -38,7 +38,8 @@ Drei Ebenen, sortiert danach, was du tun musst:
    dann stoppt der Puls). Je Epic eine Segmentleiste der Kind-Tickets mit „3 von 5 fertig“;
    antippen zeigt `#nr Titel · Stand`, jede Zeile verlinkt aufs Issue (im spec-Modus nur der
    Paketname). Darunter eine Zeile **Bereit**, Epics mit `prio/hoch` zuerst, mit dem Grund, wenn
-   sie warten, und ab fünf gemessenen Epics mit „voraussichtlich 3–5 h“.
+   sie warten, und ab fünf gemessenen Epics mit „voraussichtlich 3–5 h“. Je Epic dort „N Tickets“
+   mit derselben Segmentleiste; antippen klappt die Tickets mit Links auf (im spec-Modus keine).
 3. **Erledigt heute** (eingeklappt) — oben die Prognose „Backlog leer etwa …“ mit Trefferquote
    (Rechnung in `flotte/README.md`, „Prognose“), dann Gemergtes, Entscheidungen des Admirals mit „Zurücknehmen“,
    deine Antworten und Handlungen. Ein neuer Merge leuchtet einmal grün auf.

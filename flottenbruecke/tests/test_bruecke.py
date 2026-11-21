@@ -70,7 +70,7 @@ def test_drei_ebenen(client, bericht):
     e = ebenen(client)
     # the blockade holds a whole epic: before the question that parks one package, though that waits longer
     assert e['braucht'] == [('blockade', 40), ('frage', 39)]
-    assert (e['laeufe'], e['schlange'], e['bereit']) == ([38, 39], [36, 37], [41])
+    assert (e['laeufe'], e['schlange'], e['bereit']) == ([38, 39], [36, 37], [41, 42])
     assert e['erledigt'] == [('admiral', 38), ('admiral', 39), ('gemergt', 35)]
 
 
@@ -501,8 +501,25 @@ def test_prio_steht_in_bereit_oben_mit_grund(client, bericht):
     bericht['epics'].append({'nr': 30, 'titel': 'Frühes Epic', 'stufe': 'wartend', 'notiz': ''})
     client.post('/api/bericht', json=bericht)
     bereit = tafel(client)['unterwegs']['bereit']
-    assert [(x['nr'], x['prio']) for x in bereit] == [(41, True), (30, False)]
+    assert [(x['nr'], x['prio']) for x in bereit] == [(41, True), (30, False), (42, False)]
     assert bereit[0]['notiz'] == 'wartet auf den Merge von #38'
+
+
+def test_bereit_zeigt_die_kind_tickets_als_links(client, bericht):
+    client.post('/api/bericht', json=bericht)
+    b41, b42 = tafel(client)['unterwegs']['bereit']
+    assert (b41['id'], b41['issueUrl']) == ('epic:interias/flotte-probe#41', 'https://github.com/interias/flotte-probe/issues/41')
+    assert [(p['nr'], p['stand'], p['url']) for p in b41['pakete']] == [
+        (50, 'fertig', 'https://github.com/interias/flotte-probe/issues/50'),
+        (51, 'offen', 'https://github.com/interias/flotte-probe/issues/51'),
+        (52, 'offen', 'https://github.com/interias/flotte-probe/issues/52'),
+    ]
+    # spec mode: no child tickets, an empty list
+    assert b42['pakete'] == []
+    # an older driver without pakete
+    del bericht['epics'][0]['pakete']
+    client.post('/api/bericht', json=bericht)
+    assert tafel(client)['unterwegs']['bereit'][0]['pakete'] == []
 
 
 def test_v2_startet_auf_dem_volume_von_v1(tmp_path, uhr, bericht):

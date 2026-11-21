@@ -117,7 +117,7 @@ function liste(box, items, html, verdrahten, tag = 'article') {
 function klasse(it) {
   return {
     frage: 'karte frage', blockade: 'karte blockade',
-    lauf: `karte lauf${it.wartetAufDich ? ' wartet' : ''}`, schlange: 'karte lauf schlange',
+    lauf: `karte lauf${it.wartetAufDich ? ' wartet' : ''}`, schlange: 'karte lauf schlange', bereit: 'b-ep',
   }[it.form] ?? (it.form === 'zeile' ? `${it.art}${it.neu ? ' neu' : ''}` : '');
 }
 
@@ -318,22 +318,36 @@ function ebene2(t) {
   $('e2-klein').textContent = [laufen ? `${laufen} ${laufen === 1 ? 'läuft' : 'laufen'}` : '', warten ? `${warten} wartet auf dich` : '', u.schlange.length ? `${u.schlange.length} in der Schlange` : '', u.bereit.length ? `${u.bereit.length} bereit` : ''].filter(Boolean).join(' · ') || 'nichts unterwegs';
   const items = [...u.laeufe.map((l) => ({ ...l, form: 'lauf', flip: l.id })), ...u.schlange.map((s) => ({ ...s, id: `${s.id}:s`, form: 'schlange', flip: s.id }))];
   liste($('e2-liste'), items, laufHtml, paketeVerdrahten);
-  setze($('bereit'), `<span>Bereit</span>${u.bereit.length ? u.bereit.map((b) => `<span class="b-ep">${b.prio ? '<span class="prio">prio</span>' : ''}#${b.nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>`).join('') : '<span class="b-ep"><small>keins wartet</small></span>'}`);
+  const box = $('bereit');
+  if (!u.bereit.length) {
+    setze(box, '<span class="b-ep"><small>keins wartet</small></span>');
+    return;
+  }
+  if (box.dataset.sig) { box.innerHTML = ''; delete box.dataset.sig; }
+  liste(box, u.bereit.map((b) => ({ ...b, form: 'bereit' })), bereitHtml, paketeVerdrahten, 'div');
+}
+
+// a ready epic: one line, below it its child tickets as the bar of level 2 (none in spec mode)
+function bereitHtml(b) {
+  const nr = b.issueUrl ? `<a class="nr" href="${esc(b.issueUrl)}">#${b.nr}</a>` : `<span class="nr">#${b.nr}</span>`;
+  return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
 }
 
 function paketeHtml(x) {
-  if (!x.pakete.length) return '';
+  if (!x.pakete?.length) return '';
+  const n = x.pakete.length;
   const fertig = x.pakete.filter((p) => p.stand === 'fertig').length;
   const offen = auf.has(`pakete:${x.id}`);
   const liste = offen ? `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span></li>`).join('')}</ol>` : '';
-  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete: antippen für die Liste"><span class="segmente">${x.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${fertig} von ${x.pakete.length} fertig</span></button>${liste}`;
+  const zahl = x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`;
+  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete: antippen für die Liste"><span class="segmente">${x.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
 }
 
 function paketeVerdrahten(el, x) {
   el.querySelector('[data-pakete]')?.addEventListener('click', () => {
     auf.has(`pakete:${x.id}`) ? auf.delete(`pakete:${x.id}`) : auf.add(`pakete:${x.id}`);
     el.dataset.sig = '';
-    el.innerHTML = laufHtml(x);
+    el.innerHTML = (x.form === 'bereit' ? bereitHtml : laufHtml)(x);
     el.dataset.sig = el.innerHTML;
     paketeVerdrahten(el, x);
     lebenszeichen();

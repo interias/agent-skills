@@ -1155,7 +1155,7 @@ class Treiber {
   }
 
   /**
-   * The child tickets of each epic with title and stand (#28, Nachtrag 2), only with a bridge and at
+   * The child tickets of each epic, waiting ones ("Bereit") included, with title and stand (#28, Nachtrag 2), only with a bridge and at
    * most every PAKETE_MS per epic; a stage change reads them again. Spec mode has no children here.
    */
   paketeLesen(): void {

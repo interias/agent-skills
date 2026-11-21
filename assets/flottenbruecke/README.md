@@ -12,3 +12,6 @@ Beispieldaten aus `flottenbruecke/beispiel/bericht.json`. Neu aufnehmen:
    390 px mit Gerätefaktor 2 so, wie sie lädt. Jeweils die ganze Seite, Fensterhöhe gleich der
    Seitenhöhe, damit die feste Fußleiste unten steht.
 4. Die Brücke wieder stoppen.
+
+`bereit-tickets.png` und `bereit-tickets-handy.png` zeigen dasselbe Beispiel, auf die Zeile
+„Bereit“ gescrollt, die Tickets von #41 aufgeklappt (#42 im spec-Modus ohne Leiste).
