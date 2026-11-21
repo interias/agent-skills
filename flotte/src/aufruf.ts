@@ -65,8 +65,8 @@ export function pwshJson(aufrufer: Aufrufer, skript: string, args: string[]): { 
   return jsonAus(aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args]));
 }
 
-export async function pwshJsonAsync(aufrufer: AsyncAufrufer, skript: string, args: string[], opts: { timeoutMs?: number } = {}): Promise<{ code: number; json: unknown; stderr: string }> {
-  return jsonAus(await aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args], { timeoutMs: opts.timeoutMs }));
+export async function pwshJsonAsync(aufrufer: AsyncAufrufer, skript: string, args: string[], opts: { timeoutMs?: number; cwd?: string; env?: Record<string, string> } = {}): Promise<{ code: number; json: unknown; stderr: string }> {
+  return jsonAus(await aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args], opts));
 }
 
 function jsonAus(r: Ergebnis): { code: number; json: unknown; stderr: string } {
@@ -87,12 +87,13 @@ function jsonAus(r: Ergebnis): { code: number; json: unknown; stderr: string } {
   return { code: r.code, json, stderr: r.stderr };
 }
 
-export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number; env?: Record<string, string> }) => Promise<Ergebnis>;
+/** shell: the program is a command line for the system shell (cmd.exe on Windows), as the adapter's test_commands are written */
+export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number; env?: Record<string, string>; shell?: boolean }) => Promise<Ergebnis>;
 
 /** For the slow scripts (merge.ps1 waits for checks): the event loop keeps reading the runs meanwhile. */
 export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
   new Promise((fertig) => {
-    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, env: opts.env ? { ...process.env, ...opts.env } : process.env, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
+    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, env: opts.env ? { ...process.env, ...opts.env } : process.env, shell: opts.shell, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
     let stdout = '';
     let stderr = '';
     const uhr = opts.timeoutMs

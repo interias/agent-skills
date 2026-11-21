@@ -150,7 +150,7 @@ export function nachpruefung(x: { basis: Testlauf; lauf: Testlauf; beruehrt: str
   for (const b of x.basis) {
     const s = x.lauf.find((l) => l.name === b.name);
     if (!s) befunde.push(`Suite ${b.name} fehlt im Volllauf`);
-    else if (s.dateien < b.dateien || s.tests < b.tests) befunde.push(`Suite ${b.name}: ${s.tests} Tests in ${s.dateien} Dateien, Ausgangszahl ${b.tests} in ${b.dateien}`);
+    else if ((s.dateien !== null && b.dateien !== null && s.dateien < b.dateien) || s.tests < b.tests) befunde.push(`Suite ${b.name}: ${s.tests} Tests in ${s.dateien} Dateien, Ausgangszahl ${b.tests} in ${b.dateien}`);
   }
   for (const d of x.beruehrt) {
     const vorher = x.basisLint[d] ?? 0;

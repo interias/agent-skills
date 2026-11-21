@@ -96,6 +96,13 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
   const gefragt = new Map<number, number>();
   const geliefert = new Set<number>();
   let kontoSeit: number | null = null;
+  // the program dies in a command: that command never ends, the loop throws at the end of the takt
+  // (a throw inside the command would be the package's matter, epic/SKILL.md rule 10)
+  let tod: string | null = null;
+  const sterben = (text: string) => {
+    tod = text;
+    return new Promise<never>(() => {});
+  };
   let ramN = 0;
   let slotN = 0;
   const log = (was: string) => welt.protokoll.push({ takt: welt.takt, was });
@@ -123,6 +130,10 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
   }
 
   const mechanik: Mechanik = {
+    async aufraeumen() {
+      log('aufraeumen');
+      return [];
+    },
     async up(name, branch, von) {
       log(`up ${name} ${branch} von ${von} [${welt.gemergt.join(' ')}]`);
       welt.stand[name] = welt.gemergt.length;
@@ -132,7 +143,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     async down(name) {
       if (buch.abbruchBeiDown === name && !welt.gestorben.includes(`down ${name}`)) {
         welt.gestorben.push(`down ${name}`);
-        throw new Error(`Programm beendet vor Down ${name} (Drehbuch)`);
+        return sterben(`Programm beendet vor Down ${name} (Drehbuch)`);
       }
       log(`down ${name}`);
       return { schmutzig: false };
@@ -176,6 +187,10 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       const nr = nrAus(worktree);
       return buch.beruehrt?.[nr] ?? buch.schnitt.pakete.find((p) => p.nr === nr)?.dateien ?? [];
     },
+    async sichern(worktree) {
+      log(`sichern ${nrAus(worktree)}`);
+      return null;
+    },
     async imEpic(branch) {
       const i = welt.gemergt.indexOf(branch);
       return i < 0 ? null : `m${i + 1}`;
@@ -193,7 +208,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       welt.letzterMerge = branch;
       if (buch.abbruchNachMerge === welt.nrVon[branch] && !welt.gestorben.includes(`merge ${branch}`)) {
         welt.gestorben.push(`merge ${branch}`);
-        throw new Error(`Programm beendet nach dem Merge von ${branch} (Drehbuch)`);
+        return sterben(`Programm beendet nach dem Merge von ${branch} (Drehbuch)`);
       }
       return { ok: true, commit: `m${welt.gemergt.length}` };
     },
@@ -217,6 +232,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     },
     async graph() {
       log('graph');
+      return { available: true };
     },
     async kommentare(ticket) {
       return welt.kommentare[ticket] ?? [];
@@ -227,9 +243,14 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     async status(ticket, label) {
       log(`status ${ticket} ${label}`);
       welt.status[ticket] = label;
+      return null;
     },
-    async abschluss() {
-      log('abschluss');
+    async eroeffnung() {
+      log('eroeffnung');
+      return null;
+    },
+    async abschluss({ wip }) {
+      log(`abschluss${wip ? ' WIP' : ''}`);
       return { pr: 'https://github.com/o/r/pull/100' };
     },
   };
@@ -273,6 +294,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       },
     },
     async warte() {
+      if (tod) throw new Error(tod);
       begonnen = true;
       welt.takt++;
       if (welt.takt > (buch.maxTakte ?? 400)) throw new Error(`Drehbuch hängt nach ${welt.takt} Takten`);
