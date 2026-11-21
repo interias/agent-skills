@@ -3,6 +3,7 @@
 // stderr. Exit 1 when the command could not do its job, 2 on a usage error.
 
 import { adapter } from './befehle/adapter.ts';
+import { lernen } from './befehle/lernen.ts';
 import { messen } from './befehle/messen.ts';
 import { zuschauen } from './befehle/zuschauen.ts';
 import { belegung } from './werkzeuge/belegung.ts';
@@ -26,6 +27,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   anhalten,
   zuschauen: (argv) => zuschauen(argv),
   adapter: (argv) => adapter(argv),
+  lernen: (argv) => lernen(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {

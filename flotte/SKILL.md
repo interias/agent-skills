@@ -104,6 +104,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 - `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). Vor dem Einspielen aufrufen: In diesen Projekten mergt danach ein Mensch.
 - `flotte belegung`, `verbrauch`, `ressourcen`, `bloecke`, `lauf`: die Werkzeuge einzeln.
 - `flotte messen <einsaetze.json>`: Kennzahlen aus den Transkripten; unter dem Treiber auch die Messungen der Prognose (`messungen.jsonl` neben `zustand.json`, Abschnitt `prognose`). Unter dem Treiber liest es Fragen, Wartezeit, kalte Zeit und Starts aus `zustand.json` (`treiberZustand` im Einsatz).
+- `flotte lernen [<repo>] --pr <n> [--epic <n>] [--trocken]`: die Lernschleife nach einem gemergten Epic-PR. Ein billiges Modell (Standard `haiku`, ohne Werkzeuge) liest PR und Epic-Kommentare und schlägt höchstens drei Lehren vor, je mit Beleg, in der billigsten dauerhaften Form (Test > Adapterregel > Skilltext > Doku) und mit dem, was dafür entfallen kann. Der Kommentar geht an `lern_issue` des Adapters, mit `--trocken` oder ohne `lern_issue` nur in die Ausgabe. Er sagt je Regel `Lernschleife L<n>`, ob sie gegriffen hat; eine Regel, die zehnmal in Folge nicht gegriffen hat, schlägt das Programm zum Streichen vor. Unter dem Treiber läuft sie nach jedem Merge von selbst, wenn `lern_issue` gesetzt ist (Modell: `--lern-modell`).
 
 ## Was der Treiber tut
 
@@ -136,7 +137,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
      - Bei n Epics in der Schlange sind so höchstens n−1 Gate-Wiederholungen nötig. Der Zähler steht als `gateWiederholungen` je Epic und in der Statistik; nach drei eigenen Gate-Läufen für dasselbe Epic wird es blockiert.
      - Ohne `gate_command` im Adapter lässt sich kein Gate nachweisen: Der Treiber ruft `merge.ps1` nicht auf, ein Mensch mergt.
    - Mit `merge: mensch` (Standard) meldet er „PR bereit“ und erkennt den Merge später.
-   - Nach dem Merge: die `nach_merge`-Befehle des Adapters, dann `CleanupStale`, dann der lokale Epic-Branch, wenn er ganz in `origin/<basis>` liegt. Bekommt ein anderer offener PR außerhalb der Schlange einen Konflikt, geht ein Auftrag an dessen Lauf.
+   - Nach dem Merge: die `nach_merge`-Befehle des Adapters, dann `CleanupStale`, dann der lokale Epic-Branch, wenn er ganz in `origin/<basis>` liegt. Bekommt ein anderer offener PR außerhalb der Schlange einen Konflikt, geht ein Auftrag an dessen Lauf. Mit `lern_issue` im Adapter läuft nebenher `flotte lernen` (siehe „Weitere Befehle“); ihr Ergebnis steht als Ereignis im Zustand.
 7. **Sichtbar:**
    - Tafel: `<git common dir>/flotte/tafel.html` im Browser öffnen; sie lädt sich selbst neu. Sie zeigt je Lauf den letzten Schritt und seine Zeit und die Merge-Schlange.
    - Logbuch: ein Issue mit Label `flotte`, mit dem KIBO-Block. Die Bremse steht dort nur als Stufe, nie in Prozent.

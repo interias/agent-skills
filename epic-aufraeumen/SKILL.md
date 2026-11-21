@@ -212,6 +212,11 @@ warum, und was ein Mensch entscheiden muss. Nicht abgenommene Paket-Branches nam
 Kennung ihres Pakets — Ticketnummer im Tickets-Modus, Paketbezeichnung im Spec-Modus — sie sind der
 Grund, warum dieser Ablauf nicht einfach alles wegwirft.
 
+**Lernschleife.** Nennt der Adapter `lern_issue` und lief das Epic ohne Flotten-Treiber (der
+startet sie selbst), schlägt der Bericht als letzte Zeile den Aufruf vor:
+`bun ~/.claude/skills/flotte/src/cli.ts lernen <repo> --pr <nr> --epic <nr>`. Du führst ihn nicht
+selbst aus; er schreibt einen Kommentar in die Forge.
+
 Dieser Ablauf schreibt **nicht** in die Forge. Er verändert keinen Zustand, den ein Leser in einem
 halben Jahr braucht; er räumt eine Arbeitskopie auf. Nur wenn ein nicht abgenommenes Ticket einen
 Branch behält, gehört das an dessen Issue — falls `/epic` es dort nicht schon vermerkt hat.

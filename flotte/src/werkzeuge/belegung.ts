@@ -48,6 +48,8 @@ export interface Adapter {
   merge: 'mensch' | 'nach_gate';
   /** commands after a merge, run in the main checkout (#14, stage 3) */
   nach_merge: string[];
+  /** the collecting issue of the learning loop (Sparpaket, package 6); null: the loop only prints */
+  lern_issue: number | null;
   /** the merge gate of the project, run by the driver in the epic worktree (#14, round 5); null: the run does it */
   gate_command: string | null;
   /** only the part of the gate that always runs (hexanite: wurzel) */
@@ -104,6 +106,7 @@ export function liesAdapter(text: string): Adapter {
     main_branch: werte.get('main_branch')?.[0] ?? null,
     merge: werte.get('merge')?.[0] === 'nach_gate' ? 'nach_gate' : 'mensch',
     nach_merge: werte.get('nach_merge') ?? [],
+    lern_issue: Number(werte.get('lern_issue')?.[0]?.replace(/^#/, '')) > 0 ? Number(werte.get('lern_issue')![0].replace(/^#/, '')) : null,
     gate_command: werte.get('gate_command')?.[0] ?? null,
     gate_always_command: werte.get('gate_always_command')?.[0] ?? null,
     gate_areas: werte.get('gate_areas') ?? [],

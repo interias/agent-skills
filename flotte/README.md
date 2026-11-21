@@ -62,7 +62,9 @@ zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/READ
    `nach_gate` reiht er den PR in die Merge-Schlange und mergt mit `merge.ps1`, nur mit
    Gate-Nachweis aus dem Log des Laufs (fehlt er, fährt er das Gate selbst).
 6. **Nach dem Merge** die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
-   lokale Epic-Branch, wenn er ganz in der Basis liegt).
+   lokale Epic-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
+   nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
+   in dieses Issue. Umgesetzt wird nichts davon von selbst; du wählst aus.
 
 Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-Issue mit Label
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und
