@@ -87,6 +87,8 @@ class Epic(BaseModel):
     gateSeit: str | None = Field(None, max_length=40)
     # forecast of a waiting epic (Prognose), none below the threshold
     prognose: Spanne | None = None
+    # order edges (Sternenkarte, #43): the epics of this repository it comes after (`> **Reihenfolge:**`, ## Blocked by); older drivers have none
+    nach: list[int] = Field([], max_length=200)
 
 
 class Fenster(BaseModel):

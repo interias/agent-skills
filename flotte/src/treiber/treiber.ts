@@ -1393,6 +1393,7 @@ class Treiber {
           schlangeSeit: this.z.schlange.includes(ep.nr) ? (ep.schlangeSeit ?? null) : null,
           gateSeit: ep.gateSeit ?? null,
           prognose: this.prognoseFuer(ep),
+          nach: this.bilder.find((b) => b.nr === ep.nr)?.nach ?? [],
         };
       }),
       schlange: this.z.schlange,

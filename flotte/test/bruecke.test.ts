@@ -347,6 +347,22 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('the order edges of an epic go into the report for the Sternenkarte (#43)', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau({ bodies: { 3: '## Betroffene Module\n- a', 4: '> **Reihenfolge:** nach #3, #99\n\n## Betroffene Module\n- b' } });
+      const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      const bericht = b.berichte.find((x) => x.epics.length === 2)!;
+      // only edges to epics of this deployment; the stranger #99 stays out
+      expect(bericht.epics.find((e) => e.nr === 4)!.nach).toEqual([3]);
+      expect(bericht.epics.find((e) => e.nr === 3)!.nach).toEqual([]);
+      for (const x of b.berichte) for (const e of x.epics) expect(Array.isArray(e.nach)).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('flotte anhalten: nothing new, the driver ends while the run works on; the same start takes the run over', async () => {
     const b = await attrappe(() => null);
     try {
