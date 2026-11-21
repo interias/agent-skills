@@ -1,9 +1,11 @@
 ---
-forge: gitea
-api: http://mb-vsv-cast:3003/api/v1/repos/Breuckmann/agent-skills
+forge: github
+api: https://api.github.com/repos/interias/agent-skills
 push_remote: origin
-forbidden_remotes: [github]
+issue_form: tickets
 main_branch: main
+base_branch: main
+merge: mensch
 ready_label: ready-for-agent
 skip_labels: [needs-triage, needs-info, wontfix, ready-for-human]
 epic_label: epic
@@ -14,6 +16,8 @@ test_commands:
   guard: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\guard.Tests.ps1"
   ram: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\ram.Tests.ps1"
   sweep: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\sweep.Tests.ps1"
+  flotte: cd flotte && bun test
+  bruecke: cd flottenbruecke && python -m pytest -q
 isolation: none-needed
 worktree_root: ../agent-skills-worktrees
 commit_style: conventional-with-scope
@@ -25,14 +29,16 @@ plan_artifact: publish
 
 ## Zugang
 
-Kein Token im Repository. Gitea wird mit Basic Auth aus dem Git-Credential-Speicher angesprochen
-(`epic/references/forge.md`, „Diese Gitea-Instanz", Absatz „Ohne Token").
-`github` ist ein Spiegel auf GitHub, auf den kein Lauf pusht.
+Kein Token im Repository. Die Forge ist GitHub (`interias/agent-skills`), angesprochen mit `gh`
+und dessen Anmeldung. Das Repository ist öffentlich: keine lokalen Pfade mit Benutzernamen, keine
+IPs, keine Transkriptinhalte, keine echten Verbrauchswerte in Issues, PRs und Commits.
 
 ## Isolation
 
-`none-needed`: Die Pester-Tests bauen jedes Testrepository in `$TestDrive`. Es gibt keine
-Datenbank, keine Ports und keine Dienste, die sich parallele Worktrees teilen könnten.
+`none-needed`: Die Pester-Tests bauen jedes Testrepository in `$TestDrive`, die Tests von `flotte`
+und `flottenbruecke` laufen ohne Dienste. Wer die Brücke zum Ansehen startet, tut das im Worktree
+mit eigenem Compose-Projekt auf freiem Port; der laufende Stack `flottenbruecke` (4747) und ein
+laufender Treiber werden nie angefasst.
 
 ## Was hier anders ist als in einem Produktrepo
 
@@ -40,4 +46,5 @@ Datenbank, keine Ports und keine Dienste, die sich parallele Worktrees teilen k�
   liest seine Regeln aus der installierten Fassung unter `~/.claude/skills`, nicht aus dem
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
 - `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
+- Gemergt wird von Hand (`merge: mensch`): Der Lauf endet mit einem offenen Pull Request.
 - Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(epic-flotte): …`), PR-Titel deutsch.
