@@ -22,7 +22,8 @@
     for (const x of t.erledigt) {
       if (x.art === 'admiral') liste.push(e(x, 'Admiral', `Frage ${x.nr} → <b>${esc(x.antwort)}</b> <small>(${esc(x.herkunft)})</small> · ${esc(x.frage)}${x.widerrufen ? ` <span class="lb-wider">· widerrufen → ${esc(x.widerrufen)}</span>` : ''}`));
       else if (x.art === 'antwort') liste.push(e(x, 'Mensch', `Frage ${x.nr} → <b>${esc([x.option, x.text].filter(Boolean).join(' — '))}</b>`));
-      else if (x.art === 'handlung') liste.push(e(x, 'Mensch', x.handlung === 'einreihen' ? '<b>neu eingereiht</b>' : `Widerruf Frage ${x.nr} → <b>${esc(x.text)}</b>`));
+      else if (x.art === 'handlung' && x.handlung === 'einstellen') liste.push(e(x, 'Mensch', `Einstellung ${esc(x.titel)} → <b>${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b>`));
+      else if (x.art === 'handlung') liste.push(e(x, 'Mensch', x.handlung === 'widerruf' ? `Widerruf Frage ${x.nr} → <b>${esc(x.text)}</b>` : `<b>${handlungWort(x)}</b>`));
       else if (x.art === 'aufgegeben') liste.push(e(x, 'Mensch', `<b>aufgegeben</b> · ${esc(x.titel)}`));
     }
     return liste.sort((a, b) => (a.zeit < b.zeit ? 1 : a.zeit > b.zeit ? -1 : 0));

@@ -6,11 +6,15 @@
 # only when influential, revocable until the merge.
 # Above them the accounts with their usage, RAM and disk per machine; below them the ticker. Beside
 # them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
-# The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`).
+# The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`) and
+# (#61) the released ones outside the driver's deployment (`freigegeben`), with the steering actions on their way.
 
+import json
 import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
+from .modelle import HANDLUNG_GRUPPE
 
 HERKUNFT = 'Mensch über die Brücke'
 HALT = ('blockiert', 'abgebrochen')
@@ -85,6 +89,17 @@ def _handlung(h: dict | None) -> dict | None:
     return None if h is None else {'id': h['id'], 'art': h['art'], 'text': h['text'], 'zeit': h['zeit'], 'abgeholt': bool(h['abgeholt']), 'quittiert': bool(h['quittiert'])}
 
 
+def _einstellungen(b: dict, forge: str, handlungen: list[dict]) -> list[dict] | None:
+    """The settings of a project (#59) with the change still on its way to the driver; None: an older driver reports none."""
+    if not b.get('einstellungen'):
+        return None
+    offen = {}
+    for h in handlungen:
+        if h['forge'] == forge and h['art'] == 'einstellen' and not h['quittiert']:
+            offen[json.loads(h['text'])['name']] = h
+    return [{**x, 'offen': {'wert': json.loads(offen[x['name']]['text'])['wert'], 'zeit': offen[x['name']]['zeit'], 'abgeholt': bool(offen[x['name']]['abgeholt'])} if x['name'] in offen else None} for x in b['einstellungen']]
+
+
 def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None) -> dict:
     heute = jetzt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     handlungen = handlungen or []
@@ -101,7 +116,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         takt = b.get('taktS', 60)
         veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=max(3 * takt, 180))
         aktiv = b.get('aktiv', True) and not veraltet
-        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose')})
+        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen)})
         # the newest report of a machine speaks for its RAM and disk, of an account for its usage
         r = rechner.get(b.get('rechner', ''))
         if r is None or r['empfangen'] < p['empfangen']:
@@ -120,8 +135,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
 
         offen_h = {}
         for h in handlungen:
-            if h['forge'] == forge and not h['quittiert']:
-                offen_h[(h['epic'], h['art'] if h['art'] == 'widerruf' else 'halt', h['nr'], h['seit'])] = h
+            if h['forge'] == forge and not h['quittiert'] and h['art'] != 'einstellen':
+                offen_h[(h['epic'], HANDLUNG_GRUPPE[h['art']], h['nr'], h['seit'])] = h
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
         schwelle = schwelle_lang(b.get('epics', []))
         # #52: the decisions of each epic not merged, newest first; the rest stays in the logbook and at the issues
@@ -145,7 +160,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             })
         for liste_e in entscheidungen.values():
             liste_e.sort(key=lambda x: x['zeit'], reverse=True)
-        basis = lambda nr: {'forge': forge, 'repo': kurz, 'epic': nr, 'titel': epics.get(nr, {}).get('titel', ''), 'konto': epics.get(nr, {}).get('konto'), 'issueUrl': f'{url}/issues/{nr}' if url else None, 'aktiv': aktiv}
+        # #61: every card names a pause and the priority of its epic (the Schiffsliste shows both)
+        basis = lambda nr: {'forge': forge, 'repo': kurz, 'epic': nr, 'titel': epics.get(nr, {}).get('titel', ''), 'konto': epics.get(nr, {}).get('konto'), 'issueUrl': f'{url}/issues/{nr}' if url else None, 'aktiv': aktiv, 'pausiert': epics.get(nr, {}).get('pausiert'), 'prio': bool(epics.get(nr, {}).get('prio'))}
 
         # ---- level 1: questions
         offen_je_epic: dict[int, int] = {}
@@ -214,7 +230,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     erledigt.append({**karte, 'art': 'gemergt', 'zeit': t.isoformat()})
                 continue
             if stufe == 'wartend':
-                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen']})
+                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert')})
                 continue
             if stufe == 'pr':
                 rein = zeit(ep.get('schlangeSeit')) or seit_stufe
@@ -247,9 +263,17 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
                 'nach': [kante(n) for n in sorted(set(ep.get('nach', []))) if n != nr],
                 'folgen': sorted(o['nr'] for o in offen if nr in o.get('nach', []) and o['nr'] != nr),
+                # #61: steering: in the deployment, paused since, the priority of the bridge, the actions on their way
+                'imEinsatz': ep.get('imEinsatz', True),
+                'pausiert': ep.get('pausiert'),
+                'prioritaet': ep.get('prioritaet'),
+                'pause': _handlung(offen_h.get((nr, 'pause', None, None))),
+                'vorrang': _handlung(offen_h.get((nr, 'prioritaet', None, None))),
             })
         karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte
+        # #61: released epics outside the deployment, to take in; the driver checks the forge again
+        liste[-1]['freigegeben'] = [{'nr': f['nr'], 'titel': f.get('titel', ''), 'issueUrl': f"{url}/issues/{f['nr']}" if url else None, 'handlung': _handlung(offen_h.get((f['nr'], 'aufnehmen', None, None)))} for f in b.get('freigegeben', [])]
 
         # ---- level 3: the admiral's decisions of today, revocable until the merge
         for d in b.get('entscheidungen', []):
@@ -277,7 +301,13 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     for h in handlungen:
         t = zeit(h['quittiert'])
         if t and t >= heute and h['art'] != 'aufgeben':
-            erledigt.append({'art': 'handlung', 'id': f"handlung:{h['id']}", 'forge': h['forge'], 'repo': h['forge'].split('/')[-1], 'epic': h['epic'], 'nr': h['nr'], 'zeit': t.isoformat(), 'handlung': h['art'], 'text': h['text']})
+            x = {'art': 'handlung', 'id': f"handlung:{h['id']}", 'forge': h['forge'], 'repo': h['forge'].split('/')[-1], 'epic': h['epic'], 'nr': h['nr'], 'zeit': t.isoformat(), 'handlung': h['art'], 'text': h['text']}
+            if h['art'] == 'einstellen':
+                # a setting belongs to the project, not to an epic: the logbook names it by its title
+                z = json.loads(h['text'])
+                titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
+                x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
+            erledigt.append(x)
 
     # the cost of waiting: what holds a whole epic first, then the longest wait
     braucht.sort(key=lambda x: (0 if x['ganzerLauf'] else 1, -(x['wartetS'] or 0), x['forge'], x['epic'], x.get('nr') or 0))

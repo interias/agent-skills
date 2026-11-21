@@ -2,7 +2,7 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben).
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität).
 Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
@@ -53,7 +53,7 @@ Inhalts-Hash ein.
 
 ## Sternenkarte
 
-Der Überblick über die Projekte, nur lesend. Je Projekt (Forge-Repo des Treibers) ein Block mit dem
+Der Überblick über die Projekte und die Steuerung ihrer Epics. Je Projekt (Forge-Repo des Treibers) ein Block mit dem
 Kürzel, der Zahl offener Epics und der Prognose „Backlog leer etwa …“ (ab 5 gemessenen Epics, sonst
 der Hinweis, wie auf der Brücke). Darunter jedes offene Epic als Zeile: Nummer (Link aufs Issue),
 Titel, die Stufe (läuft, wartet, Frage, blockiert, PR), `prio` bei `prio/hoch`, warum es wartet oder
@@ -64,13 +64,27 @@ Gemergte und aufgegebene Epics gehören nicht in den Backlog. Die Daten stehen i
 (`nach[]` je Epic ist neu, siehe `SCHNITTSTELLE.md`); die Brücke fragt keine Forge. Ein älterer Treiber
 ohne `nach[]` zeigt die Epics ohne Kanten.
 
+**Steuern (#61), nur mit PIN:** Unter jedem Epic im Einsatz **Pausieren** oder **Fortsetzen** und
+**Priorität hoch** oder **Priorität normal**; unter „Freigegeben, nicht im Einsatz“ (offene Epics mit
+`ready_label`, die der Treiber nicht fährt, etwa neben `--epics`) **Aufnehmen**, nach einer Rückfrage.
+Der Treiber holt die Handlung im nächsten Takt ab; bis zur Quittung steht an ihrer Stelle, dass sie
+unterwegs ist. Eine Pause bricht nichts ab: Ein wartendes Epic startet nicht; ein laufender Lauf erfährt
+sie vor seinem nächsten Paketstart über die RAM-Messung (`ram.ps1` liest sie aus seiner Haltedatei und
+meldet `hold`), startet kein weiteres Paket und lässt die laufenden zu Ende laufen; danach wartet das
+Epic samt der Antwort des Admirals, bis es fortgesetzt wird. „Priorität hoch“
+lässt es unter den startbereiten zuerst auf einen freien Platz, Reihenfolge und Kollisionen gelten
+weiter; sie gilt vor dem Label `prio/hoch`. Die Zeile zeigt `prio`, `pausiert` (gestrichelter Rand,
+blau, nie rot) und „nicht im Einsatz“. Jede Handlung steht im Flottenlogbuch und unter „Erledigt
+heute“. Bilder: `doku/v3-sternenkarte-1440.png`, `-390.png`.
+
 ## Schiffsliste
 
 Die Seitenleiste links auf jeder Seite (auf dem Handy eine Schublade von links, geöffnet über den
 Knopf neben dem Logo; sie schließt mit Esc, mit Tippen daneben und nach einem Sprung). Sie zeigt je
 Projekt alle Läufe (Epics mit Nummer, Titel, Konto) und die Sitzungen aller Konten, jeweils mit einem
 Punkt nach Ebene. Eingeklappt (Knopf oben links in der Leiste, gemerkt je Gerät) bleibt eine schmale
-Spalte, in der nur die Punkte stehen. Ein Klick auf einen Lauf springt zu seiner Karte auf der Brücke;
+Spalte, in der nur die Punkte stehen. Ein pausiertes Epic trägt „pausiert“ neben seiner Ebene, ein
+Epic mit hoher Priorität `prio` vor der Nummer (#61); die Farbe bleibt die der Ebene. Ein Klick auf einen Lauf springt zu seiner Karte auf der Brücke;
 eine Sitzung klappt ihre Angaben auf (Konto, Ordner, Status, seit). Die Leiste liest nur und tut
 nichts. Chips über der Liste filtern (Alle, Braucht dich, Freigabe, Läuft, Sitzungen, Ruht); ab 12
 Einträgen sind die ruhenden eingeklappt („+ N ruhende“).
@@ -203,6 +217,14 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   nur als Halt eines Epics, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
   Seite sie.
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die zehn wirksamen Werte
+  des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
+  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen) und ein Satz, was er bremst. Eine
+  Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
+  dem Bericht, `422` darüber hinaus); bis zur Quittung steht dort „wartet auf den Treiber“. Sie gilt
+  ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne
+  `einstellungen` im Bericht: nur lesend mit Hinweis. Merge-Regel, Rechte, Geheimnisse und Updates
+  gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das

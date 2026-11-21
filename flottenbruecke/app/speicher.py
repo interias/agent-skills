@@ -6,6 +6,8 @@ import sqlite3
 import threading
 from pathlib import Path
 
+from .modelle import HANDLUNG_GRUPPE
+
 SCHEMA = """
 create table if not exists projekte (
   forge text primary key,
@@ -142,10 +144,18 @@ class Speicher:
     def handlung_setzen(self, forge: str, epic: int, art: str, nr: int | None, seit: str | None, text: str | None, jetzt: str) -> dict | None:
         """New or changed action; None when the driver already fetched an open one for the same target."""
         with self.lock, self.db:
-            # einreihen and aufgeben exclude each other: the last one counts until the driver fetches it
-            ziel = 'art = ? and nr is ? and seit is ?' if art == 'widerruf' else "art in ('einreihen', 'aufgeben')"
-            ziel_args = [art, nr, seit] if art == 'widerruf' else []
-            alt = self.db.execute(f'select * from handlungen where forge = ? and epic = ? and quittiert is null and {ziel}', [forge, epic, *ziel_args]).fetchone()
+            if art == 'einstellen':
+                # one open change per setting: the last one counts until the driver fetches it
+                name = json.loads(text)['name']
+                offen = self.db.execute("select * from handlungen where forge = ? and art = 'einstellen' and quittiert is null", (forge,))
+                alt = next((z for z in offen if json.loads(z['text'])['name'] == name), None)
+            else:
+                # einreihen and aufgeben exclude each other, so do pausieren and fortsetzen (#61): the last one
+                # of a group counts until the driver fetches it
+                gruppe = [a for a, g in HANDLUNG_GRUPPE.items() if g == HANDLUNG_GRUPPE[art]]
+                ziel = 'art = ? and nr is ? and seit is ?' if art == 'widerruf' else f"art in ({', '.join('?' * len(gruppe))})"
+                ziel_args = [art, nr, seit] if art == 'widerruf' else gruppe
+                alt = self.db.execute(f'select * from handlungen where forge = ? and epic = ? and quittiert is null and {ziel}', [forge, epic, *ziel_args]).fetchone()
             if alt is not None and alt['abgeholt']:
                 return None
             if alt is None:

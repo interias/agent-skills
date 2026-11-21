@@ -1,11 +1,13 @@
 # Flottenbrücke (#28): the board of every deployment of the fleet driver and the way back for the
 # answers of the person. Viewing is free in the LAN; answering needs the PIN from .env. Besides the
-# answers the bridge carries three actions to the driver, which carries them out: requeue or give
-# up a blocked epic, revoke a decision of the admiral. No start, stop or merge. The Holodeck (#44)
+# answers the bridge carries actions to the driver, which carries them out: requeue or give up a
+# blocked epic, revoke a decision of the admiral, change a setting of the driver (#59), take a released
+# epic in, pause or continue an epic and set its priority (#61). No merge, no abort. The Holodeck (#44)
 # shows the prototypes each driver sends, sealed off from the bridge.
 
 import hashlib
 import hmac
+import json
 import os
 import re
 import threading
@@ -19,7 +21,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .modelle import Antwort, Bericht, Handlung, Holodeck
+from .modelle import Antwort, Bericht, Handlung, Holodeck, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, tafel
 
@@ -163,9 +165,35 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         p = speicher.projekt(h.forge)
         b = p['bericht'] if p else {}
         ep = next((x for x in b.get('epics', []) if x['nr'] == h.epic), None)
-        if ep is None:
+        if h.art == 'einstellen':
+            # belongs to the project: the bridge checks against the limits of the report, the driver checks again
+            liste = b.get('einstellungen')
+            if not liste:
+                raise HTTPException(409, 'Dieser Treiber meldet keine Einstellungen.')
+            z = json.loads(h.text)
+            # what the other settings have or are about to get: Gelb must stay under Rot while one of them is queued
+            andere = {x['name']: x['wert'] for x in liste}
+            for o in speicher.handlungen(h.forge):
+                if o['art'] == 'einstellen' and not o['quittiert']:
+                    d = json.loads(o['text'])
+                    andere[d['name']] = d['wert']
+            grund = einstellung_pruefen(liste, z['name'], z['wert'], andere)
+            if grund:
+                raise HTTPException(422, grund)
+        elif h.art == 'aufnehmen':
+            # the driver checks ready_label and epic_label against the forge again
+            if h.epic not in [f['nr'] for f in b.get('freigegeben', [])]:
+                raise HTTPException(409, 'Das Epic ist nicht freigegeben oder schon im Einsatz.')
+        elif ep is None:
             raise HTTPException(404, 'Dieses Epic kennt die Brücke nicht.')
-        if h.art == 'widerruf':
+        elif h.art in ('pausieren', 'fortsetzen', 'prioritaet'):
+            if ep['stufe'] in ('gemergt', 'fertig') or ep.get('aufgegebenAm') or not ep.get('imEinsatz', True):
+                raise HTTPException(409, 'Das Epic ist nicht im Einsatz.')
+            if h.art == 'pausieren' and ep.get('pausiert'):
+                raise HTTPException(409, 'Das Epic ist schon pausiert.')
+            if h.art == 'fortsetzen' and not ep.get('pausiert'):
+                raise HTTPException(409, 'Das Epic ist nicht pausiert.')
+        elif h.art == 'widerruf':
             d = next((d for d in b.get('entscheidungen', []) if d['epic'] == h.epic and d['nr'] == h.nr and d['zeit'] == h.seit), None)
             if d is None:
                 raise HTTPException(404, 'Diese Entscheidung kennt die Brücke nicht.')
