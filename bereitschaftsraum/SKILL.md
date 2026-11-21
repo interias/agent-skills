@@ -10,12 +10,14 @@ Der Mensch bringt ein Anliegen — eine Idee, ein Problem, einen halben Plan. Du
 klar ist, **was daraus wird**: nichts, ein Missionsziel oder eine Mission mit Zielen. Was entsteht,
 legt der Auftragsschreiber (`flotte auftrag`) an, nie du von Hand.
 
-Sprache: der Sprachraum aus `CONTEXT.md` (Mission, Missionsziel, Sternzeit-Notiz, Warp frei,
-Außeneinsatz, Lagebesprechung, Ingenieur, Erster Offizier, Andockprüfung). Labels und Adapterschlüssel
-bleiben technisch.
+Sprache: der Sprachraum aus `CONTEXT.md` von agent-skills (Mission, Missionsziel, Sternzeit-Notiz,
+Warp frei, Außeneinsatz, Lagebesprechung, Ingenieur, Erster Offizier, Andockprüfung). Labels und
+Adapterschlüssel bleiben technisch.
 
 Lies zuerst, bevor du fragst: `CONTEXT.md`, `docs/adr/` (mit README, falls vorhanden), `.claude/epic.md` des
-Ziel-Repositorys und `epic/references/adapter.md` („Issues“), dazu den Code, um den es geht.
+Ziel-Repositorys und `epic/references/adapter.md` („Issues“), dazu den Code, um den es geht. Fehlen
+`CONTEXT.md` oder `docs/adr/` im Ziel-Repository, legt sie der Doku-Pull-Request (Abschnitt 4) bei
+Bedarf an, im Format derselben Dateien von agent-skills.
 **Was du im Repository nachlesen kannst, fragst du nicht.**
 
 ## 1 — Fragen in Runden
@@ -56,7 +58,7 @@ widerspricht keinem ADR, entscheidest du selbst und listest sie in der Runde als
 ✔ <Entscheidung> — <Grund>
 ```
 
-Der Mensch kann jede ✔-Zeile widerrufen. **Fragen bleibt:** Unumkehrbares oder nach außen Sichtbares
+Der Mensch kann jede ✔-Zeile widerrufen; widerspricht er nicht, gilt sie. **Fragen bleibt:** Unumkehrbares oder nach außen Sichtbares
 (Push, Freigabe, Löschung, Zugang, Geld), Änderungen an einem ADR, Produktrichtung und Missionsumfang,
 Sicherheit und Datenschutz, mehrere vertretbare Wege, deren Abwägung der Mensch tragen muss.
 
@@ -97,7 +99,9 @@ Standards stehen in `epic/references/adapter.md`. Ein Missionsziel im Entwurf ha
 - `## Was` — ein bis drei Sätze, im Sprachraum, ohne Lösungsvorgabe, wo keine nötig ist.
 - `## Abnahmekriterien` — prüfbare Aufzählung; jedes Kriterium so, dass ein Erster Offizier „erfüllt“
   oder „nicht erfüllt“ sagen kann.
-- `## Verifikationsweg` — wie es geprüft wird, mit Fundstelle (Befehl, Datei, Seite).
+- `## Verifikationsweg` — wie es geprüft wird, mit Fundstelle (Befehl, Datei, Seite). Liegt das
+  Ergebnis außerhalb dessen, was die Tests oder die Andockprüfung des Repositorys erfassen, nennt er
+  den Weg von Hand ausdrücklich (was wird angesehen oder verglichen, womit).
 - `## Betroffene Module` — freiwillig, aber gesetzt, wenn es Ziele gibt, die sich überschneiden.
 - bei Bedarf `## Entscheidungen` (was gilt, mit Grund — die Antworten aus dem Gespräch) und
   `## Out of Scope`.
@@ -121,10 +125,16 @@ Ziel-Repositorys, als **eigener Doku-Pull-Request** (eigener Branch, nur `docs/a
   `docs/adr/README.md`, falls es eines gibt); nächste freie Nummer, Datei `NNNN-<kurzer-name>.md`.
 - **Fachbegriffe** in `CONTEXT.md`, im Format dieser Datei (Begriff, Bedeutung, `_Avoid_`). Ein
   Begriff, den du im Gespräch geprägt oder präzisiert hast und den die Mission nutzt, gehört hinein;
-  ein vorhandener wird geschärft, nicht doppelt angelegt.
+  ein vorhandener wird geschärft, nicht doppelt angelegt. Kollidiert ein Begriff mit dem Sprachraum
+  der Flotte (etwa „Logbuch“), kommt das als Frage oder ✔-Zeile in die Runde, und `CONTEXT.md` grenzt
+  ihn ausdrücklich ab.
 
-Der Doku-Pull-Request kommt **vor** dem Auftrag, wenn der Auftrag auf ihn verweist; die Nummer oder
-der Link steht dann im Body. Andocken tut der Mensch, nicht du.
+**Wann und wie.** Den Text der Doku-Änderung zeigst du im Wortlaut mit dem Entwurf (Abschnitt 5,
+Punkt 2); sichtbar wird er erst nach der Wahl des Menschen. Dann, **vor** `flotte auftrag`: ein
+eigener Branch in einem eigenen Worktree (nie `git switch` im Checkout des Menschen), Commit, Push,
+Pull Request; den Worktree entfernst du danach wieder. Verweist der Auftrag auf den Doku-PR, trägst du
+dessen Nummer in den Entwurf ein und lässt den Trockenlauf erneut laufen. Andocken tut der Mensch,
+nicht du.
 
 **Darfst du nicht schreiben** (Chat auf der Flottenbrücke: im Repository nur lesen, dazu `flotte auftrag`): Es gibt
 keinen Doku-Pull-Request. Dann steht jedes ADR als fertiger Text und jede Begriffsänderung als
@@ -139,14 +149,15 @@ geschrieben wurde.
 2. **Entwurf** im Format von `flotte/README.md` („Aufträge“): jede Überschrift erster Ebene beginnt
    ein Issue — höchstens eine `# Mission: <Titel>` ganz oben, darunter `# Missionsziel: <Titel>`;
    ohne Mission genau ein Missionsziel; sonst keine Überschrift erster Ebene (auch nicht in
-   Beispielen außerhalb eines Codezauns). Zeige ihn dem Menschen vollständig und schreibe ihn in
-   eine Datei außerhalb des Repositorys (Temp-Verzeichnis).
+   Beispielen außerhalb eines Codezauns). Schreibe ihn in eine Datei außerhalb des Repositorys
+   (Temp-Verzeichnis), lass den **Trockenlauf** (Punkt 4) laufen und zeige ihn dem Menschen erst
+   dann, vollständig, mit dem Text der Doku-Änderung — so fallen Lücken vor der Wahl auf.
 3. **Der Mensch wählt**, jeweils mit der Empfehlung:
    - **„anlegen“** → `needs-triage` (Sternzeit-Notiz): die Issues stehen, die Flotte rührt sie nicht
      an, bis sie freigegeben sind.
    - **„anlegen und starten“** → `ready-for-agent` (Warp frei): die Flotte darf sie aufnehmen.
    - Änderungswünsche → Entwurf anpassen, erneut zeigen. Verwerfen ist immer möglich.
-4. Zuerst als **Trockenlauf**, dann echt:
+4. Zuerst als **Trockenlauf**, dann — nach der Wahl und dem Doku-Pull-Request (Abschnitt 4) — echt:
 
    ```powershell
    bun "$HOME\.claude\skills\flotte\src\cli.ts" auftrag <repo> <entwurf.md> --trocken

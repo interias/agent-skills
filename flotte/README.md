@@ -103,8 +103,11 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" auftrag <repo> <entwurf.md> [--star
 `<repo>` ist der Checkout des Ziel-Repositorys. Aus seinem Adapter (`.claude/epic.md`) liest der
 Befehl `forge` und `api` (ohne `api`: das GitHub-Repository von `origin`), `epic_label`,
 `ready_label` und die Abschnitte `acceptance_section`, `verification_section` und
-`modules_section` mit ihren Standards (`epic/references/adapter.md`, „Issues“). Er spricht GitHub (über `gh`) und Gitea (über die API:
-`forge: gitea` und `api: <host>/api/v1/repos/<owner>/<repo>`, Anmeldung mit `token_env`/`token_file` oder Basic Auth aus dem Git-Credential-Speicher). Gitea kennt keine Sub-Issues: die Mission ist dort von ihren Missionszielen blockiert (Abhängigkeit), die Liste im Body bleibt.
+`modules_section` mit ihren Standards (`epic/references/adapter.md`, „Issues“). Er spricht GitHub
+(über `gh`) und Gitea (über die API: `forge: gitea` und `api: <host>/api/v1/repos/<owner>/<repo>`,
+Anmeldung mit `token_env`/`token_file` oder Basic Auth aus dem Git-Credential-Speicher). Gitea kennt
+keine Sub-Issues: die Mission ist dort von ihren Missionszielen blockiert (Abhängigkeit), die Liste
+im Body bleibt.
 
 **Entwurf:** Markdown. Jede Überschrift erster Ebene beginnt ein Issue: höchstens eine
 `# Mission: <Titel>` ganz oben, darunter ein oder mehrere `# Missionsziel: <Titel>`. Ohne Mission

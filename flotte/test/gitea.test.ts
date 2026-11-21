@@ -1,7 +1,8 @@
 // The Gitea layer of the order writer (#73): the shared cases of the order writer against a
 // throwaway Gitea in Docker. The test starts its own Compose project (own name per run, free port,
-// fixed image tag) and removes it with its volume in afterAll, also when a case fails. Without Docker
-// it fails; it is not skipped (skill epic, rule 5).
+// fixed image tag) and removes it with its volume in afterAll, also when a case fails; what a killed
+// earlier run left behind it removes before it starts. Without Docker it fails; it is not skipped
+// (skill epic, rule 5).
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -23,10 +24,29 @@ const PASSWORT = `pw-${crypto.randomUUID()}`;
 
 const docker = (args: string[], env: Record<string, string> = {}) => {
   const r = spawnSync('docker', args, { encoding: 'utf8', env: { ...process.env, ...env }, windowsHide: true });
-  if (r.status !== 0) throw new Error(`docker ${args.slice(0, 4).join(' ')}: ${(r.stderr || String(r.error ?? r.stdout)).trim()}`);
+  // up to the subcommand of compose (index 5), never further: later arguments carry the password
+  if (r.status !== 0) throw new Error(`docker ${args.slice(0, 6).join(' ')}: ${(r.stderr || String(r.error ?? r.stdout)).trim()}`);
   return r.stdout;
 };
-const compose = (args: string[], env: Record<string, string> = {}) => docker(['compose', '-p', PROJEKT, '-f', COMPOSE, ...args], env);
+const compose = (args: string[], env: Record<string, string> = {}, projekt = PROJEKT) => docker(['compose', '-p', projekt, '-f', COMPOSE, ...args], env);
+
+const lebt = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
+/** Projects of earlier runs that were killed before afterAll (Ctrl+C, a gate timeout): their process is gone. */
+function resteAbraeumen() {
+  const projekte = JSON.parse(docker(['compose', 'ls', '-a', '--format', 'json']) || '[]') as { Name: string }[];
+  for (const { Name } of projekte) {
+    const m = /^agent-skills-.+-gitea-(\d+)$/.exec(Name);
+    if (m && Number(m[1]) !== process.pid && !lebt(Number(m[1]))) compose(['down', '-v', '--remove-orphans'], { GITEA_PORT: '3000' }, Name);
+  }
+}
 
 const freierPort = () =>
   new Promise<number>((ok, fehler) => {
@@ -89,6 +109,7 @@ function pruefstand(name: string): Pruefstand {
 
 describe('auftrag: shared cases, Gitea layer against a throwaway Gitea', () => {
   beforeAll(async () => {
+    resteAbraeumen();
     port = await freierPort();
     basis = `http://127.0.0.1:${port}`;
     try {
