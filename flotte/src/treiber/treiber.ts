@@ -8,11 +8,11 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
-import { kontoAus, kurzname } from '../werkzeuge/konten.ts';
+import { kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
-import { type Bewertung, bewerte, lies as liesVerbrauch } from '../werkzeuge/verbrauch.ts';
+import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
@@ -21,6 +21,7 @@ import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHa
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
+import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, setze as setzeEinstellung, START_PARAMETER, type Wert, zeige } from './einstellungen.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -49,6 +50,15 @@ export interface Einstellung {
   ramWarn: number | null;
   /** --obergrenze: a fixed fleet limit instead of the one from the 7-day projection (dress rehearsals) */
   obergrenze: number | null;
+  /** #58: packages per epic at the same time; kept and reported only, /epic takes it from the order (#60) */
+  paketeJeEpic: number;
+  /** #58: the 5-hour thresholds of the usage brake in percent used */
+  verbrauchGelb: number;
+  verbrauchRot: number;
+  /** #58: CLAUDE_CONFIG_DIR of the accounts that run until the 5-hour window is used up */
+  leerfahren: string[];
+  /** #58: the settings given explicitly as start parameters; they win over the bridge's at the start */
+  gesetzt?: EinstellungName[];
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
   kontoMax: Record<string, number>;
   verbrauchMaxAlterMin: number;
@@ -95,6 +105,10 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     plattMinGb: 20,
     ramWarn: null,
     obergrenze: null,
+    paketeJeEpic: 3,
+    verbrauchGelb: 60,
+    verbrauchRot: 85,
+    leerfahren: [],
     kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
@@ -246,6 +260,8 @@ export interface FlottenZustand extends Zustand {
   schlange: number[];
   /** ids of the bridge actions already carried out: one fetched twice acts once */
   handlungenErledigt?: number[];
+  /** #58: the settings the person changed on the bridge, as the bridge sees them; they outlive a restart */
+  einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string }>>;
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -343,6 +359,9 @@ class Treiber {
   sitzungen: BerichtSitzung[] = [];
   sitzungenGelesen = 0;
   sitzungenLaeuft = false;
+  /** #58: where each setting comes from and since when; --konten as given at the start (its standard) */
+  herkunft = new Map<EinstellungName, { herkunft: Herkunft; seit: string }>();
+  startKonten: string[] = [];
 
   constructor(
     readonly e: Einstellung,
@@ -373,6 +392,7 @@ class Treiber {
     };
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
     if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
+    this.einstellungenLaden(new Date(anfang).toISOString());
     if (this.e.auto) {
       this.e.epics = this.einsammeln(adapterAus(this.e.repo));
       this.gesammelt = this.w.jetzt();
@@ -579,7 +599,7 @@ class Treiber {
     if (genug !== this.platteGenug) this.ereignis(null, genug ? 'Platte wieder über der Schwelle' : `Platte: ${frei ?? 'unbekannt'} GB frei, Schwelle ${this.e.plattMinGb} GB: kein Start`);
     this.platteGenug = genug;
     for (const k of this.alleKonten()) {
-      const b = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin);
+      const b = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k));
       const alt = this.bewertung.get(k)?.stufe;
       if (alt && alt !== b.stufe) this.ereignis(null, `Verbrauch ${this.kontoName(k)}: ${b.stufe} (${b.grund})`);
       if (k === this.e.admiralKonto && b.stufe !== 'gruen' && alt !== b.stufe) this.admiralWarnung(b);
@@ -595,10 +615,18 @@ class Treiber {
     };
   }
 
-  /** the accounts of the runs and, when it is not one of them, the admiral's (follow-up check of #27) */
+  /**
+   * the accounts of the runs and, when it is not one of them, the admiral's (follow-up check of #27);
+   * #58: also an account taken off on the bridge while an epic on it is open (its runs stay there)
+   */
   alleKonten(): string[] {
     const a = this.e.admiralKonto;
-    return a && !this.e.konten.includes(a) ? [...this.e.konten, a] : this.e.konten;
+    const offen = Object.values(this.z?.epics ?? {}).flatMap((ep) => (ep.konto && !ENDE.has(ep.stufe) && existsSync(ep.konto) ? [ep.konto] : []));
+    return [...new Set([...this.e.konten, ...(a ? [a] : []), ...offen])];
+  }
+
+  schwellen(k: string): Schwellen {
+    return { gelb: this.e.verbrauchGelb, rot: this.e.verbrauchRot, leerfahren: this.e.leerfahren.includes(k) };
   }
 
   /** Advance warning: from red on, the admiral's questions go to the person without an admiral call. */
@@ -610,7 +638,8 @@ class Treiber {
 
   kontoName(k: string): string {
     const i = this.e.konten.indexOf(k);
-    return i < 0 && k === this.e.admiralKonto ? 'Admiral-Konto' : `Konto ${i + 1}`;
+    if (i >= 0) return `Konto ${i + 1}`;
+    return k === this.e.admiralKonto ? 'Admiral-Konto' : kurzname(k, this.e.admiralKonto);
   }
 
   obergrenze(): number {
@@ -637,7 +666,7 @@ class Treiber {
       this.nebenbei(
         this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] }).then((r) => {
           this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
-          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin));
+          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k)));
         }),
       );
     }
@@ -1103,6 +1132,7 @@ class Treiber {
     const ep = this.epic(h.epic);
     const jetzt = new Date(this.w.jetzt()).toISOString();
     const amIssue = (text: string) => kommentar(this.w.aufrufer, this.e.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
+    if (h.art === 'einstellen') return this.einstellen(h);
     if (!ep) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic gehört nicht zu diesem Einsatz`);
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
@@ -1148,6 +1178,103 @@ class Treiber {
     }
     amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
     this.ereignis(h.epic, `neu eingereiht vom Menschen (über die Brücke)${ep.stufe === 'wartend' ? ', wartet auf einen Platz' : ', der Lauf setzt fort'}`);
+  }
+
+  // ---- settings (#58)
+
+  /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's */
+  kontenAuswahl(): Map<string, string> {
+    const m = new Map<string, string>();
+    for (const d of [...Object.keys(kontenTafel()).map((n) => kontoAus(n)), ...this.startKonten, ...this.alleKonten()]) {
+      const k = this.kontoKurz(d);
+      if (!m.has(k) && existsSync(d)) m.set(k, d);
+    }
+    return m;
+  }
+
+  /** `Konto <n>` by the table, else the folder name; not `Admiral-Konto`, so a name stays when the admiral moves */
+  kontoKurz(dir: string): string {
+    return kurzname(dir);
+  }
+
+  einstellung(name: EinstellungName): Wert {
+    return liesEinstellung(this.e, name, (d) => this.kontoKurz(d));
+  }
+
+  standardWert(name: EinstellungName): Wert {
+    return name === 'konten' ? this.startKonten.map((d) => this.kontoKurz(d)) : EINSTELLUNGEN[name].standard;
+  }
+
+  /**
+   * At the start: a setting changed on the bridge holds again, unless a start parameter given
+   * explicitly sets it; then the start parameter wins and an event says so. A stored value that no
+   * longer fits (an account gone) is an event and is dropped.
+   */
+  einstellungenLaden(anfang: string): void {
+    this.startKonten = [...this.e.konten];
+    const gespeichert = (this.z.einstellungen ??= {});
+    for (const name of NAMEN) {
+      const jetzt = this.einstellung(name);
+      const vomStart = this.e.gesetzt ? this.e.gesetzt.includes(name) : JSON.stringify(jetzt) !== JSON.stringify(this.standardWert(name));
+      const b = gespeichert[name];
+      if (b && vomStart) {
+        delete gespeichert[name];
+        if (JSON.stringify(b.wert) !== JSON.stringify(jetzt)) this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel}: Startparameter ${START_PARAMETER[name] ?? ''} gilt (${zeige(jetzt)}) statt ${zeige(b.wert)} von der Brücke`);
+      } else if (b) {
+        const fehler = setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
+        if (!fehler) {
+          this.herkunft.set(name, { herkunft: 'bruecke', seit: b.seit });
+          continue;
+        }
+        delete gespeichert[name];
+        this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel} von der Brücke (${zeige(b.wert)}) gilt nicht mehr: ${fehler}`);
+      }
+      this.herkunft.set(name, { herkunft: vomStart ? 'start' : 'standard', seit: anfang });
+    }
+  }
+
+  /**
+   * einstellen over the bridge (#58), with the PIN like a revocation: checked against the limits here,
+   * in effect from this turn's brakes and occupancy on. Nothing running stops: a lower limit starts
+   * fewer, an account taken off starts nothing new while its runs stay on it. A value that does not
+   * fit is an event, nothing changes.
+   */
+  einstellen(h: BrueckenHandlung): void {
+    let roh: { name?: unknown; wert?: unknown } | null;
+    try {
+      roh = JSON.parse(h.text ?? '');
+    } catch {
+      roh = null;
+    }
+    const name = roh?.name;
+    if (!roh || typeof roh !== 'object' || !istName(name) || !('wert' in roh)) {
+      return this.ereignis(null, `Einstellung über die Brücke abgelehnt: ${istName(name) ? 'kein Wert' : `unbekannte Einstellung ${JSON.stringify(name ?? null).slice(0, 60)}`}`);
+    }
+    const titel = EINSTELLUNGEN[name].titel;
+    const vorher = this.einstellung(name);
+    const gelb = name === 'verbrauchGelb' ? roh.wert : this.e.verbrauchGelb;
+    const rot = name === 'verbrauchRot' ? roh.wert : this.e.verbrauchRot;
+    const quer = (name === 'verbrauchGelb' || name === 'verbrauchRot') && typeof gelb === 'number' && typeof rot === 'number' && gelb >= rot ? `gelb (${gelb}) muss unter rot (${rot}) liegen` : null;
+    const fehler = setzeEinstellung({ ...this.e }, name, roh.wert, this.kontenAuswahl()) ?? quer;
+    if (fehler) return this.ereignis(null, `Einstellung ${titel} über die Brücke abgelehnt: ${fehler}`);
+    setzeEinstellung(this.e, name, roh.wert, this.kontenAuswahl());
+    const nachher = this.einstellung(name);
+    const seit = new Date(this.w.jetzt()).toISOString();
+    this.herkunft.set(name, { herkunft: 'bruecke', seit });
+    (this.z.einstellungen ??= {})[name] = { wert: nachher, seit };
+    const text = `Einstellung ${titel} von ${zeige(vorher)} → auf ${zeige(nachher)}, ${HERKUNFT_BRUECKE}`;
+    this.ereignis(null, text);
+    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+  }
+
+  /** The settings in effect for the report: value, origin, since when, and the limits or the accounts to choose from. */
+  einstellungenBericht(): BerichtEinstellung[] {
+    const auswahl = [...this.kontenAuswahl().keys()];
+    return NAMEN.map((name) => {
+      const a: { titel: string; leer: boolean; min?: number; max?: number; konto?: string } = EINSTELLUNGEN[name];
+      const h = this.herkunft.get(name) ?? { herkunft: 'standard' as const, seit: this.z.stand };
+      return { name, titel: a.titel, wert: this.einstellung(name), herkunft: h.herkunft, seit: h.seit, standard: this.standardWert(name), leer: a.leer, ...(a.konto ? { auswahl } : { min: a.min, max: a.max }) };
+    });
   }
 
   /** The report of this turn; acknowledgements only after the state with the answers is written. */
@@ -1468,6 +1595,7 @@ class Treiber {
         .map(entscheidungFuerBericht),
       prognose: this.prognoseBericht(),
       sitzungen: this.sitzungen,
+      einstellungen: this.einstellungenBericht(),
     };
   }
 
@@ -1959,6 +2087,7 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
+  e.gesetzt = (Object.keys(START_PARAMETER) as EinstellungName[]).filter((n) => argv.includes(START_PARAMETER[n]!));
   const ramWarn = wert(argv, '--ram-warn');
   e.ramWarn = ramWarn ? Number(ramWarn) : null;
   const grenze = wert(argv, '--obergrenze');
