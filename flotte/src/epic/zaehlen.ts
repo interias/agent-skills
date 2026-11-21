@@ -1,6 +1,7 @@
 // Counting for 4c (#69, decision 6): suites, tests and red tests from the output of the adapter's
 // test_commands, lint findings per file from the output of lint_commands. Known formats are bun
-// test, Pester (3 to 5) and pytest; any other output is an error, never a count of 0. Paths come
+// test, Pester (3 to 5), pytest and the summary of a context gate (hexanite, flotte-probe); any
+// other output is an error, never a count of 0. Paths come
 // back relative to the worktree with forward slashes, as `git diff --name-only` gives them, so the
 // Lastflake rule can hold them against the files the package touched.
 
@@ -91,11 +92,33 @@ function pytest(text: string, ort: (p: string) => string): Gezaehlt | null {
   return { dateien: dateien.size || null, tests, rot };
 }
 
+/**
+ * The summary of a context gate (the form of hexanite's gate and of flotte-probe's werkzeug/gate.ps1):
+ * after the last `== Gate: …` line one line per context, `  <context> grün|rot <m:ss> [reason]`,
+ * skipped contexts without a time, then `Gate grün.` or `Gate rot.`. A context run is a test; a
+ * red context names itself as the file (its tests have no files of their own).
+ */
+function gate(text: string): Gezaehlt | null {
+  const ende = /^Gate (gr\S{1,2}n|rot)\.\s*$/m.exec(text);
+  if (!ende) return null;
+  const zeilen = text.slice(0, ende.index).split(/\r?\n/);
+  const kopf = zeilen.map((z) => /^== Gate: /.test(z)).lastIndexOf(true);
+  let tests = 0;
+  const rot: Gezaehlt['rot'] = [];
+  for (const z of zeilen.slice(kopf + 1)) {
+    const m = /^\s+(\S+)\s+(gr\S{1,2}n|rot)\s+\d+:\d{2}(?:\s+(.*))?$/.exec(z);
+    if (!m) continue;
+    tests++;
+    if (m[2] === 'rot') rot.push({ datei: m[1], test: m[3]?.trim() || 'rot' });
+  }
+  return tests ? { dateien: null, tests, rot } : null;
+}
+
 /** One suite: the output of its command; an unknown format throws. */
 export function zaehle(ausgabe: string, befehl: string, worktree: string): Gezaehlt {
   const ort = (p: string) => pfadIm(worktree, verzeichnisAus(befehl), p);
-  const r = bun(ausgabe, ort) ?? pester(ausgabe, befehl, ort) ?? pytest(ausgabe, ort);
-  if (!r) throw new Error(`Ausgabe von "${befehl}" in keinem bekannten Format (bun test, Pester, pytest); keine Zählung. Ende der Ausgabe: ${ausgabe.trim().slice(-300)}`);
+  const r = bun(ausgabe, ort) ?? pester(ausgabe, befehl, ort) ?? pytest(ausgabe, ort) ?? gate(ausgabe);
+  if (!r) throw new Error(`Ausgabe von "${befehl}" in keinem bekannten Format (bun test, Pester, pytest, Gate); keine Zählung. Ende der Ausgabe: ${ausgabe.trim().slice(-300)}`);
   return r;
 }
 

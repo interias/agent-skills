@@ -13,7 +13,8 @@ code_graph: off
 isolation: none-needed
 window: 3
 max_rounds: 3
-test_commands: [pwsh -NoProfile -File werkzeug/gate.ps1]
+test_commands:
+  gate: pwsh -NoProfile -File werkzeug/gate.ps1
 ram_warn_percent: 85
 ram_hold_percent: 90
 ram_min_free_gb: 3

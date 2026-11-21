@@ -58,6 +58,10 @@ export interface PaketZustand extends AufrufStand {
   /** port and isolation from worktree.ps1 Up (for the order of 4a); missing in a state of #65 */
   port?: number | null;
   isolation?: string | null;
+  /** HEAD of the package worktree at its start (the epic head of 4b); missing in a state of #65/#66 */
+  kopf?: string | null;
+  /** the model of the last implementer call, from its init line (Co-Authored-By of 4d) */
+  modell?: string | null;
   branch: string;
   bericht: ImplementerBericht | null;
   review: ReviewerBericht | null;
@@ -100,7 +104,7 @@ export interface Ereignis {
   /** ISO time: stage 4 (#68) reads package starts, role calls and merges from here */
   zeit: string;
   paket: string | null;
-  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ende';
+  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ungueltig' | 'ende';
   rolle?: Rolle;
   text: string;
 }
@@ -125,6 +129,8 @@ export interface EpicLaufZustand {
   basis: Testlauf | null;
   /** lint findings per file in phase 0 */
   basisLint: Record<string, number> | null;
+  /** graph.json of the code graph built in phase 0b, null when none was built; missing in a state of #65/#66 */
+  graph?: string | null;
   schnitt: AufrufStand & { ergebnis: Schnitt | null };
   fragen: FrageZustand[];
   pakete: Record<string, PaketZustand>;

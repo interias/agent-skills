@@ -31,7 +31,10 @@ export interface Antwort {
 }
 
 export interface EpicDrehbuch {
-  schnitt: Schnitt;
+  /** the cut; without modus and zuordnung the stand-in gives mode tickets, each package its own child */
+  schnitt: Omit<Schnitt, 'modus' | 'zuordnung' | 'uebersprungen'> & Partial<Pick<Schnitt, 'modus' | 'zuordnung' | 'uebersprungen'>>;
+  /** body of an issue (the target issue: its children, its user stories); default empty */
+  bodies?: Record<number, string>;
   /** 'schnitt' or '<rolle>:<paket>' → answers in order, the last one repeats; missing: the default */
   aufrufe?: Record<string, Antwort[]>;
   /** Ausgangszahlen of the epic worktree; default one suite of 249 tests in 18 files */
@@ -112,9 +115,9 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
   const nrAus = (worktree: string) => worktree.replace(/^\/wt\//, '');
 
   function standard(rolle: Rolle, paket: string | null): Record<string, unknown> {
-    if (rolle === 'schnitt') return buch.schnitt as unknown as Record<string, unknown>;
+    if (rolle === 'schnitt') return { modus: 'tickets', zuordnung: buch.schnitt.pakete.map((p) => ({ story: `#${p.nr}`, paket: p.nr })), uebersprungen: [], ...buch.schnitt };
     const p = buch.schnitt.pakete.find((x) => x.nr === paket);
-    if (rolle === 'implementer') return { version: 1, dateien: p?.dateien ?? [], neueDateien: [], abnahme: (p?.abnahme ?? []).map((punkt) => ({ punkt, satz: 'erfüllt' })), volllauf: [], nichtGekonnt: [], fremdarbeit: [] };
+    if (rolle === 'implementer') return { version: 1, dateien: p?.dateien ?? [], neueDateien: [], abnahme: (p?.abnahme ?? []).map((punkt) => ({ punkt, satz: 'erfüllt' })), volllauf: [], nichtGekonnt: [], fremdarbeit: [], betreff: `feat: ${p?.titel ?? paket}`, warum: 'Das Drehbuch verlangt es.' };
     if (rolle === 'reviewer') return { version: 1, befunde: [], strukturell: false, schnittstelle: `Schnittstelle von ${paket}`, selbstkorrekturen: [] };
     return { version: 1, ergebnis: 'geloest', begruendung: 'getrennte Zeilen' };
   }
@@ -233,6 +236,9 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     async graph() {
       log('graph');
       return { available: true };
+    },
+    async body(ticket) {
+      return buch.bodies?.[ticket] ?? '';
     },
     async kommentare(ticket) {
       return welt.kommentare[ticket] ?? [];
