@@ -103,6 +103,58 @@ Describe 'ram.ps1 settings' {
     }
 }
 
+# A 40 % reading with EPIC_LOCK_HOLDER set to a holder file of the given content ($null: no file);
+# the variable of the calling session comes back afterwards.
+function Invoke-RamHolder($content, [switch]$NoVariable) {
+    $before = $env:EPIC_LOCK_HOLDER
+    $holder = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.json')
+    if ($null -ne $content) { Set-Content -LiteralPath $holder -Value $content }
+    try {
+        if ($NoVariable) { Remove-Item Env:EPIC_LOCK_HOLDER -ErrorAction SilentlyContinue } else { $env:EPIC_LOCK_HOLDER = $holder }
+        Invoke-Ram @('-TotalGb', '100', '-FreeGb', '60')
+    } finally {
+        if ($null -eq $before) { Remove-Item Env:EPIC_LOCK_HOLDER -ErrorAction SilentlyContinue } else { $env:EPIC_LOCK_HOLDER = $before }
+    }
+}
+
+Describe 'ram.ps1 and the pause of the flotte driver (#61)' {
+    It 'rates a paused epic hold and names the reason' {
+        $r = Invoke-RamHolder '{"epic":7,"repo":"C:/r","seit":"2026-11-21T10:00:00.000Z","pausiert":"2026-11-21T11:00:00.000Z"}'
+        $r.Exit | Should Be 0
+        $r.Out.Count | Should Be 1
+        $j = $r.Out[0] | ConvertFrom-Json
+        $j.level | Should Be 'hold'
+        $j.reason | Should Be 'paused'
+        $j.percent_used | Should Be 40
+        $r.Err | Should BeNullOrEmpty
+    }
+    It 'measures as before when the holder file carries no pause' {
+        $r = Invoke-RamHolder '{"epic":7,"repo":"C:/r","seit":"2026-11-21T10:00:00.000Z"}'
+        $r.Exit | Should Be 0
+        $j = $r.Out[0] | ConvertFrom-Json
+        $j.level | Should Be 'ok'
+        @($j.PSObject.Properties.Name | Sort-Object) -join ',' | Should Be 'free_gb,level,percent_used,total_gb'
+    }
+    It 'measures as before without the variable' {
+        $r = Invoke-RamHolder '{"pausiert":"2026-11-21T11:00:00.000Z"}' -NoVariable
+        $r.Exit | Should Be 0
+        $j = $r.Out[0] | ConvertFrom-Json
+        $j.level | Should Be 'ok'
+        $j.PSObject.Properties.Name -contains 'reason' | Should Be $false
+    }
+    It 'measures as before with a missing or broken holder file' {
+        foreach ($content in @($null, '{kaputt', '')) {
+            $r = Invoke-RamHolder $content
+            $r.Exit | Should Be 0
+            $r.Out.Count | Should Be 1
+            $j = $r.Out[0] | ConvertFrom-Json
+            $j.level | Should Be 'ok'
+            $j.PSObject.Properties.Name -contains 'reason' | Should Be $false
+            $r.Err | Should BeNullOrEmpty
+        }
+    }
+}
+
 Describe 'ram.ps1 output' {
     It 'prints exactly one JSON object on stdout and exits 0 for every level' {
         foreach ($free in 50, 20, 5) {

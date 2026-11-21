@@ -30,6 +30,11 @@
     goes to stderr. Exit 0 for every level - the level is in the JSON; exit 1 only when the
     measurement or the settings are unusable (nothing is guessed).
 
+    A paused epic under the flotte driver (#61): when $env:EPIC_LOCK_HOLDER names a readable holder
+    file whose JSON carries pausiert, the level is hold whatever the reading, and the JSON gets a
+    fifth field reason: "paused". The run starts no further package, the running ones finish.
+    Without the variable, without the file or with an unreadable file nothing changes.
+
     -TotalGb and -FreeGb replace the measurement. They exist for the tests and must be given
     together; Get-RamLevel and the settings logic run unchanged.
 
@@ -148,9 +153,25 @@ $percentUsed = ($total - $free) * 100 / $total
 $freeGbValue = $free / 1GB
 $level = Get-RamLevel $percentUsed $freeGbValue $WarnPercent $HoldPercent $MinFreeGb
 
-[ordered]@{
+# The pause of the flotte driver (#61) lives in the holder file; an unreadable file is no pause.
+$paused = $false
+if ($env:EPIC_LOCK_HOLDER) {
+    try {
+        $holder = [IO.File]::ReadAllText($env:EPIC_LOCK_HOLDER) | ConvertFrom-Json
+        $paused = $null -ne $holder -and [bool]$holder.pausiert
+    } catch {
+        $paused = $false
+    }
+}
+
+$result = [ordered]@{
     percent_used = [math]::Round($percentUsed, 1)
     free_gb      = [math]::Round($freeGbValue, 1)
     total_gb     = [math]::Round($total / 1GB, 1)
     level        = $level
-} | ConvertTo-Json -Compress
+}
+if ($paused) {
+    $result.level = 'hold'
+    $result.reason = 'paused'
+}
+$result | ConvertTo-Json -Compress

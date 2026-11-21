@@ -1,5 +1,6 @@
 // The driver's side of the Flottenbrücke (#28): one report per turn, fetching and acknowledging the
-// answers and actions of the person (requeue or give up a blocked epic, revoke a decision, change a setting). Only the driver talks to the bridge; runs and admiral never see it. A bridge
+// answers and actions of the person (requeue or give up a blocked epic, revoke a decision, change a setting,
+// take an epic in, pause or continue it, set its priority). Only the driver talks to the bridge; runs and admiral never see it. A bridge
 // that is off or slow is no error: every call has a short time limit and yields undefined.
 // The contract is flottenbruecke/beispiel/bericht.json, antworten.json, handlungen.json and
 // holodeck.json, tested on both sides.
@@ -38,11 +39,12 @@ export interface BrueckenAntwort {
 /**
  * One action as GET /api/handlungen delivers it; nr, seit and text only for a revocation. einstellen
  * (#58) belongs to the project, not to an epic: epic 0, text the JSON `{"name": …, "wert": …}`.
+ * #61: aufnehmen, pausieren, fortsetzen without text, prioritaet with text `hoch` or `normal`.
  */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -108,8 +110,12 @@ export interface BerichtEpic {
   haltZeit: string | null;
   log: string[];
   aufgegebenAm: string | null;
-  /** the priority label (prio/hoch) on the epic or a child */
+  /** the priority in effect: the bridge's (#61), else the label (prio/hoch) on the epic or a child */
   prio: boolean;
+  /** #61: in this deployment (an epic of an earlier one may stay in the state); paused by the person since (ISO); the priority set on the bridge, null: the label's */
+  imEinsatz: boolean;
+  pausiert: string | null;
+  prioritaet: 'hoch' | 'normal' | null;
   /** ISO times for level 2: first run started, joined the merge queue, the driver's gate started */
   gestartetAm: string | null;
   schlangeSeit: string | null;
@@ -181,6 +187,8 @@ export interface Bericht {
   sitzungen: BerichtSitzung[];
   /** #58: the settings in effect, where each comes from and what the bridge may offer */
   einstellungen: BerichtEinstellung[];
+  /** #61: the released open epics of the forge that are not in this deployment (aufnehmen) */
+  freigegeben: { nr: number; titel: string }[];
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
@@ -217,7 +225,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string')),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string')),
   );
 }
 

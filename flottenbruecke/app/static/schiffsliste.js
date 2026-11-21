@@ -56,10 +56,11 @@
   // each epic once, where it stands first: level 1, the runs, the queue, the ready ones, merged today
   function laeufe(t) {
     const da = new Map();
+    // #61: a pause and the priority show beside the level, the colour stays the level's
     const dazu = (x, nr, farbe, text, box, id) => {
       const k = `${x.forge}#${nr}`;
       if (nr == null || da.has(k)) return;
-      da.set(k, { art: 'lauf', k, forge: x.forge, nr, titel: x.titel || '', konto: x.konto || '', farbe, text, box, id });
+      da.set(k, { art: 'lauf', k, forge: x.forge, nr, titel: x.titel || '', konto: x.konto || '', farbe, text, box, id, pausiert: Boolean(x.pausiert), prio: Boolean(x.prio) });
     };
     for (const x of t.braucht) dazu(x, x.epic, 'lila', x.art === 'blockade' ? (x.stufe === 'abgebrochen' ? 'abgebrochen' : 'blockiert') : ZUORDNUNG.lila.text, 'e1-liste', x.id);
     for (const l of t.unterwegs.laeufe) {
@@ -88,9 +89,10 @@
     const punkt = `<span class="punkt ${e.farbe}" aria-hidden="true"></span>`;
     if (e.art === 'lauf') {
       const nr = `#${e.nr}`;
-      const kopf = `<span class="si-titel"><b>${esc(nr)}</b> ${esc(e.titel)}</span>`;
-      const klein = `<small>${[e.konto, e.text].filter(Boolean).map(esc).join(' · ')}</small>`;
-      return `<li><button type="button" class="si" data-aktion="lauf" data-k="${esc(e.k)}" title="${esc(`${nr} ${e.titel} · ${e.text}`)}">${punkt}<span class="si-text">${kopf}${klein}</span></button></li>`;
+      const kopf = `<span class="si-titel">${e.prio ? '<span class="prio">prio</span>' : ''}<b>${esc(nr)}</b> ${esc(e.titel)}</span>`;
+      const zustand = [e.text, e.pausiert ? 'pausiert' : ''].filter(Boolean).join(' · ');
+      const klein = `<small>${[e.konto, zustand].filter(Boolean).map(esc).join(' · ')}</small>`;
+      return `<li><button type="button" class="si" data-aktion="lauf" data-k="${esc(e.k)}" title="${esc(`${nr} ${e.titel} · ${zustand}${e.prio ? ' · Priorität hoch' : ''}`)}">${punkt}<span class="si-text">${kopf}${klein}</span></button></li>`;
     }
     const s = e.s;
     const zeile = (n, w) => (w ? `<dt>${n}</dt><dd>${esc(w)}</dd>` : '');

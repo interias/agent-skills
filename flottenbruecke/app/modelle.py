@@ -8,6 +8,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
+# the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen'}
 
 
 class Option(BaseModel):
@@ -111,6 +113,10 @@ class Epic(BaseModel):
     # detail view (#51): how often the driver started or continued a process after the first start; places in use
     neustarts: int | None = Field(None, ge=0)
     plaetze: Plaetze | None = None
+    # #61: in the driver's deployment (an older driver: always); paused by the person since; the priority set on the bridge, None: the label's
+    imEinsatz: bool = True
+    pausiert: str | None = Field(None, max_length=40)
+    prioritaet: Literal['hoch', 'normal'] | None = None
 
 
 class Fenster(BaseModel):
@@ -187,6 +193,13 @@ class Sitzung(BaseModel):
     seit: str = Field('', max_length=40)
 
 
+class Freigegeben(BaseModel):
+    """A released open epic of the forge that is not in the driver's deployment (#61): the person may take it in."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+
+
 class Einstellwert(BaseModel):
     """A setting of the driver that the person can change on the bridge (#58); the limits come from here, the bridge does not know them."""
 
@@ -257,6 +270,8 @@ class Bericht(BaseModel):
     sitzungen: list[Sitzung] = Field([], max_length=500)
     # the settings of the driver (#58), always ten; an older driver has none (None, not [])
     einstellungen: list[Einstellwert] | None = Field(None, max_length=20)
+    # #61: released epics outside the deployment (aufnehmen); an older driver has none
+    freigegeben: list[Freigegeben] = Field([], max_length=500)
 
 
 # Holodeck (#44): a file name only, never a path; the bridge resolves it against its own store
@@ -306,15 +321,15 @@ class Antwort(BaseModel):
 
 
 class Handlung(BaseModel):
-    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting."""
+    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority."""
 
     forge: str = Field(max_length=200)
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet']
     # widerruf: the decision (its nr and zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
-    # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON
+    # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON; prioritaet: hoch or normal
     text: str | None = Field(None, max_length=4000)
 
     @model_validator(mode='after')
@@ -331,6 +346,12 @@ class Handlung(BaseModel):
             if self.epic != 0 or not isinstance(d, dict) or not isinstance(d.get('name'), str) or 'wert' not in d:
                 raise ValueError('Einstellen: epic 0 und text {"name", "wert"}')
             self.nr, self.seit, self.text = None, None, json.dumps({'name': d['name'], 'wert': d['wert']}, ensure_ascii=False)
+        elif self.art == 'prioritaet':
+            if self.epic < 1 or self.text not in ('hoch', 'normal'):
+                raise ValueError('Priorität: ein Epic und hoch oder normal')
+            self.nr, self.seit = None, None
+        elif self.art in ('aufnehmen', 'pausieren', 'fortsetzen') and self.epic < 1:
+            raise ValueError('Diese Handlung braucht ein Epic')
         elif self.art != 'widerruf':
             self.nr, self.seit, self.text = None, None, None
         return self

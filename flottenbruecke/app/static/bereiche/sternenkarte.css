@@ -40,6 +40,17 @@
 .bereich[data-bereich="sternenkarte"] .sk-pakete summary::-webkit-details-marker { display: none; }
 .bereich[data-bereich="sternenkarte"] .sk-pakete summary .segmente { height: 7px; }
 .bereich[data-bereich="sternenkarte"] .sk-pakete summary:hover .pz, .bereich[data-bereich="sternenkarte"] .sk-pakete[open] summary .pz { color: var(--himmel); }
+/* #61: steering; a pause is calm, never red: red belongs to "Braucht dich" */
+.bereich[data-bereich="sternenkarte"] .sk-hinweis { margin: 4px 0 8px; font: 13px/1.4 var(--lesen); color: var(--matt); }
+.bereich[data-bereich="sternenkarte"] .sk-marke { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid var(--linie); border-radius: var(--rund); color: var(--matt); font: 700 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.bereich[data-bereich="sternenkarte"] .sk-marke.pausiert { border-color: var(--himmel); color: var(--himmel); }
+.bereich[data-bereich="sternenkarte"] .sk-epic.pausiert { border-left-style: dashed; }
+.bereich[data-bereich="sternenkarte"] .sk-epic.frei { --c: var(--leise); }
+.bereich[data-bereich="sternenkarte"] .sk-unter { margin: 12px 0 6px; color: var(--matt); font: 700 12px var(--disp); letter-spacing: .08em; text-transform: uppercase; }
+.bereich[data-bereich="sternenkarte"] .sk-steuern { margin-top: 2px; }
+.bereich[data-bereich="sternenkarte"] .sk-steuern .status { flex: 1 1 12em; overflow-wrap: anywhere; }
 @media (max-width: 700px) {
-  .bereich[data-bereich="sternenkarte"] .sk-marken { margin-left: 0; }
+  .bereich[data-bereich="sternenkarte"] .sk-marken { margin-left: 0; flex-wrap: wrap; }
+  /* thumb-sized: the buttons share the line, each at least 48 px high (app.css) */
+  .bereich[data-bereich="sternenkarte"] .sk-steuern .knopf { flex: 1 1 9em; }
 }
