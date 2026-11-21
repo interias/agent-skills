@@ -56,6 +56,7 @@ Seit agent-skills/ADR-0003 gilt dieser Wortschatz überall außer in Labels und 
 | **Schilde** | freier Kontext einer Sitzung; je voller der Kontext, desto schwächer | – |
 | **Hauptenergie** / **Reserveenergie** | 5-Stunden- / Wochenlimit eines Kontos | – |
 | **Bereitschaftsraum** | das Gespräch, aus dem eine Mission, ein Missionsziel oder nichts entsteht | – |
+| **Werft** | `flotte werft`, zieht nach einem Merge auf `main` die betroffenen Stacks nach (agent-skills/ADR-0005) | `deploy` |
 | **Auftragsschreiber** | `flotte auftrag`, das einzige Werkzeug, das Missionen anlegt | – |
 
 _Avoid_: Epic, Gate, Merge, Implementer, Reviewer, Grilling in Oberfläche und Texten.
