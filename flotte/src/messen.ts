@@ -201,7 +201,8 @@ export function runde(x: number): number {
 export interface TreiberZustand {
   ereignisse: { zeit: string; epic: number | null; text: string }[];
   fragen: { epic: number; nr: number; frage: string; empfehlung: string; beantwortet?: string }[];
-  entscheidungen: { epic: number }[];
+  /** von 'mensch' (#52): an answer of the person, kept as a decision to revoke it; no decision of the admiral */
+  entscheidungen: { epic: number; von?: string }[];
 }
 
 /**
@@ -253,5 +254,5 @@ export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleM
   });
   const starts = ev.filter((e) => /^Lauf (gestartet|fortgesetzt)/.test(e.text)).length;
   const fehlstarts = ev.filter((e) => /^Start ohne Ergebnis/.test(e.text)).length;
-  return { fragen, kalt, starts, fehlstarts, entscheidungen: z.entscheidungen.length };
+  return { fragen, kalt, starts, fehlstarts, entscheidungen: z.entscheidungen.filter((d) => d.von !== 'mensch').length };
 }

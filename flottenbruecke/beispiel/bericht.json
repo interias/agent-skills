@@ -543,6 +543,42 @@
   ],
   "entscheidungen": [
     {
+      "epic": 35,
+      "nr": 1,
+      "frage": "Den Abschnitt zur Konfiguration in die README oder in eine eigene Datei?",
+      "antwort": "B",
+      "herkunft": "Eigenes Urteil: die README ist schon lang",
+      "grund": "Weicht von der Empfehlung des Laufs ab; eine eigene Datei hält die README kurz.",
+      "einflussreich": true,
+      "zeit": "2026-11-19T11:20:00Z",
+      "widerrufen": null,
+      "von": "admiral"
+    },
+    {
+      "epic": 38,
+      "nr": 2,
+      "frage": "Die Einträge im Changelog nach Paketen gruppieren?",
+      "antwort": "Antwort: eine Gruppe je Paket, in der Reihenfolge der Merges",
+      "herkunft": "Eigenes Urteil: liest sich leichter",
+      "grund": "Eigene Antwort; betrifft mehr als ein Paket.",
+      "einflussreich": true,
+      "zeit": "2026-11-19T16:40:00Z",
+      "widerrufen": null,
+      "von": "admiral"
+    },
+    {
+      "epic": 38,
+      "nr": 3,
+      "frage": "Darf der Lauf die Testdaten unter beispiel/ neu anlegen?",
+      "antwort": "A — nur erfundene Namen",
+      "herkunft": "Mensch über die Brücke",
+      "grund": "",
+      "einflussreich": false,
+      "zeit": "2026-11-19T17:05:12Z",
+      "widerrufen": null,
+      "von": "mensch"
+    },
+    {
       "epic": 39,
       "nr": 2,
       "frage": "Wie heißt der Schlüssel für das Protokoll?",
@@ -551,7 +587,8 @@
       "grund": "Alle Schlüssel der vorhandenen Konfiguration sind klein geschrieben.",
       "einflussreich": false,
       "zeit": "2026-11-20T13:52:30Z",
-      "widerrufen": null
+      "widerrufen": null,
+      "von": "admiral"
     },
     {
       "epic": 38,
@@ -562,7 +599,8 @@
       "grund": "Folgt der Empfehlung des Laufs; bis zum Merge umkehrbar.",
       "einflussreich": true,
       "zeit": "2026-11-20T14:18:02Z",
-      "widerrufen": null
+      "widerrufen": null,
+      "von": "lauf"
     }
   ],
   "prognose": {

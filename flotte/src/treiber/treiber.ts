@@ -17,7 +17,7 @@ import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neu
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
-import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, HERKUNFT_BRUECKE, rechnerName } from './bruecke.ts';
+import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
@@ -175,6 +175,8 @@ export interface Entscheidung {
   grund?: string;
   /** the person's new decision, revoked on the bridge */
   widerrufen?: string | null;
+  /** who decided (#52): the person, the admiral, or the admiral following the run's recommendation */
+  von?: 'mensch' | 'admiral' | 'lauf';
 }
 
 export interface FlottenEpic extends EpicZustand {
@@ -948,7 +950,8 @@ class Treiber {
       return this.antwortenVerteilen(ep, block, antwortenAus(null, block).map((a) => ({ ...a, herkunft: 'Treiber: Admiral-Konto rot', marke: 'Admiral-Konto rot', grund: `${this.kontoName(konto)} ist rot (${this.bewertung.get(konto)!.grund}); der Admiral wurde nicht gefragt.` })));
     }
     this.z.statistik.admiral++;
-    const frueher = this.z.entscheidungen.filter((d) => d.epic === nr).map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
+    // the admiral's own, as before #52: the person's answers are no precedent of his
+    const frueher = this.z.entscheidungen.filter((d) => d.epic === nr && d.von !== 'mensch').map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
     const kontext = `Epic #${nr} in ${this.e.forge}, Repository ${this.e.repo}.${frueher.length ? `\nFrühere Entscheidungen zu diesem Epic:\n${frueher.join('\n')}` : ''}`;
     const r = await this.w.starte({
       ...this.programm(),
@@ -976,7 +979,7 @@ class Treiber {
       const zeit = new Date(this.w.jetzt()).toISOString();
       if (!a.beim_menschen) {
         zeilen.push(`${a.nr}. ${nurBuchstaben(a.antwort) ? a.antwort.trim() : `Antwort: ${a.antwort}`} — Herkunft: ${a.herkunft}`);
-        this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit, grund: a.grund });
+        this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit, grund: a.grund, von: f.empfehlung && f.empfehlung === a.antwort ? 'lauf' : 'admiral' });
         const text = `**Entschieden von der Flotte (Admiral ${this.e.admiralName})** — ${f.frage}\nEntscheidung: ${a.antwort}\nHerkunft: ${a.herkunft}\nGrund: ${a.grund}\nVerworfen: ${f.empfehlung && f.empfehlung !== a.antwort ? `Empfehlung des Laufs ${f.empfehlung}` : '—'}\nWiderrufen: Kommentar hier; der Lauf setzt es als nächstes Paket oder in der Nacharbeit um.`;
         kommentar(this.w.aufrufer, this.e.forge, nr, text);
         if (a.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte (Admiral ${this.e.admiralName})** — Epic #${nr}, ${zeit.slice(0, 10)}\nFrage: ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')} (Empfehlung des Laufs: ${f.empfehlung ?? '—'})\nEntscheidung: ${a.antwort}\nWarum: ${a.grund}\nHerkunft: ${a.herkunft}`);
@@ -1028,8 +1031,11 @@ class Treiber {
     if (!f || !ep) return false;
     const ueberBruecke = a.brueckeId !== undefined;
     f.beantwortet = a.text;
-    f.beantwortetAm = new Date(this.w.jetzt()).toISOString();
+    const am = new Date(this.w.jetzt()).toISOString();
+    f.beantwortetAm = am;
     if (ueberBruecke) f.brueckeId = a.brueckeId;
+    // #52: the answer is a decision of the person, revocable on the bridge until the merge like the admiral's
+    this.z.entscheidungen.push({ epic: a.epic, nr: a.nr, frage: f.frage || `Frage ${a.nr}`, antwort: a.anzeige ?? a.text, herkunft: ueberBruecke ? HERKUNFT_BRUECKE : HERKUNFT_FLOTTE, einflussreich: false, zeit: am, von: 'mensch' });
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
@@ -1088,7 +1094,7 @@ class Treiber {
 
   /**
    * An action of the person on the bridge (#28, v2), carried out like an answer: requeue or give up a
-   * blocked or aborted epic, revoke a decision of the admiral. One that no longer fits is an event.
+   * blocked or aborted epic, revoke a decision of the admiral or an answer of the person (#52). One that no longer fits is an event.
    */
   handlungAnwenden(h: BrueckenHandlung): void {
     const ep = this.epic(h.epic);
@@ -1098,6 +1104,8 @@ class Treiber {
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
       if (!d) return this.ereignis(h.epic, `Widerruf über die Brücke zu Frage ${h.nr}: keine solche Entscheidung`);
+      // once only, like the bridge (409): a report the bridge had not yet seen let a second one through
+      if (d.widerrufen) return this.ereignis(h.epic, `Widerruf über die Brücke zu Frage ${h.nr}: schon widerrufen`);
       const text = h.text!.trim();
       d.widerrufen = text;
       amIssue(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — ${d.frage}\nwiderrufen vom Menschen: ${text}\nVorher: ${d.antwort} (${d.herkunft})`);
@@ -1449,8 +1457,12 @@ class Treiber {
       fragen: this.z.fragen.filter((f) => !f.beantwortet).map((f) => ({ epic: f.epic, nr: f.nr, frage: f.frage, lage: f.lage ?? '', optionen: f.optionen ?? [], mehrfach: f.mehrfach ?? false, empfehlung: f.empfehlung, grund: f.grund ?? '', betrifft: f.betrifft ?? '', wartet: f.wartet, ganzerLauf: f.ganzerLauf, seit: f.seit, roh: f.roh ?? '', beantwortet: null, herkunft: f.herkunft ?? '', marke: f.marke ?? '', umkehrbar: f.umkehrbar ?? null, geparkt: f.ganzerLauf ? [] : (f.betrifft ?? '').split(', ').filter(Boolean) })),
       leerlaufS: Math.round(this.e.leerlaufMs / 1000),
       ereignisse: this.z.ereignisse.slice(-30).map((x) => ({ zeit: x.zeit, epic: x.epic, text: x.text.slice(0, 300) })),
-      // the bridge shows today's; with the reason, for a revocation
-      entscheidungen: this.z.entscheidungen.slice(-100).map((d) => ({ epic: d.epic, nr: d.nr, frage: d.frage, antwort: d.antwort, herkunft: d.herkunft, grund: d.grund ?? '', einflussreich: d.einflussreich, zeit: d.zeit, widerrufen: d.widerrufen ?? null })),
+      // #52: the bridge shows them until the merge: every decision of an epic not merged, besides the
+      // latest 100 (today's of merged ones); with the reason, for a revocation; the newest within the schema's limit
+      entscheidungen: this.z.entscheidungen
+        .filter((d, i, alle) => i >= alle.length - 100 || !['gemergt', 'fertig'].includes(this.epic(d.epic)?.stufe ?? 'fertig'))
+        .slice(-ENTSCHEIDUNGEN_MAX)
+        .map(entscheidungFuerBericht),
       prognose: this.prognoseBericht(),
       sitzungen: this.sitzungen,
     };
