@@ -329,6 +329,20 @@ describe('Drehbücher (#14)', () => {
     expect(readFileSync(join(flotteDir(t.repo), 'tafel.html'), 'utf8')).toMatch(/Erlaubnis verweigert: Bash/);
   }, T);
 
+  it('#54: a question block goes before permission_denials: the questions are open, the denials an event and noted at the question, no blockade', async () => {
+    const t = aufbau();
+    const verweigert = [{ tool_name: 'Bash', tool_input: { command: 'rm -rf tmp-1' } }, { tool_name: 'Bash', tool_input: { command: 'rm -rf tmp-2' } }];
+    const buch = drehbuch([lauf(3, [{ text: frage(3, 'abbruch', [{ betrifft: 'Lauf' }]), verweigert }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 1500 }), t.welt);
+    expect(z.epics['3'].stufe).toBe('frage');
+    const offen = z.fragen.filter((f) => f.epic === 3 && !f.beantwortet);
+    expect(offen).toHaveLength(1);
+    expect(offen[0].lage).toBe('Sachverhalt\nIm selben Zug abgelehnt: Bash, Bash.');
+    expect(index(t.p.zeitleiste, /Erlaubnis verweigert: Bash, Bash; der Zug endete mit FLOTTE-FRAGE, nicht blockiert/)).toBeGreaterThanOrEqual(0);
+    expect(index(t.p.zeitleiste, /blockiert:/)).toBe(-1);
+    expect(t.p.kommentare.some((k) => k.text.startsWith('**FRAGE AN DEN MENSCHEN') && k.text.includes('Im selben Zug abgelehnt: Bash, Bash.'))).toBe(true);
+  }, T);
+
   it('D20: a second driver in the same repository refuses to start', async () => {
     const t = aufbau();
     const anderer = prozess(3000);

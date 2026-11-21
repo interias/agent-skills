@@ -119,7 +119,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
    - Bei einem Netzfehler setzt der Treiber höchstens zweimal mit `--resume` fort.
    - Endet ein Zug ohne Block, fragt der Treiber einmal nach; danach gilt der Lauf als abgebrochen.
    - Nach `--leerlauf-min` ohne Ausgabe beendet er den Zug und setzt ihn einmal fort. Beim zweiten Mal bricht er das Epic ab. Lebt unter dem Lauf ein Kindprozess (ein Gate, eine Testsuite), gilt die Stille als Arbeit, bis zum Vierfachen von `--leerlauf-min`; das Ereignis nennt den Kindprozess.
-   - `permission_denials` blockieren das Epic, ohne zweiten Versuch.
+   - `permission_denials` blockieren das Epic, ohne zweiten Versuch, wenn der Zug ohne Block endet. Endet er mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE`, geht der Block vor: Die Ablehnungen sind ein Ereignis und stehen in der Lage jeder Frage des Blocks.
    - Ausnahme sind Sperren von `guard.ps1`. Der Treiber gibt den Hook jedem Zug über `--settings` mit, weil der Hook des Skills nach `--resume` nicht mehr gilt. Nach einer Sperre darf der Lauf seinen Weg ändern, wie im Fenster. Blockiert wird das Epic erst in einem dieser Fälle:
      - Der Zug scheitert an der Sperre.
      - Dieselbe Regel sperrt ein zweites Mal.
@@ -150,7 +150,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 - **Mergen** bei `merge: mensch`, und das Umstellen auf `nach_gate` im Adapter.
 - **Konto anmelden**, wenn ein Lauf mit einem Anmeldefehler endet (das Epic steht dann auf „blockiert“).
 - **Widerruf** einer Entscheidung: als Kommentar am Issue oder auf der Brücke („Zurücknehmen“ bis zum Merge). Der Lauf setzt ihn im nächsten Zug oder in der Nacharbeit um; ein Epic in der Merge-Schlange geht dafür zurück an den Lauf.
-- **Blockierte und abgebrochene Epics:** Der Grund steht am Issue und auf der Brücke. Dort lässt sich das Epic neu einreihen (Zähler zurück, der Lauf setzt mit dem Grund fort) oder aufgeben (`abgebrochen`, Branch, PR und Issue bleiben). Endete der Einsatz, weil alles blockiert war, wirkt die Handlung beim nächsten Start.
+- **Blockierte und abgebrochene Epics:** Der Grund steht am Issue und auf der Brücke. Dort lässt sich das Epic neu einreihen (Zähler zurück, der Lauf setzt mit dem Grund fort; noch unbeantwortete Fragen des Laufs nennt der Auftrag als offen, der Lauf entscheidet sie nicht selbst und stellt sie erneut) oder aufgeben (`abgebrochen`, Branch, PR und Issue bleiben). Endete der Einsatz, weil alles blockiert war, wirkt die Handlung beim nächsten Start.
 - **Vorrang** eines Epics: das Label `prio/hoch` (Adapter `prio_label`) am Epic oder an einem Kind, oder auf der Brücke „Priorität hoch“/„normal“ (gilt vor dem Label).
 - **Epics im Einsatz steuern** (Brücke, Sternenkarte, mit PIN): ein offenes Epic mit `ready_label` und `epic_label` aufnehmen, auch neben `--epics` (der Treiber prüft das an der Forge, es bleibt nach einem Neustart im Einsatz); ein Epic pausieren (startet nicht; ein laufender Lauf erfährt die Pause vor seinem nächsten Paketstart über die RAM-Messung — der Treiber schreibt `pausiert` in die Haltedatei, `ram.ps1` meldet dann `hold` —, startet kein weiteres Paket, laufende Pakete laufen zu Ende; der nächste Zug wartet, bis es fortgesetzt wird) und fortsetzen. Nichts wird abgebrochen.
 

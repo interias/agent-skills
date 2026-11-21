@@ -323,6 +323,27 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('#54: requeued with an open question of the run, the order names it as open and not to be decided by the run', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.epics.find((e) => e.nr === 3)?.stufe === 'blockiert' ? { epic: 3, art: 'einreihen' } : null) });
+    try {
+      const t = aufbau();
+      const buch = drehbuch([
+        lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'P2' }]) }]),
+        admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]),
+        lauf(3, [{ text: 'Aufgeräumt.', verweigert: [{ tool_name: 'Bash', tool_input: { command: 'rm -rf tmp' } }] }]),
+        lauf(3, [{ text: ende(3, 13) }]),
+      ]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      expect(laeufe).toHaveLength(3);
+      expect(laeufe[2].eingabe).toMatch(/neu eingereiht\. Grund der Blockade war: Erlaubnis verweigert: Bash/);
+      expect(laeufe[2].eingabe).toContain('\nOffen und ohne Antwort des Menschen:\n1. Frage 1 zu #3?\nEntscheide sie nicht selbst. Stelle sie im nächsten FLOTTE-FRAGE erneut.');
+      expect(z.fragen.filter((f) => f.epic === 3 && !f.beantwortet)).toHaveLength(1);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('a blocked epic given up on the bridge: aborted, marked, no further run', async () => {
     const b = await attrappe(() => null, { handlung: (x) => (x.epics[0]?.stufe === 'blockiert' ? { epic: 3, art: 'aufgeben' } : null) });
     try {

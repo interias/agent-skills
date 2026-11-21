@@ -280,13 +280,23 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
     expect(z.epics['3'].notiz).toMatch(/der Zug scheiterte daran/);
   }, T);
 
-  it('a refusal that is not the hook\'s still blocks at once (D19), also next to a hook refusal', async () => {
+  it('a refusal that is not the hook\'s still blocks at once (D19), also next to a hook refusal, when the turn ends without a block (#54)', async () => {
+    const t = aufbau();
+    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const buch = drehbuch([lauf(3, [a.zeile, { text: 'Gesperrt, ich weiß nicht weiter.', verweigert: [a.verweigert, { tool_name: 'Write', tool_use_id: 'toolu_auto', tool_input: {} }] }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('blockiert');
+    expect(z.epics['3'].notiz).toMatch(/Erlaubnis verweigert: Write/);
+  }, T);
+
+  it('#54: a turn ending with FLOTTE-ENDE goes on despite a refusal that is not the hook\'s, also next to a hook refusal; the refusal is an event', async () => {
     const t = aufbau();
     const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
     const buch = drehbuch([lauf(3, [a.zeile, { text: ende(3, 13), verweigert: [a.verweigert, { tool_name: 'Write', tool_use_id: 'toolu_auto', tool_input: {} }] }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
-    expect(z.epics['3'].stufe).toBe('blockiert');
-    expect(z.epics['3'].notiz).toMatch(/Erlaubnis verweigert: Write/);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.epics['3'].sperren).toEqual(['Skill epic, Regel 1']);
+    expect(index(t.p.zeitleiste, /Erlaubnis verweigert: Write; der Zug endete mit FLOTTE-ENDE, nicht blockiert/)).toBeGreaterThanOrEqual(0);
   }, T);
 });
 
