@@ -260,7 +260,8 @@ export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleM
  * Lead time and errors per epic of a driver deployment (Sparpaket, package 3): from the first
  * "Lauf gestartet" to the first "FLOTTE-ENDE, PR", without the time the run waited for the
  * person in between. An epic counts as an error when the driver gave it back to the run (red gate,
- * conflict), blocked or aborted it.
+ * conflict), blocked or aborted it. An epic still running (no FLOTTE-ENDE, no halt) is left out of
+ * the error rate.
  */
 export function epicVerlauf(z: TreiberZustand, fenster: Fenster) {
   const ev = z.ereignisse.map((e) => ({ ...e, t: Date.parse(e.zeit) })).filter((e) => imFenster(e.t, fenster) && e.epic !== null);
@@ -286,14 +287,16 @@ export function epicVerlauf(z: TreiberZustand, fenster: Fenster) {
       durchlauf_min: start !== null && ende !== null ? runde((ende - start - warten) / MIN) : null,
       rueckgaben,
       halt: halt ? halt.text.split(':')[0] : null,
-      fehler: rueckgaben > 0 || Boolean(halt) || ende === null,
+      offen: ende === null && !halt,
+      fehler: rueckgaben > 0 || Boolean(halt),
     };
   });
-  const fehler = epics.filter((e) => e.fehler).length;
+  const bewertet = epics.filter((e) => !e.offen);
+  const fehler = bewertet.filter((e) => e.fehler).length;
   return {
     epics,
     durchlauf_min: verteilung(epics.map((e) => e.durchlauf_min).filter((x): x is number => x !== null)),
-    fehlerquote: epics.length ? runde(fehler / epics.length) : null,
-    methode: 'Treiber: erstes „Lauf gestartet" bis erstes „FLOTTE-ENDE, PR", ohne Warten auf den Menschen; Fehler = Rückgabe an den Lauf, blockiert, abgebrochen oder kein FLOTTE-ENDE',
+    fehlerquote: bewertet.length ? runde(fehler / bewertet.length) : null,
+    methode: 'Treiber: erstes „Lauf gestartet" bis erstes „FLOTTE-ENDE, PR", ohne Warten auf den Menschen; Fehler = Rückgabe an den Lauf, blockiert oder abgebrochen; ein Epic ohne FLOTTE-ENDE und ohne Halt zählt als offen, nicht in der Quote',
   };
 }

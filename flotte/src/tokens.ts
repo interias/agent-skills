@@ -24,9 +24,28 @@ export interface AgentLauf {
   tokens: Tokens;
   /** characters of tool results per tool: what filled the context (test output, reading) */
   zeichen: Record<string, number>;
+  /** weighted tokens (gewichtet()) the tool results of a category cost, see kontextKosten */
+  kontext: Record<string, number>;
 }
 
 const PAKET = /(?:#|Paket\s+)(\d+(?:-p\d+)?)/;
+const TEST = /(npm (run )?test|npx (vitest|jest|playwright)|\bvitest\b|\bjest\b|\bpytest\b|playwright test|bun test|dotnet test|cargo test|go test)/;
+
+/** Input-token equivalents like usage.ps1 without model weights: fresh + 1.25 write + 0.1 read + 5 output. */
+export function gewichtet(t: Tokens): number {
+  return t.eingabe + 1.25 * t.cache_schreiben + 0.1 * t.cache_lesen + 5 * t.ausgabe;
+}
+
+/** The category of a tool result for kontext: gate, test, git-diff, shell, lesen, andere. */
+export function kategorie(werkzeug: string, befehl: string): string {
+  if (werkzeug === 'Bash' || werkzeug === 'PowerShell') {
+    if (/\bgate\b/.test(befehl)) return 'gate';
+    if (TEST.test(befehl)) return 'test';
+    if (/\bgit\b[^|;&]*\b(diff|show|log)\b/.test(befehl)) return 'git-diff';
+    return 'shell';
+  }
+  return ['Read', 'Grep', 'Glob'].includes(werkzeug) ? 'lesen' : 'andere';
+}
 
 export function leer(): Tokens {
   return { eingabe: 0, cache_schreiben: 0, cache_lesen: 0, ausgabe: 0, nachrichten: 0 };
@@ -48,11 +67,17 @@ function textLaenge(content: unknown): number {
   return content.reduce((n: number, b: { type?: string; text?: string }) => n + (b && b.type === 'text' && typeof b.text === 'string' ? b.text.length : 0), 0);
 }
 
-/** Tokens and tool result sizes of one transcript (session or subagent), inside the window. */
-export function leseTokens(inhalt: string, fenster: Fenster): { tokens: Tokens; zeichen: Record<string, number>; ersterText: string } {
+/**
+ * Tokens and tool result sizes of one transcript (session or subagent), inside the window.
+ * kontext: what the tool results of each category cost in weighted tokens - written to the cache
+ * once (1.25) and read again by every later model call of this agent (0.1 each), at about four
+ * characters per token. An upper bound for any measure that shortens that kind of result.
+ */
+export function leseTokens(inhalt: string, fenster: Fenster): { tokens: Tokens; zeichen: Record<string, number>; kontext: Record<string, number>; ersterText: string } {
   const jeNachricht = new Map<string, Tokens>();
-  const werkzeug = new Map<string, string>();
+  const werkzeug = new Map<string, { name: string; befehl: string }>();
   const zeichen: Record<string, number> = {};
+  const folge: ({ aufruf: true } | { kategorie: string; tokens: number })[] = [];
   let ersterText = '';
   for (const zeile of inhalt.split(/\r?\n/)) {
     if (!zeile.trim()) continue;
@@ -64,7 +89,7 @@ export function leseTokens(inhalt: string, fenster: Fenster): { tokens: Tokens; 
     }
     const content = d?.message?.content;
     if (d?.type === 'assistant' && Array.isArray(content)) {
-      for (const b of content) if (b?.type === 'tool_use') werkzeug.set(String(b.id), String(b.name));
+      for (const b of content) if (b?.type === 'tool_use') werkzeug.set(String(b.id), { name: String(b.name), befehl: String(b.input?.command ?? '') });
     }
     if (d?.type === 'user' && !ersterText) {
       const t = typeof content === 'string' ? content : Array.isArray(content) ? content.filter((b: any) => b?.type === 'text').map((b: any) => b.text).join('\n') : '';
@@ -74,6 +99,7 @@ export function leseTokens(inhalt: string, fenster: Fenster): { tokens: Tokens; 
     if (Number.isNaN(zeit) || zeit < fenster.von || zeit > fenster.bis) continue;
     if (d.type === 'assistant' && d.message?.usage && d.message.model !== '<synthetic>') {
       const u = d.message.usage;
+      if (!jeNachricht.has(String(d.message.id ?? d.uuid))) folge.push({ aufruf: true });
       jeNachricht.set(String(d.message.id ?? d.uuid), {
         eingabe: Number(u.input_tokens ?? 0),
         cache_schreiben: Number(u.cache_creation_input_tokens ?? 0),
@@ -84,12 +110,21 @@ export function leseTokens(inhalt: string, fenster: Fenster): { tokens: Tokens; 
     } else if (d.type === 'user' && Array.isArray(content)) {
       for (const b of content) {
         if (b?.type !== 'tool_result') continue;
-        const name = werkzeug.get(String(b.tool_use_id)) ?? 'unbekannt';
-        zeichen[name] = (zeichen[name] ?? 0) + textLaenge(b.content);
+        const w = werkzeug.get(String(b.tool_use_id)) ?? { name: 'unbekannt', befehl: '' };
+        const laenge = textLaenge(b.content);
+        zeichen[w.name] = (zeichen[w.name] ?? 0) + laenge;
+        folge.push({ kategorie: kategorie(w.name, w.befehl), tokens: laenge / 4 });
       }
     }
   }
-  return { tokens: [...jeNachricht.values()].reduce(plus, leer()), zeichen, ersterText };
+  const kontext: Record<string, number> = {};
+  let spaeter = 0;
+  for (let i = folge.length - 1; i >= 0; i--) {
+    const f = folge[i];
+    if ('aufruf' in f) spaeter++;
+    else kontext[f.kategorie] = (kontext[f.kategorie] ?? 0) + f.tokens * (1.25 + 0.1 * spaeter);
+  }
+  return { tokens: [...jeNachricht.values()].reduce(plus, leer()), zeichen, kontext, ersterText };
 }
 
 /**
@@ -100,7 +135,7 @@ export function leseTokens(inhalt: string, fenster: Fenster): { tokens: Tokens; 
 export function ladeSitzung(pfad: string, fenster: Fenster, epics: number[], rolle = 'lauf'): AgentLauf[] {
   const host = leseTokens(readFileSync(pfad, 'utf8'), fenster);
   const epic = epicAus(host.ersterText, epics);
-  const out: AgentLauf[] = [{ rolle, epic, paket: null, tokens: host.tokens, zeichen: host.zeichen }];
+  const out: AgentLauf[] = [{ rolle, epic, paket: null, tokens: host.tokens, zeichen: host.zeichen, kontext: host.kontext }];
   const sub = join(dirname(pfad), basename(pfad, '.jsonl'), 'subagents');
   if (!existsSync(sub)) return out;
   for (const n of readdirSync(sub).filter((x) => /^agent-.*\.jsonl$/.test(x))) {
@@ -115,9 +150,15 @@ export function ladeSitzung(pfad: string, fenster: Fenster, epics: number[], rol
     }
     const t = leseTokens(readFileSync(join(sub, n), 'utf8'), fenster);
     if (!t.tokens.nachrichten) continue;
-    out.push({ rolle: typ, epic, paket: beschreibung.match(PAKET)?.[1] ?? null, tokens: t.tokens, zeichen: t.zeichen });
+    out.push({ rolle: typ, epic, paket: beschreibung.match(PAKET)?.[1] ?? null, tokens: t.tokens, zeichen: t.zeichen, kontext: t.kontext });
   }
   return out;
+}
+
+/** Share of the weighted tokens per category, largest first, in percent with one decimal. */
+function anteile(kontext: Record<string, number>, summe: number): Record<string, number> {
+  if (!summe) return {};
+  return Object.fromEntries(Object.entries(kontext).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((v / summe) * 1000) / 10]));
 }
 
 function mitQuote(t: Tokens) {
@@ -131,14 +172,15 @@ function mitQuote(t: Tokens) {
  */
 export function tokenKennzahlen(laeufe: AgentLauf[]) {
   const summe = laeufe.reduce((s, l) => plus(s, l.tokens), leer());
-  const typen: Record<string, { tokens: Tokens; agenten: number; zeichen: Record<string, number> }> = {};
+  const typen: Record<string, { tokens: Tokens; agenten: number; zeichen: Record<string, number>; kontext: Record<string, number> }> = {};
   const epics: Record<string, Tokens> = {};
   const pakete = new Map<string, { epic: number | null; paket: string; tokens: Tokens; implementer: number; reviewer: number }>();
   for (const l of laeufe) {
-    const t = (typen[l.rolle] ??= { tokens: leer(), agenten: 0, zeichen: {} });
+    const t = (typen[l.rolle] ??= { tokens: leer(), agenten: 0, zeichen: {}, kontext: {} });
     t.tokens = plus(t.tokens, l.tokens);
     t.agenten++;
     for (const [w, z] of Object.entries(l.zeichen)) t.zeichen[w] = (t.zeichen[w] ?? 0) + z;
+    for (const [k, z] of Object.entries(l.kontext)) t.kontext[k] = (t.kontext[k] ?? 0) + z;
     const e = l.epic === null ? 'ohne_epic' : `#${l.epic}`;
     epics[e] = plus(epics[e] ?? leer(), l.tokens);
     if (l.paket) {
@@ -153,10 +195,10 @@ export function tokenKennzahlen(laeufe: AgentLauf[]) {
   const jePaket = [...pakete.values()].sort((a, b) => a.paket.localeCompare(b.paket, 'de', { numeric: true }));
   return {
     summe: mitQuote(summe),
-    je_agent_typ: Object.fromEntries(Object.entries(typen).sort((a, b) => b[1].tokens.ausgabe - a[1].tokens.ausgabe).map(([k, v]) => [k, { agenten: v.agenten, ...mitQuote(v.tokens), ergebnis_zeichen: v.zeichen }])),
+    je_agent_typ: Object.fromEntries(Object.entries(typen).sort((a, b) => b[1].tokens.ausgabe - a[1].tokens.ausgabe).map(([k, v]) => [k, { agenten: v.agenten, ...mitQuote(v.tokens), gewichtet: Math.round(gewichtet(v.tokens)), ergebnis_zeichen: v.zeichen, kontext_anteil: anteile(v.kontext, gewichtet(v.tokens)) }])),
     je_epic: Object.fromEntries(Object.entries(epics).map(([k, v]) => [k, mitQuote(v)])),
     je_paket: jePaket.map((p) => ({ epic: p.epic, paket: p.paket, implementer_laeufe: p.implementer, review_runden: p.reviewer, ...mitQuote(p.tokens) })),
     review_runden: { pakete: jePaket.length, mittel: jePaket.length ? runde(jePaket.reduce((s, p) => s + p.reviewer, 0) / jePaket.length) : null, ueber_eins: jePaket.filter((p) => p.reviewer > 1).length },
-    methode: 'Transkripte der Läufe und ihrer Subagenten, je message.id einmal, ohne <synthetic>; cache_quote = Cache-Lesen / (Eingabe + Cache-Schreiben + Cache-Lesen); Paket aus der description des Agent-Aufrufs; Review-Runden = Reviewer-Läufe je Paket; ergebnis_zeichen = Länge der Werkzeugergebnisse je Werkzeug',
+    methode: 'Transkripte der Läufe und ihrer Subagenten, je message.id einmal, ohne <synthetic>; cache_quote = Cache-Lesen / (Eingabe + Cache-Schreiben + Cache-Lesen); Paket aus der description des Agent-Aufrufs; Review-Runden = Reviewer-Läufe je Paket; ergebnis_zeichen = Länge der Werkzeugergebnisse je Werkzeug; kontext_anteil = Anteil an den gewichteten Tokens des Agent-Typs (Eingabe + 1,25 Schreiben + 0,1 Lesen + 5 Ausgabe), den die Werkzeugergebnisse einer Art kosten: einmal geschrieben, von jedem späteren Modellaufruf wieder gelesen, rund 4 Zeichen je Token — die Obergrenze jeder Maßnahme, die diese Ergebnisse kürzt',
   };
 }

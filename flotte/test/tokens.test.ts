@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cacheQuote, ladeSitzung, leseTokens, tokenKennzahlen } from '../src/tokens.ts';
+import { cacheQuote, kategorie, ladeSitzung, leseTokens, tokenKennzahlen } from '../src/tokens.ts';
 import { epicVerlauf } from '../src/messen.ts';
 import { ergebnis, mensch, min, T0 } from './hilfen.ts';
 
@@ -69,7 +69,7 @@ describe('ladeSitzung and tokenKennzahlen', () => {
 });
 
 describe('epicVerlauf', () => {
-  it('measures lead time without waiting for the person, and counts give-backs, halts and missing ends as errors', () => {
+  it('measures lead time without waiting for the person, counts give-backs and halts as errors, leaves running epics out', () => {
     const ev = (m: number, epic: number, text: string) => ({ zeit: min(m), epic, text });
     const z = {
       ereignisse: [
@@ -82,6 +82,7 @@ describe('epicVerlauf', () => {
         ev(25, 2, 'zurück an den Lauf (1 von 2), danach ans Ende der Schlange: Gate rot'),
         ev(0, 3, 'Lauf gestartet'),
         ev(40, 3, 'blockiert: Gesperrt durch guard.ps1'),
+        ev(0, 4, 'Lauf gestartet'),
       ],
       fragen: [],
       entscheidungen: [],
@@ -91,9 +92,31 @@ describe('epicVerlauf', () => {
       [1, 20, false],
       [2, 20, true],
       [3, null, true],
+      [4, null, false],
     ]);
+    expect(v.epics[3].offen).toBe(true);
     expect(v.epics[2].halt).toBe('blockiert');
     expect(v.fehlerquote).toBe(0.7);
     expect(v.durchlauf_min.mittel).toBe(20);
+  });
+});
+
+describe('kontext', () => {
+  it('sorts tool results into categories', () => {
+    expect(kategorie('Bash', 'npm run gate -- --voll')).toBe('gate');
+    expect(kategorie('PowerShell', 'npx vitest run src/a.test.ts')).toBe('test');
+    expect(kategorie('Bash', 'git -C /wt diff HEAD --stat')).toBe('git-diff');
+    expect(kategorie('Bash', 'ls')).toBe('shell');
+    expect(kategorie('Read', '')).toBe('lesen');
+    expect(kategorie('Agent', '')).toBe('andere');
+  });
+
+  it('charges a result its cache write and one read per later model call', () => {
+    function mitBefehl(m: number, id: string, cmd: string) {
+      return JSON.stringify({ type: 'assistant', timestamp: min(m), message: { id, role: 'assistant', model: 'm', content: [{ type: 'tool_use', id: `${id}-t`, name: 'Bash', input: { command: cmd } }], usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 } } });
+    }
+    const zeilen = [mitBefehl(1, 'a', 'npm test'), ergebnis(2, 'a-t', 'x'.repeat(400)), antwort(3, 'b', { i: 0, w: 0, r: 0, o: 1 }), antwort(4, 'c', { i: 0, w: 0, r: 0, o: 1 })];
+    // 400 characters = 100 tokens: 125 written, read by the two later calls: 2 x 10
+    expect(leseTokens(zeilen.join('\n'), fenster).kontext).toEqual({ test: 145 });
   });
 });
