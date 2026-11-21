@@ -6,10 +6,10 @@ import { createServer, type Server } from 'node:http';
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../src/aufruf.ts';
 import { anhalten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
 import { admiral, aufbau, drehbuch, ende, frage, lauf } from './flotte-welt.ts';
@@ -155,6 +155,8 @@ describe('Flottenbrücke (#28)', () => {
       expect(schluessel(mitFrage.ereignisse[0])).toEqual(schluessel(muster.ereignisse[0]));
       expect(schluessel(mitFrage.ram!)).toEqual(schluessel(muster.ram));
       expect(schluessel(mitFrage.platte!)).toEqual(schluessel(muster.platte));
+      // #58: every setting with its limits or its choice of accounts, in the order of the sample
+      expect(mitFrage.einstellungen.map(schluessel)).toEqual(muster.einstellungen.map(schluessel));
       expect(mitFrage.forge).toBe('o/r');
       for (const x of b.berichte) {
         expect(JSON.stringify(x)).not.toContain(t.konten[0].replaceAll('\\', '\\\\'));
@@ -524,6 +526,112 @@ describe('Flottenbrücke (#28)', () => {
       const gelesen = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'view' && a[3] === '22' && a.includes('number,title,state,labels,closedAt'));
       expect(gelesen.length).toBeGreaterThanOrEqual(1);
       expect(gelesen.length).toBeLessThanOrEqual(new Set(b.berichte.map((x) => x.epics.find((e) => e.nr === 4)!.stufe)).size);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
+
+describe('Einstellungen über die Brücke (#58)', () => {
+  const einstellen = (name: string, wert: unknown): Wunsch => ({ epic: 0, art: 'einstellen', text: JSON.stringify({ name, wert }) });
+  /** one action per report, in order */
+  const nacheinander = (liste: Wunsch[]) => {
+    const rest = [...liste];
+    return () => rest.shift() ?? null;
+  };
+
+  it('reads einstellen of the contract: project-wide (epic 0), the setting as JSON in text', () => {
+    const h = { id: 5, epic: 0, art: 'einstellen', nr: null, seit: null, text: '{"name":"obergrenze","wert":2}', zeit: '2026-11-20T14:40:00+00:00', herkunft: 'Mensch über die Brücke' };
+    expect(handlungenAusJson([h, { ...h, id: 6, text: null }])).toEqual([h]);
+  });
+
+  it('every setting: a valid value holds from the next turn, as event and in the logbook; an invalid one is refused with an event; the report names value and origin', async () => {
+    const t = aufbau();
+    const [k1, k2] = t.konten.map((k) => basename(k));
+    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30]];
+    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate']];
+    const b = await attrappe(() => null, { handlung: nacheinander([...gueltig, ...ungueltig].map(([n, w]) => einstellen(n, w))) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte.filter((x) => /^Einstellung .* von .* → auf .*, Mensch über die Brücke$/.test(x))).toHaveLength(gueltig.length);
+      expect(texte).toContain('Einstellung Epics gleichzeitig von automatisch → auf 2, Mensch über die Brücke');
+      expect(texte).toContain(`Einstellung Konten der Läufe von ${k1}, ${k2} → auf ${k2}, Mensch über die Brücke`);
+      expect(texte.filter((x) => /über die Brücke abgelehnt/.test(x))).toHaveLength(ungueltig.length);
+      expect(texte).toContain('Einstellung Verbrauch 5 h gelb über (%) über die Brücke abgelehnt: gelb (80) muss unter rot (70) liegen');
+      expect(texte.some((x) => /unbekannte Einstellung "merge"/.test(x))).toBe(true);
+      expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Einstellung .*Mensch über die Brücke\.$/.test(k.text))).toHaveLength(gueltig.length);
+      expect(Object.keys(z.einstellungen!).sort()).toEqual(gueltig.map(([n]) => n).sort());
+      // every action acknowledged, the refused ones too
+      expect(b.hQuittungen.filter((x) => x > 0)).toHaveLength(gueltig.length + ungueltig.length);
+      const letzter = b.berichte.at(-1)!;
+      for (const [name, wert] of gueltig) expect(letzter.einstellungen.find((x) => x.name === name)).toMatchObject({ wert, herkunft: 'bruecke' });
+      expect(letzter.einstellungen.find((x) => x.name === 'konten')).toMatchObject({ standard: [k1, k2], leer: false, auswahl: expect.arrayContaining([k1, k2]) });
+      expect(letzter.einstellungen.find((x) => x.name === 'obergrenze')).toMatchObject({ min: 1, max: 4, leer: true, standard: null });
+      // in effect: limit and idle limit; still no account path in the report
+      expect(letzter.obergrenze).toBe(2);
+      expect(letzter.leerlaufS).toBe(1800);
+      expect(JSON.stringify(letzter)).not.toContain(t.konten[0].replaceAll('\\', '\\\\'));
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('a restart keeps the settings of the bridge; a start parameter given explicitly wins with an event; a stored account that is gone is dropped with an event', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1, 0.1] });
+    const [k1, k2, k3] = t.konten.map((k) => basename(k));
+    const b = await attrappe(() => null, { handlung: nacheinander([einstellen('obergrenze', 3), einstellen('leerlaufMin', 30), einstellen('admiral', k3), einstellen('leerfahren', [k2, k3]), einstellen('verbrauchRot', 90), einstellen('paketeJeEpic', 2), einstellen('verbrauchGelb', 50), einstellen('ramWarn', 70), einstellen('platteMinGb', 5)]) });
+    try {
+      await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 2000 }), t.welt);
+    } finally {
+      await b.zu();
+    }
+    rmSync(t.konten[2], { recursive: true, force: true });
+    const b2 = await attrappe(() => null);
+    try {
+      const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten.slice(0, 2) } });
+      const z = await fahre(t2.einstellung(drehbuch([]), [], { bruecke: b2.url, dauerhaft: true, maxDauerMs: 1000, leerlaufMs: 45 * 60_000, gesetzt: ['konten', 'leerlaufMin'] }), t2.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte).toContain('Einstellung Leerlauf (Minuten bis Nachfassen/Abbruch): Startparameter --leerlauf-min gilt (45) statt 30 von der Brücke');
+      expect(texte.some((x) => x.startsWith(`Einstellung Admiral-Konto von der Brücke (${k3}) gilt nicht mehr: unbekanntes Konto ${k3}`))).toBe(true);
+      expect(texte.some((x) => x.startsWith(`Einstellung Bis 100 % leerfahren von der Brücke (${k2}, ${k3}) gilt nicht mehr`))).toBe(true);
+      const e = b2.berichte.at(-1)!.einstellungen;
+      expect(e.find((x) => x.name === 'obergrenze')).toMatchObject({ wert: 3, herkunft: 'bruecke' });
+      expect(e.find((x) => x.name === 'verbrauchRot')).toMatchObject({ wert: 90, herkunft: 'bruecke' });
+      expect(e.find((x) => x.name === 'leerlaufMin')).toMatchObject({ wert: 45, herkunft: 'start' });
+      expect(e.find((x) => x.name === 'konten')).toMatchObject({ wert: [k1, k2], herkunft: 'start' });
+      expect(e.find((x) => x.name === 'admiral')).toMatchObject({ wert: null, herkunft: 'standard' });
+      for (const [name, wert] of [['paketeJeEpic', 2], ['verbrauchGelb', 50], ['ramWarn', 70], ['platteMinGb', 5]] as const) expect(e.find((x) => x.name === name)).toMatchObject({ wert, herkunft: 'bruecke' });
+      expect(Object.keys(z.einstellungen!).sort()).toEqual(['obergrenze', 'paketeJeEpic', 'platteMinGb', 'ramWarn', 'verbrauchGelb', 'verbrauchRot']);
+      expect(b2.berichte.at(-1)!.obergrenze).toBe(3);
+    } finally {
+      await b2.zu();
+    }
+  }, T);
+
+  it('nothing running is stopped: a run stays on an account taken off, a lower limit starts fewer and ends none', async () => {
+    const body = (m: string) => `## Betroffene Module\n- ${m}\n`;
+    const t = aufbau({ bodies: { 3: body('a'), 4: body('b') } });
+    const [, k2] = t.konten.map((k) => basename(k));
+    let gesendet = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet >= 2 || x.epics.filter((e) => e.prozess).length < 2) return null;
+        return gesendet++ === 0 ? einstellen('konten', [k2]) : einstellen('obergrenze', 1);
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ warte: 900 }, { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['4'].stufe).toBe('fertig');
+      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      expect(laeufe3).toHaveLength(2);
+      // epic 3 started on the account taken off; its continuation after the change runs there too
+      expect(laeufe3[0].konto).toBe(t.konten[0]);
+      expect(laeufe3[1].konto).toBe(t.konten[0]);
+      expect(z.einstellungen).toMatchObject({ konten: { wert: [k2] }, obergrenze: { wert: 1 } });
+      expect(z.ereignisse.some((x) => /abgebrochen|beendet den Zug/.test(x.text))).toBe(false);
     } finally {
       await b.zu();
     }

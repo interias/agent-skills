@@ -59,6 +59,23 @@ describe('verbrauch', () => {
     expect(bewerte(v(0.1, 2, { woche: [0.8, 3] }), jetzt).obergrenze).toBe(1); // 187 %
     expect(bewerte(v(0.1, 2, { woche: [0.3, 3] }), jetzt).obergrenze).toBe(4);
   });
+
+  it('takes the 5-hour thresholds set on the bridge (#58)', () => {
+    expect(bewerte(v(0.65, 4.5), jetzt, 30, { gelb: 70, rot: 85 }).stufe).toBe('gruen');
+    expect(bewerte(v(0.75, 4.5), jetzt, 30, { gelb: 70, rot: 85 }).stufe).toBe('gelb');
+    expect(bewerte(v(0.75, 4.5), jetzt, 30, { gelb: 60, rot: 70 }).stufe).toBe('rot');
+    // the projection keeps its own thresholds
+    expect(bewerte(v(0.5, 2), jetzt, 30, { gelb: 70, rot: 95 }).stufe).toBe('rot');
+  });
+
+  it('an account driven to 100 %: neither projection nor yellow hold it, red only when used up (#58)', () => {
+    const leer = { gelb: 60, rot: 85, leerfahren: true };
+    expect(bewerte(v(0.5, 2), jetzt, 30, leer)).toMatchObject({ stufe: 'gruen', grund: expect.stringContaining('bis 100 % leerfahren') });
+    expect(bewerte(v(0.95, 4.9), jetzt, 30, leer).stufe).toBe('gruen');
+    expect(bewerte(v(1, 4.9), jetzt, 30, leer).stufe).toBe('rot');
+    // a stale value stays red
+    expect(bewerte(v(0.1, 2, { alterMin: 31 }), jetzt, 30, leer).stufe).toBe('rot');
+  });
 });
 
 const ramStub = (out: string, code = 0): AsyncAufrufer => async (p, args) => {

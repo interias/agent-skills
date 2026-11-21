@@ -1,5 +1,5 @@
 // The driver's side of the Flottenbrücke (#28): one report per turn, fetching and acknowledging the
-// answers and actions of the person (requeue or give up a blocked epic, revoke a decision). Only the driver talks to the bridge; runs and admiral never see it. A bridge
+// answers and actions of the person (requeue or give up a blocked epic, revoke a decision, change a setting). Only the driver talks to the bridge; runs and admiral never see it. A bridge
 // that is off or slow is no error: every call has a short time limit and yields undefined.
 // The contract is flottenbruecke/beispiel/bericht.json, antworten.json, handlungen.json and
 // holodeck.json, tested on both sides.
@@ -10,6 +10,7 @@ import type { Prototyp } from './holodeck.ts';
 import type { BerichtSitzung } from './sitzungen.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { PaketDetail } from '../werkzeuge/detail.ts';
+import type { BerichtEinstellung } from './einstellungen.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
@@ -34,11 +35,14 @@ export interface BrueckenAntwort {
   herkunft: string;
 }
 
-/** One action as GET /api/handlungen delivers it; nr, seit and text only for a revocation. */
+/**
+ * One action as GET /api/handlungen delivers it; nr, seit and text only for a revocation. einstellen
+ * (#58) belongs to the project, not to an epic: epic 0, text the JSON `{"name": …, "wert": …}`.
+ */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -175,6 +179,8 @@ export interface Bericht {
   prognose: BerichtPrognose;
   /** the sessions of the accounts for the ship list (#41): folder name only, no path, no pid */
   sitzungen: BerichtSitzung[];
+  /** #58: the settings in effect, where each comes from and what the bridge may offer */
+  einstellungen: BerichtEinstellung[];
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
@@ -211,7 +217,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim()))),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string')),
   );
 }
 

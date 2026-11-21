@@ -24,6 +24,25 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/epic-nacharbeit` abarbeiten |
 
+## Einstellungen ohne Neustart
+
+Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brücke (Maschinenraum,
+mit PIN) lassen sich ändern: Epics gleichzeitig (1–4), Pakete je Epic gleichzeitig (1–3), die Konten
+der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
+100 % leerfahren“, die RAM-Schwelle, das Plattenminimum und der Leerlauf. Der Treiber prüft die
+Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
+
+- **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
+  startet nur weniger, ein entferntes Konto startet nichts Neues, seine Läufe bleiben dort.
+- **Jede Änderung** steht als Ereignis und im Flottenlogbuch („Einstellung … von … → auf …, Mensch
+  über die Brücke“). Die Brücke zeigt je Einstellung den Wert und woher er kommt (Start, Brücke,
+  Standard).
+- **Neustart:** Die Werte der Brücke stehen in `zustand.json` und gelten weiter. Ein Startparameter,
+  der ausdrücklich gesetzt ist, gewinnt beim Start; das Ereignis nennt beide Werte.
+- **Nicht einstellbar:** Merge-Regel (Adapter), Rechte, Geheimnisse, Updates.
+
+Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
+
 ## Anhalten und neu starten
 
 Ein Lauf ist ein eigener `claude -p` in einer eigenen Prozessgruppe. Er schreibt sein Log selbst
