@@ -14,6 +14,7 @@ import { beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/l
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
+import { lerne } from '../befehle/lernen.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
@@ -43,6 +44,8 @@ export interface Einstellung {
   admiralKonto: string | null;
   admiralEffort: string | null;
   pingModell: string;
+  /** model of the learning loop after a merge (Sparpaket, package 6) */
+  lernModell: string;
   leerlaufMs: number;
   taktMs: number;
   plattMinGb: number;
@@ -100,6 +103,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     admiralKonto: null,
     admiralEffort: 'high',
     pingModell: 'haiku',
+    lernModell: 'haiku',
     leerlaufMs: 60 * 60_000,
     taktMs: 60_000,
     plattMinGb: 20,
@@ -2168,6 +2172,16 @@ class Treiber {
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
     this.epicMessen(ep);
+    if (this.adapter.lern_issue && ep.pr) this.nebenbei(this.lernschleife(ep, ep.pr, this.adapter.lern_issue));
+  }
+
+  /** Sparpaket, package 6: proposals from the merged run as one comment to lern_issue, applied by nobody. */
+  async lernschleife(ep: FlottenEpic, pr: number, issue: number): Promise<void> {
+    const r = await lerne(
+      { repo: this.e.repo, forge: this.e.forge, pr, epic: ep.nr, issue, konto: ep.konto ?? this.e.konten[0], modell: this.e.lernModell, skills: resolve(this.e.skripte, '../..'), log: join(this.dir, 'lernen', `${ep.nr}-${this.w.jetzt()}.jsonl`), programm: this.programm() },
+      { aufrufer: this.w.aufrufer, starte: (s) => this.w.starte(s), heute: () => new Date(this.w.jetzt()).toISOString().slice(0, 10) },
+    );
+    this.ereignis(ep.nr, r.gepostet ? `Lernschleife: ${r.vorschlaege} Vorschlag/Vorschläge an #${issue}` : `Lernschleife ohne Kommentar: ${r.fehler ?? 'Kommentar nicht gepostet'}`);
   }
 
   /**
@@ -2264,6 +2278,7 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   const ak = wert(argv, '--admiral');
   if (ak) e.admiralKonto = kontoAus(ak);
   e.pingModell = wert(argv, '--ping-modell') ?? e.pingModell;
+  e.lernModell = wert(argv, '--lern-modell') ?? e.lernModell;
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
