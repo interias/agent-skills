@@ -6,8 +6,12 @@
 
 .DESCRIPTION
     Before (stage 0) and after (stage 4) run the same preparation, once per run:
-    - .claude/skills/epic-stapel/  the skill epic of this repository; only `name` and the path of
-      the hook differ (a personal skill `epic` would win otherwise)
+    - .claude/skills/epic-stapel/  -Motor skill (before): the skill epic of this repository; only
+      `name` and the path of the hook differ (a personal skill `epic` would win otherwise).
+      -Motor programm (after): the same references and scripts, but SKILL.md is the thin shell of
+      huelle/, which runs `flotte epic` through huelle/programm.ps1 (copied next to the scripts);
+      the path of -Cli goes to <git common dir>/probe-programm.txt. This is the switch of the
+      probe; the driver and its call stay the same.
     - .claude/agents/              the agents of this repository unchanged, with their real models;
       only the hook path of the scout points at the copy
     - .claude/epic.md, werkzeug/gate.ps1, obst/ verse/ thema/  from this folder (basis/)
@@ -19,13 +23,18 @@
 
 .EXAMPLE
     pwsh -NoProfile -File flotte/probe/programm/vorbereiten.ps1 -Probe C:\src\flotte-probe -Lauf vorher-1
+    pwsh -NoProfile -File flotte/probe/programm/vorbereiten.ps1 -Probe C:\src\flotte-probe -Lauf nachher-1 -Motor programm
 #>
 param(
     [Parameter(Mandatory)][string]$Probe,
     [Parameter(Mandatory)][string]$Lauf,
     [string]$Forge = 'interias/flotte-probe',
     # only these mini-epics (a, b, c); default all three
-    [string[]]$MiniEpics = @('a', 'b', 'c')
+    [string[]]$MiniEpics = @('a', 'b', 'c'),
+    # skill: /epic (before, stage 0); programm: `flotte epic` behind the shell (after, stage 4)
+    [ValidateSet('skill', 'programm')][string]$Motor = 'skill',
+    # the flotte/src/cli.ts the shell runs; default the one of this repository
+    [string]$Cli
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -50,6 +59,10 @@ Get-ChildItem (Join-Path $stapel 'epic/scripts') -Filter *.ps1 | Where-Object { 
 $hook = '$CLAUDE_PROJECT_DIR/.claude/skills/epic-stapel/scripts/guard.ps1'
 $text = [IO.File]::ReadAllText((Join-Path $stapel 'epic/SKILL.md'))
 $text = $text -replace '(?m)^name: epic\r?$', 'name: epic-stapel' -replace [regex]::Escape('$HOME/.claude/skills/epic/scripts/guard.ps1'), $hook
+if ($Motor -eq 'programm') {
+    $text = [IO.File]::ReadAllText((Join-Path $hier 'huelle/SKILL.md'))
+    Copy-Item (Join-Path $hier 'huelle/programm.ps1') (Join-Path $skill 'scripts')
+}
 [IO.File]::WriteAllText((Join-Path $skill 'SKILL.md'), $text)
 $agenten = Join-Path $Probe '.claude/agents'
 New-Item -ItemType Directory -Force $agenten | Out-Null
@@ -111,6 +124,10 @@ foreach ($datei in Get-ChildItem $hier -Filter 'mini-epic-*.md' | Where-Object {
 # hidden rules and triggers of gate.ps1, outside the work tree (regeln.ps1)
 $common = (git -C $Probe rev-parse --path-format=absolute --git-common-dir).Trim()
 Copy-Item (Join-Path $hier 'regeln.ps1') (Join-Path $common 'probe-regeln.ps1')
+$programm = Join-Path $common 'probe-programm.txt'
+if ($Motor -eq 'skill') { Remove-Item $programm -ErrorAction SilentlyContinue }
+elseif ($Cli) { Set-Content $programm (Resolve-Path $Cli).Path }
+else { Set-Content $programm (Join-Path $stapel 'flotte/src/cli.ts') }
 Remove-Item (Join-Path $common 'probe-rot-paket.zaehler') -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $common 'probe-rot-paket'), (Join-Path $common 'probe-rot-epic') -ErrorAction SilentlyContinue
 if ($ergebnis.epics.c) { Set-Content (Join-Path $common 'probe-rot-paket') "agent/$($ergebnis.epics.c.c1)-" }

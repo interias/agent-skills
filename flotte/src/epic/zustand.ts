@@ -104,7 +104,7 @@ export interface Ereignis {
   /** ISO time: stage 4 (#68) reads package starts, role calls and merges from here */
   zeit: string;
   paket: string | null;
-  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ungueltig' | 'ende';
+  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ungueltig' | 'neustart' | 'ende';
   rolle?: Rolle;
   text: string;
 }

@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { aufrufen } from '../src/aufruf.ts';
+import { aufrufen, aufrufenAsync } from '../src/aufruf.ts';
 import { attrappe } from '../src/epic/attrappe.ts';
 import { fahreEpic, type EpicEinstellung } from '../src/epic/motor.ts';
 import type { Paket } from '../src/epic/schema.ts';
@@ -134,6 +134,27 @@ describe('echte Mechanik gegen die Fixture (#66)', () => {
     expect(await m.down('5')).toEqual({ schmutzig: false });
     expect(f.git(['branch', '--list', 'agent/5-paket'])).toContain('agent/5-paket');
     await expect(m.up('6', 'agent/6-x', 'gibt-es-nicht')).rejects.toThrow(/worktree\.ps1 Up 6: worktree\.ps1: /);
+  }, T);
+
+  it('Up while another program holds .git/config (probe nachher-1, #68): the same Up once more, then the worktree', async () => {
+    const sperre = join(f.repo, '.git', 'config.lock');
+    const ups: number[] = [];
+    const m = mech({
+      aufrufer: async (p, args, o) => {
+        const r = await aufrufenAsync(p, args, o);
+        if (args.includes('Up')) {
+          ups.push(r.code);
+          rmSync(sperre, { force: true });
+        }
+        return r;
+      },
+    });
+    // a new branch from a remote branch writes its upstream into .git/config
+    writeFileSync(sperre, '');
+    const w = await m.up('7', 'agent/7-sperre', 'origin/main');
+    expect(ups).toEqual([1, 0]);
+    expect(existsSync(w.worktree)).toBe(true);
+    expect(await m.down('7')).toEqual({ schmutzig: false });
   }, T);
 
   it('CleanupStale: a lock of a dead session stays while its holder file exists, then goes; the branch stays', async () => {

@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { kopfdaten, leseDatei, type Eintrag } from '../transkript.ts';
-import { epicKennzahlen, epicSumme, istFehlstart, kalteZeit, modellzeit, paketMerges, prDauern, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
+import { aufrufLog, epicKennzahlen, epicSumme, istFehlstart, kalteZeit, modellzeit, ORCHESTRIERUNG, paketMerges, prDauern, programmEreignisse, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type ProgrammZustand, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
 import { liesMessungen, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -280,9 +280,28 @@ function sitzungenAusLogs(dir: string, unter: string, nr: number): { ids: string
   const texte = readdirSync(d)
     .filter((n) => n.startsWith(`${nr}-`) && n.endsWith('.jsonl'))
     .map((n) => readFileSync(join(d, n), 'utf8'));
-  const ids = new Set<string>();
-  for (const t of texte) for (const m of t.matchAll(/"subtype":"init"[^\n]*?"session_id":"([\w-]+)"|"session_id":"([\w-]+)"[^\n]*?"subtype":"init"/g)) ids.add(m[1] ?? m[2]);
-  return { ids: [...ids], texte };
+  return { ids: [...new Set(texte.flatMap(initIds))], texte };
+}
+
+const initIds = (text: string) => [...text.matchAll(/"subtype":"init"[^\n]*?"session_id":"([\w-]+)"|"session_id":"([\w-]+)"[^\n]*?"subtype":"init"/g)].map((m) => m[1] ?? m[2]);
+
+/**
+ * The calls of `flotte epic` (#68): sessions from the init lines of <epic dir>/aufrufe/*.jsonl, role
+ * and package from the file name. Cut and conflict are orchestration of the whole epic, so they
+ * carry no package (as the conflicts the orchestrator of /epic solves itself).
+ */
+function sitzungenAusAufrufen(d: string): { refs: { id: string; rolle: Rolle; paket: string | null }[]; texte: string[] } {
+  if (!existsSync(d)) return { refs: [], texte: [] };
+  const refs: { id: string; rolle: Rolle; paket: string | null }[] = [];
+  const texte: string[] = [];
+  for (const n of readdirSync(d).sort()) {
+    const log = aufrufLog(n);
+    if (!log) continue;
+    const text = readFileSync(join(d, n), 'utf8');
+    texte.push(text);
+    for (const id of new Set(initIds(text))) refs.push({ id, rolle: log.rolle, paket: ORCHESTRIERUNG.includes(log.rolle) ? null : log.paket });
+  }
+  return { refs, texte };
 }
 
 /** The transcript of a session in the named account, without a name in any account of the configuration. */
@@ -298,20 +317,30 @@ function findeSitzung(konf: Konfiguration, id: string, nur?: string): { konto: s
 /**
  * One epic run split by role (#64): every session of the run with usage.ps1 (model weights), its
  * subagents by agentType; package merges and model time from the orchestrator transcripts; run time
- * from messungen.jsonl of the driver; restarts from its events.
+ * from messungen.jsonl of the driver; restarts from its events. A run of `flotte epic` (#68) brings
+ * its state next to the driver's (epics/<nr>/): its calls by role from the call logs; merges,
+ * restarts, worker starts and invalid outputs from its events; the model time of the check from its
+ * cut and conflict calls (the shell under the driver takes no part in it).
  */
 function messeEpicLauf(konf: Konfiguration, e: Einsatz, lauf: EpicLauf, u: Umgebung, fehler: string[]) {
   const dir = e.treiberZustand ? dirname(pfadAus(e.treiberZustand)) : null;
   const ausLaeufen = dir ? sitzungenAusLogs(dir, 'laeufe', lauf.epic) : { ids: [], texte: [] };
   const ausAdmiral = dir ? sitzungenAusLogs(dir, 'admiral', lauf.epic) : { ids: [], texte: [] };
-  const refs: { id: string; konto?: string; rolle: Rolle | null; vorgabe: Rolle; paket: string | null }[] = [
+  const programmDir = dir ? join(dir, 'epics', String(lauf.epic)) : null;
+  const pz = programmDir && existsSync(join(programmDir, 'zustand.json')) ? (JSON.parse(readFileSync(join(programmDir, 'zustand.json'), 'utf8')) as ProgrammZustand) : null;
+  const ausAufrufen = pz && programmDir ? sitzungenAusAufrufen(join(programmDir, 'aufrufe')) : { refs: [], texte: [] };
+  const alle: { id: string; konto?: string; rolle: Rolle | null; vorgabe: Rolle; paket: string | null }[] = [
     ...ausLaeufen.ids.map((id) => ({ id, rolle: null, vorgabe: 'orchestrator' as Rolle, paket: null })),
     ...ausAdmiral.ids.map((id) => ({ id, rolle: 'admiral' as Rolle, vorgabe: 'admiral' as Rolle, paket: null })),
+    ...ausAufrufen.refs.map((r) => ({ ...r, vorgabe: r.rolle })),
     ...(lauf.sitzungen ?? []).map((s) => ({ id: s.id, konto: s.konto, rolle: s.rolle ?? null, vorgabe: 'orchestrator' as Rolle, paket: s.paket ?? null })),
   ];
+  const refs = alle.filter((r, i) => alle.findIndex((x) => x.id === r.id) === i);
 
   const arbeiten: Arbeit[] = [];
   const orchestratoren: Eintrag[][] = [];
+  const programmOrchestrierung: Eintrag[][] = [];
+  const orchestrierungsDateien: string[] = [];
   const zeilen: Record<string, number> = {};
   for (const r of refs) {
     const gefunden = findeSitzung(konf, r.id, r.konto);
@@ -338,23 +367,49 @@ function messeEpicLauf(konf: Konfiguration, e: Einsatz, lauf: EpicLauf, u: Umgeb
       arbeiten.push({ rolle: rolleAus(a.role), agentType: a.role, paket: a.package ?? null, start: k.von ?? 0, ende: k.bis ?? 0, weighted: Number(a.weighted) });
     }
     if (rolle === 'orchestrator') orchestratoren.push(leseDatei(gefunden.datei));
+    if (rolle === 'schnitt' || rolle === 'konflikt') programmOrchestrierung.push(leseDatei(gefunden.datei));
+    if (ORCHESTRIERUNG.includes(rolle)) orchestrierungsDateien.push(gefunden.datei);
   }
 
   const z = e.treiberZustand && existsSync(pfadAus(e.treiberZustand)) ? (JSON.parse(readFileSync(pfadAus(e.treiberZustand), 'utf8')) as TreiberZustand) : null;
   const starts = (z?.ereignisse ?? []).filter((x) => x.epic === lauf.epic && /^Lauf gestartet/.test(x.text)).map((x) => Date.parse(x.zeit)).sort((a, b) => a - b);
   const messung = dir ? liesMessungen(dir).filter((m) => m.epic === lauf.epic).at(-1) : undefined;
 
+  const pe = pz ? programmEreignisse(pz) : null;
+  const pruefer = pz ? programmOrchestrierung : orchestratoren;
+
   const k = epicKennzahlen({
     arbeiten,
-    merges: orchestratoren.flatMap(paketMerges),
+    merges: pe ? pe.merges : orchestratoren.flatMap(paketMerges),
     fenster: e.fenster ?? 3,
     kanten: lauf.kanten,
     arbeitMs: messung ? messung.arbeitS * 1000 : null,
-    modellzeit: orchestratoren.length ? (von, bis) => orchestratoren.reduce((s, o) => s + modellzeit(o, von, bis), 0) : undefined,
-    neustarts: starts.slice(1),
+    modellzeit: pz || orchestratoren.length ? (von, bis) => pruefer.reduce((s, o) => s + modellzeit(o, von, bis), 0) : undefined,
+    neustarts: [...starts.slice(1), ...(pe?.neustarts ?? [])].sort((a, b) => a - b),
+    ...(pe ? { workerStarts: pe.workerStarts, neueAufrufe: pe.neueAufrufe } : {}),
   });
-  if (k.pakete.length && !k.pakete.some((p) => p.merges)) fehler.push(`Epic #${lauf.epic}: kein Paket-Merge im Orchestrator gefunden; Merge-Zeiten, Prüfzeit und Fensterverlust ohne Merge`);
-  return { epic: lauf.epic, sitzungen: zeilen, ...k, ungueltige_ausgaben: ungueltigeAusgaben(ausAdmiral.texte) };
+  // usage of the orchestration from a restart to its first worker: what the rebuild cost in model calls
+  const neustart = {
+    ...k.neustart,
+    neustarts: k.neustart.neustarts.map((n) => {
+      if (n.bis_erster_worker_s === null) return { ...n, verbrauch_bis_worker: null };
+      const bis = new Date(Date.parse(n.zeit) + n.bis_erster_worker_s * 1000).toISOString();
+      const w = orchestrierungsDateien.reduce((s, d) => {
+        const j = pwshJson(u.aufrufer, u.usageSkript, ['-Transcript', d, '-ModelWeights', MODELLGEWICHTE, '-Since', n.zeit, '-Until', bis]).json as { agents?: UsageZeile[] } | null;
+        return s + Number(j?.agents?.find((a) => a.role === 'host')?.weighted ?? 0);
+      }, 0);
+      return { ...n, verbrauch_bis_worker: Math.round(w) };
+    }),
+  };
+  if (k.pakete.length && !k.pakete.some((p) => p.merges)) fehler.push(`Epic #${lauf.epic}: ${pz ? 'kein Ereignis gemergt im Programm' : 'kein Paket-Merge im Orchestrator'} gefunden; Merge-Zeiten, Prüfzeit und Fensterverlust ohne Merge`);
+  return {
+    epic: lauf.epic,
+    sitzungen: zeilen,
+    ...k,
+    neustart,
+    ungueltige_ausgaben: ungueltigeAusgaben([...ausAdmiral.texte, ...ausAufrufen.texte]),
+    ...(pe ? { programm: { aufrufe: pe.aufrufe, ungueltig_ereignisse: pe.ungueltig } } : {}),
+  };
 }
 
 function epicLaeufe(konf: Konfiguration, e: Einsatz, u: Umgebung, fehler: string[]) {
@@ -362,7 +417,7 @@ function epicLaeufe(konf: Konfiguration, e: Einsatz, u: Umgebung, fehler: string
   return {
     laeufe,
     summe: epicSumme(laeufe),
-    methode: `Sitzungen je Epic aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Paket-Merge = git merge … agent/<nr> des Orchestrators; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
+    methode: `Sitzungen je Epic aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Paket-Merge = git merge … agent/<nr> des Orchestrators; unter flotte epic Aufrufe aus epics/<nr>/aufrufe (Rolle aus dem Dateinamen, Schnitt und Konflikt als Orchestrierung), Merge = Ereignis gemergt, Neustart = Ereignis neustart bis zum nächsten Aufruf von Implementer oder Reviewer (auch --resume), Modellzeit der Prüfzeit aus Schnitt und Konflikt; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
   };
 }
 

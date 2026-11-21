@@ -54,7 +54,8 @@ bun src/cli.ts fahren <probe> --forge interias/flotte-probe --epics <A>,<B>,<C> 
 
 `--max-min 120` statt des Richtwerts 90, weil drei Epics gleichzeitig laufen. Nach dem Lauf
 `<probe>/.git/flotte` sichern (der nächste Lauf schreibt dort weiter). Nachher (Stufe 4) gilt
-derselbe Aufruf; nur der Schalter in `flotte-probe` wechselt von `/epic` zu `flotte epic`.
+derselbe Aufruf; nur der Schalter in `flotte-probe` wechselt von `/epic` zu `flotte epic`:
+`vorbereiten.ps1 … -Lauf nachher-1 -Motor programm` (Abschnitt „Der Schalter“).
 
 Messen: `einsatz.vorlage.json` ausfüllen (Nummern aus `vorbereiten.ps1`, Kante b2 → b1), dann
 `bun src/cli.ts messen <einsaetze.json> --name vorher-1`.
@@ -140,6 +141,144 @@ Bash-Aufrufe (zusammengesetzte Befehle, danach einzeln ausgeführt, also in ande
 Treiber wertete das nach D19 als „blockiert: Erlaubnis verweigert“ und mergte #79 nicht. Die Ereignisse nennen das einzige Konto
 von `--konten 2` „Konto 1“ (Zählung in der Liste, nicht die Kontonummer).
 
+## Der Schalter
+
+`vorbereiten.ps1 -Motor programm` legt statt der Kopie von `/epic` die Hülle aus `huelle/` als
+Projekt-Skill `epic-stapel` an (gleicher Name, gleiche `references/` und `scripts/`, dazu
+`scripts/programm.ps1`) und schreibt den Pfad von `flotte/src/cli.ts` (`-Cli`) nach
+`<git common dir>/probe-programm.txt`, außerhalb des Arbeitsbaums. Treiber, Aufruf, Agenten,
+Adapter, Gate und verdeckte Regeln bleiben gleich; `-Motor skill` (Standard) stellt `/epic` wieder her.
+
+Die Hülle tut keine Paketarbeit. Ihr einziger Befehl ist `programm.ps1 -Epic <nr>`:
+
+- Läuft `flotte epic` nicht und ist das Epic nicht fertig, startet das Skript es hinter einem
+  Zwischenprozess, der sofort endet: `--mechanik echt --aufrufe echt --konto <Konto des Laufs>
+  --branch epic/<nr>-programm --antworten <epic dir>/antworten.txt --max-min 120`. So beendet weder
+  das Zugende noch die Zeitgrenze des Shell-Werkzeugs das Programm; es läuft zwischen den Zügen weiter.
+- Dann wartet es bis zu 500 s auf den nächsten Block in `bloecke.txt` und gibt ihn wörtlich aus. Die
+  Hülle beendet ihren Zug mit genau diesem Text. Ohne Block meldet das Skript `LAEUFT`, und die
+  Hülle ruft es sofort wieder auf. Ein Bash-Aufruf dauert so höchstens rund neun Minuten mit
+  lebendem Kindprozess; der Treiber wertet das nicht als Leerlauf (Grenze 15 min).
+- Antworten des Treibers (`1. A — Herkunft: …`) gibt die Hülle je Zeile mit `-Antwort '<Zeile>'`
+  weiter. Das Skript schreibt `1: A` in die Antwortdatei, die das laufende Programm liest. Zeilen,
+  die beim Menschen liegen, lässt es aus.
+- Ist das Programm ohne Block gestorben, startet das Skript es neu; das Programm setzt seine
+  Aufrufe mit `--resume` fort. Nach vier Starts meldet es `PROGRAMM GESCHEITERT`, und die Hülle
+  endet ohne Block.
+
+Jeder Befehl ist ein einfacher Aufruf ohne `cd`, `&&` oder Umleitung, und er steht in
+`allowed-tools`. Ein abgelehnter zusammengesetzter Befehl (D19, vorher-1) kommt in der Hülle nicht
+vor; in den Nachher-Läufen gab es keine Verweigerung und keine Hook-Sperre in einem Zug der Hülle.
+
+**Modell der Hülle: Opus, wie der Orchestrator vorher.** Der Treiber startet jeden Lauf mit
+`--modell opus`. `model: haiku` im Frontmatter des Skills hat `claude -p` in einem Vorversuch gegen
+eine Attrappe des Programms nicht übernommen: Alle Nachrichten liefen weiter mit Opus. Haiku ginge nur über `--modell haiku` im Aufruf
+des Treibers, und der bleibt vorher und nachher gleich. Die Hülle zählt als Orchestrierung (Rolle
+Orchestrator) und ist unten mitgemessen.
+
+## Läufe nachher
+
+| Lauf | Epics | Treiber | PRs | Ergebnis |
+|---|---|---|---|---|
+| nachher-1, erster Versuch (21.11.2026, Konto 2) | #108, #112, #116 | 20:42–20:46 UTC | – | technisch abgebrochen: drei Programme legten gleichzeitig ihre Epic-Worktrees an, `git worktree add -b` von A fand `.git/config` gesperrt, A endete sofort. B und C von Hand beendet, Issues bleiben unverbraucht offen |
+| nachher-1 (Wiederholung) | #119, #123, #127 | 20:48–20:53 UTC | #131, #130, #132 | alle gemergt; Neustart echt ausgelöst (unten) |
+| nachher-2 | #133, #137, #141 | 20:54–21:02 UTC | #144, #146, #145 | alle gemergt |
+
+Die Ursache des Abbruchs ist im Programm behoben: `git` und `worktree.ps1 Up` versuchen es bei
+einer Sperre von `.git/config` oder einer anderen `.lock`-Datei bis zu viermal
+(`src/epic/mechanik.ts`, Test in `test/epic-mechanik.test.ts`). Der erste Start der Wiederholung
+brach im Treiber ab, weil dessen Zustand die von Hand beendeten Läufe noch als laufend führte; sie
+stehen dort jetzt auf `abgebrochen`, gestartet hatte noch nichts.
+
+**Neustart.** In nachher-1 wurde `flotte epic` für A (#119) beendet, als drei Implementer liefen
+(`taskkill /T`). Die Hülle startete es nach 1 s neu; nach weiteren 9 s liefen alle drei Implementer
+wieder, mit `--resume` ihrer Sitzungen.
+
+**Nachher gemessen mit `flotte messen`** (Index: Mittel der beiden Vorher-Läufe = 100; Zeiten als
+Median / P90; Mittel der Quoten ist das Mittel der beiden Werte):
+
+| Kennzahl | Ziel | vorher (Mittel) | nachher-1 | nachher-2 | nachher (Mittel) | Ergebnis |
+|---|---|---|---|---|---|---|
+| Verbrauch je Epic | ≤ 80 | 100 | 42 | 37 | 40 | erfüllt |
+| Verbrauch je Paket | ≤ 85 | 100 | 48 | 43 | 46 | erfüllt |
+| Anteil Orchestrierung | ≤ 6 % | 82,4 % | 38,9 % | 45,8 % | 42,4 % | verfehlt |
+| davon Hülle / Schnitt / Konflikt / Admiral | – | 82,2 % (Orchestrator) / – / – / 0,2 % | 12,6 / 20,4 / 5,6 / 0,3 % | 14,2 / 26,7 / 4,3 / 0,5 % | 13,4 / 23,6 / 5,0 / 0,4 % | – |
+| Implementer und Reviewer je Paket | ≤ 110 | 100 | 169 | 132 | 151 | verfehlt |
+| Durchlauf je Epic | ≤ 75 % | 8,9 min (n = 5) | 3,6 min (n = 3) | 3,4 min (n = 3) | 3,5 min, 39 % | erfüllt |
+| gemergt bis nächster Start | Median ≤ 30 s, P90 ≤ 2 min | 62,5 / 80 s | keine Stichprobe | keine Stichprobe | – | nicht messbar |
+| Prüfzeit Reviewer zurück bis gemergt | ausgewiesen | 21,3 / 67 s | 13 / 61 s (n = 5) | 12 / 63 s (n = 5) | 12,5 / 62 s | ausgewiesen |
+| Sprachmodell-Anteil der Prüfzeit | 0 | 48 % | 18 % | 18 % | 18 % | verfehlt |
+| Fensterverlust (obere Schranke) | ≤ 5 % | 49,4 % | 28,9 % | 22,0 % | 25,5 % | verfehlt |
+| Implementer-Aufträge je Paket | ≤ vorher + 0,1 (1,15) | 1,05 | 1,3 | 1,0 | 1,15 | im Mittel erfüllt, nachher-1 verfehlt |
+| Eskalationen | gleich oder weniger | 0 | 0 | 0 | 0 | erfüllt |
+| Ungültige Ausgaben (alle `--json-schema`-Aufrufe) | ≤ 2 % | 0 von 2 | 0 von 24 | 0 von 20 | 0 % | erfüllt |
+| Neustart: bis zum ersten laufenden Worker | ≤ 60 s | 3,7–3,9 min (aus dem Epic, nicht in dieser Probe gemessen) | 9 s (n = 1) | – | 9 s | erfüllt |
+| Neustart: Sprachmodell-Verbrauch für den Wiederaufbau | 0 | 88 % davon Orchestrator (aus dem Epic) | 0 (keine neuen Aufrufe, nur `--resume`) | – | 0 | erfüllt |
+| Doppelt gestartete / doppelt gemergte Pakete | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | erfüllt |
+| P14 / P15 echt ausgelöst | je einmal | P14 ja, P15 nein | P14 ja, P15 nein | P14 ja, P15 nein | – | P14 erfüllt, P15 verfehlt |
+| P10 / P13 echt ausgelöst | je einmal | ja / ja | ja / ja | nein / ja | – | erfüllt |
+| Pakete im PR (Ergebnis, kein Ziel der Tabelle) | – | 7 von 8 je Lauf | 5 von 8 | 5 von 8 | – | schlechter |
+
+Gemessen sind nur Pakete mit einem Worker: b2 lief in keinem Nachher-Lauf (7 statt 8 Pakete). Die
+Verbrauchs- und Zeitwerte nachher stehen also auf weniger und kürzerer Arbeit; der Index je Paket
+gleicht das nur zum Teil aus.
+
+„Gemergt bis nächster Start“ hat nachher keine Stichprobe, weil kein Paket nach einem Merge startete:
+a1–a3 und b1/b3 starteten zu Beginn gemeinsam, b2 blieb blockiert, c2 startete nach dem
+Zurücklassen von c1, nicht nach einem Merge.
+
+Was eintrat:
+
+| Fall | nachher-1 | nachher-2 |
+|---|---|---|
+| P14 Konflikt mechanisch (A) | ja: a1–a3 parallel, zwei Konflikte in `obst/REGISTER.md`, je ein Konflikt-Aufruf löste sie, Kollisionskanten nachgetragen | ja: genauso |
+| P13 Epic-Branch rot (B) | ja: b3 wurde zuerst gemergt, ohne Lauf auf dem Epic-Branch (Baum gleich dem geprüften des Pakets); b1 (*Urteil*, der Wächter) danach mit Lauf, `verse` rot, Revert, b1 zurückgelassen; b2 hängt hart an b1 und blieb blockiert; PR mit `WIP:` | ja: genauso |
+| P10 Paket rot (C) | ja: der Volllauf von c1 war rot (`thema/KONTRAST.md`), neue Runde; in Runde 2 wollte der Reviewer einen zusammengesetzten Befehl fahren, der Auto-Modus lehnte ab, c1 zurückgelassen | nein: c1 schon in Runde 1 zurückgelassen, der Reviewer las `probe-regeln.ps1` mit einem Pfad außerhalb des Worktrees, abgelehnt |
+| P15 Konflikt inhaltlich (C) | nein: Kollisionskante über `thema/`, c2 nach c1 | nein: dito |
+| P11 Lastflake | nein | nein |
+
+Zwei Befunde erklären die schlechteren Ergebnisse. Erstens lässt das Programm ein Paket zurück,
+sobald ein Aufruf eine `permission_denials` meldet (P8); unter `/epic` ändert ein Subagent nach einer
+Ablehnung seinen Weg. Zweitens trifft der Auslöser von P13 den ersten Merge, nach dem auf dem
+Epic-Branch geprüft wird. Das Programm prüft nach dem ersten Merge nicht, weil der Baum dem schon
+geprüften des Pakets gleicht; so traf es nachher b1, an dem b2 hängt, vorher b3. Das fehlende b2 ist
+damit eine Folge des Auslösers der Probe, nicht der Merge-Reihenfolge (b3 wurde auch nachher zuerst
+gemergt).
+Der Orchestrierungsanteil kommt vor allem vom Schnitt-Aufruf und von der Hülle; ohne Hülle läge er
+bei rund 26–32 %, auch dann über dem Ziel. Implementer und Reviewer kosten als eigener `claude -p` je
+Paket mehr als als Subagent einer Sitzung.
+
+Die Kontamination aus „Läufe vorher“ gilt auch nachher: In nachher-1 las der Implementer von c1 in
+Runde 2 `probe-regeln.ps1`. Am Ergebnis ändert das wenig, weil die rote Meldung die Korrektur ohnehin
+nennt.
+
+Die Läufe der Hülle hatten keine Hook-Sperre und keine Verweigerung. Die Vorher-Zahlen rechnet das
+erweiterte Werkzeug unverändert nach (Gegenprobe: `epic_laeufe` von vorher-1 und vorher-2 gleich bis
+auf den neuen Schlüssel `neue_aufrufe_bis_worker` und den Methodentext).
+
+## HALT 2
+
+Befehle je Nachher-Lauf (Konto 2, ein Treiber zur Zeit):
+
+```
+pwsh -NoProfile -File flotte/probe/programm/vorbereiten.ps1 -Probe <probe> -Lauf nachher-1 -Motor programm
+cd flotte
+bun src/cli.ts fahren <probe> --forge interias/flotte-probe --epics <A>,<B>,<C> --konten 2 \
+  --skill epic-stapel --modell opus --admiral-modell haiku --admiral-effort keine --obergrenze 3 \
+  --leerlauf-min 15 --takt-s 15 --ohne-docker --ohne-nacharbeit --max-min 120
+bun src/cli.ts messen <einsaetze.json> --name nachher-1
+```
+
+Ergebnis: nachher-1 (Wiederholung nach einem technischen Abbruch, Ursache im Programm behoben) und
+nachher-2 liefen durch, alle sechs PRs gemergt, je 5 von 8 Paketen im PR (vorher 7 von 8). Erfüllt:
+Verbrauch je Epic (40) und je Paket (46), Durchlauf (39 %), Eskalationen, ungültige Ausgaben,
+Neustart (9 s bis zum ersten Worker, kein Verbrauch für den Wiederaufbau, nichts doppelt), P10, P13,
+P14. Verfehlt: Anteil der Orchestrierung (42,4 % statt ≤ 6 %), Implementer und Reviewer je Paket
+(151 statt ≤ 110), Sprachmodell-Anteil der Prüfzeit (18 % statt 0), Fensterverlust (25,5 % statt
+≤ 5 %, obere Schranke), P15 nicht ausgelöst; Implementer-Aufträge nur im Mittel. „Gemergt bis
+nächster Start“ hatte keine Stichprobe. Tabelle und Befunde: Abschnitt „Läufe nachher“. Über das
+Umschalten entscheidet der Mensch.
+
 ## Methode von `epic_laeufe`
 
 - **Sitzungen** je Epic aus den Treiber-Logs (`laeufe/<nr>-*.jsonl`: Orchestrator,
@@ -162,7 +301,17 @@ von `--konten 2` „Konto 1“ (Zählung in der Liste, nicht die Kontonummer).
   gemergt hatte, als Anteil an der Zeit vom ersten Paketstart bis zum letzten Paketende. Kollisionskanten
   kennt die Messung nicht; der Wert ist eine obere Schranke.
 - **Ungültige Ausgaben:** `result` ohne `structured_output` in den Logs der `--json-schema`-Aufrufe
-  (heute nur der Admiral).
+  (vorher nur der Admiral).
 - **Neustart:** Jeder weitere „Lauf gestartet“ des Treibers bis zum nächsten Worker-Start. Doppelt
   gestartet heißt: zwei Implementer desselben Pakets überlappen. Doppelt gemergt heißt: zwei Merges
   desselben Pakets.
+- **`flotte epic` (nachher):** Neben dem Treiber-Zustand liegt `epics/<nr>/` des Programms. Jeder
+  Aufruf ist eine Sitzung aus `aufrufe/<rolle>[-<paket>]-r<runde>.jsonl` (Rolle aus dem Dateinamen;
+  Schnitt und Konflikt zählen als Orchestrierung ohne Paket). Die Hülle ist die Sitzung aus
+  `laeufe/` und zählt als Orchestrator. Gemergt ist ein Paket mit dem Ereignis `gemergt` (ein
+  zurückgenommenes Paket hat keins). Die Modellzeit der Prüfzeit kommt aus Schnitt und Konflikt,
+  denn die Hülle wartet nur. Ungültige Ausgaben zählen über alle `--json-schema`-Aufrufe, Admiral
+  und Programm. Ein Neustart ist das Ereignis `neustart`; gemessen wird bis zum nächsten Aufruf von
+  Implementer oder Reviewer, `--resume` eingeschlossen. Dazu kommen die Zahl der neu gestarteten
+  Aufrufe dazwischen (`neue_aufrufe_bis_worker`) und der Verbrauch der Orchestrierung in diesem
+  Zeitraum (`verbrauch_bis_worker`).
