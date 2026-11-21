@@ -659,7 +659,7 @@ function laufband(t) {
     const breite = $('laufband').clientWidth;
     if (spur.scrollWidth) spur.style.animationDelay = `-${((breite * 0.85) / spur.scrollWidth) * s}s`;
   }
-  setze($('logbuch-liste'), ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>');
+  setze($('logbuch-liste'), (ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>') + '<li style="display:block"><a href="#logbuch">Alle im Logbuch</a></li>');
 }
 
 document.addEventListener('click', (ev) => {
@@ -674,6 +674,14 @@ $('laufband').addEventListener('click', () => {
   const offen = band.classList.toggle('halt');
   band.setAttribute('aria-expanded', String(offen));
   $('logbuch-liste').hidden = !offen;
+});
+
+// the link to the Logbuch page closes the ticker's list, which would else lie over that page
+$('logbuch-liste').addEventListener('click', (ev) => {
+  if (!ev.target.closest('a')) return;
+  $('laufband').classList.remove('halt');
+  $('laufband').setAttribute('aria-expanded', 'false');
+  $('logbuch-liste').hidden = true;
 });
 
 // ---- moving cards: from where they stood to where they stand now (FLIP), once
