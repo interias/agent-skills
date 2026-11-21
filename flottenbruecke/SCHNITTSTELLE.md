@@ -216,7 +216,7 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 
 | `art` | wann die Brücke sie annimmt | was der Treiber tut |
 |---|---|---|
-| `einreihen` | Epic `blockiert` oder `abgebrochen`, nicht aufgegeben | Zähler auf null; mit Sitzung zurück auf `laeuft` mit einer Fortsetzung, die den Grund der Blockade nennt, sonst `wartend` |
+| `einreihen` | Epic `blockiert` oder `abgebrochen`, nicht aufgegeben | Zähler auf null; mit Sitzung zurück auf `laeuft` mit einer Fortsetzung, die den Grund der Blockade und die noch unbeantworteten Fragen des Laufs als offen nennt, sonst `wartend` |
 | `aufgeben` | wie `einreihen` | Stufe `abgebrochen`, `aufgegebenAm`; Branch, PR und Issue bleiben |
 | `widerruf` | `nr`, `seit` (= `zeit` der Entscheidung) und `text`; Epic nicht `gemergt`/`fertig`, noch kein Widerruf; eine Entscheidung des Admirals oder (#52) eine Antwort des Menschen | Kommentar am Issue, bei einflussreichen Entscheidungen auch ins Protokoll; der Lauf bekommt `widerruf: <Frage> → <Text>` im nächsten Zug, ein Epic in `pr` geht dafür zurück auf `laeuft`. Nach dem Merge nur der Kommentar und ein Ereignis, nichts an den Lauf; ein zweiter Widerruf derselben Entscheidung bleibt ein Ereignis |
 | `einstellen` | `epic` `0`, `text` = `{"name", "wert"}` als JSON (unten), mit PIN | prüft die Grenzen, setzt den Wert ab diesem Takt, speichert ihn im Zustand, Ereignis und Flottenlogbuch; ein ungültiger Wert wird ein Ereignis |

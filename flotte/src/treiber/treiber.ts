@@ -941,10 +941,15 @@ class Treiber {
     if (r.fehler === 'werkzeuge') return this.halt(ep, 'blockiert', `${r.stderr.split('\n')[0]}. Der Lauf wurde beendet, bevor er arbeitete.`);
     const hookIds = new Set(r.sperren.map((s) => s.id));
     const fremd = r.verweigert.filter((d) => !hookIds.has(String((d as { tool_use_id?: string }).tool_use_id ?? '')));
+    const block = leseBlock(r.text);
+    let vermerk: string | undefined;
     if (fremd.length) {
-      // D19: on the board, blocked, never tried again in another form
       const was = fremd.map((d) => (d as { tool_name?: string }).tool_name ?? JSON.stringify(d).slice(0, 80)).join(', ');
-      return this.halt(ep, 'blockiert', `Erlaubnis verweigert: ${was}. Kein zweiter Versuch in anderer Form.`);
+      // D19: on the board, blocked, never tried again in another form
+      if (!block) return this.halt(ep, 'blockiert', `Erlaubnis verweigert: ${was}. Kein zweiter Versuch in anderer Form.`);
+      // #54: a block of the turn goes first; the denials are an event and noted at its questions
+      vermerk = `Im selben Zug abgelehnt: ${was}.`;
+      this.ereignis(nr, `Erlaubnis verweigert: ${was}; der Zug endete mit FLOTTE-${block.art === 'frage' ? 'FRAGE' : 'ENDE'}, nicht blockiert`);
     }
     if (r.sperren.length) {
       // acceptance finding B: guard.ps1 refused a call. In a window the run reads the reason and
@@ -955,7 +960,7 @@ class Treiber {
       ep.sperren = [...frueher, ...r.sperren.map((s) => s.regel)];
       this.ereignis(nr, `Hook-Sperre: ${r.sperren.map((s) => s.regel).join('; ')}`);
       const doppelt = ep.sperren.find((x, i) => ep.sperren!.indexOf(x) !== i);
-      const grund = doppelt ? `Regel „${doppelt}" sperrte zweimal` : ep.sperren.length >= SPERREN_GRENZE ? `${ep.sperren.length} Hook-Sperren in diesem Epic` : !leseBlock(r.text) || r.fehler ? 'der Zug scheiterte daran' : null;
+      const grund = doppelt ? `Regel „${doppelt}" sperrte zweimal` : ep.sperren.length >= SPERREN_GRENZE ? `${ep.sperren.length} Hook-Sperren in diesem Epic` : !block || r.fehler ? 'der Zug scheiterte daran' : null;
       if (grund) return this.halt(ep, 'blockiert', `Gesperrt durch guard.ps1, ${grund}:\n\n${r.sperren.map((s) => `- ${s.text}`).join('\n')}`);
     }
     if (r.fehler === 'leerlauf') {
@@ -981,7 +986,6 @@ class Treiber {
       await this.aufraeumen(nr);
       return this.halt(ep, 'blockiert', 'Netzfehler nach zwei Fortsetzungen');
     }
-    const block = leseBlock(r.text);
     if (!block) {
       if (r.fehler) {
         // D1: no result or exit code, the run never got going
@@ -1005,7 +1009,7 @@ class Treiber {
       return this.halt(ep, 'abgebrochen', `Zug ohne Block, auch nach der Nachfrage. Letzter Stand des Laufs:\n\n${r.text.slice(-1500) || '(kein Text)'}`, true);
     }
     ep.nachfragen = 0;
-    if (block.art === 'frage') await this.frage(ep, block);
+    if (block.art === 'frage') await this.frage(ep, block, vermerk);
     else await this.ende(ep, block);
   }
 
@@ -1029,7 +1033,7 @@ class Treiber {
 
   // ---- question blocks (D2, D3)
 
-  async frage(ep: FlottenEpic, block: FrageBlock): Promise<void> {
+  async frage(ep: FlottenEpic, block: FrageBlock, vermerk?: string): Promise<void> {
     const nr = ep.nr;
     if (block.phase === 'ram') {
       if (ep.pausiert) {
@@ -1044,7 +1048,9 @@ class Treiber {
       this.ereignis(nr, 'RAM-Frage: weiter, sobald die Bremse frei ist');
       return;
     }
-    if (!block.fragen.length) return this.rohFrage(ep, block);
+    if (!block.fragen.length) return this.rohFrage(ep, block, vermerk);
+    // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
+    if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
     const konto = this.e.admiralKonto ?? ep.konto!;
     if (this.e.admiralKonto && this.bewertung.get(konto)?.stufe === 'rot') {
       // the admiral's own account would fail the call; the questions go to the person at once, with
@@ -1156,10 +1162,10 @@ class Treiber {
   }
 
   /** A question block without a parsable question: the whole block goes to the person (#28, Rückfall). */
-  rohFrage(ep: FlottenEpic, block: FrageBlock): void {
+  rohFrage(ep: FlottenEpic, block: FrageBlock, vermerk?: string): void {
     const nr = ep.nr;
     const zeit = new Date(this.w.jetzt()).toISOString();
-    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: '', optionen: [], grund: '', herkunft: 'Treiber: Block nicht zerlegbar', marke: 'Block unlesbar', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
+    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: vermerk ?? '', optionen: [], grund: '', herkunft: 'Treiber: Block nicht zerlegbar', marke: 'Block unlesbar', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
     kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — Der Block FLOTTE-FRAGE ${block.phase} ließ sich nicht in Fragen zerlegen. Wortlaut:\n\n${block.roh}\n\nAntworten, im Repository: \`flotte antworten . ${nr} 1 "<Antwort>"\``);
     this.ereignis(nr, `❓ FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut liegt beim Menschen`);
     ep.stufe = 'frage';
@@ -1243,7 +1249,10 @@ class Treiber {
     Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
     if (ep.sitzung && ep.konto) {
       ep.stufe = 'laeuft';
-      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Mensch hat dein Epic nach der Blockade neu eingereiht. Grund der Blockade war: ${grund}. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE. ${this.blockForm(ep.nr)}`) };
+      // #54: questions of the run still without an answer are said to be open, never decided by the run
+      const offen = this.z.fragen.filter((f) => f.epic === ep.nr && !f.beantwortet).map((f) => `${f.nr}. ${f.frage || 'Block nicht zerlegbar'}`);
+      const fragen = offen.length ? `\nOffen und ohne Antwort des Menschen:\n${offen.join('\n')}\nEntscheide sie nicht selbst. Stelle sie im nächsten FLOTTE-FRAGE erneut.` : '';
+      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Mensch hat dein Epic nach der Blockade neu eingereiht. Grund der Blockade war: ${grund}. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE. ${this.blockForm(ep.nr)}${fragen}`) };
     } else {
       ep.stufe = 'wartend';
       ep.konto = null;
