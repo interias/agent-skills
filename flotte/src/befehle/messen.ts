@@ -7,8 +7,9 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { kopfdaten, leseDatei, type Eintrag } from '../transkript.ts';
-import { aufrufLog, epicKennzahlen, epicSumme, istFehlstart, kalteZeit, modellzeit, ORCHESTRIERUNG, paketMerges, prDauern, programmEreignisse, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type ProgrammZustand, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
+import { aufrufLog, epicKennzahlen, epicSumme, epicVerlauf, istFehlstart, kalteZeit, modellzeit, ORCHESTRIERUNG, paketMerges, prDauern, programmEreignisse, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type ProgrammZustand, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
+import { ladeSitzung, tokenKennzahlen, type AgentLauf } from '../tokens.ts';
 import { liesMessungen, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface SitzungRef {
@@ -203,7 +204,8 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
   // 1, 2: questions to a person and the wait for the answer (orchestrators and runs alike)
   const fragen: Rueckfrage[] = [];
   for (const t of [...orchestrierung, ...laeufe]) fragen.push(...rueckfragen(t.eintraege, e.epics, fensterVon(e, t.ref)));
-  const treiber = e.treiberZustand ? treiberKennzahlen(JSON.parse(readFileSync(pfadAus(e.treiberZustand), 'utf8')) as TreiberZustand, f) : null;
+  const zustand = e.treiberZustand ? (JSON.parse(readFileSync(pfadAus(e.treiberZustand), 'utf8')) as TreiberZustand) : null;
+  const treiber = zustand ? treiberKennzahlen(zustand, f) : null;
   if (treiber) fragen.push(...treiber.fragen);
   const mitUrteil = fragen.filter((q) => q.gefolgt !== null);
   const jeEpic: Record<string, { anzahl: number; wartenMin: number }> = {};
@@ -256,6 +258,8 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
       : { starts: starts.length, fehlstarts: fehlstarts.length, anteil: starts.length ? runde(fehlstarts.length / starts.length) : null, sitzungen: fehlstarts.map((t) => `${t.ref.konto}/${t.ref.id}`), methode: 'keine Antwort des Modells in den ersten 3 min; Lauf-Agenten zählen nicht als Start' },
     pr_bereit_bis_gemergt_min: { ...verteilung(dauern.map((d) => d.minuten)), geschaetzt: dauern.filter((d) => d.geschaetzt).length, prs: dauern.map((d) => ({ pr: d.pr, minuten: runde(d.minuten), geschaetzt: d.geschaetzt })) },
     orchestrierung: { weighted: Math.round(summe), je_epic: e.epics.length ? Math.round(summe / e.epics.length) : null, sitzungen: gewichte, methode: 'usage.ps1 ohne Modellgewichte, im Fenster der Sitzung' },
+    tokens: tokenKennzahlen(laeufe.flatMap((t) => agentLaeufe(t, e))),
+    verlauf: zustand ? epicVerlauf(zustand, f) : null,
     reste: reste(u, e),
     prognose: prognoseKennzahlen(e),
     epic_laeufe: e.epicLaeufe ? epicLaeufe(konf, e, u, fehler) : null,
@@ -419,6 +423,13 @@ function epicLaeufe(konf: Konfiguration, e: Einsatz, u: Umgebung, fehler: string
     summe: epicSumme(laeufe),
     methode: `Sitzungen je Epic aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Paket-Merge = git merge … agent/<nr> des Orchestrators; unter flotte epic Aufrufe aus epics/<nr>/aufrufe (Rolle aus dem Dateinamen, Schnitt und Konflikt als Orchestrierung), Merge = Ereignis gemergt, Neustart = Ereignis neustart bis zum nächsten Aufruf von Implementer oder Reviewer (auch --resume), Modellzeit der Prüfzeit aus Schnitt und Konflikt; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
   };
+}
+
+/** A run session with its subagents; a listed subagent (agentType, e.g. epic-lauf) alone, under its type. */
+function agentLaeufe(t: Transkript, e: Einsatz): AgentLauf[] {
+  const f = fensterVon(e, t.ref);
+  if (!t.ref.agentType) return ladeSitzung(t.pfad, f, e.epics);
+  return ladeSitzung(t.pfad, f, e.epics, t.ref.agentType).slice(0, 1);
 }
 
 /**

@@ -1,10 +1,10 @@
-# agent-skills
+<h1><img src="assets/icon.svg" width="48" height="48" alt="" align="top"> agent-skills</h1>
 
 Claude-Code-Skills, mit denen Agenten freigegebene Epics aus der Forge (Gitea oder GitHub)
 umsetzen: vom Issue bis zum Pull Request, in parallelen Paketen, jedes geprüft. Ein Programm, der
 Flotten-Treiber, führt mehrere solcher Läufe gleichzeitig auf einem oder mehreren Claude-Konten;
-die Flottenbrücke zeigt, was dich braucht, nimmt deine Antworten an und reicht Handlungen bei
-Blockaden an den Treiber. Gemergt wird nur so, wie der Adapter des Projekts es erlaubt.
+die Flottenbrücke zeigt, was dich braucht, und nimmt deine Antworten an. Gemergt wird nur so, wie
+der Adapter des Projekts es erlaubt.
 
 ## Das Bild
 
@@ -13,35 +13,46 @@ Blockaden an den Treiber. Gemergt wird nur so, wie der Adapter des Projekts es e
   <img src="assets/readme/ablauf.png" width="880" alt="Vom Epic zum Merge, in drei Bändern. Start, Frage 1, wer startet den Lauf: Ein Epic oder eine Spec mit dem Label ready-for-agent startet entweder über den Treiber als Regelweg (flotte fahren, ein claude -p je Epic, verteilt auf Konto 1, 2 und 3) oder durch dich im Chat mit /epic #nr. Die Flottenbrücke zeigt den Stand und nimmt deine Antworten und Handlungen an; nur der Treiber spricht mit ihr, er meldet jeden Takt und holt ab. Lauf, /epic als Orchestrator: Das Vorab-Tor schneidet das Epic in Pakete und fragt einmal; bis zu drei Pakete laufen gleichzeitig in eigenen Worktrees; Review, Verifikation und Sofortmerge je Paket auf den Epic-Branch; am Ende ein Pull Request mit Gate-Block, der Lauf mergt nie. Merge, Frage 2, wer mergt, allein der Adapterschlüssel merge: bei merge: mensch mergst du; bei merge: nach_gate ein Akteur außerhalb des Laufs, die Merge-Schlange des Treibers oder merge.ps1 des Leitstands, nur mit gültigem Gate-Nachweis. Danach /epic-aufraeumen. Die beiden Fragen hängen nicht zusammen.">
 </picture>
 
-Die beiden Fragen hängen nicht zusammen: Ob der Treiber oder du im Chat einen Lauf startet, ändert
-nichts daran, wer mergt. **Welchen Weg wann:** Der Treiber ist der Regelweg, auch für ein einzelnes
-Epic; er verteilt Läufe auf Konten, bremst und legt dir nur die Fragen vor, die bei dir liegen.
-Einen Lauf im Chat startest du, wenn du ein Epic interaktiv begleiten willst, etwa das Vorab-Tor
-selbst beantworten oder zuschauen. `/epic-nacharbeit` gehört vor den Merge, solange der PR offen
-ist (danach braucht sie einen eigenen PR); unter dem Treiber läuft sie von selbst.
+Ob der Treiber oder du im Chat einen Lauf startet, ändert nichts daran, wer mergt. **Welchen Weg
+wann:** Der Treiber ist der Regelweg, auch für ein einzelnes Epic; er verteilt Läufe auf Konten,
+bremst bei vollem Speicher oder Limit, legt dir nur die Fragen vor, die bei dir liegen, und fährt
+`/epic-nacharbeit` von selbst. Einen Lauf im Chat startest du, wenn du ein Epic begleiten willst,
+etwa das Vorab-Tor selbst beantworten; dann gehört `/epic-nacharbeit` vor den Merge, solange der PR
+offen ist.
 
 Ein **Lauf** (`/epic`) liest das Epic, schneidet es in Pakete, fragt einmal am Vorab-Tor und setzt
 dann bis zu drei Pakete gleichzeitig um, jedes in eigenem Worktree mit Implementer, Reviewer und
-Nachprüfung. Er endet mit einem offenen Pull Request. Der **Treiber** startet viele Läufe, verteilt
-sie auf Konten, bremst bei vollem Speicher oder Limit und mergt nur bei `merge: nach_gate`.
-Was ein Lauf fragt, geht so weiter:
+Nachprüfung. Er endet mit einem offenen Pull Request. Den Stand zeigt im Einzellauf die
+**Lauftafel** im Browser; unter dem Treiber gibt es keine, dort zeigt ihn die Brücke. Was ein Lauf
+fragt, geht so weiter:
 
 <picture>
   <source media="(max-width: 600px)" srcset="assets/readme/rueckfrage-schmal.png">
-  <img src="assets/readme/rueckfrage.png" width="880" alt="Wenn ein Lauf fragt, in acht Schritten zwischen Lauf, Treiber, Admiral, Brücke und Mensch. 1: Der Lauf schickt dem Treiber FLOTTE-FRAGE, den Frageblock. 2: Der Treiber gibt den Frageblock dem Admiral, einem eigenen claude -p. 3: Der Admiral entscheidet, was bis zum Merge umkehrbar ist, mit Grund und Marke. 4: Den Rest legt der Treiber als Fragekarte in „Braucht dich“ auf die Brücke. 5: Der Mensch antwortet dort mit einem Tipp auf die Empfehlung, mit einer Option oder mit Freitext, mit PIN. 6: Der Treiber holt die Antwort im nächsten Takt ab und quittiert sie. 7: Der Lauf macht mit den Antworten weiter. 8: Mit „Zurücknehmen“ geht bis zum Merge eine neue Entscheidung über Brücke und Treiber an den Lauf. Jede Entscheidung steht danach als Kommentar am Issue.">
+  <img src="assets/readme/rueckfrage.png" width="880" alt="Wenn ein Lauf fragt, in acht Schritten zwischen Lauf, Treiber, Admiral, Brücke und Mensch. 1: Der Lauf schickt dem Treiber FLOTTE-FRAGE, den Frageblock. 2: Der Treiber gibt den Frageblock dem Admiral, einem eigenen claude -p. 3: Der Admiral entscheidet, was bis zum Merge umkehrbar ist, mit Grund und Marke. 4: Den Rest legt der Treiber als Fragekarte in „Braucht dich“ auf die Brücke. 5: Der Mensch antwortet dort mit einem Tipp auf die Empfehlung, mit einer Option oder mit Freitext, mit PIN. 6: Der Treiber holt die Antwort im nächsten Takt ab und quittiert sie. 7: Der Lauf macht mit den Antworten weiter. 8: Mit „Zurücknehmen“ geht bis zum Merge eine neue Entscheidung über Brücke und Treiber an den Lauf. Jede Entscheidung steht danach als Kommentar am Issue; bis zum Merge nimmst du jede in der Detailansicht des Epics zurück.">
 </picture>
 
-Jede Entscheidung, ob vom Admiral oder von dir, steht danach als Kommentar am Issue.
+## Die Brücke
 
-Die Brücke ordnet alles danach, was du tun musst: **Braucht dich** (Fragen und blockierte Epics,
-mit „Neu einreihen“ und „Aufgeben“), **Unterwegs** (Läufe mit Lebenszeichen, Kind-Tickets und
-Merge-Schlange) und **Erledigt heute** (Gemergtes und die Entscheidungen des Admirals, die du
-zurücknehmen kannst). Auf dem Handy ist nur die erste Ebene offen.
+Fünf Bereiche, oben als Pillen, auf dem Handy unten in Daumenreichweite; der Zähler „Braucht dich“
+steht auf jeder Seite, die Schiffsliste links zeigt alle Läufe und Sitzungen.
+
+- **Brücke:** was du tun musst, in drei Ebenen: **Braucht dich** (Fragen und blockierte Epics, mit
+  „Neu einreihen“ und „Aufgeben“), **Unterwegs** (Läufe mit Lebenszeichen und Merge-Schlange),
+  **Erledigt heute**. Die **Detailansicht** eines Epics zeigt je Paket Phase, Runde und Stufe und
+  darunter die **Entscheidungen bis zum Merge**: deine und die des Admirals, jede bis zum Merge
+  zurücknehmbar.
+- **Holodeck:** die Prototypen der Projekte zum Ansehen, als Schreibtisch oder Telefon.
+- **Sternenkarte:** Projekte mit ihrem Backlog und der Reihenfolge der Epics.
+- **Maschinenraum:** Tanks je Konto, RAM und Platte je Rechner, Bremsstufe und ihr Grund.
+- **Logbuch:** Ereignisse, Entscheidungen des Admirals und deine Handlungen.
 
 <picture>
-  <source media="(max-width: 600px)" srcset="assets/flottenbruecke/board-v2-handy.png">
-  <img src="assets/flottenbruecke/board-v2.png" alt="Flottenbrücke v2 mit den Beispieldaten. Oben je Konto ein Tank mit dem Rest im 5-Stunden- und im Wochenfenster samt Reset-Zeit, dazu RAM und Platte. Ebene „Braucht dich“ mit zwei Karten: Epic #40 blockiert (Grund, Knöpfe Neu einreihen, Log ansehen, Aufgeben) und Frage 1 von #39 (Frage als Überschrift, Lage, Marke „nach außen sichtbar · bleibt“, warum sie bei dir liegt, Optionen A bis C mit ihrer Folge, Knopf „A nehmen · Empfehlung“, Freitext). Ebene „Unterwegs“ mit zwei Läufen (läuft seit, Paketleiste „1 von 3 fertig“, Lebenszeichen) und zwei Pull Requests in der Merge-Schlange; darunter die Zeile Bereit mit einem prio-Epic. Ebene „Erledigt heute“ mit zwei Entscheidungen des Admirals samt „Zurücknehmen“ und einem Merge. Unten das Logbuch als Laufband.">
+  <source media="(max-width: 600px)" srcset="flottenbruecke/doku/v3-bruecke-390.png">
+  <img src="flottenbruecke/doku/v3-bruecke-1440.png" alt="Flottenbrücke v3 mit den Beispieldaten. Oben das Logo, die Befehlszeile, der Zähler „Braucht dich 2“ und die fünf Bereiche als Pillen. Links die Schiffsliste mit den Läufen des Projekts und den Sitzungen. Rechts der Kopf mit Tanks je Konto, RAM und Platte, darunter die Ebene „Braucht dich“ mit Epic #40 blockiert (Neu einreihen, Log ansehen, Aufgeben) und Frage 1 von #39 mit den Optionen A bis C und dem Knopf „A nehmen · Empfehlung“. Darunter „Unterwegs“, unten das Logbuch als Laufband.">
 </picture>
+
+Bilder aller Bereiche und der Detailansicht, je 1440 und 390 px breit: [`flottenbruecke/doku/`](flottenbruecke/doku/);
+alles Weitere im [README der Brücke](flottenbruecke/README.md).
 
 ## Schnellstart
 
@@ -102,9 +113,10 @@ zurücknehmen kannst). Auf dem Handy ist nur die erste Ebene offen.
 | `epic-nacharbeit` | Offene Punkte eines Laufs in Fragerunden klären und erledigen | [für Menschen](epic-nacharbeit/README.md), [Skill](epic-nacharbeit/SKILL.md) |
 | `epic-aufraeumen` | Nach dem Merge Worktrees und Branches abräumen, nur nachweislich Gemergtes | [für Menschen](epic-aufraeumen/README.md), [Skill](epic-aufraeumen/SKILL.md) |
 | `flotte` | Treiber: mehrere Läufe als `claude -p` auf mehreren Konten, Bremsen, Merge-Schlange, Logbuch | [für Menschen](flotte/README.md), [Skill](flotte/SKILL.md), [Umschalten](flotte/references/umschalten.md) |
-| `flottenbruecke/` | Dauerdienst im LAN: Board aller Einsätze, Antworten per PIN; steuert sonst nichts | [README](flottenbruecke/README.md), [Schnittstelle](flottenbruecke/SCHNITTSTELLE.md) |
+| `flottenbruecke/` | Dauerdienst im LAN: fünf Bereiche über alle Einsätze, Antworten per PIN; steuert sonst nichts | [README](flottenbruecke/README.md), [Schnittstelle](flottenbruecke/SCHNITTSTELLE.md) |
 | `epic-flotte` | Dasselbe wie `flotte`, aber als Admiral-Chat | [für Menschen](epic-flotte/README.md), [Skill](epic-flotte/SKILL.md) |
 | `epic-lagebesprechung` | Im laufenden Chat abholen, was bei dir liegt | [für Menschen](epic-lagebesprechung/README.md) |
+| `bereitschaftsraum` | Gespräch in Fragerunden, aus dem eine Mission, ein Missionsziel oder nichts entsteht; angelegt wird über `flotte auftrag` | [Skill](bereitschaftsraum/SKILL.md) |
 | `arbeitspferd/` mit `leitstand` | Weitere Konten einrichten; aus der Hauptsitzung Aufträge an Konto 2 geben, überwachen, PRs nach `merge` mergen | [README](arbeitspferd/README.md), [Leitstand für Menschen](arbeitspferd/leitstand/README.md), [Skill](arbeitspferd/leitstand/SKILL.md) |
 | `agents/` | Agent-Typen der Modellstaffel (Kundschafter, Implementer, Reviewer, Lauf) | [Staffel](epic/README.md#modelle-und-denkstufen) |
 | `mail-antwort` | Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen | [für Menschen](mail-antwort/README.md) |

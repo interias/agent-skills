@@ -153,6 +153,7 @@ Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 | `plan_artifact` | `publish` (Lauftafel als Artifact veröffentlicht) oder `file` (Lauftafel nur als Datei, Pfad im Eröffnungskommentar) | `publish` |
 | `gate_approvals` | zusätzliche Punkte fürs Vorab-Tor, etwa bezahlte Läufe oder Blindsatz | keine |
 | `no_access` | Systeme, auf die ein Lauf keinen Zugriff hat. Ein Paket, das sie braucht, ist ein Tor-Punkt | keine |
+| `lern_issue` | Nummer des Sammel-Issues „Lernvorschläge“. Nach jedem gemergten Epic-PR schreibt die Lernschleife (`flotte lernen`, billiges Modell) dort höchstens drei Vorschläge mit Beleg als einen Kommentar; umgesetzt wird nichts davon von selbst. Eine übernommene Regel trägt die Herkunft `Lernschleife L<n>, <Datum>` | keines: keine Lernschleife |
 
 ### Merge (#14)
 

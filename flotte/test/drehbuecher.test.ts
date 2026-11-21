@@ -93,6 +93,46 @@ describe('Drehbücher (#14)', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
+  it('D3c: a run that asks a parked question again waits for the person; no second admiral call, comment or bridge question', async () => {
+    const t = aufbau({ pr: () => ({ state: 'MERGED' }) });
+    const buch = drehbuch([
+      lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'p2' }]) }]),
+      admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]),
+      lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'p2' }]) }]),
+      lauf(3, [{ text: ende(3, 13) }]),
+    ]);
+    const welt = { ...t.welt, melde: (zeile: string) => {
+      t.welt.melde(zeile);
+      if (/wiederholt: liegen schon beim Menschen/.test(zeile)) setTimeout(() => antworten([t.repo, '3', '1', 'Nimm A']), 300);
+    } };
+    const z = await fahre(t.einstellung(buch, [3]), welt);
+    const laeufe = fuer(buch.gesehen(), 3);
+    expect(laeufe).toHaveLength(3);
+    expect(laeufe[2].eingabe).toMatch(/liegen schon beim Menschen[\s\S]*Antworten des Menschen[\s\S]*1\. Nimm A/);
+    expect(buch.gesehen().filter((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))).toHaveLength(1);
+    expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**FRAGE AN DEN MENSCHEN'))).toHaveLength(1);
+    expect(z.fragen).toHaveLength(1);
+    expect(index(t.p.zeitleiste, /Antwort des Menschen/)).toBeLessThan(t.p.zeitleiste.findLastIndex((x) => /Lauf fortgesetzt/.test(x)));
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
+  it('D3d: open repeats of a question answered since are closed at start, with that answer', async () => {
+    const t = aufbau();
+    const z0 = leer(t.repo);
+    const f = { epic: 3, nr: 1, frage: 'Haltepunkt 1: weiter?', betrifft: 'p2', empfehlung: 'A', wartet: 'p2', ganzerLauf: false };
+    z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig' } as never;
+    z0.fragen = [
+      { ...f, seit: '2026-11-21T16:30:00.000Z', beantwortet: 'A', beantwortetAm: '2026-11-21T16:46:00.000Z' },
+      { ...f, seit: '2026-11-21T16:40:00.000Z' },
+      { ...f, frage: 'Etwas anderes?', betrifft: 'p9', seit: '2026-11-21T16:41:00.000Z' },
+      { ...f, seit: '2026-11-21T16:50:00.000Z' },
+    ] as never;
+    schreibeZustand(flotteDir(t.repo), z0);
+    const z = await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+    expect(z.fragen.map((x) => x.beantwortet ?? null)).toEqual(['A', 'A', null, null]);
+    expect(z.fragen[1].wiederholungVon).toBe('2026-11-21T16:30:00.000Z');
+  }, T);
+
   it('D4: a run that ends without block is asked once, then aborted with its state at the issue', async () => {
     const t = aufbau();
     const buch = drehbuch([lauf(3, [{ text: 'Ich habe aufgehört.' }]), lauf(3, [{ text: 'Immer noch kein Block.' }])]);
@@ -327,6 +367,20 @@ describe('Drehbücher (#14)', () => {
     expect(z.epics['3']).toMatchObject({ stufe: 'blockiert' });
     expect(z.epics['3'].notiz).toMatch(/Erlaubnis verweigert: Bash/);
     expect(readFileSync(join(flotteDir(t.repo), 'tafel.html'), 'utf8')).toMatch(/Erlaubnis verweigert: Bash/);
+  }, T);
+
+  it('#54: a question block goes before permission_denials: the questions are open, the denials an event and noted at the question, no blockade', async () => {
+    const t = aufbau();
+    const verweigert = [{ tool_name: 'Bash', tool_input: { command: 'rm -rf tmp-1' } }, { tool_name: 'Bash', tool_input: { command: 'rm -rf tmp-2' } }];
+    const buch = drehbuch([lauf(3, [{ text: frage(3, 'abbruch', [{ betrifft: 'Lauf' }]), verweigert }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 1500 }), t.welt);
+    expect(z.epics['3'].stufe).toBe('frage');
+    const offen = z.fragen.filter((f) => f.epic === 3 && !f.beantwortet);
+    expect(offen).toHaveLength(1);
+    expect(offen[0].lage).toBe('Sachverhalt\nIm selben Zug abgelehnt: Bash, Bash.');
+    expect(index(t.p.zeitleiste, /Erlaubnis verweigert: Bash, Bash; der Zug endete mit FLOTTE-FRAGE, nicht blockiert/)).toBeGreaterThanOrEqual(0);
+    expect(index(t.p.zeitleiste, /blockiert:/)).toBe(-1);
+    expect(t.p.kommentare.some((k) => k.text.startsWith('**FRAGE AN DEN MENSCHEN') && k.text.includes('Im selben Zug abgelehnt: Bash, Bash.'))).toBe(true);
   }, T);
 
   it('D20: a second driver in the same repository refuses to start', async () => {

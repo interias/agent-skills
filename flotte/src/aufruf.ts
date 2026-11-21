@@ -66,7 +66,7 @@ export function pwshJson(aufrufer: Aufrufer, skript: string, args: string[]): { 
 }
 
 export async function pwshJsonAsync(aufrufer: AsyncAufrufer, skript: string, args: string[], opts: { timeoutMs?: number; cwd?: string; env?: Record<string, string> } = {}): Promise<{ code: number; json: unknown; stderr: string }> {
-  return jsonAus(await aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args], opts));
+  return jsonAus(await aufrufer('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, ...args], { timeoutMs: opts.timeoutMs, cwd: opts.cwd, env: opts.env }));
 }
 
 function jsonAus(r: Ergebnis): { code: number; json: unknown; stderr: string } {

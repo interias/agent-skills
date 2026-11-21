@@ -24,6 +24,27 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/epic-nacharbeit` abarbeiten |
 
+## Einstellungen ohne Neustart
+
+Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brücke (Maschinenraum,
+mit PIN) lassen sich ändern: Epics gleichzeitig (1–4), Pakete je Epic gleichzeitig (1–3), die Konten
+der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
+100 % leerfahren“, die RAM-Schwelle, das Plattenminimum und der Leerlauf. Der Treiber prüft die
+Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
+
+- **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
+  startet nur weniger, ein entferntes Konto startet nichts Neues, seine Läufe bleiben dort. Die
+  Pakete je Epic stehen im Auftrag an `/epic` („höchstens N Pakete gleichzeitig“); eine Änderung
+  erreicht laufende Läufe mit dem nächsten Fortsetzen.
+- **Jede Änderung** steht als Ereignis und im Flottenlogbuch („Einstellung … von … → auf …, Mensch
+  über die Brücke“). Die Brücke zeigt je Einstellung den Wert und woher er kommt (Start, Brücke,
+  Standard).
+- **Neustart:** Die Werte der Brücke stehen in `zustand.json` und gelten weiter. Ein Startparameter,
+  der ausdrücklich gesetzt ist, gewinnt beim Start; das Ereignis nennt beide Werte.
+- **Nicht einstellbar:** Merge-Regel (Adapter), Rechte, Geheimnisse, Updates.
+
+Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
+
 ## Anhalten und neu starten
 
 Ein Lauf ist ein eigener `claude -p` in einer eigenen Prozessgruppe. Er schreibt sein Log selbst
@@ -62,11 +83,73 @@ zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/READ
    `nach_gate` reiht er den PR in die Merge-Schlange und mergt mit `merge.ps1`, nur mit
    Gate-Nachweis aus dem Log des Laufs (fehlt er, fährt er das Gate selbst).
 6. **Nach dem Merge** die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
-   lokale Epic-Branch, wenn er ganz in der Basis liegt).
+   lokale Epic-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
+   nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
+   in dieses Issue. Umgesetzt wird nichts davon von selbst; du wählst aus.
 
 Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-Issue mit Label
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und
 `flotte zuschauen` stehen in [`SKILL.md`](SKILL.md).
+
+## Aufträge
+
+Missionen und Missionsziele legt nur der Auftragsschreiber an (agent-skills/ADR-0002), nie
+`gh issue create` von Hand:
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" auftrag <repo> <entwurf.md> [--starten] [--trocken]
+```
+
+`<repo>` ist der Checkout des Ziel-Repositorys. Aus seinem Adapter (`.claude/epic.md`) liest der
+Befehl `forge` und `api` (ohne `api`: das GitHub-Repository von `origin`), `epic_label`,
+`ready_label` und die Abschnitte `acceptance_section`, `verification_section` und
+`modules_section` mit ihren Standards (`epic/references/adapter.md`, „Issues“). Er spricht GitHub
+(über `gh`) und Gitea (über die API: `forge: gitea` und `api: <host>/api/v1/repos/<owner>/<repo>`,
+Anmeldung mit `token_env`/`token_file` oder Basic Auth aus dem Git-Credential-Speicher). Gitea kennt
+keine Sub-Issues: die Mission ist dort von ihren Missionszielen blockiert (Abhängigkeit), die Liste
+im Body bleibt.
+
+**Entwurf:** Markdown. Jede Überschrift erster Ebene beginnt ein Issue: höchstens eine
+`# Mission: <Titel>` ganz oben, darunter ein oder mehrere `# Missionsziel: <Titel>`. Ohne Mission
+ist genau ein Missionsziel erlaubt. Was unter einer Überschrift steht, wird der Text des Issues;
+Abschnitte darin sind `##`-Überschriften.
+
+```markdown
+# Mission: Bereitschaftsraum und Auftragsschreiber
+
+Ein, zwei Absätze, worum es geht.
+
+# Missionsziel: Auftragsschreiber für GitHub
+
+## Was
+…
+
+## Abnahmekriterien
+- …
+
+## Verifikationsweg
+…
+
+## Betroffene Module
+- `flotte/`
+```
+
+**Prüfung:** Jedes Missionsziel braucht einen nicht leeren Abnahmeabschnitt (Standard: der erste
+vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`) und
+`## Verifikationsweg`; ohne sie überspringt ein Außeneinsatz das Ziel. Fehlt einer, bricht der
+Befehl mit allen Lücken ab, bevor er irgendetwas anlegt. `## Betroffene Module` ist wie bei `/epic`
+freiwillig; fehlt er, steht ein Hinweis in `hinweise`.
+
+**Was entsteht:** Zuerst die Mission mit `epic_label`, dann die Missionsziele in der Reihenfolge des
+Entwurfs, jedes mit `Teil von #<Mission>` als erster Zeile und als Sub-Issue der Mission verknüpft.
+Zuletzt bekommt die Mission die Liste `## Missionsziele` (`- [ ] #<nr> <Titel>`) und die Zeile
+`> **Reihenfolge:** von oben nach unten, …`, wenn ihr Text keine eigene `Reihenfolge`-Zeile hat.
+Alle Issues tragen `needs-triage` (Sternzeit-Notiz), mit `--starten` stattdessen `ready_label`
+(Warp frei). Scheitert die Forge mittendrin, nennt die Meldung, was schon angelegt ist.
+
+**Ausgabe:** ein JSON-Objekt mit `forge`, `mission` und `ziele` (je Nummer, Link, Titel), den
+Labels und den Hinweisen. `--trocken` legt nichts an und zeigt stattdessen Titel, Labels und Text
+jedes Issues (Nummern als `#?`).
 
 ## Prognose
 
@@ -101,8 +184,32 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
 `flotte messen` gibt die Messungen unter `prognose` mit aus: Anzahl, Verteilungen, Pakete je Klasse
 und Trefferquote.
 
+## Messen
+
+`flotte messen <einsaetze.json>` (Form: `messung/einsaetze.beispiel.json`) liest die Transkripte
+der Läufe samt ihrer Subagenten und gibt je Einsatz unter anderem aus:
+
+- **`tokens`:** Eingabe, Cache-Schreiben, Cache-Lesen und Ausgabe, je Agent-Typ, je Epic und je
+  Paket, jeweils mit **Cache-Quote** (Lesen durch alles, was hineinging). Je Paket die Zahl der
+  Implementer- und Reviewer-Läufe, also die **Review-Runden**.
+- **`kontext_anteil`** je Agent-Typ: welcher Anteil seiner gewichteten Tokens auf Werkzeugergebnisse
+  einer Art fällt — Test, Gate, Diff (`git diff/show/log`), Lesen, übrige Shell. Ein Ergebnis kostet
+  einmal das Schreiben in den Cache und danach bei jedem weiteren Modellaufruf das Lesen. Der Anteil
+  ist die **Obergrenze** dessen, was eine Maßnahme sparen kann, die diese Ergebnisse kürzt.
+- **`verlauf`** (unter dem Treiber): Durchlaufzeit je Epic ohne Warten auf dich und die
+  Fehlerquote (Rückgabe an den Lauf, blockiert, abgebrochen).
+
+**Was das schon entschieden hat (21.11.2026).** Für das „Sparpaket“ aus der Skill-Recherche lief
+`flotte messen` über alle Läufe der drei Konten vom 1. bis 21.11.2026 (448 Implementer und
+Reviewer, 195 Pakete). Je Agent-Typ kosteten Testausgaben 0,4–0,5 % der Tokens, Diffs im Review
+4,2–4,5 %, Lesen 5–10 %, übrige Shell 5–17 %; die Cache-Quote lag bei 96–98 %. 13 von 195 Paketen
+brauchten eine zweite Review-Runde. Ein Hook, der Testausgabe kürzt, ein enger Nach-Review und ein
+Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wurden deshalb nicht
+übernommen (Begründung im Pull Request des Sparpakets).
+
 ## Bei dir
 
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
 wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
-Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch`.
+Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
+der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen (Brücke, Sternenkarte).

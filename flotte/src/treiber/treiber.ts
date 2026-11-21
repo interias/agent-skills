@@ -8,12 +8,13 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
-import { kontoAus, kurzname } from '../werkzeuge/konten.ts';
+import { kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
-import { type Bewertung, bewerte, lies as liesVerbrauch } from '../werkzeuge/verbrauch.ts';
+import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
+import { lerne } from '../befehle/lernen.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
@@ -21,6 +22,7 @@ import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHa
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
+import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, setze as setzeEinstellung, START_PARAMETER, type Wert, zeige } from './einstellungen.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -42,6 +44,8 @@ export interface Einstellung {
   admiralKonto: string | null;
   admiralEffort: string | null;
   pingModell: string;
+  /** model of the learning loop after a merge (Sparpaket, package 6) */
+  lernModell: string;
   leerlaufMs: number;
   taktMs: number;
   plattMinGb: number;
@@ -49,6 +53,15 @@ export interface Einstellung {
   ramWarn: number | null;
   /** --obergrenze: a fixed fleet limit instead of the one from the 7-day projection (dress rehearsals) */
   obergrenze: number | null;
+  /** #58: packages per epic at the same time; kept and reported only, /epic takes it from the order (#60) */
+  paketeJeEpic: number;
+  /** #58: the 5-hour thresholds of the usage brake in percent used */
+  verbrauchGelb: number;
+  verbrauchRot: number;
+  /** #58: CLAUDE_CONFIG_DIR of the accounts that run until the 5-hour window is used up */
+  leerfahren: string[];
+  /** #58: the settings given explicitly as start parameters; they win over the bridge's at the start */
+  gesetzt?: EinstellungName[];
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
   kontoMax: Record<string, number>;
   verbrauchMaxAlterMin: number;
@@ -90,11 +103,16 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     admiralKonto: null,
     admiralEffort: 'high',
     pingModell: 'haiku',
+    lernModell: 'haiku',
     leerlaufMs: 60 * 60_000,
     taktMs: 60_000,
     plattMinGb: 20,
     ramWarn: null,
     obergrenze: null,
+    paketeJeEpic: 3,
+    verbrauchGelb: 60,
+    verbrauchRot: 85,
+    leerfahren: [],
     kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
@@ -162,7 +180,18 @@ export interface MenschFrage {
   beantwortet?: string;
   /** when the answer came: the wait for the person is left out of the measurement (Prognose) */
   beantwortetAm?: string;
+  /** a repeat of an earlier question, closed with that one's answer (seit of the earlier one) */
+  wiederholungVon?: string;
 }
+
+/** the same question again: same wording, or the same parked packages (not the whole run) */
+export function gleicheFrage(a: { frage: string; betrifft?: string }, b: { frage: string; betrifft?: string }): boolean {
+  const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (a.frage && norm(a.frage) === norm(b.frage)) return true;
+  return !!a.betrifft && a.betrifft !== 'Lauf' && a.betrifft === b.betrifft;
+}
+
+const betrifftText = (b: string[] | 'Lauf' | null): string => (b === null ? '' : b === 'Lauf' ? 'Lauf' : b.join(', '));
 
 export interface Entscheidung {
   epic: number;
@@ -215,6 +244,15 @@ export interface FlottenEpic extends EpicZustand {
   aufgegebenAm?: string | null;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
+  /** the limit of packages at once changed on the bridge (#60), handed to the run when it is continued */
+  grenze?: number;
+  /**
+   * #61: paused by the person since (ISO): it does not start, and its next turn is held (auftrag stays)
+   * until it is continued; a turn under way runs to its end
+   */
+  pausiert?: string | null;
+  /** #61: the priority set on the bridge; it wins over the label for this epic */
+  prioritaet?: 'hoch' | 'normal';
   /** detail view (#51): the Agent calls of the runs with their returns, and how often a process was started or continued */
   agenten?: AgentEintrag[];
   starts?: number;
@@ -246,6 +284,10 @@ export interface FlottenZustand extends Zustand {
   schlange: number[];
   /** ids of the bridge actions already carried out: one fetched twice acts once */
   handlungenErledigt?: number[];
+  /** #58: the settings the person changed on the bridge, as the bridge sees them; they outlive a restart */
+  einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string }>>;
+  /** #61: epics taken into the deployment on the bridge; they join it again after a restart until they are done */
+  aufgenommen?: number[];
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -343,6 +385,13 @@ class Treiber {
   sitzungen: BerichtSitzung[] = [];
   sitzungenGelesen = 0;
   sitzungenLaeuft = false;
+  /** #58: where each setting comes from and since when; --konten as given at the start (its standard) */
+  herkunft = new Map<EinstellungName, { herkunft: Herkunft; seit: string }>();
+  startKonten: string[] = [];
+  /** #61: the released epics of the forge outside the deployment, read for the bridge at most every PAKETE_MS, and their titles */
+  freigegeben: number[] = [];
+  freigegebenZeit = 0;
+  freiTitel = new Map<number, string>();
 
   constructor(
     readonly e: Einstellung,
@@ -373,9 +422,17 @@ class Treiber {
     };
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
     if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
+    this.einstellungenLaden(new Date(anfang).toISOString());
     if (this.e.auto) {
       this.e.epics = this.einsammeln(adapterAus(this.e.repo));
       this.gesammelt = this.w.jetzt();
+    }
+    // #61: taken in on the bridge, the epic stays in the deployment until it is done
+    this.z.aufgenommen = (this.z.aufgenommen ?? []).filter((n) => !['gemergt', 'fertig'].includes(this.z.epics[n]?.stufe ?? '') && !this.z.epics[n]?.aufgegebenAm);
+    const wieder = this.z.aufgenommen.filter((n) => !this.e.epics.includes(n));
+    if (wieder.length) {
+      this.e.epics = [...this.e.epics, ...wieder];
+      this.ereignis(null, `Über die Brücke aufgenommen, bleibt im Einsatz: ${wieder.map((n) => `#${n}`).join(', ')}`);
     }
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
@@ -389,7 +446,10 @@ class Treiber {
     }
     this.messungen = liesMessungen(this.dir);
     this.wiederaufnehmen();
+    // #61: a pause outlives the restart in the holder file as well; a field the state no longer carries goes
+    for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
     if (this.e.bruecke) this.bruecke = new Bruecke(this.e.bruecke, this.e.brueckeToken);
+    this.wiederholungenSchliessen();
 
     for (;;) {
       const halt = this.anhaltenGewuenscht();
@@ -405,6 +465,7 @@ class Treiber {
         this.belege();
       }
       this.paketeLesen();
+      this.freigegebenLesen();
       this.speichern();
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
@@ -526,7 +587,7 @@ class Treiber {
       admiral: this.e.admiralName,
       brake,
       ram: this.z?.ram ?? [],
-      epics: Object.values(this.z?.epics ?? {}).map((ep) => ({ number: ep.nr, stage: stage[ep.stufe] ?? 'waiting', carrier: 'agent' as const, paused: Boolean(ep.auftrag) && !this.laufend.has(ep.nr), note: ep.notiz })),
+      epics: Object.values(this.z?.epics ?? {}).map((ep) => ({ number: ep.nr, stage: stage[ep.stufe] ?? 'waiting', carrier: 'agent' as const, paused: (Boolean(ep.auftrag) && !this.laufend.has(ep.nr)) || Boolean(ep.pausiert), note: ep.notiz })),
       questions: (this.z?.fragen ?? []).filter((f) => !f.beantwortet).map((f) => ({ number: f.epic, text: f.frage })),
       history: { deployments: 0, max_runs: this.z?.statistik.maxLaeufe ?? 0, all_green: 0 },
     });
@@ -579,7 +640,7 @@ class Treiber {
     if (genug !== this.platteGenug) this.ereignis(null, genug ? 'Platte wieder über der Schwelle' : `Platte: ${frei ?? 'unbekannt'} GB frei, Schwelle ${this.e.plattMinGb} GB: kein Start`);
     this.platteGenug = genug;
     for (const k of this.alleKonten()) {
-      const b = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin);
+      const b = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k));
       const alt = this.bewertung.get(k)?.stufe;
       if (alt && alt !== b.stufe) this.ereignis(null, `Verbrauch ${this.kontoName(k)}: ${b.stufe} (${b.grund})`);
       if (k === this.e.admiralKonto && b.stufe !== 'gruen' && alt !== b.stufe) this.admiralWarnung(b);
@@ -595,10 +656,18 @@ class Treiber {
     };
   }
 
-  /** the accounts of the runs and, when it is not one of them, the admiral's (follow-up check of #27) */
+  /**
+   * the accounts of the runs and, when it is not one of them, the admiral's (follow-up check of #27);
+   * #58: also an account taken off on the bridge while an epic on it is open (its runs stay there)
+   */
   alleKonten(): string[] {
     const a = this.e.admiralKonto;
-    return a && !this.e.konten.includes(a) ? [...this.e.konten, a] : this.e.konten;
+    const offen = Object.values(this.z?.epics ?? {}).flatMap((ep) => (ep.konto && !ENDE.has(ep.stufe) && existsSync(ep.konto) ? [ep.konto] : []));
+    return [...new Set([...this.e.konten, ...(a ? [a] : []), ...offen])];
+  }
+
+  schwellen(k: string): Schwellen {
+    return { gelb: this.e.verbrauchGelb, rot: this.e.verbrauchRot, leerfahren: this.e.leerfahren.includes(k) };
   }
 
   /** Advance warning: from red on, the admiral's questions go to the person without an admiral call. */
@@ -610,7 +679,8 @@ class Treiber {
 
   kontoName(k: string): string {
     const i = this.e.konten.indexOf(k);
-    return i < 0 && k === this.e.admiralKonto ? 'Admiral-Konto' : `Konto ${i + 1}`;
+    if (i >= 0) return `Konto ${i + 1}`;
+    return k === this.e.admiralKonto ? 'Admiral-Konto' : kurzname(k, this.e.admiralKonto);
   }
 
   obergrenze(): number {
@@ -637,7 +707,7 @@ class Treiber {
       this.nebenbei(
         this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] }).then((r) => {
           this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
-          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin));
+          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k)));
         }),
       );
     }
@@ -660,7 +730,12 @@ class Treiber {
   // ---- starting and continuing runs
 
   startText(nr: number): string {
-    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${TAFEL_AUS}`;
+    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${this.grenzText()} ${TAFEL_AUS}`;
+  }
+
+  /** The limit of packages at once for /epic (epic/SKILL.md, Phase 4, "Das Fenster"). */
+  grenzText(): string {
+    return `Auftrag: höchstens ${this.e.paketeJeEpic} Pakete gleichzeitig.`;
   }
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
@@ -684,6 +759,11 @@ class Treiber {
       text += `\nWiderruf des Menschen, als nächstes Paket umsetzen (liegt dein Pull Request schon offen: als Punkt der Nacharbeit):\n${ep.widerrufe.join('\n')}`;
       ep.widerrufe = [];
     }
+    if (resume && ep.grenze !== undefined) {
+      text += `\nGeänderter ${this.grenzText()} Gilt ab dem nächsten frei werdenden Platz, laufende Pakete laufen zu Ende.`;
+    }
+    // a fresh start carries the current limit in its order already
+    delete ep.grenze;
     const laeufe = join(this.dir, 'laeufe');
     mkdirSync(laeufe, { recursive: true });
     ep.log = join(laeufe, `${nr}-${this.w.jetzt()}-${this.z.statistik.starts}.jsonl`);
@@ -752,8 +832,27 @@ class Treiber {
     const d = join(this.dir, 'halten');
     mkdirSync(d, { recursive: true });
     const f = join(d, `${nr}.json`);
-    if (!existsSync(f)) writeFileSync(f, JSON.stringify({ epic: nr, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString() }));
+    const pausiert = this.z.epics[nr]?.pausiert;
+    if (!existsSync(f)) writeFileSync(f, JSON.stringify({ epic: nr, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString(), ...(pausiert ? { pausiert } : {}) }));
     return f;
+  }
+
+  /**
+   * #61: the pause in the holder file of a running epic. The run sees the file as EPIC_LOCK_HOLDER;
+   * ram.ps1 answers hold while it carries pausiert, so the run starts no further package and ends its
+   * turn with FLOTTE-FRAGE ram. Only the field changes; a missing or unreadable file stays as it is.
+   */
+  pauseVermerken(ep: FlottenEpic): void {
+    const f = join(this.dir, 'halten', `${ep.nr}.json`);
+    if (!existsSync(f)) return;
+    try {
+      const j = JSON.parse(readFileSync(f, 'utf8')) as Record<string, unknown>;
+      if (ep.pausiert) j.pausiert = ep.pausiert;
+      else delete j.pausiert;
+      writeFileSync(f, JSON.stringify(j));
+    } catch {
+      this.ereignis(ep.nr, 'Haltedatei unlesbar, die Pause erreicht den laufenden Zug nicht');
+    }
   }
 
   loslassen(nr: number): void {
@@ -762,7 +861,8 @@ class Treiber {
 
   verteile(): void {
     for (const ep of Object.values(this.z.epics)) {
-      if (!ep.auftrag || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
+      // #61: a paused epic keeps its next turn until the person continues it
+      if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
       const a = ep.auftrag;
       ep.auftrag = null;
       const fortsetzen = a.resume && Boolean(ep.sitzung);
@@ -786,10 +886,13 @@ class Treiber {
     if (!gruen.length) return;
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
-    const im = this.bilder.filter((b) => {
-      const s = this.epic(b.nr).stufe;
-      return s === 'wartend' || laufend.includes(b.nr) || gemergt.includes(b.nr);
-    });
+    // #61: a paused epic does not start; the priority of the bridge wins over the label
+    const im = this.bilder
+      .filter((b) => {
+        const s = this.epic(b.nr).stufe;
+        return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
+      })
+      .map((b) => ({ ...b, prio: this.prio(b.nr) }));
     const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze() });
     for (const w of plan.wartend) {
       const notiz = `wartet auf den Merge von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
@@ -824,6 +927,12 @@ class Treiber {
     }
   }
 
+  /** the priority in effect (#61): the one set on the bridge, else the label on the epic or a child */
+  prio(nr: number): boolean {
+    const p = this.epic(nr)?.prioritaet;
+    return p ? p === 'hoch' : Boolean(this.bilder.find((b) => b.nr === nr)?.prio);
+  }
+
   aufKonto(k: string): number {
     return Object.values(this.z.epics).filter((ep) => ep.konto === k && this.laufend.has(ep.nr)).length;
   }
@@ -848,10 +957,15 @@ class Treiber {
     if (r.fehler === 'werkzeuge') return this.halt(ep, 'blockiert', `${r.stderr.split('\n')[0]}. Der Lauf wurde beendet, bevor er arbeitete.`);
     const hookIds = new Set(r.sperren.map((s) => s.id));
     const fremd = r.verweigert.filter((d) => !hookIds.has(String((d as { tool_use_id?: string }).tool_use_id ?? '')));
+    const block = leseBlock(r.text);
+    let vermerk: string | undefined;
     if (fremd.length) {
-      // D19: on the board, blocked, never tried again in another form
       const was = fremd.map((d) => (d as { tool_name?: string }).tool_name ?? JSON.stringify(d).slice(0, 80)).join(', ');
-      return this.halt(ep, 'blockiert', `Erlaubnis verweigert: ${was}. Kein zweiter Versuch in anderer Form.`);
+      // D19: on the board, blocked, never tried again in another form
+      if (!block) return this.halt(ep, 'blockiert', `Erlaubnis verweigert: ${was}. Kein zweiter Versuch in anderer Form.`);
+      // #54: a block of the turn goes first; the denials are an event and noted at its questions
+      vermerk = `Im selben Zug abgelehnt: ${was}.`;
+      this.ereignis(nr, `Erlaubnis verweigert: ${was}; der Zug endete mit FLOTTE-${block.art === 'frage' ? 'FRAGE' : 'ENDE'}, nicht blockiert`);
     }
     if (r.sperren.length) {
       // acceptance finding B: guard.ps1 refused a call. In a window the run reads the reason and
@@ -862,7 +976,7 @@ class Treiber {
       ep.sperren = [...frueher, ...r.sperren.map((s) => s.regel)];
       this.ereignis(nr, `Hook-Sperre: ${r.sperren.map((s) => s.regel).join('; ')}`);
       const doppelt = ep.sperren.find((x, i) => ep.sperren!.indexOf(x) !== i);
-      const grund = doppelt ? `Regel „${doppelt}" sperrte zweimal` : ep.sperren.length >= SPERREN_GRENZE ? `${ep.sperren.length} Hook-Sperren in diesem Epic` : !leseBlock(r.text) || r.fehler ? 'der Zug scheiterte daran' : null;
+      const grund = doppelt ? `Regel „${doppelt}" sperrte zweimal` : ep.sperren.length >= SPERREN_GRENZE ? `${ep.sperren.length} Hook-Sperren in diesem Epic` : !block || r.fehler ? 'der Zug scheiterte daran' : null;
       if (grund) return this.halt(ep, 'blockiert', `Gesperrt durch guard.ps1, ${grund}:\n\n${r.sperren.map((s) => `- ${s.text}`).join('\n')}`);
     }
     if (r.fehler === 'leerlauf') {
@@ -888,7 +1002,6 @@ class Treiber {
       await this.aufraeumen(nr);
       return this.halt(ep, 'blockiert', 'Netzfehler nach zwei Fortsetzungen');
     }
-    const block = leseBlock(r.text);
     if (!block) {
       if (r.fehler) {
         // D1: no result or exit code, the run never got going
@@ -912,7 +1025,7 @@ class Treiber {
       return this.halt(ep, 'abgebrochen', `Zug ohne Block, auch nach der Nachfrage. Letzter Stand des Laufs:\n\n${r.text.slice(-1500) || '(kein Text)'}`, true);
     }
     ep.nachfragen = 0;
-    if (block.art === 'frage') await this.frage(ep, block);
+    if (block.art === 'frage') await this.frage(ep, block, vermerk);
     else await this.ende(ep, block);
   }
 
@@ -936,15 +1049,42 @@ class Treiber {
 
   // ---- question blocks (D2, D3)
 
-  async frage(ep: FlottenEpic, block: FrageBlock): Promise<void> {
+  async frage(ep: FlottenEpic, block: FrageBlock, vermerk?: string): Promise<void> {
     const nr = ep.nr;
     if (block.phase === 'ram') {
+      if (ep.pausiert) {
+        // #61: ram.ps1 said hold because of the pause; verteile keeps the answer until fortsetzen
+        ep.auftrag = { resume: true, text: this.an(nr, 'Antwort auf FLOTTE-FRAGE ram: A) warten bis ok. Der Mensch hat die Pause aufgehoben, weiter.') };
+        ep.notiz = 'pausiert vom Menschen';
+        this.ereignis(nr, 'RAM-Frage wegen der Pause: weiter nach fortsetzen');
+        return;
+      }
       ep.auftrag = { resume: true, text: this.an(nr, 'Antwort auf FLOTTE-FRAGE ram: A) warten bis ok. Der Speicher ist wieder unter der Schwelle, weiter.') };
       ep.notiz = 'wartet auf RAM ok';
       this.ereignis(nr, 'RAM-Frage: weiter, sobald die Bremse frei ist');
       return;
     }
-    if (!block.fragen.length) return this.rohFrage(ep, block);
+    if (!block.fragen.length) return this.rohFrage(ep, block, vermerk);
+    // a run that was told to go on without the parked packages may ask the same again at once: the
+    // question already lies with the person, so neither the admiral nor the bridge sees it twice
+    // (or he answered while the run was busy, and the answer still waits to be passed on)
+    const nachgereicht = !!ep.nachzureichen?.length;
+    const offen = this.z.fragen.filter((x) => x.epic === nr && (!x.beantwortet || nachgereicht));
+    const neu = block.fragen.filter((f) => !offen.some((x) => gleicheFrage(x, { frage: f.frage, betrifft: betrifftText(f.betrifft) })));
+    if (neu.length < block.fragen.length) this.ereignis(nr, `${block.fragen.length - neu.length} Frage(n) wiederholt: liegen schon beim Menschen, nicht neu gestellt`);
+    if (!neu.length) {
+      const text = this.an(nr, `Antwort auf FLOTTE-FRAGE ${block.phase}: Diese Fragen liegen schon beim Menschen. Seine Antwort kommt mit dieser Nachricht; stelle sie nicht noch einmal.`);
+      if (nachgereicht) ep.auftrag = { resume: true, text };
+      else {
+        ep.stufe = 'frage';
+        ep.notiz = 'wartet auf den Menschen';
+        ep.festgehalten = text;
+      }
+      return;
+    }
+    block.fragen = neu;
+    // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
+    if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
     const konto = this.e.admiralKonto ?? ep.konto!;
     if (this.e.admiralKonto && this.bewertung.get(konto)?.stufe === 'rot') {
       // the admiral's own account would fail the call; the questions go to the person at once, with
@@ -1042,6 +1182,7 @@ class Treiber {
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
+    this.wiederholungenSchliessen();
     const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
     if (ep.stufe === 'frage' && !offen) {
       ep.stufe = 'laeuft';
@@ -1055,11 +1196,24 @@ class Treiber {
     return true;
   }
 
+  /** Open repeats of a question the person has answered since are closed with that answer (bridge shows each once). */
+  wiederholungenSchliessen(): void {
+    for (const x of this.z.fragen) {
+      if (x.beantwortet) continue;
+      const y = this.z.fragen.find((f) => f !== x && f.epic === x.epic && f.beantwortet && !f.wiederholungVon && (f.beantwortetAm ?? '') >= x.seit && gleicheFrage(f, x));
+      if (!y) continue;
+      x.beantwortet = y.beantwortet;
+      x.beantwortetAm = y.beantwortetAm;
+      x.wiederholungVon = y.seit;
+      this.ereignis(x.epic, `Wiederholte Frage ${x.nr} geschlossen: beantwortet mit der Frage von ${y.seit.slice(11, 19)}`);
+    }
+  }
+
   /** A question block without a parsable question: the whole block goes to the person (#28, Rückfall). */
-  rohFrage(ep: FlottenEpic, block: FrageBlock): void {
+  rohFrage(ep: FlottenEpic, block: FrageBlock, vermerk?: string): void {
     const nr = ep.nr;
     const zeit = new Date(this.w.jetzt()).toISOString();
-    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: '', optionen: [], grund: '', herkunft: 'Treiber: Block nicht zerlegbar', marke: 'Block unlesbar', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
+    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: vermerk ?? '', optionen: [], grund: '', herkunft: 'Treiber: Block nicht zerlegbar', marke: 'Block unlesbar', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
     kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — Der Block FLOTTE-FRAGE ${block.phase} ließ sich nicht in Fragen zerlegen. Wortlaut:\n\n${block.roh}\n\nAntworten, im Repository: \`flotte antworten . ${nr} 1 "<Antwort>"\``);
     this.ereignis(nr, `❓ FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut liegt beim Menschen`);
     ep.stufe = 'frage';
@@ -1103,6 +1257,8 @@ class Treiber {
     const ep = this.epic(h.epic);
     const jetzt = new Date(this.w.jetzt()).toISOString();
     const amIssue = (text: string) => kommentar(this.w.aufrufer, this.e.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
+    if (h.art === 'einstellen') return this.einstellen(h);
+    if (h.art === 'aufnehmen') return this.aufnehmen(h);
     if (!ep) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic gehört nicht zu diesem Einsatz`);
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
@@ -1125,6 +1281,7 @@ class Treiber {
       }
       return this.ereignis(h.epic, `Widerruf des Menschen zu Frage ${h.nr} (über die Brücke): ${text.slice(0, 120)}`);
     }
+    if (h.art === 'pausieren' || h.art === 'fortsetzen' || h.art === 'prioritaet') return this.steuern(h, ep);
     if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || ep.aufgegebenAm) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic ist ${ep.stufe}, nichts zu tun`);
     if (h.art === 'aufgeben') {
       ep.stufe = 'abgebrochen';
@@ -1140,7 +1297,10 @@ class Treiber {
     Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
     if (ep.sitzung && ep.konto) {
       ep.stufe = 'laeuft';
-      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Mensch hat dein Epic nach der Blockade neu eingereiht. Grund der Blockade war: ${grund}. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE. ${this.blockForm(ep.nr)}`) };
+      // #54: questions of the run still without an answer are said to be open, never decided by the run
+      const offen = this.z.fragen.filter((f) => f.epic === ep.nr && !f.beantwortet).map((f) => `${f.nr}. ${f.frage || 'Block nicht zerlegbar'}`);
+      const fragen = offen.length ? `\nOffen und ohne Antwort des Menschen:\n${offen.join('\n')}\nEntscheide sie nicht selbst. Stelle sie im nächsten FLOTTE-FRAGE erneut.` : '';
+      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Mensch hat dein Epic nach der Blockade neu eingereiht. Grund der Blockade war: ${grund}. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE. ${this.blockForm(ep.nr)}${fragen}`) };
     } else {
       ep.stufe = 'wartend';
       ep.konto = null;
@@ -1148,6 +1308,197 @@ class Treiber {
     }
     amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
     this.ereignis(h.epic, `neu eingereiht vom Menschen (über die Brücke)${ep.stufe === 'wartend' ? ', wartet auf einen Platz' : ', der Lauf setzt fort'}`);
+  }
+
+  // ---- steering epics (#61)
+
+  /** an event and a comment in the fleet logbook, like a setting */
+  imLogbuch(epic: number | null, text: string): void {
+    this.ereignis(epic, text);
+    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+  }
+
+  /**
+   * aufnehmen: an open epic with epic_label and the release label (on it or a child) joins the
+   * deployment now, checked against the forge here; ready_label, merge rule and gate stay as they are.
+   * It starts by the occupancy like every other epic and stays after a restart.
+   */
+  aufnehmen(h: BrueckenHandlung): void {
+    const nr = h.epic;
+    const nein = (grund: string) => this.ereignis(nr, `Aufnehmen über die Brücke abgelehnt: ${grund}`);
+    if (this.e.epics.includes(nr)) return nein('schon im Einsatz');
+    const ep = this.epic(nr);
+    if (ep && (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm)) return nein(`Epic ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    try {
+      if (!freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.includes(nr)) return nein(`kein offenes Epic mit ${this.adapter.epic_label} und ${this.adapter.ready_label}`);
+      this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, [...this.e.epics, nr]).bilder;
+    } catch (err) {
+      return nein(`Forge nicht lesbar (${String(err).slice(0, 200)})`);
+    }
+    this.e.epics = [...this.e.epics, nr];
+    this.z.epics[nr] ??= neuesEpic(nr);
+    (this.z.aufgenommen ??= []).push(nr);
+    this.freigegeben = this.freigegeben.filter((n) => n !== nr);
+    this.imLogbuch(nr, `Epic #${nr} in den Einsatz aufgenommen, ${HERKUNFT_BRUECKE}`);
+  }
+
+  /**
+   * pausieren, fortsetzen, prioritaet of an epic in the deployment. A pause stops nothing: a waiting
+   * epic does not start, a turn under way runs to its end (its ram.ps1 reads the pause from the
+   * holder file and holds before the next package start), the next turn (the admiral's answer, a
+   * continuation) waits in auftrag until fortsetzen hands it over unchanged. The priority orders the
+   * startable epics only; order edges and collisions keep their say (belege).
+   */
+  steuern(h: BrueckenHandlung, ep: FlottenEpic): void {
+    const nr = ep.nr;
+    const was = { pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität' }[h.art as 'pausieren' | 'fortsetzen' | 'prioritaet'];
+    const nein = (grund: string) => this.ereignis(nr, `${was} über die Brücke abgelehnt: ${grund}`);
+    if (!this.e.epics.includes(nr)) return nein('Epic ist nicht im Einsatz');
+    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Epic ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    if (h.art === 'prioritaet') {
+      const p = h.text?.trim();
+      if (p !== 'hoch' && p !== 'normal') return nein(`unbekannte Priorität ${JSON.stringify(h.text ?? null).slice(0, 40)}`);
+      const vorher = this.prio(nr) ? 'hoch' : 'normal';
+      ep.prioritaet = p;
+      return this.imLogbuch(nr, `Priorität von #${nr} von ${vorher} → auf ${p}, ${HERKUNFT_BRUECKE}`);
+    }
+    if (h.art === 'pausieren') {
+      if (ep.pausiert) return nein('schon pausiert');
+      ep.pausiert = new Date(this.w.jetzt()).toISOString();
+      this.pauseVermerken(ep);
+      if (ep.stufe === 'wartend') ep.notiz = 'pausiert vom Menschen';
+      const lage = this.laufend.has(nr) ? ', der laufende Zug läuft zu Ende, danach wartet es' : ep.stufe === 'wartend' ? ', startet nicht' : ', kein weiterer Zug';
+      return this.imLogbuch(nr, `Epic #${nr} pausiert${lage}; ${HERKUNFT_BRUECKE}`);
+    }
+    if (!ep.pausiert) return nein('nicht pausiert');
+    ep.pausiert = null;
+    this.pauseVermerken(ep);
+    if (ep.notiz === 'pausiert vom Menschen') ep.notiz = '';
+    this.imLogbuch(nr, `Epic #${nr} fortgesetzt${ep.auftrag && !this.laufend.has(nr) ? ', der zurückgehaltene Zug geht an den Lauf' : ''}; ${HERKUNFT_BRUECKE}`);
+  }
+
+  /** #61: the released epics outside the deployment for the bridge; a forge that does not answer keeps the last list */
+  freigegebenLesen(): void {
+    if (!this.bruecke || this.w.jetzt() - this.freigegebenZeit < PAKETE_MS) return;
+    this.freigegebenZeit = this.w.jetzt();
+    try {
+      this.freigegeben = freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.filter((n) => !this.e.epics.includes(n));
+    } catch {
+      // the list only offers aufnehmen; the driver asks the forge again when the action comes
+    }
+  }
+
+  /** the title of a released epic outside the deployment, read once */
+  freiTitelVon(nr: number): string {
+    if (!this.freiTitel.has(nr)) {
+      const r = this.w.aufrufer('gh', ['issue', 'view', String(nr), '--repo', this.e.forge, '--json', 'title']);
+      let t = '';
+      try {
+        t = r.code ? '' : String((JSON.parse(r.stdout) as { title?: string }).title ?? '');
+      } catch {
+        t = '';
+      }
+      this.freiTitel.set(nr, t);
+    }
+    return this.freiTitel.get(nr)!;
+  }
+
+  // ---- settings (#58)
+
+  /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's */
+  kontenAuswahl(): Map<string, string> {
+    const m = new Map<string, string>();
+    for (const d of [...Object.keys(kontenTafel()).map((n) => kontoAus(n)), ...this.startKonten, ...this.alleKonten()]) {
+      const k = this.kontoKurz(d);
+      if (!m.has(k) && existsSync(d)) m.set(k, d);
+    }
+    return m;
+  }
+
+  /** `Konto <n>` by the table, else the folder name; not `Admiral-Konto`, so a name stays when the admiral moves */
+  kontoKurz(dir: string): string {
+    return kurzname(dir);
+  }
+
+  einstellung(name: EinstellungName): Wert {
+    return liesEinstellung(this.e, name, (d) => this.kontoKurz(d));
+  }
+
+  standardWert(name: EinstellungName): Wert {
+    return name === 'konten' ? this.startKonten.map((d) => this.kontoKurz(d)) : EINSTELLUNGEN[name].standard;
+  }
+
+  /**
+   * At the start: a setting changed on the bridge holds again, unless a start parameter given
+   * explicitly sets it; then the start parameter wins and an event says so. A stored value that no
+   * longer fits (an account gone) is an event and is dropped.
+   */
+  einstellungenLaden(anfang: string): void {
+    this.startKonten = [...this.e.konten];
+    const gespeichert = (this.z.einstellungen ??= {});
+    for (const name of NAMEN) {
+      const jetzt = this.einstellung(name);
+      const vomStart = this.e.gesetzt ? this.e.gesetzt.includes(name) : JSON.stringify(jetzt) !== JSON.stringify(this.standardWert(name));
+      const b = gespeichert[name];
+      if (b && vomStart) {
+        delete gespeichert[name];
+        if (JSON.stringify(b.wert) !== JSON.stringify(jetzt)) this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel}: Startparameter ${START_PARAMETER[name] ?? ''} gilt (${zeige(jetzt)}) statt ${zeige(b.wert)} von der Brücke`);
+      } else if (b) {
+        const fehler = setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
+        if (!fehler) {
+          this.herkunft.set(name, { herkunft: 'bruecke', seit: b.seit });
+          continue;
+        }
+        delete gespeichert[name];
+        this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel} von der Brücke (${zeige(b.wert)}) gilt nicht mehr: ${fehler}`);
+      }
+      this.herkunft.set(name, { herkunft: vomStart ? 'start' : 'standard', seit: anfang });
+    }
+  }
+
+  /**
+   * einstellen over the bridge (#58), with the PIN like a revocation: checked against the limits here,
+   * in effect from this turn's brakes and occupancy on. Nothing running stops: a lower limit starts
+   * fewer, an account taken off starts nothing new while its runs stay on it. A value that does not
+   * fit is an event, nothing changes.
+   */
+  einstellen(h: BrueckenHandlung): void {
+    let roh: { name?: unknown; wert?: unknown } | null;
+    try {
+      roh = JSON.parse(h.text ?? '');
+    } catch {
+      roh = null;
+    }
+    const name = roh?.name;
+    if (!roh || typeof roh !== 'object' || !istName(name) || !('wert' in roh)) {
+      return this.ereignis(null, `Einstellung über die Brücke abgelehnt: ${istName(name) ? 'kein Wert' : `unbekannte Einstellung ${JSON.stringify(name ?? null).slice(0, 60)}`}`);
+    }
+    const titel = EINSTELLUNGEN[name].titel;
+    const vorher = this.einstellung(name);
+    const gelb = name === 'verbrauchGelb' ? roh.wert : this.e.verbrauchGelb;
+    const rot = name === 'verbrauchRot' ? roh.wert : this.e.verbrauchRot;
+    const quer = (name === 'verbrauchGelb' || name === 'verbrauchRot') && typeof gelb === 'number' && typeof rot === 'number' && gelb >= rot ? `gelb (${gelb}) muss unter rot (${rot}) liegen` : null;
+    const fehler = setzeEinstellung({ ...this.e }, name, roh.wert, this.kontenAuswahl()) ?? quer;
+    if (fehler) return this.ereignis(null, `Einstellung ${titel} über die Brücke abgelehnt: ${fehler}`);
+    setzeEinstellung(this.e, name, roh.wert, this.kontenAuswahl());
+    const nachher = this.einstellung(name);
+    const seit = new Date(this.w.jetzt()).toISOString();
+    this.herkunft.set(name, { herkunft: 'bruecke', seit });
+    (this.z.einstellungen ??= {})[name] = { wert: nachher, seit };
+    const text = `Einstellung ${titel} von ${zeige(vorher)} → auf ${zeige(nachher)}, ${HERKUNFT_BRUECKE}`;
+    this.ereignis(null, text);
+    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+    if (name === 'paketeJeEpic' && nachher !== vorher) for (const ep of Object.values(this.z.epics)) if (!ENDE.has(ep.stufe)) ep.grenze = this.e.paketeJeEpic;
+  }
+
+  /** The settings in effect for the report: value, origin, since when, and the limits or the accounts to choose from. */
+  einstellungenBericht(): BerichtEinstellung[] {
+    const auswahl = [...this.kontenAuswahl().keys()];
+    return NAMEN.map((name) => {
+      const a: { titel: string; leer: boolean; min?: number; max?: number; konto?: string } = EINSTELLUNGEN[name];
+      const h = this.herkunft.get(name) ?? { herkunft: 'standard' as const, seit: this.z.stand };
+      return { name, titel: a.titel, wert: this.einstellung(name), herkunft: h.herkunft, seit: h.seit, standard: this.standardWert(name), leer: a.leer, ...(a.konto ? { auswahl } : { min: a.min, max: a.max }) };
+    });
   }
 
   /** The report of this turn; acknowledgements only after the state with the answers is written. */
@@ -1434,7 +1785,10 @@ class Treiber {
           // "Log ansehen" on the blockade card: the driver's last events of this epic
           log: halt ? this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => `${new Date(x.zeit).toTimeString().slice(0, 5)} ${x.text.slice(0, 300)}`) : [],
           aufgegebenAm: ep.aufgegebenAm ?? null,
-          prio: Boolean(this.bilder.find((b) => b.nr === ep.nr)?.prio),
+          prio: this.prio(ep.nr),
+          imEinsatz: this.e.epics.includes(ep.nr),
+          pausiert: ep.pausiert ?? null,
+          prioritaet: ep.prioritaet ?? null,
           gestartetAm: ep.gestartetAm ?? null,
           schlangeSeit: this.z.schlange.includes(ep.nr) ? (ep.schlangeSeit ?? null) : null,
           gateSeit: ep.gateSeit ?? null,
@@ -1468,6 +1822,8 @@ class Treiber {
         .map(entscheidungFuerBericht),
       prognose: this.prognoseBericht(),
       sitzungen: this.sitzungen,
+      einstellungen: this.einstellungenBericht(),
+      freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
     };
   }
 
@@ -1860,6 +2216,16 @@ class Treiber {
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
     this.epicMessen(ep);
+    if (this.adapter.lern_issue && ep.pr) this.nebenbei(this.lernschleife(ep, ep.pr, this.adapter.lern_issue));
+  }
+
+  /** Sparpaket, package 6: proposals from the merged run as one comment to lern_issue, applied by nobody. */
+  async lernschleife(ep: FlottenEpic, pr: number, issue: number): Promise<void> {
+    const r = await lerne(
+      { repo: this.e.repo, forge: this.e.forge, pr, epic: ep.nr, issue, konto: ep.konto ?? this.e.konten[0], modell: this.e.lernModell, skills: resolve(this.e.skripte, '../..'), log: join(this.dir, 'lernen', `${ep.nr}-${this.w.jetzt()}.jsonl`), programm: this.programm() },
+      { aufrufer: this.w.aufrufer, starte: (s) => this.w.starte(s), heute: () => new Date(this.w.jetzt()).toISOString().slice(0, 10) },
+    );
+    this.ereignis(ep.nr, r.gepostet ? `Lernschleife: ${r.vorschlaege} Vorschlag/Vorschläge an #${issue}` : `Lernschleife ohne Kommentar: ${r.fehler ?? 'Kommentar nicht gepostet'}`);
   }
 
   /**
@@ -1956,9 +2322,11 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   const ak = wert(argv, '--admiral');
   if (ak) e.admiralKonto = kontoAus(ak);
   e.pingModell = wert(argv, '--ping-modell') ?? e.pingModell;
+  e.lernModell = wert(argv, '--lern-modell') ?? e.lernModell;
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
+  e.gesetzt = (Object.keys(START_PARAMETER) as EinstellungName[]).filter((n) => argv.includes(START_PARAMETER[n]!));
   const ramWarn = wert(argv, '--ram-warn');
   e.ramWarn = ramWarn ? Number(ramWarn) : null;
   const grenze = wert(argv, '--obergrenze');
