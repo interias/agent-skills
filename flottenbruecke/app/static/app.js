@@ -50,7 +50,7 @@ function fensterHtml(name, f) {
   const farbe = r < 20 ? 'var(--rot)' : r < 40 ? 'var(--gold)' : 'var(--gruen)';
   const t = datum(f.reset);
   const tag = t && t - jetzt() > 20 * 3600e3 ? t.toLocaleDateString('de-DE', { weekday: 'short' }) + ' ' : '';
-  return `<span class="fenster" title="${esc(name)}: ${Math.round(r)} % übrig, zurückgesetzt ${esc(tag)}${esc(uhrzeit(f.reset))}"><span>${esc(name)}</span><span class="roehre"><i style="--w:${r}%;--f:${farbe}"></i></span><span><b>${Math.round(r)} %</b> <span class="reset">bis ${esc(tag)}${esc(uhrzeit(f.reset))}</span></span></span>`;
+  return `<span class="fenster" title="${esc(name)}: ${Math.round(r)} % übrig, zurückgesetzt ${esc(tag)}${esc(uhrzeit(f.reset))}"><span>${esc(name)}</span><span class="roehre"><i style="--w:${r}%;--f:${farbe}"></i></span><span><b>${Math.round(r)} %</b> <span class="uebrig">übrig</span> <span class="reset">bis ${esc(tag)}${esc(uhrzeit(f.reset))}</span></span></span>`;
 }
 
 function kopf(t) {

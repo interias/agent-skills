@@ -1169,6 +1169,7 @@ class Treiber {
       this.paketeStand.set(b.nr, schluessel);
       ep.paketeZeit = this.w.jetzt();
       const alt = new Map((ep.pakete ?? []).map((p) => [p.nr, p]));
+      const imBranch = this.imEpicBranch(b.nr);
       ep.pakete = b.kinder.map((k) => {
         const r = this.w.aufrufer('gh', ['issue', 'view', String(k), '--repo', this.e.forge, '--json', 'number,title,state,labels,closedAt']);
         let j: { title?: string; state?: string; labels?: { name?: string }[]; closedAt?: string | null } = {};
@@ -1181,7 +1182,7 @@ class Treiber {
         const geparkt = ep.geparkt.some((g) => g.replace(/^#/, '') === String(k));
         const stand: BerichtPaket['stand'] = r.code
           ? (alt.get(k)?.stand ?? 'offen')
-          : j.state === 'CLOSED'
+          : j.state === 'CLOSED' || imBranch.has(k)
             ? 'fertig'
             : geparkt
               ? 'geparkt'
@@ -1194,11 +1195,37 @@ class Treiber {
                     : 'offen';
         // first seen working: the start of a package; closedAt its end (both null for an open one)
         const beginn = alt.get(k)?.beginn ?? (stand === 'offen' || stand === 'fertig' ? null : new Date(this.w.jetzt()).toISOString());
-        const ende = stand === 'fertig' ? (j.closedAt ?? alt.get(k)?.ende ?? null) : null;
+        const ende = stand === 'fertig' ? (imBranch.get(k) ?? j.closedAt ?? alt.get(k)?.ende ?? null) : null;
         return { name: `#${k}`, nr: k, titel: String(j.title ?? alt.get(k)?.titel ?? ''), stand, beginn, ende };
       });
       this.tafelAlt = true;
     }
+  }
+
+  /**
+   * The children already merged into the epic branch, with the time of that merge: a child stays open
+   * (status/in-arbeit) until the epic PR closes it. One git log per epic read: the local branch
+   * epic/<nr>-… (often only in the epic worktree), else origin/epic/<nr>-…, without the commits of
+   * other branches (the base); a commit counts by
+   * `Merge … agent/<kind>-…` or `(#<kind>)` in its subject.
+   */
+  imEpicBranch(nr: number): Map<number, string> {
+    const fertig = new Map<number, string>();
+    const refs = this.w.aufrufer('git', ['-C', this.e.repo, 'for-each-ref', '--format=%(refname)', `refs/heads/epic/${nr}-*`, `refs/heads/epic/${nr}`, `refs/remotes/origin/epic/${nr}-*`, `refs/remotes/origin/epic/${nr}`]);
+    if (refs.code) return fertig;
+    const alle = refs.stdout.split('\n').map((z) => z.trim()).filter(Boolean);
+    const ref = alle.find((r) => r.startsWith('refs/heads/')) ?? alle[0];
+    if (!ref) return fertig;
+    // only the epic's own commits: what the base (any other branch) already has does not count
+    const log = this.w.aufrufer('git', ['-C', this.e.repo, 'log', '--first-parent', '-n', '500', '--format=%cI%x09%s', ref, '--not', '--exclude=epic/*', '--exclude=agent/*', '--branches', '--exclude=*/epic/*', '--exclude=*/agent/*', '--remotes']);
+    if (log.code) return fertig;
+    // newest first: the last hit of a child is its first merge
+    for (const zeile of log.stdout.split('\n')) {
+      const [zeit, betreff = ''] = zeile.split('\t');
+      const kinder = [...betreff.matchAll(/^Merge\b.*?\bagent\/(\d+)(?:-|\b)/g), ...betreff.matchAll(/\(#(\d+)\)/g)].map((m) => Number(m[1]));
+      for (const k of kinder) fertig.set(k, new Date(zeit).toISOString());
+    }
+    return fertig;
   }
 
   kinderZahl(nr: number): number | null {

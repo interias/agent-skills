@@ -15,3 +15,4 @@ Beispieldaten aus `flottenbruecke/beispiel/bericht.json`. Neu aufnehmen:
 
 `bereit-tickets.png` und `bereit-tickets-handy.png` zeigen dasselbe Beispiel, auf die Zeile
 „Bereit“ gescrollt, die Tickets von #41 aufgeklappt (#42 im spec-Modus ohne Leiste).
+`tanks-uebrig.png` und `tanks-uebrig-handy.png` zeigen nur den Kopf mit den Tanks („62 % übrig“).

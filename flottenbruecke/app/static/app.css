@@ -91,6 +91,7 @@ button { font: inherit; }
 .fenster .roehre i { display: block; height: 100%; width: var(--w); background: var(--f); border-radius: var(--rund); }
 .fenster b { color: var(--text); font-weight: 600; }
 .fenster .reset { color: var(--leise); }
+.fenster .uebrig { color: var(--matt); }
 .fenster + .fenster { margin-left: 4px; }
 
 /* ---- projects */
