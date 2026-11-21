@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>agent-skills</title>
+  <!-- agent-skills: the bridge's LCARS elbow (flottenbruecke/app/static/icon.svg) with three bars,
+       the up to three packages of a run side by side; own drawing, no insignia -->
+  <rect width="512" height="512" rx="112" fill="#000"/>
+  <path d="M80 432V212A132 132 0 0 1 212 80H392A40 40 0 0 1 392 160H232A48 48 0 0 0 184 208V432Z" fill="#ff9c33"/>
+  <rect x="232" y="208" width="200" height="56" rx="28" fill="#cc99cc"/>
+  <rect x="232" y="292" width="200" height="56" rx="28" fill="#8899ff"/>
+  <rect x="232" y="376" width="200" height="56" rx="28" fill="#66cc99"/>
+</svg>
