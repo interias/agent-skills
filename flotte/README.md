@@ -91,6 +91,63 @@ Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-I
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und
 `flotte zuschauen` stehen in [`SKILL.md`](SKILL.md).
 
+## Aufträge
+
+Missionen und Missionsziele legt nur der Auftragsschreiber an (agent-skills/ADR-0002), nie
+`gh issue create` von Hand:
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" auftrag <repo> <entwurf.md> [--starten] [--trocken]
+```
+
+`<repo>` ist der Checkout des Ziel-Repositorys. Aus seinem Adapter (`.claude/epic.md`) liest der
+Befehl `forge` und `api` (ohne `api`: das GitHub-Repository von `origin`), `epic_label`,
+`ready_label` und die Abschnitte `acceptance_section`, `verification_section` und
+`modules_section` mit ihren Standards (`epic/references/adapter.md`, „Issues“). Bisher spricht er
+nur GitHub.
+
+**Entwurf:** Markdown. Jede Überschrift erster Ebene beginnt ein Issue: höchstens eine
+`# Mission: <Titel>` ganz oben, darunter ein oder mehrere `# Missionsziel: <Titel>`. Ohne Mission
+ist genau ein Missionsziel erlaubt. Was unter einer Überschrift steht, wird der Text des Issues;
+Abschnitte darin sind `##`-Überschriften.
+
+```markdown
+# Mission: Bereitschaftsraum und Auftragsschreiber
+
+Ein, zwei Absätze, worum es geht.
+
+# Missionsziel: Auftragsschreiber für GitHub
+
+## Was
+…
+
+## Abnahmekriterien
+- …
+
+## Verifikationsweg
+…
+
+## Betroffene Module
+- `flotte/`
+```
+
+**Prüfung:** Jedes Missionsziel braucht einen nicht leeren Abnahmeabschnitt (Standard: der erste
+vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`) und
+`## Verifikationsweg`; ohne sie überspringt ein Außeneinsatz das Ziel. Fehlt einer, bricht der
+Befehl mit allen Lücken ab, bevor er irgendetwas anlegt. `## Betroffene Module` ist wie bei `/epic`
+freiwillig; fehlt er, steht ein Hinweis in `hinweise`.
+
+**Was entsteht:** Zuerst die Mission mit `epic_label`, dann die Missionsziele in der Reihenfolge des
+Entwurfs, jedes mit `Teil von #<Mission>` als erster Zeile und als Sub-Issue der Mission verknüpft.
+Zuletzt bekommt die Mission die Liste `## Missionsziele` (`- [ ] #<nr> <Titel>`) und die Zeile
+`> **Reihenfolge:** von oben nach unten, …`, wenn ihr Text keine eigene `Reihenfolge`-Zeile hat.
+Alle Issues tragen `needs-triage` (Sternzeit-Notiz), mit `--starten` stattdessen `ready_label`
+(Warp frei). Scheitert die Forge mittendrin, nennt die Meldung, was schon angelegt ist.
+
+**Ausgabe:** ein JSON-Objekt mit `forge`, `mission` und `ziele` (je Nummer, Link, Titel), den
+Labels und den Hinweisen. `--trocken` legt nichts an und zeigt stattdessen Titel, Labels und Text
+jedes Issues (Nummern als `#?`).
+
 ## Prognose
 
 Die Brücke sagt je wartendem Epic „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
