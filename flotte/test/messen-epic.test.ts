@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { leseText, kopfdaten } from '../src/transkript.ts';
-import { epicKennzahlen, epicSumme, modellzeit, paketMerges, quantil, rolleAus, stufeAus, ungueltigeAusgaben, type Arbeit } from '../src/messen.ts';
+import { aufrufLog, epicKennzahlen, epicSumme, modellzeit, paketMerges, programmEreignisse, quantil, rolleAus, stufeAus, ungueltigeAusgaben, type Arbeit } from '../src/messen.ts';
 import { T0, min, mensch, assistent, ergebnis } from './hilfen.ts';
 
 const t = (m: number) => T0 + m * 60_000;
@@ -123,7 +123,7 @@ describe('epicKennzahlen', () => {
   });
 
   it('measures a restart to its first worker and finds double starts and double merges', () => {
-    expect(k.neustart).toEqual({ neustarts: [{ zeit: new Date(t(19)).toISOString(), bis_erster_worker_s: 60 }], doppelt_gestartete_pakete: 0, doppelte_merges: 0 });
+    expect(k.neustart).toEqual({ neustarts: [{ zeit: new Date(t(19)).toISOString(), bis_erster_worker_s: 60, neue_aufrufe_bis_worker: null }], doppelt_gestartete_pakete: 0, doppelte_merges: 0 });
     const doppelt = epicKennzahlen({ arbeiten: [...arbeiten, arbeit('implementer', '55', 5, 12, 10, 'epic-implementer-standard')], merges: [...merges, { paket: '55', zeit: t(44) }], fenster: 2 });
     expect(doppelt.neustart).toMatchObject({ doppelt_gestartete_pakete: 1, doppelte_merges: 1 });
   });
@@ -155,5 +155,54 @@ describe('epicSumme and ungueltigeAusgaben', () => {
     expect(s.durchlauf_min).toMatchObject({ n: 2, mittel: 30 });
     expect(s.pruefzeit_s).toMatchObject({ n: 1, median: 120 });
     expect(s.ungueltige_ausgaben).toEqual({ aufrufe: 4, ungueltig: 1, anteil: 25 });
+  });
+});
+
+describe('flotte epic as the source of an epic run (#68)', () => {
+  const ev = (m: number, art: string, text: string, paket: string | null = null, rolle?: string) => ({ zeit: new Date(t(m)).toISOString(), paket, art, ...(rolle ? { rolle } : {}), text });
+  const z = {
+    ereignisse: [
+      ev(0, 'aufruf', 'schnitt, Runde 1', null, 'schnitt'),
+      ev(2, 'aufruf', 'implementer (epic-implementer-standard), Runde 1', '55', 'implementer'),
+      ev(6, 'ungueltig', 'implementer ungültig: Pflichtfeld fehlt', '55', 'implementer'),
+      ev(7, 'neustart', 'Programm neu gestartet'),
+      ev(7.5, 'aufruf', 'implementer (epic-implementer-standard), Runde 1, --resume abc', '55', 'implementer'),
+      ev(10, 'aufruf', 'reviewer (epic-reviewer-standard), Runde 1', '55', 'reviewer'),
+      ev(12, 'gemergt', 'agent/55-apfel gemergt (abc123)', '55'),
+      ev(13, 'neustart', 'Programm neu gestartet'),
+      ev(13.2, 'aufruf', 'konflikt, Runde 1', '56', 'konflikt'),
+      ev(14, 'aufruf', 'implementer (epic-implementer-standard), Runde 1', '56', 'implementer'),
+    ],
+  };
+
+  it('reads role, package and round from the name of a call log', () => {
+    expect(aufrufLog('implementer-104-r1.jsonl')).toEqual({ rolle: 'implementer', paket: '104', runde: 1 });
+    expect(aufrufLog('konflikt-105-r2.jsonl')).toEqual({ rolle: 'konflikt', paket: '105', runde: 2 });
+    expect(aufrufLog('schnitt-r1.jsonl')).toEqual({ rolle: 'schnitt', paket: null, runde: 1 });
+    expect(aufrufLog('reviewer-41-p2-r3.jsonl')).toEqual({ rolle: 'reviewer', paket: '41-p2', runde: 3 });
+    expect(aufrufLog('schnitt-r1.jsonl.err')).toBeNull();
+  });
+
+  it('takes merges, restarts, worker starts, calls started anew and invalid outputs from the events', () => {
+    const p = programmEreignisse(z);
+    expect(p.merges).toEqual([{ paket: '55', zeit: t(12) }]);
+    expect(p.neustarts).toEqual([t(7), t(13)]);
+    expect(p.workerStarts).toEqual([t(2), t(7.5), t(10), t(14)]);
+    expect(p.neueAufrufe).toEqual([t(0), t(2), t(10), t(13.2), t(14)]);
+    expect([p.aufrufe, p.ungueltig]).toEqual([6, 1]);
+  });
+
+  it('measures a restart to the first worker process, a --resume included, and counts the calls started anew before it', () => {
+    const p = programmEreignisse(z);
+    // the transcript of the resumed implementer starts at 2; the process after the restart at 7.5
+    const arbeiten = [arbeit('implementer', '55', 2, 9, 100, 'epic-implementer-standard'), arbeit('reviewer', '55', 10, 11, 20), arbeit('implementer', '56', 14, 16, 50, 'epic-implementer-standard')];
+    const k = epicKennzahlen({ arbeiten, merges: p.merges, fenster: 3, neustarts: p.neustarts, workerStarts: p.workerStarts, neueAufrufe: p.neueAufrufe });
+    expect(k.neustart.neustarts).toEqual([
+      { zeit: new Date(t(7)).toISOString(), bis_erster_worker_s: 30, neue_aufrufe_bis_worker: 0 },
+      { zeit: new Date(t(13)).toISOString(), bis_erster_worker_s: 60, neue_aufrufe_bis_worker: 1 },
+    ]);
+    // without the program's worker starts the first worker after 7 is the reviewer at 10
+    expect(epicKennzahlen({ arbeiten, merges: p.merges, fenster: 3, neustarts: [t(7)] }).neustart.neustarts[0]).toMatchObject({ bis_erster_worker_s: 180, neue_aufrufe_bis_worker: null });
+    expect(epicSumme([{ ...k, ungueltige_ausgaben: { aufrufe: 7, ungueltig: 1 } }]).neustart).toMatchObject({ bis_erster_worker_s: [30, 60], neue_aufrufe_bis_worker: [0, 1] });
   });
 });

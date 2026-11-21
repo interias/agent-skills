@@ -373,8 +373,12 @@ export interface EpicEingabe {
   arbeitMs?: number | null;
   /** model time of the orchestration between two moments; absent where no model orchestrates */
   modellzeit?: (von: number, bis: number) => number;
-  /** moments the epic run was started anew (driver: "Lauf gestartet" after the first) */
+  /** moments the epic run was started anew (driver: "Lauf gestartet" after the first; flotte epic: event neustart) */
   neustarts?: number[];
+  /** moments a worker process started, --resume included (flotte epic: its aufruf events); default the first lines of the worker transcripts */
+  workerStarts?: number[];
+  /** moments a call was started anew, not with --resume (flotte epic); counted between a restart and its first worker */
+  neueAufrufe?: number[];
 }
 
 /**
@@ -454,10 +458,12 @@ export function epicKennzahlen(x: EpicEingabe) {
     }
   }
 
-  const workerStarts = x.arbeiten.filter(istWorker).map((a) => a.start).sort((a, b) => a - b);
+  const workerStarts = [...(x.workerStarts ?? x.arbeiten.filter(istWorker).map((a) => a.start))].sort((a, b) => a - b);
   const neustarts = (x.neustarts ?? []).map((t) => {
     const s = workerStarts.find((v) => v >= t);
-    return { zeit: new Date(t).toISOString(), bis_erster_worker_s: s === undefined ? null : Math.round((s - t) / 1000) };
+    // a call started anew before the first worker is model usage for the rebuild; --resume of a running call is not
+    const neu = x.neueAufrufe ? x.neueAufrufe.filter((v) => v >= t && v < (s ?? Infinity)).length : null;
+    return { zeit: new Date(t).toISOString(), bis_erster_worker_s: s === undefined ? null : Math.round((s - t) / 1000), neue_aufrufe_bis_worker: neu };
   });
 
   const ir = pakete.map((p) => p.implementer + p.reviewer);
@@ -517,9 +523,39 @@ export function epicSumme(laeufe: EpicMessung[]) {
     ungueltige_ausgaben: { aufrufe, ungueltig, anteil: aufrufe ? runde((ungueltig * 100) / aufrufe) : null },
     neustart: {
       bis_erster_worker_s: laeufe.flatMap((l) => l.neustart.neustarts.map((n) => n.bis_erster_worker_s)),
+      neue_aufrufe_bis_worker: laeufe.flatMap((l) => l.neustart.neustarts.map((n) => n.neue_aufrufe_bis_worker)),
       doppelt_gestartete_pakete: laeufe.reduce((s, l) => s + l.neustart.doppelt_gestartete_pakete, 0),
       doppelte_merges: laeufe.reduce((s, l) => s + l.neustart.doppelte_merges, 0),
     },
+  };
+}
+
+/** Role, package and round of a call log of `flotte epic` (<rolle>[-<paket>]-r<runde>.jsonl, src/epic/aufrufe.ts). */
+export function aufrufLog(name: string): { rolle: Rolle; paket: string | null; runde: number } | null {
+  const m = /^([a-z]+)(?:-(.+?))?-r(\d+)\.jsonl$/.exec(name);
+  return m ? { rolle: rolleAus(m[1]), paket: m[2] ?? null, runde: Number(m[3]) } : null;
+}
+
+/** What flotte messen reads from the state of `flotte epic` (<git common dir>/flotte/epics/<nr>/zustand.json, src/epic/zustand.ts). */
+export interface ProgrammZustand {
+  ereignisse: { zeit: string; paket: string | null; art: string; rolle?: string; text: string }[];
+}
+
+/**
+ * The events of `flotte epic` as the source of an epic run (#68): package merges (event gemergt),
+ * restarts (neustart), worker processes started or resumed (aufruf of implementer and reviewer),
+ * calls started anew (aufruf without --resume) and invalid outputs (ungueltig).
+ */
+export function programmEreignisse(z: ProgrammZustand) {
+  const ev = z.ereignisse.map((e) => ({ ...e, t: Date.parse(e.zeit) }));
+  const aufrufe = ev.filter((e) => e.art === 'aufruf');
+  return {
+    merges: ev.filter((e) => e.art === 'gemergt' && e.paket).map((e) => ({ paket: e.paket as string, zeit: e.t })),
+    neustarts: ev.filter((e) => e.art === 'neustart').map((e) => e.t),
+    workerStarts: aufrufe.filter((e) => e.rolle === 'implementer' || e.rolle === 'reviewer').map((e) => e.t),
+    neueAufrufe: aufrufe.filter((e) => !/--resume/.test(e.text)).map((e) => e.t),
+    aufrufe: aufrufe.length,
+    ungueltig: ev.filter((e) => e.art === 'ungueltig').length,
   };
 }
 

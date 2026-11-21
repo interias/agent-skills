@@ -353,6 +353,8 @@ describe('Vorab-Tor nach einem Neustart (#67, von #66 übergeben)', () => {
     expect(welt.bloecke).toHaveLength(1);
     const u = attrappe({ ...buch, maxTakte: 400, antworten: [{ frage: 1, antwort: 'A' }] }, welt);
     const z = await fahreEpic(einstellung(repo), u);
+    // the restart is an event for flotte messen (#68), once per start on a state with events
+    expect(z.ereignisse.filter((e) => e.art === 'neustart')).toHaveLength(1);
     const fragen = welt.bloecke.map((b) => leseBlock(b)).filter((b) => b?.art === 'frage');
     expect(fragen).toHaveLength(2);
     expect(fragen[1]).toMatchObject({ art: 'frage', epic: 69, phase: 'tor', fragen: [{ nr: 1, betrifft: 'Lauf' }] });

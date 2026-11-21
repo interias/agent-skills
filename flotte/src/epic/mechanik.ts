@@ -96,6 +96,25 @@ function pfadNormal(p: string): string {
 
 const flach = (s: string) => s.replace(/\s+/g, ' ').trim();
 
+/**
+ * git writes .git/config and refs under a lock file. The programs of other epics in the same
+ * repository take it at the same moment (probe nachher-1, 21.11.2026: three programs started
+ * together, one `worktree add -b` found .git/config locked and the epic ended). git takes the
+ * lock before it writes anything, so the same call goes again.
+ */
+const GIT_SPERRE = /could not lock config file|Unable to create '[^']*\.lock': File exists/;
+const SPERRE_VERSUCHE = 4;
+
+const trotzSperreAufrufer = (a: AsyncAufrufer): AsyncAufrufer => (programm, args, opts) => trotzSperre(() => a(programm, args, opts));
+
+async function trotzSperre(aufruf: () => Promise<Ergebnis>): Promise<Ergebnis> {
+  for (let versuch = 1; ; versuch++) {
+    const r = await aufruf();
+    if (!r.code || versuch >= SPERRE_VERSUCHE || !GIT_SPERRE.test(`${r.stderr}\n${r.stdout}`)) return r;
+    await new Promise((weiter) => setTimeout(weiter, 300 * versuch + Math.random() * 700));
+  }
+}
+
 export function echteMechanik(e: MechanikEinstellung): Mechanik {
   const a = e.aufrufer ?? aufrufenAsync;
   const repo = resolve(e.repo);
@@ -128,7 +147,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
   /** red file of the last full run → its suite, for the single run */
   const rotIn = new Map<string, string>();
 
-  const git = (cwd: string, args: string[], eingabe?: string) => a('git', ['-C', cwd, ...args], { eingabe, timeoutMs: 300_000 });
+  const git = (cwd: string, args: string[], eingabe?: string) => trotzSperre(() => a('git', ['-C', cwd, ...args], { eingabe, timeoutMs: 300_000 }));
   const fehler = (was: string, r: Ergebnis) => new Error(`${was}: Exit ${r.code}: ${flach(r.stderr || r.stdout).slice(0, 600)}`);
   async function gitOk(cwd: string, args: string[], eingabe?: string): Promise<string> {
     const r = await git(cwd, args, eingabe);
@@ -223,7 +242,8 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
         if (ausRemote && !lokal) ab = `${remote}/${branch}`;
       }
       if (eigenerHalter) writeFileSync(halter, String(pid));
-      const r = await pwshJsonAsync(a, skript('worktree.ps1'), ['-Action', 'Up', '-RepoRoot', repo, '-Package', name, '-Branch', branch, '-From', ab, '-SessionPid', String(pid)], { cwd: repo, env: { EPIC_LOCK_HOLDER: halter }, timeoutMs: 300_000 });
+      // a failed Up leaves no worktree and no lock; the branch it created is taken again
+      const r = await pwshJsonAsync(trotzSperreAufrufer(a), skript('worktree.ps1'), ['-Action', 'Up', '-RepoRoot', repo, '-Package', name, '-Branch', branch, '-From', ab, '-SessionPid', String(pid)], { cwd: repo, env: { EPIC_LOCK_HOLDER: halter }, timeoutMs: 300_000 });
       const j = r.json as { path?: string; port?: number | null; isolation?: string | null } | null;
       if (r.code || !j?.path) throw new Error(`worktree.ps1 Up ${name}: ${flach(r.stderr) || `Exit ${r.code}`}`);
       if (ausRemote) await gitOk(j.path, ['pull', '--ff-only', remote, branch]);

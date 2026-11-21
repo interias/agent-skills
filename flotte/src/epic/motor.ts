@@ -232,6 +232,8 @@ class EpicLauf {
   async fahre(): Promise<EpicLaufZustand> {
     const z = this.z;
     if (z.phase === 'fertig' || z.phase === 'abgebrochen') return z;
+    // a start on a state with events is a restart; flotte messen measures from here to the first worker (#68)
+    if (z.ereignisse.length) this.ereignis('neustart', null, 'Programm neu gestartet, laufende Aufrufe gehen mit --resume weiter');
     // Phase 0a: what dead sessions left behind, at every start; the locks of this epic stay. A failed
     // step ("failed: …", exit 1), a dirty worktree or a remnant is reported too, only living or held locks are not
     for (const r of await this.m.aufraeumen()) if (r.action !== 'skipped' || !(r.kind === 'lock' && /^(held by|session )/.test(r.reason ?? ''))) this.ereignis('aufraeumen', null, `${r.kind} ${r.path ?? r.id ?? ''}: ${r.action}${r.reason ? ` (${r.reason})` : ''}`);
