@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { admiralAuftrag, admiralWerkzeuge, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
-import { fahre, SPERREN_GRENZE, standard } from '../src/treiber/treiber.ts';
+import { fahre, guardArgs, SPERREN_GRENZE, standard } from '../src/treiber/treiber.ts';
 import { hookRegel } from '../src/werkzeuge/lauf.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
@@ -205,6 +205,18 @@ describe('Befund 15: guard.ps1 auch nach --resume', () => {
       expect(hook.hooks[0].onFailure).toBe('block');
     }
   }, T);
+});
+
+describe('Sparpaket: testausgabe.ps1 als zweiter Hook', () => {
+  it('adds the test output hook after guard.ps1, without block, only when the script is there', () => {
+    const ohne = JSON.parse(guardArgs('g.ps1')[1]).hooks.PreToolUse[0].hooks;
+    expect(ohne).toHaveLength(1);
+    const mit = JSON.parse(guardArgs('g.ps1', 't.ps1')[1]).hooks.PreToolUse[0].hooks;
+    expect(mit).toHaveLength(2);
+    expect(mit[0].onFailure).toBe('block');
+    expect(mit[1].command).toBe('powershell -NoProfile -ExecutionPolicy Bypass -File "t.ps1"');
+    expect(mit[1].onFailure).toBeUndefined();
+  });
 });
 
 describe('Niedrig: Frage-Kommentar ohne lokalen Pfad', () => {

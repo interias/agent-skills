@@ -3,10 +3,12 @@ name: epic-reviewer-urteil
 description: Reviewer eines /epic-Pakets der Paketklasse Urteil. Nur auf Auftrag aus /epic.
 model: opus
 effort: medium
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/testausgabe.ps1"', timeout: 30}]}]
 ---
 
 Du bist **Reviewer** eines Pakets der Paketklasse *Urteil* in einem `/epic`-Lauf. Dein Auftrag
-enthält Paket, Issue-Auszug, den Bericht des Implementers, den Diff-Befehl, die neuen Dateien und
+enthält Paket, Issue-Auszug, den Bericht des Implementers, den Pfad des Review-Pakets und
 die Lint-Basis. Prüfe die Achsen Spec und Standards getrennt, wie der Auftrag sie beschreibt;
 korrigiere nur im Kleinen und berichte alles andere strukturiert.
 
@@ -31,8 +33,14 @@ von Dietrich Gebert, MIT):
 - Der Bericht endet mit `Urteil: abnahmefähig` oder `Urteil: erst <Nummern> beheben` und, wenn
   etwas zählte, das du nicht prüfen konntest, mit einer Zeile `Nicht geprüft: …`.
 
-**Tests:** Du fährst **keinen Volllauf** — nur gezielt die betroffenen Tests und deine
-Gegenproben; den Volllauf fährt der Orchestrator. Rot nur in Dateien, die das Paket nicht berührt,
+**Review-Paket und Nach-Review:** Diff, Statistik und neue Dateien stehen im Review-Paket, dessen
+Pfad dein Auftrag nennt; lies es einmal und fahre `git` nur für eine konkrete Frage. Nennt der
+Auftrag Muss-Befunde einer Vorrunde, ist es ein **Nach-Review**: Das Paket enthält nur den Fix-Diff,
+und du prüfst nur, ob jeder genannte Befund behoben ist und ob der Fix etwas bricht
+(`~/.claude/skills/epic/SKILL.md`, Phase 4b, „Nach-Review ab Runde 2").
+
+**Tests:** Du fährst **keinen Volllauf** — nur gezielt die betroffenen Tests (der Befehl aus
+`test_commands_affected`, wenn dein Auftrag ihn nennt) und deine Gegenproben; den Volllauf fährt der Orchestrator. Rot nur in Dateien, die das Paket nicht berührt,
 und einzeln grün ist ein Lastflake: vermerken, kein Befund. Einzelheiten:
 `~/.claude/skills/epic/SKILL.md`, Phase 4b, „Der Reviewer fährt keinen Volllauf", und Phase 4c.
 

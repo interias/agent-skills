@@ -10,8 +10,17 @@ Jedes Skript hat Pester-Tests daneben und Hilfe im Kopfkommentar (`Get-Help <skr
 - **`guard.ps1`** ist der PreToolUse-Hook, den `epic`, `epic-aufraeumen` und `epic-kundschafter`
   in ihrem Frontmatter einhängen. Er sperrt je Profil (`epic`, `aufraeumen`, `kundschafter`)
   verbotene Shell-Befehle, etwa Pushes auf den Hauptbranch oder `git branch -D`.
+- **`testausgabe.ps1`** ist der zweite PreToolUse-Hook von `epic` und der Implementer- und
+  Reviewer-Agenten: Ein Testbefehl aus `test_commands` oder `test_commands_affected` des Adapters
+  schreibt seine Ausgabe in einen Log unter `<temp>/epic-testausgabe`; in den Kontext kommen nur
+  Fehlerzeilen, Schluss und Log-Pfad. Er sperrt nichts und gibt keine Freigabe: Die Berechtigungen
+  prüfen den umgeschriebenen Befehl. Steht im Fenster eine Erlaubnisregel nur für den nackten
+  Testbefehl, fragt Claude Code für die umgeschriebene Form nach.
+- **`reviewpaket.ps1`** schreibt das Review-Paket eines Pakets (Statistik, Diff, neue Dateien) in
+  `<git dir>/epic-review/`; mit `-Since` nur den Fix-Diff für den Nach-Review.
 - **`fortsetzen.ps1`** setzt eine `/epic`-Sitzung außerhalb der Flotte mit `claude --resume` fort
-  und gibt ihr `guard.ps1` als Hook mit; der Hook aus dem Frontmatter gilt nach `--resume` nicht mehr.
+  und gibt ihr `guard.ps1` und `testausgabe.ps1` als Hooks mit; die Hooks aus dem Frontmatter gelten
+  nach `--resume` nicht mehr.
 - **`ram.ps1`** misst den freien Speicher des Windows-Hosts und gibt `ok`, `warn` oder `hold`
   aus — die RAM-Bremse vor jedem Paketstart und unter der Flotte.
 - **`graph.ps1`** baut mit [Graphify](https://github.com/Graphify-Labs/graphify) den Code-Graphen

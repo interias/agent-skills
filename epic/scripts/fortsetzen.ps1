@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Continues an /epic session outside the fleet with `claude --resume`, with guard.ps1 as a hook of
     the session.
@@ -9,8 +9,9 @@
     driver therefore hands every turn the hook through --settings. This script does the same for a
     session continued by hand: it writes the settings to a temporary file (a JSON argument would
     lose its quotes in Windows PowerShell), starts claude in this terminal and removes the file
-    when claude ends. The hook is the one of the driver: PreToolUse on Bash|PowerShell,
-    `guard.ps1 -Profile epic`, timeout 30, onFailure block.
+    when claude ends. The hooks are the ones of the driver: PreToolUse on Bash|PowerShell,
+    `guard.ps1 -Profile epic`, timeout 30, onFailure block, and, when it lies next to guard.ps1,
+    `testausgabe.ps1` (shortens test output), timeout 30.
 
     Exit code: the one of claude; 1 when guard.ps1 is missing.
 
@@ -53,6 +54,11 @@ $settings = [ordered]@{
                 hooks   = @([ordered]@{ type = 'command'; command = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$guardPath`" -Profile epic"; timeout = 30; onFailure = 'block' })
             })
     }
+}
+# testausgabe.ps1 next to guard.ps1 shortens the output of the adapter's test commands (SKILL.md, Phase 4a); it guards nothing
+$testausgabe = Join-Path (Split-Path -Parent $guardPath) 'testausgabe.ps1'
+if (Test-Path -LiteralPath $testausgabe -PathType Leaf) {
+    $settings.hooks.PreToolUse[0].hooks += [ordered]@{ type = 'command'; command = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$testausgabe`""; timeout = 30 }
 }
 $json = $settings | ConvertTo-Json -Depth 8 -Compress
 

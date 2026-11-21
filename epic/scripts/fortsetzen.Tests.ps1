@@ -27,6 +27,8 @@ exit 7
         $h.hooks[0].onFailure | Should Be 'block'
         $h.hooks[0].timeout | Should Be 30
         $h.hooks[0].command | Should Match ([regex]::Escape((Join-Path $PSScriptRoot 'guard.ps1')) + '" -Profile epic$')
+        $h.hooks[1].command | Should Match ([regex]::Escape((Join-Path $PSScriptRoot 'testausgabe.ps1')) + '"$')
+        $h.hooks[1].onFailure | Should BeNullOrEmpty
     }
 
     It 'removes the settings file and restores the account afterwards' {
@@ -46,7 +48,9 @@ exit 7
 
     It 'gives the same hook as the fleet driver' {
         $treiber = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\..\flotte\src\treiber\treiber.ts') -Raw
-        $treiber | Should Match "matcher: 'Bash\|PowerShell', hooks: \[\{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' \}\]"
+        $treiber | Should Match "\[\{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' \}\]"
+        $treiber | Should Match "matcher: 'Bash\|PowerShell', hooks \}"
+        $treiber | Should Match "testausgabe\.ps1"
         $treiber | Should Match ([regex]::Escape('-Profile epic`'))
     }
 

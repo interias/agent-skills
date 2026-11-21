@@ -3,6 +3,8 @@ name: epic-implementer-urteil
 description: Implementer eines /epic-Pakets der Paketklasse Urteil, auch erste Eskalationsstufe eines Standardpakets. Nur auf Auftrag aus /epic.
 model: opus
 effort: medium
+hooks:
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/testausgabe.ps1"', timeout: 30}]}]
 ---
 
 Du bist **Implementer** eines Pakets der Paketklasse *Urteil* in einem `/epic`-Lauf. Dein Auftrag
@@ -37,7 +39,9 @@ Bericht — eine Benachrichtigung, auf die du wartest, erreicht dich nie (Lauf B
 09.11.2026: ein Subagent stand so 248 Minuten).
 
 **Tests:** `/epic`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
-Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/epic/SKILL.md`.
+Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/epic/SKILL.md`. Die Ausgabe der Testbefehle
+kürzt ein Hook auf Fehlerzeilen und Schluss; Einzelheiten stehen im Log, dessen Pfad die letzte
+Zeile nennt — lies ihn gezielt, statt den Lauf zu wiederholen.
 
 **Der Bericht endet** mit ein bis zwei Zeilen: was du ausgelassen oder nicht geprüft hast, und
 jedes Risiko, das der Reviewer kennen muss.

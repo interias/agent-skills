@@ -255,3 +255,45 @@ export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleM
   const fehlstarts = ev.filter((e) => /^Start ohne Ergebnis/.test(e.text)).length;
   return { fragen, kalt, starts, fehlstarts, entscheidungen: z.entscheidungen.length };
 }
+
+/**
+ * Lead time and errors per epic of a driver deployment (Sparpaket, package 3): from the first
+ * "Lauf gestartet" to the first "FLOTTE-ENDE, PR", without the time the run waited for the
+ * person in between. An epic counts as an error when the driver gave it back to the run (red gate,
+ * conflict), blocked or aborted it.
+ */
+export function epicVerlauf(z: TreiberZustand, fenster: Fenster) {
+  const ev = z.ereignisse.map((e) => ({ ...e, t: Date.parse(e.zeit) })).filter((e) => imFenster(e.t, fenster) && e.epic !== null);
+  const nummern = [...new Set(ev.map((e) => e.epic as number))].sort((a, b) => a - b);
+  const epics = nummern.map((nr) => {
+    const mine = ev.filter((e) => e.epic === nr);
+    const start = mine.find((e) => /^Lauf gestartet/.test(e.text))?.t ?? null;
+    const ende = mine.find((e) => /^FLOTTE-ENDE, PR/.test(e.text))?.t ?? null;
+    let warten = 0;
+    let frageSeit: number | null = null;
+    for (const e of mine) {
+      if (ende !== null && e.t > ende) break;
+      if (/liegt beim Menschen/.test(e.text)) frageSeit ??= e.t;
+      else if (/^Antwort des Menschen/.test(e.text) && frageSeit !== null) {
+        warten += e.t - frageSeit;
+        frageSeit = null;
+      }
+    }
+    const rueckgaben = mine.filter((e) => /^zurück an den Lauf/.test(e.text)).length;
+    const halt = mine.find((e) => /^(blockiert|abgebrochen):/.test(e.text));
+    return {
+      epic: nr,
+      durchlauf_min: start !== null && ende !== null ? runde((ende - start - warten) / MIN) : null,
+      rueckgaben,
+      halt: halt ? halt.text.split(':')[0] : null,
+      fehler: rueckgaben > 0 || Boolean(halt) || ende === null,
+    };
+  });
+  const fehler = epics.filter((e) => e.fehler).length;
+  return {
+    epics,
+    durchlauf_min: verteilung(epics.map((e) => e.durchlauf_min).filter((x): x is number => x !== null)),
+    fehlerquote: epics.length ? runde(fehler / epics.length) : null,
+    methode: 'Treiber: erstes „Lauf gestartet" bis erstes „FLOTTE-ENDE, PR", ohne Warten auf den Menschen; Fehler = Rückgabe an den Lauf, blockiert, abgebrochen oder kein FLOTTE-ENDE',
+  };
+}

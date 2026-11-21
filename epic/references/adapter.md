@@ -97,6 +97,7 @@ Frontmatter (Abschnitt „Form").
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
 | `test_commands` | Befehle je Suite: die Prüfungen **je Paket, ohne vollen Stack**. Der volle Stack läuft einmal in `acceptance_commands`. Eine Worker-Grenze steht als **feste Zahl**, nicht als Anteil der Kerne: Bis zu `window` Implementer und der Orchestrator fahren gleichzeitig, und `--maxWorkers=30%` sind auf 20 Kernen sechs Worker mit rund 4 GB je Lauf (BRIQNET client, gemessen 12.11.2026) | aus `package.json` / `pyproject.toml` |
+| `test_commands_affected` | Befehle je Suite, die **nur die von der Änderung betroffenen Tests** fahren — der innere Kreis von Implementer und Reviewer (`SKILL.md`, Phase 4a, „Gezielt iterieren, einmal voll"). Form wie `test_commands`, gleiche Suitennamen. Beispiele: `npx vitest run --changed HEAD`, `npx jest --findRelatedTests --onlyChanged`, `pytest --testmon`, `npx playwright test --only-changed=HEAD`. Gilt nie als Beleg: der Volllauf mit `test_commands` bleibt Pflicht (4c). `scripts/testausgabe.ps1` kürzt die Ausgabe beider Schlüssel | keiner — dann wählt der Implementer die betroffenen Tests selbst |
 | `known_red` | Tests, die auf der Basis bekannt rot sind, mit Namen | keine |
 | `lint_commands` | Lint-Befehl je Modul; gezählt werden Fehler und Warnungen aus der Ausgabe, nicht der Exit-Code | keine — dann entfällt der Lint-Vergleich, und der Plan sagt das |
 | `writers` | Pfade der Schreiber ohne Oberfläche (Migration, Import, Jobs), die der Reviewer bei jeder neuen Schreibsperre prüft | keine |
@@ -276,5 +277,8 @@ alle drei Skills.
 | `references/worktree.md` | Worktrees rüsten und abräumen, auch ohne Manifest und Reste auf der Platte |
 | `scripts/worktree.ps1` | das Skript dazu; `Up`, `Down` und `CleanupStale` sind der einzige Weg, Worktrees zu rüsten und abzuräumen |
 | `scripts/ram.ps1` | die RAM-Messung der RAM-Bremse (`SKILL.md`, Phase 4) |
+| `scripts/testausgabe.ps1` | PreToolUse-Hook: kürzt die Ausgabe der Testbefehle aus `test_commands` und `test_commands_affected`, voller Log in einer Datei (`SKILL.md`, Phase 4a) |
+| `scripts/reviewpaket.ps1` | das Review-Paket als Datei, im Nach-Review nur der Fix-Diff (`SKILL.md`, Phase 4b) |
+| `references/flaky.md` | Handgriffe für einen wackeligen Test: sichtbar machen, auf Bedingungen warten, Verursacher per Bisektion (`SKILL.md`, Phase 4c) |
 
 `references/plan-artifact.md` entfällt und wird durch `lauftafel.md` ersetzt.

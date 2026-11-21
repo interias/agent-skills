@@ -257,9 +257,12 @@ const GATE_MAX_MS = 90 * 60_000;
  * holds in the turn that calls the skill and is gone after --resume (dress rehearsal 2, 19.11.2026:
  * `gh pr merge` passed in the second turn). Every answer of the driver is a --resume.
  */
-export function guardArgs(guard: string): string[] {
+export function guardArgs(guard: string, testausgabe?: string): string[] {
   const befehl = `powershell -NoProfile -ExecutionPolicy Bypass -File "${guard}" -Profile epic`;
-  return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks: [{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' }] }] } })];
+  const hooks: Record<string, unknown>[] = [{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' }];
+  // testausgabe.ps1 shortens the output of the adapter's test commands (epic/SKILL.md, Phase 4a); it guards nothing, so no block
+  if (testausgabe) hooks.push({ type: 'command', command: `powershell -NoProfile -ExecutionPolicy Bypass -File "${testausgabe}"`, timeout: 30 });
+  return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash|PowerShell', hooks }] } })];
 }
 
 /** how often the driver reads the child tickets of an epic for the package bar of the bridge */
@@ -682,7 +685,7 @@ class Treiber {
         log: ep.log,
         // the worktree locks of this run outlive its process between turns (acceptance finding 3)
         env: { EPIC_LOCK_HOLDER: this.halten(nr) },
-        extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(','), ...guardArgs(join(this.e.skripte, 'guard.ps1'))],
+        extraArgs: ['--disallowedTools', LAUF_VERBOTEN.join(','), ...guardArgs(join(this.e.skripte, 'guard.ps1'), existsSync(join(this.e.skripte, 'testausgabe.ps1')) ? join(this.e.skripte, 'testausgabe.ps1') : undefined)],
         werkzeuge: laufWerkzeuge,
         beiSchritt: (s) => this.schritt(ep, s),
         beimStart: (pid) => {

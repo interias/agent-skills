@@ -2,7 +2,7 @@
 name: epic
 description: Ein Epic aus der Forge auf einem Epic-Branch abarbeiten — Modus tickets (Epic mit Kind-Tickets) oder spec (ein Issue mit sieben Abschnitten, das der Orchestrator selbst in Pakete zerlegt). Vorab-Tor, bis zu drei Pakete parallel in eigenen Worktrees, Sofortmerge jedes abgenommenen Pakets, Ende mit offenem Pull Request auf die Basis.
 hooks:
-  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/guard.ps1" -Profile epic', timeout: 30, onFailure: block}]}]
+  PreToolUse: [{matcher: "Bash|PowerShell", hooks: [{type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/guard.ps1" -Profile epic', timeout: 30, onFailure: block}, {type: command, command: 'powershell -NoProfile -ExecutionPolicy Bypass -File "$HOME/.claude/skills/epic/scripts/testausgabe.ps1"', timeout: 30}]}]
 ---
 
 # Epic abarbeiten — Host-Orchestrator
@@ -80,7 +80,8 @@ Es ist eine Sperrliste, kein Beweis — ein Weg, den der Hook nicht kennt, bleib
 Der Hook im Frontmatter gilt nur im Zug, der den Skill aufruft. **Eine `/epic`-Sitzung wird deshalb
 nur mit `scripts/fortsetzen.ps1 -Session <id>` fortgesetzt** (für Konto 2 dazu `-ConfigDir`), nie mit
 blankem `claude --resume`: Das Skript gibt `guard.ps1` als Hook der Sitzung mit, wie der
-Flotten-Treiber.
+Flotten-Treiber, und daneben `scripts/testausgabe.ps1`, der die Ausgabe der Testbefehle kürzt
+(Phase 4a, „Testausgabe“).
 
 1. **Der Lauf mergt und pusht nie in den Hauptzweig und nie in `<basis>`**, er endet mit einem
    offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
@@ -603,10 +604,20 @@ alles **ausgeschrieben**:
   Dev-Server startet, beendet ihn am Ende des Pakets (Regel 13, Skill, #38).
 - Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable, soweit er
   ohne vollen Stack geht (`test_commands`); den Rest fährst du in 4c im Slot.
-- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
-  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
-  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Die Agent-Dateien der
+- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests: der Befehl
+  aus `test_commands_affected` der Suite (Adapter), wörtlich im Auftrag; fehlt er, `jest
+  <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite. Nach einem Fix zuerst nur die
+  zuvor roten Tests. Am Ende genau **ein** Volllauf je betroffener Suite mit `test_commands`; sein
+  Protokoll geht in den Bericht. Die Auswahl der betroffenen Tests ist nie Beleg — sie kennt keine
+  dynamischen Importe, Fixtures oder Konfiguration; Beleg ist der Volllauf. Die Agent-Dateien der
   Implementer verweisen auf diesen Punkt — schreib ihn deshalb ausgeschrieben in den Auftrag.
+- **Testausgabe:** Der Hook `scripts/testausgabe.ps1` schreibt die Ausgabe jedes Befehls aus
+  `test_commands` und `test_commands_affected` in eine Log-Datei; in den Kontext kommen nur die
+  Fehlerzeilen, der Schluss mit den Zählzeilen und der Pfad des Logs. Gate- und Abnahmebefehle
+  bleiben ungekürzt. Für Einzelheiten zu einem Fehler den Log gezielt lesen (Read mit `offset`),
+  nicht den Lauf wiederholen; die ganze Ausgabe einmal im Kontext: `EPIC_TESTAUSGABE=voll` vor
+  den Befehl. Herkunft: Kostenseite der Claude-Code-Doku (Testausgabe per PreToolUse-Hook kürzen),
+  Sparpaket vom 21.11.2026.
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
   Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
   grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
@@ -620,7 +631,7 @@ Kommentieren machst du in Phase 5.
 ### 4b — Reviewer-Subagent
 
 Ein zweiter Subagent (`subagent_type` nach Paketklasse), im selben Worktree, nach dem Implementer. Er bekommt Paket, Issue-Auszug,
-den Bericht des Implementers und den Diff, und prüft zwei Achsen getrennt:
+den Bericht des Implementers und das Review-Paket, und prüft zwei Achsen getrennt:
 
 - **Spec:** Ist jeder Abnahmepunkt erfüllt — nachweisbar, nicht behauptet? Ist etwas gebaut, was
   niemand verlangt hat? Ist ein Out-of-Scope-Punkt verletzt, eine Decision umgangen, weil die
@@ -642,18 +653,23 @@ Griff, nicht der Beleg: Ein Schreiber, den der Graph nicht nennt, ist damit nich
 
 Drei Dinge, in einer Kette ein viertes, schreibst du ihm ausdrücklich in den Auftrag:
 
-- **Den Diff-Befehl `git -C <worktree> diff HEAD`** und den Epic-Kopf, auf dem sein Worktree steht,
-  denn ein Diff gegen den Epic-Branch zeigt inzwischen gemergte Pakete als vermeintliche Änderung,
-  und der Reviewer sucht Fehler in fremdem Code.
-- **Die neuen Dateien namentlich**, mit der Anweisung, sie direkt zu lesen, denn sie stehen in
-  keinem Diff, und eine neue Kernfunktion, die er nie sieht, nimmt er ungeprüft ab.
+- **Das Review-Paket als Datei:** `scripts/reviewpaket.ps1 -Worktree <worktree> -Package <nr>
+  -Round <k>` (Kopfkommentar des Skripts) schreibt Statistik, Diff gegen den Epic-Kopf, auf dem
+  der Worktree steht, und **jede neue Datei vollständig** in eine Datei im Git-Verzeichnis des
+  Worktrees und nennt ihren Pfad. Der Auftrag nennt den Pfad und den Epic-Kopf; der Reviewer liest
+  die Datei einmal und fährt `git` nur für eine konkrete Frage. Der Diff geht gegen den Epic-Kopf
+  des Worktrees, denn ein Diff gegen den Epic-Branch zeigt inzwischen gemergte Pakete als
+  vermeintliche Änderung; neue Dateien stehen ganz darin, denn eine neue Kernfunktion, die er nie
+  sieht, nimmt er ungeprüft ab. Den `tree` aus der Ausgabe hebst du für die nächste Runde auf.
+  Herkunft: obra/superpowers (Review-Paket), Sparpaket vom 21.11.2026.
 - **Die Lint-Basis der betroffenen Module** aus Phase 0, mit dem Auftrag, die Differenz zu melden.
 - **Steht das Paket in einer Kette, hält er die Schnittstelle fest**: was tatsächlich dasteht —
   Signatur, Merkmale der Ausgabe, jede Abweichung vom Vorgänger. Der Implementer beschreibt, was
   er bauen wollte; dieser Abschnitt geht wörtlich in den Auftrag des Nachfolgers.
 
 **Der Reviewer fährt keinen Volllauf.** Er prüft Zahlen und Protokoll des Implementers gegen die
-Ausgangszahlen, fährt gezielt die betroffenen Tests und seine Gegenproben; Rot in Dateien, die das
+Ausgangszahlen, fährt gezielt die betroffenen Tests (`test_commands_affected`, wörtlich im Auftrag)
+und seine Gegenproben; Rot in Dateien, die das
 Paket nicht berührt, wertet er nach dem Lastflake-Absatz in 4c. Den Volllauf je Paket fährst du in
 4c; ein zweiter im Review kostet Minuten und fand bisher nichts Neues. Schreib das ausdrücklich in
 den Auftrag: Die Agent-Dateien der Reviewer verweisen auf diesen Absatz und auf 4c.
@@ -664,6 +680,15 @@ strukturiert — dann schickst du den Implementer mit dem Befund erneut los, bei
 Abweichung eine Stufe höher (Eskalation, „Modelle, Paketklasse, Kundschafter"). Nach **`max_rounds`**
 Runden (Standard 3) wird das Paket zurückgelassen (Phase 5). Funde außerhalb des Pakets notiert er
 im Bericht, ohne Issues anzulegen oder vorzuschlagen (Regel 3).
+
+**Nach-Review ab Runde 2.** Der Reviewer der nächsten Runde prüft nur zweierlei: ob jeder
+Muss-Befund der Vorrunde behoben ist, und ob der Fix selbst etwas bricht. Sein Auftrag nennt die
+Muss-Befunde mit Nummer und Wortlaut und das Review-Paket mit `-Round <k> -Since <tree der
+Vorrunde>` — nur der Fix-Diff. Modell und Paketklasse bleiben (nach einer Eskalation die neue);
+nur der Umfang schrumpft. Er urteilt in derselben Form (Muss, Sollte, Kann) und meldet als neuen
+Muss-Befund nur, was der Fix verursacht. Eine Eskalation bekommt einen vollen Review: Eine
+strukturelle Abweichung ändert mehr als den Fix. Was ein enger Blick übersieht, fängt dein Volllauf
+in 4c. Herkunft: obra/superpowers (re-review), Sparpaket vom 21.11.2026.
 
 Seine Befunde kommen in drei Gruppen — **Muss**, **Sollte**, **Kann** —, jeder mit Fundstelle,
 konkretem Fall und kleinster Korrektur; die Form steht in den Agent-Dateien der Reviewer (nach
@@ -706,7 +731,9 @@ wenn der Lint-Befehl mit 0 endet.
 
 **Rot nur in Dateien, die das Paket nicht berührt, und einzeln grün = Lastflake:** vermerken, nicht
 als Befund werten. Setzt der Testbefehl des Adapters eine Worker-Grenze (etwa `--maxWorkers`), gilt
-sie auch für den Einzellauf.
+sie auch für den Einzellauf. Fällt **derselbe Test zum zweiten Mal** als Lastflake auf (im Lauf
+oder laut `known_red`/früheren Kommentaren), wird er ein offener Punkt für die Nacharbeit mit den
+Handgriffen aus `references/flaky.md`; kein Paket wartet darauf.
 
 **Sichtprüfung ohne gezeichnetes Fenster.** Zeichnet das Browserfenster nicht (Screenshot und
 Klick auf Koordinaten scheitern), gehen Klicks per Skript und der Text aus dem Seitenbaum weiter;
