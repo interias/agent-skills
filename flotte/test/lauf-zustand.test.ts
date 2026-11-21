@@ -20,6 +20,8 @@ describe('lauf', () => {
     expect(r.ergebnisse).toHaveLength(3);
     const [g] = d.gesehen();
     expect(g.eingabe).toBe('Rufe /epic #7 auf');
+    // as a file on stdin, not a pipe that a busy driver writes too late (claude -p waits 3 s; #69)
+    expect(readFileSync(`${log}.auftrag`, 'utf8')).toBe('Rufe /epic #7 auf');
     expect(g.args).toEqual(['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none', '--strict-mcp-config', '--model', 'haiku']);
     expect(g.decke).toBe('0');
     expect(g.konto).toBe(konto);
