@@ -14,6 +14,9 @@ HERKUNFT = 'Mensch über die Brücke'
 HALT = ('blockiert', 'abgebrochen')
 FERTIG = ('gemergt', 'fertig')
 # the order of the open epics on the Sternenkarte: what holds the person first, then what runs, then the backlog
+# #51: a package that runs longer than LANG_FAKTOR times the median of the project's finished packages, from LANG_AB of them
+LANG_FAKTOR = 1.5
+LANG_AB = 3
 KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nacharbeit': 2, 'pr': 3, 'wartend': 4}
 
 
@@ -38,6 +41,30 @@ def empfohlen(f: dict) -> list[str]:
     da = [o['buchstabe'] for o in f.get('optionen', [])]
     wahl = [b for b in buchstaben(f.get('empfehlung')) if b in da]
     return wahl if f.get('mehrfach') else wahl[:1]
+
+
+def schwelle_lang(epics: list[dict]) -> float | None:
+    """Seconds above which a running package counts as "longer than usual": 1.5 times the median duration
+    (first seen working to merged) of the finished packages of this project; None below three of them.
+    It lives here, not in the driver: the bridge sees every epic of the project and its own clock, and
+    it holds for reports of older drivers too."""
+    dauern = sorted(
+        (e - b).total_seconds()
+        for pk in (p for ep in epics for p in ep.get('pakete', []) if p.get('stand') == 'fertig')
+        if (b := zeit(pk.get('beginn'))) and (e := zeit(pk.get('ende'))) and e >= b
+    )
+    if len(dauern) < LANG_AB:
+        return None
+    n = len(dauern)
+    return LANG_FAKTOR * (dauern[n // 2] if n % 2 else (dauern[n // 2 - 1] + dauern[n // 2]) / 2)
+
+
+def _pakete(pakete: list[dict], url: str | None, schwelle: float | None, jetzt: datetime) -> list[dict]:
+    def lang(pk: dict) -> bool:
+        b = zeit(pk.get('beginn'))
+        return schwelle is not None and pk.get('stand') == 'laeuft' and b is not None and (jetzt - b).total_seconds() > schwelle
+
+    return [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None, 'lang': lang(pk)} for pk in pakete]
 
 
 def _antwort(a: dict | None) -> dict | None:
@@ -86,6 +113,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             if h['forge'] == forge and not h['quittiert']:
                 offen_h[(h['epic'], h['art'] if h['art'] == 'widerruf' else 'halt', h['nr'], h['seit'])] = h
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
+        schwelle = schwelle_lang(b.get('epics', []))
         basis = lambda nr: {'forge': forge, 'repo': kurz, 'epic': nr, 'titel': epics.get(nr, {}).get('titel', ''), 'konto': epics.get(nr, {}).get('konto'), 'issueUrl': f'{url}/issues/{nr}' if url else None, 'aktiv': aktiv}
 
         # ---- level 1: questions
@@ -123,7 +151,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
                 'notiz': ep.get('notiz', ''),
                 'geparkt': ep.get('geparkt', []),
-                'pakete': [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None} for pk in ep.get('pakete', [])],
+                'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
+                'neustarts': ep.get('neustarts'),
+                'plaetze': ep.get('plaetze'),
                 'schritt': ep.get('schritt'),
                 'schrittZeit': ep.get('schrittZeit'),
                 'gestartetAm': ep.get('gestartetAm'),
@@ -182,7 +212,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'warum': (ep.get('grund') or ep.get('notiz', '')) if ep['stufe'] in HALT else ep.get('notiz', ''),
                 'fragen': offen_je_epic.get(nr, 0),
                 'prognose': ep.get('prognose'),
-                'pakete': [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None} for pk in ep.get('pakete', [])],
+                'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
                 'nach': [kante(n) for n in sorted(set(ep.get('nach', []))) if n != nr],
                 'folgen': sorted(o['nr'] for o in offen if nr in o.get('nach', []) and o['nr'] != nr),
             })

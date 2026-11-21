@@ -148,7 +148,8 @@ describe('Flottenbrücke (#28)', () => {
       const muster = beispiel('bericht.json');
       const mitFrage = b.berichte.find((x) => x.fragen.length)!;
       expect(schluessel(mitFrage)).toEqual(schluessel(muster));
-      expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]));
+      // `plaetze` (#51) only with Agent calls in the log: the sample has them, this run has none
+      expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]).filter((k) => k !== 'plaetze'));
       expect(schluessel(mitFrage.fragen[0])).toEqual(schluessel(muster.fragen[0]));
       expect(schluessel(mitFrage.konten[0])).toEqual(schluessel(muster.konten[0]));
       expect(schluessel(mitFrage.ereignisse[0])).toEqual(schluessel(muster.ereignisse[0]));

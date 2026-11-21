@@ -75,7 +75,12 @@
           "nr": 46,
           "titel": "Zählerdatei anlegen",
           "beginn": "2026-11-20T12:20:00Z",
-          "ende": "2026-11-20T13:02:30Z"
+          "ende": "2026-11-20T13:02:30Z",
+          "runde": 1,
+          "stufe": "standard",
+          "eskaliert": false,
+          "erstAufruf": "2026-11-20T12:20:00Z",
+          "lebenszeichen": "2026-11-20T13:02:30Z"
         },
         {
           "name": "#47",
@@ -83,7 +88,15 @@
           "nr": 47,
           "titel": "Zähler beim Start erhöhen",
           "beginn": "2026-11-20T13:05:10Z",
-          "ende": null
+          "ende": null,
+          "phase": "nachbesserung",
+          "runde": 3,
+          "stufe": "urteil-hoch",
+          "stufeStart": "standard",
+          "eskaliert": true,
+          "erstAufruf": "2026-11-20T13:05:10Z",
+          "phaseSeit": "2026-11-20T14:12:00Z",
+          "lebenszeichen": "2026-11-20T14:29:40Z"
         },
         {
           "name": "#48",
@@ -92,6 +105,52 @@
           "titel": "Changelog-Eintrag",
           "beginn": null,
           "ende": null
+        },
+        {
+          "name": "#53",
+          "stand": "laeuft",
+          "nr": 53,
+          "titel": "Hilfetext ergänzen",
+          "beginn": "2026-11-20T14:10:30Z",
+          "ende": null,
+          "phase": "implementer",
+          "runde": 1,
+          "stufe": "standard",
+          "eskaliert": false,
+          "erstAufruf": "2026-11-20T14:10:30Z",
+          "phaseSeit": "2026-11-20T14:10:30Z",
+          "lebenszeichen": "2026-11-20T14:30:50Z"
+        },
+        {
+          "name": "#54",
+          "stand": "laeuft",
+          "nr": 54,
+          "titel": "Zähler prüfen",
+          "beginn": "2026-11-20T13:40:00Z",
+          "ende": null,
+          "phase": "review",
+          "runde": 1,
+          "stufe": "standard",
+          "eskaliert": false,
+          "erstAufruf": "2026-11-20T13:40:00Z",
+          "phaseSeit": "2026-11-20T14:21:00Z",
+          "lebenszeichen": "2026-11-20T14:28:15Z"
+        },
+        {
+          "name": "#55",
+          "stand": "laeuft",
+          "nr": 55,
+          "titel": "Beispieldatei anlegen",
+          "beginn": "2026-11-20T13:50:00Z",
+          "ende": null,
+          "phase": "merge",
+          "runde": 2,
+          "stufe": "urteil",
+          "stufeStart": "standard",
+          "eskaliert": true,
+          "erstAufruf": "2026-11-20T13:50:00Z",
+          "phaseSeit": "2026-11-20T14:26:00Z",
+          "lebenszeichen": "2026-11-20T14:26:00Z"
         }
       ],
       "schritt": "Paket P2: Tests grün, Review läuft",
@@ -106,7 +165,12 @@
       "schlangeSeit": null,
       "gateSeit": null,
       "prognose": null,
-      "nach": []
+      "nach": [],
+      "neustarts": 2,
+      "plaetze": {
+        "belegt": 3,
+        "von": 3
+      }
     },
     {
       "nr": 39,
@@ -172,16 +236,16 @@
           "titel": "",
           "name": "P1",
           "stand": "fertig",
-          "beginn": null,
-          "ende": null
+          "beginn": "2026-11-20T10:15:00Z",
+          "ende": "2026-11-20T10:50:00Z"
         },
         {
           "nr": null,
           "titel": "",
           "name": "P2",
           "stand": "fertig",
-          "beginn": null,
-          "ende": null
+          "beginn": "2026-11-20T10:50:00Z",
+          "ende": "2026-11-20T11:30:00Z"
         }
       ],
       "schritt": "FLOTTE-ENDE",
@@ -254,16 +318,16 @@
           "titel": "",
           "name": "P1",
           "stand": "fertig",
-          "beginn": null,
-          "ende": null
+          "beginn": "2026-11-20T09:05:00Z",
+          "ende": "2026-11-20T09:40:00Z"
         },
         {
           "nr": null,
           "titel": "",
           "name": "P2",
           "stand": "fertig",
-          "beginn": null,
-          "ende": null
+          "beginn": "2026-11-20T09:40:00Z",
+          "ende": "2026-11-20T10:20:00Z"
         }
       ],
       "schritt": "aufgeräumt",

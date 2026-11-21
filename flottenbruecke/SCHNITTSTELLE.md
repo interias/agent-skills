@@ -72,14 +72,52 @@ dazu
 | `aufgegebenAm` | der Mensch hat das Epic über die Brücke aufgegeben |
 | `prognose` | nur bei `wartend`: `{p50, p90}` in Sekunden, sonst `null` |
 | `prio` | Label `prio/hoch` (Adapter `prio_label`) am Epic oder einem Kind; `notiz` sagt, warum es trotzdem wartet |
-| `pakete[]` | `{name, nr, titel, stand, beginn, ende}` je Kind-Ticket, in jeder Stufe, auch `wartend`; `stand` `fertig` (geschlossen oder schon in den Epic-Branch gemergt, `ende` dann die Zeit dieses Merges), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer |
+| `pakete[]` | `{name, nr, titel, stand, beginn, ende}` je Kind-Ticket, in jeder Stufe, auch `wartend`; `stand` `fertig` (geschlossen oder schon in den Epic-Branch gemergt, `ende` dann die Zeit dieses Merges), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer. Dazu optional die Detailfelder (unten) |
+| `neustarts` | optional (Detailansicht, #51): wie oft der Treiber für das Epic nach dem ersten Start einen Prozess gestartet oder fortgesetzt hat (jede Fortsetzung nach einer Antwort, jeder Neustart nach einem Fehlstart). Zählt über ein Neu-Einreihen durch den Menschen weiter (seit dem ersten Start, wie `runde`). Fehlt bei einem älteren Treiber und bei einem Epic ohne Start |
+| `plaetze` | optional (#51): `{belegt, von?}`, nur bei `laeuft`/`nacharbeit`/`frage` und wenn der Treiber Agent-Aufrufe des Laufs sah. `belegt` = Pakete in Implementer, Review oder Nachbesserung (Merge belegt keinen Platz; 0, wenn gerade kein Prozess läuft), `von` = `window` des Projektadapters (Standard nach `epic/references/adapter.md`: 3 mit `test_isolation_env` oder `isolation: none-needed`, sonst 1; höchstens 3), fehlt, wenn unbekannt |
 | `nach[]` | optional (Sternenkarte, #43): die Nummern der Epics dieses Repositorys, nach denen es kommt (Kopfzeile `> **Reihenfolge:**` und `## Blocked by` des Issues, wie die Belegung sie liest; nur Epics des Treibers, nie das Epic selbst). Fehlt es (älterer Treiber), gilt `[]` |
+
+**Detailfelder je Paket (#51)**, alle optional, nur für Kind-Tickets (im spec-Modus nie) und nur, wenn der
+Treiber im Protokoll des Laufs (stream-json von `claude -p`, das er schon liest) einen `Agent`-Aufruf eines
+`epic-implementer-*` oder `epic-reviewer-*` sah, dessen `description` die Paketnummer nennt
+(`Implementer #588 …`, `Reviewer #588 …`, `epic/SKILL.md`, Phase 6). Die Lauftafel und der Lauf bleiben
+unverändert. Der Treiber merkt sich die Aufrufe mit ihren Rückkehrzeiten im Zustand (`agenten`, nur wenn er mit Brücke läuft) und
+nimmt als Zeit den `timestamp` der Zeile (Zeilen von `assistant` und `user` haben einen), sonst den Moment, in dem er sie las.
+Ein Agent im Hintergrund (so startet `/epic` Implementer und Reviewer) beantwortet seinen Aufruf sofort
+mit einem `tool_result`, das mit „Async agent launched“ beginnt: Das ist sein Start, keine Rückkehr. Sein
+Ende ist die spätere Zeile `{"type":"system","subtype":"task_notification","tool_use_id":<Aufruf>,"status":…}`
+mit `status` `completed`, `failed`, `killed` oder `stopped`; sie hat **keinen** `timestamp`, als Rückkehrzeit
+gilt also der Moment, in dem der Treiber sie las (bei einem nach einem Neustart übernommenen Lauf, dessen
+Rückkehr der Zustand noch nicht kannte, ist das die Zeit des Nachlesens). Eine zweite Meldung zum selben
+Aufruf zählt nicht. Ein `tool_result` ohne diesen Anfang ist das Ende eines Agenten im Vordergrund.
+
+| Feld | Bedeutung |
+|---|---|
+| `phase` | `implementer` (erste Runde läuft), `review` (Reviewer läuft), `nachbesserung` (Implementer ab Runde 2 nach einem Review), `merge` (Reviewer zurück, noch nicht im Epic-Branch: Host prüft und mergt). Fehlt, sobald das Paket gemergt ist und solange das Epic nicht arbeitet (`pr`, Schlange) |
+| `runde` | Zahl der Implementer-Runden des Pakets: der erste Aufruf und jeder erste nach einem Review (ein erneuter Aufruf ohne Review dazwischen, etwa nach einem Neustart des Laufs, bleibt dieselbe Runde) |
+| `stufe`, `stufeStart` | Klasse des letzten Implementer-Aufrufs (`mechanisch`, `standard`, `urteil`, `urteil-hoch`) und die des ersten, nur wenn sie abweicht |
+| `eskaliert` | die Stufe der letzten Runde liegt über der der vorigen (Standard → Urteil → Urteil hoch) |
+| `erstAufruf`, `phaseSeit`, `lebenszeichen` | ISO: erster Aufruf (Dauer gesamt), Beginn der Phase, letzter Protokolleintrag zum Paket (Aufruf, Rückkehr oder Zeile eines Unteragenten) |
+
+Die Brücke gibt sie in `GET /api/tafel` an `pakete[]` weiter (Brücke und Sternenkarte) und rechnet dort
+`lang` dazu: `true`, wenn das Paket `laeuft` und seit `beginn` länger als das 1,5-Fache des Medians der
+Dauern (`beginn` bis `ende`) der fertigen Pakete **aller Epics des Projekts** läuft, ab drei fertigen,
+sonst `false`. Sie rechnet es selbst, weil sie jedes Epic des Projekts und ihre eigene Uhr kennt und es
+so auch für Berichte älterer Treiber gilt. Ungültige Werte (`phase`, `stufe`, `runde` unter 1) lehnt die
+Brücke mit `422` ab. Fehlt ein Feld, lässt die Seite es weg und das Layout bleibt wie vorher.
+
+An die Detailansicht eines Epics (aufgeklappte Paketliste auf der Brücke, `abschnitte(x)` in `app.js`)
+kommt ein weiterer Abschnitt, etwa die Entscheidungen des Epics (#52), als weiterer Eintrag dieser
+Liste unter die Paketliste.
+
+**Fertig-Erkennung im Epic-Branch:** Ein Betreff gilt für das Kind `<nr>` bei `Merge … agent/<nr>-…`,
+`… (#<nr>)` und `Merge #<nr>: …`; eine Nummer sonst irgendwo im Text („Refs #409“, `#4090`) zählt nicht.
 
 Der Treiber liest die Kinder jedes Epics, auch eines wartenden, höchstens alle 5 min je Epic
 (`gh issue view`) und sofort, wenn sich Stufe oder Geparkte ändern. Bei jedem solchen Lesen schaut
 er einmal je Epic in den Epic-Branch (`git log --first-parent` auf `epic/<nr>-…`, lokal vor
-`origin/…`, ohne die Commits anderer Branches): Ein Kind mit `Merge … agent/<kind>-…` oder
-`(#<kind>)` im Betreff ist fertig, auch wenn sein Issue bis zum Merge des Epic-PRs offen bleibt. Die Brücke macht daraus Links
+`origin/…`, ohne die Commits anderer Branches): Ein Kind mit `Merge … agent/<kind>-…`,
+`(#<kind>)` oder `Merge #<kind>: …` im Betreff ist fertig, auch wenn sein Issue bis zum Merge des Epic-PRs offen bleibt. Die Brücke macht daraus Links
 `<url>/issues/<nr>`: unter *Unterwegs* je Karte, in *Bereit* je Epic „N Tickets“ mit derselben
 Leiste; bei leerer Liste fehlt die Leiste.
 

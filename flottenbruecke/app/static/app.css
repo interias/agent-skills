@@ -238,6 +238,10 @@ textarea {
 .pakete a { color: var(--himmel); font-weight: 700; }
 .pakete .pt { color: var(--text); overflow-wrap: anywhere; }
 .pakete .ps { color: var(--matt); font: 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.pakete .pd { grid-column: 2 / -1; margin: -6px 0 4px; color: var(--matt); font: 11.5px/1.5 var(--lesen); overflow-wrap: anywhere; }
+.pakete .pd b { color: var(--pfirsich); font-weight: 600; }
+.pakete .pd .lang { margin-left: 8px; padding: 0 8px; border: 1px solid var(--linie); border-radius: var(--rund); color: var(--gelb); white-space: nowrap; }
+.epic-meta { color: var(--matt); font: 11.5px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
 .leben { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 8px; }
 .leben .roehre { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: #22222e; overflow: hidden; }
 .leben .roehre i { display: block; height: 100%; width: 0; background: var(--gruen); }
