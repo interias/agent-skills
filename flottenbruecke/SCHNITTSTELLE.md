@@ -73,6 +73,7 @@ dazu
 | `prognose` | nur bei `wartend`: `{p50, p90}` in Sekunden, sonst `null` |
 | `prio` | Label `prio/hoch` (Adapter `prio_label`) am Epic oder einem Kind; `notiz` sagt, warum es trotzdem wartet |
 | `pakete[]` | `{name, nr, titel, stand, beginn, ende}` je Kind-Ticket, in jeder Stufe, auch `wartend`; `stand` `fertig` (geschlossen oder schon in den Epic-Branch gemergt, `ende` dann die Zeit dieses Merges), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer |
+| `nach[]` | optional (Sternenkarte, #43): die Nummern der Epics dieses Repositorys, nach denen es kommt (Kopfzeile `> **Reihenfolge:**` und `## Blocked by` des Issues, wie die Belegung sie liest; nur Epics des Treibers, nie das Epic selbst). Fehlt es (älterer Treiber), gilt `[]` |
 
 Der Treiber liest die Kinder jedes Epics, auch eines wartenden, höchstens alle 5 min je Epic
 (`gh issue view`) und sofort, wenn sich Stufe oder Geparkte ändern. Bei jedem solchen Lesen schaut
@@ -193,6 +194,16 @@ In `GET /api/tafel` steht außerdem `sitzungen[]` (Schiffsliste, #41): `{konto, 
 kind, seit, forge}`. `forge` ist das Projekt, dessen Repository-Name (letzter Teil der `forge`) dem
 `projekt` der Sitzung gleicht (ohne Groß/Klein), sonst `null` (die Liste zeigt „Sonstige“). Dieselbe
 Sitzung aus mehreren Berichten steht einmal (der neuere gilt); Berichte stiller Projekte zählen nicht.
+
+In `GET /api/tafel` trägt jedes Projekt in `projekte[]` zusätzlich `epics[]` (Sternenkarte, #43), die
+flache Sicht seiner **offenen** Epics (ohne `gemergt`, `fertig` und die aufgegebenen), sortiert nach
+Stufe (blockiert, Frage, läuft, PR, wartend), `prio` zuerst, Nummer: `{id, nr, titel, stufe, prio,
+konto, issueUrl, pr, prUrl, warum, fragen, prognose, pakete[], nach[], folgen[]}`. `warum` ist bei
+`blockiert` der ganze `grund`, sonst die `notiz`; `pakete[]` wie auf der Brücke samt `url`; `nach[]`
+sind die Kanten `{nr, titel, stufe, offen, issueUrl}`, `offen` sagt, ob der Vorgänger selbst noch
+offen ist (sonst erledigt oder dem Bericht unbekannt, `stufe` dann `null`); `folgen[]` die Nummern
+der offenen Epics, die nach diesem kommen. Das Projekt trägt wie bisher `prognose`. Alles stammt aus
+dem Bericht, die Brücke fragt keine Forge.
 
 ## Was die Seite selbst nutzt
 

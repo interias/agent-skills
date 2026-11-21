@@ -4,6 +4,7 @@
 # 3 "Erledigt heute": merged epics, the admiral's decisions, the person's own answers and actions.
 # Above them the accounts with their usage, RAM and disk per machine; below them the ticker. Beside
 # them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
+# The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`).
 
 import re
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ from zoneinfo import ZoneInfo
 HERKUNFT = 'Mensch über die Brücke'
 HALT = ('blockiert', 'abgebrochen')
 FERTIG = ('gemergt', 'fertig')
+# the order of the open epics on the Sternenkarte: what holds the person first, then what runs, then the backlog
+KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nacharbeit': 2, 'pr': 3, 'wartend': 4}
 
 
 def zeit(text: str | None) -> datetime | None:
@@ -157,6 +160,34 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 continue
             # laeuft, nacharbeit, frage: a run; one that waits for the person entirely has no life sign
             laeufe.append({**karte, 'prozess': bool(ep.get('prozess')), 'leerlaufS': b.get('leerlaufS'), 'fragen': offen_je_epic.get(nr, 0), 'wartetAufDich': stufe == 'frage'})
+
+        # ---- the Sternenkarte: the open epics of this project, merged and given-up ones are no backlog
+        offen = [ep for ep in b.get('epics', []) if ep['stufe'] not in FERTIG and not (ep['stufe'] in HALT and ep.get('aufgegebenAm'))]
+        offene_nr = {ep['nr'] for ep in offen}
+        karte = []
+        for ep in offen:
+            nr = ep['nr']
+            kante = lambda n: {'nr': n, 'titel': epics.get(n, {}).get('titel', ''), 'stufe': epics.get(n, {}).get('stufe'), 'offen': n in offene_nr, 'issueUrl': f'{url}/issues/{n}' if url else None}
+            karte.append({
+                'id': f'epic:{forge}#{nr}',
+                'nr': nr,
+                'titel': ep.get('titel', ''),
+                'stufe': ep['stufe'],
+                'prio': bool(ep.get('prio')),
+                'konto': ep.get('konto'),
+                'issueUrl': f'{url}/issues/{nr}' if url else None,
+                'pr': ep.get('pr'),
+                'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
+                # why it waits or halts: the whole reason of a blockade, else the note
+                'warum': (ep.get('grund') or ep.get('notiz', '')) if ep['stufe'] in HALT else ep.get('notiz', ''),
+                'fragen': offen_je_epic.get(nr, 0),
+                'prognose': ep.get('prognose'),
+                'pakete': [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None} for pk in ep.get('pakete', [])],
+                'nach': [kante(n) for n in sorted(set(ep.get('nach', []))) if n != nr],
+                'folgen': sorted(o['nr'] for o in offen if nr in o.get('nach', []) and o['nr'] != nr),
+            })
+        karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
+        liste[-1]['epics'] = karte
 
         # ---- level 3: the admiral's decisions of today, revocable until the merge
         for d in b.get('entscheidungen', []):

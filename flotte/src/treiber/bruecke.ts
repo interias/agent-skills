@@ -104,6 +104,8 @@ export interface BerichtEpic {
   gateSeit: string | null;
   /** forecast of a waiting epic in seconds (p50–p90), null below the threshold or when hidden */
   prognose: { p50: number; p90: number } | null;
+  /** order edges for the Sternenkarte: the epics of this repository it comes after (`> **Reihenfolge:**`, ## Blocked by) */
+  nach: number[];
 }
 
 /**

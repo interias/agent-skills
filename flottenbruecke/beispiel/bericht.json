@@ -54,7 +54,11 @@
       "prognose": {
         "p50": 10800,
         "p90": 18000
-      }
+      },
+      "nach": [
+        38,
+        39
+      ]
     },
     {
       "nr": 38,
@@ -101,7 +105,8 @@
       "gestartetAm": "2026-11-20T12:06:40Z",
       "schlangeSeit": null,
       "gateSeit": null,
-      "prognose": null
+      "prognose": null,
+      "nach": []
     },
     {
       "nr": 39,
@@ -150,7 +155,8 @@
       "gestartetAm": "2026-11-20T12:51:10Z",
       "schlangeSeit": null,
       "gateSeit": null,
-      "prognose": null
+      "prognose": null,
+      "nach": []
     },
     {
       "nr": 36,
@@ -189,7 +195,8 @@
       "gestartetAm": "2026-11-20T10:12:00Z",
       "schlangeSeit": "2026-11-20T14:05:20Z",
       "gateSeit": "2026-11-20T14:27:45Z",
-      "prognose": null
+      "prognose": null,
+      "nach": []
     },
     {
       "nr": 37,
@@ -228,7 +235,10 @@
       "gestartetAm": "2026-11-20T10:40:00Z",
       "schlangeSeit": "2026-11-20T14:12:00Z",
       "gateSeit": null,
-      "prognose": null
+      "prognose": null,
+      "nach": [
+        36
+      ]
     },
     {
       "nr": 35,
@@ -268,7 +278,8 @@
       "gestartetAm": "2026-11-20T09:02:00Z",
       "schlangeSeit": null,
       "gateSeit": null,
-      "prognose": null
+      "prognose": null,
+      "nach": []
     },
     {
       "nr": 40,
@@ -313,7 +324,10 @@
       "gestartetAm": "2026-11-20T11:20:00Z",
       "schlangeSeit": null,
       "gateSeit": null,
-      "prognose": null
+      "prognose": null,
+      "nach": [
+        35
+      ]
     },
     {
       "nr": 42,
@@ -335,7 +349,10 @@
       "gestartetAm": null,
       "schlangeSeit": null,
       "gateSeit": null,
-      "prognose": null
+      "prognose": null,
+      "nach": [
+        41
+      ]
     }
   ],
   "schlange": [

@@ -33,7 +33,7 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 
 - **Brücke** (`#bruecke`, Startseite) — das Board unten.
 - **Holodeck** (`#holodeck`) — die Prototypen der Projekte, unten.
-- **Sternenkarte** (`#sternenkarte`) — noch leer.
+- **Sternenkarte** (`#sternenkarte`) — Projekte mit ihrem Backlog, unten.
 - **Maschinenraum** (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten.
 
 Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
@@ -48,6 +48,19 @@ Einträge für die Befehlszeile. `huelle.springe(bereich, ziel)` springt wie ein
 zu einem Element, `huelle.beiTafel(f)` ruft `f(t)` nach jedem Laden der Tafel (so zeichnet sich die
 Schiffsliste). Alle Skripte und Stile, die `index.html` nennt, bindet die Brücke mit
 Inhalts-Hash ein.
+
+## Sternenkarte
+
+Der Überblick über die Projekte, nur lesend. Je Projekt (Forge-Repo des Treibers) ein Block mit dem
+Kürzel, der Zahl offener Epics und der Prognose „Backlog leer etwa …“ (ab 5 gemessenen Epics, sonst
+der Hinweis, wie auf der Brücke). Darunter jedes offene Epic als Zeile: Nummer (Link aufs Issue),
+Titel, die Stufe (läuft, wartet, Frage, blockiert, PR), `prio` bei `prio/hoch`, warum es wartet oder
+hält, die Reihenfolge („nach #38“ springt zur Zeile des Vorgängers, „danach #41“ zeigt die wartenden
+Nachfolger; ein erledigter Vorgänger ist ein Link aufs Issue) und eine aufklappbare Liste seiner
+Kind-Tickets mit Stand und Links. Ein Klick auf die Stufe führt zur Karte des Epics auf der Brücke.
+Gemergte und aufgegebene Epics gehören nicht in den Backlog. Die Daten stehen im Bericht des Treibers
+(`nach[]` je Epic ist neu, siehe `SCHNITTSTELLE.md`); die Brücke fragt keine Forge. Ein älterer Treiber
+ohne `nach[]` zeigt die Epics ohne Kanten.
 
 ## Schiffsliste
 
