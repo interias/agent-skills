@@ -74,28 +74,7 @@ export interface Paar {
 
 /** Flat keys of the YAML frontmatter, as the scripts of epic/ read it (references/adapter.md, "Form"). */
 export function liesAdapter(text: string): Adapter {
-  const werte = new Map<string, string[]>();
-  const zeilen = text.split(/\r?\n/);
-  if (zeilen[0]?.trim() === '---') {
-    let liste: string | null = null;
-    for (let i = 1; i < zeilen.length && zeilen[i].trim() !== '---'; i++) {
-      const z = zeilen[i];
-      const punkt = /^\s+-\s+(.*)$/.exec(z);
-      if (punkt && liste) {
-        werte.get(liste)!.push(punkt[1].replace(/\s+#.*$/, '').trim().replace(/^['"]|['"]$/g, ''));
-        continue;
-      }
-      const m = /^([A-Za-z_]+):\s*(.*)$/.exec(z);
-      if (!m) continue;
-      liste = null;
-      const v = m[2].replace(/\s+#.*$/, '').trim();
-      if (!v) {
-        liste = m[1];
-        werte.set(m[1], []);
-      } else if (v.startsWith('[')) werte.set(m[1], v.slice(1, -1).split(',').map((x) => x.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean));
-      else werte.set(m[1], [v.replace(/^['"]|['"]$/g, '')]);
-    }
-  }
+  const werte = frontmatter(text);
   return {
     exclusive_paths: werte.get('exclusive_paths') ?? ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lock', 'uv.lock', 'poetry.lock', 'migrations/'],
     always_collide: werte.get('always_collide') ?? [],
@@ -121,7 +100,34 @@ export function liesAdapter(text: string): Adapter {
   };
 }
 
-function abschnitt(body: string, kopf: string): string {
+/** Every flat key of the frontmatter with its values: `key: value`, `key: [a, b]` or a list of `- item`. */
+export function frontmatter(text: string): Map<string, string[]> {
+  const werte = new Map<string, string[]>();
+  const zeilen = text.split(/\r?\n/);
+  if (zeilen[0]?.trim() === '---') {
+    let liste: string | null = null;
+    for (let i = 1; i < zeilen.length && zeilen[i].trim() !== '---'; i++) {
+      const z = zeilen[i];
+      const punkt = /^\s+-\s+(.*)$/.exec(z);
+      if (punkt && liste) {
+        werte.get(liste)!.push(punkt[1].replace(/\s+#.*$/, '').trim().replace(/^['"]|['"]$/g, ''));
+        continue;
+      }
+      const m = /^([A-Za-z_]+):\s*(.*)$/.exec(z);
+      if (!m) continue;
+      liste = null;
+      const v = m[2].replace(/\s+#.*$/, '').trim();
+      if (!v) {
+        liste = m[1];
+        werte.set(m[1], []);
+      } else if (v.startsWith('[')) werte.set(m[1], v.slice(1, -1).split(',').map((x) => x.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean));
+      else werte.set(m[1], [v.replace(/^['"]|['"]$/g, '')]);
+    }
+  }
+  return werte;
+}
+
+export function abschnitt(body: string, kopf: string): string {
   const zeilen = body.split(/\r?\n/);
   const i = zeilen.findIndex((z) => z.trim().toLowerCase() === kopf.trim().toLowerCase());
   if (i < 0) return '';

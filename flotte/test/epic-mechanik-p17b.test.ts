@@ -21,7 +21,7 @@ const neu = () => {
   return f;
 };
 
-const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
+const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
 const einstellung = (f: Fixture): EpicEinstellung => ({ repo: f.repo, epic: 69, epicBranch: 'epic/69-programm', basis: 'origin/main', fenster: 3, maxRunden: 3, konto: '/konten/2' });
 const anhaengen = (zeile: string) => (cwd: string) => appendFileSync(join(cwd, 'src', 'liste.txt'), `${zeile}\n`);
 /** a promise that never ends: the job that waits on it is dead with the program */

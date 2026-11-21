@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'no
 import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufenAsync, pwshJsonAsync, type AsyncAufrufer, type Ergebnis } from '../aufruf.ts';
 import { schluessel } from '../befehle/adapter.ts';
-import { liesAdapter } from '../werkzeuge/belegung.ts';
+import { frontmatter, liesAdapter } from '../werkzeuge/belegung.ts';
 import { messeRam, SKRIPTE, type Ram } from '../werkzeuge/ressourcen.ts';
 import { flotteDir } from '../werkzeuge/zustand.ts';
 import type { Aufgeraeumt, Mechanik, StatusLabel } from './motor.ts';
@@ -114,6 +114,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
   const adapter = liesAdapter(adapterText);
   const tests = karte(adapterText, 'test_commands');
   const lints = karte(adapterText, 'lint_commands');
+  const vorCommit = frontmatter(adapterText).get('pre_commit_checks') ?? [];
   const common = dirname(flotteDir(repo));
   const lockVon = (name: string) => join(common, 'epic-locks', `${name}.json`);
   // a holder file keeps the locks of this epic alive between two program runs (worktree.ps1,
@@ -209,7 +210,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
         const l = JSON.parse(readFileSync(lock, 'utf8').replace(/^﻿/, '')) as { branch?: string; worktree?: string; port?: number | null };
         if (l.branch === branch && l.worktree && existsSync(l.worktree)) {
           if (name === epicName) epicPfad = l.worktree;
-          return { worktree: l.worktree, port: l.port ?? null, isolation: null };
+          return { worktree: l.worktree, port: l.port ?? null, isolation: null, kopf: (await git(l.worktree, ['rev-parse', 'HEAD'])).stdout.trim() || null };
         }
       }
       let ab = von;
@@ -227,7 +228,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       if (r.code || !j?.path) throw new Error(`worktree.ps1 Up ${name}: ${flach(r.stderr) || `Exit ${r.code}`}`);
       if (ausRemote) await gitOk(j.path, ['pull', '--ff-only', remote, branch]);
       if (name === epicName) epicPfad = j.path;
-      return { worktree: j.path, port: j.port ?? null, isolation: j.isolation ?? null };
+      return { worktree: j.path, port: j.port ?? null, isolation: j.isolation ?? null, kopf: (await git(j.path, ['rev-parse', 'HEAD'])).stdout.trim() || null };
     },
     async down(name) {
       const r = await a('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript('worktree.ps1'), '-Action', 'Down', '-RepoRoot', repo, '-Package', name], { cwd: repo, timeoutMs: 300_000 });
@@ -294,6 +295,11 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       if (!existsSync(wt)) return null;
       await gitOk(wt, ['add', '-A']);
       if (!(await git(wt, ['diff', '--cached', '--quiet'])).code) return null;
+      // 4d: pre_commit_checks before the commit (a git hook runs by itself in the commit); a red check is the package's matter
+      for (const befehl of vorCommit) {
+        const r = await shell(befehl, wt);
+        if (r.code) throw new Error(`pre_commit_checks: ${befehl}: Exit ${r.code}: ${flach(r.stderr || r.stdout).slice(0, 600)}`);
+      }
       await gitOk(wt, ['commit', '-q', '-F', '-'], nachricht);
       return gitOk(wt, ['rev-parse', 'HEAD']);
     },
@@ -323,7 +329,8 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       const wt = await epicWt();
       const offen = (await git(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim();
       if (offen) throw new Error(`Merge nicht abschließbar, noch ungelöst: ${offen.split(/\r?\n/).join(', ')}`);
-      await gitOk(wt, ['commit', '-q', '--no-edit']);
+      // strip: the "# Conflicts:" lines of the prepared message stay out of the merge commit
+      await gitOk(wt, ['commit', '-q', '--no-edit', '--cleanup=strip']);
       return gitOk(wt, ['rev-parse', 'HEAD']);
     },
     async mergeAbbrechen() {
@@ -342,9 +349,12 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
     async graph() {
       // the graph is optional: not installed, switched off or failed, the run goes on without it
       const r = await pwshJsonAsync(a, skript('graph.ps1'), ['-RepoRoot', repo, '-Worktree', await epicWt(), '-Package', epicName], { cwd: repo, timeoutMs: 600_000 });
-      const j = r.json as { available?: boolean; reason?: string } | null;
+      const j = r.json as { available?: boolean; reason?: string; graph?: string } | null;
       if (r.code || !j) return { available: false, grund: `graph.ps1 Exit ${r.code}: ${flach(r.stderr).slice(0, 300)}` };
-      return { available: Boolean(j.available), ...(j.reason ? { grund: j.reason } : {}) };
+      return { available: Boolean(j.available), ...(j.reason ? { grund: j.reason } : {}), ...(j.graph ? { pfad: j.graph } : {}) };
+    },
+    async body(ticket) {
+      return String(JSON.parse(await gh(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'body'])).body ?? '');
     },
     async kommentare(ticket) {
       const j = JSON.parse(await gh(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'comments']));

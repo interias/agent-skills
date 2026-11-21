@@ -121,7 +121,7 @@ describe('echte Mechanik gegen die Fixture (#66)', () => {
   it('Up and Down: worktree under worktree_root with lock, Up again takes it, a dirty worktree stays, Down again is harmless', async () => {
     const m = mech();
     const w = await m.up('5', 'agent/5-paket', 'main');
-    expect(w).toEqual({ worktree: join(f.wt, '5'), port: null, isolation: null });
+    expect(w).toEqual({ worktree: join(f.wt, '5'), port: null, isolation: null, kopf: f.git(['rev-parse', 'main']) });
     expect(existsSync(join(f.repo, '.git', 'epic-locks', '5.json'))).toBe(true);
     expect(existsSync(halter())).toBe(true);
     expect((await m.up('5', 'agent/5-paket', 'main')).worktree).toBe(w.worktree);
@@ -223,7 +223,7 @@ describe('echte Mechanik gegen die Fixture (#66)', () => {
   }, T);
 });
 
-const P = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
+const P = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
 const leeresRepo = () => {
   const r = mkdtempSync(join(tmpdir(), 'flotte-epic-'));
   aufrufen('git', ['init', '-q', r]);

@@ -18,7 +18,7 @@ const neu = () => {
   return f;
 };
 
-const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
+const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
 const einstellung = (f: Fixture): EpicEinstellung => ({ repo: f.repo, epic: 69, epicBranch: 'epic/69-programm', basis: 'origin/main', fenster: 3, maxRunden: 3, konto: '/konten/2' });
 const anhaengen = (zeile: string) => (cwd: string) => appendFileSync(join(cwd, 'src', 'liste.txt'), `${zeile}\n`);
 
@@ -55,6 +55,10 @@ it('P14/P15 echt: a mechanical conflict is resolved, committed and tested on the
   const p91 = z.pakete['91'];
   expect(p91).toMatchObject({ stufe: 'fertig', konflikt: { dateien: ['src/liste.txt'], ergebnis: 'geloest' } });
   expect(f.git(['log', '-1', '--format=%P', p91.mergeCommit!]).split(' ')).toHaveLength(2);
+  // --cleanup=strip: the "# Conflicts:" lines of the prepared message stay out of the merge commit
+  expect(f.git(['log', '-1', '--format=%B', p91.mergeCommit!])).not.toMatch(/#\s*Conflicts/);
+  // Up names the epic head the package started on (the hash of the reviewer's order)
+  expect(p91.kopf).toMatch(/^[0-9a-f]{40}$/);
   expect(p91.epicLauf).toEqual([{ name: 'fix', dateien: 1, tests: 1, rot: [] }]);
   expect(z.kanten).toContainEqual({ a: '90', b: '91', art: 'kollision', grund: 'Merge-Konflikt in src/liste.txt' });
   // P15: aborted, nothing of 92 in the epic branch, no merge in progress, the branch stays

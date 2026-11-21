@@ -3,7 +3,8 @@
 // and around it the window, the RAM brake, the escalation ladder, max_rounds, blocking successors,
 // state and resume. Language models are only the content of a state, each one call (Aufrufe);
 // scripts, tests, git and the forge stand behind Mechanik. Stage 1 (#65) runs both as stand-ins
-// with a script (attrappe.ts); stages 2 and 3 put the real ones behind the same interfaces.
+// with a script (attrappe.ts); stage 2 (#66) put the real Mechanik behind the interface, stage 3
+// (#67) the real calls (aufrufe.ts) with their schemata (schemata.ts) and orders (auftraege.ts).
 //
 // One takt: apply what has finished, take answers, then fill the window. Everything that waits
 // (a call, the test runs of 4c, a merge) runs beside the loop; the loop never waits on it. The
@@ -13,8 +14,10 @@ import { buchstabenAus } from '../werkzeuge/bloecke.ts';
 import type { LaufErgebnis } from '../werkzeuge/lauf.ts';
 import type { Ram } from '../werkzeuge/ressourcen.ts';
 import { entsperren, lebt, sperren } from '../werkzeuge/zustand.ts';
-import { alleNachfolger, bewerteAufruf, endeBlock, flakeKandidaten, frageBlock, hoeher, IMPLEMENTER, istEnde, laeuft, nachpruefung, REVIEWER, rot, startbereit, wahl, geparkt, type BlockFrage, type Nachpruefung } from './regeln.ts';
-import type { Paket, Rolle } from './schema.ts';
+import { commitNachricht, implementerAuftrag, konfliktAuftrag, reviewerAuftrag, schnittAuftrag, type Kontext } from './auftraege.ts';
+import { alleNachfolger, bewerteAufruf, endeBlock, flakeKandidaten, frageBlock, hoeher, IMPLEMENTER, istEnde, laeuft, nachfolger, nachpruefung, REVIEWER, rot, startbereit, wahl, geparkt, type BlockFrage, type Nachpruefung } from './regeln.ts';
+import { abdeckungFehler, type Paket, type Rolle } from './schema.ts';
+import { SCHEMATA, type JsonSchema } from './schemata.ts';
 import { epicDir, liesLauf, neuesPaket, schreibeLauf, type AufrufStand, type EpicLaufZustand, type Ereignis, type PaketZustand, type Testlauf } from './zustand.ts';
 
 export interface Aufruf {
@@ -31,6 +34,8 @@ export interface Aufruf {
   auftrag: string;
   /** the session to continue; null: a new call */
   resume: string | null;
+  /** the output schema of the role (schemata.ts), for --json-schema */
+  schema: JsonSchema;
 }
 
 /** the language-model points: each a `claude -p --output-format stream-json --json-schema` (decision 2) */
@@ -60,8 +65,8 @@ export interface Aufgeraeumt {
 export interface Mechanik {
   /** worktree.ps1 CleanupStale at every program start: what dead sessions left behind (the locks of this epic stay, they have a holder) */
   aufraeumen(): Promise<Aufgeraeumt[]>;
-  /** worktree.ps1 Up: takes an existing branch again; port and isolation of the worktree for the order of 4a */
-  up(name: string, branch: string, von: string): Promise<{ worktree: string; port?: number | null; isolation?: string | null }>;
+  /** worktree.ps1 Up: takes an existing branch again; port and isolation of the worktree for the order of 4a, kopf its HEAD (the epic head the package starts on, for the order of 4b) */
+  up(name: string, branch: string, von: string): Promise<{ worktree: string; port?: number | null; isolation?: string | null; kopf?: string | null }>;
   /** worktree.ps1 Down; a dirty worktree stays */
   down(name: string): Promise<{ schmutzig: boolean }>;
   /** git branch -d in the epic worktree */
@@ -92,8 +97,10 @@ export interface Mechanik {
   baumGleich(branch: string): Promise<boolean>;
   /** git revert -m 1 <commit>; the revert commit */
   revert(commit: string): Promise<string>;
-  /** graph.ps1: rebuild the code graph after a merge; optional, not available is no error */
-  graph(): Promise<{ available: boolean; grund?: string }>;
+  /** graph.ps1: build the code graph (phase 0b) and rebuild it after a merge; optional, not available is no error; pfad: its graph.json */
+  graph(): Promise<{ available: boolean; grund?: string; pfad?: string }>;
+  /** the body of an issue (the target issue: children and user stories for the check of the cut) */
+  body(ticket: number): Promise<string>;
   kommentare(ticket: number): Promise<string[]>;
   kommentar(ticket: number, text: string): Promise<void>;
   /** sets one status label and takes the other two off, then reads it back (epic/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
@@ -129,6 +136,8 @@ export interface EpicEinstellung {
   fenster: number;
   maxRunden: number;
   konto: string;
+  /** .claude/epic.md of the target repository for the orders and the commit of 4d; missing: '' */
+  adapter?: string;
   /** the lock's owner; tests set another pid and liveness */
   pid?: number;
   istLebendig?: (pid: number) => boolean;
@@ -242,10 +251,18 @@ class EpicLauf {
       z.basisLint = await this.m.lint(z.epicWorktree);
       this.speichere();
     }
+    // Phase 0b: the code graph goes into every order (4a, 4b); not available is no error
+    if (z.graph === undefined) {
+      const g = await this.m.graph();
+      z.graph = g.available ? (g.pfad ?? null) : null;
+      this.speichere();
+    }
     if (z.phase === 'ruesten') {
       z.phase = 'schnitt';
       this.speichere();
     }
+    // a restart while gate points are open: the driver gets the open block again (it holds no state of ours)
+    this.offeneFragen();
     for (;;) {
       if (this.fehler) throw this.fehler;
       z.takt++;
@@ -275,14 +292,14 @@ class EpicLauf {
 
   // ---- calls
 
-  private rufe(schluessel: string, stand: AufrufStand, a: Omit<Aufruf, 'auftrag' | 'resume' | 'konto'>, auftrag: () => string) {
+  private rufe(schluessel: string, stand: AufrufStand, a: Omit<Aufruf, 'auftrag' | 'resume' | 'konto' | 'schema'>, auftrag: () => string) {
     const resume = stand.sitzung;
     const text = resume ? (stand.fortsetzen ?? FORTSETZEN) : auftrag();
     stand.fortsetzen = null;
     this.laufend.add(schluessel);
     this.ereignis('aufruf', a.paket, `${a.rolle}${a.agent ? ` (${a.agent})` : ''}, Runde ${a.runde}${resume ? `, --resume ${resume}` : ''}`, a.rolle);
     this.u.aufrufe
-      .rufe({ ...a, konto: this.e.konto, auftrag: text, resume }, (sitzung) => {
+      .rufe({ ...a, konto: this.e.konto, auftrag: text, resume, schema: SCHEMATA[a.rolle] }, (sitzung) => {
         stand.sitzung = sitzung;
         this.speichere();
       })
@@ -296,7 +313,9 @@ class EpicLauf {
    * A call without usable result: permission_denials block, an account limit waits, otherwise one
    * --resume with the error (P8, P9); after that the call is used up and the caller starts anew.
    */
-  private fehlschlag(stand: AufrufStand, b: { art: string; fehler: string }, paket: string | null): 'fortsetzen' | 'verbraucht' | 'verweigert' | 'konto' {
+  private fehlschlag(stand: AufrufStand, b: { art: string; fehler: string }, paket: string | null, rolle: Rolle): 'fortsetzen' | 'verbraucht' | 'verweigert' | 'konto' {
+    // every invalid output stands in the log (#68 counts them)
+    if (b.art === 'ungueltig') this.ereignis('ungueltig', paket, `${rolle} ungültig: ${b.fehler}`, rolle);
     if (b.art === 'verweigert') return 'verweigert';
     if (b.art === 'konto') {
       stand.wartet = 'konto';
@@ -337,7 +356,7 @@ class EpicLauf {
       const k = p.konflikt;
       if (p.stufe !== 'merge' || !k || k.ergebnis || p.wartet || this.laufend.has(p.nr)) continue;
       const b = IMPLEMENTER[p.klasse];
-      this.rufe(p.nr, p, { rolle: 'konflikt', paket: p.nr, runde: p.runde, agent: null, modell: b.modell, effort: b.effort, cwd: this.z.epicWorktree! }, () => `Merge-Konflikt im Epic-Worktree ${this.z.epicWorktree} beim Merge von ${p.branch}, Dateien: ${k.dateien.join(', ')}. Löse ihn nur, wenn er mechanisch ist (getrennte Zeilen, Importlisten, benachbarte Einträge); alles Inhaltliche meldest du als inhaltlich. Schema konflikt (version 1).`);
+      this.rufe(p.nr, p, { rolle: 'konflikt', paket: p.nr, runde: p.runde, agent: null, modell: b.modell, effort: b.effort, cwd: this.z.epicWorktree! }, () => konfliktAuftrag(this.kontext(), this.paket(p.nr), p));
     }
   }
 
@@ -345,7 +364,7 @@ class EpicLauf {
     const s = this.z.schnitt;
     if (s.wartet) await this.konto();
     if (s.wartet || this.z.konto.gesperrt || this.laufend.has(SCHNITT)) return;
-    this.rufe(SCHNITT, s, { rolle: 'schnitt', paket: null, runde: 1, agent: null, modell: 'opus', effort: 'medium', cwd: this.z.epicWorktree! }, () => `Schnitt und Vorab-Tor für Epic #${this.e.epic} (epic/SKILL.md, Phase 1 und 2). Epic-Worktree: ${this.z.epicWorktree}. Gib das Ergebnis im Schema schnitt (version 1) aus.`);
+    this.rufe(SCHNITT, s, { rolle: 'schnitt', paket: null, runde: 1, agent: null, modell: 'opus', effort: 'medium', cwd: this.z.epicWorktree! }, () => schnittAuftrag(this.kontext()));
   }
 
   // ---- applying results
@@ -369,9 +388,14 @@ class EpicLauf {
   private async schnittZurueck(r: LaufErgebnis) {
     const s = this.z.schnitt;
     s.sitzung = r.sitzung ?? s.sitzung;
-    const b = bewerteAufruf('schnitt', r);
+    let b = bewerteAufruf('schnitt', r);
+    // the form against the target issue: a story or a child left out of the model's own lists
+    if (b.art === 'ok') {
+      const f = abdeckungFehler(b.daten, await this.m.body(this.e.epic));
+      if (f) b = { art: 'ungueltig', fehler: f };
+    }
     if (b.art !== 'ok') {
-      const folge = this.fehlschlag(s, b, null);
+      const folge = this.fehlschlag(s, b, null, 'schnitt');
       if (folge === 'fortsetzen' || folge === 'konto') return this.speichere();
       return this.abbrechen(`Schnitt ohne gültiges Ergebnis: ${b.fehler}`);
     }
@@ -395,6 +419,8 @@ class EpicLauf {
 
   private async implementerZurueck(p: PaketZustand, r: LaufErgebnis) {
     const b = bewerteAufruf('implementer', r);
+    // the model the init line names, for the Co-Authored-By line of 4d
+    p.modell = r.modell ?? p.modell ?? null;
     if (b.art === 'ok') {
       p.bericht = b.daten;
       p.zeiten.implementerZurueck = this.zeit();
@@ -405,7 +431,7 @@ class EpicLauf {
       this.ereignis('zurueck', p.nr, `Implementer zurück, Runde ${p.runde}`, 'implementer');
       return this.speichere();
     }
-    const folge = this.fehlschlag(p, b, p.nr);
+    const folge = this.fehlschlag(p, b, p.nr, 'implementer');
     if (folge === 'verweigert') return this.zuruecklassen(p, `Implementer: ${b.fehler}`);
     if (folge === 'verbraucht') return this.neueRunde(p, [`Implementer ohne gültigen Bericht: ${b.fehler}`], false, 'implementer', true);
     this.speichere();
@@ -426,7 +452,7 @@ class EpicLauf {
       }
       return this.neueRunde(p, muss.map((f) => `${f.fundstelle}: ${f.text}`), b.daten.strukturell, 'implementer', false);
     }
-    const folge = this.fehlschlag(p, b, p.nr);
+    const folge = this.fehlschlag(p, b, p.nr, 'reviewer');
     if (folge === 'verweigert') return this.zuruecklassen(p, `Reviewer: ${b.fehler}`);
     if (folge === 'verbraucht') return this.neueRunde(p, [`Reviewer ohne gültigen Bericht: ${b.fehler}`], false, 'reviewer', false);
     this.speichere();
@@ -480,7 +506,7 @@ class EpicLauf {
       this.ereignis('zurueck', p.nr, `Konflikt-Aufruf zurück: ${k.ergebnis}`, 'konflikt');
       return this.speichere();
     }
-    const folge = this.fehlschlag(p, b, p.nr);
+    const folge = this.fehlschlag(p, b, p.nr, 'konflikt');
     if (folge === 'verweigert' || folge === 'verbraucht') {
       k.ergebnis = 'inhaltlich';
       k.begruendung = `Konflikt-Aufruf ohne gültiges Ergebnis: ${b.fehler}`;
@@ -565,8 +591,7 @@ class EpicLauf {
   }
 
   private commitNachricht(p: PaketZustand): string {
-    const k = this.paket(p.nr);
-    return `${k.titel} (#${this.ticket(p.nr)})\n\nPackage ${p.nr} of epic #${this.e.epic}, accepted by flotte epic (4c).\n`;
+    return commitNachricht(this.kontext(), this.paket(p.nr), p, this.ticket(p.nr));
   }
 
   // ---- leaving behind and blocking
@@ -671,6 +696,7 @@ class EpicLauf {
     p.worktree = w.worktree;
     p.port = w.port ?? null;
     p.isolation = w.isolation ?? null;
+    p.kopf = w.kopf ?? null;
     p.stufe = 'implementer';
     p.zeiten.start = this.zeit();
     this.ereignis('start', p.nr, `gestartet auf ${this.e.epicBranch}, Klasse ${p.klasse}`);
@@ -810,6 +836,19 @@ class EpicLauf {
 
   // ---- questions and answers
 
+  /** the gate points still without answer, as one block (after a restart in phase tor or with parked packages) */
+  private offeneFragen() {
+    const offen = this.z.fragen.filter((f) => f.art === 'tor' && f.antwort === null && !f.erledigt);
+    if (!offen.length || !this.z.schnitt.ergebnis) return;
+    const fragen = offen.map((f): BlockFrage => {
+      const t = this.z.schnitt.ergebnis!.tor[f.punkt!];
+      return { nr: f.nr, frage: t.frage, betrifft: t.betrifft, lage: t.lage, optionen: t.optionen.map((o) => o.text), empfehlung: t.empfehlung, grund: t.grund, quelle: t.quelle };
+    });
+    this.ereignis('frage', null, `Vorab-Tor nach Neustart erneut gemeldet: ${fragen.length} offene Punkte`);
+    this.speichere();
+    this.u.leitung.melde(frageBlock(this.e.epic, 'tor', fragen, `Vorab-Tor, ${fragen.length} Punkte offen (nach Neustart)`));
+  }
+
   private async antworten() {
     for (const a of this.u.leitung.antworten()) {
       const f = this.z.fragen.find((x) => x.nr === a.frage);
@@ -862,6 +901,13 @@ class EpicLauf {
     this.eroeffnet = true;
     this.glut(await this.m.eroeffnung(), null);
     const pakete = this.z.schnitt.ergebnis!.pakete;
+    // 2d: skipped children get their reason now, before the first package; a blocking ticket: status/blockiert
+    for (const u of this.z.schnitt.ergebnis!.uebersprungen ?? []) {
+      const nr = u.nr.replace(/^#/, '');
+      if (!/^\d+$/.test(nr)) continue;
+      await this.kommentiere(nr, 'uebersprungen', `**Übersprungen** #${nr}: Der Lauf von Epic #${this.e.epic} (flotte epic) bearbeitet es nicht. Grund: ${u.grund}${u.blocker.length ? ` Blockiert durch ${u.blocker.map((x) => `#${x.replace(/^#/, '')}`).join(', ')}.` : ''}`);
+      if (u.blocker.length) await this.status(nr, 'status/blockiert');
+    }
     await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Epic #${this.e.epic} mit flotte epic: Basis ${this.e.basis}, Epic-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
   }
 
@@ -895,7 +941,11 @@ class EpicLauf {
     this.u.leitung.melde(this.z.ende);
   }
 
-  // ---- orders (stage 3 writes the prompts; here the fields the state machine owns)
+  // ---- orders (auftraege.ts writes them from the fields of the cut and the state)
+
+  private kontext(): Kontext {
+    return { epic: this.e.epic, epicBranch: this.e.epicBranch, epicWorktree: this.z.epicWorktree ?? '', adapter: this.e.adapter ?? '', graph: this.z.graph ?? null, basis: this.z.basis ?? [], basisLint: this.z.basisLint ?? {} };
+  }
 
   private torAntworten(nr: string): string[] {
     return this.z.fragen
@@ -905,33 +955,12 @@ class EpicLauf {
 
   private implementerAuftrag(p: PaketZustand): string {
     const k = this.paket(p.nr);
-    const b = IMPLEMENTER[p.klasse];
-    const vorgaenger = k.nach.map((v) => this.z.pakete[v]?.review?.schnittstelle).filter(Boolean);
-    return [
-      `Implementer (${b.agent}) für Paket ${p.nr} „${k.titel}“ des Epics #${this.e.epic}, Runde ${p.runde}, Paketklasse ${p.klasse}.`,
-      `Worktree: ${p.worktree}`,
-      `Port: ${p.port ?? 'keiner'}, Isolation: ${p.isolation ?? 'keine'}`,
-      `Abnahmeliste:\n${k.abnahme.map((a) => `- ${a}`).join('\n')}`,
-      ...(k.decisions.length ? [`Implementation Decisions:\n${k.decisions.map((d) => `- ${d}`).join('\n')}`] : []),
-      `Ausgangszahlen: ${(this.z.basis ?? []).map((s) => `${s.name} ${s.tests} Tests in ${s.dateien ?? '?'} Dateien`).join(', ')}`,
-      ...(p.uebernehmen ? ['Ein früherer Aufruf endete ohne gültigen Bericht: Übernimm den Stand im Worktree und arbeite von dort weiter.'] : []),
-      ...(p.befund.length ? [`Befund der letzten Runde:\n${p.befund.map((x) => `- ${x}`).join('\n')}`] : []),
-      ...this.torAntworten(p.nr).map((a) => `Am Vorab-Tor entschieden: ${a}`),
-      ...vorgaenger.map((s) => `Schnittstelle des Vorgängers (Reviewer, wörtlich):\n${s}`),
-      'Gib dein Ergebnis im Schema implementer (version 1) aus.',
-    ].join('\n\n');
+    const vorgaenger = k.nach.map((v) => this.z.pakete[v]?.review?.schnittstelle).filter((x): x is string => Boolean(x));
+    return implementerAuftrag(this.kontext(), k, p, { vorgaenger, torAntworten: this.torAntworten(p.nr) });
   }
 
   private reviewerAuftrag(p: PaketZustand): string {
     const k = this.paket(p.nr);
-    const b = REVIEWER[p.klasse];
-    return [
-      `Reviewer (${b.agent}) für Paket ${p.nr} „${k.titel}“ des Epics #${this.e.epic}, Runde ${p.runde}, Paketklasse ${p.klasse}.`,
-      `Diff: git -C ${p.worktree} diff HEAD`,
-      `Neue Dateien, direkt lesen: ${p.bericht?.neueDateien.join(', ') || 'keine'}`,
-      `Abnahmeliste:\n${k.abnahme.map((a) => `- ${a}`).join('\n')}`,
-      `Bericht des Implementers:\n${JSON.stringify(p.bericht)}`,
-      'Kein Volllauf. Gib dein Ergebnis im Schema reviewer (version 1) aus.',
-    ].join('\n\n');
+    return reviewerAuftrag(this.kontext(), k, p, { kette: k.nach.length > 0 || nachfolger(this.z, p.nr).length > 0 });
   }
 }

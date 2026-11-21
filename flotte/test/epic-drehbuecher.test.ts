@@ -16,7 +16,7 @@ import { sperren } from '../src/werkzeuge/zustand.ts';
 
 const T = 30_000;
 
-const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], dateien: [`src/p${nr}.ts`], nach: [], kollision: [], exklusiv: false, ...o });
+const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [`src/p${nr}.ts`], nach: [], kollision: [], exklusiv: false, ...o });
 const buch = (pakete: Paket[], o: Partial<EpicDrehbuch> = {}, tor: TorPunkt[] = []): EpicDrehbuch => ({ schnitt: { version: 1, pakete, tor }, ...o });
 
 function neuesRepo(): string {

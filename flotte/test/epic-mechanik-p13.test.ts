@@ -13,7 +13,7 @@ import { echtesDrehbuch, fixture, forge } from './epic-fixture.ts';
 const f = fixture();
 afterAll(() => f.weg());
 
-const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
+const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: `Paket ${nr}`, klasse: 'standard', abnahme: [`${nr} tut, was es soll`], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
 const schreibe = (cwd: string, datei: string, text: string) => {
   mkdirSync(join(cwd, datei, '..'), { recursive: true });
   writeFileSync(join(cwd, datei), text);

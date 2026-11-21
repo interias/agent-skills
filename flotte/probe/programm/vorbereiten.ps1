@@ -23,7 +23,9 @@
 param(
     [Parameter(Mandatory)][string]$Probe,
     [Parameter(Mandatory)][string]$Lauf,
-    [string]$Forge = 'interias/flotte-probe'
+    [string]$Forge = 'interias/flotte-probe',
+    # only these mini-epics (a, b, c); default all three
+    [string[]]$MiniEpics = @('a', 'b', 'c')
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -83,7 +85,7 @@ function Neues-Issue([string]$titel, [string]$body, [string[]]$labels) {
 }
 
 $ergebnis = [ordered]@{ lauf = $Lauf; basis = (git -C $Probe rev-parse --short=8 HEAD).Trim(); epics = [ordered]@{} }
-foreach ($datei in Get-ChildItem $hier -Filter 'mini-epic-*.md' | Sort-Object Name) {
+foreach ($datei in Get-ChildItem $hier -Filter 'mini-epic-*.md' | Where-Object { ($_.BaseName -replace '^mini-epic-', '') -in $MiniEpics } | Sort-Object Name) {
     $teile = [regex]::Split([IO.File]::ReadAllText($datei.FullName), '(?m)^=== ') | Where-Object { $_.Trim() }
     $kopf, $kinder = $teile[0], @($teile | Select-Object -Skip 1)
     $titel = ($kopf -split '\r?\n')[0] -replace '^epic:\s*', ''
@@ -110,6 +112,7 @@ foreach ($datei in Get-ChildItem $hier -Filter 'mini-epic-*.md' | Sort-Object Na
 $common = (git -C $Probe rev-parse --path-format=absolute --git-common-dir).Trim()
 Copy-Item (Join-Path $hier 'regeln.ps1') (Join-Path $common 'probe-regeln.ps1')
 Remove-Item (Join-Path $common 'probe-rot-paket.zaehler') -ErrorAction SilentlyContinue
-Set-Content (Join-Path $common 'probe-rot-paket') "agent/$($ergebnis.epics.c.c1)-"
-Set-Content (Join-Path $common 'probe-rot-epic') "epic/$($ergebnis.epics.b.epic)-"
+Remove-Item (Join-Path $common 'probe-rot-paket'), (Join-Path $common 'probe-rot-epic') -ErrorAction SilentlyContinue
+if ($ergebnis.epics.c) { Set-Content (Join-Path $common 'probe-rot-paket') "agent/$($ergebnis.epics.c.c1)-" }
+if ($ergebnis.epics.b) { Set-Content (Join-Path $common 'probe-rot-epic') "epic/$($ergebnis.epics.b.epic)-" }
 $ergebnis | ConvertTo-Json -Depth 4 -Compress

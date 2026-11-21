@@ -7,11 +7,11 @@ import { neuerLauf, neuesPaket, paketBranch } from '../src/epic/zustand.ts';
 import { leseBlock } from '../src/werkzeuge/bloecke.ts';
 import type { LaufErgebnis } from '../src/werkzeuge/lauf.ts';
 
-const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: nr, klasse: 'standard', abnahme: ['a'], decisions: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
+const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: nr, klasse: 'standard', abnahme: ['a'], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
 
 function lauf(pakete: Paket[]) {
   const z = neuerLauf(69);
-  z.schnitt.ergebnis = { version: 1, pakete, tor: [] };
+  z.schnitt.ergebnis = { version: 1, modus: 'tickets', pakete, zuordnung: pakete.map((p) => ({ story: `#${p.nr}`, paket: p.nr })), uebersprungen: [], tor: [] };
   for (const p of pakete) z.pakete[p.nr] = neuesPaket(p);
   return z;
 }
@@ -47,12 +47,12 @@ describe('flotte epic, Regeln', () => {
   });
 
   it('the cut: a package without acceptance list is invalid', () => {
-    expect(pruefeAusgabe('schnitt', { version: 1, pakete: [paket('1', { abnahme: [] })], tor: [] })).toBe('pakete[0] hat keine Abnahmeliste');
+    expect(pruefeAusgabe('schnitt', { version: 1, modus: 'tickets', pakete: [paket('1', { abnahme: [] })], zuordnung: [{ story: '#1', paket: '1' }], uebersprungen: [], tor: [] })).toBe('pakete[0] hat keine Abnahmeliste');
     expect(pruefeAusgabe('konflikt', { version: 1, ergebnis: 'geloest', begruendung: 'x' })).toBeNull();
   });
 
   it('the cut: edges to unknown packages, to itself, doubled numbers and cycles over hard edges are invalid', () => {
-    const schnitt = (pakete: Paket[]) => pruefeAusgabe('schnitt', { version: 1, pakete, tor: [] });
+    const schnitt = (pakete: Paket[]) => pruefeAusgabe('schnitt', { version: 1, modus: 'tickets', pakete, zuordnung: pakete.map((p) => ({ story: `#${p.nr}`, paket: p.nr })), uebersprungen: [], tor: [] });
     expect(schnitt([paket('1', { nach: ['99'] })])).toBe('pakete 1: nach nennt das unbekannte Paket 99');
     expect(schnitt([paket('1'), paket('2', { kollision: ['98'] })])).toBe('pakete 2: kollision nennt das unbekannte Paket 98');
     expect(schnitt([paket('1', { nach: ['1'] })])).toBe('pakete 1: nach nennt sich selbst');
