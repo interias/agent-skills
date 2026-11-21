@@ -1,8 +1,10 @@
 #!/usr/bin/env bun
 // flotte <befehl> [...]: every command prints exactly one JSON object on stdout; messages go to
-// stderr. Exit 1 when the command could not do its job, 2 on a usage error.
+// stderr. Exit 1 when the command could not do its job (a wrong call of a command included), 2 for an
+// unknown command.
 
 import { adapter } from './befehle/adapter.ts';
+import { auftrag } from './befehle/auftrag.ts';
 import { lernen } from './befehle/lernen.ts';
 import { messen } from './befehle/messen.ts';
 import { zuschauen } from './befehle/zuschauen.ts';
@@ -28,6 +30,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   zuschauen: (argv) => zuschauen(argv),
   adapter: (argv) => adapter(argv),
   lernen: (argv) => lernen(argv),
+  auftrag: (argv) => auftrag(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {

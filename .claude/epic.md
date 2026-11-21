@@ -36,10 +36,13 @@ IPs, keine Transkriptinhalte, keine echten Verbrauchswerte in Issues, PRs und Co
 
 ## Isolation
 
-`none-needed`: Die Pester-Tests bauen jedes Testrepository in `$TestDrive`, die Tests von `flotte`
-und `flottenbruecke` laufen ohne Dienste. Wer die Brücke zum Ansehen startet, tut das im Worktree
-mit eigenem Compose-Projekt auf freiem Port; der laufende Stack `flottenbruecke` (4747) und ein
-laufender Treiber werden nie angefasst.
+`none-needed`: Die Pester-Tests bauen jedes Testrepository in `$TestDrive`, die Tests von
+`flottenbruecke` laufen ohne Dienste. Die Tests von `flotte` brauchen seit #73 Docker: der
+Gitea-Test (`flotte/test/gitea.test.ts`) startet je Lauf ein eigenes Compose-Projekt
+`agent-skills-<pkg>-gitea-<pid>` auf freiem Port und räumt es mit `down -v` wieder ab. Das ist die
+einzige Ausnahme von `worktree_may_start` (Standard), entschieden am Vorab-Tor von #75. Wer die
+Brücke zum Ansehen startet, tut das im Worktree mit eigenem Compose-Projekt auf freiem Port; der
+laufende Stack `flottenbruecke` (4747) und ein laufender Treiber werden nie angefasst.
 
 ## Was hier anders ist als in einem Produktrepo
 
