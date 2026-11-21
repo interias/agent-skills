@@ -620,11 +620,11 @@ def test_huelle_zeigt_die_fuenf_bereiche_ohne_komm(client):
 def test_huelle_und_bereiche_werden_mit_inhaltsstand_ausgeliefert(client):
     html = client.get('/').text
     stand = re.search(r'/static/app\.js\?v=([0-9a-f]{12})"', html).group(1)
-    dateien = ['huelle.css', 'huelle.js'] + [f'bereiche/{b}.{e}' for b in BEREICHE[1:] for e in ('css', 'js')]
+    dateien = ['huelle.css', 'huelle.js'] + [f'bereiche/{b}.{e}' for b in BEREICHE[1:] for e in ('css', 'js')] + ['schiffsliste.css', 'schiffsliste.js']
     for n in dateien:
         assert f'/static/{n}?v={stand}"' in html
         assert client.get(f'/static/{n}?v={stand}').status_code == 200
     # the shell loads first, the areas register with it, the board comes last
-    reihe = [html.index(f'/static/{n}?v=') for n in ['huelle.js'] + [f'bereiche/{b}.js' for b in BEREICHE[1:]] + ['app.js']]
+    reihe = [html.index(f'/static/{n}?v=') for n in ['huelle.js'] + [f'bereiche/{b}.js' for b in BEREICHE[1:]] + ['schiffsliste.js', 'app.js']]
     assert reihe == sorted(reihe)
     assert not re.search(r'/static/[\w/.-]+\.(?:css|js)"', html)

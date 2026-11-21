@@ -11,6 +11,11 @@
 //            returns the element to jump to (or nothing: then the jump only opens the area).
 //            Optional; the board gives epics and projects this way, the Holodeck its prototypes.
 //
+// Besides the areas: huelle.springe(bereich, ziel) goes to an area and brings an element of it into
+// view like a hit of the command line (ziel: the element or a function returning it), and
+// huelle.beiTafel(f) calls f(t) after every load of /api/tafel (at once when one is there already);
+// the ship list (#41) draws itself that way.
+//
 // Routing over location.hash (#bruecke is the default, an unknown hash shows the bridge); a jump
 // sets the hash, so the Back button goes back. All scripts of the page share one global scope: the
 // shell keeps its names inside this function, an area inside its registration.
@@ -69,12 +74,26 @@ const huelle = (() => {
     setTimeout(() => delete el.dataset.ziel, 2500);
   }
 
+  // a jump from outside the area: the shell's own for the command line and the ship list
+  function springe(name, ziel) {
+    gehe(name);
+    const el = typeof ziel === 'function' ? ziel() : ziel;
+    if (el) hin(el);
+  }
+
   function bereich(d) {
     defs.set(d.name, d);
     if (d.name === aktiv) zeichnen(d.name);
   }
 
   // ---- after each load of /api/tafel (app.js): the counter, then the visible area
+
+  const lauscher = [];
+
+  function beiTafel(f) {
+    lauscher.push(f);
+    if (stand) f(stand);
+  }
 
   function tafel(t) {
     stand = t;
@@ -88,6 +107,9 @@ const huelle = (() => {
     p.textContent = n;
     p.hidden = n === 0;
     zeichnen(aktiv);
+    for (const f of lauscher) {
+      try { f(t); } catch (err) { console.error(err); }
+    }
   }
 
   id('zaehler').addEventListener('click', (ev) => {
@@ -142,13 +164,12 @@ const huelle = (() => {
     else feld.removeAttribute('aria-activedescendant');
   }
 
-  function springe(x) {
+  function aufTreffer(x) {
     if (!x) return;
     oeffnen(false);
     feld.value = '';
     feld.blur();
-    gehe(x.bereich);
-    if (x.ziel) hin(x.ziel());
+    springe(x.bereich, x.ziel);
   }
 
   feld.addEventListener('input', suchen);
@@ -162,7 +183,7 @@ const huelle = (() => {
       if (n) waehlen((wahl + (ev.key === 'ArrowDown' ? 1 : n - 1)) % n);
     } else if (ev.key === 'Enter') {
       ev.preventDefault();
-      springe(treffer[wahl]);
+      aufTreffer(treffer[wahl]);
     } else if (ev.key === 'Escape') {
       ev.preventDefault();
       if (!box.hidden) oeffnen(false);
@@ -173,7 +194,7 @@ const huelle = (() => {
   box.addEventListener('mousedown', (ev) => ev.preventDefault());
   box.addEventListener('click', (ev) => {
     const li = ev.target.closest('[role="option"]');
-    if (li) springe(treffer[Number(li.id.replace('treffer-', ''))]);
+    if (li) aufTreffer(treffer[Number(li.id.replace('treffer-', ''))]);
   });
 
   document.addEventListener('keydown', (ev) => {
@@ -189,5 +210,5 @@ const huelle = (() => {
   addEventListener('hashchange', zeigen);
   zeigen();
 
-  return { bereich, tafel };
+  return { bereich, tafel, springe, beiTafel };
 })();

@@ -44,8 +44,38 @@ die Karte kurz. Sie führt nichts aus.
 Für Entwickler: Ein Bereich liegt in `app/static/bereiche/<bereich>.js` (und `.css`) und meldet sich
 mit `huelle.bereich({ name, titel, zeichne(t, el), treffer(t) })` an der Hülle (`huelle.js`) an.
 `zeichne` läuft bei jedem Laden der Tafel, solange der Bereich sichtbar ist, `treffer` liefert
-Einträge für die Befehlszeile. Alle Skripte und Stile, die `index.html` nennt, bindet die Brücke mit
+Einträge für die Befehlszeile. `huelle.springe(bereich, ziel)` springt wie ein Treffer der Befehlszeile
+zu einem Element, `huelle.beiTafel(f)` ruft `f(t)` nach jedem Laden der Tafel (so zeichnet sich die
+Schiffsliste). Alle Skripte und Stile, die `index.html` nennt, bindet die Brücke mit
 Inhalts-Hash ein.
+
+## Schiffsliste
+
+Die Seitenleiste links auf jeder Seite (auf dem Handy eine Schublade von links, geöffnet über den
+Knopf neben dem Logo; sie schließt mit Esc, mit Tippen daneben und nach einem Sprung). Sie zeigt je
+Projekt alle Läufe (Epics mit Nummer, Titel, Konto) und die Sitzungen aller Konten, jeweils mit einem
+Punkt nach Ebene. Eingeklappt (Knopf oben links in der Leiste, gemerkt je Gerät) bleibt eine schmale
+Spalte, in der nur die Punkte stehen. Ein Klick auf einen Lauf springt zu seiner Karte auf der Brücke;
+eine Sitzung klappt ihre Angaben auf (Konto, Ordner, Status, seit). Die Leiste liest nur und tut
+nichts. Chips über der Liste filtern (Alle, Braucht dich, Freigabe, Läuft, Sitzungen, Ruht); ab 12
+Einträgen sind die ruhenden eingeklappt („+ N ruhende“).
+
+| Punkt | Bedeutung | Woher |
+|---|---|---|
+| blau | Freigabe | Epic in der Merge-Schlange (Stufe `pr`) |
+| lila | Frage | offene Frage, `blockiert`, `abgebrochen` (die Ebene „Braucht dich“) |
+| grün | läuft | `laeuft`, `nacharbeit`, `frage` mit Prozess; Sitzung `busy` |
+| gelb | neuer Prototyp | am Projektkopf, wenn das Holodeck dort einen Prototyp als neu seit dem letzten Besuch dieses Geräts zählt |
+| grau | ruht | `wartend`, heute gemergt; Sitzung `idle` |
+
+Die Zuordnung steht als Tabelle `ZUORDNUNG` in `app/static/schiffsliste.js`. Kein Punkt blinkt: Rot
+und Bewegung gehören allein zu „Braucht dich“.
+
+Die **Sitzungen** liest der Treiber, nicht die Brücke (sie läuft im Container ohne Zugriff auf die
+Konten): je Konto `claude agents --json` mit dessen `CLAUDE_CONFIG_DIR`, höchstens einmal je Minute,
+nur lesend. In den Bericht gehen Konto, der letzte Ordnername des Arbeitsverzeichnisses (nie der
+Pfad), Name, Status, Art und Beginn; ein Projekt erkennt die Brücke am Repository-Namen, alles andere
+steht unter „Sonstige“. Fehlt das Kommando oder schlägt es fehl, bleibt die Liste ohne Sitzungen.
 
 ## Board
 

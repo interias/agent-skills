@@ -7,6 +7,7 @@
 import { hostname } from 'node:os';
 import type { Option } from '../werkzeuge/bloecke.ts';
 import type { Prototyp } from './holodeck.ts';
+import type { BerichtSitzung } from './sitzungen.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
@@ -138,6 +139,8 @@ export interface Bericht {
   ereignisse: { zeit: string; epic: number | null; text: string }[];
   entscheidungen: { epic: number; nr: number; frage: string; antwort: string; herkunft: string; grund: string; einflussreich: boolean; zeit: string; widerrufen: string | null }[];
   prognose: BerichtPrognose;
+  /** the sessions of the accounts for the ship list (#41): folder name only, no path, no pid */
+  sitzungen: BerichtSitzung[];
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
