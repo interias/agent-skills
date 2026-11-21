@@ -1,14 +1,9 @@
 // The GitHub side of the order writer's forge layer (agent-skills/ADR-0002), only through gh.
 
 import type { Aufrufer } from '../aufruf.ts';
-import type { AngelegtesIssue, Forge } from './auftrag.ts';
+import { labelArt, type AngelegtesIssue, type AuftragsRegeln, type Forge } from './auftrag.ts';
 
-/** Colour and description of a label the writer creates when it is missing (epic/references/forge.md, "Statuslabels"). */
-const LABEL_ART: Record<string, string[]> = {
-  epic: ['--color', 'ff2bd6', '--description', 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)'],
-};
-
-export function githubForge(a: Aufrufer, repo: string): Forge {
+export function githubForge(a: Aufrufer, repo: string, regeln: AuftragsRegeln): Forge {
   const gh = (args: string[], eingabe?: string) => {
     const r = a('gh', args, eingabe === undefined ? undefined : { eingabe });
     if (r.code) throw new Error(`gh ${args.slice(0, 2).join(' ')}: ${(r.stderr || r.stdout).trim()}`);
@@ -19,7 +14,8 @@ export function githubForge(a: Aufrufer, repo: string): Forge {
     async anlegen({ titel, body, labels }): Promise<AngelegtesIssue> {
       for (const l of labels.filter((l) => !geprueft.has(l))) {
         // fails when the label exists, which is fine; any other cause shows up in issue create
-        a('gh', ['label', 'create', l, '--repo', repo, ...(LABEL_ART[l] ?? [])]);
+        const art = labelArt(l, regeln);
+        a('gh', ['label', 'create', l, '--repo', repo, ...(art ? ['--color', art.farbe, '--description', art.beschreibung] : [])]);
         geprueft.add(l);
       }
       const url = gh(['issue', 'create', '--repo', repo, '--title', titel, ...labels.flatMap((l) => ['--label', l]), '--body-file', '-'], body).trim().split(/\r?\n/).pop() ?? '';
