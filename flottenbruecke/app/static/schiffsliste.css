@@ -1,0 +1,121 @@
+/* Schiffsliste (#41): the side bar left of the board, on every page. Folded it is a thin column in
+   which the dots stay; on the phone it is a drawer from the left (the pills below stay in reach).
+   No blinking and no red here: the alarm belongs to "Braucht dich". */
+.seite {
+  grid-area: seite; position: sticky; top: 12px; align-self: start; z-index: 5;
+  width: 264px; max-height: calc(100vh - 24px); overflow-x: hidden; overflow-y: auto; margin-right: 12px;
+  background: var(--flaeche); border-radius: 0 0 16px 0;
+}
+.seite-kopf { display: flex; align-items: center; gap: 8px; min-height: 30px; background: var(--blau); border-radius: 0 var(--rund) var(--rund) 0; padding-right: 12px; }
+.seite-titel { flex: 1; margin: 0; font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #000; white-space: nowrap; }
+.seite-zu {
+  flex: none; width: 44px; height: 30px; border: 0; padding: 0; cursor: pointer; background: var(--orange);
+  border-radius: 14px 0 0 14px; color: #000; font-weight: 700; font-size: 16px; line-height: 1;
+}
+.seite-zu::before { content: "\2039"; }
+.seite[data-zu="true"] .seite-zu::before { content: "\203A"; }
+.seite-zu:hover { background: var(--pfirsich); }
+.seite-schliessen { display: none; }
+
+.seite-inhalt { padding: 8px 6px 10px 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: 0; cursor: pointer;
+  border-radius: var(--rund); background: var(--flaeche2); color: var(--matt); font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+}
+.chip span { font-variant-numeric: tabular-nums; color: var(--leise); }
+.chip[aria-pressed="true"] { background: var(--violett); color: #000; font-weight: 700; }
+.chip[aria-pressed="true"] span { color: #000; }
+.chip:hover:not([aria-pressed="true"]) { background: var(--linie); }
+
+.sp { margin-bottom: 8px; }
+.sp-kopf {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 2px; padding: 2px 6px; border-radius: 0 var(--rund) var(--rund) 0;
+  background: var(--flaeche2); color: var(--lila); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+}
+.sp-voll { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-kurz { display: none; }
+.sp-liste { margin: 0; padding: 0; list-style: none; }
+.sp-leer { margin: 4px 6px; color: var(--leise); font: 12.5px var(--lesen); }
+.sp-neu {
+  display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 0 6px 0 0; background: none; cursor: pointer;
+  color: var(--gelb); font: inherit; font-size: 11px; letter-spacing: .04em;
+}
+.sp-neu:hover { text-decoration: underline; }
+
+.si {
+  display: flex; align-items: flex-start; gap: 8px; width: 100%; min-height: 32px; padding: 5px 6px; border: 0;
+  border-radius: 6px 16px 16px 6px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  list-style: none;
+}
+.si::-webkit-details-marker { display: none; }
+.si:hover { background: var(--flaeche2); }
+.si-text { display: flex; flex-direction: column; min-width: 0; font: 13px/1.3 var(--lesen); }
+.si-titel { overflow-wrap: anywhere; }
+.si-titel b { color: var(--pfirsich); font-family: var(--disp); letter-spacing: .04em; }
+.si-art { font-style: normal; color: var(--leise); font: 11px var(--disp); letter-spacing: .08em; text-transform: uppercase; }
+.si-text small { color: var(--leise); font-size: 11.5px; }
+
+.punkt { flex: none; width: 12px; height: 12px; margin-top: 3px; border-radius: 50%; background: var(--leise); }
+.punkt.blau { background: var(--blau); }
+.punkt.lila { background: var(--lila); }
+.punkt.gruen { background: var(--gruen); }
+.punkt.gelb { background: var(--gelb); }
+.punkt.grau { background: var(--leise); }
+
+.sitzung .si-detail { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; margin: 0 6px 6px 26px; font: 12px var(--lesen); }
+.sitzung .si-detail dt { color: var(--leise); }
+.sitzung .si-detail dd { margin: 0; color: var(--matt); overflow-wrap: anywhere; }
+
+.sp-mehr {
+  display: block; width: 100%; margin-top: 2px; padding: 6px; border: 0; border-radius: var(--rund); background: var(--flaeche2);
+  color: var(--matt); font: 12px var(--disp); letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+}
+.sp-mehr:hover { background: var(--linie); }
+.seite button:focus-visible, .seite summary:focus-visible, .seite-auf:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+
+.seite-auf, .seite-schleier { display: none; }
+
+/* ---- folded: only the dots, the words stay for screen readers */
+@media (min-width: 701px) {
+  .seite[data-zu="true"] { width: 44px; }
+  .seite[data-zu="true"] .seite-titel, .seite[data-zu="true"] .chips, .seite[data-zu="true"] .si-text, .seite[data-zu="true"] .sp-voll,
+  .seite[data-zu="true"] .sp-mehr, .seite[data-zu="true"] .si-detail {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .seite[data-zu="true"] .seite-kopf { padding-right: 0; background: none; }
+  .seite[data-zu="true"] .seite-inhalt { padding: 8px 0; }
+  .seite[data-zu="true"] .sp-kopf { justify-content: center; padding: 1px 0; border-radius: 0; background: none; font-size: 10px; letter-spacing: .04em; flex-direction: column; gap: 2px; }
+  .seite[data-zu="true"] .sp-kurz { display: block; }
+  .seite[data-zu="true"] .sp-neu, .seite[data-zu="true"] .si { justify-content: center; padding: 6px 0; border-radius: 8px; }
+  .seite[data-zu="true"] .sp-neu { width: 100%; }
+}
+
+/* ---- phone: a drawer from the left above the board, the pills at the bottom stay free */
+@media (max-width: 700px) {
+  .huelle { grid-template-columns: minmax(0, 1fr); grid-template-areas: "leiste" "tafel"; }
+  .seite-auf {
+    display: inline-flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; flex: none;
+    width: 32px; height: 32px; padding: 0; border: 0; border-radius: 10px; background: var(--violett); cursor: pointer;
+  }
+  .seite-auf i { display: block; width: 14px; height: 3px; border-radius: 2px; background: #000; }
+  .seite-auf[aria-expanded="true"] { background: var(--orange); }
+  .seite {
+    position: fixed; top: 0; bottom: var(--pillen); left: 0; z-index: 9; width: min(86vw, 320px); max-height: none; margin: 0;
+    /* top and bottom fix the height: with the bar's align-self: start it would grow with the list past the screen */
+    align-self: stretch;
+    padding-top: env(safe-area-inset-top, 0px); padding-left: env(safe-area-inset-left, 0px);
+    border-radius: 0 16px 16px 0; box-shadow: 8px 0 30px #000;
+    transform: translateX(-105%); visibility: hidden; transition: transform .2s ease, visibility 0s .2s;
+  }
+  .seite.auf { transform: none; visibility: visible; transition: transform .2s ease; }
+  .seite-zu { display: none; }
+  .seite-kopf { min-height: 44px; padding-left: 14px; }
+  .seite-schliessen { display: block; flex: none; width: 36px; height: 36px; border: 0; border-radius: var(--rund); background: #000; color: var(--text); font-size: 22px; line-height: 1; cursor: pointer; }
+  .seite-schleier:not([hidden]) { display: block; position: fixed; inset: 0 0 var(--pillen) 0; z-index: 8; background: rgba(0, 0, 0, .6); }
+  .si { min-height: 44px; }
+  .chip { height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seite, .seite.auf { transition: none; }
+}

@@ -169,6 +169,37 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('the sessions of the accounts go into the report in the shape of beispiel/bericht.json, by folder name only (#41)', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      const dirs: (string | undefined)[] = [];
+      const welt = {
+        ...t.welt,
+        langsam: async (p: string, a: string[], o?: { env?: Record<string, string> }) => {
+          if (p !== 'claude') return t.welt.langsam(p, a, o as never);
+          dirs.push(o?.env?.CLAUDE_CONFIG_DIR);
+          const cwd = 'C:\\Users\\beispiel\\git\\flotte-probe';
+          return { code: 0, stdout: JSON.stringify([{ pid: 4242, cwd, kind: 'interactive', startedAt: Date.parse('2026-11-20T12:02:00Z'), sessionId: 'abc-123', name: 'flotte-probe-ab', status: 'busy' }]), stderr: '' };
+        },
+      };
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'p2' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url, maxDauerMs: 3000 }), welt);
+      const muster = beispiel('bericht.json');
+      expect(b.berichte[0].sitzungen).toEqual([]);
+      const mit = b.berichte.find((x) => x.sitzungen.length)!;
+      expect(schluessel(mit.sitzungen[0])).toEqual(schluessel(muster.sitzungen[0]));
+      expect(mit.sitzungen).toHaveLength(t.konten.length);
+      expect(mit.sitzungen.map((s) => s.konto)).toEqual(mit.konten.map((k) => k.konto));
+      expect(mit.sitzungen[0]).toMatchObject({ projekt: 'flotte-probe', name: 'flotte-probe-ab', status: 'busy', kind: 'interactive' });
+      // one reading per minute at most, not one per turn
+      expect(dirs).toHaveLength(t.konten.length);
+      for (const x of b.berichte) expect(JSON.stringify(x.sitzungen)).not.toMatch(/beispiel|Users|4242|abc-123/);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('a multiple choice with five options: on the board with mehrfach, the answer reaches the run as A, C, E; reported and fetched at once, not only with the turn', async () => {
     const optionen = 'A) Deutsch B) Englisch C) Französisch D) Spanisch E) Italienisch';
     const block = `Bericht.\n\nFLOTTE-FRAGE 3 tor\n1. In welchen Sprachen? — Betrifft: Lauf — Lage: mehrere möglich — Optionen: ${optionen} — Auswahl: mehrere — Empfehlung: A, B — Grund: Besucher — Regel/Quelle: Skill\nSTAND: Tor  TAFEL: -`;

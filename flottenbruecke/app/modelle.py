@@ -146,6 +146,18 @@ class Prognose(BaseModel):
     berechnet: str = Field(max_length=40)
 
 
+class Sitzung(BaseModel):
+    """A session of an account (#41), read only: where it runs by the folder name, never the path."""
+
+    konto: str = Field(max_length=100)
+    # the last folder name of the working directory; a name with a separator is refused
+    projekt: str = Field('', max_length=100, pattern=r'^[^\\/]*$')
+    name: str = Field('', max_length=100)
+    status: str = Field('', max_length=20)
+    kind: str = Field('', max_length=20)
+    seit: str = Field('', max_length=40)
+
+
 class Bericht(BaseModel):
     # forge name, owner/name: the first report creates the project
     forge: str = Field(pattern=r'^[\w-][\w.-]*/[\w-][\w.-]*$', max_length=200)
@@ -167,6 +179,8 @@ class Bericht(BaseModel):
     ereignisse: list[Ereignis] = Field([], max_length=200)
     entscheidungen: list[Entscheidung] = Field([], max_length=500)
     prognose: Prognose | None = None
+    # the sessions of the accounts (`claude agents --json`), the ship list shows them; older drivers have none
+    sitzungen: list[Sitzung] = Field([], max_length=500)
 
 
 # Holodeck (#44): a file name only, never a path; the bridge resolves it against its own store

@@ -19,6 +19,7 @@ import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } fr
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, HERKUNFT_BRUECKE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
+import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -329,6 +330,10 @@ class Treiber {
   /** the set of prototypes the bridge holds (names and contents) and the messages reported once */
   holodeckStand: string | null = null;
   holodeckGemeldet = new Set<string>();
+  /** the sessions of the accounts (#41), read in the background at most every SITZUNGEN_MS; the report carries the last reading */
+  sitzungen: BerichtSitzung[] = [];
+  sitzungenGelesen = 0;
+  sitzungenLaeuft = false;
 
   constructor(
     readonly e: Einstellung,
@@ -1117,12 +1122,24 @@ class Treiber {
   /** The report of this turn; acknowledgements only after the state with the answers is written. */
   async brueckeMelden(): Promise<void> {
     if (!this.bruecke) return;
+    this.sitzungenLesen();
     const ok = await this.bruecke.melde(this.bericht());
     this.brueckeErreichbar(ok);
     if (!ok) return;
     for (const id of [...this.zuQuittieren]) if (await this.bruecke.quittiere(id)) this.zuQuittieren = this.zuQuittieren.filter((x) => x !== id);
     for (const id of [...this.handlungenZuQuittieren]) if (await this.bruecke.quittiereHandlung(id)) this.handlungenZuQuittieren = this.handlungenZuQuittieren.filter((x) => x !== id);
     await this.holodeckMelden();
+  }
+
+  /** Reads the sessions of all accounts without holding the turn up; a failure leaves the list empty. */
+  sitzungenLesen(): void {
+    if (this.sitzungenLaeuft || this.w.jetzt() - this.sitzungenGelesen < SITZUNGEN_MS) return;
+    this.sitzungenLaeuft = true;
+    this.sitzungenGelesen = this.w.jetzt();
+    liesSitzungen(this.alleKonten().map((dir) => ({ dir, konto: kurzname(dir, this.e.admiralKonto) })), this.w.langsam)
+      .then((s) => (this.sitzungen = s))
+      .catch(() => (this.sitzungen = []))
+      .finally(() => (this.sitzungenLaeuft = false));
   }
 
   /**
@@ -1397,6 +1414,7 @@ class Treiber {
       // the bridge shows today's; with the reason, for a revocation
       entscheidungen: this.z.entscheidungen.slice(-100).map((d) => ({ epic: d.epic, nr: d.nr, frage: d.frage, antwort: d.antwort, herkunft: d.herkunft, grund: d.grund ?? '', einflussreich: d.einflussreich, zeit: d.zeit, widerrufen: d.widerrufen ?? null })),
       prognose: this.prognoseBericht(),
+      sitzungen: this.sitzungen,
     };
   }
 

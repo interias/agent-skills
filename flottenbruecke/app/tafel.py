@@ -3,7 +3,7 @@
 # 2 "Unterwegs": running epics, the merge queue, the ready ones as one line;
 # 3 "Erledigt heute": merged epics, the admiral's decisions, the person's own answers and actions.
 # Above them the accounts with their usage, RAM and disk per machine; below them the ticker. Beside
-# them the prototypes of the Holodeck, without their content.
+# them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
 
 import re
 from datetime import datetime, timedelta
@@ -51,6 +51,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
     liste, rechner, konten = [], {}, {}
+    sitzungen = {}
 
     for p in projekte:
         b, forge = p['bericht'], p['forge']
@@ -69,6 +70,11 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             alt = konten.get(k['konto'])
             if alt is None or alt['empfangen'] < p['empfangen']:
                 konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'alterMin': k.get('alterMin'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
+        # the sessions of a silent project are old: only live reports count, the newest one wins a session
+        for s in b.get('sitzungen', []) if not veraltet else []:
+            schluessel = (s['konto'], s['projekt'], s['name'], s['seit'])
+            if schluessel not in sitzungen or sitzungen[schluessel][0] < p['empfangen']:
+                sitzungen[schluessel] = (p['empfangen'], s)
         for e in b.get('ereignisse', []):
             ereignisse.append({'zeit': e['zeit'], 'forge': forge, 'kurz': kurz, 'epic': e.get('epic'), 'text': e['text']})
 
@@ -186,6 +192,12 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     bereit.sort(key=lambda c: (not c['prio'], c['forge'], c['nr']))
     erledigt.sort(key=lambda x: x['zeit'], reverse=True)
     ereignisse.sort(key=lambda e: e['zeit'], reverse=True)
+    # a session belongs to the project whose repository name is its folder name, else to none ("Sonstige")
+    forge_von = {p['kurz'].lower(): p['forge'] for p in reversed(liste)}
+    sitzungen_liste = sorted(
+        ({**{k: s[k] for k in ('konto', 'projekt', 'name', 'status', 'kind', 'seit')}, 'forge': forge_von.get(s['projekt'].lower())} for _, s in sitzungen.values()),
+        key=lambda s: (s['konto'], s['projekt'], s['seit'], s['name']),
+    )
     return {
         'jetzt': jetzt.isoformat(),
         'pin': pin_gesetzt,
@@ -198,5 +210,6 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'erledigt': erledigt,
         'ereignisse': ereignisse[:40],
         # Holodeck (#44): name and forge are checked on receipt, the page opens url in its sealed frame
+        'sitzungen': sitzungen_liste,
         'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
     }

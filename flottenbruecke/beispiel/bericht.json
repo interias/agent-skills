@@ -495,5 +495,23 @@
       "p90": 34200
     },
     "berechnet": "2026-11-20T14:31:05Z"
-  }
+  },
+  "sitzungen": [
+    {
+      "konto": "Konto 1",
+      "projekt": "flotte-probe",
+      "name": "flotte-probe-ab",
+      "status": "busy",
+      "kind": "interactive",
+      "seit": "2026-11-20T12:02:00Z"
+    },
+    {
+      "konto": "Konto 2",
+      "projekt": "notizen",
+      "name": "notizen-cd",
+      "status": "idle",
+      "kind": "interactive",
+      "seit": "2026-11-20T09:15:00Z"
+    }
+  ]
 }

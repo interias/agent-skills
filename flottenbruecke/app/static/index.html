@@ -15,11 +15,13 @@
 <link rel="stylesheet" href="/static/bereiche/sternenkarte.css">
 <link rel="stylesheet" href="/static/bereiche/maschinenraum.css">
 <link rel="stylesheet" href="/static/bereiche/logbuch.css">
+<link rel="stylesheet" href="/static/schiffsliste.css">
 </head>
 <body>
 <div class="huelle">
 <header class="leiste">
   <a class="logo" href="#bruecke" aria-label="Flottenbrücke: zur Brücke"><img src="/static/icon.svg" alt="" width="32" height="32"></a>
+  <button type="button" class="seite-auf" id="seite-auf" aria-expanded="false" aria-controls="seite" aria-label="Schiffsliste öffnen" title="Schiffsliste"><i></i><i></i><i></i></button>
   <div class="befehl">
     <input id="suche" type="text" role="combobox" aria-label="Suchen und springen: Epic, Projekt, Bereich" aria-autocomplete="list" aria-expanded="false" aria-controls="suche-treffer" placeholder="Springen zu …" autocomplete="off" spellcheck="false" enterkeyhint="go">
     <kbd class="taste" id="suche-taste" aria-hidden="true">Strg K</kbd>
@@ -34,6 +36,19 @@
     <a class="pille" href="#logbuch" data-bereich="logbuch">Logbuch</a>
   </nav>
 </header>
+
+<aside class="seite" id="seite" aria-label="Schiffsliste">
+  <div class="seite-kopf">
+    <button type="button" class="seite-zu" id="seite-zu" aria-expanded="true" aria-controls="seite-inhalt" aria-label="Schiffsliste einklappen" title="Ein- und ausklappen"></button>
+    <h2 class="seite-titel">Schiffsliste</h2>
+    <button type="button" class="seite-schliessen" id="seite-schliessen" aria-label="Schiffsliste schließen">&times;</button>
+  </div>
+  <div class="seite-inhalt" id="seite-inhalt">
+    <div class="chips" id="seite-chips" role="group" aria-label="Schiffsliste filtern"></div>
+    <div class="seite-liste" id="seite-liste"></div>
+  </div>
+</aside>
+<div class="seite-schleier" id="seite-schleier" hidden></div>
 
 <main class="tafel">
 <section class="bereich" data-bereich="bruecke" aria-label="Brücke">
@@ -117,6 +132,7 @@
 <script src="/static/bereiche/sternenkarte.js"></script>
 <script src="/static/bereiche/maschinenraum.js"></script>
 <script src="/static/bereiche/logbuch.js"></script>
+<script src="/static/schiffsliste.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

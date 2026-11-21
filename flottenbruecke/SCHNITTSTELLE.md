@@ -57,6 +57,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `ereignisse[]` | die letzten 30 Logbuch-Ereignisse `{zeit, epic, text}`: das Laufband |
 | `prognose` | `{status, ab, bisher, treffer, geprueft, backlog, berechnet}`: `zu_wenig` unter `ab` Messungen, `ungenau` bei unter 60 % Treffern (ausgeblendet), sonst `ok`; `backlog` `{p50, p90}` in Sekunden ab `berechnet`, ohne Wartezeit auf den Menschen. Fehlt bei einem älteren Treiber |
 | `entscheidungen[]` | die letzten 100 Entscheidungen des Admirals `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen}`: „Erledigt heute“ mit Zurücknehmen |
+| `sitzungen[]` | optional (Schiffsliste, #41): die Sitzungen aller Konten des Treibers aus `claude agents --json` je Konto (nur lesend, höchstens einmal je Minute): `{konto, projekt, name, status, kind, seit}`. `konto` wie in `konten[]`, `projekt` **nur der letzte Ordnername** des Arbeitsverzeichnisses (nie der Pfad; ein Wert mit `/` oder `\` wird mit `422` abgelehnt), `status` etwa `busy`/`idle`, `kind` etwa `interactive`, `seit` ISO aus `startedAt`. Kein `cwd`, keine `pid`, keine Sitzungs-ID; die Brücke verwirft unbekannte Felder. Fehlt das Feld (älterer Treiber) oder ist es leer, bleibt die Liste ohne Sitzungen |
 
 Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo nennt weiter nur
 Stufen.
@@ -188,9 +189,14 @@ In `GET /api/tafel` steht die Liste ohne Inhalt als `prototypen[]`:
 `{forge, kurz, name, titel, geaendert, url}`, sortiert nach `forge` und `name`; `url` ist der
 Auslieferungspfad oben.
 
+In `GET /api/tafel` steht außerdem `sitzungen[]` (Schiffsliste, #41): `{konto, projekt, name, status,
+kind, seit, forge}`. `forge` ist das Projekt, dessen Repository-Name (letzter Teil der `forge`) dem
+`projekt` der Sitzung gleicht (ohne Groß/Klein), sonst `null` (die Liste zeigt „Sonstige“). Dieselbe
+Sitzung aus mehreren Berichten steht einmal (der neuere gilt); Berichte stiller Projekte zählen nicht.
+
 ## Was die Seite selbst nutzt
 
-`GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]`), `GET /holodeck/…` (im
+`GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]` und `sitzungen[]`), `GET /holodeck/…` (im
 abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
 (`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender
