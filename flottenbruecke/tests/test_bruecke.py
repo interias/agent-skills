@@ -600,3 +600,31 @@ def test_seite_bindet_skript_und_stil_mit_inhaltsstand_ein(client):
     stand = re.search(r'/static/app\.js\?v=([0-9a-f]{12})"', html)
     assert stand and f'/static/app.css?v={stand.group(1)}"' in html
     assert client.get(f'/static/app.js?v={stand.group(1)}').status_code == 200
+
+
+BEREICHE = ['bruecke', 'holodeck', 'sternenkarte', 'maschinenraum', 'logbuch']
+
+
+def test_huelle_zeigt_die_fuenf_bereiche_ohne_komm(client):
+    html = client.get('/').text
+    for b in BEREICHE:
+        assert f'<a class="pille" href="#{b}" data-bereich="{b}">' in html
+        assert f'<section class="bereich" data-bereich="{b}"' in html
+    assert len(re.findall(r'class="pille" ', html)) == 5
+    assert not re.search(r'#komm\b|data-bereich="komm"', html, re.IGNORECASE)
+    # the board stays the area "Brücke": its three levels live in that section
+    bruecke = html.split('data-bereich="bruecke" aria-label="Brücke">', 1)[1].split('</section>\n<section', 1)[0]
+    assert all(f'id="{e}"' in bruecke for e in ('e1', 'e2', 'e3'))
+
+
+def test_huelle_und_bereiche_werden_mit_inhaltsstand_ausgeliefert(client):
+    html = client.get('/').text
+    stand = re.search(r'/static/app\.js\?v=([0-9a-f]{12})"', html).group(1)
+    dateien = ['huelle.css', 'huelle.js'] + [f'bereiche/{b}.{e}' for b in BEREICHE[1:] for e in ('css', 'js')]
+    for n in dateien:
+        assert f'/static/{n}?v={stand}"' in html
+        assert client.get(f'/static/{n}?v={stand}').status_code == 200
+    # the shell loads first, the areas register with it, the board comes last
+    reihe = [html.index(f'/static/{n}?v=') for n in ['huelle.js'] + [f'bereiche/{b}.js' for b in BEREICHE[1:]] + ['app.js']]
+    assert reihe == sorted(reihe)
+    assert not re.search(r'/static/[\w/.-]+\.(?:css|js)"', html)

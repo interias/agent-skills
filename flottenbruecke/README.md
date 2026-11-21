@@ -25,6 +25,27 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 
 Unter Windows muss die Firewall den Port im privaten Netz zulassen, damit das Handy ihn erreicht.
 
+## Bereiche und Navigation
+
+Oben eine Zeile: Logo, die Befehlszeile (Strg+K, am Mac ⌘K), der Zähler „Braucht dich“ (auf jeder
+Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf dem Handy (bis
+700 px) stehen die Pillen unten in Daumenreichweite, die Brücke trägt dort die Zahl.
+
+- **Brücke** (`#bruecke`, Startseite) — das Board unten.
+- **Holodeck** (`#holodeck`), **Sternenkarte** (`#sternenkarte`), **Maschinenraum**
+  (`#maschinenraum`), **Logbuch** (`#logbuch`) — noch leer, sie füllen sich mit den nächsten Stufen.
+
+Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
+Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Epics der
+Tafel (Nummer oder Titel), mit Pfeiltasten, Enter und Esc. Ein Epic öffnet seine Ebene und markiert
+die Karte kurz. Sie führt nichts aus.
+
+Für Entwickler: Ein Bereich liegt in `app/static/bereiche/<bereich>.js` (und `.css`) und meldet sich
+mit `huelle.bereich({ name, titel, zeichne(t, el), treffer(t) })` an der Hülle (`huelle.js`) an.
+`zeichne` läuft bei jedem Laden der Tafel, solange der Bereich sichtbar ist, `treffer` liefert
+Einträge für die Befehlszeile. Alle Skripte und Stile, die `index.html` nennt, bindet die Brücke mit
+Inhalts-Hash ein.
+
 ## Board
 
 Drei Ebenen, sortiert danach, was du tun musst:
