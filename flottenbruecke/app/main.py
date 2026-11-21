@@ -6,6 +6,7 @@
 import hashlib
 import hmac
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -170,11 +171,13 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def gesund() -> dict:
         return {'ok': True}
 
-    # app.css and app.js get a content hash in their URL, so a browser that cached an older version
-    # (a phone after an update) loads the new one instead of mixing old script with new markup
-    stand = hashlib.sha256(b''.join((STATIC / n).read_bytes() for n in ('app.css', 'app.js'))).hexdigest()[:12]
+    # every script and style the page names (app, shell, areas) gets a content hash in its URL, so a
+    # browser that cached an older version (a phone after an update) loads the new one instead of
+    # mixing old script with new markup
     seite_html = (STATIC / 'index.html').read_text(encoding='utf-8')
-    for n in ('app.css', 'app.js'):
+    dateien = re.findall(r'/static/([\w/.-]+\.(?:css|js))"', seite_html)
+    stand = hashlib.sha256(b''.join((STATIC / n).read_bytes() for n in dateien)).hexdigest()[:12]
+    for n in dateien:
         seite_html = seite_html.replace(f'/static/{n}"', f'/static/{n}?v={stand}"')
 
     @app.get('/')

@@ -659,7 +659,7 @@ function laufband(t) {
     const breite = $('laufband').clientWidth;
     if (spur.scrollWidth) spur.style.animationDelay = `-${((breite * 0.85) / spur.scrollWidth) * s}s`;
   }
-  setze($('logbuch'), ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>');
+  setze($('logbuch-liste'), ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>');
 }
 
 document.addEventListener('click', (ev) => {
@@ -673,7 +673,7 @@ $('laufband').addEventListener('click', () => {
   const band = $('laufband');
   const offen = band.classList.toggle('halt');
   band.setAttribute('aria-expanded', String(offen));
-  $('logbuch').hidden = !offen;
+  $('logbuch-liste').hidden = !offen;
 });
 
 // ---- moving cards: from where they stood to where they stand now (FLIP), once
@@ -719,6 +719,7 @@ async function laden() {
     ebene3(t, vorherErledigt);
     laufband(t);
     tabAlarm(t.braucht.length);
+    huelle.tafel(t);
     lebenszeichen();
     wandern(vorher);
     erstes = false;
@@ -727,6 +728,33 @@ async function laden() {
     console.error(err);
   }
 }
+
+// ---- the board in the shell (#40): it draws itself in laden(), the command line gets its epics and projects
+
+function karteIn(box, id) {
+  return [...$(box).children].find((el) => el.dataset.id === id) ?? null;
+}
+
+function brueckeTreffer(t) {
+  const mehrere = t.projekte.length > 1;
+  const epics = new Map();
+  // each epic once, where it stands first: level 1, the runs, the queue, the ready ones, level 3
+  const dazu = (x, nr, box, id) => {
+    const k = `${x.forge}#${nr}`;
+    if (nr == null || epics.has(k)) return;
+    const name = x.titel || x.frage || '';
+    epics.set(k, { art: 'Epic', titel: `#${nr}${name ? ` ${name}` : ''}`, info: mehrere ? x.repo : '', ziel: () => karteIn(box, id) });
+  };
+  for (const x of t.braucht) dazu(x, x.epic, 'e1-liste', x.id);
+  for (const l of t.unterwegs.laeufe) dazu(l, l.nr, 'e2-liste', l.id);
+  for (const s of t.unterwegs.schlange) dazu(s, s.nr, 'e2-liste', `${s.id}:s`);
+  for (const b of t.unterwegs.bereit) dazu(b, b.nr, 'bereit', b.id);
+  for (const x of t.erledigt) dazu(x, x.epic ?? x.nr, 'e3-liste', x.id);
+  const projekte = t.projekte.map((p, i) => ({ art: 'Projekt', titel: p.kurz, info: p.forge, ziel: () => $('projekte').children[i] ?? null }));
+  return [...epics.values(), ...projekte];
+}
+
+huelle.bereich({ name: 'bruecke', titel: 'Brücke', treffer: brueckeTreffer });
 
 $('e3').addEventListener('toggle', () => stand && ebene3(stand, new Set(stand.erledigt.map((x) => x.id))));
 laden();
