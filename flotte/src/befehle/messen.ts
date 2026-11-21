@@ -7,8 +7,9 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { leseDatei, type Eintrag } from '../transkript.ts';
-import { istFehlstart, kalteZeit, prDauern, rueckfragen, runde, treiberKennzahlen, verteilung, type Fenster, type PullRequest, type Rueckfrage, type TreiberZustand } from '../messen.ts';
+import { epicVerlauf, istFehlstart, kalteZeit, prDauern, rueckfragen, runde, treiberKennzahlen, verteilung, type Fenster, type PullRequest, type Rueckfrage, type TreiberZustand } from '../messen.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
+import { ladeSitzung, tokenKennzahlen, type AgentLauf } from '../tokens.ts';
 import { liesMessungen, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface SitzungRef {
@@ -191,7 +192,8 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
   // 1, 2: questions to a person and the wait for the answer (orchestrators and runs alike)
   const fragen: Rueckfrage[] = [];
   for (const t of [...orchestrierung, ...laeufe]) fragen.push(...rueckfragen(t.eintraege, e.epics, fensterVon(e, t.ref)));
-  const treiber = e.treiberZustand ? treiberKennzahlen(JSON.parse(readFileSync(pfadAus(e.treiberZustand), 'utf8')) as TreiberZustand, f) : null;
+  const zustand = e.treiberZustand ? (JSON.parse(readFileSync(pfadAus(e.treiberZustand), 'utf8')) as TreiberZustand) : null;
+  const treiber = zustand ? treiberKennzahlen(zustand, f) : null;
   if (treiber) fragen.push(...treiber.fragen);
   const mitUrteil = fragen.filter((q) => q.gefolgt !== null);
   const jeEpic: Record<string, { anzahl: number; wartenMin: number }> = {};
@@ -244,10 +246,19 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
       : { starts: starts.length, fehlstarts: fehlstarts.length, anteil: starts.length ? runde(fehlstarts.length / starts.length) : null, sitzungen: fehlstarts.map((t) => `${t.ref.konto}/${t.ref.id}`), methode: 'keine Antwort des Modells in den ersten 3 min; Lauf-Agenten zählen nicht als Start' },
     pr_bereit_bis_gemergt_min: { ...verteilung(dauern.map((d) => d.minuten)), geschaetzt: dauern.filter((d) => d.geschaetzt).length, prs: dauern.map((d) => ({ pr: d.pr, minuten: runde(d.minuten), geschaetzt: d.geschaetzt })) },
     orchestrierung: { weighted: Math.round(summe), je_epic: e.epics.length ? Math.round(summe / e.epics.length) : null, sitzungen: gewichte, methode: 'usage.ps1 ohne Modellgewichte, im Fenster der Sitzung' },
+    tokens: tokenKennzahlen(laeufe.flatMap((t) => agentLaeufe(t, e))),
+    verlauf: zustand ? epicVerlauf(zustand, f) : null,
     reste: reste(u, e),
     prognose: prognoseKennzahlen(e),
     fehler,
   };
+}
+
+/** A run session with its subagents; a listed subagent (agentType, e.g. epic-lauf) alone, under its type. */
+function agentLaeufe(t: Transkript, e: Einsatz): AgentLauf[] {
+  const f = fensterVon(e, t.ref);
+  if (!t.ref.agentType) return ladeSitzung(t.pfad, f, e.epics);
+  return ladeSitzung(t.pfad, f, e.epics, t.ref.agentType).slice(0, 1);
 }
 
 /**

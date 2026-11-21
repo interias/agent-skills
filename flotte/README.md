@@ -101,6 +101,29 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
 `flotte messen` gibt die Messungen unter `prognose` mit aus: Anzahl, Verteilungen, Pakete je Klasse
 und Trefferquote.
 
+## Messen
+
+`flotte messen <einsaetze.json>` (Form: `messung/einsaetze.beispiel.json`) liest die Transkripte
+der Läufe samt ihrer Subagenten und gibt je Einsatz unter anderem aus:
+
+- **`tokens`:** Eingabe, Cache-Schreiben, Cache-Lesen und Ausgabe, je Agent-Typ, je Epic und je
+  Paket, jeweils mit **Cache-Quote** (Lesen durch alles, was hineinging). Je Paket die Zahl der
+  Implementer- und Reviewer-Läufe, also die **Review-Runden**.
+- **`kontext_anteil`** je Agent-Typ: welcher Anteil seiner gewichteten Tokens auf Werkzeugergebnisse
+  einer Art fällt — Test, Gate, Diff (`git diff/show/log`), Lesen, übrige Shell. Ein Ergebnis kostet
+  einmal das Schreiben in den Cache und danach bei jedem weiteren Modellaufruf das Lesen. Der Anteil
+  ist die **Obergrenze** dessen, was eine Maßnahme sparen kann, die diese Ergebnisse kürzt.
+- **`verlauf`** (unter dem Treiber): Durchlaufzeit je Epic ohne Warten auf dich und die
+  Fehlerquote (Rückgabe an den Lauf, blockiert, abgebrochen).
+
+**Was das schon entschieden hat (21.11.2026).** Für das „Sparpaket“ aus der Skill-Recherche lief
+`flotte messen` über alle Läufe der drei Konten vom 1. bis 21.11.2026 (448 Implementer und
+Reviewer, 195 Pakete). Je Agent-Typ kosteten Testausgaben 0,4–0,5 % der Tokens, Diffs im Review
+4,2–4,5 %, Lesen 5–10 %, übrige Shell 5–17 %; die Cache-Quote lag bei 96–98 %. 13 von 195 Paketen
+brauchten eine zweite Review-Runde. Ein Hook, der Testausgabe kürzt, ein enger Nach-Review und ein
+Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wurden deshalb nicht
+übernommen (Begründung im Pull Request des Sparpakets).
+
 ## Bei dir
 
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
