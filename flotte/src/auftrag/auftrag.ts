@@ -1,6 +1,6 @@
 // The order writer (agent-skills/ADR-0002): the one place that checks a draft against the adapter of
 // the target repository, builds the bodies (list, order, "Teil von #…") and picks the labels. The
-// forge only creates, edits and links issues (interface Forge); GitHub in github.ts, Gitea in #73.
+// forge only creates, edits and links issues (interface Forge); GitHub in github.ts, Gitea in gitea.ts.
 // Draft format: flotte/README.md, "Aufträge".
 
 /** What a forge must do for the order writer. Every method throws on failure. */
@@ -124,6 +124,11 @@ export function pruefen(e: Entwurf, r: AuftragsRegeln): string[] {
 export function labelsFuer(art: 'mission' | 'ziel', r: AuftragsRegeln, starten: boolean): string[] {
   const status = starten ? r.ready_label : TRIAGE_LABEL;
   return art === 'mission' ? [r.epic_label, status] : [status];
+}
+
+/** Colour and description of a label the writer creates when it is missing (epic/references/forge.md, "Statuslabels"); both layers take them from here. */
+export function labelArt(label: string, r: AuftragsRegeln): { farbe: string; beschreibung: string } | null {
+  return label === r.epic_label ? { farbe: 'ff2bd6', beschreibung: 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)' } : null;
 }
 
 const nr = (n: number | null) => (n === null ? '#?' : `#${n}`);

@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { auftragAusfuehren, type AuftragsRegeln } from '../auftrag/auftrag.ts';
+import { giteaForge } from '../auftrag/gitea.ts';
 import { githubForge } from '../auftrag/github.ts';
 import { forgeAus } from '../treiber/treiber.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
@@ -28,16 +29,44 @@ export function regelnAus(adapterText: string): AuftragsRegeln {
   };
 }
 
-/** owner/name on GitHub: from the adapter key api, else from origin. Any other forge is not built yet. */
+/** owner/name on GitHub: from the adapter key api, else from origin. Gitea goes through giteaRepoAus(). */
 export function githubRepoAus(adapterText: string, repo: string, a: Aufrufer): string {
   const art = schluessel(adapterText, 'forge');
-  if (art && art !== 'github') throw new Error(`Forge ${art}: flotte auftrag spricht bisher nur GitHub.`);
+  if (art && art !== 'github') throw new Error(`Forge ${art}: flotte auftrag spricht nur GitHub und Gitea.`);
   const api = /api\.github\.com\/repos\/([^/\s]+\/[^/\s]+?)\/?$/.exec(schluessel(adapterText, 'api') ?? '')?.[1];
   if (api) return api;
   const r = a('git', ['-C', repo, 'remote', 'get-url', 'origin']);
   const aus = r.code ? null : forgeAus(r.stdout);
   if (!aus) throw new Error(`Das GitHub-Repository lässt sich weder aus dem Adapter (api) noch aus origin lesen: ${repo}`);
   return aus;
+}
+
+/** owner/name from the adapter key api of a Gitea repository (`<host>/api/v1/repos/<owner>/<repo>`). */
+export function giteaRepoAus(adapterText: string): string {
+  const api = schluessel(adapterText, 'api');
+  const aus = /\/api\/v1\/repos\/([^/\s]+\/[^/\s]+?)\/?$/.exec(api ?? '')?.[1];
+  if (!aus) throw new Error('Forge gitea: der Adapter braucht `api: <host>/api/v1/repos/<owner>/<repo>`.');
+  return aus;
+}
+
+/**
+ * The Authorization header for Gitea (epic/references/forge.md): the token from the variable token_env
+ * (default GITEA_TOKEN) or from the file token_file, else Basic Auth from the Git credential store.
+ * Nothing of it is printed.
+ */
+export function giteaZugang(adapterText: string, repo: string, a: Aufrufer): string {
+  const name = schluessel(adapterText, 'token_env') ?? 'GITEA_TOKEN';
+  const datei = schluessel(adapterText, 'token_file');
+  let token = process.env[name];
+  if (!token && datei && existsSync(resolve(repo, datei))) {
+    token = new RegExp(`^(?:export\\s+)?${name}=(.*)$`, 'm').exec(readFileSync(resolve(repo, datei), 'utf8'))?.[1].trim().replace(/^['"]|['"]$/g, '');
+  }
+  if (token) return `token ${token}`;
+  const origin = new URL(schluessel(adapterText, 'api')!).origin;
+  const r = a('git', ['credential', 'fill'], { eingabe: `url=${origin}\n\n`, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+  const wert = (k: string) => new RegExp(`^${k}=(.*)$`, 'm').exec(r.stdout)?.[1].replace(/\r$/, '');
+  if (r.code || !wert('username') || !wert('password')) throw new Error(`Gitea: weder ${name} noch ein Eintrag im Git-Credential-Speicher für ${origin}.`);
+  return `Basic ${Buffer.from(`${wert('username')}:${wert('password')}`).toString('base64')}`;
 }
 
 export async function auftrag(argv: string[], a: Aufrufer = aufrufen): Promise<unknown> {
@@ -53,7 +82,9 @@ export async function auftrag(argv: string[], a: Aufrufer = aufrufen): Promise<u
   const regeln = regelnAus(adapterText);
   const entwurf = readFileSync(datei, 'utf8');
   // also in a dry run: it shows which repository the order would go to; the forge is not called then
-  const forge = githubRepoAus(adapterText, repo, a);
-  const ergebnis = await auftragAusfuehren(entwurf, regeln, githubForge(a, forge), { starten: argv.includes('--starten'), trocken: argv.includes('--trocken') });
+  const gitea = schluessel(adapterText, 'forge') === 'gitea';
+  const forge = gitea ? giteaRepoAus(adapterText) : githubRepoAus(adapterText, repo, a);
+  const schicht = gitea ? giteaForge(schluessel(adapterText, 'api')!, () => giteaZugang(adapterText, repo, a), regeln) : githubForge(a, forge, regeln);
+  const ergebnis = await auftragAusfuehren(entwurf, regeln, schicht, { starten: argv.includes('--starten'), trocken: argv.includes('--trocken') });
   return { forge, ...ergebnis };
 }

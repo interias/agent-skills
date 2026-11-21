@@ -7,8 +7,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Aufrufer, Ergebnis } from '../src/aufruf.ts';
 import { abschnittInhalt, auftragAusfuehren, entwurfLesen, missionBody, pruefen } from '../src/auftrag/auftrag.ts';
+import { giteaForge } from '../src/auftrag/gitea.ts';
 import { githubForge } from '../src/auftrag/github.ts';
-import { auftrag, regelnAus } from '../src/befehle/auftrag.ts';
+import { auftrag, giteaZugang, regelnAus } from '../src/befehle/auftrag.ts';
 import { auftragFaelle, ENTWURF_DREI, ENTWURF_EINZELN, ENTWURF_LUECKE, type IssueStand, REGELN, speicherForge } from './auftrag-faelle.ts';
 
 /** A stand-in for gh with the few calls the GitHub layer makes; an unknown label fails like on GitHub. */
@@ -57,12 +58,12 @@ describe('auftrag: shared cases, in-memory forge', () => {
 describe('auftrag: shared cases, GitHub layer over a gh stand-in', () => {
   auftragFaelle(() => {
     const gh = ghAttrappe();
-    return { forge: githubForge(gh.aufrufer, 'o/r'), issues: gh.issues };
+    return { forge: githubForge(gh.aufrufer, 'o/r', REGELN), issues: gh.issues };
   });
 
   it('calls gh as the forge reference says: labels once, body on stdin, sub-issue by database id', async () => {
     const gh = ghAttrappe();
-    await auftragAusfuehren(ENTWURF_DREI, REGELN, githubForge(gh.aufrufer, 'o/r'), { starten: false, trocken: false });
+    await auftragAusfuehren(ENTWURF_DREI, REGELN, githubForge(gh.aufrufer, 'o/r', REGELN), { starten: false, trocken: false });
     const z = gh.aufrufe.map((a) => a.slice(1).join(' '));
     expect(z.filter((x) => x.startsWith('label create'))).toEqual([
       'label create epic --repo o/r --color ff2bd6 --description Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)',
@@ -76,7 +77,7 @@ describe('auftrag: shared cases, GitHub layer over a gh stand-in', () => {
 
   it('a draft with a gap calls gh not once, not even for a label', async () => {
     const gh = ghAttrappe();
-    await expect(auftragAusfuehren(ENTWURF_LUECKE, REGELN, githubForge(gh.aufrufer, 'o/r'), { starten: true, trocken: false })).rejects.toThrow(/Nichts angelegt/);
+    await expect(auftragAusfuehren(ENTWURF_LUECKE, REGELN, githubForge(gh.aufrufer, 'o/r', REGELN), { starten: true, trocken: false })).rejects.toThrow(/Nichts angelegt/);
     expect(gh.aufrufe).toEqual([]);
   });
 });
@@ -165,10 +166,88 @@ describe('flotte auftrag', () => {
   });
 
   it('refuses another forge and a wrong call', async () => {
-    const dir = ordner('---\nforge: gitea\n---\n');
-    await expect(auftrag([dir, join(dir, 'entwurf.md')], ghAttrappe().aufrufer)).rejects.toThrow(/Forge gitea/);
+    const dir = ordner('---\nforge: gitlab\n---\n');
+    await expect(auftrag([dir, join(dir, 'entwurf.md')], ghAttrappe().aufrufer)).rejects.toThrow(/Forge gitlab: flotte auftrag spricht nur GitHub und Gitea/);
     await expect(auftrag([dir], ghAttrappe().aufrufer)).rejects.toThrow(/Aufruf: flotte auftrag/);
     await expect(auftrag([dir, join(dir, 'entwurf.md'), '--start'], ghAttrappe().aufrufer)).rejects.toThrow(/Aufruf: flotte auftrag/);
     await expect(auftrag([dir, join(dir, 'fehlt.md')], ghAttrappe().aufrufer)).rejects.toThrow(/Entwurf fehlt/);
+  });
+});
+
+describe('Gitea layer without a server', () => {
+  const GITEA = '---\nforge: gitea\napi: http://gitea.test:3003/api/v1/repos/acme/ziel\ntoken_env: FLOTTE_TEST_KEIN_TOKEN\n---\n';
+  const ordner = (adapter: string) => {
+    const dir = mkdtempSync(join(tmpdir(), 'flotte-auftrag-'));
+    mkdirSync(join(dir, '.claude'));
+    writeFileSync(join(dir, '.claude', 'epic.md'), adapter);
+    writeFileSync(join(dir, 'einzeln.md'), ENTWURF_EINZELN);
+    return dir;
+  };
+
+  it('--trocken names owner/name from api and asks for no login', async () => {
+    const dir = ordner(GITEA);
+    const aufrufe: string[] = [];
+    const r = (await auftrag([dir, join(dir, 'einzeln.md'), '--trocken'], (p) => (aufrufe.push(p), { code: 1, stdout: '', stderr: '' }))) as any;
+    expect(r).toMatchObject({ forge: 'acme/ziel', trocken: true, mission: null });
+    expect(aufrufe).toEqual([]);
+  });
+
+  it('a Gitea adapter without api is refused', async () => {
+    const dir = ordner('---\nforge: gitea\n---\n');
+    await expect(auftrag([dir, join(dir, 'einzeln.md'), '--trocken'], ghAttrappe().aufrufer)).rejects.toThrow(/Forge gitea: der Adapter braucht `api/);
+  });
+
+  it('login: token from token_env, else Basic Auth from the Git credential store, else an error without secrets', () => {
+    const nie: Aufrufer = () => {
+      throw new Error('kein Aufruf erwartet');
+    };
+    process.env.FLOTTE_TEST_KEIN_TOKEN = 'geheim';
+    try {
+      expect(giteaZugang(GITEA, '.', nie)).toBe('token geheim');
+    } finally {
+      delete process.env.FLOTTE_TEST_KEIN_TOKEN;
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'flotte-token-'));
+    writeFileSync(join(dir, '.env'), 'ANDERE=1\r\nFLOTTE_TEST_KEIN_TOKEN="aus-datei"\r\n');
+    expect(giteaZugang(GITEA.replace('\n---\n', '\ntoken_file: .env\n---\n'), dir, nie)).toBe('token aus-datei');
+    let eingabe = '';
+    const credential: Aufrufer = (p, args, o) => {
+      eingabe = o?.eingabe ?? '';
+      return { code: 0, stdout: 'protocol=http\nhost=gitea.test:3003\nusername=bot\npassword=pw\n', stderr: '' };
+    };
+    expect(giteaZugang(GITEA, '.', credential)).toBe(`Basic ${Buffer.from('bot:pw').toString('base64')}`);
+    expect(eingabe).toBe('url=http://gitea.test:3003\n\n');
+    expect(() => giteaZugang(GITEA, '.', () => ({ code: 1, stdout: '', stderr: 'fatal' }))).toThrow(/weder FLOTTE_TEST_KEIN_TOKEN noch ein Eintrag/);
+  });
+
+  it('reads the label list page by page (50 per page) and creates only what is missing', async () => {
+    const seiten: string[] = [];
+    const posts: any[] = [];
+    const abruf = (async (url: string, o: RequestInit) => {
+      const pfad = url.replace('http://g.test/api/v1/repos/o/r', '');
+      if (o.method === 'GET') {
+        seiten.push(pfad);
+        const seite = Number(/page=(\d+)/.exec(pfad)![1]);
+        const n = seite === 1 ? 50 : 1;
+        return new Response(JSON.stringify(Array.from({ length: n }, (_, i) => ({ id: seite * 100 + i, name: seite === 2 ? 'needs-triage' : `l${i}` }))));
+      }
+      posts.push([pfad, JSON.parse(o.body as string)]);
+      return new Response(JSON.stringify(pfad === '/labels' ? { id: 7 } : { number: 5, html_url: 'http://g.test/o/r/issues/5' }), { status: 201 });
+    }) as unknown as typeof fetch;
+    const forge = giteaForge('http://g.test/api/v1/repos/o/r/', () => 'token x', REGELN, abruf);
+    expect(await forge.anlegen({ titel: 'T', body: 'B', labels: ['epic', 'needs-triage'] })).toEqual({ nummer: 5, url: 'http://g.test/o/r/issues/5' });
+    expect(seiten).toEqual(['/labels?limit=50&page=1', '/labels?limit=50&page=2']);
+    expect(posts).toEqual([
+      ['/labels', { name: 'epic', color: '#ff2bd6', description: 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)' }],
+      ['/issues', { title: 'T', body: 'B', labels: [7, 200] }],
+    ]);
+    await forge.verknuepfen(5, 6);
+    expect(posts[2]).toEqual(['/issues/5/dependencies', { owner: 'o', repo: 'r', index: 6 }]);
+  });
+
+  it('an API error is thrown with status, never with the login', async () => {
+    const abruf = (async () => new Response('nope', { status: 404 })) as unknown as typeof fetch;
+    const forge = giteaForge('http://g.test/api/v1/repos/o/r', () => 'token geheim', REGELN, abruf);
+    await expect(forge.bodySetzen(1, 'x')).rejects.toThrow(/Gitea PATCH \/issues\/1: HTTP 404 nope$/);
   });
 });
