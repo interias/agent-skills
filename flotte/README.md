@@ -21,7 +21,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Epics warten |
 | `--konto-max 3=1` | höchstens so viele Epics gleichzeitig auf diesem Konto |
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
-| `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen |
+| `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/epic-nacharbeit` abarbeiten |
 
 ## Anhalten und neu starten

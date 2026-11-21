@@ -1,0 +1,30 @@
+[
+  {
+    "forge": "interias/flotte-probe",
+    "dateien": [
+      {
+        "name": "startseite.html",
+        "titel": "Startseite – Entwurf A",
+        "geaendert": "2026-11-20T13:58:12Z",
+        "inhalt": "<!doctype html>\n<html lang=\"de\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Startseite – Entwurf A</title>\n<style>\nbody{margin:0;font:16px/1.5 system-ui,sans-serif;background:#f6f3ee;color:#1d1b18}\nheader{padding:56px 24px 40px;background:linear-gradient(135deg,#ff9c33,#cc99cc);color:#1d1b18}\nh1{margin:0 0 8px;font-size:clamp(28px,6vw,48px)}\nmain{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;padding:24px}\n.karte{background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 8px #0001}\nbutton{font:inherit;border:0;border-radius:999px;padding:10px 20px;background:#1d1b18;color:#fff;cursor:pointer}\nbody.dunkel{background:#15151f;color:#f2e6d9}body.dunkel .karte{background:#26263a}\n</style></head>\n<body>\n<header><h1>Probe-Flotte</h1><p>Ein erfundener Entwurf für die Startseite.</p><button id=\"modus\">Dunkel</button></header>\n<main><div class=\"karte\"><h2>Schnell</h2><p>Drei Schritte bis zum ersten Ergebnis.</p></div>\n<div class=\"karte\"><h2>Leise</h2><p>Nur Bescheid, wenn es dich braucht.</p></div>\n<div class=\"karte\"><h2>Offen</h2><p>Alles liegt im Repository.</p></div></main>\n<script>document.getElementById('modus').onclick=function(){document.body.classList.toggle('dunkel')}</script>\n</body></html>\n"
+      },
+      {
+        "name": "anmeldung-mobil.html",
+        "titel": "Anmeldung (mobil)",
+        "geaendert": "2026-11-19T17:20:45Z",
+        "inhalt": "<!doctype html>\n<html lang=\"de\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Anmeldung (mobil)</title>\n<style>\nbody{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:#0d0d14;color:#f2e6d9}\n.box{width:min(340px,90vw);padding:28px;border-radius:24px;background:#15151f;border-left:12px solid #8899ff}\nh1{margin:0 0 16px;font-size:24px}\nlabel{display:block;margin:12px 0 4px;color:#a59a8f;font-size:13px}\ninput{width:100%;box-sizing:border-box;padding:10px 14px;border-radius:999px;border:1px solid #26263a;background:#000;color:inherit;font:inherit}\nbutton{margin-top:20px;width:100%;padding:12px;border:0;border-radius:999px;background:#ff9c33;font:600 16px system-ui}\n#hinweis{min-height:1.5em;color:#66cc99;font-size:13px}\n</style></head>\n<body><div class=\"box\"><h1>Anmelden</h1>\n<label for=\"n\">Name</label><input id=\"n\" autocomplete=\"off\" placeholder=\"Picard\">\n<label for=\"c\">Zugangscode</label><input id=\"c\" type=\"password\" placeholder=\"••••\">\n<button id=\"los\">Weiter</button><p id=\"hinweis\"></p></div>\n<script>document.getElementById('los').onclick=function(){document.getElementById('hinweis').textContent='Nur ein Entwurf: nichts wird gesendet.'}</script>\n</body></html>\n"
+      }
+    ]
+  },
+  {
+    "forge": "interias/sternwarte",
+    "dateien": [
+      {
+        "name": "sternkarte.html",
+        "titel": "Sternkarte – Skizze",
+        "geaendert": "2026-11-20T09:12:03Z",
+        "inhalt": "<!doctype html>\n<html lang=\"de\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Sternkarte – Skizze</title>\n<style>\nbody{margin:0;background:#000;color:#99ccff;font:14px system-ui,sans-serif}\nh1{position:absolute;left:20px;top:12px;margin:0;font-size:20px;letter-spacing:.08em;text-transform:uppercase}\nsvg{display:block;width:100vw;height:100vh}\ncircle{fill:#f2e6d9}.weg{stroke:#9977cc;stroke-width:2;fill:none;stroke-dasharray:6 6}\n</style></head>\n<body><h1>Sternwarte · Sektor 7</h1>\n<svg viewBox=\"0 0 800 500\" preserveAspectRatio=\"xMidYMid slice\">\n<path class=\"weg\" d=\"M90 400 C 250 300, 380 380, 520 220 S 700 120, 740 80\"/>\n<circle cx=\"90\" cy=\"400\" r=\"9\" fill=\"#ff9c33\"/><circle cx=\"520\" cy=\"220\" r=\"7\"/><circle cx=\"740\" cy=\"80\" r=\"11\" fill=\"#8899ff\"/>\n<circle cx=\"160\" cy=\"90\" r=\"2\"/><circle cx=\"300\" cy=\"150\" r=\"3\"/><circle cx=\"420\" cy=\"60\" r=\"2\"/><circle cx=\"640\" cy=\"330\" r=\"3\"/>\n<circle cx=\"230\" cy=\"250\" r=\"2\"/><circle cx=\"700\" cy=\"450\" r=\"2\"/><circle cx=\"360\" cy=\"460\" r=\"3\"/><circle cx=\"60\" cy=\"200\" r=\"2\"/>\n</svg>\n<script>document.querySelectorAll('circle').forEach(function(c,i){c.style.opacity=.5+.5*Math.abs(Math.sin(i))})</script>\n</body></html>\n"
+      }
+    ]
+  }
+]
