@@ -163,7 +163,7 @@ export interface Bericht {
   taktS: number;
   epics: BerichtEpic[];
   schlange: number[];
-  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; alterMin: number | null }[];
+  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; alterMin: number | null; grund?: string }[];
   ram: { stufe: string; halt: boolean; prozent: number | null } | null;
   platte: { freiGb: number | null; genug: boolean } | null;
   obergrenze: number | null;

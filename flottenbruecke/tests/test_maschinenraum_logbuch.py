@@ -26,6 +26,20 @@ def test_maschinenraum_liest_diese_felder_aus_dem_beispielbericht(client, berich
     assert p['taktS'] == 60 and p['rechner'] == r['name'] and p['empfangen'] and p['veraltet'] is False
 
 
+def test_bremsgrund_je_konto_kommt_in_der_tafel_an_und_fehlt_ohne_bremse(client, bericht):
+    client.post('/api/bericht', json=bericht)
+    k = {x['konto']: x for x in tafel(client)['konten']}
+    assert k['Konto 2']['stufe'] == 'gelb' and k['Konto 2']['grund'].startswith('verbraucht 71 %')
+    assert k['Konto 1']['stufe'] == 'gruen' and k['Konto 1']['grund'] is None
+
+
+def test_bericht_ohne_bremsgrund_bleibt_gueltig(client, bericht):
+    for x in bericht['konten']:
+        x.pop('grund', None)
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    assert all(x['grund'] is None for x in tafel(client)['konten'])
+
+
 def test_maschinenraum_ohne_felder_baut_die_tafel_weiter(client, bericht):
     bericht['konten'] = []
     bericht['ram'] = None

@@ -197,9 +197,10 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 - **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (5 h und Woche, „… % übrig“, Reset-Zeit,
   mit Wochentag ab 20 h), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
   gleichzeitig) und der Takt der Treiber, die dort melden. Alles stammt aus dem Bericht. Was er nicht
-  trägt, steht als „… meldet der Treiber nicht“: heute die **Anmeldung** je Konto und der **Grund** einer
-  Bremse (der Bericht kennt nur die Stufe `gruen`/`gelb`/`rot`). Kommen `anmeldung` und `grund` je Konto
-  in die Tafel, zeigt die Seite sie.
+  trägt, steht als „… meldet der Treiber nicht“: heute die **Anmeldung** je Konto (der Treiber kennt sie
+  nur als Halt eines Epics, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
+  liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
+  Seite sie.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das

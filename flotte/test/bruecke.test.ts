@@ -273,6 +273,23 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('the reason of a braked account goes into the report, cut to the length the bridge takes; a green account has none', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      // 90 % used in the 5-hour window: red, with a reason; the other accounts stay green or red by their own value
+      const buch = drehbuch([lauf(3, [{ verbrauch: [0.9, 0.2] }, { text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const konten = b.berichte.at(-1)!.konten;
+      const rot = konten.find((k) => k.stufe === 'rot');
+      expect(rot?.grund).toMatch(/verbraucht 90 %/);
+      expect(rot!.grund!.length).toBeLessThanOrEqual(4000);
+      for (const k of konten) expect('grund' in k).toBe(k.stufe !== 'gruen');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('a blocked epic requeued on the bridge: the run continues where it stopped; fetched twice it acts once', async () => {
     const b = await attrappe(() => null, { handlung: (x) => (x.epics.find((e) => e.nr === 3)?.stufe === 'blockiert' ? { epic: 3, art: 'einreihen' } : null), handlungDoppelt: true });
     try {

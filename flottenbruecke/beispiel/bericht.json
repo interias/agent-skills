@@ -448,7 +448,8 @@
         "verbraucht": 64.5,
         "reset": "2026-11-23T19:00:00Z"
       },
-      "alterMin": 6.0
+      "alterMin": 6.0,
+      "grund": "verbraucht 71 %, Hochrechnung 96 %"
     }
   ],
   "ram": {
