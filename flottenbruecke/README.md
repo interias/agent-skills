@@ -36,6 +36,8 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 - **Sternenkarte** (`#sternenkarte`) — Projekte mit ihrem Backlog, unten.
 - **Maschinenraum** (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten.
 
+Bilder aller Bereiche mit den Beispieldaten aus `beispiel/`, je 1440 und 390 px breit: `doku/`.
+
 Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
 Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Epics der
 Tafel (Nummer oder Titel), mit Pfeiltasten, Enter und Esc. Ein Epic öffnet seine Ebene und markiert
