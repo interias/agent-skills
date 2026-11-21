@@ -1,5 +1,6 @@
 // Maschinenraum (#42): accounts as tanks, the machines (RAM, disk, fleet limit) and the beat of each
 // driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN.
+// With several drivers, the settings of accounts and machine stand once for all of them.
 // A field the report lacks gets an honest empty line, never a made-up value.
 // The shell (huelle.js) calls zeichne(t, el) on every load while the area is visible; t is null
 // before the first load, then the helpers of app.js do not exist yet. All scripts of the page share
@@ -38,7 +39,10 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
   };
 
   // ---- settings (#59): the effective values with their origin, a control per value, a change only after "Übernehmen"
-  const HERKUNFT = { start: 'Start', bruecke: 'Brücke', standard: 'Standard' };
+  const HERKUNFT = { start: 'Start', bruecke: 'Brücke', standard: 'Standard', gemischt: 'je Treiber' };
+  // accounts and the machine are shared by every driver: shown once, "Übernehmen" goes to each of them
+  const GEMEINSAM = ['konten', 'admiral', 'verbrauchGelb', 'verbrauchRot', 'leerfahren', 'ramWarn', 'platteMinGb'];
+  const ALLE = '*';
   const HILFE = {
     obergrenze: 'Mehr Epics laufen nie gleichzeitig; automatisch folgt die Grenze der Wochen-Hochrechnung.',
     paketeJeEpic: 'So viele Pakete eines Epics arbeiten gleichzeitig; /epic senkt das Fenster ab dem nächsten frei werdenden Platz, nichts wird abgebrochen.',
@@ -64,7 +68,21 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     if (!d) return '';
     return d.toDateString() === new Date().toDateString() ? uhrzeit(iso) : `${d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' })} ${uhrzeit(iso)}`;
   };
-  const finde = (t, zeile) => t?.projekte.find((p) => p.forge === zeile.dataset.forge)?.einstellungen?.find((x) => x.name === zeile.dataset.name);
+  const mitEinstellungen = (t) => (t?.projekte ?? []).filter((p) => p.einstellungen);
+  const gemeinsam = (t) => mitEinstellungen(t).length > 1;
+  // the drivers a row speaks for: one, or all of them for a shared row
+  const ziele = (t, zeile) => (zeile.dataset.forge === ALLE ? mitEinstellungen(t) : (t?.projekte ?? []).filter((p) => p.forge === zeile.dataset.forge));
+  const finde = (t, zeile) => {
+    const es = ziele(t, zeile).map((p) => p.einstellungen?.find((x) => x.name === zeile.dataset.name)).filter(Boolean);
+    return zeile.dataset.forge === ALLE ? vereint(es) : es[0];
+  };
+  // one setting of several drivers as one: the common value, or the first one and stand naming each
+  function vereint(es) {
+    if (!es.length) return undefined;
+    const einig = es.every((e) => gleich(basis(e), basis(es[0])));
+    const herkunft = es.every((e) => e.herkunft === es[0].herkunft) ? es[0].herkunft : 'gemischt';
+    return { ...es[0], herkunft, offen: einig ? es.find((e) => e.offen)?.offen ?? null : null, einig, je: es };
+  }
 
   function gueltig(e, w) {
     if (w === undefined) return false;
@@ -100,11 +118,13 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     return r.value === '' ? null : a === 'stufe' ? Number(r.value) : r.value;
   }
 
-  function zeileHtml(p, i, e, darf) {
+  function zeileHtml(p, i, e, darf, t) {
     const w = entwuerfe.has(`${p.forge}|${e.name}`) ? entwuerfe.get(`${p.forge}|${e.name}`) : basis(e);
     const geholt = e.offen?.abgeholt ?? false;
     const id = esc(`mr-e-${i}-${e.name}`);
-    const stand = e.offen
+    const stand = e.je && !e.einig
+      ? `<span class="mr-wartet">unterschiedlich</span> · ${e.je.map((x, k) => `${esc(mitEinstellungen(t)[k].kurz)} <b>${esc(anzeige(x, basis(x)))}</b>`).join(' · ')}`
+      : e.offen
       ? `<span class="mr-wartet">wartet auf den Treiber</span> · neu <b>${esc(anzeige(e, e.offen.wert))}</b>${geholt ? ' · abgeholt, Quittung folgt' : ''} <span class="mr-seit">(jetzt <b>${esc(anzeige(e, e.wert))}</b>)</span>`
       : `<b>${esc(anzeige(e, e.wert))}</b> · wirksam seit ${esc(wann(e.seit))}`;
     return `<div class="mr-karte mr-einst-zeile${e.offen ? ' wartet' : ''}" role="group" aria-labelledby="${id}-t" data-forge="${esc(p.forge)}" data-name="${esc(e.name)}">
@@ -112,20 +132,30 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
 <p class="mr-hilfe">${esc(HILFE[e.name] ?? '')}</p>
 <p class="mr-stand">${stand}</p>
 <div class="mr-regler">${reglerHtml(e, id, w, !darf || geholt)}</div>
-<div class="knoepfe"><button type="button" class="knopf haupt" data-uebernehmen${darf && !geholt && gueltig(e, w) && !gleich(w, basis(e)) ? '' : ' disabled'}>Übernehmen</button><span class="status" role="status"></span></div></div>`;
+<div class="knoepfe"><button type="button" class="knopf haupt" data-uebernehmen${darf && !geholt && gueltig(e, w) && (!gleich(w, basis(e)) || (e.je && !e.einig)) ? '' : ' disabled'}>Übernehmen</button><span class="status" role="status"></span></div></div>`;
   }
 
   function einstellungenHtml(t) {
     const mehrere = t.projekte.length > 1;
-    return t.projekte.map((p, i) => {
+    const geteilt = gemeinsam(t);
+    const hinweisText = (p) => (!t.pin ? 'Ändern abgeschaltet: keine PIN gesetzt.' : p?.veraltet ? 'Der Treiber meldet sich gerade nicht: eine Änderung wirkt ab seinem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt, nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.');
+    let html = '';
+    if (geteilt) {
+      const ps = mitEinstellungen(t);
+      const namen = ps[0].einstellungen.map((e) => e.name).filter((n) => GEMEINSAM.includes(n));
+      const zeilen = namen.map((n) => vereint(ps.map((p) => p.einstellungen.find((e) => e.name === n)).filter(Boolean))).filter(Boolean);
+      const still = ps.some((p) => p.veraltet);
+      html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Konten und Rechner teilen sich alle Treiber: Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
+    }
+    return html + t.projekte.map((p, i) => {
       const kopf = `<h3 class="mr-titel">Einstellungen${mehrere ? ` · ${esc(p.kurz)}` : ''}</h3>`;
       if (!p.einstellungen) {
         const r = t.rechner.find((x) => x.name === p.rechner);
         const bekannt = [r?.obergrenze != null ? `Epics gleichzeitig <b>${r.obergrenze}</b>` : '', p.leerlaufS != null ? `Leerlauf <b>${Math.round(p.leerlaufS / 60)} min</b>` : ''].filter(Boolean).join(' · ');
         return `${kopf}<p class="mr-hinweis">Dieser Treiber meldet keine Einstellungen (älterer Stand): hier nur lesend${bekannt ? `, bekannt ist ${bekannt}` : ''}. Ändern geht, sobald der Treiber aktualisiert ist.</p>`;
       }
-      const hinweis = !t.pin ? 'Ändern abgeschaltet: keine PIN gesetzt.' : p.veraltet ? 'Der Treiber meldet sich gerade nicht: eine Änderung wirkt ab seinem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt, nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.';
-      return `${kopf}<p class="mr-hinweis">${esc(hinweis)}</p><div class="mr-reihe mr-einst">${p.einstellungen.map((e) => zeileHtml(p, i, e, t.pin)).join('')}</div>`;
+      const eigene = geteilt ? p.einstellungen.filter((e) => !GEMEINSAM.includes(e.name)) : p.einstellungen;
+      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${eigene.map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
     }).join('');
   }
 
@@ -143,7 +173,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     const k = `${zeile.dataset.forge}|${e.name}`;
     if (w === undefined || gleich(w, basis(e))) entwuerfe.delete(k);
     else entwuerfe.set(k, w);
-    zeile.querySelector('[data-uebernehmen]').disabled = !(gueltig(e, w) && !gleich(w, basis(e)));
+    zeile.querySelector('[data-uebernehmen]').disabled = !(gueltig(e, w) && (!gleich(w, basis(e)) || (e.je && !e.einig)));
   }
 
   async function uebernehmen(ev) {
@@ -151,7 +181,14 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     const e = zeile && finde(letzte, zeile);
     if (!e) return;
     const text = JSON.stringify({ name: e.name, wert: lies(zeile, e) });
-    if (await senden('/api/handlung', { forge: zeile.dataset.forge, epic: 0, art: 'einstellen', nr: null, seit: null, text }, zeile, zeile.querySelector('.status'))) {
+    let alle = true;
+    for (const p of ziele(letzte, zeile)) {
+      if (!(await senden('/api/handlung', { forge: p.forge, epic: 0, art: 'einstellen', nr: null, seit: null, text }, zeile, zeile.querySelector('.status')))) {
+        alle = false;
+        break;
+      }
+    }
+    if (alle) {
       entwuerfe.delete(`${zeile.dataset.forge}|${e.name}`);
       await laden();
     }
