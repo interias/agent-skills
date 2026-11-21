@@ -134,7 +134,7 @@ class Ereignis(BaseModel):
 
 
 class Entscheidung(BaseModel):
-    # what the admiral decided himself; (epic, nr, zeit) is the key
+    # what the admiral decided himself, or (#52) an answer of the person; (epic, nr, zeit) is the key
     epic: int
     nr: int
     frage: str = Field('', max_length=4000)
@@ -144,6 +144,9 @@ class Entscheidung(BaseModel):
     einflussreich: bool = False
     zeit: str = Field(max_length=40)
     widerrufen: str | None = Field(None, max_length=4000)
+    # who decided (#52): mensch, admiral or lauf (the admiral followed the run); older drivers send none,
+    # an unknown word is no reason to refuse the report (the board reads it from herkunft then)
+    von: str | None = Field(None, max_length=20)
 
 
 class Ram(BaseModel):

@@ -12,6 +12,13 @@ import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { PaketDetail } from '../werkzeuge/detail.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
+/** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
+export const HERKUNFT_FLOTTE = 'Mensch über die Flotte';
+/** what the bridge takes per decision (flottenbruecke/app/modelle.py): longer text is cut, never the whole report refused */
+const TEXT_MAX = 4000;
+const HERKUNFT_MAX = 500;
+/** the schema's limit of decisions per report */
+export const ENTSCHEIDUNGEN_MAX = 500;
 /** a set of prototypes may weigh megabytes: a longer limit than the report's */
 export const HOLODECK_MS = 10_000;
 
@@ -112,6 +119,26 @@ export interface BerichtEpic {
   plaetze?: { belegt: number; von?: number };
 }
 
+/** A decision for the bridge; von (#52): mensch, admiral, or lauf (the admiral followed the run's recommendation). */
+export interface BerichtEntscheidung {
+  epic: number;
+  nr: number;
+  frage: string;
+  antwort: string;
+  herkunft: string;
+  grund: string;
+  einflussreich: boolean;
+  zeit: string;
+  widerrufen: string | null;
+  von: 'mensch' | 'admiral' | 'lauf' | null;
+}
+
+/** The decisions in the shape of the report, every text cut to what the bridge takes. */
+export function entscheidungFuerBericht(d: Omit<BerichtEntscheidung, 'grund' | 'widerrufen' | 'von'> & { grund?: string; widerrufen?: string | null; von?: BerichtEntscheidung['von'] }): BerichtEntscheidung {
+  const k = (s: string) => s.slice(0, TEXT_MAX);
+  return { epic: d.epic, nr: d.nr, frage: k(d.frage), antwort: k(d.antwort), herkunft: d.herkunft.slice(0, HERKUNFT_MAX), grund: k(d.grund ?? ''), einflussreich: d.einflussreich, zeit: d.zeit, widerrufen: d.widerrufen == null ? null : k(d.widerrufen), von: d.von ?? null };
+}
+
 /**
  * The forecast as a whole: status zu_wenig (below `ab` measured epics, so far `bisher`), ungenau (hit
  * rate under 60 %, hidden) or ok; the backlog in seconds from `berechnet`. Waits for the person are
@@ -143,7 +170,8 @@ export interface Bericht {
   fragen: BerichtFrage[];
   leerlaufS: number;
   ereignisse: { zeit: string; epic: number | null; text: string }[];
-  entscheidungen: { epic: number; nr: number; frage: string; antwort: string; herkunft: string; grund: string; einflussreich: boolean; zeit: string; widerrufen: string | null }[];
+  /** #52: every decision of an epic not yet merged (the bridge shows them until the merge), else the latest 100 */
+  entscheidungen: BerichtEntscheidung[];
   prognose: BerichtPrognose;
   /** the sessions of the accounts for the ship list (#41): folder name only, no path, no pid */
   sitzungen: BerichtSitzung[];

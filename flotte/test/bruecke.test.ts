@@ -329,6 +329,52 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('an answer of the person is a decision too (#52): revoked on the bridge it reaches the run and the issue', async () => {
+    const neu = 'A, doch vorsichtig';
+    const mensch = (x: Bericht) => x.entscheidungen.find((d) => d.von === 'mensch');
+    const b = await attrappe(() => ({ option: 'B', text: null }), { handlung: (x) => (mensch(x) ? { epic: 3, art: 'widerruf', nr: mensch(x)!.nr, seit: mensch(x)!.zeit, text: neu } : null) });
+    try {
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ warte: 600 }, { text: ende(3, 13) }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const gemeldet = b.berichte.map(mensch).find(Boolean)!;
+      expect(gemeldet).toMatchObject({ epic: 3, nr: 1, frage: 'Frage 1 zu #3?', antwort: 'B', herkunft: 'Mensch über die Brücke', einflussreich: false, widerrufen: null, von: 'mensch' });
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      expect(laeufe).toHaveLength(3);
+      expect(laeufe[2].eingabe).toMatch(/Setze den Widerruf um[\s\S]*\nwiderruf: Frage 1 zu #3\? → A, doch vorsichtig$/);
+      expect(z.entscheidungen).toEqual([expect.objectContaining({ von: 'mensch', antwort: 'B', zeit: gemeldet.zeit, widerrufen: neu })]);
+      const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**Widerruf des Menschen'))!;
+      expect(k.text).toMatch(/widerrufen vom Menschen: A, doch vorsichtig\nVorher: B \(Mensch über die Brücke\)/);
+      expect(z.epics['3'].stufe).toBe('fertig');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('after the merge a revocation of the person no longer reaches the run, and a second one is refused (#52)', async () => {
+    const mensch = (x: Bericht) => x.entscheidungen.find((d) => d.von === 'mensch');
+    const b = await attrappe(() => ({ option: 'B', text: null }), {
+      handlung: (x) => {
+        const d = mensch(x);
+        return d && x.epics[0]?.stufe === 'fertig' ? { epic: 3, art: 'widerruf', nr: d.nr, seit: d.zeit, text: d.widerrufen ? 'zweites Mal' : 'zu spät' } : null;
+      },
+    });
+    try {
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
+      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(2);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig' });
+      expect(z.epics['3'].widerrufe ?? []).toEqual([]);
+      expect(z.entscheidungen[0].widerrufen).toBe('zu spät');
+      const texte = z.ereignisse.filter((e) => e.epic === 3).map((e) => e.text);
+      expect(texte.some((x) => /Widerruf zu Frage 1 kam nach dem Merge/.test(x))).toBe(true);
+      expect(texte.some((x) => /Widerruf über die Brücke zu Frage 1: schon widerrufen/.test(x))).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('prio/hoch: of two colliding epics the marked one starts first, the other waits with the reason on the bridge', async () => {
     const b = await attrappe(() => null);
     try {

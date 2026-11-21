@@ -119,6 +119,11 @@ Phase (Implementer, Review, Nachbesserung, Merge) mit Dauer in der Phase, Dauer 
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
 (älterer Treiber, spec-Modus, Paket ohne Aufruf), bleibt es weg. Felder: `SCHNITTSTELLE.md`.
 
+Unter den Paketen stehen die **Entscheidungen bis zum Merge** (#52), neueste zuerst, von jedem Tag:
+deine Antworten (Mensch) und die einflussreichen Entscheidungen von Admiral und Lauf, je mit Frage,
+Antwort, Herkunft und Zeit. Bis zum Merge lässt sich jede mit „› Zurücknehmen“ widerrufen (nur mit
+PIN); nach dem Merge verschwinden sie hier, sie stehen weiter im Flottenlogbuch und an den Issues.
+
 Im Kopf je Konto ein Tank mit dem Rest im 5-h- und im Wochenfenster samt Reset-Zeit, RAM und
 Platte je Rechner. Der Takt im Ellbogen füllt sich bis zum nächsten Bericht und wird rot, wenn er
 ausbleibt. Unten läuft das Logbuch als Laufband; antippen hält es an und klappt die Liste auf.
@@ -179,8 +184,10 @@ PIN, die der Treiber im nächsten Takt abholt und ausführt:
 - **Aufgeben** — nach einer Rückfrage: Das Epic wird `abgebrochen` und nicht mehr gestartet.
   Branch, Pull Request und Issue bleiben.
 
-**Zurücknehmen** in „Erledigt heute“ widerruft eine Entscheidung des Admirals bis zum Merge: Du
-schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt sie dem Lauf.
+**Zurücknehmen** in der Detailansicht des Epics (und für die Entscheidungen des Admirals von heute
+auch in „Erledigt heute“) widerruft eine Entscheidung des Admirals oder deine eigene Antwort bis zum
+Merge: Du schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt sie dem Lauf.
+Beide Stellen teilen sich Formular und Entwurf.
 
 Ansehen ist im LAN frei, Antworten und Handlungen nur mit PIN. Fünf falsche PINs sperren für fünf
 Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte eine).

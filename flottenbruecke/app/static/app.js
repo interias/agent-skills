@@ -13,6 +13,7 @@ const PHASE = { implementer: 'Implementer', review: 'Review', nachbesserung: 'Na
 const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
 const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf' };
+const VON = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -125,6 +126,8 @@ function klasse(it) {
 
 function inArbeit(el) {
   if (el.contains(document.activeElement) && document.activeElement !== document.body) return true;
+  // a revocation being written, on level 3 or in the detail of an epic (#52)
+  if ([...el.querySelectorAll('.wider-form textarea')].some((f) => f.value.trim())) return true;
   const e = entwurf.get(el.dataset.id);
   return Boolean(e && (e.wahl?.length || e.text || e.aendern));
 }
@@ -351,28 +354,50 @@ function paketeListe(x) {
   return `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span>${paketDetail(p)}</li>`).join('')}</ol>`;
 }
 
-// the opened detail of an epic: one section per entry; the decisions of the epic (#52) add theirs below the list
-const abschnitte = (x) => [paketeListe(x)];
+// a point in time gone by: today the clock, else the day before it
+function gewesen(iso) {
+  const t = datum(iso);
+  if (!t) return '';
+  return t.toDateString() === new Date(jetzt()).toDateString() ? uhrzeit(iso) : `${t.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' })} ${uhrzeit(iso)}`;
+}
+
+// #52: the decisions of the epic until the merge, newest first: the person's answers, the admiral's and the run's influential ones
+function entscheidungenHtml(x) {
+  if (!x.entscheidungen?.length) return '';
+  const zeilen = x.entscheidungen.map((d) => `<li data-ent="${esc(d.id)}"><span class="von ${esc(d.von)}">${esc(VON[d.von] ?? d.von)}</span><time datetime="${esc(d.zeit)}">${esc(gewesen(d.zeit))}</time><span class="et"><b>Frage ${d.nr} → ${esc(d.antwort)}</b> · ${esc(d.frage)} <small title="${esc(d.grund)}">(${esc(d.herkunft)})</small>${widerrufHtml(d)}</span></li>`).join('');
+  return `<section class="entscheidungen" aria-label="Entscheidungen bis zum Merge"><h4>Entscheidungen bis zum Merge</h4><ol>${zeilen}</ol></section>`;
+}
+
+// the opened detail of an epic: one section per entry
+const abschnitte = (x) => [x.pakete?.length ? paketeListe(x) : '', entscheidungenHtml(x)];
 
 function paketeHtml(x) {
-  if (!x.pakete?.length) return '';
-  const n = x.pakete.length;
-  const fertig = x.pakete.filter((p) => p.stand === 'fertig').length;
+  const e = x.entscheidungen?.length ?? 0;
+  if (!x.pakete?.length && !e) return '';
+  const n = x.pakete?.length ?? 0;
+  const fertig = (x.pakete ?? []).filter((p) => p.stand === 'fertig').length;
   const offen = auf.has(`pakete:${x.id}`);
   const liste = offen ? `<div class="detail">${abschnitte(x).join('')}</div>` : '';
-  const zahl = x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`;
-  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete: antippen für die Liste"><span class="segmente">${x.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
+  const zahl = [n ? (x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`) : '', e ? `${e} ${e === 1 ? 'Entscheidung' : 'Entscheidungen'}` : ''].filter(Boolean).join(' · ');
+  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete und Entscheidungen: antippen für die Liste"><span class="segmente">${(x.pakete ?? []).map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
 }
 
 function paketeVerdrahten(el, x) {
-  el.querySelector('[data-pakete]')?.addEventListener('click', () => {
-    auf.has(`pakete:${x.id}`) ? auf.delete(`pakete:${x.id}`) : auf.add(`pakete:${x.id}`);
+  const neu = () => {
     el.dataset.sig = '';
     el.innerHTML = (x.form === 'bereit' ? bereitHtml : laufHtml)(x);
     el.dataset.sig = el.innerHTML;
     paketeVerdrahten(el, x);
     lebenszeichen();
+  };
+  el.querySelector('[data-pakete]')?.addEventListener('click', () => {
+    auf.has(`pakete:${x.id}`) ? auf.delete(`pakete:${x.id}`) : auf.add(`pakete:${x.id}`);
+    neu();
   });
+  for (const d of x.entscheidungen ?? []) {
+    const wo = () => [...el.querySelectorAll('[data-ent]')].find((li) => li.dataset.ent === d.id);
+    if (wo()) widerrufVerdrahten(wo, d, neu);
+  }
 }
 
 function laufHtml(x) {
@@ -481,12 +506,7 @@ function zeileHtml(x) {
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${x.handlung === 'einreihen' ? 'neu eingereiht' : `Widerruf Frage ${x.nr} → ${esc(x.text)}`}</b></span>`;
   // admiral
-  let rechts = '';
-  if (x.widerrufen) rechts = `<span class="widerrufen"> · widerrufen → ${esc(x.widerrufen)}</span>`;
-  else if (x.handlung) rechts = `<span class="status gut"> · Widerruf angekommen${x.handlung.abgeholt ? ', geht an den Lauf' : ''}</span>`;
-  else if (x.widerrufbar && stand?.pin) rechts = `<button type="button" class="wider" data-wider aria-expanded="${auf.has(`wider:${x.id}`)}">› Zurücknehmen</button>`;
-  const form = auf.has(`wider:${x.id}`) && !x.handlung && !x.widerrufen ? `<div class="wider-form"><textarea placeholder="Neue Entscheidung, erreicht den Lauf unverändert" aria-label="Neue Entscheidung"></textarea><div class="knoepfe"><button type="button" class="knopf haupt klein" data-wsenden>Widerruf senden</button><button type="button" class="knopf zweit klein" data-wzu>Abbrechen</button><span class="status"></span></div></div>` : '';
-  return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${rechts}${form}</span>`;
+  return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
 }
 
 function zeileVerdrahten(el, x) {
@@ -496,29 +516,52 @@ function zeileVerdrahten(el, x) {
     zeileVerdrahten(el, x);
     lebenszeichen();
   };
+  if (x.art === 'admiral') widerrufVerdrahten(() => el, x, neu);
+}
+
+// ---- revoking a decision with the PIN until the merge: on level 3 and in the detail of the epic (#52).
+// One decision has one open form and one draft, wherever it is shown.
+
+const widerrufSchluessel = (d) => `wider:${d.forge}#${d.epic}#${d.nr}#${d.seit}`;
+
+function widerrufHtml(d) {
+  if (d.widerrufen) return `<span class="widerrufen"> · widerrufen → ${esc(d.widerrufen)}</span>`;
+  if (d.handlung) return `<span class="status gut"> · Widerruf angekommen${d.handlung.abgeholt ? ', geht an den Lauf' : ''}</span>`;
+  if (!d.widerrufbar || !stand?.pin) return '';
+  const k = widerrufSchluessel(d);
+  const knopf = `<button type="button" class="wider" data-wider aria-expanded="${auf.has(k)}">› Zurücknehmen</button>`;
+  return auf.has(k) ? `${knopf}<div class="wider-form"><textarea placeholder="Neue Entscheidung, erreicht den Lauf unverändert" aria-label="Neue Entscheidung">${esc(entwurf.get(k)?.text ?? '')}</textarea><div class="knoepfe"><button type="button" class="knopf haupt klein" data-wsenden>Widerruf senden</button><button type="button" class="knopf zweit klein" data-wzu>Abbrechen</button><span class="status"></span></div></div>` : knopf;
+}
+
+// wo() gives the element of the decision as it stands now: a redraw of the card replaces it
+function widerrufVerdrahten(wo, d, neu) {
+  const k = widerrufSchluessel(d);
+  const el = wo();
   el.querySelector('[data-wider]')?.addEventListener('click', () => {
-    auf.add(`wider:${x.id}`);
+    auf.add(k);
     neu();
-    el.querySelector('textarea')?.focus();
+    wo()?.querySelector('.wider-form textarea')?.focus();
   });
   el.querySelector('[data-wzu]')?.addEventListener('click', () => {
-    auf.delete(`wider:${x.id}`);
-    entwurf.delete(x.id);
+    auf.delete(k);
+    entwurf.delete(k);
     neu();
   });
-  const feld = el.querySelector('textarea');
-  feld?.addEventListener('input', () => entwurf.set(x.id, { text: feld.value }));
+  const feld = el.querySelector('.wider-form textarea');
+  feld?.addEventListener('input', () => entwurf.set(k, { text: feld.value }));
   el.querySelector('[data-wsenden]')?.addEventListener('click', async () => {
     const text = (feld?.value || '').trim();
-    const status = el.querySelector('.status');
+    const status = el.querySelector('.wider-form .status');
     if (!text) {
       status.className = 'status schlecht';
       status.textContent = 'Neue Entscheidung schreiben';
       return;
     }
-    if (await senden('/api/handlung', { forge: x.forge, epic: x.epic, art: 'widerruf', nr: x.nr, seit: x.seit, text }, el, status)) {
-      auf.delete(`wider:${x.id}`);
-      entwurf.delete(x.id);
+    if (await senden('/api/handlung', { forge: d.forge, epic: d.epic, art: 'widerruf', nr: d.nr, seit: d.seit, text }, el, status)) {
+      auf.delete(k);
+      entwurf.delete(k);
+      // the sent text would hold the card in inArbeit and keep the answered form on screen
+      feld.value = '';
       await laden();
     }
   });

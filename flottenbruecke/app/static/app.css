@@ -241,6 +241,18 @@ textarea {
 .pakete .pd { grid-column: 2 / -1; margin: -6px 0 4px; color: var(--matt); font: 11.5px/1.5 var(--lesen); overflow-wrap: anywhere; }
 .pakete .pd b { color: var(--pfirsich); font-weight: 600; }
 .pakete .pd .lang { margin-left: 8px; padding: 0 8px; border: 1px solid var(--linie); border-radius: var(--rund); color: var(--gelb); white-space: nowrap; }
+/* #52: the decisions of the epic until the merge, below the packages in the detail */
+.entscheidungen { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--linie); }
+.entscheidungen h4 { margin: 0 0 4px; color: var(--matt); font: 400 11.5px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.entscheidungen ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font: 13px/1.4 var(--lesen); color: var(--matt); }
+.entscheidungen li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; }
+.entscheidungen .von { padding: 0 8px; border-radius: var(--rund); background: var(--blau); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.entscheidungen .von.mensch { background: var(--orange); }
+.entscheidungen .von.lauf { background: var(--lila); }
+.entscheidungen time { font-family: var(--disp); color: var(--leise); letter-spacing: .04em; white-space: nowrap; }
+.entscheidungen .et { grid-column: 1 / -1; overflow-wrap: anywhere; min-width: 0; }
+.entscheidungen .et b { color: var(--text); font-weight: 600; }
+.entscheidungen .et small { color: var(--leise); font-size: 12px; }
 .epic-meta { color: var(--matt); font: 11.5px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
 .leben { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 8px; }
 .leben .roehre { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: #22222e; overflow: hidden; }

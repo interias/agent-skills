@@ -56,7 +56,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `fragen[]` | die **offenen** `MenschFrage`n, vollständig (unten) |
 | `ereignisse[]` | die letzten 30 Logbuch-Ereignisse `{zeit, epic, text}`: das Laufband |
 | `prognose` | `{status, ab, bisher, treffer, geprueft, backlog, berechnet}`: `zu_wenig` unter `ab` Messungen, `ungenau` bei unter 60 % Treffern (ausgeblendet), sonst `ok`; `backlog` `{p50, p90}` in Sekunden ab `berechnet`, ohne Wartezeit auf den Menschen. Fehlt bei einem älteren Treiber |
-| `entscheidungen[]` | die letzten 100 Entscheidungen des Admirals `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen}`: „Erledigt heute“ mit Zurücknehmen |
+| `entscheidungen[]` | `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen, von}`: die Entscheidungen des Admirals und (#52) die Antworten des Menschen, `von` `mensch`, `admiral` oder `lauf` (der Admiral folgte der Empfehlung des Laufs). Der Treiber schickt **alle Entscheidungen jedes nicht gemergten Epics** und dazu die letzten 100, zusammen höchstens die neuesten 500 (Grenze der Brücke); Texte kürzt er auf 4000 Zeichen (`herkunft` 500), damit nie der ganze Bericht abgelehnt wird. Eine Antwort des Menschen wird beim Anwenden zur Entscheidung (`herkunft` `Mensch über die Brücke` oder `Mensch über die Flotte`, `einflussreich` `false`, `zeit` = Zeitpunkt der Antwort). Ein älterer Treiber ohne `von`: Die Brücke liest `mensch` aus einer `herkunft`, die mit „Mensch“ beginnt, sonst `admiral`; ein unbekanntes Wort ist kein `422`. „Erledigt heute“ zeigt die des Admirals von heute, die Detailansicht des Epics alle bis zum Merge (unten) |
 | `sitzungen[]` | optional (Schiffsliste, #41): die Sitzungen aller Konten des Treibers aus `claude agents --json` je Konto (nur lesend, höchstens einmal je Minute): `{konto, projekt, name, status, kind, seit}`. `konto` wie in `konten[]`, `projekt` **nur der letzte Ordnername** des Arbeitsverzeichnisses (nie der Pfad; ein Wert mit `/` oder `\` wird mit `422` abgelehnt), `status` etwa `busy`/`idle`, `kind` etwa `interactive`, `seit` ISO aus `startedAt`. Kein `cwd`, keine `pid`, keine Sitzungs-ID; die Brücke verwirft unbekannte Felder. Fehlt das Feld (älterer Treiber) oder ist es leer, bleibt die Liste ohne Sitzungen |
 
 Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo nennt weiter nur
@@ -107,8 +107,19 @@ so auch für Berichte älterer Treiber gilt. Ungültige Werte (`phase`, `stufe`,
 Brücke mit `422` ab. Fehlt ein Feld, lässt die Seite es weg und das Layout bleibt wie vorher.
 
 An die Detailansicht eines Epics (aufgeklappte Paketliste auf der Brücke, `abschnitte(x)` in `app.js`)
-kommt ein weiterer Abschnitt, etwa die Entscheidungen des Epics (#52), als weiterer Eintrag dieser
-Liste unter die Paketliste.
+kommt ein weiterer Abschnitt als weiterer Eintrag dieser Liste unter die Paketliste.
+
+**Entscheidungen bis zum Merge** (#52): In `GET /api/tafel` trägt jede Karte eines nicht gemergten
+Epics (Lauf, Schlange, Bereit, Blockade) `entscheidungen[]`, neueste zuerst: jede Antwort des
+Menschen und jede Entscheidung von Admiral oder Lauf mit `einflussreich`, von jedem Tag. Der Rest
+bleibt im Flottenlogbuch und an den Issues. Felder: `{id, forge, epic, nr, frage, antwort, herkunft,
+grund, einflussreich, zeit, seit, widerrufen, von, widerrufbar, handlung}`; `seit` ist die `zeit` des
+Berichts (der Schlüssel für den Widerruf), `widerrufbar` `false` nach einem Widerruf, `handlung` ein
+noch nicht quittierter Widerruf. Ein gemergtes Epic trägt keine. Die Seite zeigt sie in der
+aufgeklappten Detailansicht mit Herkunft (Mensch, Admiral, Lauf), Zeit und „› Zurücknehmen“ (nur mit
+PIN); die Leiste nennt „N Entscheidungen“ und erscheint auch bei einem Epic ohne Pakete. Die Karte
+eines blockierten Epics hat keine Detailansicht: Dort bleibt für die Entscheidungen des Admirals von
+heute „Erledigt heute“.
 
 **Fertig-Erkennung im Epic-Branch:** Ein Betreff gilt für das Kind `<nr>` bei `Merge … agent/<nr>-…`,
 `… (#<nr>)` und `Merge #<nr>: …`; eine Nummer sonst irgendwo im Text („Refs #409“, `#4090`) zählt nicht.
@@ -125,7 +136,8 @@ Leiste; bei leerer Liste fehlt die Leiste.
 `nacharbeit`, `frage` → *Unterwegs* als Lauf; `pr` → *Unterwegs* in der Schlange; `wartend` → die
 Zeile *Bereit*, prio zuerst; `gemergt`, `fertig` (`gemergtAm` optional, sonst der Zeitpunkt, an dem
 die Brücke die Stufe zuerst sah), aufgegebene Epics, Admiral-Entscheidungen, deine Antworten und
-Handlungen von heute → *Erledigt heute*.
+Handlungen von heute → *Erledigt heute* (eine Antwort des Menschen dort aus der Brücke selbst, nicht als
+Entscheidung des Berichts).
 
 **Frage:** `epic`, `nr`, `seit` sind zusammen der Schlüssel (Nummern beginnen in jedem
 Fragenblock bei 1). Dazu `frage`, `lage`, `optionen[] {buchstabe, text}` (Großbuchstaben ab `A`,
@@ -171,7 +183,7 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 |---|---|---|
 | `einreihen` | Epic `blockiert` oder `abgebrochen`, nicht aufgegeben | Zähler auf null; mit Sitzung zurück auf `laeuft` mit einer Fortsetzung, die den Grund der Blockade nennt, sonst `wartend` |
 | `aufgeben` | wie `einreihen` | Stufe `abgebrochen`, `aufgegebenAm`; Branch, PR und Issue bleiben |
-| `widerruf` | `nr`, `seit` (= `zeit` der Entscheidung) und `text`; Epic nicht `gemergt`/`fertig`, noch kein Widerruf | Kommentar am Issue, bei einflussreichen Entscheidungen auch ins Protokoll; der Lauf bekommt `widerruf: <Frage> → <Text>` im nächsten Zug, ein Epic in `pr` geht dafür zurück auf `laeuft` |
+| `widerruf` | `nr`, `seit` (= `zeit` der Entscheidung) und `text`; Epic nicht `gemergt`/`fertig`, noch kein Widerruf; eine Entscheidung des Admirals oder (#52) eine Antwort des Menschen | Kommentar am Issue, bei einflussreichen Entscheidungen auch ins Protokoll; der Lauf bekommt `widerruf: <Frage> → <Text>` im nächsten Zug, ein Epic in `pr` geht dafür zurück auf `laeuft`. Nach dem Merge nur der Kommentar und ein Ereignis, nichts an den Lauf; ein zweiter Widerruf derselben Entscheidung bleibt ein Ereignis |
 
 `einreihen` und `aufgeben` schließen sich aus: Bis zum Abholen gilt die letzte. Danach antwortet die
 Brücke `409`. Endet der Einsatz, weil alles blockiert ist, wirkt die Handlung beim nächsten Start.
