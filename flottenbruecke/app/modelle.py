@@ -169,6 +169,34 @@ class Bericht(BaseModel):
     prognose: Prognose | None = None
 
 
+# Holodeck (#44): a file name only, never a path; the bridge resolves it against its own store
+PROTOTYP_NAME = r'^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.html$'
+PROTOTYPEN_MAX = 50
+PROTOTYP_MAX_ZEICHEN = 2 * 1024 * 1024
+
+
+class Prototyp(BaseModel):
+    name: str = Field(pattern=PROTOTYP_NAME, max_length=106)
+    titel: str = Field(max_length=300)
+    # the file's mtime (ISO)
+    geaendert: str = Field(max_length=40)
+    inhalt: str = Field(max_length=PROTOTYP_MAX_ZEICHEN)
+
+
+class Holodeck(BaseModel):
+    """The prototypes of a project (POST /api/holodeck): the whole set, it replaces the previous one."""
+
+    forge: str = Field(pattern=r'^[\w-][\w.-]*/[\w-][\w.-]*$', max_length=200)
+    dateien: list[Prototyp] = Field([], max_length=PROTOTYPEN_MAX)
+
+    @model_validator(mode='after')
+    def namen_einmal(self) -> 'Holodeck':
+        namen = [d.name for d in self.dateien]
+        if len(namen) != len(set(namen)):
+            raise ValueError('Jeder Dateiname nur einmal')
+        return self
+
+
 class Antwort(BaseModel):
     forge: str = Field(max_length=200)
     epic: int

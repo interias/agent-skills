@@ -41,6 +41,8 @@ export interface Adapter {
   prio_label: string;
   /** finished epics measured by the driver before the bridge shows a forecast */
   prognose_ab: number;
+  /** the folder of the prototypes, relative to the repository root (Holodeck, #44) */
+  prototype_dir: string;
   /** the base of the epic PRs (from-issue: per epic); null: main_branch, else the default branch */
   base_branch: string | null;
   main_branch: string | null;
@@ -100,6 +102,7 @@ export function liesAdapter(text: string): Adapter {
     ready_label: werte.get('ready_label')?.[0] ?? 'ready-for-agent',
     prio_label: werte.get('prio_label')?.[0] ?? 'prio/hoch',
     prognose_ab: Math.max(1, Number(werte.get('prognose_ab')?.[0]) || 5),
+    prototype_dir: werte.get('prototype_dir')?.[0] ?? 'prototypen/',
     base_branch: werte.get('base_branch')?.[0] ?? null,
     main_branch: werte.get('main_branch')?.[0] ?? null,
     merge: werte.get('merge')?.[0] === 'nach_gate' ? 'nach_gate' : 'mensch',

@@ -1,10 +1,11 @@
 # Schnittstelle Treiber ↔ Brücke
 
-Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts` und `treiber.ts` (#28). Der gemeinsame
-Vertrag sind [`beispiel/bericht.json`](beispiel/bericht.json),
-[`beispiel/antworten.json`](beispiel/antworten.json) und
-[`beispiel/handlungen.json`](beispiel/handlungen.json): pytest prüft die Brücke dagegen,
-`bun test` (`flotte/test/bruecke.test.ts`) den Treiber.
+Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `treiber.ts` (#28,
+#44). Der gemeinsame Vertrag sind [`beispiel/bericht.json`](beispiel/bericht.json),
+[`beispiel/antworten.json`](beispiel/antworten.json),
+[`beispiel/handlungen.json`](beispiel/handlungen.json) und
+[`beispiel/holodeck.json`](beispiel/holodeck.json): pytest prüft die Brücke dagegen,
+`bun test` (`flotte/test/bruecke.test.ts`, `holodeck.test.ts`) den Treiber.
 
 ## Grundregeln
 
@@ -29,6 +30,7 @@ Vertrag sind [`beispiel/bericht.json`](beispiel/bericht.json),
 3. Zustand schreiben (`zustand.json`).
 4. `POST /api/bericht`, danach die Quittung für jede Antwort und Handlung, die jetzt im
    geschriebenen Zustand steht.
+5. `POST /api/holodeck`, nur wenn sich der Satz der Prototypen geändert hat (Abschnitt 5).
 
 **Zeitnah:** Jedes Ereignis des Treibers (neue Frage an den Menschen, Stufenwechsel, Merge) schickt
 sofort einen Bericht, ohne Quittungen. Solange eine Frage offen ist, fragt der Treiber zwischen den
@@ -142,9 +144,54 @@ quittieren schadet nicht. Kommt eine Antwort ein zweites Mal (die Quittung errei
 nicht), erkennt der Treiber sie am Fragenschlüssel, eine Handlung an `handlungenErledigt` im
 Zustand: Er quittiert nur noch. Jede wirkt genau einmal.
 
+## 5. Holodeck: `POST /api/holodeck`
+
+Die Prototypen eines Projekts (#44). Die Brücke läuft im Container und sieht keine Projektordner:
+Der Treiber liest sie und schickt sie, die Brücke liefert sie nur aus ihrem Speicher aus.
+
+Body (Form: `beispiel/holodeck.json`, dort eine Liste mit einem Body je Projekt):
+`{forge, dateien: [{name, titel, geaendert, inhalt}]}`. Antwort `{"ok": true, "dateien": <n>}`,
+`401` ohne passenden Token, `422` bei ungültigen Feldern. Der Satz **ersetzt** den vorigen des
+Projekts; eine gelöschte Datei verschwindet, ein leerer Satz leert das Projekt.
+
+| Feld | Woher im Treiber | Prüfung der Brücke |
+|---|---|---|
+| `name` | Dateiname, **nie ein Pfad** | `^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.html$`, je Satz nur einmal |
+| `titel` | Text von `<title>`, sonst der Dateiname | höchstens 300 Zeichen |
+| `geaendert` | mtime der Datei, ISO | höchstens 40 Zeichen |
+| `inhalt` | die Datei als UTF-8 | höchstens 2 MB |
+
+Höchstens 50 Dateien je Satz. **Der Treiber** liest aus dem Ordner des Projektadapter-Schlüssels
+`prototype_dir` (Standard `prototypen/`, relativ zur Repo-Wurzel) nur reguläre Dateien direkt im
+Ordner mit der Endung `.html` und einem Namen nach obiger Regel: keine Unterordner, keine Symlinks
+oder Junctions (auch nicht auf dem Weg), nichts, dessen aufgelöster Pfad außerhalb des Ordners
+liegt, nichts über 2 MB, höchstens 50 (nach Namen sortiert). Führt `prototype_dir` aus dem
+Repository (absolut oder mit `..`), liest er nichts. Was er auslässt, meldet er einmal als
+Ereignis `Holodeck: …`, ohne Pfad. Fehlt der Ordner, schickt er einen leeren Satz.
+
+Er schickt nur, wenn sich der Satz geändert hat (SHA-256 über Namen und Inhalte, im Prozess
+gemerkt; ein Neustart schickt einmal), nach dem Bericht des Takts, mit einer Zeitgrenze von 10 s.
+Nimmt die Brücke den Satz nicht an (aus, älter, Fehler), versucht er es im nächsten Takt wieder
+und arbeitet sonst ungestört weiter.
+
+**Auslieferung:** `GET /holodeck/<owner>/<name>/<datei>` löst Projekt und Dateinamen nur gegen
+gespeicherte Einträge auf; jeder andere Name, `..`, kodierte oder doppelt kodierte Schrägstriche,
+Backslash und ein fremdes Projekt geben `404`, nie eine Datei. Die Antwort trägt
+`Content-Security-Policy: sandbox allow-scripts` (ohne `allow-same-origin`: opaker Ursprung, kein
+Zugriff auf localStorage, Cookies und API der Brücke), `default-src 'none'`, Skripte, Stile,
+Bilder, Schriften und Medien nur von `https:` oder eingebettet, `connect-src 'none'`,
+`form-action 'none'`, `base-uri 'none'`, `frame-ancestors 'self'`, dazu
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-cache`. Die
+Brücken-API sendet keine CORS-Köpfe; ein Prototyp kann ihre Antworten also nicht lesen.
+
+In `GET /api/tafel` steht die Liste ohne Inhalt als `prototypen[]`:
+`{forge, kurz, name, titel, geaendert, url}`, sortiert nach `forge` und `name`; `url` ist der
+Auslieferungspfad oben.
+
 ## Was die Seite selbst nutzt
 
-`GET /api/tafel` (das Board in drei Ebenen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
+`GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]`), `GET /holodeck/…` (im
+abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
 (`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender
 sperren für fünf Minuten.

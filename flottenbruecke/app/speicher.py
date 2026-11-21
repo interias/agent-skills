@@ -1,5 +1,5 @@
-# SQLite: the last report per project, when an epic reached its stage, and the answers and actions
-# of the person until the driver acknowledges them.
+# SQLite: the last report per project, when an epic reached its stage, the answers and actions of
+# the person until the driver acknowledges them, and the prototypes of each project (Holodeck).
 
 import json
 import sqlite3
@@ -44,6 +44,14 @@ create table if not exists handlungen (
   zeit text not null,
   abgeholt text,
   quittiert text
+);
+create table if not exists prototypen (
+  forge text not null,
+  name text not null,
+  titel text not null,
+  geaendert text not null,
+  inhalt text not null,
+  primary key (forge, name)
 );
 """
 
@@ -157,3 +165,21 @@ class Speicher:
         with self.lock, self.db:
             r = self.db.execute('update handlungen set quittiert = coalesce(quittiert, ?), abgeholt = coalesce(abgeholt, ?) where id = ?', (jetzt, jetzt, id_))
             return r.rowcount > 0
+
+    # ---- Holodeck (#44): the prototypes the driver sent, delivered only from here
+
+    def prototypen_setzen(self, forge: str, dateien: list[dict]) -> None:
+        """The whole set of a project: it replaces the previous one, removed files disappear."""
+        with self.lock, self.db:
+            self.db.execute('delete from prototypen where forge = ?', (forge,))
+            self.db.executemany('insert into prototypen values (?, ?, ?, ?, ?)', [(forge, d['name'], d['titel'], d['geaendert'], d['inhalt']) for d in dateien])
+
+    def prototypen(self) -> list[dict]:
+        """Every prototype without its content, for the board."""
+        with self.lock:
+            return [dict(z) for z in self.db.execute('select forge, name, titel, geaendert from prototypen order by forge, name')]
+
+    def prototyp(self, forge: str, name: str) -> str | None:
+        with self.lock:
+            z = self.db.execute('select inhalt from prototypen where forge = ? and name = ?', (forge, name)).fetchone()
+        return None if z is None else z['inhalt']

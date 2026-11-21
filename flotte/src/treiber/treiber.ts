@@ -18,6 +18,7 @@ import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBO
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, HERKUNFT_BRUECKE, rechnerName } from './bruecke.ts';
+import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { schreibeTafel } from './tafel.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -325,6 +326,9 @@ class Treiber {
   prognoseCache: { schluessel: string; wert: Bericht['prognose'] } | null = null;
   /** stage and parked packages of an epic when its children were last read */
   paketeStand = new Map<number, string>();
+  /** the set of prototypes the bridge holds (names and contents) and the messages reported once */
+  holodeckStand: string | null = null;
+  holodeckGemeldet = new Set<string>();
 
   constructor(
     readonly e: Einstellung,
@@ -1118,6 +1122,24 @@ class Treiber {
     if (!ok) return;
     for (const id of [...this.zuQuittieren]) if (await this.bruecke.quittiere(id)) this.zuQuittieren = this.zuQuittieren.filter((x) => x !== id);
     for (const id of [...this.handlungenZuQuittieren]) if (await this.bruecke.quittiereHandlung(id)) this.handlungenZuQuittieren = this.handlungenZuQuittieren.filter((x) => x !== id);
+    await this.holodeckMelden();
+  }
+
+  /**
+   * The prototypes of the project (Holodeck, #44), only when the set changed since the bridge last
+   * took it; a removed file disappears there with the next set. A bridge without the Holodeck or one
+   * that is off costs nothing more than the report.
+   */
+  async holodeckMelden(): Promise<void> {
+    if (!this.bruecke) return;
+    const { dateien, meldungen } = liesPrototypen(this.e.repo, this.adapter.prototype_dir);
+    for (const m of meldungen) {
+      if (this.holodeckGemeldet.has(m)) continue;
+      this.holodeckGemeldet.add(m);
+      this.ereignis(null, `Holodeck: ${m}`);
+    }
+    const stand = prototypenStand(dateien);
+    if (stand !== this.holodeckStand && (await this.bruecke.holodeck(this.e.forge, dateien))) this.holodeckStand = stand;
   }
 
   /**

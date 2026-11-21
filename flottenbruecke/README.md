@@ -32,8 +32,9 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 700 px) stehen die Pillen unten in Daumenreichweite, die Brücke trägt dort die Zahl.
 
 - **Brücke** (`#bruecke`, Startseite) — das Board unten.
-- **Holodeck** (`#holodeck`), **Sternenkarte** (`#sternenkarte`), **Maschinenraum**
-  (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten; Holodeck und Sternenkarte noch leer.
+- **Holodeck** (`#holodeck`) — die Prototypen der Projekte, unten.
+- **Sternenkarte** (`#sternenkarte`) — noch leer.
+- **Maschinenraum** (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten.
 
 Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
 Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Epics der
@@ -73,6 +74,35 @@ ab. Auf dem Handy (bis 700 px) ist nur „Braucht dich“ offen, die Knöpfe sin
 
 Die Seite lädt alle 10 s neu und ändert nur Karten, die sich geändert haben; eine Karte, an der du
 gerade antwortest, bleibt stehen.
+
+## Holodeck
+
+Je Projekt ein fester Ordner mit Prototypen: `prototypen/` in der Repo-Wurzel, anders mit dem
+Adapterschlüssel `prototype_dir` in `.claude/epic.md`. Jede HTML-Datei direkt darin (keine
+Unterordner, höchstens 50, je höchstens 2 MB) erscheint als Kachel mit Titel (`<title>`), Projekt,
+Datum und Vorschau, gruppiert und filterbar nach Projekt; die Befehlszeile findet sie auch. Antippen
+öffnet den Prototyp in einem Rahmen, wahlweise als **Schreibtisch** (volle Breite) oder **Telefon**
+(390 px breit). **Rückmeldung kopieren** legt `Rückmeldung zu Prototyp <owner/name>/<datei>: ` in
+die Zwischenablage, für den Chat. Nur ansehen: Die Brücke ändert keine Datei.
+
+Die Vorschau ist der Prototyp selbst, verkleinert in einem Rahmen ganz ohne Skripte
+(`sandbox=""`, `loading="lazy"`): kein Bilderdienst, kein Bildschirmfoto-Schritt; ein Prototyp, der
+erst per Skript zeichnet, bleibt in der Vorschau leer und läuft erst in der Ansicht.
+
+**Sicherheitsmodell:** Der Treiber liest nur Dateien direkt im freigegebenen Ordner (keine
+Verknüpfungen, kein Weg hinaus) und schickt nur Dateinamen und Inhalte, keine Pfade; die Brücke
+liefert nur, was sie gespeichert hat, und kennt kein Dateisystem der Projekte. Jeder Prototyp läuft
+in einem opaken Ursprung (`Content-Security-Policy: sandbox allow-scripts` und
+`<iframe sandbox="allow-scripts">`, beide ohne `allow-same-origin`): Er sieht weder die PIN im
+localStorage noch Cookies und kann die Brücken-API weder lesen noch, ohne PIN, etwas auslösen;
+Verbindungen und Formulare sind gesperrt, Schriften und Skripte von `https:` laden.
+
+**Neu seit dem letzten Besuch:** ein gelber Punkt (blinkt nicht). Der localStorage-Schlüssel
+`flottenbruecke.holodeck.besucht` hält die ISO-Zeit, zu der dieses Gerät das Holodeck zuletzt
+geöffnet hat. Ein Prototyp aus `/api/tafel` → `prototypen[]` ist neu, wenn `geaendert` später ist
+oder der Schlüssel fehlt. Beim Betreten setzt das Holodeck die neue Zeit; die Punkte dieses Besuchs
+bleiben, bis du den Bereich verlässt. Die Schiffsliste liest denselben Schlüssel nach derselben
+Regel.
 
 ## Antworten
 
@@ -118,19 +148,23 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 ## Aktualisieren
 
 `git pull`, dann `docker compose up -d --build` im Ordner. Das Volume bleibt; v2 legt auf einem
-v1-Volume nur die Tabelle `handlungen` an und nimmt weiter Berichte eines älteren Treibers an.
+v1-Volume nur die Tabelle `handlungen` an und nimmt weiter Berichte eines älteren Treibers an, v3
+ebenso die Tabelle `prototypen`.
 
 ## Treiber
 
 Der Treiber meldet sich mit `flotte fahren … --bruecke http://127.0.0.1:4747` (oder Umgebung
-`FLOTTE_BRUECKE`). Die HTTP-Schnittstelle (Bericht, Abholen von Antworten und Handlungen, Quittieren) steht in
+`FLOTTE_BRUECKE`). Die HTTP-Schnittstelle (Bericht, Abholen von Antworten und Handlungen, Quittieren, Prototypen) steht in
 [`SCHNITTSTELLE.md`](SCHNITTSTELLE.md), der gemeinsame Vertrag in
-[`beispiel/bericht.json`](beispiel/bericht.json), [`beispiel/antworten.json`](beispiel/antworten.json) und [`beispiel/handlungen.json`](beispiel/handlungen.json).
+[`beispiel/bericht.json`](beispiel/bericht.json), [`beispiel/antworten.json`](beispiel/antworten.json), [`beispiel/handlungen.json`](beispiel/handlungen.json) und [`beispiel/holodeck.json`](beispiel/holodeck.json).
 Zum Ausprobieren ohne Treiber:
 
 ```
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht.json http://127.0.0.1:4747/api/bericht
+python -c "import json,urllib.request as u;[u.urlopen(u.Request('http://127.0.0.1:4747/api/holodeck',json.dumps(b).encode(),{'Content-Type':'application/json'})) for b in json.load(open('beispiel/holodeck.json',encoding='utf-8'))]"
 ```
+
+`beispiel/holodeck.json` ist eine Liste mit einem Body je Projekt; die Zeile schickt jeden.
 
 ## Entwickeln
 

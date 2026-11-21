@@ -2,7 +2,8 @@
 # 1 "Braucht dich": open questions and blocked epics, sorted by the cost of waiting;
 # 2 "Unterwegs": running epics, the merge queue, the ready ones as one line;
 # 3 "Erledigt heute": merged epics, the admiral's decisions, the person's own answers and actions.
-# Above them the accounts with their usage, RAM and disk per machine; below them the ticker.
+# Above them the accounts with their usage, RAM and disk per machine; below them the ticker. Beside
+# them the prototypes of the Holodeck, without their content.
 
 import re
 from datetime import datetime, timedelta
@@ -44,7 +45,7 @@ def _handlung(h: dict | None) -> dict | None:
     return None if h is None else {'id': h['id'], 'art': h['art'], 'text': h['text'], 'zeit': h['zeit'], 'abgeholt': bool(h['abgeholt']), 'quittiert': bool(h['quittiert'])}
 
 
-def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None) -> dict:
+def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None) -> dict:
     heute = jetzt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     handlungen = handlungen or []
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
@@ -196,4 +197,6 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'unterwegs': {'laeufe': laeufe, 'schlange': schlange_karten, 'bereit': bereit},
         'erledigt': erledigt,
         'ereignisse': ereignisse[:40],
+        # Holodeck (#44): name and forge are checked on receipt, the page opens url in its sealed frame
+        'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
     }

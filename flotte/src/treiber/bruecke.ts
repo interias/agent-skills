@@ -1,14 +1,17 @@
 // The driver's side of the Flottenbrücke (#28): one report per turn, fetching and acknowledging the
 // answers and actions of the person (requeue or give up a blocked epic, revoke a decision). Only the driver talks to the bridge; runs and admiral never see it. A bridge
 // that is off or slow is no error: every call has a short time limit and yields undefined.
-// The contract is flottenbruecke/beispiel/bericht.json, antworten.json and handlungen.json, tested on
-// both sides.
+// The contract is flottenbruecke/beispiel/bericht.json, antworten.json, handlungen.json and
+// holodeck.json, tested on both sides.
 
 import { hostname } from 'node:os';
 import type { Option } from '../werkzeuge/bloecke.ts';
+import type { Prototyp } from './holodeck.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
+/** a set of prototypes may weigh megabytes: a longer limit than the report's */
+export const HOLODECK_MS = 10_000;
 
 /** One answer as GET /api/antworten delivers it. */
 export interface BrueckenAntwort {
@@ -184,12 +187,12 @@ export class Bruecke {
     readonly zeitMs = 3000,
   ) {}
 
-  async rufe(pfad: string, init: RequestInit = {}): Promise<unknown> {
+  async rufe(pfad: string, init: RequestInit = {}, zeitMs = this.zeitMs): Promise<unknown> {
     try {
       const r = await fetch(new URL(pfad, this.url.endsWith('/') ? this.url : `${this.url}/`), {
         ...init,
         headers: { 'Content-Type': 'application/json', ...(this.token ? { 'X-Bruecke-Token': this.token } : {}) },
-        signal: AbortSignal.timeout(this.zeitMs),
+        signal: AbortSignal.timeout(zeitMs),
       });
       if (!r.ok) return undefined;
       return await r.json();
@@ -201,6 +204,11 @@ export class Bruecke {
   /** true when the bridge took the report */
   async melde(b: Bericht): Promise<boolean> {
     return (await this.rufe('api/bericht', { method: 'POST', body: JSON.stringify(b) })) !== undefined;
+  }
+
+  /** true when the bridge took the set of prototypes; it replaces the project's previous set */
+  async holodeck(forge: string, dateien: Prototyp[]): Promise<boolean> {
+    return (await this.rufe('api/holodeck', { method: 'POST', body: JSON.stringify({ forge, dateien }) }, HOLODECK_MS)) !== undefined;
   }
 
   /** the open answers, undefined when the bridge is not reachable */
