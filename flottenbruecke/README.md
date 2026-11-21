@@ -2,7 +2,7 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben).
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben) und die Einstellungen des Treibers (Maschinenraum).
 Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
@@ -203,6 +203,14 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   nur als Halt eines Epics, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
   Seite sie.
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die zehn wirksamen Werte
+  des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
+  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen) und ein Satz, was er bremst. Eine
+  Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
+  dem Bericht, `422` darüber hinaus); bis zur Quittung steht dort „wartet auf den Treiber“. Sie gilt
+  ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne
+  `einstellungen` im Bericht: nur lesend mit Hinweis. Merge-Regel, Rechte, Geheimnisse und Updates
+  gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das

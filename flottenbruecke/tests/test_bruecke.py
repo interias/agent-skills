@@ -487,6 +487,7 @@ def test_vertrag_handlungen(client, bericht):
     client.post('/api/bericht', json=bericht)
     handlung(client)
     handlung(client, 'widerruf', **WIDERRUF)
+    handlung(client, 'einstellen', epic=0, text='{"name": "obergrenze", "wert": 2}')
     geliefert = abholen(client, 'handlungen')
     assert [sorted(h) for h in geliefert] == [sorted(h) for h in beispiel]
     for g, b in zip(geliefert, beispiel):

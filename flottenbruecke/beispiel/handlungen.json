@@ -18,5 +18,15 @@
     "text": "Unter der nächsten Version, nicht unter Unreleased",
     "zeit": "2026-11-20T14:37:30+00:00",
     "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 5,
+    "epic": 0,
+    "art": "einstellen",
+    "nr": null,
+    "seit": null,
+    "text": "{\"name\": \"obergrenze\", \"wert\": 2}",
+    "zeit": "2026-11-20T14:40:00+00:00",
+    "herkunft": "Mensch über die Brücke"
   }
 ]

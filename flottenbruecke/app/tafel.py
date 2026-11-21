@@ -8,6 +8,7 @@
 # them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
 # The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`).
 
+import json
 import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -85,6 +86,17 @@ def _handlung(h: dict | None) -> dict | None:
     return None if h is None else {'id': h['id'], 'art': h['art'], 'text': h['text'], 'zeit': h['zeit'], 'abgeholt': bool(h['abgeholt']), 'quittiert': bool(h['quittiert'])}
 
 
+def _einstellungen(b: dict, forge: str, handlungen: list[dict]) -> list[dict] | None:
+    """The settings of a project (#59) with the change still on its way to the driver; None: an older driver reports none."""
+    if not b.get('einstellungen'):
+        return None
+    offen = {}
+    for h in handlungen:
+        if h['forge'] == forge and h['art'] == 'einstellen' and not h['quittiert']:
+            offen[json.loads(h['text'])['name']] = h
+    return [{**x, 'offen': {'wert': json.loads(offen[x['name']]['text'])['wert'], 'zeit': offen[x['name']]['zeit'], 'abgeholt': bool(offen[x['name']]['abgeholt'])} if x['name'] in offen else None} for x in b['einstellungen']]
+
+
 def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None) -> dict:
     heute = jetzt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     handlungen = handlungen or []
@@ -101,7 +113,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         takt = b.get('taktS', 60)
         veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=max(3 * takt, 180))
         aktiv = b.get('aktiv', True) and not veraltet
-        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose')})
+        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen)})
         # the newest report of a machine speaks for its RAM and disk, of an account for its usage
         r = rechner.get(b.get('rechner', ''))
         if r is None or r['empfangen'] < p['empfangen']:
@@ -120,7 +132,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
 
         offen_h = {}
         for h in handlungen:
-            if h['forge'] == forge and not h['quittiert']:
+            if h['forge'] == forge and not h['quittiert'] and h['art'] != 'einstellen':
                 offen_h[(h['epic'], h['art'] if h['art'] == 'widerruf' else 'halt', h['nr'], h['seit'])] = h
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
         schwelle = schwelle_lang(b.get('epics', []))
@@ -277,7 +289,13 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     for h in handlungen:
         t = zeit(h['quittiert'])
         if t and t >= heute and h['art'] != 'aufgeben':
-            erledigt.append({'art': 'handlung', 'id': f"handlung:{h['id']}", 'forge': h['forge'], 'repo': h['forge'].split('/')[-1], 'epic': h['epic'], 'nr': h['nr'], 'zeit': t.isoformat(), 'handlung': h['art'], 'text': h['text']})
+            x = {'art': 'handlung', 'id': f"handlung:{h['id']}", 'forge': h['forge'], 'repo': h['forge'].split('/')[-1], 'epic': h['epic'], 'nr': h['nr'], 'zeit': t.isoformat(), 'handlung': h['art'], 'text': h['text']}
+            if h['art'] == 'einstellen':
+                # a setting belongs to the project, not to an epic: the logbook names it by its title
+                z = json.loads(h['text'])
+                titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
+                x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
+            erledigt.append(x)
 
     # the cost of waiting: what holds a whole epic first, then the longest wait
     braucht.sort(key=lambda x: (0 if x['ganzerLauf'] else 1, -(x['wartetS'] or 0), x['forge'], x['epic'], x.get('nr') or 0))

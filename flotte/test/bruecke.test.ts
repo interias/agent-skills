@@ -256,6 +256,7 @@ describe('Flottenbrücke (#28)', () => {
     expect(liste.map((h) => [h.epic, h.art, h.nr])).toEqual([
       [40, 'einreihen', null],
       [38, 'widerruf', 1],
+      [0, 'einstellen', null],
     ]);
     expect(handlungenAusJson([{ id: 1, epic: 2, art: 'widerruf', nr: 1, seit: 'x', text: ' ' }, { id: 2, epic: 2, art: 'loeschen' }, null])).toEqual([]);
   });
