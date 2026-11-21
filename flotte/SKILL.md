@@ -103,7 +103,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 - `flotte zuschauen <repo> <epic> [--einmal]`: folgt dem Log eines Laufs, je Zeile ein Schritt (Werkzeug und Ziel, Text des Laufs).
 - `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). Vor dem Einspielen aufrufen: In diesen Projekten mergt danach ein Mensch.
 - `flotte belegung`, `verbrauch`, `ressourcen`, `bloecke`, `lauf`: die Werkzeuge einzeln.
-- `flotte messen <einsaetze.json>`: Kennzahlen aus den Transkripten; unter dem Treiber auch die Messungen der Prognose (`messungen.jsonl` neben `zustand.json`, Abschnitt `prognose`). Unter dem Treiber liest es Fragen, Wartezeit, kalte Zeit und Starts aus `zustand.json` (`treiberZustand` im Einsatz).
+- `flotte messen <einsaetze.json>`: Kennzahlen aus den Transkripten; unter dem Treiber auch die Messungen der Prognose (`messungen.jsonl` neben `zustand.json`, Abschnitt `prognose`). Unter dem Treiber liest es Fragen, Wartezeit, kalte Zeit und Starts aus `zustand.json` (`treiberZustand` im Einsatz). Abschnitt `tokens`: Eingabe, Cache-Schreiben, Cache-Lesen und Ausgabe je Agent-Typ, je Epic und je Paket, Cache-Quote, Review-Runden je Paket und je Agent-Typ der Anteil, den jede Art Werkzeugergebnis (Test, Gate, Diff, Lesen, übrige Shell) kostet; Abschnitt `verlauf`: Durchlaufzeit und Fehlerquote je Epic (`README.md`, „Messen“).
 
 ## Was der Treiber tut
 

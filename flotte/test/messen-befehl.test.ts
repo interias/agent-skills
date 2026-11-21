@@ -90,6 +90,9 @@ describe('messeEinsatz', () => {
     expect(r.pr_bereit_bis_gemergt_min).toMatchObject({ n: 1, summe: 69, geschaetzt: 0 });
     expect(r.orchestrierung).toMatchObject({ weighted: 1200, je_epic: 600 });
     expect(r.reste).toEqual({ worktrees: 1, branches: 1, container: 1, hinweise: [] });
+    // runs and their subagents carry no usage in these lines: the token block is there and empty
+    expect(r.tokens.summe).toMatchObject({ eingabe: 0, ausgabe: 0, cache_quote: null });
+    expect(r.verlauf).toBeNull();
     expect(r.fehler).toEqual([]);
     expect(aufrufe.filter((a) => a[0] === 'pwsh').every((a) => a.includes('-Since') && a.includes('-Until'))).toBe(true);
   });
