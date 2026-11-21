@@ -135,6 +135,71 @@ describe('messeEinsatz', () => {
     expect(r2.prognose).toMatchObject({ status: 'zu_wenig', bisher: 2, treffer: 1, geprueft: 2, pakete_je_klasse: { urteil: 2 }, eskalationen: 2, arbeit_min: { n: 2, summe: 180 } });
   });
 
+  it('splits an epic run by role: driver logs, subagents, a listed -p session, merges, run time (#64)', () => {
+    const k3 = konto();
+    const treiber = konto();
+    const init = (id: string) => JSON.stringify({ type: 'system', subtype: 'init', cwd: 'C:/p', session_id: id });
+    mkdirSync(join(treiber, 'laeufe'), { recursive: true });
+    mkdirSync(join(treiber, 'admiral'), { recursive: true });
+    // the run of epic 7: started, resumed in the same session; the admiral answered once without structured output
+    writeFileSync(join(treiber, 'laeufe', '7-1-0.jsonl'), [init('aaaa1111-orch'), JSON.stringify({ type: 'result', subtype: 'success' })].join('\n'));
+    writeFileSync(join(treiber, 'laeufe', '7-2-1.jsonl'), init('aaaa1111-orch'));
+    writeFileSync(join(treiber, 'laeufe', '8-1-0.jsonl'), init('ffff0000-fremd'));
+    writeFileSync(join(treiber, 'admiral', '7-1.jsonl'), [init('bbbb2222-adm'), JSON.stringify({ type: 'result', subtype: 'success', result: 'Text' })].join('\n'));
+    const ev = (m: number, text: string) => ({ zeit: min(m), epic: 7, text });
+    writeFileSync(join(treiber, 'zustand.json'), JSON.stringify({ ereignisse: [ev(0, 'Lauf gestartet'), ev(2, 'Lauf fortgesetzt'), ev(25, 'Lauf gestartet')], fragen: [], entscheidungen: [] }));
+    writeFileSync(join(treiber, 'messungen.jsonl'), JSON.stringify({ epic: 7, titel: '', konto: null, start: '', ende: '', arbeitS: 1800, menschWartenS: 0, gateS: 0, pakete: [], prognose: null, treffer: null }) + '\n');
+
+    const bash = (id: string, command: string) => ({ id, name: 'Bash', input: { command } });
+    sitzung(k3, 'C--p', 'aaaa1111-orch', [
+      mensch(0, '/epic-stapel #7'),
+      assistent(1, 'Tor'),
+      assistent(14, '', { tools: [bash('m1', 'git merge --no-ff agent/9-a')] }),
+      ergebnis(15, 'm1', 'Merge made'),
+      assistent(30, 'FLOTTE-ENDE'),
+    ]);
+    subagent(k3, 'C--p', 'aaaa1111-orch', 'i1', 'epic-implementer-standard', [mensch(2, 'Paket'), assistent(8, 'fertig')]);
+    subagent(k3, 'C--p', 'aaaa1111-orch', 'r1', 'epic-reviewer-standard', [mensch(9, 'Review'), assistent(12, 'ok')]);
+    sitzung(k3, 'C--p', 'bbbb2222-adm', [mensch(1, 'Frageblock'), assistent(1.5, '{}')]);
+    // a session of `flotte epic`: claude -p --agent writes agentSetting into its lines
+    sitzung(k3, 'C--p', 'cccc3333-impl', [JSON.stringify({ type: 'user', timestamp: min(16), agentSetting: 'epic-implementer-urteil', message: { content: 'Paket 10' } }), assistent(20, 'fertig')]);
+
+    const gewichte: Record<string, unknown> = {
+      aaaa1111: { agents: [{ id: 'host', role: 'host', package: null, weighted: 600 }, { id: 'i1', role: 'epic-implementer-standard', package: '9', weighted: 200 }, { id: 'r1', role: 'epic-reviewer-standard', package: '9', weighted: 100 }] },
+      bbbb2222: { agents: [{ id: 'host', role: 'host', package: null, weighted: 20 }] },
+      cccc3333: { agents: [{ id: 'host', role: 'host', package: null, weighted: 80 }] },
+    };
+    const usage: string[][] = [];
+    const stubEpic: Aufrufer = (programm, args) => {
+      if (programm !== 'pwsh') return stub(programm, args);
+      usage.push(args);
+      const t = args[args.indexOf('-Transcript') + 1];
+      const k = Object.keys(gewichte).find((x) => t.includes(x));
+      return k ? { code: 0, stdout: JSON.stringify(gewichte[k]), stderr: '' } : { code: 1, stdout: '', stderr: 'x' };
+    };
+    const konf: Konfiguration = {
+      konten: { k3 },
+      einsaetze: [{ name: 'probe', repo: 'o/korb', von: min(-1), bis: min(60), epics: [7], orchestrierung: [], laeufe: [], treiberZustand: join(treiber, 'zustand.json'), fenster: 2, epicLaeufe: [{ epic: 7, sitzungen: [{ konto: 'k3', id: 'cccc3333', paket: '10' }] }] }],
+    };
+    const r = messeEinsatz(konf, konf.einsaetze[0], { aufrufer: stubEpic, usageSkript: 'u' });
+    expect(r.fehler).toEqual([]);
+    const l = r.epic_laeufe!.laeufe[0];
+    expect(l.sitzungen).toEqual({ orchestrator: 1, admiral: 1, implementer: 1 });
+    expect(l.verbrauch).toMatchObject({ weighted: 1000, orchestrierung: { weighted: 620, anteil: 62 } });
+    expect(l.verbrauch.je_rolle.implementer).toMatchObject({ weighted: 280, auftraege: 2 });
+    expect(l.pakete.map((p) => [p.paket, p.implementer, p.reviewer, p.merges])).toEqual([
+      ['9', 200, 100, 1],
+      ['10', 80, 0, 0],
+    ]);
+    // reviewer back at 12, merged at 15, next start at 16; model time in between: 14 - 12
+    expect(l.zeiten).toMatchObject({ durchlauf_min: 30, gemergt_bis_naechster_start_s: { n: 1, median: 60 }, pruefzeit_s: { n: 1, median: 180, modell_s: 120 } });
+    expect(l.neustart.neustarts).toEqual([{ zeit: min(25), bis_erster_worker_s: null }]);
+    expect(l.ungueltige_ausgaben).toEqual({ aufrufe: 1, ungueltig: 1 });
+    expect(r.epic_laeufe!.summe).toMatchObject({ epics: 1, pakete: 2, verbrauch_je_epic: 1000 });
+    expect(usage.every((a) => a.includes('-ModelWeights') && a[a.indexOf('-ModelWeights') + 1] === 'opus=2;sonnet=1;haiku=0.33')).toBe(true);
+    expect(usage.some((a) => a.some((x) => x.includes('ffff0000')))).toBe(false);
+  });
+
   it('names a session it cannot find instead of guessing', () => {
     const konf: Konfiguration = {
       konten: { k1: konto() },

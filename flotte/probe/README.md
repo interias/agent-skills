@@ -1,5 +1,7 @@
 # Generalprobe (#14, Stufe 4)
 
+Die Probe vorher/nachher des Epic-Programms (#69) steht in `programm/README.md`.
+
 Der Treiber fährt echte `claude -p`-Läufe mit Haiku in `interias/flotte-probe` (privat).
 
 ## Aufbau

@@ -112,6 +112,31 @@ export function leseText(inhalt: string): Eintrag[] {
   return out.sort((a, b) => a.zeit - b.zeit);
 }
 
+/**
+ * First and last time stamp of any line, sidechain lines of a subagent included, and the agent a
+ * session ran as (`claude -p --agent <name>` writes agentSetting into its lines).
+ */
+export function kopfdaten(inhalt: string): { von: number | null; bis: number | null; agent: string | null } {
+  let von: number | null = null;
+  let bis: number | null = null;
+  let agent: string | null = null;
+  for (const zeile of inhalt.split(/\r?\n/)) {
+    if (!zeile.trim()) continue;
+    let d: { timestamp?: string; agentSetting?: string };
+    try {
+      d = JSON.parse(zeile);
+    } catch {
+      continue;
+    }
+    if (!agent && typeof d?.agentSetting === 'string') agent = d.agentSetting;
+    const t = d?.timestamp ? Date.parse(d.timestamp) : NaN;
+    if (Number.isNaN(t)) continue;
+    if (von === null || t < von) von = t;
+    if (bis === null || t > bis) bis = t;
+  }
+  return { von, bis, agent };
+}
+
 export function leseDatei(pfad: string): Eintrag[] {
   return leseText(readFileSync(pfad, 'utf8'));
 }
