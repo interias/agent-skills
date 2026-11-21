@@ -424,10 +424,10 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   `acceptance_commands` vorhanden sind, sonst „Abnahmestufe entfällt") und die **wirksamen
   RAM-Schwellen** (`ram_warn_percent`, `ram_hold_percent`, `ram_min_free_gb`, mit Standard, wo der
   Adapter schweigt).
-- **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
-  (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
-  vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` ändert sich ihre URL über den
-  ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad.
+- **Lauftafel** bauen, bevor das erste Paket startet, nach `plan_artifact` (`references/adapter.md`) veröffentlicht oder nur geschrieben; **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
+  vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` bleibt ihre URL über den ganzen Lauf gleich: jede Fortschreibung auf denselben Dateipfad.
+  **Sagt der Auftrag `Lauftafel aus`** (Flotten-Treiber), entfällt die Tafel in allen Phasen; was nur auf ihr
+  stünde, geht in Forge-Kommentare und PR-Body (`references/lauftafel.md`, „Lauftafel aus").
 - **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
   nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
   Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ist der Grund ein

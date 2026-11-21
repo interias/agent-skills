@@ -105,7 +105,8 @@ Aus **drei** Quellen, und keine davon reicht allein:
    (`issue_form: spec`) gibt es keine Kind-Tickets — alle Rückmeldungen zu den Paketen stehen als
    Kommentare am Spec-Issue selbst; **mit Kindern** gilt derselbe Weg wie im Modus `tickets`. Ergänze
    hier die Lauftafel (`references/lauftafel.md`): jeder dort verzeichnete Glut-Punkt (wartet auf
-   den Menschen) gehört auf diese Liste.
+   den Menschen) gehört auf diese Liste. Lief der Lauf mit `Lauftafel aus` (Flotten-Treiber), gibt es
+   keine Tafel; ihre Punkte stehen dann im Abschlusskommentar.
 2. **Der Body des Pull Requests.** Dort steht, was beim Deploy passiert und welche Zusicherung
    nur gelesen und nicht gefahren wurde.
 3. **Der Stand im Repository.** Ein Punkt kann zwischenzeitlich erledigt worden sein — vom
@@ -222,7 +223,7 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
   (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
   vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
-- **Die Lauftafel des `/epic`-Laufs** (`references/lauftafel.md`), bei `plan_artifact: publish`
+- **Die Lauftafel des `/epic`-Laufs** (`references/lauftafel.md`; entfällt bei `Lauftafel aus`), bei `plan_artifact: publish`
   (`epic/references/adapter.md`): Diese Sitzung hat ein anderes Scratchpad als der
   ursprüngliche Lauf, ein lokaler `file_path` trägt hier also nicht mehr. Die URL steht im
   Eröffnungskommentar am Zielissue — die Tafel darüber lesen (Artifact-Werkzeug, `action: read`),
