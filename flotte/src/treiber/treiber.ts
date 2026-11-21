@@ -180,7 +180,18 @@ export interface MenschFrage {
   beantwortet?: string;
   /** when the answer came: the wait for the person is left out of the measurement (Prognose) */
   beantwortetAm?: string;
+  /** a repeat of an earlier question, closed with that one's answer (seit of the earlier one) */
+  wiederholungVon?: string;
 }
+
+/** the same question again: same wording, or the same parked packages (not the whole run) */
+export function gleicheFrage(a: { frage: string; betrifft?: string }, b: { frage: string; betrifft?: string }): boolean {
+  const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (a.frage && norm(a.frage) === norm(b.frage)) return true;
+  return !!a.betrifft && a.betrifft !== 'Lauf' && a.betrifft === b.betrifft;
+}
+
+const betrifftText = (b: string[] | 'Lauf' | null): string => (b === null ? '' : b === 'Lauf' ? 'Lauf' : b.join(', '));
 
 export interface Entscheidung {
   epic: number;
@@ -438,6 +449,7 @@ class Treiber {
     // #61: a pause outlives the restart in the holder file as well; a field the state no longer carries goes
     for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
     if (this.e.bruecke) this.bruecke = new Bruecke(this.e.bruecke, this.e.brueckeToken);
+    this.wiederholungenSchliessen();
 
     for (;;) {
       const halt = this.anhaltenGewuenscht();
@@ -1053,6 +1065,24 @@ class Treiber {
       return;
     }
     if (!block.fragen.length) return this.rohFrage(ep, block, vermerk);
+    // a run that was told to go on without the parked packages may ask the same again at once: the
+    // question already lies with the person, so neither the admiral nor the bridge sees it twice
+    // (or he answered while the run was busy, and the answer still waits to be passed on)
+    const nachgereicht = !!ep.nachzureichen?.length;
+    const offen = this.z.fragen.filter((x) => x.epic === nr && (!x.beantwortet || nachgereicht));
+    const neu = block.fragen.filter((f) => !offen.some((x) => gleicheFrage(x, { frage: f.frage, betrifft: betrifftText(f.betrifft) })));
+    if (neu.length < block.fragen.length) this.ereignis(nr, `${block.fragen.length - neu.length} Frage(n) wiederholt: liegen schon beim Menschen, nicht neu gestellt`);
+    if (!neu.length) {
+      const text = this.an(nr, `Antwort auf FLOTTE-FRAGE ${block.phase}: Diese Fragen liegen schon beim Menschen. Seine Antwort kommt mit dieser Nachricht; stelle sie nicht noch einmal.`);
+      if (nachgereicht) ep.auftrag = { resume: true, text };
+      else {
+        ep.stufe = 'frage';
+        ep.notiz = 'wartet auf den Menschen';
+        ep.festgehalten = text;
+      }
+      return;
+    }
+    block.fragen = neu;
     // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
     if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
     const konto = this.e.admiralKonto ?? ep.konto!;
@@ -1152,6 +1182,7 @@ class Treiber {
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
+    this.wiederholungenSchliessen();
     const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
     if (ep.stufe === 'frage' && !offen) {
       ep.stufe = 'laeuft';
@@ -1163,6 +1194,19 @@ class Treiber {
       ep.auftrag = { resume: true, text: this.an(a.epic, 'Arbeite die geparkten Pakete ab, dann FLOTTE-ENDE.') };
     }
     return true;
+  }
+
+  /** Open repeats of a question the person has answered since are closed with that answer (bridge shows each once). */
+  wiederholungenSchliessen(): void {
+    for (const x of this.z.fragen) {
+      if (x.beantwortet) continue;
+      const y = this.z.fragen.find((f) => f !== x && f.epic === x.epic && f.beantwortet && !f.wiederholungVon && (f.beantwortetAm ?? '') >= x.seit && gleicheFrage(f, x));
+      if (!y) continue;
+      x.beantwortet = y.beantwortet;
+      x.beantwortetAm = y.beantwortetAm;
+      x.wiederholungVon = y.seit;
+      this.ereignis(x.epic, `Wiederholte Frage ${x.nr} geschlossen: beantwortet mit der Frage von ${y.seit.slice(11, 19)}`);
+    }
   }
 
   /** A question block without a parsable question: the whole block goes to the person (#28, Rückfall). */
