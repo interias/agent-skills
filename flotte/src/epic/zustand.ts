@@ -14,8 +14,8 @@ export type PaketStufe = 'wartend' | 'startbereit' | 'implementer' | 'reviewer' 
 
 export interface Suite {
   name: string;
-  /** test files of the suite */
-  dateien: number;
+  /** test files of the suite; null when the output does not report them (pytest -q) */
+  dateien: number | null;
   tests: number;
   rot: { datei: string; test: string }[];
 }
@@ -55,11 +55,19 @@ export interface PaketZustand extends AufrufStand {
   /** findings for the next implementer round */
   befund: string[];
   worktree: string | null;
+  /** port and isolation from worktree.ps1 Up (for the order of 4a); missing in a state of #65 */
+  port?: number | null;
+  isolation?: string | null;
   branch: string;
   bericht: ImplementerBericht | null;
   review: ReviewerBericht | null;
   lastflakes: string[];
+  /** the full run of 4c in the package worktree, and the one on the epic branch after the merge (null: not needed, the tree was the one checked) */
+  testlauf?: Testlauf | null;
+  epicLauf?: Testlauf | null;
   mergeCommit: string | null;
+  /** the branch had no commits of its own and was in the epic branch already: no merge commit, no run, no revert */
+  nichtsZuMergen?: boolean;
   /**
    * a merge conflict in the epic worktree: its files, and once the conflict call answered, its verdict.
    * While the verdict is open the epic worktree is mid-merge: no other merge, a restart resumes the call.
@@ -71,7 +79,7 @@ export interface PaketZustand extends AufrufStand {
   grund: string | null;
   blockiertDurch: string | null;
   /** ISO times of the package (epic/SKILL.md, Phase 5, line `Zeiten:`) */
-  zeiten: { start?: string; implementerZurueck?: string; reviewerZurueck?: string; abgenommen?: string; gemergt?: string; ende?: string };
+  zeiten: { start?: string; implementerZurueck?: string; reviewerZurueck?: string; abgenommen?: string; gemergt?: string; ende?: string; pruefungBeginn?: string; mergeBeginn?: string };
 }
 
 export interface FrageZustand {
@@ -92,7 +100,7 @@ export interface Ereignis {
   /** ISO time: stage 4 (#68) reads package starts, role calls and merges from here */
   zeit: string;
   paket: string | null;
-  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'ende';
+  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ende';
   rolle?: Rolle;
   text: string;
 }
@@ -127,6 +135,8 @@ export interface EpicLaufZustand {
   slot: { belegt: boolean };
   konto: { gesperrt: boolean };
   ereignisse: Ereignis[];
+  /** Glut points (a label that would not stick, a failed clean-up after a merge): open points at the end */
+  offenePunkte?: string[];
   /** the FLOTTE-ENDE block once the run ended */
   ende: string | null;
 }
@@ -184,10 +194,14 @@ export function neuesPaket(p: Paket): PaketZustand {
     befund: [],
     wartet: null,
     worktree: null,
+    port: null,
+    isolation: null,
     branch: paketBranch(p),
     bericht: null,
     review: null,
     lastflakes: [],
+    testlauf: null,
+    epicLauf: null,
     mergeCommit: null,
     konflikt: null,
     epicGeprueft: false,
