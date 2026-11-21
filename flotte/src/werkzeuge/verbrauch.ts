@@ -80,7 +80,20 @@ function hochrechnung(f: Fenster, laenge: number, jetzt: number): number | null 
 
 const pct = (x: number) => Math.round(x * 1000) / 10;
 
-export function bewerte(v: Verbrauch | null, jetzt: number, maxAlterMin = 30): Bewertung {
+/**
+ * The 5-hour thresholds of the brake in percent used (#58, settable on the bridge): above gelb nothing
+ * new starts, above rot continuations stop too. leerfahren: the account runs until the window is used
+ * up; neither the projection nor gelb hold it, red only at 100 %.
+ */
+export interface Schwellen {
+  gelb: number;
+  rot: number;
+  leerfahren?: boolean;
+}
+
+export const SCHWELLEN: Schwellen = { gelb: 60, rot: 85 };
+
+export function bewerte(v: Verbrauch | null, jetzt: number, maxAlterMin = 30, s: Schwellen = SCHWELLEN): Bewertung {
   if (!v) return { stufe: 'rot', grund: 'keine Verbrauchsdatei', obergrenze: 4, fuenf: null, sieben: null, alterMin: null };
   const alterMin = Math.round((jetzt - v.zeit) / 6_000) / 10;
   const bild = (f: Fenster | null, laenge: number) => (f ? { verbraucht: pct(f.anteil), hochrechnung: ((h) => (h === null ? null : pct(h)))(hochrechnung(f, laenge, jetzt)), reset: new Date(f.reset).toISOString() } : null);
@@ -95,8 +108,9 @@ export function bewerte(v: Verbrauch | null, jetzt: number, maxAlterMin = 30): B
   // a window whose reset lies in the past has started over
   if (v.fuenf && v.fuenf.reset <= jetzt) return { stufe: 'gruen', grund: '5-Stunden-Fenster seit der Messung zurückgesetzt', ...basis };
   const h = fuenf.hochrechnung;
-  if ((h !== null && h > 120) || fuenf.verbraucht > 85) return { stufe: 'rot', grund: `verbraucht ${fuenf.verbraucht} %, Hochrechnung ${h ?? '–'} %`, ...basis };
-  if ((h !== null && h >= 90) || fuenf.verbraucht > 60) return { stufe: 'gelb', grund: `verbraucht ${fuenf.verbraucht} %, Hochrechnung ${h ?? '–'} %`, ...basis };
+  if (s.leerfahren) return { stufe: fuenf.verbraucht >= 100 ? 'rot' : 'gruen', grund: `verbraucht ${fuenf.verbraucht} %, bis 100 % leerfahren`, ...basis };
+  if ((h !== null && h > 120) || fuenf.verbraucht > s.rot) return { stufe: 'rot', grund: `verbraucht ${fuenf.verbraucht} %, Hochrechnung ${h ?? '–'} %`, ...basis };
+  if ((h !== null && h >= 90) || fuenf.verbraucht > s.gelb) return { stufe: 'gelb', grund: `verbraucht ${fuenf.verbraucht} %, Hochrechnung ${h ?? '–'} %`, ...basis };
   return { stufe: 'gruen', grund: `verbraucht ${fuenf.verbraucht} %, Hochrechnung ${h ?? '–'} %`, ...basis };
 }
 

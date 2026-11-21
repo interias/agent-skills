@@ -23,9 +23,14 @@ export interface Ressourcen {
 
 export const SKRIPTE = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../../../epic/scripts');
 
-/** warnPercent: --ram-warn of the driver, handed to ram.ps1; null leaves the adapter's or its default */
+/**
+ * warnPercent: --ram-warn of the driver, handed to ram.ps1; null leaves the adapter's or its default.
+ * The driver measures the machine only: EPIC_LOCK_HOLDER stays empty, so the pause of an epic (#61,
+ * read by ram.ps1 from that holder file) never sets the driver's own brake, even when the driver was
+ * started from a run's environment.
+ */
 export async function messeRam(aufrufer: AsyncAufrufer, repo: string, skript = `${SKRIPTE}/ram.ps1`, warnPercent: number | null = null): Promise<Ram> {
-  const r = await pwshJsonAsync(aufrufer, skript, ['-RepoRoot', repo, ...(warnPercent === null ? [] : ['-WarnPercent', String(warnPercent)])], { timeoutMs: 60_000 });
+  const r = await pwshJsonAsync(aufrufer, skript, ['-RepoRoot', repo, ...(warnPercent === null ? [] : ['-WarnPercent', String(warnPercent)])], { timeoutMs: 60_000, env: { EPIC_LOCK_HOLDER: '' } });
   const j = r.json as { level?: string; percent_used?: number; free_gb?: number } | null;
   if (r.code || !j || !['ok', 'warn', 'hold'].includes(String(j.level))) {
     return { level: 'hold', percent_used: null, free_gb: null, fehler: `ram.ps1 Exit ${r.code}: ${r.stderr.trim().slice(0, 200)}` };

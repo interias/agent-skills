@@ -1,10 +1,12 @@
-# SQLite: the last report per project, when an epic reached its stage, and the answers and actions
-# of the person until the driver acknowledges them.
+# SQLite: the last report per project, when an epic reached its stage, the answers and actions of
+# the person until the driver acknowledges them, and the prototypes of each project (Holodeck).
 
 import json
 import sqlite3
 import threading
 from pathlib import Path
+
+from .modelle import HANDLUNG_GRUPPE
 
 SCHEMA = """
 create table if not exists projekte (
@@ -44,6 +46,14 @@ create table if not exists handlungen (
   zeit text not null,
   abgeholt text,
   quittiert text
+);
+create table if not exists prototypen (
+  forge text not null,
+  name text not null,
+  titel text not null,
+  geaendert text not null,
+  inhalt text not null,
+  primary key (forge, name)
 );
 """
 
@@ -134,10 +144,18 @@ class Speicher:
     def handlung_setzen(self, forge: str, epic: int, art: str, nr: int | None, seit: str | None, text: str | None, jetzt: str) -> dict | None:
         """New or changed action; None when the driver already fetched an open one for the same target."""
         with self.lock, self.db:
-            # einreihen and aufgeben exclude each other: the last one counts until the driver fetches it
-            ziel = 'art = ? and nr is ? and seit is ?' if art == 'widerruf' else "art in ('einreihen', 'aufgeben')"
-            ziel_args = [art, nr, seit] if art == 'widerruf' else []
-            alt = self.db.execute(f'select * from handlungen where forge = ? and epic = ? and quittiert is null and {ziel}', [forge, epic, *ziel_args]).fetchone()
+            if art == 'einstellen':
+                # one open change per setting: the last one counts until the driver fetches it
+                name = json.loads(text)['name']
+                offen = self.db.execute("select * from handlungen where forge = ? and art = 'einstellen' and quittiert is null", (forge,))
+                alt = next((z for z in offen if json.loads(z['text'])['name'] == name), None)
+            else:
+                # einreihen and aufgeben exclude each other, so do pausieren and fortsetzen (#61): the last one
+                # of a group counts until the driver fetches it
+                gruppe = [a for a, g in HANDLUNG_GRUPPE.items() if g == HANDLUNG_GRUPPE[art]]
+                ziel = 'art = ? and nr is ? and seit is ?' if art == 'widerruf' else f"art in ({', '.join('?' * len(gruppe))})"
+                ziel_args = [art, nr, seit] if art == 'widerruf' else gruppe
+                alt = self.db.execute(f'select * from handlungen where forge = ? and epic = ? and quittiert is null and {ziel}', [forge, epic, *ziel_args]).fetchone()
             if alt is not None and alt['abgeholt']:
                 return None
             if alt is None:
@@ -157,3 +175,21 @@ class Speicher:
         with self.lock, self.db:
             r = self.db.execute('update handlungen set quittiert = coalesce(quittiert, ?), abgeholt = coalesce(abgeholt, ?) where id = ?', (jetzt, jetzt, id_))
             return r.rowcount > 0
+
+    # ---- Holodeck (#44): the prototypes the driver sent, delivered only from here
+
+    def prototypen_setzen(self, forge: str, dateien: list[dict]) -> None:
+        """The whole set of a project: it replaces the previous one, removed files disappear."""
+        with self.lock, self.db:
+            self.db.execute('delete from prototypen where forge = ?', (forge,))
+            self.db.executemany('insert into prototypen values (?, ?, ?, ?, ?)', [(forge, d['name'], d['titel'], d['geaendert'], d['inhalt']) for d in dateien])
+
+    def prototypen(self) -> list[dict]:
+        """Every prototype without its content, for the board."""
+        with self.lock:
+            return [dict(z) for z in self.db.execute('select forge, name, titel, geaendert from prototypen order by forge, name')]
+
+    def prototyp(self, forge: str, name: str) -> str | None:
+        with self.lock:
+            z = self.db.execute('select inhalt from prototypen where forge = ? and name = ?', (forge, name)).fetchone()
+        return None if z is None else z['inhalt']

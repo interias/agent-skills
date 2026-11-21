@@ -1,0 +1,21 @@
+/* Logbuch (#42): the styles of this area only, every rule below .bereich[data-bereich="logbuch"]. */
+.bereich[data-bereich="logbuch"] .lb-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 10px 0; font: 12px var(--disp); letter-spacing: .06em; text-transform: uppercase; color: var(--leise); }
+.bereich[data-bereich="logbuch"] .lb-filter label { display: inline-flex; align-items: center; gap: 6px; }
+.bereich[data-bereich="logbuch"] select { height: 30px; max-width: 46vw; padding: 0 10px; border-radius: var(--rund); border: 2px solid var(--linie); background: var(--flaeche2); color: var(--text); font: 14px var(--lesen); }
+.bereich[data-bereich="logbuch"] select:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.bereich[data-bereich="logbuch"] .lb-zahl { margin-left: auto; font-variant-numeric: tabular-nums; }
+.bereich[data-bereich="logbuch"] .lb-liste { margin: 0; padding: 8px 12px; list-style: none; display: grid; gap: 4px; background: var(--flaeche); border-left: 8px solid var(--lila); border-radius: 0 14px 14px 0; font: 13.5px/1.45 var(--lesen); }
+.bereich[data-bereich="logbuch"] .lb-liste li { display: grid; grid-template-columns: 86px 72px minmax(0, 1fr); gap: 0 10px; align-items: baseline; padding: 3px 0; }
+.bereich[data-bereich="logbuch"] time { font-family: var(--disp); font-variant-numeric: tabular-nums; color: var(--leise); letter-spacing: .04em; }
+.bereich[data-bereich="logbuch"] .lb-art { justify-self: start; padding: 0 8px; border-radius: var(--rund); background: var(--violett); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.bereich[data-bereich="logbuch"] .lb-art.admiral { background: var(--blau); }
+.bereich[data-bereich="logbuch"] .lb-art.mensch { background: var(--orange); }
+.bereich[data-bereich="logbuch"] .lb-text { overflow-wrap: anywhere; color: var(--matt); }
+.bereich[data-bereich="logbuch"] .lb-text b { color: var(--text); font-weight: 600; }
+.bereich[data-bereich="logbuch"] .lb-text small { color: var(--leise); font-size: 12px; }
+.bereich[data-bereich="logbuch"] .lb-text .wo { font-family: var(--disp); color: var(--pfirsich); }
+.bereich[data-bereich="logbuch"] .lb-liste li.lb-leer { display: block; color: var(--leise); }
+@media (max-width: 700px) {
+  .bereich[data-bereich="logbuch"] .lb-liste li { grid-template-columns: auto minmax(0, 1fr); }
+  .bereich[data-bereich="logbuch"] .lb-text { grid-column: 1 / -1; }
+}

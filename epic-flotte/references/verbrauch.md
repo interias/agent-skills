@@ -9,7 +9,9 @@ und Paketklasse eine Zeile, per Pull Request nachgetragen. Prozent beziehen sich
 
 Prozent des Planlimits liefert nur `get_usage`. Wohin der Verbrauch innerhalb eines Laufs ging —
 je Rolle, je Paket, je Agent, und welche Werkzeugausgaben den Kontext gefüllt haben —, misst
-`epic/scripts/usage.ps1` aus den Transkripten, auch nachträglich für abgeschlossene Läufe.
+`epic/scripts/usage.ps1` aus den Transkripten, auch nachträglich für abgeschlossene Läufe. Über einen
+ganzen Einsatz, mit Cache-Quote und Kontextanteil je Agent-Typ: `flotte messen`, Abschnitt `tokens`
+(`flotte/README.md`, „Messen“).
 
 Solange für eine Paketklasse keine Zeile steht, schätzt der Admiral je Paket mit diesen Werten und
 ersetzt sie ab der ersten Messung durch die gemessenen:

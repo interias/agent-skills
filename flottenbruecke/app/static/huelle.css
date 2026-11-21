@@ -1,0 +1,97 @@
+/* The shell (#40): one line on top with logo, command line, counter and the areas as pills; on the
+   phone the pills sit at the bottom within reach of the thumb. A grid with named areas, so a side
+   bar (aside.seite, #41) joins on the left without rebuilding. Red and motion only in the counter. */
+.huelle {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "leiste leiste" "seite tafel";
+}
+.leiste { grid-area: leiste; }
+.tafel { grid-area: tafel; min-width: 0; }
+
+.leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 10px; }
+.logo { display: block; width: 32px; height: 32px; flex: none; }
+.logo img { display: block; width: 100%; height: 100%; }
+
+/* ---- command line: search and jump */
+.befehl { position: relative; flex: 1 1 220px; max-width: 520px; margin: 0 auto; min-width: 0; }
+#suche {
+  width: 100%; height: 30px; padding: 0 64px 0 14px; border-radius: var(--rund); border: 2px solid var(--linie);
+  background: var(--flaeche2); color: var(--text); font: 14px var(--lesen);
+}
+#suche::placeholder { color: var(--leise); }
+#suche:focus { outline: none; border-color: var(--lila); }
+.taste {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  font: 11px var(--disp); letter-spacing: .06em; color: var(--leise); text-transform: uppercase;
+}
+#suche:focus + .taste { display: none; }
+.treffer {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; margin: 0; padding: 4px;
+  list-style: none; background: var(--flaeche); border-left: 8px solid var(--lila); border-radius: 0 14px 14px 0;
+  max-height: min(60vh, 420px); overflow: auto; box-shadow: 0 10px 30px #000;
+}
+.treffer[hidden] { display: none; }
+.treffer li {
+  display: grid; grid-template-columns: 74px 1fr; gap: 0 8px; align-items: baseline; padding: 6px 10px;
+  border-radius: 6px 16px 16px 6px; cursor: pointer; min-height: 32px;
+}
+.treffer li small { grid-column: 2; color: var(--leise); font: 11.5px var(--lesen); overflow-wrap: anywhere; }
+.treffer [aria-selected="true"] { background: #2a1e10; }
+.treffer .t-art { color: var(--lila); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.treffer .t-titel { font: 13.5px/1.35 var(--lesen); overflow-wrap: anywhere; }
+.treffer .t-leer { display: block; cursor: default; color: var(--leise); }
+
+/* ---- counter "Braucht dich" on every page: the red alarm of level 1 */
+.zaehler {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 4px 0 12px; flex: none;
+  border-radius: var(--rund); background: var(--lila); color: #000; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+}
+.zaehler:hover { text-decoration: none; }
+.zaehler b { background: #000; color: var(--text); border-radius: var(--rund); padding: 0 8px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.zaehler.ruhig { background: #2a2a38; color: var(--matt); }
+.zaehler.alarm { animation: alarm 2.4s ease-in-out infinite; }
+
+/* ---- the areas as pills */
+.pillen { display: flex; gap: 4px; flex: none; }
+.pille {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 26px; padding: 0 12px;
+  border-radius: var(--rund); background: var(--violett); color: #000; font-size: 12px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+}
+.pille:hover { background: var(--lila); text-decoration: none; }
+.pille[aria-current="page"] { background: var(--orange); }
+.pille-zahl { display: none; }
+.logo:focus-visible, #suche:focus-visible, .zaehler:focus-visible, .pille:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+
+/* ---- the areas; a jump marks its target for a moment, without motion */
+.bereich[hidden] { display: none; }
+.bereich-kopf { background: var(--blau); }
+.bereich-leer { margin: 12px 14px; max-width: 62ch; color: var(--matt); font: 14px/1.5 var(--lesen); }
+[data-ziel] { outline: 2px solid var(--himmel); outline-offset: 3px; }
+
+/* ---- phone: the pills at the bottom, the footer above them */
+@media (max-width: 700px) {
+  :root { --pillen: calc(62px + env(safe-area-inset-bottom, 0px)); }
+  body { padding-bottom: calc(var(--pillen) + 48px); }
+  .leiste { position: relative; }
+  /* the hit list spans the whole bar, not just the narrow input */
+  .befehl { flex: 1 1 120px; margin: 0; position: static; }
+  #suche { height: 36px; padding-right: 14px; font-size: 16px; }
+  .taste { display: none; }
+  .zaehler { height: 32px; }
+  .pillen {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; gap: 3px; background: #000;
+    padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+  .pille {
+    flex: 1 1 0; min-width: 0; height: 48px; padding: 0 3px; gap: 3px; border-radius: 16px;
+    font-size: 11px; letter-spacing: .02em; line-height: 1.1; white-space: normal; text-align: center; overflow: hidden;
+  }
+  .pille-zahl:not([hidden]) {
+    display: inline-block; flex: none; background: var(--rot); color: #fff; border-radius: var(--rund);
+    padding: 0 5px; font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums;
+  }
+  .fuss { bottom: var(--pillen); padding-bottom: 4px; background: #000; }
+  .logbuch { bottom: calc(var(--pillen) + 40px); max-height: 40vh; }
+}

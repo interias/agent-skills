@@ -424,10 +424,10 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   `acceptance_commands` vorhanden sind, sonst „Abnahmestufe entfällt") und die **wirksamen
   RAM-Schwellen** (`ram_warn_percent`, `ram_hold_percent`, `ram_min_free_gb`, mit Standard, wo der
   Adapter schweigt).
-- **Lauftafel** bauen, bevor das erste Paket startet; veröffentlicht oder nur geschrieben wird sie nach `plan_artifact`
-  (`references/adapter.md`). Sie wird **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
-  vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` ändert sich ihre URL über den
-  ganzen Lauf nicht — jede Fortschreibung geht auf denselben Dateipfad.
+- **Lauftafel** bauen, bevor das erste Paket startet, nach `plan_artifact` (`references/adapter.md`) veröffentlicht oder nur geschrieben; **kopiert, nicht entworfen**: Vorlage `references/lauftafel.html`, Aufbau, Zustände, offene Punkte und Prüfung
+  vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` bleibt ihre URL über den ganzen Lauf gleich: jede Fortschreibung auf denselben Dateipfad.
+  **Sagt der Auftrag `Lauftafel aus`** (Flotten-Treiber), entfällt die Tafel in allen Phasen; was nur auf ihr
+  stünde, geht in Forge-Kommentare und PR-Body (`references/lauftafel.md`, „Lauftafel aus").
 - **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
   nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
   Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ist der Grund ein
@@ -476,8 +476,10 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 
 ## Phase 4 — Das Fenster
 
-Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0). Wird ein Platz frei,
-rückt sofort das nächste startbereite Paket nach.
+Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0), höchstens drei, denn
+deine Nachprüfung ist die Engstelle. Nennt der Auftrag „höchstens N Pakete gleichzeitig“, senkt N
+das Fenster, nie darüber (#60); es gilt ab dem nächsten frei werdenden Platz, laufende Pakete
+laufen zu Ende. Wird ein Platz frei, rückt sofort das nächste startbereite Paket nach.
 
 **Startbereit** ist ein Paket, wenn alle harten Vorgänger **gemergt** sind und zu keinem laufenden
 Paket eine Kollisionskante besteht. Ein Exklusivknoten startet nur bei leeren Plätzen. Bei mehreren
@@ -487,8 +489,6 @@ keiner startbereit, bleibt der Platz leer — das ist kein Fehler.
 **Diese Wahl triffst du bei jedem frei werdenden Platz neu.** Die Belegung auf der Tafel ist eine
 Vorschau, keine Entscheidung. Eine Abweichung von der Vorschau trägst du auf der Tafel nach, mit
 Grund.
-
-Höchstens drei Plätze, denn deine Nachprüfung ist die Engstelle.
 
 **Das Fenster gleitet je Paket, nicht je Belegung.** Jedes Paket geht seinen Weg einzeln weiter,
 sobald sein eigener Schritt fertig ist: Der Reviewer startet, wenn **sein** Implementer zurück

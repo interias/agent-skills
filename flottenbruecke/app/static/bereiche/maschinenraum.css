@@ -1,0 +1,58 @@
+/* Maschinenraum (#42): the styles of this area only, every rule below .bereich[data-bereich="maschinenraum"]. */
+.bereich[data-bereich="maschinenraum"] .mr-titel { margin: 14px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--lila); }
+.bereich[data-bereich="maschinenraum"] .mr-reihe { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 8px; }
+.bereich[data-bereich="maschinenraum"] .mr-karte { background: var(--flaeche); border-left: 8px solid var(--c, var(--violett)); border-radius: 0 14px 14px 0; padding: 8px 12px 10px; min-width: 0; display: grid; gap: 6px; }
+.bereich[data-bereich="maschinenraum"] .mr-karte.veraltet { opacity: .6; }
+.bereich[data-bereich="maschinenraum"] .mr-karte h3 { margin: 0; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
+/* the window of an account as a wide tank: name, tube, "x % übrig bis reset" */
+.bereich[data-bereich="maschinenraum"] .fenster { grid-template-columns: 3.5em minmax(60px, 1fr); gap: 2px 8px; font-size: 13px; }
+.bereich[data-bereich="maschinenraum"] .fenster .roehre { height: 12px; }
+.bereich[data-bereich="maschinenraum"] .fenster > :last-child { grid-column: 2; }
+.bereich[data-bereich="maschinenraum"] .fenster + .fenster { margin-left: 0; }
+.bereich[data-bereich="maschinenraum"] .fenster.mr-aus { display: block; }
+/* app.css hides the reset time of the header tank on a phone; here it is the point of the tank */
+.bereich[data-bereich="maschinenraum"] .fenster .reset { display: inline; }
+.bereich[data-bereich="maschinenraum"] dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; font: 13.5px/1.4 var(--lesen); }
+.bereich[data-bereich="maschinenraum"] dt { color: var(--leise); font-family: var(--disp); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+.bereich[data-bereich="maschinenraum"] dd { margin: 0; overflow-wrap: anywhere; }
+.bereich[data-bereich="maschinenraum"] dd b { color: #000; padding: 1px 8px; border-radius: var(--rund); font-size: 12px; text-transform: uppercase; background: var(--lila); }
+.bereich[data-bereich="maschinenraum"] dd b.ok, .bereich[data-bereich="maschinenraum"] dd b.gruen { background: var(--gruen); }
+.bereich[data-bereich="maschinenraum"] dd b.warn, .bereich[data-bereich="maschinenraum"] dd b.gelb { background: var(--gold); }
+.bereich[data-bereich="maschinenraum"] dd b.hold, .bereich[data-bereich="maschinenraum"] dd b.knapp, .bereich[data-bereich="maschinenraum"] dd b.rot { background: var(--rot); }
+.bereich[data-bereich="maschinenraum"] dd b:not([class]) { background: none; color: var(--text); padding: 0; font-size: inherit; text-transform: none; }
+.bereich[data-bereich="maschinenraum"] .mr-leer { color: var(--leise); font-style: italic; }
+.bereich[data-bereich="maschinenraum"] .knapp-text { color: var(--gold); }
+.bereich[data-bereich="maschinenraum"] .mr-karte.gruen { --c: var(--gruen); }
+.bereich[data-bereich="maschinenraum"] .mr-karte.gelb { --c: var(--gold); }
+.bereich[data-bereich="maschinenraum"] .mr-karte.rot { --c: var(--rot); }
+
+/* Einstellungen (#59): a card per value, controls with big targets; gold for "wartet auf den Treiber", red stays with "Braucht dich" */
+.bereich[data-bereich="maschinenraum"] .mr-hinweis { margin: 0 0 8px; font: 13px/1.4 var(--lesen); color: var(--matt); }
+.bereich[data-bereich="maschinenraum"] .mr-hinweis b { color: var(--text); }
+.bereich[data-bereich="maschinenraum"] .mr-einst { grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); }
+.bereich[data-bereich="maschinenraum"] .mr-einst-zeile.wartet { --c: var(--gold); }
+.bereich[data-bereich="maschinenraum"] .mr-karte h4 { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
+.bereich[data-bereich="maschinenraum"] .mr-herkunft { padding: 0 8px; border-radius: var(--rund); background: var(--lila); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; }
+.bereich[data-bereich="maschinenraum"] .mr-herkunft.start { background: var(--blau); }
+.bereich[data-bereich="maschinenraum"] .mr-herkunft.standard { background: var(--flaeche2); color: var(--matt); }
+.bereich[data-bereich="maschinenraum"] .mr-hilfe, .bereich[data-bereich="maschinenraum"] .mr-stand { margin: 0; font: 13px/1.4 var(--lesen); color: var(--matt); }
+.bereich[data-bereich="maschinenraum"] .mr-stand b { color: var(--text); font-weight: 600; }
+.bereich[data-bereich="maschinenraum"] .mr-wartet { color: var(--gold); font-weight: 600; }
+.bereich[data-bereich="maschinenraum"] .mr-seit { color: var(--leise); }
+.bereich[data-bereich="maschinenraum"] .mr-regler { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.bereich[data-bereich="maschinenraum"] .mr-chip { position: relative; display: inline-flex; }
+.bereich[data-bereich="maschinenraum"] .mr-chip input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.bereich[data-bereich="maschinenraum"] .mr-chip span { display: inline-flex; align-items: center; min-height: 40px; min-width: 40px; justify-content: center; padding: 0 14px; border-radius: var(--rund); border: 2px solid var(--linie); background: var(--flaeche2); color: var(--text); font: 14px var(--lesen); }
+.bereich[data-bereich="maschinenraum"] .mr-chip input:checked + span { border-color: var(--orange); background: #2a1e10; }
+.bereich[data-bereich="maschinenraum"] .mr-chip input[type="checkbox"]:checked + span::before { content: "✓"; margin-right: 6px; }
+.bereich[data-bereich="maschinenraum"] .mr-chip input:focus-visible + span { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.bereich[data-bereich="maschinenraum"] .mr-chip input:disabled { cursor: default; }
+.bereich[data-bereich="maschinenraum"] .mr-chip input:disabled + span { opacity: .55; }
+.bereich[data-bereich="maschinenraum"] .mr-zahl { width: 6.5em; height: 40px; padding: 0 12px; border-radius: var(--rund); border: 2px solid var(--linie); background: #05050a; color: var(--text); font: 16px var(--lesen); }
+.bereich[data-bereich="maschinenraum"] .mr-zahl:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.bereich[data-bereich="maschinenraum"] .mr-zahl:disabled { opacity: .45; }
+.bereich[data-bereich="maschinenraum"] .mr-bereich { color: var(--leise); font: 12px var(--lesen); }
+@media (max-width: 700px) {
+  .bereich[data-bereich="maschinenraum"] .mr-chip span { min-height: 48px; min-width: 48px; }
+  .bereich[data-bereich="maschinenraum"] .mr-zahl { height: 48px; }
+}

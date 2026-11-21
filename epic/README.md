@@ -48,7 +48,8 @@ Reviewer fragen ihn, statt den Baum zu durchsuchen. Er ist optional und ersetzt 
 Aufrufer in Tests können fehlen, deshalb endet die Suche nach betroffenen Stellen weiter mit
 einem gezielten `grep`.
 
-Den Stand zeigt die **Lauftafel** im Browser, hier mit den Musterdaten der Vorlage:
+Den Stand zeigt die **Lauftafel** im Browser, hier mit den Musterdaten der Vorlage. Unter dem
+Flotten-Treiber gibt es keine; dort zeigt die [Flottenbrücke](../flottenbruecke/README.md) den Stand.
 
 ![Lauftafel mit Musterdaten: Kennzahlen links, der Fortschritt der Pakete als Leiste, darunter der Stand jedes Pakets mit Modul, Zustand, Runden und Merge, die Belegung der drei Plätze als Zeitleiste und unten die offenen Punkte, die bei dir liegen.](../assets/epic/lauftafel.png)
 

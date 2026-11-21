@@ -21,8 +21,29 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Epics warten |
 | `--konto-max 3=1` | höchstens so viele Epics gleichzeitig auf diesem Konto |
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
-| `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen |
+| `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/epic-nacharbeit` abarbeiten |
+
+## Einstellungen ohne Neustart
+
+Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brücke (Maschinenraum,
+mit PIN) lassen sich ändern: Epics gleichzeitig (1–4), Pakete je Epic gleichzeitig (1–3), die Konten
+der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
+100 % leerfahren“, die RAM-Schwelle, das Plattenminimum und der Leerlauf. Der Treiber prüft die
+Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
+
+- **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
+  startet nur weniger, ein entferntes Konto startet nichts Neues, seine Läufe bleiben dort. Die
+  Pakete je Epic stehen im Auftrag an `/epic` („höchstens N Pakete gleichzeitig“); eine Änderung
+  erreicht laufende Läufe mit dem nächsten Fortsetzen.
+- **Jede Änderung** steht als Ereignis und im Flottenlogbuch („Einstellung … von … → auf …, Mensch
+  über die Brücke“). Die Brücke zeigt je Einstellung den Wert und woher er kommt (Start, Brücke,
+  Standard).
+- **Neustart:** Die Werte der Brücke stehen in `zustand.json` und gelten weiter. Ein Startparameter,
+  der ausdrücklich gesetzt ist, gewinnt beim Start; das Ereignis nennt beide Werte.
+- **Nicht einstellbar:** Merge-Regel (Adapter), Rechte, Geheimnisse, Updates.
+
+Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
 
 ## Anhalten und neu starten
 
@@ -103,8 +124,32 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
 `flotte messen` gibt die Messungen unter `prognose` mit aus: Anzahl, Verteilungen, Pakete je Klasse
 und Trefferquote.
 
+## Messen
+
+`flotte messen <einsaetze.json>` (Form: `messung/einsaetze.beispiel.json`) liest die Transkripte
+der Läufe samt ihrer Subagenten und gibt je Einsatz unter anderem aus:
+
+- **`tokens`:** Eingabe, Cache-Schreiben, Cache-Lesen und Ausgabe, je Agent-Typ, je Epic und je
+  Paket, jeweils mit **Cache-Quote** (Lesen durch alles, was hineinging). Je Paket die Zahl der
+  Implementer- und Reviewer-Läufe, also die **Review-Runden**.
+- **`kontext_anteil`** je Agent-Typ: welcher Anteil seiner gewichteten Tokens auf Werkzeugergebnisse
+  einer Art fällt — Test, Gate, Diff (`git diff/show/log`), Lesen, übrige Shell. Ein Ergebnis kostet
+  einmal das Schreiben in den Cache und danach bei jedem weiteren Modellaufruf das Lesen. Der Anteil
+  ist die **Obergrenze** dessen, was eine Maßnahme sparen kann, die diese Ergebnisse kürzt.
+- **`verlauf`** (unter dem Treiber): Durchlaufzeit je Epic ohne Warten auf dich und die
+  Fehlerquote (Rückgabe an den Lauf, blockiert, abgebrochen).
+
+**Was das schon entschieden hat (21.11.2026).** Für das „Sparpaket“ aus der Skill-Recherche lief
+`flotte messen` über alle Läufe der drei Konten vom 1. bis 21.11.2026 (448 Implementer und
+Reviewer, 195 Pakete). Je Agent-Typ kosteten Testausgaben 0,4–0,5 % der Tokens, Diffs im Review
+4,2–4,5 %, Lesen 5–10 %, übrige Shell 5–17 %; die Cache-Quote lag bei 96–98 %. 13 von 195 Paketen
+brauchten eine zweite Review-Runde. Ein Hook, der Testausgabe kürzt, ein enger Nach-Review und ein
+Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wurden deshalb nicht
+übernommen (Begründung im Pull Request des Sparpakets).
+
 ## Bei dir
 
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
 wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
-Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch`.
+Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
+der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen (Brücke, Sternenkarte).

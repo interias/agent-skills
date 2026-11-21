@@ -7,7 +7,7 @@
 // stays alive after its first result while background agents report (stage 0, probe 2).
 
 import { spawn, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { ausEreignis, schreibe as schreibeVerbrauch, type Verbrauch } from './verbrauch.ts';
@@ -167,6 +167,8 @@ export interface Start {
   beimStart?: (pid: number) => void;
   /** a new step of the run, or its silence while a child process lives (C1, C4) */
   beiSchritt?: (schritt: string) => void;
+  /** every log line with the moment it was read (#51: the detail view derives phase and round from them) */
+  beiZeile?: (zeile: string, zeit: number) => void;
   /** silence with a living child process counts as work up to this long (C1); default 4 × leerlaufMs */
   stilleMaxMs?: number;
   /** the program instead of claude: a stand-in that plays a script (stage 3) */
@@ -210,7 +212,12 @@ export function starte(s: Start): Promise<LaufErgebnis> {
   const out = openSync(log, 'a');
   const err = openSync(`${log}.err`, 'a');
   const env = { ...laufUmgebung(process.env, s.konto), ...(s.env ?? {}) };
-  const kind = spawn(programm, args, { cwd: s.repo, env, stdio: ['pipe', out, err], windowsHide: true, detached: true });
+  // The order goes in as a file on stdin, not through a pipe: claude -p waits only 3 s for piped input, and
+  // a busy driver loop wrote it too late, so the run started empty and died (21.11.2026, #69).
+  writeFileSync(`${log}.auftrag`, s.auftrag ?? '');
+  const ein = openSync(`${log}.auftrag`, 'r');
+  const kind = spawn(programm, args, { cwd: s.repo, env, stdio: [ein, out, err], windowsHide: true, detached: true });
+  closeSync(ein);
   closeSync(out);
   closeSync(err);
   if (kind.pid) s.beimStart?.(kind.pid);
@@ -218,9 +225,7 @@ export function starte(s: Start): Promise<LaufErgebnis> {
     kind.on('error', () => fertig(null));
     kind.on('close', (code) => fertig(code));
   });
-  kind.stdin?.on('error', () => {});
-  kind.stdin?.end(s.auftrag);
-  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, stilleMaxMs: s.stilleMaxMs });
+  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, beiZeile: s.beiZeile, stilleMaxMs: s.stilleMaxMs });
 }
 
 /**
@@ -277,6 +282,7 @@ export interface Beobachtung {
   /** false: the identity of the pid is not proven, so it is never killed (D16) */
   beenden: boolean;
   beiSchritt?: (schritt: string) => void;
+  beiZeile?: (zeile: string, zeit: number) => void;
   stilleMaxMs?: number;
   /** the living descendants of the run's process (C1); replaceable in tests */
   kinder?: (pid: number) => Promise<string[]>;
@@ -323,6 +329,7 @@ export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
     for (const z of teile) {
       if (!z.trim()) continue;
       auswertung.zeile(z);
+      b.beiZeile?.(z, Date.now());
       if (auswertung.schritt && auswertung.schritt !== letzterSchritt) {
         letzterSchritt = auswertung.schritt;
         b.beiSchritt?.(letzterSchritt);

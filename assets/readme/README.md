@@ -28,3 +28,8 @@ with sync_playwright() as pw:
             pg.close()
     br.close()
 ```
+
+`kopf-1440.png` und `kopf-390.png` zeigen den Kopf des READMEs, gerendert über
+`gh api markdown -f mode=markdown -F text=@README.md` mit `github-markdown-css` (Prüfbild aus PR
+„Icon und README“, nicht im README eingebunden). Icon und Social Preview: `../render_icon.py`, die
+verworfenen Entwürfe zeigt `../icon-entwuerfe.png`.

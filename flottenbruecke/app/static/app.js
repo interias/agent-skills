@@ -9,8 +9,11 @@ const PIN_KEY = 'flottenbruecke-pin';
 const STILL = matchMedia('(prefers-reduced-motion: reduce)');
 const BREIT = matchMedia('(min-width: 701px)');
 const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
+const PHASE = { implementer: 'Implementer', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Merge' };
+const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
-const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf' };
+const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf', aufnehmen: 'Aufnehmen', pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität' };
+const VON = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -123,6 +126,8 @@ function klasse(it) {
 
 function inArbeit(el) {
   if (el.contains(document.activeElement) && document.activeElement !== document.body) return true;
+  // a revocation being written, on level 3 or in the detail of an epic (#52)
+  if ([...el.querySelectorAll('.wider-form textarea')].some((f) => f.value.trim())) return true;
   const e = entwurf.get(el.dataset.id);
   return Boolean(e && (e.wahl?.length || e.text || e.aendern));
 }
@@ -333,25 +338,66 @@ function bereitHtml(b) {
   return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
 }
 
+// #51: phase, round, class and times of a package; every part only when the driver reported it
+function paketDetail(p) {
+  const t = [];
+  if (p.phase) t.push(`<b>${esc(PHASE[p.phase] ?? p.phase)}</b>${p.phaseSeit ? ` ${zeitHtml(p.phaseSeit, 'seit {}')}` : ''}`);
+  if (p.erstAufruf) t.push(zeitHtml(p.erstAufruf, 'gesamt {}', p.ende));
+  if (p.runde) t.push(`Runde ${p.runde}`);
+  if (p.stufe) t.push(`Stufe ${esc(p.stufeStart ? `${STUFE[p.stufeStart] ?? p.stufeStart} → ` : '')}${esc(STUFE[p.stufe] ?? p.stufe)}`);
+  if (p.phase && p.lebenszeichen) t.push(`<span title="letzter Protokolleintrag des Laufs zu diesem Paket">Lebenszeichen ${esc(uhrzeit(p.lebenszeichen))}</span>`);
+  const lang = p.lang ? '<span class="lang" title="läuft seit mehr als dem 1,5-Fachen des Medians der fertigen Pakete dieses Projekts">länger als üblich</span>' : '';
+  return t.length || lang ? `<span class="pd">${t.join(' · ')}${lang}</span>` : '';
+}
+
+function paketeListe(x) {
+  return `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span>${paketDetail(p)}</li>`).join('')}</ol>`;
+}
+
+// a point in time gone by: today the clock, else the day before it
+function gewesen(iso) {
+  const t = datum(iso);
+  if (!t) return '';
+  return t.toDateString() === new Date(jetzt()).toDateString() ? uhrzeit(iso) : `${t.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' })} ${uhrzeit(iso)}`;
+}
+
+// #52: the decisions of the epic until the merge, newest first: the person's answers, the admiral's and the run's influential ones
+function entscheidungenHtml(x) {
+  if (!x.entscheidungen?.length) return '';
+  const zeilen = x.entscheidungen.map((d) => `<li data-ent="${esc(d.id)}"><span class="von ${esc(d.von)}">${esc(VON[d.von] ?? d.von)}</span><time datetime="${esc(d.zeit)}">${esc(gewesen(d.zeit))}</time><span class="et"><b>Frage ${d.nr} → ${esc(d.antwort)}</b> · ${esc(d.frage)} <small title="${esc(d.grund)}">(${esc(d.herkunft)})</small>${widerrufHtml(d)}</span></li>`).join('');
+  return `<section class="entscheidungen" aria-label="Entscheidungen bis zum Merge"><h4>Entscheidungen bis zum Merge</h4><ol>${zeilen}</ol></section>`;
+}
+
+// the opened detail of an epic: one section per entry
+const abschnitte = (x) => [x.pakete?.length ? paketeListe(x) : '', entscheidungenHtml(x)];
+
 function paketeHtml(x) {
-  if (!x.pakete?.length) return '';
-  const n = x.pakete.length;
-  const fertig = x.pakete.filter((p) => p.stand === 'fertig').length;
+  const e = x.entscheidungen?.length ?? 0;
+  if (!x.pakete?.length && !e) return '';
+  const n = x.pakete?.length ?? 0;
+  const fertig = (x.pakete ?? []).filter((p) => p.stand === 'fertig').length;
   const offen = auf.has(`pakete:${x.id}`);
-  const liste = offen ? `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span></li>`).join('')}</ol>` : '';
-  const zahl = x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`;
-  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete: antippen für die Liste"><span class="segmente">${x.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
+  const liste = offen ? `<div class="detail">${abschnitte(x).join('')}</div>` : '';
+  const zahl = [n ? (x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`) : '', e ? `${e} ${e === 1 ? 'Entscheidung' : 'Entscheidungen'}` : ''].filter(Boolean).join(' · ');
+  return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete und Entscheidungen: antippen für die Liste"><span class="segmente">${(x.pakete ?? []).map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
 }
 
 function paketeVerdrahten(el, x) {
-  el.querySelector('[data-pakete]')?.addEventListener('click', () => {
-    auf.has(`pakete:${x.id}`) ? auf.delete(`pakete:${x.id}`) : auf.add(`pakete:${x.id}`);
+  const neu = () => {
     el.dataset.sig = '';
     el.innerHTML = (x.form === 'bereit' ? bereitHtml : laufHtml)(x);
     el.dataset.sig = el.innerHTML;
     paketeVerdrahten(el, x);
     lebenszeichen();
+  };
+  el.querySelector('[data-pakete]')?.addEventListener('click', () => {
+    auf.has(`pakete:${x.id}`) ? auf.delete(`pakete:${x.id}`) : auf.add(`pakete:${x.id}`);
+    neu();
   });
+  for (const d of x.entscheidungen ?? []) {
+    const wo = () => [...el.querySelectorAll('[data-ent]')].find((li) => li.dataset.ent === d.id);
+    if (wo()) widerrufVerdrahten(wo, d, neu);
+  }
 }
 
 function laufHtml(x) {
@@ -360,6 +406,9 @@ function laufHtml(x) {
   const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf des Epics"></button>` : '';
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
   const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
+  // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
+  const meta = x.form === 'lauf' ? [x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
+  const kopfmeta = meta.length ? `<span class="epic-meta">${meta.join(' · ')}</span>` : '';
   if (x.form === 'schlange') {
     const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
     const gate = x.gateSeit ? zeitHtml(x.gateSeit, 'Gate seit {}', null, 'rel gate') : '';
@@ -367,7 +416,7 @@ function laufHtml(x) {
   }
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
   const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
-  return `${kopfz}${titel}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
+  return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
 }
 
 // the life sign: a pulse while the run speaks, a bar up to the idle limit (yellow from half, red near it)
@@ -455,14 +504,18 @@ function zeileHtml(x) {
   if (x.art === 'gemergt') return `${zeit}<span><b>${nr} gemergt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
   if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · ${esc(x.titel)}</span>`;
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
-  if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${x.handlung === 'einreihen' ? 'neu eingereiht' : `Widerruf Frage ${x.nr} → ${esc(x.text)}`}</b></span>`;
+  if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
+  if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${handlungWort(x)}</b></span>`;
   // admiral
-  let rechts = '';
-  if (x.widerrufen) rechts = `<span class="widerrufen"> · widerrufen → ${esc(x.widerrufen)}</span>`;
-  else if (x.handlung) rechts = `<span class="status gut"> · Widerruf angekommen${x.handlung.abgeholt ? ', geht an den Lauf' : ''}</span>`;
-  else if (x.widerrufbar && stand?.pin) rechts = `<button type="button" class="wider" data-wider aria-expanded="${auf.has(`wider:${x.id}`)}">› Zurücknehmen</button>`;
-  const form = auf.has(`wider:${x.id}`) && !x.handlung && !x.widerrufen ? `<div class="wider-form"><textarea placeholder="Neue Entscheidung, erreicht den Lauf unverändert" aria-label="Neue Entscheidung"></textarea><div class="knoepfe"><button type="button" class="knopf haupt klein" data-wsenden>Widerruf senden</button><button type="button" class="knopf zweit klein" data-wzu>Abbrechen</button><span class="status"></span></div></div>` : '';
-  return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${rechts}${form}</span>`;
+  return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
+}
+
+// what an acknowledged action of the person did, for "Erledigt heute" and the logbook (escaped)
+function handlungWort(x) {
+  const wort = { einreihen: 'neu eingereiht', aufnehmen: 'in den Einsatz aufgenommen', pausieren: 'pausiert', fortsetzen: 'fortgesetzt' }[x.handlung];
+  if (wort) return wort;
+  if (x.handlung === 'prioritaet') return `Priorität ${esc(x.text)}`;
+  return `Widerruf Frage ${x.nr} → ${esc(x.text)}`;
 }
 
 function zeileVerdrahten(el, x) {
@@ -472,29 +525,52 @@ function zeileVerdrahten(el, x) {
     zeileVerdrahten(el, x);
     lebenszeichen();
   };
+  if (x.art === 'admiral') widerrufVerdrahten(() => el, x, neu);
+}
+
+// ---- revoking a decision with the PIN until the merge: on level 3 and in the detail of the epic (#52).
+// One decision has one open form and one draft, wherever it is shown.
+
+const widerrufSchluessel = (d) => `wider:${d.forge}#${d.epic}#${d.nr}#${d.seit}`;
+
+function widerrufHtml(d) {
+  if (d.widerrufen) return `<span class="widerrufen"> · widerrufen → ${esc(d.widerrufen)}</span>`;
+  if (d.handlung) return `<span class="status gut"> · Widerruf angekommen${d.handlung.abgeholt ? ', geht an den Lauf' : ''}</span>`;
+  if (!d.widerrufbar || !stand?.pin) return '';
+  const k = widerrufSchluessel(d);
+  const knopf = `<button type="button" class="wider" data-wider aria-expanded="${auf.has(k)}">› Zurücknehmen</button>`;
+  return auf.has(k) ? `${knopf}<div class="wider-form"><textarea placeholder="Neue Entscheidung, erreicht den Lauf unverändert" aria-label="Neue Entscheidung">${esc(entwurf.get(k)?.text ?? '')}</textarea><div class="knoepfe"><button type="button" class="knopf haupt klein" data-wsenden>Widerruf senden</button><button type="button" class="knopf zweit klein" data-wzu>Abbrechen</button><span class="status"></span></div></div>` : knopf;
+}
+
+// wo() gives the element of the decision as it stands now: a redraw of the card replaces it
+function widerrufVerdrahten(wo, d, neu) {
+  const k = widerrufSchluessel(d);
+  const el = wo();
   el.querySelector('[data-wider]')?.addEventListener('click', () => {
-    auf.add(`wider:${x.id}`);
+    auf.add(k);
     neu();
-    el.querySelector('textarea')?.focus();
+    wo()?.querySelector('.wider-form textarea')?.focus();
   });
   el.querySelector('[data-wzu]')?.addEventListener('click', () => {
-    auf.delete(`wider:${x.id}`);
-    entwurf.delete(x.id);
+    auf.delete(k);
+    entwurf.delete(k);
     neu();
   });
-  const feld = el.querySelector('textarea');
-  feld?.addEventListener('input', () => entwurf.set(x.id, { text: feld.value }));
+  const feld = el.querySelector('.wider-form textarea');
+  feld?.addEventListener('input', () => entwurf.set(k, { text: feld.value }));
   el.querySelector('[data-wsenden]')?.addEventListener('click', async () => {
     const text = (feld?.value || '').trim();
-    const status = el.querySelector('.status');
+    const status = el.querySelector('.wider-form .status');
     if (!text) {
       status.className = 'status schlecht';
       status.textContent = 'Neue Entscheidung schreiben';
       return;
     }
-    if (await senden('/api/handlung', { forge: x.forge, epic: x.epic, art: 'widerruf', nr: x.nr, seit: x.seit, text }, el, status)) {
-      auf.delete(`wider:${x.id}`);
-      entwurf.delete(x.id);
+    if (await senden('/api/handlung', { forge: d.forge, epic: d.epic, art: 'widerruf', nr: d.nr, seit: d.seit, text }, el, status)) {
+      auf.delete(k);
+      entwurf.delete(k);
+      // the sent text would hold the card in inArbeit and keep the answered form on screen
+      feld.value = '';
       await laden();
     }
   });
@@ -659,7 +735,7 @@ function laufband(t) {
     const breite = $('laufband').clientWidth;
     if (spur.scrollWidth) spur.style.animationDelay = `-${((breite * 0.85) / spur.scrollWidth) * s}s`;
   }
-  setze($('logbuch'), ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>');
+  setze($('logbuch-liste'), (ev.map((e) => `<li><time>${uhrzeit(e.zeit)}</time><span class="wo">${esc(e.kurz)}</span><span>${e.epic ? `<b>#${e.epic}</b> ` : ''}${esc(e.text)}</span></li>`).join('') || '<li>Noch keine Ereignisse</li>') + '<li style="display:block"><a href="#logbuch">Alle im Logbuch</a></li>');
 }
 
 document.addEventListener('click', (ev) => {
@@ -673,7 +749,15 @@ $('laufband').addEventListener('click', () => {
   const band = $('laufband');
   const offen = band.classList.toggle('halt');
   band.setAttribute('aria-expanded', String(offen));
-  $('logbuch').hidden = !offen;
+  $('logbuch-liste').hidden = !offen;
+});
+
+// the link to the Logbuch page closes the ticker's list, which would else lie over that page
+$('logbuch-liste').addEventListener('click', (ev) => {
+  if (!ev.target.closest('a')) return;
+  $('laufband').classList.remove('halt');
+  $('laufband').setAttribute('aria-expanded', 'false');
+  $('logbuch-liste').hidden = true;
 });
 
 // ---- moving cards: from where they stood to where they stand now (FLIP), once
@@ -719,6 +803,7 @@ async function laden() {
     ebene3(t, vorherErledigt);
     laufband(t);
     tabAlarm(t.braucht.length);
+    huelle.tafel(t);
     lebenszeichen();
     wandern(vorher);
     erstes = false;
@@ -727,6 +812,33 @@ async function laden() {
     console.error(err);
   }
 }
+
+// ---- the board in the shell (#40): it draws itself in laden(), the command line gets its epics and projects
+
+function karteIn(box, id) {
+  return [...$(box).children].find((el) => el.dataset.id === id) ?? null;
+}
+
+function brueckeTreffer(t) {
+  const mehrere = t.projekte.length > 1;
+  const epics = new Map();
+  // each epic once, where it stands first: level 1, the runs, the queue, the ready ones, level 3
+  const dazu = (x, nr, box, id) => {
+    const k = `${x.forge}#${nr}`;
+    if (nr == null || epics.has(k)) return;
+    const name = x.titel || x.frage || '';
+    epics.set(k, { art: 'Epic', titel: `#${nr}${name ? ` ${name}` : ''}`, info: mehrere ? x.repo : '', ziel: () => karteIn(box, id) });
+  };
+  for (const x of t.braucht) dazu(x, x.epic, 'e1-liste', x.id);
+  for (const l of t.unterwegs.laeufe) dazu(l, l.nr, 'e2-liste', l.id);
+  for (const s of t.unterwegs.schlange) dazu(s, s.nr, 'e2-liste', `${s.id}:s`);
+  for (const b of t.unterwegs.bereit) dazu(b, b.nr, 'bereit', b.id);
+  for (const x of t.erledigt) dazu(x, x.epic ?? x.nr, 'e3-liste', x.id);
+  const projekte = t.projekte.map((p, i) => ({ art: 'Projekt', titel: p.kurz, info: p.forge, ziel: () => $('projekte').children[i] ?? null }));
+  return [...epics.values(), ...projekte];
+}
+
+huelle.bereich({ name: 'bruecke', titel: 'Brücke', treffer: brueckeTreffer });
 
 $('e3').addEventListener('toggle', () => stand && ebene3(stand, new Set(stand.erledigt.map((x) => x.id))));
 laden();

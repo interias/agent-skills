@@ -10,8 +10,48 @@
 <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/huelle.css">
+<link rel="stylesheet" href="/static/bereiche/holodeck.css">
+<link rel="stylesheet" href="/static/bereiche/sternenkarte.css">
+<link rel="stylesheet" href="/static/bereiche/maschinenraum.css">
+<link rel="stylesheet" href="/static/bereiche/logbuch.css">
+<link rel="stylesheet" href="/static/schiffsliste.css">
 </head>
 <body>
+<div class="huelle">
+<header class="leiste">
+  <a class="logo" href="#bruecke" aria-label="Flottenbrücke: zur Brücke"><img src="/static/icon.svg" alt="" width="32" height="32"></a>
+  <button type="button" class="seite-auf" id="seite-auf" aria-expanded="false" aria-controls="seite" aria-label="Schiffsliste öffnen" title="Schiffsliste"><i></i><i></i><i></i></button>
+  <div class="befehl">
+    <input id="suche" type="text" role="combobox" aria-label="Suchen und springen: Epic, Projekt, Bereich" aria-autocomplete="list" aria-expanded="false" aria-controls="suche-treffer" placeholder="Springen zu …" autocomplete="off" spellcheck="false" enterkeyhint="go">
+    <kbd class="taste" id="suche-taste" aria-hidden="true">Strg K</kbd>
+    <ul class="treffer" id="suche-treffer" role="listbox" aria-label="Treffer" hidden></ul>
+  </div>
+  <a class="zaehler ruhig" id="zaehler" href="#bruecke" aria-label="Braucht dich: 0"><span>Braucht dich</span><b id="zaehler-zahl">0</b></a>
+  <nav class="pillen" aria-label="Bereiche">
+    <a class="pille" href="#bruecke" data-bereich="bruecke">Brücke<span class="pille-zahl" id="pille-zahl" hidden>0</span></a>
+    <a class="pille" href="#holodeck" data-bereich="holodeck">Holodeck</a>
+    <a class="pille" href="#sternenkarte" data-bereich="sternenkarte">Sternen&shy;karte</a>
+    <a class="pille" href="#maschinenraum" data-bereich="maschinenraum">Maschinen&shy;raum</a>
+    <a class="pille" href="#logbuch" data-bereich="logbuch">Logbuch</a>
+  </nav>
+</header>
+
+<aside class="seite" id="seite" aria-label="Schiffsliste">
+  <div class="seite-kopf">
+    <button type="button" class="seite-zu" id="seite-zu" aria-expanded="true" aria-controls="seite-inhalt" aria-label="Schiffsliste einklappen" title="Ein- und ausklappen"></button>
+    <h2 class="seite-titel">Schiffsliste</h2>
+    <button type="button" class="seite-schliessen" id="seite-schliessen" aria-label="Schiffsliste schließen">&times;</button>
+  </div>
+  <div class="seite-inhalt" id="seite-inhalt">
+    <div class="chips" id="seite-chips" role="group" aria-label="Schiffsliste filtern"></div>
+    <div class="seite-liste" id="seite-liste"></div>
+  </div>
+</aside>
+<div class="seite-schleier" id="seite-schleier" hidden></div>
+
+<main class="tafel">
+<section class="bereich" data-bereich="bruecke" aria-label="Brücke">
 <header class="kopf">
   <div class="ecke" title="Takt: füllt sich bis zum nächsten Bericht des Treibers">
     <span class="ecke-nr" id="uhr">--:--</span>
@@ -29,7 +69,7 @@
 </header>
 <nav class="projekte" id="projekte" aria-label="Projekte"></nav>
 
-<main class="ebenen">
+<div class="ebenen">
   <section class="ebene e1" id="e1" aria-labelledby="e1-kopf">
     <h2 class="ek" id="e1-kopf"><span>Braucht dich</span><span class="zahl" id="e1-zahl">0</span><small id="e1-klein"></small></h2>
     <div class="reihe" id="e1-liste"></div>
@@ -45,17 +85,24 @@
     <summary class="ek"><span>Erledigt heute</span><span class="zahl" id="e3-zahl">0</span><small id="e3-klein"></small></summary>
     <ol class="erledigt" id="e3-liste"></ol>
   </details>
-</main>
+</div>
 <p class="leer" id="leer" hidden>Noch kein Bericht. Der erste Bericht eines Treibers legt sein Projekt an.</p>
+</section>
+<section class="bereich" data-bereich="holodeck" aria-label="Holodeck" hidden></section>
+<section class="bereich" data-bereich="sternenkarte" aria-label="Sternenkarte" hidden></section>
+<section class="bereich" data-bereich="maschinenraum" aria-label="Maschinenraum" hidden></section>
+<section class="bereich" data-bereich="logbuch" aria-label="Logbuch" hidden></section>
+</main>
+</div>
 
 <footer class="fuss">
   <div class="fuss-ecke"></div>
-  <button type="button" class="laufband" id="laufband" aria-expanded="false" aria-controls="logbuch" title="Logbuch des Treibers: antippen hält an und klappt die Liste auf">
+  <button type="button" class="laufband" id="laufband" aria-expanded="false" aria-controls="logbuch-liste" title="Logbuch des Treibers: antippen hält an und klappt die Liste auf">
     <span class="laufband-spur" id="laufband-spur"></span>
   </button>
-  <span class="fuss-stueck">Logbuch</span>
+  <a class="fuss-stueck" href="#logbuch" title="Zum Logbuch">Logbuch</a>
 </footer>
-<ol class="logbuch" id="logbuch" hidden></ol>
+<ol class="logbuch" id="logbuch-liste" hidden></ol>
 
 <dialog id="pin-dialog">
   <form method="dialog" id="pin-form">
@@ -80,6 +127,12 @@
     </div>
   </form>
 </dialog>
+<script src="/static/huelle.js"></script>
+<script src="/static/bereiche/holodeck.js"></script>
+<script src="/static/bereiche/sternenkarte.js"></script>
+<script src="/static/bereiche/maschinenraum.js"></script>
+<script src="/static/bereiche/logbuch.js"></script>
+<script src="/static/schiffsliste.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

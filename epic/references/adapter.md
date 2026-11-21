@@ -70,6 +70,7 @@ Frontmatter (Abschnitt „Form").
 | `ready_label` | Freigabelabel: nur Tickets damit werden bearbeitet | `ready-for-agent` |
 | `prognose_ab` | Flotten-Treiber: so viele gemessene Epics, bevor die Brücke eine Prognose zeigt | `5` |
 | `prio_label` | Vorrang unter dem Flotten-Treiber: ein startbereites Epic mit diesem Label (am Epic oder an einem Kind) kommt in die nächste Belegung; harte Kanten und Kollisionsstufen gelten weiter | `prio/hoch` |
+| `prototype_dir` | Holodeck der Flottenbrücke: Ordner der Prototypen, relativ zur Repo-Wurzel. Der Flotten-Treiber schickt jede HTML-Datei direkt darin an die Brücke (keine Unterordner, keine Verknüpfungen, höchstens 50 zu je 2 MB); ein Wert mit `..` oder ein absoluter liest nichts | `prototypen/` |
 | `skip_labels` | Tickets damit werden übersprungen (mit Kommentar) | `needs-triage`, `needs-info`, `wontfix` |
 | `epic_label` | kennzeichnet Epics. Eine Kante zwischen zwei Epics heißt **Reihenfolge**, eine Kante von einem Epic zu einem Nicht-Epic heißt **Kind**. Der Lauf setzt es an ein Zielissue mit Kindern | `epic` |
 | `dependency_source` | `api` (Gitea-Abhängigkeiten), `header` (Kopfzeile `> **Reihenfolge:** …`), `body` (Abschnitt `## Blocked by`). Mehrfachnennung erlaubt | `api` |
