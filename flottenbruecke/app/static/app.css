@@ -91,6 +91,7 @@ button { font: inherit; }
 .fenster .roehre i { display: block; height: 100%; width: var(--w); background: var(--f); border-radius: var(--rund); }
 .fenster b { color: var(--text); font-weight: 600; }
 .fenster .reset { color: var(--leise); }
+.fenster .uebrig { color: var(--matt); }
 .fenster + .fenster { margin-left: 4px; }
 
 /* ---- projects */
@@ -251,8 +252,12 @@ textarea {
 .leben.rot .puls { background: var(--rot); }
 .leben.ruht .puls { background: var(--leise); animation: none; }
 @keyframes puls { 0% { box-shadow: 0 0 0 0 rgba(102, 204, 153, .55); } 100% { box-shadow: 0 0 0 8px rgba(102, 204, 153, 0); } }
-.bereit { margin: 8px 2px 0; font-size: 13px; letter-spacing: .05em; color: var(--matt); text-transform: uppercase; display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.bereit .b-ep { text-transform: none; letter-spacing: .02em; color: var(--text); }
+.bereit { margin: 10px 2px 0; display: grid; gap: 6px; }
+.bereit-kopf { font-size: 13px; letter-spacing: .05em; color: var(--matt); text-transform: uppercase; }
+.bereit-liste { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 10px 18px; align-items: start; }
+.bereit .b-ep { display: grid; gap: 6px; min-width: 0; font-size: 13px; letter-spacing: .02em; color: var(--text); }
+.bereit .b-zeile { overflow-wrap: anywhere; }
+.bereit .b-ep .nr { color: var(--himmel); font-weight: 700; }
 .bereit .b-ep small { color: var(--matt); }
 .bereit .b-ep .prognose { color: var(--himmel); }
 .erledigt li.prognose { color: var(--himmel); }
@@ -326,6 +331,8 @@ dialog p { font: 14px/1.45 var(--lesen); }
   .knopf { min-height: 48px; font-size: 14px; padding: 0 18px; }
   .knopf.klein { min-height: 32px; }
   .knoepfe .knopf.haupt { flex: 1 1 auto; }
+  /* the bar in "Bereit" stands alone on the line: a thumb-sized target */
+  .bereit .paketleiste { min-height: 40px; margin: -6px 0; }
   textarea { font-size: 16px; }
   .fuss { grid-template-columns: 40px 1fr; }
   .fuss-stueck { display: none; }

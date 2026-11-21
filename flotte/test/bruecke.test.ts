@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import type { Aufrufer } from '../src/aufruf.ts';
+import { aufrufen, type Aufrufer } from '../src/aufruf.ts';
 import { anhalten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
 import { existsSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
@@ -363,6 +363,56 @@ describe('Flottenbrücke (#28)', () => {
       expect(mitGeparkt.epics[0].schlangeSeit).toBeNull();
       // no token, no path in a report
       expect(JSON.stringify(b.berichte)).not.toMatch(/token|\\\\Users/i);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('a child merged into the epic branch counts as fertig while its issue is still open, ende = the merge', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau({ bodies: { 3: '## Betroffene Module\n- m3\n\n- [ ] #11\n- [ ] #12\n- [ ] #13' }, titel: { 11: 'Schema', 12: 'API', 13: 'Oberfläche' }, labels: { 11: ['status/in-arbeit'], 12: ['status/in-arbeit'], 13: ['status/in-arbeit'] } });
+      const git = (datum: string, ...a: string[]) => aufrufen('git', ['-C', t.repo, '-c', 'user.name=t', '-c', 'user.email=t@example.org', ...a], { env: { ...process.env, GIT_COMMITTER_DATE: datum, GIT_AUTHOR_DATE: datum } });
+      git('2026-01-01T08:00:00Z', 'commit', '-q', '--allow-empty', '-m', 'Start (#12)');
+      git('2026-01-01T08:00:00Z', 'branch', 'epic/3-x');
+      git('2026-01-01T08:00:00Z', 'checkout', '-q', 'epic/3-x');
+      git('2026-01-02T09:00:00Z', 'commit', '-q', '--allow-empty', '-m', "Merge branch 'agent/11-schema' into epic/3-x");
+      git('2026-01-02T10:30:00Z', 'commit', '-q', '--allow-empty', '-m', 'Oberfläche (#13)');
+      git('2026-01-02T10:30:00Z', 'checkout', '-q', '-');
+      const buch = drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const pakete = b.berichte.find((x) => x.epics[0].pakete.length)!.epics[0].pakete;
+      expect(pakete.map((p) => [p.nr, p.stand, p.ende])).toEqual([
+        [11, 'fertig', '2026-01-02T09:00:00.000Z'],
+        // "(#12)" lies on the base before the branch point: not the epic's own, still at work
+        [12, 'laeuft', null],
+        [13, 'fertig', '2026-01-02T10:30:00.000Z'],
+      ]);
+      // one git log per epic read, not one per child
+      const logs = t.p.aufrufe.filter((a) => a[0] === 'git' && a.includes('log') && a.includes('--first-parent'));
+      const lesungen = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[2] === 'view' && a[3] === '11' && a.includes('number,title,state,labels,closedAt'));
+      expect(logs.length).toBe(lesungen.length);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('a waiting epic ("Bereit") reports its child tickets too, read at most every 5 min per epic', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const body = '## Betroffene Module\n- core\n\nÄndert `core/a.ts`.';
+      const t = aufbau({ bodies: { 3: body, 4: `${body}\n\n- [ ] #21\n- [ ] #22` }, titel: { 21: 'Modell', 22: 'Seite' }, zu: [21] });
+      const buch = drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      const wartend = b.berichte.find((x) => x.epics.some((e) => e.nr === 4 && e.stufe === 'wartend'))!;
+      expect(wartend.epics.find((e) => e.nr === 4)!.pakete).toEqual([
+        { name: '#21', nr: 21, titel: 'Modell', stand: 'fertig', beginn: null, ende: '2026-01-01T10:00:00Z' },
+        { name: '#22', nr: 22, titel: 'Seite', stand: 'offen', beginn: null, ende: null },
+      ]);
+      // one read while waiting, one after the stage changed: never one per turn
+      const gelesen = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'view' && a[3] === '22' && a.includes('number,title,state,labels,closedAt'));
+      expect(gelesen.length).toBeGreaterThanOrEqual(1);
+      expect(gelesen.length).toBeLessThanOrEqual(new Set(b.berichte.map((x) => x.epics.find((e) => e.nr === 4)!.stufe)).size);
     } finally {
       await b.zu();
     }

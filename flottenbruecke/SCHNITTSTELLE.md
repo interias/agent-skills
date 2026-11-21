@@ -69,10 +69,15 @@ dazu
 | `aufgegebenAm` | der Mensch hat das Epic über die Brücke aufgegeben |
 | `prognose` | nur bei `wartend`: `{p50, p90}` in Sekunden, sonst `null` |
 | `prio` | Label `prio/hoch` (Adapter `prio_label`) am Epic oder einem Kind; `notiz` sagt, warum es trotzdem wartet |
-| `pakete[]` | `{name, nr, titel, stand}` je Kind-Ticket; `stand` `fertig` (geschlossen), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer |
+| `pakete[]` | `{name, nr, titel, stand, beginn, ende}` je Kind-Ticket, in jeder Stufe, auch `wartend`; `stand` `fertig` (geschlossen oder schon in den Epic-Branch gemergt, `ende` dann die Zeit dieses Merges), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer |
 
-Der Treiber liest die Kinder höchstens alle 5 min je Epic (`gh issue view`) und sofort, wenn sich
-Stufe oder Geparkte ändern. Die Brücke macht daraus Links `<url>/issues/<nr>`.
+Der Treiber liest die Kinder jedes Epics, auch eines wartenden, höchstens alle 5 min je Epic
+(`gh issue view`) und sofort, wenn sich Stufe oder Geparkte ändern. Bei jedem solchen Lesen schaut
+er einmal je Epic in den Epic-Branch (`git log --first-parent` auf `epic/<nr>-…`, lokal vor
+`origin/…`, ohne die Commits anderer Branches): Ein Kind mit `Merge … agent/<kind>-…` oder
+`(#<kind>)` im Betreff ist fertig, auch wenn sein Issue bis zum Merge des Epic-PRs offen bleibt. Die Brücke macht daraus Links
+`<url>/issues/<nr>`: unter *Unterwegs* je Karte, in *Bereit* je Epic „N Tickets“ mit derselben
+Leiste; bei leerer Liste fehlt die Leiste.
 
 **Ebenen der Brücke:** offene Fragen und `blockiert`/`abgebrochen` → *Braucht dich*; `laeuft`,
 `nacharbeit`, `frage` → *Unterwegs* als Lauf; `pr` → *Unterwegs* in der Schlange; `wartend` → die

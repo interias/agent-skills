@@ -16,18 +16,26 @@
       "geparkt": [],
       "pakete": [
         {
-          "nr": null,
-          "titel": "",
-          "name": "P1",
+          "name": "#50",
+          "stand": "fertig",
+          "nr": 50,
+          "titel": "Begrüßungstext festlegen",
+          "beginn": null,
+          "ende": "2026-11-19T16:40:00Z"
+        },
+        {
+          "name": "#51",
           "stand": "offen",
+          "nr": 51,
+          "titel": "Begrüßungsdatei anlegen",
           "beginn": null,
           "ende": null
         },
         {
-          "nr": null,
-          "titel": "",
-          "name": "P2",
+          "name": "#52",
           "stand": "offen",
+          "nr": 52,
+          "titel": "README verweist auf die Begrüßung",
           "beginn": null,
           "ende": null
         }
@@ -303,6 +311,28 @@
       "aufgegebenAm": null,
       "prio": false,
       "gestartetAm": "2026-11-20T11:20:00Z",
+      "schlangeSeit": null,
+      "gateSeit": null,
+      "prognose": null
+    },
+    {
+      "nr": 42,
+      "titel": "Spec: Aufräumskript",
+      "stufe": "wartend",
+      "konto": null,
+      "pr": null,
+      "notiz": "",
+      "geparkt": [],
+      "pakete": [],
+      "schritt": null,
+      "schrittZeit": null,
+      "prozess": false,
+      "grund": "",
+      "haltZeit": null,
+      "log": [],
+      "aufgegebenAm": null,
+      "prio": false,
+      "gestartetAm": null,
       "schlangeSeit": null,
       "gateSeit": null,
       "prognose": null
