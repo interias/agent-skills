@@ -1,6 +1,6 @@
 // Maschinenraum (#42): accounts as tanks, the machines (RAM, disk, fleet limit) and the beat of each
 // driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN.
-// With several drivers, the settings of accounts and machine stand once for all of them.
+// With several drivers, every setting stands once for all of them.
 // A field the report lacks gets an honest empty line, never a made-up value.
 // The shell (huelle.js) calls zeichne(t, el) on every load while the area is visible; t is null
 // before the first load, then the helpers of app.js do not exist yet. All scripts of the page share
@@ -40,8 +40,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
 
   // ---- settings (#59): the effective values with their origin, a control per value, a change only after "Übernehmen"
   const HERKUNFT = { start: 'Start', bruecke: 'Brücke', standard: 'Standard', gemischt: 'je Treiber' };
-  // accounts and the machine are shared by every driver: shown once, "Übernehmen" goes to each of them
-  const GEMEINSAM = ['konten', 'admiral', 'verbrauchGelb', 'verbrauchRot', 'leerfahren', 'ramWarn', 'platteMinGb'];
+  // every setting holds for the whole fleet: shown once, "Übernehmen" goes to each driver
   const ALLE = '*';
   const HILFE = {
     obergrenze: 'Mehr Epics laufen nie gleichzeitig; automatisch folgt die Grenze der Wochen-Hochrechnung.',
@@ -142,20 +141,20 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     let html = '';
     if (geteilt) {
       const ps = mitEinstellungen(t);
-      const namen = ps[0].einstellungen.map((e) => e.name).filter((n) => GEMEINSAM.includes(n));
+      const namen = ps[0].einstellungen.map((e) => e.name);
       const zeilen = namen.map((n) => vereint(ps.map((p) => p.einstellungen.find((e) => e.name === n)).filter(Boolean))).filter(Boolean);
       const still = ps.some((p) => p.veraltet);
-      html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Konten und Rechner teilen sich alle Treiber: Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
+      html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}; „Epics gleichzeitig“ zählt je Treiber. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
     }
-    return html + t.projekte.map((p, i) => {
+    // a driver without settings (older version) still gets its read-only note
+    return html + t.projekte.filter((p) => !geteilt || !p.einstellungen).map((p, i) => {
       const kopf = `<h3 class="mr-titel">Einstellungen${mehrere ? ` · ${esc(p.kurz)}` : ''}</h3>`;
       if (!p.einstellungen) {
         const r = t.rechner.find((x) => x.name === p.rechner);
         const bekannt = [r?.obergrenze != null ? `Epics gleichzeitig <b>${r.obergrenze}</b>` : '', p.leerlaufS != null ? `Leerlauf <b>${Math.round(p.leerlaufS / 60)} min</b>` : ''].filter(Boolean).join(' · ');
         return `${kopf}<p class="mr-hinweis">Dieser Treiber meldet keine Einstellungen (älterer Stand): hier nur lesend${bekannt ? `, bekannt ist ${bekannt}` : ''}. Ändern geht, sobald der Treiber aktualisiert ist.</p>`;
       }
-      const eigene = geteilt ? p.einstellungen.filter((e) => !GEMEINSAM.includes(e.name)) : p.einstellungen;
-      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${eigene.map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
+      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
     }).join('');
   }
 
