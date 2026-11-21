@@ -33,7 +33,7 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 
 - **Brücke** (`#bruecke`, Startseite) — das Board unten.
 - **Holodeck** (`#holodeck`), **Sternenkarte** (`#sternenkarte`), **Maschinenraum**
-  (`#maschinenraum`), **Logbuch** (`#logbuch`) — noch leer, sie füllen sich mit den nächsten Stufen.
+  (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten; Holodeck und Sternenkarte noch leer.
 
 Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
 Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Epics der
@@ -101,6 +101,19 @@ schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt s
 
 Ansehen ist im LAN frei, Antworten und Handlungen nur mit PIN. Fünf falsche PINs sperren für fünf
 Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte eine).
+
+## Maschinenraum und Logbuch
+
+- **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (5 h und Woche, „… % übrig“, Reset-Zeit,
+  mit Wochentag ab 20 h), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
+  gleichzeitig) und der Takt der Treiber, die dort melden. Alles stammt aus dem Bericht. Was er nicht
+  trägt, steht als „… meldet der Treiber nicht“: heute die **Anmeldung** je Konto und der **Grund** einer
+  Bremse (der Bericht kennt nur die Stufe `gruen`/`gelb`/`rot`). Kommen `anmeldung` und `grund` je Konto
+  in die Tafel, zeigt die Seite sie.
+- **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
+  Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
+  Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das
+  Feld „Logbuch“ im Fuß und „Alle im Logbuch“ unter dem Laufband führen hierher.
 
 ## Aktualisieren
 
