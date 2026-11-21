@@ -125,6 +125,8 @@ class Konto(BaseModel):
     fuenf: Fenster | None = None
     woche: Fenster | None = None
     alterMin: float | None = None
+    # why the driver brakes this account (only with gelb/rot); the driver cuts it to 4000 characters
+    grund: str | None = Field(None, max_length=4000)
 
 
 class Ereignis(BaseModel):

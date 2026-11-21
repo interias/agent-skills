@@ -51,7 +51,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `leerlaufS` | die Leerlauf-Grenze eines Laufs; die Leiste des Lebenszeichens läuft bis dahin |
 | `epics[]` | `FlottenZustand.epics`, Felder unten |
 | `schlange` | `FlottenZustand.schlange` |
-| `konten[]` | `{konto, stufe, fuenf, woche, alterMin}`; `konto` = `Konto <n>` aus `konten.json` (sonst Ordnername, nie der Pfad), `stufe` `gruen`/`gelb`/`rot`, `fuenf` und `woche` je `{verbraucht, reset}` (Prozent und ISO-Zeit) oder `null` |
+| `konten[]` | `{konto, stufe, fuenf, woche, alterMin, grund?}`; `grund` (optional, höchstens 4000 Zeichen, der Treiber kürzt) nur bei `gelb`/`rot`: warum der Treiber das Konto bremst, sonst fehlt das Feld; `konto` = `Konto <n>` aus `konten.json` (sonst Ordnername, nie der Pfad), `stufe` `gruen`/`gelb`/`rot`, `fuenf` und `woche` je `{verbraucht, reset}` (Prozent und ISO-Zeit) oder `null` |
 | `ram`, `platte`, `obergrenze` | RAM-Messung und -Bremse, `freiGb` und Schwelle, `bremse.obergrenze` |
 | `fragen[]` | die **offenen** `MenschFrage`n, vollständig (unten) |
 | `ereignisse[]` | die letzten 30 Logbuch-Ereignisse `{zeit, epic, text}`: das Laufband |
