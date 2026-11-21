@@ -33,7 +33,9 @@ der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot)
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
-  startet nur weniger, ein entferntes Konto startet nichts Neues, seine Läufe bleiben dort.
+  startet nur weniger, ein entferntes Konto startet nichts Neues, seine Läufe bleiben dort. Die
+  Pakete je Epic stehen im Auftrag an `/epic` („höchstens N Pakete gleichzeitig“); eine Änderung
+  erreicht laufende Läufe mit dem nächsten Fortsetzen.
 - **Jede Änderung** steht als Ereignis und im Flottenlogbuch („Einstellung … von … → auf …, Mensch
   über die Brücke“). Die Brücke zeigt je Einstellung den Wert und woher er kommt (Start, Brücke,
   Standard).

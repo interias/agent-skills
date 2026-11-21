@@ -16,3 +16,14 @@ describe('Lauftafel aus unter dem Treiber', () => {
     for (const a of auftraege) expect(a).toContain(TAFEL_AUS);
   }, 30_000);
 });
+
+describe('Grenze für Pakete je Epic im Auftrag (#60)', () => {
+  it('the start order carries the limit: the default and a lowered value', async () => {
+    for (const [wert, erwartet] of [[undefined, 3], [2, 2]] as const) {
+      const t = aufbau({});
+      const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+      await fahre({ ...t.einstellung(buch, [3], { maxDauerMs: 8000 }), ...(wert ? { paketeJeEpic: wert } : {}) }, t.welt);
+      expect(buch.gesehen()[0].eingabe).toContain(`Auftrag: höchstens ${erwartet} Pakete gleichzeitig.`);
+    }
+  }, 30_000);
+});

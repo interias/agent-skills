@@ -636,4 +636,50 @@ describe('Einstellungen über die Brücke (#58)', () => {
       await b.zu();
     }
   }, T);
+
+  it('a changed limit of packages reaches the run when it is continued, once (#60)', async () => {
+    const t = aufbau({});
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || x.epics.filter((e) => e.prozess).length < 1) return null;
+        gesendet = true;
+        return einstellen('paketeJeEpic', 2);
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'B', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      expect(laeufe3).toHaveLength(3);
+      expect(laeufe3[0].eingabe).toContain('Auftrag: höchstens 3 Pakete gleichzeitig.');
+      expect(laeufe3[1].eingabe).toMatch(/Geänderter Auftrag: höchstens 2 Pakete gleichzeitig\. Gilt ab dem nächsten frei werdenden Platz/);
+      expect(laeufe3[2].eingabe).not.toContain('höchstens 2 Pakete');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('the same value is no change for the run (#60)', async () => {
+    const t = aufbau({});
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || x.epics.filter((e) => e.prozess).length < 1) return null;
+        gesendet = true;
+        return einstellen('paketeJeEpic', 3);
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      expect(laeufe3).toHaveLength(2);
+      expect(laeufe3[1].eingabe).not.toContain('Geänderter Auftrag');
+    } finally {
+      await b.zu();
+    }
+  }, T);
 });

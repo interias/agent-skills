@@ -75,7 +75,7 @@ Ordnername, nie ein Pfad), `auswahl` nennt die Konten, die es auf dem Rechner de
 | `name` | `titel` | Wert | Grenzen, Standard | Wirkung |
 |---|---|---|---|---|
 | `obergrenze` | Epics gleichzeitig | Zahl oder `null` | 1–4, `null` = aus der Wochen-Hochrechnung (4, 2 oder 1); Startparameter `--obergrenze` | ersetzt die Hochrechnung wie `--obergrenze`; eine gesenkte Grenze startet nur weniger |
-| `paketeJeEpic` | Pakete je Epic gleichzeitig | Zahl | 1–3, Standard 3 | der Treiber speichert und meldet sie nur; in den Auftrag an `/epic` kommt sie mit #60 |
+| `paketeJeEpic` | Pakete je Epic gleichzeitig | Zahl | 1–3, Standard 3 | steht im Startauftrag an `/epic` („höchstens N Pakete gleichzeitig“), eine Änderung als Nachricht beim nächsten Fortsetzen jedes laufenden Epics; `/epic` senkt sein Fenster ab dem nächsten frei werdenden Platz, laufende Pakete laufen zu Ende |
 | `konten` | Konten der Läufe | Liste, mindestens eines | aus `auswahl`; Standard = `--konten` | neue Epics nur noch auf diese Konten; ein Epic bleibt auf seinem Konto, auch für Fortsetzung und Nacharbeit; ein entferntes Konto startet nur nichts Neues |
 | `admiral` | Admiral-Konto | Konto oder `null` | aus `auswahl`; `null` = das Konto des Epics; Startparameter `--admiral` | die nächsten Admiral-Aufrufe |
 | `verbrauchGelb` | Verbrauch 5 h gelb über (%) | Zahl | 1–98, Standard 60, unter `verbrauchRot` | über dem Anteil im 5-Stunden-Fenster startet nichts Neues; die Hochrechnung behält ihre Schwellen (gelb ab 90 %, rot über 120 %) |

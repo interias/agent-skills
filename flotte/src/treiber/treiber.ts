@@ -229,6 +229,8 @@ export interface FlottenEpic extends EpicZustand {
   aufgegebenAm?: string | null;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
+  /** the limit of packages at once changed on the bridge (#60), handed to the run when it is continued */
+  grenze?: number;
   /** detail view (#51): the Agent calls of the runs with their returns, and how often a process was started or continued */
   agenten?: AgentEintrag[];
   starts?: number;
@@ -689,7 +691,12 @@ class Treiber {
   // ---- starting and continuing runs
 
   startText(nr: number): string {
-    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${TAFEL_AUS}`;
+    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${this.grenzText()} ${TAFEL_AUS}`;
+  }
+
+  /** The limit of packages at once for /epic (epic/SKILL.md, Phase 4, "Das Fenster"). */
+  grenzText(): string {
+    return `Auftrag: höchstens ${this.e.paketeJeEpic} Pakete gleichzeitig.`;
   }
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
@@ -713,6 +720,11 @@ class Treiber {
       text += `\nWiderruf des Menschen, als nächstes Paket umsetzen (liegt dein Pull Request schon offen: als Punkt der Nacharbeit):\n${ep.widerrufe.join('\n')}`;
       ep.widerrufe = [];
     }
+    if (resume && ep.grenze !== undefined) {
+      text += `\nGeänderter ${this.grenzText()} Gilt ab dem nächsten frei werdenden Platz, laufende Pakete laufen zu Ende.`;
+    }
+    // a fresh start carries the current limit in its order already
+    delete ep.grenze;
     const laeufe = join(this.dir, 'laeufe');
     mkdirSync(laeufe, { recursive: true });
     ep.log = join(laeufe, `${nr}-${this.w.jetzt()}-${this.z.statistik.starts}.jsonl`);
@@ -1265,6 +1277,7 @@ class Treiber {
     const text = `Einstellung ${titel} von ${zeige(vorher)} → auf ${zeige(nachher)}, ${HERKUNFT_BRUECKE}`;
     this.ereignis(null, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+    if (name === 'paketeJeEpic' && nachher !== vorher) for (const ep of Object.values(this.z.epics)) if (!ENDE.has(ep.stufe)) ep.grenze = this.e.paketeJeEpic;
   }
 
   /** The settings in effect for the report: value, origin, since when, and the limits or the accounts to choose from. */
