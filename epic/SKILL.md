@@ -476,8 +476,10 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 
 ## Phase 4 — Das Fenster
 
-Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0). Wird ein Platz frei,
-rückt sofort das nächste startbereite Paket nach.
+Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0), höchstens drei, denn
+deine Nachprüfung ist die Engstelle. Nennt der Auftrag „höchstens N Pakete gleichzeitig“, senkt N
+das Fenster, nie darüber (#60); es gilt ab dem nächsten frei werdenden Platz, laufende Pakete
+laufen zu Ende. Wird ein Platz frei, rückt sofort das nächste startbereite Paket nach.
 
 **Startbereit** ist ein Paket, wenn alle harten Vorgänger **gemergt** sind und zu keinem laufenden
 Paket eine Kollisionskante besteht. Ein Exklusivknoten startet nur bei leeren Plätzen. Bei mehreren
@@ -487,8 +489,6 @@ keiner startbereit, bleibt der Platz leer — das ist kein Fehler.
 **Diese Wahl triffst du bei jedem frei werdenden Platz neu.** Die Belegung auf der Tafel ist eine
 Vorschau, keine Entscheidung. Eine Abweichung von der Vorschau trägst du auf der Tafel nach, mit
 Grund.
-
-Höchstens drei Plätze, denn deine Nachprüfung ist die Engstelle.
 
 **Das Fenster gleitet je Paket, nicht je Belegung.** Jedes Paket geht seinen Weg einzeln weiter,
 sobald sein eigener Schritt fertig ist: Der Reviewer startet, wenn **sein** Implementer zurück
