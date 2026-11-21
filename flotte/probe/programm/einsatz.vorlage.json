@@ -1,0 +1,18 @@
+{
+  "konten": { "k2": "~/.claude-arbeitspferd" },
+  "einsaetze": [
+    {
+      "name": "vorher-1",
+      "repo": "interias/flotte-probe",
+      "von": "<Start des Treibers, ISO>",
+      "bis": "<Ende des Treibers, ISO>",
+      "epics": [0, 0, 0],
+      "orchestrierung": [],
+      "laeufe": [],
+      "treiberZustand": "<Kopie von <flotte-probe>/.git/flotte nach dem Lauf>/zustand.json",
+      "fenster": 3,
+      "epicLaeufe": [{ "epic": 0 }, { "epic": 0, "kanten": { "<b2>": ["<b1>"] } }, { "epic": 0 }],
+      "quelle": "Probe Epic-Programm (agent-skills#69), Nummern aus vorbereiten.ps1"
+    }
+  ]
+}
