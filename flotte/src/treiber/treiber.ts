@@ -268,6 +268,9 @@ export const PAKETE_MS = 5 * 60_000;
 /** hook refusals an epic may collect before it is blocked (acceptance finding B) */
 export const SPERREN_GRENZE = 3;
 
+/** Under the driver the bridge shows the state of a run; the run board (Lauftafel) of /epic is off. */
+export const TAFEL_AUS = 'Lauftafel aus: Baue und pflege keine Lauftafel, die Flottenbrücke zeigt den Stand (epic/references/lauftafel.md, „Lauftafel aus").';
+
 const BELEGT = new Set(['laeuft', 'frage', 'nacharbeit']);
 const ENDE = new Set(['fertig', 'blockiert', 'abgebrochen']);
 const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -642,7 +645,7 @@ class Treiber {
   // ---- starting and continuing runs
 
   startText(nr: number): string {
-    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe.`;
+    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${TAFEL_AUS}`;
   }
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
@@ -1401,7 +1404,7 @@ class Treiber {
     if (this.e.nacharbeit && !ep.nacharbeitGemacht && offen && !/^[-–—]?\s*(keine|nichts)?\.?$/i.test(offen)) {
       ep.nacharbeitGemacht = true;
       ep.stufe = 'nacharbeit';
-      ep.auftrag = { resume: true, text: this.an(nr, `Rufe den Skill epic-nacharbeit mit #${nr} auf. Fragerunden kommen als FLOTTE-FRAGE nacharbeit, am Ende FLOTTE-ENDE.`) };
+      ep.auftrag = { resume: true, text: this.an(nr, `Rufe den Skill epic-nacharbeit mit #${nr} auf. Fragerunden kommen als FLOTTE-FRAGE nacharbeit, am Ende FLOTTE-ENDE. ${TAFEL_AUS}`) };
       this.ereignis(nr, `FLOTTE-ENDE mit PR #${ep.pr}, offene Punkte: Nacharbeit`);
       return;
     }

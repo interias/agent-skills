@@ -8,6 +8,24 @@ Issue.
 Wo die Tafel liegt und ob sie veröffentlicht oder nur geschrieben wird (`plan_artifact`, auch der
 alte Wert `off`): `adapter.md`.
 
+## Lauftafel aus
+
+Unter dem Flotten-Treiber (`flotte`) sagt der Auftrag `Lauftafel aus`. Dann baut, veröffentlicht
+und fortschreibt der Lauf keine Tafel, in keiner Phase, auch nicht in `/epic-nacharbeit`; die
+Flottenbrücke zeigt den Stand (Kind-Tickets mit Labels, Ereignisse, Fragen). Der Lauf liest die
+Tafel nie zurück, es geht also nichts verloren, solange das, was sonst nur auf ihr stünde, in die
+Forge geht:
+
+- Zustand und Runden je Paket, Zeiten, Merge-Commit: wie immer im Kommentar je Paket (Phase 4).
+- Eine Abweichung von der geplanten Belegung und eine RAM-Messung mit `warn`: als eigene Zeile in
+  diesen Kommentar.
+- Teststand, Kennzahl, tatsächliche gegen geplante Belegung, offene Punkte: wie immer im
+  Abschlusskommentar und im PR-Body.
+- Statt des Tafel-Links steht im Eröffnungskommentar, im PR-Body und im Abschlusskommentar
+  `Lauftafel aus (Flotten-Treiber)`.
+
+Ein Einzellauf ohne Treiber und ein Lauf unter `/epic-flotte` behalten die Tafel unverändert.
+
 ## Die Vorlage
 
 `lauftafel.html` neben dieser Datei ist die vollständige Seite im Design „Konsole": ein dunkler
