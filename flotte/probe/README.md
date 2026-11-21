@@ -198,3 +198,16 @@ Die Probe deckte zwei Fehler auf; beide sind behoben:
   nie. Behoben auf dem Branch der Merge-Regel, mit Test seit der Abnahme.
 - **Bei Gleichstand ging jeder Lauf an Konto 1.** Jetzt bekommt das Konto mit weniger Epics den
   Lauf.
+
+## Probe des Auftragsschreibers (#72)
+
+`auftrag-entwurf.md` ist eine Mission mit drei Missionszielen; dieselbe Datei nehmen die Tests
+(`test/auftrag-faelle.ts`). Echt angelegt in `interias/flotte-probe` (Klon unter `<dir>`), erst
+trocken, dann ohne `--starten`, damit kein Treiber sie aufnimmt:
+
+```
+bun src/cli.ts auftrag <dir>/flotte-probe probe/auftrag-entwurf.md --trocken
+bun src/cli.ts auftrag <dir>/flotte-probe probe/auftrag-entwurf.md
+```
+
+Die Links aus der Ausgabe gehören in den Kommentar an #72; danach die vier Issues schließen.

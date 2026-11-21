@@ -1,0 +1,17 @@
+# Throwaway Gitea for test/gitea.test.ts (#73): started and removed by the test itself under its own
+# project name, never by hand. Port from GITEA_PORT (a free one the test picked), fixed image tag.
+services:
+  gitea:
+    image: gitea/gitea:1.24.6
+    environment:
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__server__ROOT_URL: http://127.0.0.1:${GITEA_PORT}/
+      GITEA__server__DISABLE_SSH: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+    ports:
+      - "127.0.0.1:${GITEA_PORT}:3000"
+    volumes:
+      - daten:/data
+volumes:
+  daten:
