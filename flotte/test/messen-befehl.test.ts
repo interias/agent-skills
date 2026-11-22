@@ -49,7 +49,7 @@ describe('messeEinsatz', () => {
       assistent(1, '', { tools: [{ id: 'q', name: 'AskUserQuestion', input: { questions: [frage('Epic #1 Tailnet?', ['Nein (Recommended)', 'Ja'])] } }] }),
       ergebnis(31, 'q', '"Epic #1 Tailnet?"="Nein (Recommended)"'),
     ]);
-    sitzung(k2, 'C--r-korb', 'bbbb2222-admiral', [mensch(0, '/epic-flotte'), assistent(1, 'los')]);
+    sitzung(k2, 'C--r-korb', 'bbbb2222-admiral', [mensch(0, 'Admiral-Chat'), assistent(1, 'los')]);
     subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x1', 'epic-lauf', [mensch(2, 'Lauf #1'), assistent(3, 'FLOTTE-FRAGE 1 tor', { stop: 'end_turn' }), nachricht(43), assistent(44, 'weiter')]);
     subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x2', 'epic-implementer-standard', [mensch(2, 'Paket'), assistent(3, 'fertig', { stop: 'end_turn' }), nachricht(100)]);
     sitzung(k1, 'C--r-korb', 'cccc3333-lauf', [mensch(10, 'Background (from the session that started this one): /epic #1'), assistent(11, 'FLOTTE-ENDE 1 https://x/pull/10', { stop: 'end_turn' }), nachricht(26), assistent(27, 'ok')]);

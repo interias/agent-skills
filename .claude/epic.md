@@ -52,4 +52,4 @@ laufende Stack `flottenbruecke` (4747) und ein laufender Treiber werden nie ange
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
 - `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
 - Gemergt wird nach grünem Gate (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
-- Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(epic-flotte): …`), PR-Titel deutsch.
+- Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(flotte): …`), PR-Titel deutsch.

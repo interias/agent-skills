@@ -17,7 +17,7 @@ ganzen Einsatz gleich und wird dem Menschen genannt (bei `file` der Pfad).
 wie die Lauftafel. Sie wird kopiert, nicht nachgebaut:
 
 ```bash
-cp ~/.claude/skills/epic-flotte/references/flottentafel.html "<scratchpad>/flottentafel.html"
+cp ~/.claude/skills/flotte/references/flottentafel.html "<scratchpad>/flottentafel.html"
 ```
 
 **Der `<style>`-Block und das `<script>` werden nicht angefasst.** Der gemeinsame Block am Anfang
@@ -71,7 +71,7 @@ kommt ebenfalls von der Systemuhr oder aus `get_usage`, nie aus einer Schätzung
 
 ## RAM-Messung (#37)
 
-Vor jeder Welle misst der Admiral den Speicher (`SKILL.md`, „RAM-Bremse"). **Jeder Messwert steht
+Vor jeder Welle misst der Admiral den Speicher (`bremsen.md`, „RAM-Bremse"). **Jeder Messwert steht
 auf der Tafel**, ohne neues Element und ohne Eingriff in den `<style>`-Block:
 
 - `.stamp`: die letzte Messung als `<span>RAM <b>66 % · 10,8 GB frei · ok</b></span>` hinter der
@@ -148,7 +148,7 @@ ein Hinweis auf die Tabelle.
 ## Verbrauchsbremse
 
 Die Leiste `<section class="brake <stufe>">` mit `gruen`, `gelb` oder `rot` gibt die letzte Messung
-wieder (`SKILL.md`, „Verbrauchsbremse"):
+wieder (`bremsen.md`, „Verbrauchsbremse"):
 
 - `.lvl`: `Bremse grün`, `Bremse gelb` oder `Bremse rot`.
 - Zwei Balken, 5-Stunden- und Wochenfenster: `<b style="width: <verbraucht>%">`, daneben
@@ -184,7 +184,7 @@ warum ein Platz leer ist.
 **Entscheidungen**: **alle** eigenen Entscheidungen des Einsatzes, neueste oben, je eine
 `<div class="d">` mit dem Epic (oder `Flotte`) in `.lbl`, der Entscheidung in einem Satz und in
 `.hard` Herkunft, „Widerrufen" (was ein Mensch tun müsste) und dem Link auf den Forge-Kommentar —
-dieselben Felder wie der Kommentar in `SKILL.md`. Eine einflussreiche trägt `class="d vorl"` und
+dieselben Felder wie der Kommentar in `entscheidungsrecht.md`. Eine einflussreiche trägt `class="d vorl"` und
 `<span class="vk">Protokoll</span>`, ihr Link führt auf den Eintrag im Entscheidungsprotokoll;
 widerruft der Mensch eine Entscheidung, wird aus der Marke `widerrufen` mit der neuen
 Entscheidung im Satz. Gestrichen wird keine.
@@ -198,7 +198,7 @@ in der Leiste und des Vorschlags für `verbrauch.md` im Abschlussbericht.
 ## Fortschreiben
 
 Dieselbe Datei, derselbe `file_path`, dieselbe URL; `icon` und `<title>` bleiben gleich, ein
-`label` je Fortschreibung. Fortgeschrieben wird bei **jedem** Ereignis aus `SKILL.md`, Phase 3,
+`label` je Fortschreibung. Fortgeschrieben wird bei **jedem** Ereignis,
 im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
 
 - Einsatzzustand, Stand, Nummer der Fortschreibung und Sternzeit in `.stamp`

@@ -1,6 +1,6 @@
 # Pester 3.4 (ships with Windows PowerShell 5.1): Invoke-Pester .\epic\scripts\ram.Tests.ps1
 # The measurement is stubbed with -TotalGb/-FreeGb; the script runs as a separate process, the
-# way /epic and /epic-flotte call it. One test measures for real.
+# way /epic and the flotte driver call it. One test measures for real.
 
 $script = Join-Path $PSScriptRoot 'ram.ps1'
 

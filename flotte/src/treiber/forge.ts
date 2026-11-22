@@ -1,5 +1,5 @@
 // What the driver writes to and reads from the forge: comments, the fleet logbook issue
-// (epic-flotte/SKILL.md, "Flottenlogbuch"), the state of pull requests. Only through gh.
+// (flotte/references/flottenlogbuch.md), the state of pull requests. Only through gh.
 
 import type { Aufrufer } from '../aufruf.ts';
 
@@ -35,7 +35,7 @@ export function logbuchFinden(a: Aufrufer, forge: string, body: string): number 
       /* fall through to create */
     }
   }
-  a('gh', ['label', 'create', 'flotte', '--repo', forge, '--color', '00f0ff', '--description', 'Flottenlogbuch von /epic-flotte, kein Ticket']);
+  a('gh', ['label', 'create', 'flotte', '--repo', forge, '--color', '00f0ff', '--description', 'Flottenlogbuch, kein Ticket']);
   const c = a('gh', ['issue', 'create', '--repo', forge, '--title', 'Flottenlogbuch', '--label', 'flotte', '--body-file', '-'], { eingabe: body });
   const m = /\/issues\/(\d+)/.exec(c.stdout);
   return c.code || !m ? null : Number(m[1]);

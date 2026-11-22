@@ -5,10 +5,10 @@ description: Flotten-Treiber — ein Programm statt eines Admiral-Chats führt m
 
 # Flotte
 
-`flotte` ist ein Programm (TypeScript, läuft mit Bun). Es macht, was `/epic-flotte` als Prosa
-beschreibt. Ein Sprachmodell kommt nur an zwei Stellen vor:
+`flotte` ist ein Programm (TypeScript, läuft mit Bun). Es führt mehrere `/epic`-Läufe
+gleichzeitig. Ein Sprachmodell kommt nur an zwei Stellen vor:
 
-- in den **Läufen**: `/epic` unverändert, als `claude -p`, jeder Zug endet mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE` (`epic-flotte/SKILL.md`, „Die Blöcke“),
+- in den **Läufen**: `/epic` unverändert, als `claude -p`, jeder Zug endet mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE` (`references/bloecke.md`),
 - im **Admiral**: ein `claude -p --json-schema` je Frageblock, mit `--tools Read,Grep,Glob`.
 
 Admiral und Läufe starten mit `--strict-mcp-config`: kein MCP-Server und kein claude.ai-Konnektor
@@ -36,7 +36,7 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   Hauptverzeichnis, auch aus einem Worktree), ohne `--forge` das GitHub-Repository von `origin`.
   Beides lässt sich angeben: `fahren <repo> --forge <owner/name>`.
 - **Epics:** ohne `--epics` alle offenen Epics (`epic_label`) mit `ready_label` des Adapters, an
-  sich oder an einem offenen Kind, wie `/epic-flotte` Phase 0. Der Treiber sammelt sie etwa alle
+  sich oder an einem offenen Kind (`references/belegung.md`). Der Treiber sammelt sie etwa alle
   15 Minuten neu ein und nimmt neu freigegebene Epics auf; Belegung und Reihenfolge-Kanten gelten
   für sie wie für die ersten. Ein unterwegs entstandenes Epic ohne das Label wartet. Ein Issue mit
   `ready_label`, das weder `epic_label` trägt noch Kind eines Epics ist, nimmt er nicht; er meldet
@@ -115,7 +115,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
    - RAM über `ram.ps1`: `warn` und `hold` halten an, weiter geht es erst 5 Punkte unter der Warnschwelle. Ein Messfehler gilt als `hold`, mit seinem Fehlertext; die nächste gute Messung gibt frei.
    - Plattenplatz.
    - Verbrauch je Konto aus dem `rate_limit_event` der Läufe, in `<CLAUDE_CONFIG_DIR>/flotte/verbrauch.json`. Gelb startet nichts Neues, Rot hält auch Fortsetzungen an. Ein Wert, der älter als 30 Minuten ist, gilt als rot. Ein Lauf meldet nur etwa ein- bis zweimal je Zug, deshalb holt ab 15 Minuten ein Mini-Lauf mit Haiku einen frischen Wert, auch während auf dem Konto ein Lauf arbeitet. Das geschieht nur, wenn auf dem Konto etwas starten oder weiterlaufen will, also nicht, während alles auf den Menschen wartet.
-4. **Fragen:** Der Admiral entscheidet alles außer der Liste „Beim Menschen" (`epic-flotte/SKILL.md`, „Entscheidungsrecht"; im Programm `BEIM_MENSCHEN` in `src/treiber/admiral.ts`), bei beiden Werten von `merge`. Sein Schema lässt als `nr` nur die Nummern der Fragen zu. Jede Entscheidung kommt als Kommentar ans Issue; einflussreiche Entscheidungen kommen zusätzlich ins Logbuch. Was beim Menschen liegt, parkt nur die Pakete aus `Betrifft:`; die übrigen laufen weiter (`weiter ohne <Pakete>`).
+4. **Fragen:** Der Admiral entscheidet alles außer der Liste „Beim Menschen" (`references/entscheidungsrecht.md`; im Programm `BEIM_MENSCHEN` in `src/treiber/admiral.ts`), bei beiden Werten von `merge`. Sein Schema lässt als `nr` nur die Nummern der Fragen zu. Jede Entscheidung kommt als Kommentar ans Issue; einflussreiche Entscheidungen kommen zusätzlich ins Logbuch. Was beim Menschen liegt, parkt nur die Pakete aus `Betrifft:`; die übrigen laufen weiter (`weiter ohne <Pakete>`).
 5. **Fehler:**
    - Ein Fehlstart wird höchstens zweimal neu gestartet.
    - Bei einem Netzfehler setzt der Treiber höchstens zweimal mit `--resume` fort.
@@ -171,4 +171,6 @@ bun src/cli.ts epic <nr> <repo> --mechanik echt --aufrufe echt --konto <CLAUDE_C
 - **Vorrang** eines Epics: das Label `prio/hoch` (Adapter `prio_label`) am Epic oder an einem Kind, oder auf der Brücke „Priorität hoch“/„normal“ (gilt vor dem Label).
 - **Epics im Einsatz steuern** (Brücke, Sternenkarte, mit PIN): ein offenes Epic mit `ready_label` und `epic_label` aufnehmen, auch neben `--epics` (der Treiber prüft das an der Forge, es bleibt nach einem Neustart im Einsatz); ein Epic pausieren (startet nicht; ein laufender Lauf erfährt die Pause vor seinem nächsten Paketstart über die RAM-Messung — der Treiber schreibt `pausiert` in die Haltedatei, `ram.ps1` meldet dann `hold` —, startet kein weiteres Paket, laufende Pakete laufen zu Ende; der nächste Zug wartet, bis es fortgesetzt wird) und fortsetzen; sein Andocken auf „automatisch“, „Mensch prüft“ oder zurück zum Vorschlag stellen (#112). Nichts wird abgebrochen.
 
-Umschalten von `/epic-flotte` und zurück: `references/umschalten.md`.
+Umschalten auf den Treiber und zurück: `references/umschalten.md`. Die Regeln hinter Belegung,
+Bremsen, Blöcken, Entscheidungsrecht und Logbuch: `references/belegung.md`, `bremsen.md`,
+`bloecke.md`, `entscheidungsrecht.md`, `flottenlogbuch.md`.

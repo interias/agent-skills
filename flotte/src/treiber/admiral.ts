@@ -1,6 +1,6 @@
 // The admiral (#14, decision 4): one `claude -p --json-schema` call per question block. It only
 // judges; the driver delivers, writes down and asks the person. Its prompt is the decision right
-// of epic-flotte/SKILL.md, cut to what it needs to judge.
+// of flotte/references/entscheidungsrecht.md, cut to what it needs to judge.
 
 import type { FrageBlock } from '../werkzeuge/bloecke.ts';
 
@@ -49,7 +49,7 @@ export const SCHEMA = {
 };
 
 /**
- * The only questions that lie with the person (#110), the same list as epic-flotte/SKILL.md and
+ * The only questions that lie with the person (#110), the same list as flotte/references/entscheidungsrecht.md and
  * epic/SKILL.md ("Entscheidungsrecht"); it replaced "Immer beim Menschen" and the extra list for
  * merge: nach_gate. Everything else the admiral decides, whatever the merge mode.
  */

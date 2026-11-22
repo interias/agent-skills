@@ -1,8 +1,8 @@
-# Umschalten von `/epic-flotte` auf `flotte` — und zurück
+# Umschalten vom Leitstand auf `flotte` — und zurück
 
-Umschalten heißt: Neue Einsätze startet der Treiber, nicht mehr der Admiral-Chat oder der
-Leitstand. Beides lässt sich je Einsatz wählen. `epic-flotte` bleibt unverändert, **der Leitstand
-nicht**: Er bekommt die neue `merge.ps1` und mergt ab dem Einspielen in keinem Projekt mehr ohne
+Umschalten heißt: Neue Einsätze startet der Treiber, nicht mehr der
+Leitstand. Das lässt sich je Einsatz wählen. **Der Leitstand bleibt dabei nicht unverändert**:
+Er bekommt die neue `merge.ps1` und mergt ab dem Einspielen in keinem Projekt mehr ohne
 `merge: nach_gate`.
 
 ## Voraussetzungen
@@ -37,7 +37,7 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
   `~/git` ohne Schlüssel `merge`, gelesen von `origin/HEAD`. Einzelne Ordner gehen als Argumente.
 
 1. **Auf der ganzen Maschine läuft keine Flotte und kein `/epic`,** in keinem Projekt und auf
-   keinem Konto. Weder der Leitstand noch `/epic-flotte` noch ein Fenster mit `/epic` arbeitet
+   keinem Konto. Weder der Leitstand noch ein Fenster mit `/epic` arbeitet
    gerade. Einspielen, während eine davon läuft, ändert ihr die Merge-Regel und den Hook mitten im
    Einsatz.
 2. **Adapter zuerst:** im Projektadapter `.claude/epic.md`, über einen PR auf die Basis:
@@ -86,8 +86,8 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
 
 ## Ein Einsatz mit dem Treiber
 
-1. **Keine Flotte im selben Repository.** Weder `/epic-flotte` noch der Leitstand führt dort Epics.
-   Der Treiber sperrt nur gegen einen zweiten Treiber, nicht gegen einen Admiral-Chat.
+1. **Keine Flotte im selben Repository.** Der Leitstand führt dort keine Epics.
+   Der Treiber sperrt nur gegen einen zweiten Treiber, nicht gegen den Leitstand.
 2. **Starten:** im Terminal im Projektordner, nicht in einer Claude-Sitzung. Das Fenster bleibt
    offen, solange der Einsatz läuft. Repository und Forge nimmt der Treiber aus dem Ordner und
    aus `origin`. Ohne `--epics` nimmt er die Epics mit `ready_label` und sammelt alle 15 Minuten
@@ -122,7 +122,7 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
      beobachtet er weiter, wenn PID und Startzeit noch zu ihm passen. Hat ein anderer Prozess die
      PID übernommen, liest er das Ergebnis aus dem Log. Er startet nichts doppelt.
 
-## Rückweg zu `/epic-flotte` oder zum Leitstand
+## Rückweg zum Leitstand
 
 1. **Treiber beenden** (Strg+C) und den Stand ansehen:
    `bun <skills>\flotte\src\cli.ts zustand <projekt>`. Dort steht je Epic Stufe,
@@ -132,7 +132,7 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    liegt, lässt `CleanupStale` die Worktrees dieses Epics stehen. Erst danach räumt
    `worktree.ps1 -Action CleanupStale -RepoRoot <projekt>` sie ab.
 4. **Offene Epics übergeben:**
-   - Am sichersten übernimmt `/epic-flotte` bzw. der Leitstand die Epics neu. Epic-Branches und PRs
+   - Am sichersten übernimmt der Leitstand die Epics neu. Epic-Branches und PRs
      bleiben dabei bestehen.
    - Eine Sitzung lässt sich auf ihrem Konto auch mit vollem Kontext fortsetzen: im Projekt
      `fortsetzen.ps1 -Session <sitzung>` aus `epic\scripts`, für Konto 2 mit `-ConfigDir`. Das
@@ -152,5 +152,5 @@ Eingespielt wird für die ganze Maschine, nicht für ein Repository: `merge.ps1`
    Logbuch-Issue bleibt offen (es zählt in KIBO nie als Ticket) und steht am Ende auf
    `active: false`.
 
-Der Rückweg braucht keine Änderung an `settings.json` oder an `epic-flotte`. Am Leitstand nur
+Der Rückweg braucht keine Änderung an `settings.json`. Am Leitstand nur
 Schritt 6, und auch den nur, wenn er wieder ohne `merge: nach_gate` mergen soll.

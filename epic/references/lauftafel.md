@@ -24,7 +24,7 @@ Forge geht:
 - Statt des Tafel-Links steht im Eröffnungskommentar, im PR-Body und im Abschlusskommentar
   `Lauftafel aus (Flotten-Treiber)`.
 
-Ein Einzellauf ohne Treiber und ein Lauf unter `/epic-flotte` behalten die Tafel unverändert.
+Ein Einzellauf ohne Treiber behält die Tafel unverändert.
 
 ## Die Vorlage
 
@@ -39,13 +39,13 @@ cp ~/.claude/skills/epic/references/lauftafel.html "<scratchpad>/lauftafel-<nr>.
 **Der `<style>`-Block wird nicht angefasst.** Er *ist* das einheitliche Aussehen. Sein erster
 Teil, der **gemeinsame Block** zwischen `GEMEINSAMER BLOCK · Anfang` und `· Ende` (Schrift, Farben,
 Zustände, Animation), steht wortgleich in der Flottentafel
-(`epic-flotte/references/flottentafel.html`) und wird nur in beiden Dateien zugleich geändert.
+(`flotte/references/flottentafel.html`) und wird nur in beiden Dateien zugleich geändert.
 Ändert sich das Design, wird die Vorlage nachgezogen, nie die einzelne Tafel. Dass beide Blöcke
 gleich sind, zeigt ein leeres `diff`:
 
 ```bash
 r=~/.claude/skills; b='/GEMEINSAMER BLOCK · Anfang/,/GEMEINSAMER BLOCK · Ende/p'
-diff <(sed -n "$b" $r/epic/references/lauftafel.html) <(sed -n "$b" $r/epic-flotte/references/flottentafel.html)
+diff <(sed -n "$b" $r/epic/references/lauftafel.html) <(sed -n "$b" $r/flotte/references/flottentafel.html)
 ```
 
 Die Überschriftenschrift Antonio (SIL Open Font License, Hinweis im Block) ist als data-URI
