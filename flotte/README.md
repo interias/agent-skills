@@ -157,6 +157,53 @@ Alle Issues tragen `needs-triage` (Sternzeit-Notiz), mit `--starten` stattdessen
 Labels und den Hinweisen. `--trocken` legt nichts an und zeigt stattdessen Titel, Labels und Text
 jedes Issues (Nummern als `#?`).
 
+## Triage
+
+Sternzeit-Notizen (`needs-triage`, `needs-info`) klärt der Admiral selbst:
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/name>] [--konto <k>] [--modell fable] [--trocken]
+```
+
+Je offenem Ticket ein `claude -p` (Werkzeuge nur `Read,Grep,Glob`): Er stellt sich die Fragen einer
+Fragerunde, beantwortet sie aus Text, Kommentaren, ADRs und Code und entscheidet nach der Liste
+„beim Menschen“ (`src/treiber/admiral.ts`):
+
+- **klar:** fehlende oder leere Abschnitte `acceptance_section`/`verification_section` des Adapters
+  nachgetragen (geprüft wie im Auftragsschreiber), `ready_label` dazu, `needs-triage`/`needs-info` ab.
+- **überflüssig:** geschlossen (`not planned`) mit Grund; die Labels bleiben, Wiederöffnen mit einem
+  Kommentar bringt es zurück in die Triage.
+- **kritisch:** genau ein Kommentar mit allen Fragen, die nach der Liste beim Menschen liegen; das
+  Label bleibt.
+
+Eine Mission (Label `epic_label` des Adapters, so legt `flotte auftrag` sie an) überspringt die
+Triage ohne Modellaufruf (`mission`): Sie wird über ihre Missionsziele freigegeben. Ein Ticket, das
+kein `OWNER`, `MEMBER` oder `COLLABORATOR` eröffnet hat (`author_association`, je Ticket über
+`gh api`), geht ebenfalls nicht ins Modell und wird nie geändert (`fremd`, scheitert die Abfrage, mit
+`fehler`); hält ein Mensch es für gut, übernimmt er es mit eigener Neufassung oder einem Kommentar.
+
+Vor jeder Änderung steht ein Kommentar mit Herkunft je Entscheidung („Projektregel …“,
+„Skill-Empfehlung“, „Präzedenz …“, „Eigenes Urteil …“) und dem Weg zum Widerruf; scheitert er,
+ändert sich nichts. Seine erste Zeile ist `<!-- flotte:triage -->`, bei einer Frage
+`<!-- flotte:triage-frage -->` und darunter `**FRAGE AN DEN MENSCHEN (Triage)** — Sternzeit-Notiz #<nr>: …`.
+Die Antwort ist ein Kommentar am Ticket; die nächste Triage nimmt sie als Tatsache. Als Antwort zählt
+nur ein Kommentar der Rollen `OWNER`, `MEMBER` oder `COLLABORATOR` (`authorAssociation`); Kommentare
+Dritter gehen gar nicht ins Modell, das Repository kann öffentlich sein. Steht unter dem letzten
+Kommentar der Triage (Frage, oder Entscheidung, deren Freigabe gescheitert ist) kein solcher
+Kommentar, wird das Ticket übersprungen (`wartet`), ohne Modellaufruf. Triage legt keine Tickets an
+(agent-skills/ADR-0002) und spricht bisher nur GitHub; ein Gitea-Repository steht in `fehler`.
+
+**Planen:** Der Befehl hält keinen eigenen Zustand und lässt sich beliebig oft wiederholen, etwa
+stündlich über die Aufgabenplanung: `schtasks /Create /SC HOURLY /TN flotte-triage /TR "bun <skills>\flotte\src\cli.ts triage <repo>"`.
+
+**Ausgabe:** `trocken`, `repos` (`repo`, `forge`), `fehler` (`repo` oder `forge`, `fehler`),
+`tickets` (je `forge`, `nummer`, `titel`, `url`, `ergebnis` = `klar` | `ueberfluessig` | `kritisch` |
+`wartet` | `mission` | `fremd` | `ungueltig`, `geschrieben`, `kommentar`, gegebenenfalls `fehler`, `sitzung`, bei
+`--trocken` und `klar` der neue `body`) und `fragen` (je `forge`, `ticket`, `url`, `frage`,
+`optionen`, `empfehlung`, `grund`, `herkunft`, `marke` = Punkt der Liste: `nach außen`, `Geld`,
+`Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`). `--trocken` entscheidet
+und druckt, schreibt nichts.
+
 ## Prognose
 
 Die Brücke sagt je wartendem Epic „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
