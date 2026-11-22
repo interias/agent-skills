@@ -1,8 +1,7 @@
 # Arbeitspferd
 
-Das zweite Claude-Konto im eigenen Terminalfenster, das der Skill [`leitstand`](leitstand/SKILL.md)
-steuert. Dieser Ordner enthält alles, was es auf einem neuen Rechner braucht. `install.ps1` lässt ihn
-aus; eingerichtet wird er mit
+Das zweite Claude-Konto im eigenen Terminalfenster. Dieser Ordner enthält alles, was es auf einem
+neuen Rechner braucht. `install.ps1` lässt ihn aus; eingerichtet wird er mit
 
 ```powershell
 pwsh -File arbeitspferd\einrichten.ps1 -DryRun
@@ -26,7 +25,7 @@ Jedes Konto hat ein eigenes Windows-Terminal-Profil und eine Desktop-Verknüpfun
 | 2 | `~/.claude-arbeitspferd` | Claude Arbeitspferd | orange `#D97757` | `arbeitspferd.ico` |
 | 3 | `~/.claude-arbeitspferd-3` | Claude Arbeitspferd 3 | blau `#7AA2C8` | `arbeitspferd-3.ico` |
 
-Der Leitstand (`leitstand/`) kennt nur Konto 2. Konto 3 arbeitet nur unter dem Flotten-Treiber
+Konto 3 arbeitet nur unter dem Flotten-Treiber
 (`flotte/SKILL.md`, „Weiteres Konto zuschalten“).
 
 ## Weiteres Konto einrichten
@@ -43,7 +42,7 @@ pwsh -File arbeitspferd\einrichten.ps1 -Konfig ~\.claude -DryRun     # Profil f�
 - Für das Hauptkonto legt das Skript nur `start-claude.ps1` und das Icon nach `~/.claude`, dazu
   Profil und Verknüpfung. Seine `CLAUDE.md` und `settings.json` bleiben, wie sie sind. Gestartet
   wird es ohne `CLAUDE_CONFIG_DIR`, wie ein einfaches `claude`.
-- Ein zweiter Aufruf ersetzt nur das eigene Profil. Leitstand, Theme und Dateien bleiben, wenn
+- Ein zweiter Aufruf ersetzt nur das eigene Profil. Theme und Dateien bleiben, wenn
   sie unverändert sind. Eine vorhandene Verknüpfung wird nicht überschrieben.
 - Weitere Ordner `~/.claude-arbeitspferd-<n>` gehen auch, mit `-Profil` und `-Farbe`. Ohne eigenes
   `dateien/arbeitspferd-<n>.ico` nehmen sie das Icon von Konto 2. Ein neues Icon baut
@@ -65,11 +64,6 @@ einer Sitzung. Der Treiber liegt nach `install.ps1 -Skill flotte` unter `~/.clau
 | `dateien/settings.json` | `~/.claude-arbeitspferd*` | Vorlage, nur geschrieben, wenn noch keine existiert. `einrichten.ps1` trägt darin alle Konfigordner als `additionalDirectories` ein, damit kein Start an der Vertrauensfrage hängt |
 | `themes/claude-farbe.json` | `~/.claude/themes` | Claude-Theme `custom:claude-farbe` |
 | `windows-terminal.json` | Windows-Terminal-`settings.json` | Vorlage der Profile und Farbschema „Claude Code“ |
-| `leitstand/` | `~/.claude/skills/leitstand` | Skill der Hauptsitzung, der das Arbeitspferd steuert |
-
-Was nur für deinen Rechner gilt — Dienste, die keine Sitzung anfassen darf, Programme, die offen
-bleiben —, schreibst du nach `~/.claude-arbeitspferd/leitstand/lokal.md`. Die Datei gehört nicht ins
-Repository; `start.ps1` hängt sie jedem Auftrag an, und der Leitstand liest sie zu Beginn.
 
 Im Konfigordner liegen `skills`, `agents`, `output-styles`, `plugins` und `themes` als Junctions
 auf `~/.claude`, damit alle Konten dieselben Skills sehen. Ein rekursives Löschen eines

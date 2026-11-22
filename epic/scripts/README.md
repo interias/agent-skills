@@ -12,6 +12,9 @@ Jedes Skript hat Pester-Tests daneben und Hilfe im Kopfkommentar (`Get-Help <skr
   verbotene Shell-Befehle, etwa Pushes auf den Hauptbranch oder `git branch -D`.
 - **`fortsetzen.ps1`** setzt eine `/epic`-Sitzung außerhalb der Flotte mit `claude --resume` fort
   und gibt ihr `guard.ps1` als Hook mit; der Hook aus dem Frontmatter gilt nach `--resume` nicht mehr.
+- **`merge.ps1`** mergt einen Pull Request nur bei `merge: nach_gate` im Adapter, mit gültigem Gate-Block
+  auf aktueller Basis und Head, grünen Checks und immer mit Merge-Commit. Der Flotten-Treiber ruft
+  es auf; ein Lauf nie.
 - **`ram.ps1`** misst den freien Speicher des Windows-Hosts und gibt `ok`, `warn` oder `hold`
   aus — die RAM-Bremse vor jedem Paketstart und unter der Flotte.
 - **`graph.ps1`** baut mit [Graphify](https://github.com/Graphify-Labs/graphify) den Code-Graphen

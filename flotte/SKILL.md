@@ -69,16 +69,16 @@ Mögliche Schalter:
 | `--sweep-root <dir>` und `--sweep-temp <dir>` | ohne Angabe läuft kein Sweep |
 | `--ohne-docker` | Docker wird mit aufgeräumt |
 | `--ohne-nacharbeit` | Nacharbeit läuft |
-| `--merge-skript` | `merge.ps1` des Leitstands |
+| `--merge-skript` | `epic/scripts/merge.ps1` |
 | `--max-min` | ohne Grenze |
 | `--bruecke <url>` | Umgebung `FLOTTE_BRUECKE`, sonst keine Brücke; etwa `http://127.0.0.1:4747`. Den Token einer Brücke mit `BRUECKE_TOKEN` liest der Treiber aus `FLOTTE_BRUECKE_TOKEN` |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
 ### Weiteres Konto zuschalten
 
-Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber; der Leitstand kennt
-es nicht. Eingerichtet und angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto
-einrichten“. Zugeschaltet wird es nur, wenn der Mensch es sagt:
+Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber. Eingerichtet und
+angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto einrichten“. Zugeschaltet wird
+es nur, wenn der Mensch es sagt:
 
 1. Treiber mit `flotte anhalten <repo>` anhalten (unten). Die Läufe arbeiten weiter, der Zustand steht schon in `zustand.json`.
 2. Mit demselben Aufruf neu starten, `--konten` um das Konto erweitert (Kurzname oder Ordner; `~`
@@ -109,7 +109,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
 ## Was der Treiber tut
 
-1. **Einer je Repository.** Die Sperre liegt in `<git common dir>/flotte/treiber.lock`, der Zustand daneben in `zustand.json`. Nach einem Neustart setzt der Treiber aus der Datei fort. Ein Lauf schreibt sein Log selbst und überlebt den Treiber. Läufe, die noch leben (PID und Startzeit passen), beobachtet der Treiber nur.
+1. **Einer je Repository.** Die Sperre liegt in `<git common dir>/flotte/treiber.lock`, der Zustand daneben in `zustand.json`. Nach einem Neustart setzt der Treiber aus der Datei fort. Ein Lauf schreibt sein Log selbst und überlebt den Treiber. Strg+C beendet den Treiber; seine Sperre gibt er nur frei, wenn das Signal ankommt (nicht in einer PowerShell-Pipeline wie `… | Tee-Object`), sonst übernimmt der nächste `fahren`-Aufruf die Sperre, weil ihr Prozess tot ist. Läufe, die noch leben (PID und Startzeit passen), beobachtet der Treiber nur.
 2. **Belegung** aus Adapter und Issues: Kollisionsstufen (keine 4, klein 3, mittel 2, groß 1 gleichzeitig, nie mehr als vier) und Reihenfolge-Kanten. Ein Epic startet erst nach dem Merge seines Vorgängers. Ein startbereites Epic mit `prio_label` (Standard `prio/hoch`, am Epic oder an einem Kind) kommt in die nächste Belegung; harte Kanten und Kollisionsstufen gelten weiter. Hält es nur eine Kollision zurück, startet nichts Neues, das mit ihm kollidiert; laufende Epics bricht der Treiber nie ab. Erst danach gilt der Gleichstand: Es gewinnt die Wahl, deren Epics weniger Gate-Bereiche (`gate_areas`) teilen. Jede neue Belegung nennt ihren Beleg, auch das prio-Label und warum ein prio-Epic wartet.
 3. **Bremsen** in jedem Takt:
    - RAM über `ram.ps1`: `warn` und `hold` halten an, weiter geht es erst 5 Punkte unter der Warnschwelle. Ein Messfehler gilt als `hold`, mit seinem Fehlertext; die nächste gute Messung gibt frei.
@@ -171,6 +171,5 @@ bun src/cli.ts epic <nr> <repo> --mechanik echt --aufrufe echt --konto <CLAUDE_C
 - **Vorrang** eines Epics: das Label `prio/hoch` (Adapter `prio_label`) am Epic oder an einem Kind, oder auf der Brücke „Priorität hoch“/„normal“ (gilt vor dem Label).
 - **Epics im Einsatz steuern** (Brücke, Sternenkarte, mit PIN): ein offenes Epic mit `ready_label` und `epic_label` aufnehmen, auch neben `--epics` (der Treiber prüft das an der Forge, es bleibt nach einem Neustart im Einsatz); ein Epic pausieren (startet nicht; ein laufender Lauf erfährt die Pause vor seinem nächsten Paketstart über die RAM-Messung — der Treiber schreibt `pausiert` in die Haltedatei, `ram.ps1` meldet dann `hold` —, startet kein weiteres Paket, laufende Pakete laufen zu Ende; der nächste Zug wartet, bis es fortgesetzt wird) und fortsetzen; sein Andocken auf „automatisch“, „Mensch prüft“ oder zurück zum Vorschlag stellen (#112). Nichts wird abgebrochen.
 
-Umschalten auf den Treiber und zurück: `references/umschalten.md`. Die Regeln hinter Belegung,
-Bremsen, Blöcken, Entscheidungsrecht und Logbuch: `references/belegung.md`, `bremsen.md`,
-`bloecke.md`, `entscheidungsrecht.md`, `flottenlogbuch.md`.
+Die Regeln hinter Belegung, Bremsen, Blöcken, Entscheidungsrecht und Logbuch:
+`references/belegung.md`, `bremsen.md`, `bloecke.md`, `entscheidungsrecht.md`, `flottenlogbuch.md`.

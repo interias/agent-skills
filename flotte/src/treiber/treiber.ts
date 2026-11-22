@@ -123,8 +123,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     sweepDocker: true,
     sweepTemp: null,
     skripte: SKRIPTE,
-    // repository layout, else installed: ~/.claude/skills/leitstand next to ~/.claude/skills/epic
-    mergeSkript: [resolve(SKRIPTE, '../../arbeitspferd/leitstand/scripts/merge.ps1'), resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1')].find((p) => existsSync(p)) ?? resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1'),
+    mergeSkript: resolve(SKRIPTE, 'merge.ps1'),
     admiralName: 'Treiber',
     maxDauerMs: null,
     bruecke: null,
@@ -431,7 +430,7 @@ class Treiber {
       stand: '',
     };
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
-    if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
+    if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~.`);
     // #112: the adapter's merge is the start value of the setting merge
     this.adapter = adapterAus(this.e.repo);
     this.e.merge = this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
