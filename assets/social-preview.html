@@ -6,8 +6,10 @@
   html, body { margin: 0; width: 1280px; height: 640px; background: #000; overflow: hidden; }
   body { display: grid; grid-template-columns: 320px 1fr; align-items: center; gap: 64px; padding: 0 96px; box-sizing: border-box; }
   img { width: 320px; height: 320px; display: block; }
-  h1 { margin: 0 0 20px; font: 700 112px/1 Antonio, sans-serif; letter-spacing: .02em; color: #ff9c33; text-transform: uppercase; }
-  p { margin: 0; max-width: 24ch; font: 400 38px/1.3 Figtree, sans-serif; color: #f2e6d9; }
+  h1 { margin: 0 0 14px; font: 700 96px/1 Antonio, sans-serif; letter-spacing: .02em; color: #ff9c33; text-transform: uppercase; }
+  p { margin: 0 0 18px; font: 600 29px/1.25 Figtree, sans-serif; color: #f2e6d9; }
+  ul { margin: 0; padding: 0; list-style: none; font: 400 25px/1.45 Figtree, sans-serif; color: #f2e6d9; }
+  li::before { content: ''; display: inline-block; width: 22px; height: 12px; border-radius: 6px; margin-right: 14px; vertical-align: middle; background: var(--f); }
   .band { position: absolute; left: 96px; right: 96px; height: 24px; display: flex; gap: 10px; }
   .band span { border-radius: 12px; }
   .oben { top: 56px; } .unten { bottom: 56px; }
@@ -16,6 +18,12 @@
 <img src="icon.svg" alt="">
 <div>
   <h1>agent-skills</h1>
-  <p>Claude-Code-Skills, die freigegebene Epics vom Issue bis zum Pull Request umsetzen.</p>
+  <p>Vom freigegebenen Epic zum gemergten Pull Request – parallel, geprüft, über mehrere Konten.</p>
+  <ul>
+    <li style="--f:#cc99cc">Pakete in eigenen Worktrees, jedes mit Review</li>
+    <li style="--f:#8899ff">Flotten-Treiber mit Limit- und Speicherbremse</li>
+    <li style="--f:#66cc99">Admiral entscheidet, du nur das Kritische</li>
+    <li style="--f:#ff9c33">Brücke fürs Handy: Fragen, Stand, Merge</li>
+  </ul>
 </div>
 <div class="band unten"><span style="flex:1;background:#66cc99"></span><span style="flex:2;background:#9977cc"></span><span style="flex:5;background:#ff9c33"></span></div>
