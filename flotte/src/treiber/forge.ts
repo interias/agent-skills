@@ -48,7 +48,7 @@ export function logbuchSchreiben(a: Aufrufer, forge: string, nr: number, body: s
 export interface LogbuchEpic {
   number: number;
   stage: string;
-  carrier: 'agent' | 'chat';
+  carrier: 'agent';
   paused: boolean;
   note: string;
 }

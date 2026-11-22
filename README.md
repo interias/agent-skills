@@ -169,8 +169,7 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
 
 ## Ändern
 
-Änderungen nur über Branch und Pull Request, nie direkt in `~/.claude/skills`. Wirksam werden sie
-nach `install.ps1` in einer neuen Sitzung.
+Wie Änderungen ins Repository und auf den Rechner kommen, steht in [`INSTALL.md`](INSTALL.md#ändern).
 
 Die Leiter „kleinste vollständige Änderung" der Implementer und die Befundform der Reviewer
 stammen aus [Ponytail](https://github.com/DietrichGebert/ponytail) von Dietrich Gebert (MIT);

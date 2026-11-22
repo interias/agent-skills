@@ -24,17 +24,11 @@ stark.
 **Wochenfenster:** Liegt die Hochrechnung der Woche über 100 %, sinkt die Obergrenze der Flotte
 auf 2, über 130 % auf 1 — unabhängig von der Kollisionsstufe.
 
-**Aus Erfahrung schätzen.** Was ein Paket kostet, ist nicht vorhersagbar, aber messbar. Bei jeder
-Messung notierst du den Zuwachs seit der letzten und die Pakete, die dazwischen liefen (mit
-Paketklasse, Runden und Eskalationen): **Kosten je Paket ≈ Zuwachs ÷ Pakete**, getrennt nach
-Paketklasse, sobald eine Welle nur eine Klasse enthält. Den Startwert liefern die Erfahrungswerte
-früherer Einsätze in `verbrauch.md`. Vor einem `weiter` oder Start rechnest du: Stand +
-geschätzte Kosten der nächsten Welle; läge das über 100 % vor dem Reset, gilt Rot für diese Welle,
-auch wenn die Stufe sonst Gelb wäre.
+Der Treiber schätzt nicht, was ein Paket kosten wird; er bremst nur nach diesen Stufen.
 
 Die Schwellen sind ein **Entwurf** wie die Kollisionsstufen (`belegung.md`) und werden an echten
-Einsätzen geschärft. Eine neue Zeile für `verbrauch.md` kommt per Pull Request ins
-Skill-Repository.
+Einsätzen geschärft. Gemessene Kosten je Paket sammelt `verbrauch.md`; eine neue Zeile kommt per
+Pull Request ins Skill-Repository.
 
 ## RAM-Bremse
 

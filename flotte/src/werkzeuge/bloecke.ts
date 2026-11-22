@@ -1,5 +1,5 @@
 // flotte bloecke <datei|->: reads the last FLOTTE-FRAGE or FLOTTE-ENDE block of a run's final
-// text (flotte/references/bloecke.md). FLOTTE-WELLE is gone (#14, decision 3).
+// text (flotte/references/bloecke.md).
 
 import { readFileSync } from 'node:fs';
 

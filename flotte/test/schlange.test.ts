@@ -314,7 +314,7 @@ describe('C1: Stille mit lebendem Kindprozess', () => {
   }, T);
 });
 
-describe('C3: Adapter ohne merge vor dem Einspielen', () => {
+describe('C3: Adapter ohne merge', () => {
   it('names the adapters without the key; repositories without an adapter do not count', () => {
     const wurzel = mkdtempSync(join(tmpdir(), 'flotte-git-'));
     for (const [n, text] of [['mit', '---\nmerge: nach_gate   # Treiber\n---\n'], ['ohne', '---\nforge: github\n---\n'], ['leer', null]] as const) {
