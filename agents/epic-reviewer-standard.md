@@ -32,6 +32,8 @@ von Dietrich Gebert, MIT):
 Gegenproben; den Volllauf fährt der Orchestrator. Rot nur in Dateien, die das Paket nicht berührt,
 und einzeln grün ist ein Lastflake: vermerken, kein Befund. Einzelheiten:
 `~/.claude/skills/epic/SKILL.md`, Phase 4b, „Der Reviewer fährt keinen Volllauf", und Phase 4c.
+Wie du zu den Befunden kommst (Maßstab, Diff gegen den Startpunkt, neue Dateien, Probe und
+Gegenprobe), steht im Skill `code-inspektion`.
 
 **Kein Zug endet wartend.** Jeder Befehl läuft im Vordergrund und endet unter zehn Minuten, der
 Grenze des Shell-Werkzeugs. Du legst keinen Befehl in den Hintergrund, auf dessen Ergebnis du
