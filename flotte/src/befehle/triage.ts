@@ -49,6 +49,9 @@ export interface TicketErgebnis {
   fehler?: string;
   /** --trocken, klar: the body with the filled-in sections */
   body?: string;
+  /** #116: origin and reason of a valid decision (klar, ueberfluessig, kritisch), for the Frachtraum of the bridge */
+  herkunft?: string;
+  grund?: string;
   sitzung?: string | null;
 }
 
@@ -131,17 +134,18 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
         continue;
       }
       const entfernt = LABELS.filter((l) => t.labels.includes(l));
+      const warum = { herkunft: e.herkunft, grund: e.grund };
       const text = triageKommentar(e, t, entfernt, z.regeln.ready_label);
       if (e.art === 'kritisch') {
         for (const f of e.fragen.filter((f) => f.beim_menschen)) fragen.push({ forge: z.forge, ticket: t.nummer, url: t.url, frage: f.frage, optionen: f.optionen, empfehlung: f.antwort, grund: f.grund, herkunft: f.herkunft, marke: f.marke ?? '' });
       }
       if (o.trocken) {
-        tickets.push({ ...basis, ergebnis: e.art, geschrieben: false, kommentar: text, sitzung: r.sitzung, ...(e.art === 'klar' ? { body: e.body } : {}) });
+        tickets.push({ ...basis, ergebnis: e.art, geschrieben: false, kommentar: text, sitzung: r.sitzung, ...warum, ...(e.art === 'klar' ? { body: e.body } : {}) });
         continue;
       }
       // the comment first: no ticket changes without its origin standing at it
       if (!kommentar(w.aufrufer, z.forge, t.nummer, text)) {
-        tickets.push({ ...basis, ergebnis: e.art, geschrieben: false, kommentar: text, fehler: 'Kommentar gescheitert, nichts geändert', sitzung: r.sitzung });
+        tickets.push({ ...basis, ergebnis: e.art, geschrieben: false, kommentar: text, fehler: 'Kommentar gescheitert, nichts geändert', sitzung: r.sitzung, ...warum });
         continue;
       }
       let gescheitert: string | undefined;
@@ -154,7 +158,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
         const x = w.aufrufer('gh', args, e.art === 'klar' ? { eingabe: e.body } : undefined);
         if (x.code) gescheitert = `Kommentar steht, ${e.art === 'klar' ? 'Freigabe' : 'Schließen'} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 300)}`;
       }
-      tickets.push({ ...basis, ergebnis: e.art, geschrieben: true, kommentar: text, ...(gescheitert ? { fehler: gescheitert } : {}), sitzung: r.sitzung });
+      tickets.push({ ...basis, ergebnis: e.art, geschrieben: true, kommentar: text, ...(gescheitert ? { fehler: gescheitert } : {}), sitzung: r.sitzung, ...warum });
     }
   }
   return { trocken: o.trocken, tickets, fragen, fehler };

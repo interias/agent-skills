@@ -196,9 +196,17 @@ Kommentar, wird das Ticket übersprungen (`wartet`), ohne Modellaufruf. Triage l
 **Planen:** Der Befehl hält keinen eigenen Zustand und lässt sich beliebig oft wiederholen, etwa
 stündlich über die Aufgabenplanung: `schtasks /Create /SC HOURLY /TN flotte-triage /TR "bun <skills>\flotte\src\cli.ts triage <repo>"`.
 
+**Über die Brücke** (#116, Frachtraum): Mit `--bruecke` liest der Treiber die offenen Sternzeit-Notizen
+und die unbeantworteten Fragen der Triage aus der Forge (beim Start, höchstens alle 30 min und sofort
+nach einer Handlung des Frachtraums) und meldet sie samt den Entscheidungen seiner Triage-Läufe. Auf
+Knopfdruck führt er diesen Befehl für sein Projekt aus (Admiral-Konto, einen Lauf zur Zeit), schreibt
+eine Antwort des Menschen als Kommentar ans Ticket (ohne Triage-Marke; die nächste Triage nimmt sie als
+Tatsache) und widerruft eine Entscheidung: erst der Kommentar, dann `ready_label` ab und `needs-triage`
+an oder das Ticket wieder offen. Felder und Handlungen: `flottenbruecke/SCHNITTSTELLE.md`.
+
 **Ausgabe:** `trocken`, `repos` (`repo`, `forge`), `fehler` (`repo` oder `forge`, `fehler`),
 `tickets` (je `forge`, `nummer`, `titel`, `url`, `ergebnis` = `klar` | `ueberfluessig` | `kritisch` |
-`wartet` | `mission` | `fremd` | `ungueltig`, `geschrieben`, `kommentar`, gegebenenfalls `fehler`, `sitzung`, bei
+`wartet` | `mission` | `fremd` | `ungueltig`, `geschrieben`, `kommentar`, gegebenenfalls `fehler`, `sitzung`, `herkunft` und `grund` der Entscheidung, bei
 `--trocken` und `klar` der neue `body`) und `fragen` (je `forge`, `ticket`, `url`, `frage`,
 `optionen`, `empfehlung`, `grund`, `herkunft`, `marke` = Punkt der Liste: `nach außen`, `Geld`,
 `Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`). `--trocken` entscheidet
@@ -266,4 +274,5 @@ Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; 
 wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
 Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
 der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen, sein Andocken stellen
-(Brücke, Sternenkarte).
+(Brücke, Sternenkarte); einen Triage-Lauf starten, eine Frage der Triage beantworten, eine Entscheidung
+der Triage widerrufen (Brücke, Frachtraum).

@@ -59,10 +59,37 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `entscheidungen[]` | `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen, von}`: die Entscheidungen des Admirals und (#52) die Antworten des Menschen, `von` `mensch`, `admiral` oder `lauf` (der Admiral folgte der Empfehlung des Laufs). Der Treiber schickt **alle Entscheidungen jedes nicht gemergten Epics** und dazu die letzten 100, zusammen höchstens die neuesten 500 (Grenze der Brücke); Texte kürzt er auf 4000 Zeichen (`herkunft` 500), damit nie der ganze Bericht abgelehnt wird. Eine Antwort des Menschen wird beim Anwenden zur Entscheidung (`herkunft` `Mensch über die Brücke` oder `Mensch über die Flotte`, `einflussreich` `false`, `zeit` = Zeitpunkt der Antwort). Ein älterer Treiber ohne `von`: Die Brücke liest `mensch` aus einer `herkunft`, die mit „Mensch“ beginnt, sonst `admiral`; ein unbekanntes Wort ist kein `422`. „Erledigt heute“ zeigt die des Admirals von heute, die Detailansicht des Epics alle bis zum Merge (unten) |
 | `sitzungen[]` | optional (Schiffsliste, #41): die Sitzungen aller Konten des Treibers aus `claude agents --json` je Konto (nur lesend, höchstens einmal je Minute): `{konto, projekt, name, status, kind, seit}`. `konto` wie in `konten[]`, `projekt` **nur der letzte Ordnername** des Arbeitsverzeichnisses (nie der Pfad; ein Wert mit `/` oder `\` wird mit `422` abgelehnt), `status` etwa `busy`/`idle`, `kind` etwa `interactive`, `seit` ISO aus `startedAt`. Kein `cwd`, keine `pid`, keine Sitzungs-ID; die Brücke verwirft unbekannte Felder. Fehlt das Feld (älterer Treiber) oder ist es leer, bleibt die Liste ohne Sitzungen |
 | `einstellungen[]` | optional (#58): die wirksamen Einstellungen des Treibers, die der Mensch auf der Brücke ändern kann (unten). Fehlt das Feld (älterer Treiber), zeigt die Brücke keine |
+| `triage` | optional (#116, Frachtraum): `{gelesen, laeuft, tickets[], entscheidungen[], fragen[]}`, unten. Fehlt es (älterer Treiber), zeigt der Frachtraum das Projekt nicht |
 | `freigegeben[]` | optional (#61): `{nr, titel}` der offenen Epics der Forge mit `epic_label` und `ready_label` (am Epic oder an einem Kind, wie ohne `--epics`), die **nicht** im Einsatz sind. Der Treiber liest sie nur mit Brücke, höchstens alle 5 min; die Brücke bietet für sie „Aufnehmen“ an. Fehlt das Feld (älterer Treiber), gilt `[]` |
 
 Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo nennt weiter nur
 Stufen.
+
+**Triage** (#116): `tickets[]` sind die offenen Sternzeit-Notizen der Forge (`needs-triage`, `needs-info`),
+je `{nr, titel, labels[]}`; `fragen[]` die kritischen Fragen der Triage, auf die noch kein Berechtigter
+geantwortet hat, je `{ticket, nr, titel, frage, optionen[] {buchstabe, text}, empfehlung, grund, herkunft,
+marke, seit}`. Beides liest der Treiber aus der Forge (`gh issue list` je Label samt Kommentaren, zwei
+Aufrufe): die Fragen aus dem letzten Kommentar mit `<!-- flotte:triage-frage -->` (Format
+`triageKommentar`, gelesen von `offeneFragen` in `flotte/src/triage.ts`); `seit` ist dessen Zeit und mit
+`ticket` und `nr` der Schlüssel, die Buchstaben vergibt der Treiber in der Reihenfolge der Optionen.
+`gelesen` sagt wann. Gelesen wird nur mit Brücke: beim Start, höchstens alle 30 min (`TRIAGE_MS`) und
+sofort nach einem Triage-Lauf, einer Antwort oder einem Widerruf über die Brücke, denn Sternzeit-Notizen
+ändern sich selten und meist genau dann. `entscheidungen[]` sind die Entscheidungen der Triage-Läufe,
+die dieser Treiber über die Brücke gestartet hat, neueste zuerst, höchstens 50, gespeichert im Zustand
+(`triage`, überdauert einen Neustart): `{nr, titel, ergebnis, herkunft, grund, zeit, widerrufen}`,
+`ergebnis` `klar` (Warp frei) oder `ueberfluessig` (geschlossen), nur was geschrieben und ohne Fehler
+umgesetzt ist; (`nr`, `zeit`) ist der Schlüssel für den Widerruf. `laeuft` ist `true`, solange ein
+Triage-Lauf des Treibers läuft. Die Brücke baut die Links aus `url` des Projekts (`<url>/issues/<nr>`).
+
+In `GET /api/tafel` steht `frachtraum[]`, ein Eintrag je Projekt mit `triage`, die mit offenen Fragen
+zuerst: `{forge, kurz, url, aktiv, veraltet, gelesen, laeuft, zahl, handlung, fragen[], entscheidungen[],
+themen[]}`. `handlung` ist ein noch nicht quittierter Triage-Lauf; jede Frage trägt dazu `id`, `issueUrl`,
+`empfohlen` (die Buchstaben der Empfehlung, sonst die Option, deren Text der Empfehlung gleicht) und
+`handlung` (die Antwort unterwegs), jede Entscheidung `id`, `issueUrl`, `widerrufbar` und `handlung`.
+`themen[]` bündelt die Tickets nach Thema, `{thema, tickets[] {nr, titel, issueUrl, labels, themen, frage}}`:
+Thema sind die Labels ohne `needs-triage`, `needs-info`, `ready-for-agent`, `status/*` und `epic`, sonst
+„ohne Thema“; ein Ticket mit zwei Themen steht in beiden. Ein Thema mit offener Frage steht oben, „ohne
+Thema“ unten, sonst nach Namen; darin Tickets mit Frage zuerst, dann nach Nummer.
 
 **Einstellungen** (#58): je Einstellung `{name, titel, wert, herkunft, seit, standard, leer, min?, max?,
 auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (elf; ein älterer Treiber meldet die
@@ -238,11 +265,18 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 | `fortsetzen` | Epic `pausiert`, sonst wie `pausieren` | hebt die Pause auf (auch in der Haltedatei); der zurückgehaltene Zug geht unverändert an den Lauf, ein wartendes Epic startet nach der Belegung. Ereignis und Flottenlogbuch |
 | `prioritaet` | `text` `hoch` oder `normal` (sonst `422`), sonst wie `pausieren` ohne die Pause | setzt die Priorität des Epics; sie gilt vor dem Label `prio/hoch`: hoch geht unter den startbereiten bei freiem Platz zuerst, Reihenfolge-Kanten und Kollisionen bleiben vorrangig. Ereignis und Flottenlogbuch |
 | `merge` | #112: `text` `automatisch`, `mensch` oder `null` (zurück zum Vorschlag), sonst `422`; das Epic trägt `merge` im Bericht (sonst `409`); `automatisch` nur, wenn `werte` der Einstellung `merge` es nennt (sonst `409` mit dem Hinweis); sonst wie `prioritaet` | setzt den Schalter des Epics (`merge` im Zustand, gilt nach einem Neustart bis zum Merge); er überstimmt Vorschlag und Projekt. Ein PR, der nur wegen seiner Stellung auf einen Menschen wartet, kommt bei `automatisch` in die Merge-Schlange; ein Epic in der Schlange, das auf `mensch` geht, wird als Kopf nicht gemergt (PR bereit); ein laufender Merge läuft zu Ende. `automatisch` unter `merge: mensch` lehnt auch der Treiber ab. Ereignis und Flottenlogbuch |
+| `triage` | #116: `epic` `0`, `nr`, `seit`, `text` `null`, mit PIN; `forge` ein Projekt mit `triage` im Bericht (`404` unbekannt, `409` ohne `triage` oder bei `laeuft`) oder `alle`: eine Handlung je Projekt mit `triage` ohne laufenden Lauf (Antwort `{ok, id, ids}`) | führt `flotte triage` (`triagiere`) für sein Projekt nebenher aus, auf dem Admiral-Konto (rot: ein anderes mit Luft), einen zur Zeit. Ereignis und Flottenlogbuch `Triage-Lauf gestartet, Mensch über die Brücke` und `Triage-Lauf beendet: N Warp frei, M geschlossen, K Fragen an den Menschen[, L ohne Ergebnis]` |
+| `triage-antwort` | #116: `epic` = Ticket, `nr` und `seit` die Frage aus `triage.fragen` (sonst `404`), `text` das JSON `{"option", "text"}`: ein Buchstabe der Frage (sonst `422`) und/oder eigener Text, mindestens eines; mit PIN | ein Kommentar ans Ticket ohne Triage-Marken (der Treiber entfernt sie auch aus dem Freitext): `**Antwort des Menschen (Mensch über die Brücke)** — Sternzeit-Notiz #<nr>, Frage <n>: <Frage>`, `Antwort: <B) Optionstext — eigener Text>`, `Herkunft: Mensch über die Brücke`. Der `gh`-Account des Treibers zählt als berechtigt, der nächste Triage-Lauf nimmt die Antwort als Tatsache. Sonst ändert sich nichts. Ereignis |
+| `triage-widerruf` | #116: `epic` = Ticket, `seit` = `zeit` der Entscheidung aus `triage.entscheidungen` (sonst `404`), `text` der Einwand (`422` ohne), noch nicht widerrufen (`409`); mit PIN | zuerst der Kommentar `**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „Warp frei“ (oder „geschlossen“) zu Sternzeit-Notiz #<nr> zurückgenommen` mit `Einwand`, `Vorher` und `Herkunft`; scheitert er, ändert sich nichts. Dann `klar`: `ready_label` ab, `needs-triage` an; `ueberfluessig`: wieder geöffnet. Ereignis und Flottenlogbuch |
 
 `einreihen` und `aufgeben` schließen sich aus: Bis zum Abholen gilt die letzte. Danach antwortet die
 Brücke `409`. Endet der Einsatz, weil alles blockiert ist, wirkt die Handlung beim nächsten Start.
 Ebenso schließen sich `pausieren` und `fortsetzen` je Epic aus; von `prioritaet`, `merge` und
-`aufnehmen` gilt je Epic die letzte bis zum Abholen.
+`aufnehmen` gilt je Epic die letzte bis zum Abholen; ebenso (#116) je Projekt von `triage`, je Frage von
+`triage-antwort` und je Entscheidung von `triage-widerruf`. Was beim Treiber nicht passt (ein Lauf läuft
+schon, kein Konto mit Luft, Frage nicht mehr offen, unbekannte Option, Entscheidung unbekannt oder schon
+widerrufen, Kommentar gescheitert), ändert nichts und wird ein Ereignis `Triage-Lauf …`, `Triage-Antwort …`
+oder `Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: <Grund>`; quittiert wird beides.
 
 **Epics steuern** (#61): `aufnehmen`, `pausieren`, `fortsetzen`, `prioritaet` und (#112) `merge`
 betreffen ein Epic (`epic` ≥ 1, sonst `422`), `nr` und `seit` sind `null`, `text` ist nur bei

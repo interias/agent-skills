@@ -1,0 +1,20 @@
+{
+  "forge": "interias/notizen",
+  "url": "https://github.com/interias/notizen",
+  "rechner": "werkstatt",
+  "stand": "2026-11-20T14:30:40Z",
+  "aktiv": true,
+  "taktS": 60,
+  "epics": [],
+  "triage": {
+    "gelesen": "2026-11-20T14:20:00Z",
+    "laeuft": false,
+    "tickets": [
+      { "nr": 12, "titel": "Export als Markdown", "labels": ["needs-triage", "export"] },
+      { "nr": 14, "titel": "Suche über alle Notizen", "labels": ["needs-triage", "suche"] },
+      { "nr": 15, "titel": "Notizen per Mail teilen", "labels": ["needs-info", "export", "status/neu"] }
+    ],
+    "entscheidungen": [],
+    "fragen": []
+  }
+}

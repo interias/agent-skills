@@ -163,10 +163,27 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.post('/api/handlung')
     def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
         wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        if h.art == 'triage':
+            return triage_starten(h)
         p = speicher.projekt(h.forge)
         b = p['bericht'] if p else {}
         ep = next((x for x in b.get('epics', []) if x['nr'] == h.epic), None)
-        if h.art == 'einstellen':
+        triage = b.get('triage') or {}
+        if h.art == 'triage-antwort':
+            # #116: a critical question of the triage still open in the report; the driver checks again and comments at the ticket
+            f = next((f for f in triage.get('fragen', []) if f['ticket'] == h.epic and f['nr'] == h.nr and f['seit'] == h.seit), None)
+            if f is None:
+                raise HTTPException(404, 'Diese Frage ist nicht offen.')
+            option = json.loads(h.text)['option']
+            if option and option not in [o['buchstabe'] for o in f.get('optionen', [])]:
+                raise HTTPException(422, f'Option {option} gibt es bei dieser Frage nicht.')
+        elif h.art == 'triage-widerruf':
+            d = next((d for d in triage.get('entscheidungen', []) if d['nr'] == h.epic and d['zeit'] == h.seit), None)
+            if d is None:
+                raise HTTPException(404, 'Diese Entscheidung des Triage-Laufs kennt die Brücke nicht.')
+            if d.get('widerrufen'):
+                raise HTTPException(409, 'Diese Entscheidung ist schon widerrufen.')
+        elif h.art == 'einstellen':
             # belongs to the project: the bridge checks against the limits of the report, the driver checks again
             liste = b.get('einstellungen')
             if not liste:
@@ -212,6 +229,31 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         if gespeichert is None:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
         return {'ok': True, 'id': gespeichert['id']}
+
+    def triage_starten(h: Handlung) -> dict:
+        """#116: one triage action per project, or (forge `alle`) one for each project whose driver reports a triage state and runs none."""
+        if h.forge == 'alle':
+            ziele = [p['forge'] for p in speicher.projekte() if p['bericht'].get('triage') and not p['bericht']['triage'].get('laeuft')]
+            if not ziele:
+                raise HTTPException(409, 'Kein Treiber kann gerade einen Triage-Lauf starten.')
+        else:
+            p = speicher.projekt(h.forge)
+            if p is None:
+                raise HTTPException(404, 'Dieses Projekt kennt die Brücke nicht.')
+            if not p['bericht'].get('triage'):
+                raise HTTPException(409, 'Dieser Treiber kennt den Triage-Lauf nicht (älterer Stand).')
+            if p['bericht']['triage'].get('laeuft'):
+                raise HTTPException(409, 'Ein Triage-Lauf läuft schon.')
+            ziele = [h.forge]
+        ids = []
+        for forge in ziele:
+            gespeichert = speicher.handlung_setzen(forge, 0, 'triage', None, None, None, stempel())
+            # fetched already: that one starts the run, nothing more to do here
+            if gespeichert is not None:
+                ids.append(gespeichert['id'])
+        if not ids:
+            raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
+        return {'ok': True, 'id': ids[0], 'ids': ids}
 
     @app.post('/api/pin', status_code=204)
     def pin(request: Request, x_bruecke_pin: str | None = Header(None)) -> Response:

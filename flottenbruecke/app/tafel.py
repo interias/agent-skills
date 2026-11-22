@@ -8,6 +8,7 @@
 # them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
 # The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`) and
 # (#61) the released ones outside the driver's deployment (`freigegeben`), with the steering actions on their way.
+# The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`).
 
 import json
 import re
@@ -25,6 +26,9 @@ LANG_FAKTOR = 1.5
 LANG_AB = 3
 VON = ('mensch', 'admiral', 'lauf')
 KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nacharbeit': 2, 'pr': 3, 'wartend': 4}
+# #116 Frachtraum: the labels of the workflow are no topic (besides status/*); a ticket without a topic
+OHNE_THEMA = ('needs-triage', 'needs-info', 'ready-for-agent', 'epic')
+OHNE = 'ohne Thema'
 
 
 def zeit(text: str | None) -> datetime | None:
@@ -100,12 +104,59 @@ def _einstellungen(b: dict, forge: str, handlungen: list[dict]) -> list[dict] | 
     return [{**x, 'offen': {'wert': json.loads(offen[x['name']]['text'])['wert'], 'zeit': offen[x['name']]['zeit'], 'abgeholt': bool(offen[x['name']]['abgeholt'])} if x['name'] in offen else None} for x in b['einstellungen']]
 
 
+def thema_von(labels: list[str]) -> list[str]:
+    """#116: the topics of a Sternzeit-Notiz are its labels without the ones of the workflow."""
+    return [x for x in labels if x not in OHNE_THEMA and not x.startswith('status/')]
+
+
+def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, veraltet: bool, offen_h: dict) -> dict:
+    """#116: the triage state of a project, bundled: the open questions, the decisions of the triage runs
+    (newest first) and the Sternzeit-Notizen by topic; a topic with an open question first, "ohne Thema" last."""
+    tr = b['triage']
+    link = lambda nr: f'{url}/issues/{nr}' if url else None
+    gefragt = {f['ticket'] for f in tr.get('fragen', [])}
+    fragen = [{
+        'id': f"triage-frage:{forge}#{f['ticket']}#{f['nr']}#{f['seit']}",
+        'forge': forge,
+        **{k: f.get(k, d) for k, d in [('ticket', 0), ('nr', 0), ('titel', ''), ('frage', ''), ('optionen', []), ('empfehlung', ''), ('grund', ''), ('herkunft', ''), ('marke', ''), ('seit', '')]},
+        'issueUrl': link(f['ticket']),
+        # a recommendation names its option by letter or by its text
+        'empfohlen': empfohlen(f) or [o['buchstabe'] for o in f.get('optionen', []) if o['text'].strip().casefold() == (f.get('empfehlung') or '').strip().casefold()][:1],
+        'handlung': _handlung(offen_h.get((f['ticket'], 'triage-antwort', f['nr'], f['seit']))),
+    } for f in sorted(tr.get('fragen', []), key=lambda f: (f['seit'], f['ticket'], f['nr']))]
+    entscheidungen = [{
+        'id': f"triage-entscheidung:{forge}#{d['nr']}#{d['zeit']}",
+        'forge': forge,
+        **{k: d.get(k, v) for k, v in [('nr', 0), ('titel', ''), ('ergebnis', ''), ('herkunft', ''), ('grund', ''), ('zeit', ''), ('widerrufen', None)]},
+        'issueUrl': link(d['nr']),
+        'widerrufbar': not d.get('widerrufen'),
+        'handlung': _handlung(offen_h.get((d['nr'], 'triage-widerruf', None, d['zeit']))),
+    } for d in sorted(tr.get('entscheidungen', []), key=lambda d: d['zeit'], reverse=True)]
+    themen: dict[str, list[dict]] = {}
+    for t in tr.get('tickets', []):
+        eigene = thema_von(t.get('labels', []))
+        x = {'nr': t['nr'], 'titel': t.get('titel', ''), 'issueUrl': link(t['nr']), 'labels': t.get('labels', []), 'themen': eigene, 'frage': t['nr'] in gefragt}
+        for th in eigene or [OHNE]:
+            themen.setdefault(th, []).append(x)
+    for liste_t in themen.values():
+        liste_t.sort(key=lambda x: (not x['frage'], x['nr']))
+    reihe = sorted(themen, key=lambda th: (th == OHNE, not any(x['frage'] for x in themen[th]), th.casefold()))
+    return {
+        'forge': forge, 'kurz': kurz, 'url': url, 'aktiv': aktiv, 'veraltet': veraltet,
+        'gelesen': tr.get('gelesen'), 'laeuft': bool(tr.get('laeuft')), 'zahl': len(tr.get('tickets', [])),
+        'handlung': _handlung(offen_h.get((0, 'triage', None, None))),
+        'fragen': fragen,
+        'entscheidungen': entscheidungen,
+        'themen': [{'thema': th, 'tickets': themen[th]} for th in reihe],
+    }
+
+
 def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None) -> dict:
     heute = jetzt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     handlungen = handlungen or []
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
-    liste, rechner, konten = [], {}, {}
+    liste, rechner, konten, lager = [], {}, {}, []
     sitzungen = {}
 
     for p in projekte:
@@ -276,6 +327,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
+        if b.get('triage'):
+            lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h))
         liste[-1]['freigegeben'] = [{'nr': f['nr'], 'titel': f.get('titel', ''), 'issueUrl': f"{url}/issues/{f['nr']}" if url else None, 'handlung': _handlung(offen_h.get((f['nr'], 'aufnehmen', None, None)))} for f in b.get('freigegeben', [])]
 
         # ---- level 3: the admiral's decisions of today, revocable until the merge
@@ -310,6 +363,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 z = json.loads(h['text'])
                 titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
                 x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
+            elif h['art'].startswith('triage'):
+                # #116: a ticket of the triage, no epic
+                x = {**x, 'epic': None, 'ticket': h['epic'] or None}
             erledigt.append(x)
 
     # the cost of waiting: what holds a whole epic first, then the longest wait
@@ -319,6 +375,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     bereit.sort(key=lambda c: (not c['prio'], c['forge'], c['nr']))
     erledigt.sort(key=lambda x: x['zeit'], reverse=True)
     ereignisse.sort(key=lambda e: e['zeit'], reverse=True)
+    # #116: the projects with an open question of the triage first
+    lager.sort(key=lambda p: (not p['fragen'], p['forge']))
     # a session belongs to the project whose repository name is its folder name, else to none ("Sonstige")
     forge_von = {p['kurz'].lower(): p['forge'] for p in reversed(liste)}
     sitzungen_liste = sorted(
@@ -338,5 +396,6 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'ereignisse': ereignisse[:40],
         # Holodeck (#44): name and forge are checked on receipt, the page opens url in its sealed frame
         'sitzungen': sitzungen_liste,
+        'frachtraum': lager,
         'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
     }

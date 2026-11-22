@@ -1,0 +1,51 @@
+/* Frachtraum (#116): the styles of this area only, every rule below .bereich[data-bereich="frachtraum"].
+   Questions and buttons reuse the board's .opt, .knopf, .angekommen; red stays with "Braucht dich". */
+.bereich[data-bereich="frachtraum"] { overflow-wrap: anywhere; }
+.bereich[data-bereich="frachtraum"] .fr-hinweis { margin: 10px 0 8px; max-width: 80ch; font: 13px/1.4 var(--lesen); color: var(--matt); }
+.bereich[data-bereich="frachtraum"] .fr-alle { margin: 0 0 6px; }
+.bereich[data-bereich="frachtraum"] .fr-projekt { margin: 10px 0 18px; padding: 8px 0 0; border-top: 2px solid var(--linie); }
+.bereich[data-bereich="frachtraum"] .fr-projekt.veraltet { opacity: .6; }
+.bereich[data-bereich="frachtraum"] .fr-kopf { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; }
+.bereich[data-bereich="frachtraum"] .fr-name { color: var(--orange); }
+.bereich[data-bereich="frachtraum"] .fr-zahl { color: var(--matt); font: 13px var(--lesen); text-transform: none; letter-spacing: 0; }
+.bereich[data-bereich="frachtraum"] .knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.bereich[data-bereich="frachtraum"] .fr-start { margin: 6px 0 2px; }
+.bereich[data-bereich="frachtraum"] .fr-klein { color: var(--leise); font: 12.5px/1.4 var(--lesen); }
+.bereich[data-bereich="frachtraum"] .fr-unter { margin: 14px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--lila); }
+
+/* cards: a question, a decision */
+.bereich[data-bereich="frachtraum"] .fr-reihe { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 8px; }
+.bereich[data-bereich="frachtraum"] .fr-liste { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 8px; }
+.bereich[data-bereich="frachtraum"] .fr-karte { background: var(--flaeche); border-left: 8px solid var(--c, var(--violett)); border-radius: 0 14px 14px 0; padding: 8px 12px 10px; min-width: 0; display: grid; gap: 6px; align-content: start; }
+.bereich[data-bereich="frachtraum"] .fr-frage-karte { --c: var(--lila); }
+.bereich[data-bereich="frachtraum"] .fr-entscheidung.klar { --c: var(--gruen); }
+.bereich[data-bereich="frachtraum"] .fr-entscheidung.ueberfluessig { --c: var(--flaeche2); }
+.bereich[data-bereich="frachtraum"] .fr-zeile { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font: 13.5px/1.4 var(--lesen); }
+.bereich[data-bereich="frachtraum"] .nr { font: 700 14px var(--disp); color: var(--orange); }
+.bereich[data-bereich="frachtraum"] .fr-titel { flex: 1 1 12em; min-width: 0; }
+.bereich[data-bereich="frachtraum"] .fr-seit { color: var(--leise); font-size: 12px; }
+.bereich[data-bereich="frachtraum"] .fr-frage { margin: 0; font-size: 16px; line-height: 1.3; }
+.bereich[data-bereich="frachtraum"] .fr-ergebnis { padding: 0 8px; border-radius: var(--rund); background: var(--flaeche2); color: var(--matt); font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.bereich[data-bereich="frachtraum"] .fr-ergebnis.klar { background: var(--gruen); color: #000; }
+.bereich[data-bereich="frachtraum"] .fr-herkunft { color: var(--leise); }
+.bereich[data-bereich="frachtraum"] .widerrufen { color: var(--lila); }
+.bereich[data-bereich="frachtraum"] .wider { justify-self: start; min-height: 32px; }
+
+/* the Sternzeit-Notizen by topic */
+.bereich[data-bereich="frachtraum"] .fr-themen { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 8px; }
+.bereich[data-bereich="frachtraum"] .fr-thema { background: var(--flaeche); border-radius: 14px; padding: 6px 12px 8px; min-width: 0; }
+.bereich[data-bereich="frachtraum"] .fr-thema h5 { margin: 2px 0 4px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--blau); }
+.bereich[data-bereich="frachtraum"] .fr-anzahl { color: var(--leise); font-weight: 400; }
+.bereich[data-bereich="frachtraum"] .fr-tickets { list-style: none; margin: 0; padding: 0; }
+.bereich[data-bereich="frachtraum"] .fr-ticket { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 0; border-top: 1px solid var(--linie); font: 13.5px/1.4 var(--lesen); }
+.bereich[data-bereich="frachtraum"] .fr-ticket:first-child { border-top: 0; }
+.bereich[data-bereich="frachtraum"] .fr-marke { padding: 0 8px; border-radius: var(--rund); background: var(--lila); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.bereich[data-bereich="frachtraum"] .fr-label { padding: 0 8px; border-radius: var(--rund); border: 1px solid var(--linie); color: var(--matt); font-size: 12px; }
+
+@media (max-width: 700px) {
+  .bereich[data-bereich="frachtraum"] .wider { min-height: 44px; }
+  /* the ticket link is the touch target of its row */
+  .bereich[data-bereich="frachtraum"] .fr-ticket { min-height: 44px; align-items: center; }
+  .bereich[data-bereich="frachtraum"] .fr-ticket .nr { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+  .bereich[data-bereich="frachtraum"] .fr-zeile .nr, .bereich[data-bereich="frachtraum"] .fr-name { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+}

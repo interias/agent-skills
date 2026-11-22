@@ -2,7 +2,7 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken).
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen widerrufen).
 Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
@@ -33,6 +33,7 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 
 - **Brücke** (`#bruecke`, Startseite) — das Board unten.
 - **Holodeck** (`#holodeck`) — die Prototypen der Projekte, unten.
+- **Frachtraum** (`#frachtraum`) — die Sternzeit-Notizen aller Projekte, unten.
 - **Sternenkarte** (`#sternenkarte`) — Projekte mit ihrem Backlog, unten.
 - **Maschinenraum** (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten.
 
@@ -80,6 +81,29 @@ lässt es unter den startbereiten zuerst auf einen freien Platz, Reihenfolge und
 weiter; sie gilt vor dem Label `prio/hoch`. Die Zeile zeigt `prio`, `pausiert` (gestrichelter Rand,
 blau, nie rot) und „nicht im Einsatz“. Jede Handlung steht im Flottenlogbuch und unter „Erledigt
 heute“. Bilder: `doku/v3-sternenkarte-1440.png`, `-390.png`.
+
+## Frachtraum
+
+Der Wareneingang (#116): alle Sternzeit-Notizen (`needs-triage`, `needs-info`) aller Projekte, je Projekt
+ein Block mit der Zahl der Notizen und der offenen Fragen; Projekte mit Fragen stehen oben. Darin:
+
+- **Fragen an dich** — die kritischen Fragen der Triage, auf die noch niemand geantwortet hat: Ticket,
+  Frage, Punkt der Liste „beim Menschen“, warum sie bei dir liegt, Herkunft, je Option ein Knopf (die
+  Empfehlung markiert) und ein eigener Text. Ein Tipp auf „B nehmen · Empfehlung“ sendet die Empfehlung.
+  Der Treiber schreibt die Antwort als Kommentar ans Ticket; der nächste Triage-Lauf nimmt sie als Tatsache.
+- **Entscheidungen des Triage-Laufs** — was ein über die Brücke gestarteter Lauf freigegeben (Warp frei)
+  oder geschlossen hat, mit Grund und Herkunft. **› Widerrufen** mit einem Einwand: Der Treiber
+  kommentiert zuerst am Ticket, dann nimmt er Warp frei zurück (`needs-triage` wieder an) oder öffnet die
+  Notiz wieder.
+- **Sternzeit-Notizen nach Thema** — Thema sind die fachlichen Labels (ohne `needs-triage`, `needs-info`,
+  `ready-for-agent`, `status/*`, `epic`), sonst „ohne Thema“; Notizen mit offener Frage zuerst. Die
+  Befehlszeile findet jede Notiz und jede Frage.
+
+**Triage-Lauf starten** je Projekt und **Triage-Lauf für alle**, nach einer Rückfrage: Der Treiber führt
+`flotte triage` aus (`flotte/README.md`, „Triage“), einen Lauf je Projekt zur Zeit. Jede Handlung braucht
+die PIN und wirkt ab dem nächsten Takt des Treibers; nichts existiert nur auf der Brücke. Die Daten liest
+der Treiber aus der Forge (`triage` im Bericht, `SCHNITTSTELLE.md`); ein älterer Treiber fehlt hier.
+Bilder: `doku/v3-frachtraum-1440.png`, `-390.png`.
 
 ## Schiffsliste
 
@@ -251,10 +275,12 @@ Zum Ausprobieren ohne Treiber:
 
 ```
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht.json http://127.0.0.1:4747/api/bericht
+curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht-notizen.json http://127.0.0.1:4747/api/bericht
 python -c "import json,urllib.request as u;[u.urlopen(u.Request('http://127.0.0.1:4747/api/holodeck',json.dumps(b).encode(),{'Content-Type':'application/json'})) for b in json.load(open('beispiel/holodeck.json',encoding='utf-8'))]"
 ```
 
 `beispiel/holodeck.json` ist eine Liste mit einem Body je Projekt; die Zeile schickt jeden.
+`beispiel/bericht-notizen.json` ist ein zweites, kleines Projekt (der Frachtraum mit zwei Projekten).
 
 ## Entwickeln
 

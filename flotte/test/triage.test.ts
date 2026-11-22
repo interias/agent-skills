@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
-import { entscheidungAus, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, triageSchema } from '../src/triage.ts';
+import { type Entscheidung, entscheidungAus, offeneFragen, type Ticket, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, triageKommentar, triageSchema } from '../src/triage.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
 
 const REGELN = regelnAus('');
@@ -320,5 +320,26 @@ describe('triagiere', () => {
     const r = await triagiere(auftrag(), t.w);
     expect(schreibend(t.aufrufe)).toEqual([]);
     expect(r.tickets[0]).toMatchObject({ ergebnis: 'ungueltig', geschrieben: false });
+  });
+});
+
+describe('offene Fragen aus dem Kommentar der Triage (#116)', () => {
+  const kritisch = entscheidungAus(antwort.kritisch, 'Newsletter', 'Text', REGELN) as Exclude<Entscheidung, { art: 'ungueltig' }>;
+  const ticket = (kommentare: Ticket['kommentare']): Ticket => ({ nummer: 61, titel: 'Newsletter', body: 'Text', url: 'https://github.com/o/r/issues/61', labels: ['needs-triage'], kommentare });
+  const frage = (rolle = 'OWNER') => ({ body: triageKommentar(kritisch, ticket([]), ['needs-triage'], 'ready-for-agent'), autor: 'flotte', zeit: '2026-11-20T13:05:00Z', rolle });
+
+  it('reads back every question with the person as triageKommentar wrote it, the time of the comment as seit', () => {
+    expect(offeneFragen(ticket([frage()]))).toEqual([
+      { nr: 1, frage: 'Darf der Newsletter an alle Kunden gehen?', optionen: ['ja', 'nein, nur Testliste'], empfehlung: 'nein, nur Testliste', grund: 'nicht zurückholbar', marke: 'nach außen', herkunft: 'Eigenes Urteil: geht nach außen', seit: '2026-11-20T13:05:00Z' },
+      { nr: 2, frage: 'Welcher Zahlungsanbieter?', optionen: ['Stripe', 'PayPal'], empfehlung: 'Stripe', grund: 'Kosten', marke: 'Geld', herkunft: 'Eigenes Urteil: echtes Geld', seit: '2026-11-20T13:05:00Z' },
+    ]);
+  });
+
+  it('answered by an entitled person, copied by a stranger, or a decision instead of a question: nothing open', () => {
+    expect(offeneFragen(ticket([frage(), { body: 'Nur Testliste.', autor: 'mensch', zeit: '2026-11-20T14:00:00Z', rolle: 'OWNER' }]))).toEqual([]);
+    expect(offeneFragen(ticket([frage('NONE')]))).toEqual([]);
+    expect(offeneFragen(ticket([{ ...frage(), body: `${TRIAGE_MARKE}\n**Triage: Warp frei**` }]))).toEqual([]);
+    // a stranger's comment below the question does not answer it
+    expect(offeneFragen(ticket([frage(), { body: 'Ja klar!', autor: 'x', zeit: '2026-11-20T14:00:00Z', rolle: 'NONE' }]))).toHaveLength(2);
   });
 });
