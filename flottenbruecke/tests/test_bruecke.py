@@ -490,6 +490,10 @@ def test_vertrag_handlungen(client, bericht):
     handlung(client, 'einstellen', epic=0, text='{"name": "obergrenze", "wert": 2}')
     for epic, art, text in [(43, 'aufnehmen', None), (38, 'pausieren', None), (39, 'fortsetzen', None), (41, 'prioritaet', 'hoch'), (38, 'merge', 'mensch')]:
         assert handlung(client, art, epic=epic, text=text).status_code == 200
+    # #116: the Frachtraum
+    assert handlung(client, 'triage', epic=0).status_code == 200
+    assert handlung(client, 'triage-antwort', epic=61, nr=1, seit='2026-11-20T13:05:00Z', text='{"option": "B", "text": null}').status_code == 200
+    assert handlung(client, 'triage-widerruf', epic=58, seit='2026-11-20T13:04:30Z', text='Die alte Ansicht brauchen wir noch für den Beamer im Besprechungsraum.').status_code == 200
     geliefert = abholen(client, 'handlungen')
     assert [sorted(h) for h in geliefert] == [sorted(h) for h in beispiel]
     for g, b in zip(geliefert, beispiel):
@@ -605,15 +609,15 @@ def test_seite_bindet_skript_und_stil_mit_inhaltsstand_ein(client):
     assert client.get(f'/static/app.js?v={stand.group(1)}').status_code == 200
 
 
-BEREICHE = ['bruecke', 'holodeck', 'sternenkarte', 'maschinenraum', 'logbuch']
+BEREICHE = ['bruecke', 'holodeck', 'frachtraum', 'sternenkarte', 'maschinenraum', 'logbuch']
 
 
-def test_huelle_zeigt_die_fuenf_bereiche_ohne_komm(client):
+def test_huelle_zeigt_die_sechs_bereiche_ohne_komm(client):
     html = client.get('/').text
     for b in BEREICHE:
         assert f'<a class="pille" href="#{b}" data-bereich="{b}">' in html
         assert f'<section class="bereich" data-bereich="{b}"' in html
-    assert len(re.findall(r'class="pille" ', html)) == 5
+    assert len(re.findall(r'class="pille" ', html)) == 6
     assert not re.search(r'#komm\b|data-bereich="komm"', html, re.IGNORECASE)
     # the board stays the area "Brücke": its three levels live in that section
     bruecke = html.split('data-bereich="bruecke" aria-label="Brücke">', 1)[1].split('</section>\n<section', 1)[0]

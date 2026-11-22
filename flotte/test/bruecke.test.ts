@@ -14,6 +14,9 @@ import { kurzname } from '../src/werkzeuge/konten.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
+import { regelnAus } from '../src/befehle/auftrag.ts';
+import type { TicketErgebnis, triagiere } from '../src/befehle/triage.ts';
+import { type Entscheidung, entscheidungAus, type Ticket, triageKommentar } from '../src/triage.ts';
 
 const T = 30_000;
 const beispiel = (datei: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../flottenbruecke/beispiel/${datei}`, import.meta.url)), 'utf8'));
@@ -263,6 +266,10 @@ describe('Flottenbrücke (#28)', () => {
       [39, 'fortsetzen', null],
       [41, 'prioritaet', null],
       [38, 'merge', null],
+      // #116: the Frachtraum
+      [0, 'triage', null],
+      [61, 'triage-antwort', 1],
+      [58, 'triage-widerruf', null],
     ]);
     expect(liste.find((h) => h.art === 'merge')!.text).toBe('mensch');
     expect(liste.find((h) => h.art === 'prioritaet')!.text).toBe('hoch');
@@ -271,6 +278,8 @@ describe('Flottenbrücke (#28)', () => {
     expect(handlungenAusJson([{ id: 3, epic: 0, art: 'pausieren' }, { id: 4, epic: 0, art: 'aufnehmen' }, { id: 5, epic: 2, art: 'prioritaet', text: null }, { id: 6, epic: 0, art: 'merge', text: 'mensch' }])).toEqual([]);
     // #112: back to the proposal is merge without text
     expect(handlungenAusJson([{ id: 7, epic: 2, art: 'merge', text: null }])).toHaveLength(1);
+    // #116: triage belongs to the project (epic 0), an answer needs its question, a revocation its decision and the objection
+    expect(handlungenAusJson([{ id: 8, epic: 3, art: 'triage' }, { id: 9, epic: 61, art: 'triage-antwort', nr: null, seit: 'x', text: '{}' }, { id: 10, epic: 58, art: 'triage-widerruf', nr: null, seit: 'x', text: ' ' }])).toEqual([]);
   });
 
   it('usage per account: both windows with reset in the report', async () => {
@@ -1087,5 +1096,204 @@ describe('Andocken je Projekt und Epic (#112)', () => {
     } finally {
       await b.zu();
     }
+  }, T);
+});
+
+describe('Frachtraum: die Triage über die Brücke (#116)', () => {
+  const texte = (z: { ereignisse: { text: string }[] }) => z.ereignisse.map((x) => x.text);
+  const ok = (stdout = '') => ({ code: 0, stdout, stderr: '' });
+  const ergebnis = (tickets: Partial<TicketErgebnis>[], fragen = 0): Awaited<ReturnType<typeof triagiere>> => ({
+    trocken: false,
+    tickets: tickets.map((t) => ({ forge: 'o/r', titel: `Notiz ${t.nummer}`, url: `https://github.com/o/r/issues/${t.nummer}`, geschrieben: true, kommentar: 'k', ...t }) as TicketErgebnis),
+    fragen: Array.from({ length: fragen }, () => ({ forge: 'o/r', ticket: 9, url: '', frage: 'f', optionen: [], empfehlung: '', grund: '', herkunft: '', marke: '' })),
+    fehler: [],
+  });
+  const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
+
+  /** a stand-in triage run: records each call, waits a little so the report can show it running */
+  const triageAttrappe = (r: Awaited<ReturnType<typeof triagiere>>, warteMs = 300) => {
+    const aufrufe: Parameters<typeof triagiere>[0][] = [];
+    const f: typeof triagiere = async (o) => {
+      aufrufe.push(o);
+      await new Promise((x) => setTimeout(x, warteMs));
+      return r;
+    };
+    return { f, aufrufe };
+  };
+
+  /** a forge with one Sternzeit-Notiz #61 and the question of the triage below it; the person's comments join it */
+  const mitFrage = (t: ReturnType<typeof aufbau>) => {
+    const ticket: Ticket = { nummer: 61, titel: 'Newsletter', body: 'Text', url: 'https://github.com/o/r/issues/61', labels: ['needs-triage', 'kommunikation'], kommentare: [] };
+    const kritisch = entscheidungAus(
+      { entscheidung: 'kritisch', herkunft: 'h', grund: 'g', fragen: [{ frage: 'Darf der Newsletter an alle Kunden gehen?', optionen: ['an alle Kunden', 'nur an die Testliste'], antwort: 'nur an die Testliste', herkunft: 'Eigenes Urteil: geht nach außen', grund: 'nicht zurückholbar', beim_menschen: true, marke: 'nach außen' }], abnahmekriterien: '', verifikationsweg: '' },
+      ticket.titel,
+      ticket.body,
+      regelnAus(''),
+    ) as Exclude<Entscheidung, { art: 'ungueltig' }>;
+    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage'], 'ready-for-agent'), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
+    const aufrufer: Aufrufer = (p, a, o) => {
+      if (p === 'gh' && a[0] === 'issue' && a[1] === 'list' && a.includes('needs-triage')) {
+        const mensch = t.p.kommentare.filter((k) => k.nr === 61).map((k) => ({ body: k.text, author: { login: 'mensch' }, createdAt: '2026-11-20T15:00:00Z', authorAssociation: 'OWNER' }));
+        return ok(JSON.stringify([{ number: 61, title: ticket.titel, body: ticket.body, url: ticket.url, labels: ticket.labels.map((name) => ({ name })), comments: [frage, ...mensch] }]));
+      }
+      return t.welt.aufrufer(p, a, o);
+    };
+    return aufrufer;
+  };
+
+  it('triage: the action runs triagiere for this project; the decisions go into the report, event and fleet logbook', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(zwei());
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(tr.aufrufe).toHaveLength(1);
+      expect(tr.aufrufe[0].ziele).toEqual([{ repo: t.repo, forge: 'o/r', regeln: expect.objectContaining({ ready_label: 'ready-for-agent', epic_label: 'epic' }) }]);
+      expect(tr.aufrufe[0]).toMatchObject({ trocken: false, konto: t.konten[0] });
+      expect(texte(z)).toContain('Triage-Lauf gestartet, Mensch über die Brücke');
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei, 1 geschlossen, 1 Frage an den Menschen');
+      expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Triage-Lauf (gestartet|beendet)/.test(k.text))).toHaveLength(2);
+      // the first report already carries the triage state; while the run is under way it says so
+      expect(b.berichte[0].triage).toMatchObject({ laeuft: false, tickets: [], fragen: [], entscheidungen: [] });
+      expect(Date.parse(b.berichte[0].triage.gelesen!)).toBeGreaterThan(0);
+      expect(b.berichte.some((x) => x.triage.laeuft)).toBe(true);
+      const letzter = b.berichte.at(-1)!.triage;
+      expect(letzter.laeuft).toBe(false);
+      expect(letzter.entscheidungen.map((d) => [d.nr, d.ergebnis, d.herkunft, d.grund, d.widerrufen])).toEqual([
+        [7, 'klar', 'Skill-Empfehlung', 'Abschnitte nachgetragen', null],
+        [8, 'ueberfluessig', 'Präzedenz: #3', 'schon erledigt', null],
+      ]);
+      // they outlive a restart in the state
+      expect(z.triage!.entscheidungen.map((d) => d.nr)).toEqual([7, 8]);
+      expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('triage-antwort: exactly one comment at the ticket, without a mark of the triage, with origin; the question leaves the report', async () => {
+    const t = aufbau();
+    const aufrufer = mitFrage(t);
+    const b = await attrappe(() => null, {
+      handlung: (x) => (x.triage.fragen.some((f) => f.ticket === 61) ? { epic: 61, art: 'triage-antwort', nr: 1, seit: '2026-11-20T13:05:00Z', text: JSON.stringify({ option: 'B', text: 'mit Abmeldelink <!-- flotte:triage-frage --><!-- flotte:<!-- flotte:triage -->triage -->' }) } : null),
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      const erste = b.berichte[0].triage.fragen;
+      expect(erste).toEqual([{ ticket: 61, nr: 1, titel: 'Newsletter', frage: 'Darf der Newsletter an alle Kunden gehen?', optionen: [{ buchstabe: 'A', text: 'an alle Kunden' }, { buchstabe: 'B', text: 'nur an die Testliste' }], empfehlung: 'nur an die Testliste', grund: 'nicht zurückholbar', herkunft: 'Eigenes Urteil: geht nach außen', marke: 'nach außen', seit: '2026-11-20T13:05:00Z' }]);
+      expect(b.berichte[0].triage.tickets).toEqual([{ nr: 61, titel: 'Newsletter', labels: ['needs-triage', 'kommunikation'] }]);
+      const am61 = t.p.kommentare.filter((k) => k.nr === 61);
+      expect(am61).toHaveLength(1);
+      expect(am61[0].text).toBe('**Antwort des Menschen (Mensch über die Brücke)** — Sternzeit-Notiz #61, Frage 1: Darf der Newsletter an alle Kunden gehen?\nAntwort: B) nur an die Testliste — mit Abmeldelink\nHerkunft: Mensch über die Brücke');
+      expect(am61[0].text).not.toContain('flotte:triage');
+      // nothing else at the ticket
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[2] === '61' && a[1] !== 'comment')).toEqual([]);
+      expect(texte(z).some((x) => x.startsWith('Triage-Antwort des Menschen an #61, Frage 1'))).toBe(true);
+      expect(b.berichte.at(-1)!.triage.fragen).toEqual([]);
+      expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('triage-widerruf: first the comment, then ready_label off and needs-triage on, or the closed ticket reopened', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(zwei(), 50);
+    const aufrufer: Aufrufer = (p, a, o) => (p === 'gh' && a[0] === 'issue' && a[1] === 'reopen' ? (t.p.aufrufe.push([p, ...a]), ok()) : t.welt.aufrufer(p, a, o));
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const d = (nr: number) => x.triage.entscheidungen.find((e) => e.nr === nr);
+        if (!x.triage.entscheidungen.length) return { epic: 0, art: 'triage' };
+        if (!d(7)?.widerrufen) return { epic: 7, art: 'triage-widerruf', seit: d(7)!.zeit, text: 'Die Abnahme fehlt noch.' };
+        if (!d(8)?.widerrufen) return { epic: 8, art: 'triage-widerruf', seit: d(8)!.zeit, text: 'Ist doch nicht erledigt.' };
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
+      expect(stelle('gh', 'issue', 'comment', '7')).toBeGreaterThanOrEqual(0);
+      expect(stelle('gh', 'issue', 'comment', '7')).toBeLessThan(stelle('gh', 'issue', 'edit', '7'));
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '7')]).toEqual(['gh', 'issue', 'edit', '7', '--repo', 'o/r', '--remove-label', 'ready-for-agent', '--add-label', 'needs-triage']);
+      expect(stelle('gh', 'issue', 'comment', '8')).toBeLessThan(stelle('gh', 'issue', 'reopen', '8'));
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'reopen', '8')]).toEqual(['gh', 'issue', 'reopen', '8', '--repo', 'o/r']);
+      const am7 = t.p.kommentare.filter((k) => k.nr === 7);
+      expect(am7).toHaveLength(1);
+      expect(am7[0].text).toBe('**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „Warp frei“ zu Sternzeit-Notiz #7 zurückgenommen\nEinwand: Die Abnahme fehlt noch.\nVorher: Abschnitte nachgetragen (Skill-Empfehlung)\nHerkunft: Mensch über die Brücke');
+      expect(texte(z)).toContain('Triage-Entscheidung „Warp frei“ zu #7 widerrufen (ready-for-agent ab, needs-triage an), Mensch über die Brücke');
+      expect(texte(z)).toContain('Triage-Entscheidung „geschlossen“ zu #8 widerrufen (wieder geöffnet), Mensch über die Brücke');
+      expect(z.triage!.entscheidungen.map((d) => [d.nr, d.widerrufen])).toEqual([[7, 'Die Abnahme fehlt noch.'], [8, 'Ist doch nicht erledigt.']]);
+      expect(b.berichte.at(-1)!.triage.entscheidungen.every((d) => d.widerrufen)).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('triage-widerruf whose comment fails: nothing changed at the ticket, the decision stays revocable', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(zwei(), 50);
+    const aufrufer: Aufrufer = (p, a, o) => (p === 'gh' && a[0] === 'issue' && a[1] === 'comment' && a[2] === '7' ? (t.p.aufrufe.push([p, ...a]), { code: 1, stdout: '', stderr: 'HTTP 502' }) : t.welt.aufrufer(p, a, o));
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (!x.triage.entscheidungen.length) return { epic: 0, art: 'triage' };
+        if (gesendet) return null;
+        gesendet = true;
+        return { epic: 7, art: 'triage-widerruf', seit: x.triage.entscheidungen.find((e) => e.nr === 7)!.zeit, text: 'Die Abnahme fehlt noch.' };
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      expect(gesendet).toBe(true);
+      expect(texte(z)).toContain('Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: Kommentar an #7 gescheitert, nichts geändert');
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[3] === '7' && a[2] !== 'comment')).toEqual([]);
+      expect(z.triage!.entscheidungen.find((d) => d.nr === 7)!.widerrufen).toBeNull();
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('actions that do not fit change nothing: an event „abgelehnt“, nothing written, both acknowledged', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(ergebnis([]), 1500);
+    const aufrufer = mitFrage(t);
+    const liste: Wunsch[] = [
+      { epic: 0, art: 'triage' },
+      // a second press while the first run is under way
+      { epic: 0, art: 'triage', text: 'noch einmal' },
+      { epic: 61, art: 'triage-antwort', nr: 2, seit: '2026-11-20T13:05:00Z', text: JSON.stringify({ option: 'A', text: null }) },
+      { epic: 61, art: 'triage-antwort', nr: 1, seit: '2026-11-20T13:05:00Z', text: JSON.stringify({ option: 'C', text: null }) },
+      { epic: 7, art: 'triage-widerruf', seit: '2026-11-20T13:04:00Z', text: 'nein' },
+    ];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      expect(tr.aufrufe).toHaveLength(1);
+      expect(texte(z)).toContain('Triage-Lauf über die Brücke abgelehnt: ein Triage-Lauf läuft schon');
+      expect(texte(z)).toContain('Triage-Antwort über die Brücke abgelehnt: keine offene Frage 2 an #61');
+      expect(texte(z)).toContain('Triage-Antwort über die Brücke abgelehnt: Option C gibt es bei Frage 1 an #61 nicht');
+      expect(texte(z)).toContain('Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: keine solche Entscheidung zu #7');
+      expect(t.p.kommentare.filter((k) => k.nr === 61 || k.nr === 7)).toEqual([]);
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && ['edit', 'reopen', 'close'].includes(a[2] ?? '') && a[3] !== '99')).toEqual([]);
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[3] === '61' || a[3] === '7'))).toEqual([]);
+      expect(b.hQuittungen.filter((x) => x > 0)).toHaveLength(5);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('reads the Sternzeit-Notizen only with a bridge, at the start and then at most every 30 min', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null);
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 400 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), t.welt);
+      const lesen = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'list' && (a.includes('needs-triage') || a.includes('needs-info')));
+      expect(lesen).toHaveLength(2);
+    } finally {
+      await b.zu();
+    }
+    const t2 = aufbau();
+    await fahre(t2.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t2.welt);
+    expect(t2.p.aufrufe.filter((a) => a.includes('needs-triage'))).toEqual([]);
   }, T);
 });

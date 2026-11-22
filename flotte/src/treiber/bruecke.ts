@@ -1,6 +1,7 @@
 // The driver's side of the Flottenbrücke (#28): one report per turn, fetching and acknowledging the
 // answers and actions of the person (requeue or give up a blocked epic, revoke a decision, change a setting,
-// take an epic in, pause or continue it, set its priority or its merge). Only the driver talks to the bridge; runs and admiral never see it. A bridge
+// take an epic in, pause or continue it, set its priority or its merge; #116: start a triage run, answer a question
+// of the triage or revoke one of its decisions). Only the driver talks to the bridge; runs and admiral never see it. A bridge
 // that is off or slow is no error: every call has a short time limit and yields undefined.
 // The contract is flottenbruecke/beispiel/bericht.json, antworten.json, handlungen.json and
 // holodeck.json, tested on both sides.
@@ -41,11 +42,14 @@ export interface BrueckenAntwort {
  * (#58) belongs to the project, not to an epic: epic 0, text the JSON `{"name": …, "wert": …}`.
  * #61: aufnehmen, pausieren, fortsetzen without text, prioritaet with text `hoch` or `normal`.
  * #112: merge with text `automatisch` or `mensch`, null: back to the proposal.
+ * #116 Frachtraum: triage (epic 0) starts a triage run of the project; triage-antwort answers a critical
+ * question of the triage (epic the ticket, nr and seit the question, text the JSON `{"option", "text"}`);
+ * triage-widerruf revokes a decision of a triage run (epic the ticket, seit its zeit, text the objection).
  */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -192,6 +196,31 @@ export interface Bericht {
   einstellungen: BerichtEinstellung[];
   /** #61: the released open epics of the forge that are not in this deployment (aufnehmen) */
   freigegeben: { nr: number; titel: string }[];
+  /** #116: the triage state (Frachtraum) */
+  triage: BerichtTriage;
+}
+
+/** #116: a decision of a triage run of this driver, revocable on the bridge; (nr, zeit) is the key */
+export interface BerichtTriageEntscheidung {
+  nr: number;
+  titel: string;
+  ergebnis: 'klar' | 'ueberfluessig';
+  herkunft: string;
+  grund: string;
+  zeit: string;
+  widerrufen: string | null;
+}
+
+/**
+ * #116: the triage state of the project for the Frachtraum: the open Sternzeit-Notizen and the open
+ * critical questions from the forge (gelesen: when), the decisions of the driver's triage runs, a run under way.
+ */
+export interface BerichtTriage {
+  gelesen: string | null;
+  laeuft: boolean;
+  tickets: { nr: number; titel: string; labels: string[] }[];
+  entscheidungen: BerichtTriageEntscheidung[];
+  fragen: { ticket: number; nr: number; titel: string; frage: string; optionen: Option[]; empfehlung: string; grund: string; herkunft: string; marke: string; seit: string }[];
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
@@ -228,7 +257,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string'))),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim()))),
   );
 }
 

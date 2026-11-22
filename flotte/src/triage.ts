@@ -94,6 +94,50 @@ export function wartetAufAntwort(t: Ticket): boolean {
   return i >= 0 && !t.kommentare.slice(i + 1).some((k) => berechtigt(k) && !marke(k));
 }
 
+/** A critical question read back from the comment of the triage (#116); seit is the comment's time, with nr the key. */
+export interface OffeneFrage {
+  nr: number;
+  frage: string;
+  optionen: string[];
+  empfehlung: string;
+  grund: string;
+  marke: string;
+  herkunft: string;
+  seit: string;
+}
+
+/**
+ * #116: the questions of the last comment of the triage that still wait for an answer (wartetAufAntwort),
+ * read back from the form triageKommentar writes; [] when the last one is no question.
+ */
+export function offeneFragen(t: Ticket): OffeneFrage[] {
+  if (!wartetAufAntwort(t)) return [];
+  const k = t.kommentare.findLast((k) => berechtigt(k) && (k.body.includes(TRIAGE_MARKE) || k.body.includes(TRIAGE_FRAGE_MARKE)));
+  if (!k?.body.includes(TRIAGE_FRAGE_MARKE)) return [];
+  const zeilen = k.body.split(/\r?\n/);
+  const fragen: OffeneFrage[] = [];
+  // the questions start below the heading and end at the first empty line after one ("Schon entschieden" follows)
+  for (const z of zeilen.slice(zeilen.findIndex((z) => z.startsWith('**FRAGE AN DEN MENSCHEN')) + 1)) {
+    const f = fragen.at(-1);
+    const neu = /^(\d+)\. (.*)$/.exec(z);
+    const feld = /^\s+(Optionen|Empfehlung|Punkt der Liste|Herkunft): (.*)$/.exec(z);
+    if (!z.trim()) {
+      if (f) break;
+    } else if (neu) {
+      fragen.push({ nr: Number(neu[1]), frage: neu[2].trim(), optionen: [], empfehlung: '', grund: '', marke: '', herkunft: '', seit: k.zeit });
+    } else if (f && feld?.[1] === 'Optionen') {
+      f.optionen = feld[2].split(/(?:^|\s)[A-Z]\) /).map((o) => o.trim()).filter(Boolean);
+    } else if (f && feld?.[1] === 'Empfehlung') {
+      const [empfehlung, ...grund] = feld[2].split(' — ');
+      f.empfehlung = empfehlung.trim();
+      f.grund = grund.join(' — ').trim();
+    } else if (f && feld) {
+      f[feld[1] === 'Herkunft' ? 'herkunft' : 'marke'] = feld[2].trim();
+    }
+  }
+  return fragen;
+}
+
 const voll = (text: string, k: string) => (abschnittInhalt(text, k) ?? '').trim() !== '';
 
 /** Fills a section that is missing (appended) or empty (content under its heading). */
