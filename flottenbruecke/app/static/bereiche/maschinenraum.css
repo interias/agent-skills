@@ -38,6 +38,8 @@
 .bereich[data-bereich="maschinenraum"] .mr-hilfe, .bereich[data-bereich="maschinenraum"] .mr-stand { margin: 0; font: 13px/1.4 var(--lesen); color: var(--matt); }
 .bereich[data-bereich="maschinenraum"] .mr-stand b { color: var(--text); font-weight: 600; }
 .bereich[data-bereich="maschinenraum"] .mr-wartet { color: var(--gold); font-weight: 600; }
+/* #112: why a value is not on offer (Andocken under merge: mensch) */
+.bereich[data-bereich="maschinenraum"] .mr-grenze { color: var(--gold); }
 .bereich[data-bereich="maschinenraum"] .mr-seit { color: var(--leise); }
 .bereich[data-bereich="maschinenraum"] .mr-regler { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .bereich[data-bereich="maschinenraum"] .mr-chip { position: relative; display: inline-flex; }

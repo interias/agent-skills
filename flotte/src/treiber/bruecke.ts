@@ -1,6 +1,6 @@
 // The driver's side of the Flottenbrücke (#28): one report per turn, fetching and acknowledging the
 // answers and actions of the person (requeue or give up a blocked epic, revoke a decision, change a setting,
-// take an epic in, pause or continue it, set its priority). Only the driver talks to the bridge; runs and admiral never see it. A bridge
+// take an epic in, pause or continue it, set its priority or its merge). Only the driver talks to the bridge; runs and admiral never see it. A bridge
 // that is off or slow is no error: every call has a short time limit and yields undefined.
 // The contract is flottenbruecke/beispiel/bericht.json, antworten.json, handlungen.json and
 // holodeck.json, tested on both sides.
@@ -11,7 +11,7 @@ import type { Prototyp } from './holodeck.ts';
 import type { BerichtSitzung } from './sitzungen.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { PaketDetail } from '../werkzeuge/detail.ts';
-import type { BerichtEinstellung } from './einstellungen.ts';
+import type { BerichtEinstellung, WirksameStellung } from './einstellungen.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
@@ -40,11 +40,12 @@ export interface BrueckenAntwort {
  * One action as GET /api/handlungen delivers it; nr, seit and text only for a revocation. einstellen
  * (#58) belongs to the project, not to an epic: epic 0, text the JSON `{"name": …, "wert": …}`.
  * #61: aufnehmen, pausieren, fortsetzen without text, prioritaet with text `hoch` or `normal`.
+ * #112: merge with text `automatisch` or `mensch`, null: back to the proposal.
  */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -116,6 +117,8 @@ export interface BerichtEpic {
   imEinsatz: boolean;
   pausiert: string | null;
   prioritaet: 'hoch' | 'normal' | null;
+  /** #112: how the epic merges now, where that comes from (projekt, vorschlag, epic) and the proposal's reason */
+  merge: WirksameStellung;
   /** ISO times for level 2: first run started, joined the merge queue, the driver's gate started */
   gestartetAm: string | null;
   schlangeSeit: string | null;
@@ -225,7 +228,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string')),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string'))),
   );
 }
 

@@ -2,7 +2,8 @@
 # answers of the person. Viewing is free in the LAN; answering needs the PIN from .env. Besides the
 # answers the bridge carries actions to the driver, which carries them out: requeue or give up a
 # blocked epic, revoke a decision of the admiral, change a setting of the driver (#59), take a released
-# epic in, pause or continue an epic and set its priority (#61). No merge, no abort. The Holodeck (#44)
+# epic in, pause or continue an epic and set its priority (#61), and set how an epic merges (#112): the
+# bridge only tightens, merge.ps1 stays the hard limit. No merge of its own, no abort. The Holodeck (#44)
 # shows the prototypes each driver sends, sealed off from the bridge.
 
 import hashlib
@@ -186,9 +187,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(409, 'Das Epic ist nicht freigegeben oder schon im Einsatz.')
         elif ep is None:
             raise HTTPException(404, 'Dieses Epic kennt die Brücke nicht.')
-        elif h.art in ('pausieren', 'fortsetzen', 'prioritaet'):
+        elif h.art in ('pausieren', 'fortsetzen', 'prioritaet', 'merge'):
             if ep['stufe'] in ('gemergt', 'fertig') or ep.get('aufgegebenAm') or not ep.get('imEinsatz', True):
                 raise HTTPException(409, 'Das Epic ist nicht im Einsatz.')
+            if h.art == 'merge' and not ep.get('merge'):
+                raise HTTPException(409, 'Dieser Treiber kennt den Schalter fürs Andocken nicht (älterer Stand).')
+            # #112: the bridge only tightens: automatisch only where the driver offers it (adapter merge: nach_gate)
+            projekt = next((x for x in b.get('einstellungen') or [] if x['name'] == 'merge'), None)
+            if h.art == 'merge' and h.text == 'automatisch' and 'automatisch' not in ((projekt or {}).get('werte') or []):
+                raise HTTPException(409, (projekt or {}).get('hinweis') or 'Automatisch andocken bietet dieser Treiber nicht an.')
             if h.art == 'pausieren' and ep.get('pausiert'):
                 raise HTTPException(409, 'Das Epic ist schon pausiert.')
             if h.art == 'fortsetzen' and not ep.get('pausiert'):

@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge'}
+# #112: how an epic merges (Andocken): the driver after the gate, or a person looks at every PR
+STELLUNGEN = ('automatisch', 'mensch')
 
 
 class Option(BaseModel):
@@ -80,6 +82,14 @@ class Spanne(BaseModel):
     p90: float = Field(ge=0)
 
 
+class Andocken(BaseModel):
+    """How an epic merges now (#112): its position, where it comes from (the project's setting, the proposal from its content, the person's switch) and the proposal's reason."""
+
+    stellung: Literal['automatisch', 'mensch']
+    herkunft: Literal['projekt', 'vorschlag', 'epic']
+    grund: str | None = Field(None, max_length=500)
+
+
 class Epic(BaseModel):
     nr: int
     titel: str = Field('', max_length=300)
@@ -117,6 +127,8 @@ class Epic(BaseModel):
     imEinsatz: bool = True
     pausiert: str | None = Field(None, max_length=40)
     prioritaet: Literal['hoch', 'normal'] | None = None
+    # #112: how it merges now; an older driver has none (no switch then)
+    merge: Andocken | None = None
 
 
 class Fenster(BaseModel):
@@ -214,6 +226,9 @@ class Einstellwert(BaseModel):
     min: int | None = None
     max: int | None = None
     auswahl: list[str] | None = Field(None, max_length=50)
+    # #112: a choice of words (merge): the ones the driver takes now, and why one is missing
+    werte: list[str] | None = Field(None, max_length=10)
+    hinweis: str | None = Field(None, max_length=500)
 
 
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:
@@ -232,6 +247,8 @@ def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[st
         if name == 'konten' and not wert:
             return 'Mindestens ein Konto muss bleiben.'
         return None
+    if e.get('werte') is not None:
+        return None if isinstance(wert, str) and wert in e['werte'] else (e.get('hinweis') or f"Erlaubt ist {' oder '.join(e['werte'])}.")
     if auswahl is not None:
         return None if isinstance(wert, str) and wert in auswahl else 'Dieses Konto gibt es auf dem Rechner des Treibers nicht.'
     if isinstance(wert, bool) or not isinstance(wert, int):
@@ -321,15 +338,16 @@ class Antwort(BaseModel):
 
 
 class Handlung(BaseModel):
-    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority."""
+    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority or its merge."""
 
     forge: str = Field(max_length=200)
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge']
     # widerruf: the decision (its nr and zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
-    # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON; prioritaet: hoch or normal
+    # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON; prioritaet: hoch or normal;
+    # merge (#112): automatisch or mensch, None back to the proposal
     text: str | None = Field(None, max_length=4000)
 
     @model_validator(mode='after')
@@ -349,6 +367,10 @@ class Handlung(BaseModel):
         elif self.art == 'prioritaet':
             if self.epic < 1 or self.text not in ('hoch', 'normal'):
                 raise ValueError('Priorität: ein Epic und hoch oder normal')
+            self.nr, self.seit = None, None
+        elif self.art == 'merge':
+            if self.epic < 1 or (self.text is not None and self.text not in STELLUNGEN):
+                raise ValueError('Andocken: ein Epic und automatisch, mensch oder nichts (zurück zum Vorschlag)')
             self.nr, self.seit = None, None
         elif self.art in ('aufnehmen', 'pausieren', 'fortsetzen') and self.epic < 1:
             raise ValueError('Diese Handlung braucht ein Epic')
