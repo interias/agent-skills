@@ -1101,7 +1101,7 @@ class Treiber {
       ...this.programm(),
       repo: this.e.repo,
       konto,
-      auftrag: admiralAuftrag(block, kontext, this.adapter.merge),
+      auftrag: admiralAuftrag(block, kontext),
       modell: this.e.admiralModell,
       extraArgs: [...admiralArgs(block), ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
       werkzeuge: admiralWerkzeuge,
