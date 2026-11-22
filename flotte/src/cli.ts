@@ -8,6 +8,7 @@ import { epic } from './befehle/epic.ts';
 import { auftrag } from './befehle/auftrag.ts';
 import { lernen } from './befehle/lernen.ts';
 import { messen } from './befehle/messen.ts';
+import { triage } from './befehle/triage.ts';
 import { zuschauen } from './befehle/zuschauen.ts';
 import { belegung } from './werkzeuge/belegung.ts';
 import { bloecke } from './werkzeuge/bloecke.ts';
@@ -33,6 +34,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   epic: (argv) => epic(argv),
   lernen: (argv) => lernen(argv),
   auftrag: (argv) => auftrag(argv),
+  triage: (argv) => triage(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {
