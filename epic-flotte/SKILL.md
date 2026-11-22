@@ -522,8 +522,8 @@ Kommentar am Issue oder im Protokoll. Diese Kommentare liest du zu Beginn eines 
 - **An den Lauf:** `widerruf: <Frage> → <neue Entscheidung>`, an seinem nächsten Prüfpunkt
   (Sitzung oder übernommener Chat: sobald der Zug endet). Der Lauf setzt es als nächstes Paket um,
   ein Lauf-Agent in der nächsten Welle, notfalls einer zusätzlichen. Liegt sein Pull Request schon
-  offen, wird es ein Punkt für `/epic-nacharbeit`. Nach dem Merge des Pull Requests entscheidet
-  der Mensch, ob daraus ein Ticket wird.
+  offen, wird es ein Punkt für `/epic-nacharbeit`. Nach dem Merge des Pull Requests wird daraus
+  nur ein Ticket, wenn es nötig ist (`epic/SKILL.md`, Regel 3).
 - **In der Forge:** am Kommentar der Entscheidung und, wenn sie dort steht, im Protokoll die Zeile
   „widerrufen vom Menschen: <neue Entscheidung>". Gestrichen wird nichts.
 - **Die Regel dahinter.** Ein Widerruf heißt, dass deine Entscheidungsfindung an dieser Stelle
