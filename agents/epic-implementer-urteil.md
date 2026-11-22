@@ -37,7 +37,9 @@ Bericht — eine Benachrichtigung, auf die du wartest, erreicht dich nie (Lauf B
 09.11.2026: ein Subagent stand so 248 Minuten).
 
 **Tests:** `/epic`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
-Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/epic/SKILL.md`.
+Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/epic/SKILL.md`. Neues Verhalten setzt du mit
+Skill `tdd` um (Test zuerst, je Abnahmepunkt); einen Fehler, dessen Ursache nicht auf der Hand
+liegt, grenzt Skill `diagnosing-bugs` ein, bevor du ihn behebst.
 
 **Der Bericht endet** mit ein bis zwei Zeilen: was du ausgelassen oder nicht geprüft hast, und
 jedes Risiko, das der Reviewer kennen muss.

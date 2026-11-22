@@ -294,7 +294,7 @@ describe('C1: Stille mit lebendem Kindprozess', () => {
   it('a turn that is silent while a child process works is no idle run', async () => {
     const t = aufbau();
     const buch = drehbuch([lauf(3, [{ kind: 5000 }, { text: ende(3, 13) }])]);
-    const z = await fahre(t.einstellung(buch, [3], { leerlaufMs: 1200 }), t.welt);
+    const z = await fahre(t.einstellung(buch, [3], { leerlaufMs: 2000 }), t.welt); // stilleMax = 4 × leerlaufMs (8 s) must outlast the 5 s child, with room for the process query under load (#128)
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(z.epics['3'].leerlaeufe ?? 0).toBe(0);
     expect(texte(z).some((x) => /^#3 still seit 0 min, Kindprozess lebt: bun/.test(x))).toBe(true);
