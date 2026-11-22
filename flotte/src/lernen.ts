@@ -87,7 +87,8 @@ export function regelTexte(repo: string, skills: string | null): { datei: string
   if (!skills || !existsSync(skills)) return out;
   for (const skill of readdirSync(skills)) {
     const dir = join(skills, skill);
-    if (!statSync(dir).isDirectory()) continue;
+    // an entry may vanish between readdir and stat (another process cleaning up): skip it
+    if (!statSync(dir, { throwIfNoEntry: false })?.isDirectory()) continue;
     const dateien = ['SKILL.md', ...(existsSync(join(dir, 'references')) ? readdirSync(join(dir, 'references')).filter((n) => n.endsWith('.md')).map((n) => `references/${n}`) : [])];
     for (const d of dateien) if (existsSync(join(dir, d))) out.push({ datei: `${skill}/${d}`, text: readFileSync(join(dir, d), 'utf8') });
   }
