@@ -16,7 +16,8 @@ import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, typ
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import type { TicketErgebnis, triagiere } from '../src/befehle/triage.ts';
-import { type Entscheidung, entscheidungAus, type Ticket, triageKommentar } from '../src/triage.ts';
+import { type Entscheidung, entscheidungAus, lernTriageKommentar, lernvorschlaege, type Ticket, triageKommentar } from '../src/triage.ts';
+import { lernKommentar } from '../src/lernen.ts';
 
 const T = 30_000;
 const beispiel = (datei: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../flottenbruecke/beispiel/${datei}`, import.meta.url)), 'utf8'));
@@ -1106,6 +1107,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     trocken: false,
     tickets: tickets.map((t) => ({ forge: 'o/r', titel: `Notiz ${t.nummer}`, url: `https://github.com/o/r/issues/${t.nummer}`, geschrieben: true, kommentar: 'k', ...t }) as TicketErgebnis),
     fragen: Array.from({ length: fragen }, () => ({ forge: 'o/r', ticket: 9, url: '', frage: 'f', optionen: [], empfehlung: '', grund: '', herkunft: '', marke: '' })),
+    offen: [],
     fehler: [],
   });
   const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
@@ -1148,7 +1150,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     try {
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
       expect(tr.aufrufe).toHaveLength(1);
-      expect(tr.aufrufe[0].ziele).toEqual([{ repo: t.repo, forge: 'o/r', regeln: expect.objectContaining({ ready_label: 'ready-for-agent', epic_label: 'epic' }) }]);
+      expect(tr.aufrufe[0].ziele).toEqual([{ repo: t.repo, forge: 'o/r', regeln: expect.objectContaining({ ready_label: 'ready-for-agent', epic_label: 'epic' }), lernIssue: null }]);
       expect(tr.aufrufe[0]).toMatchObject({ trocken: false, konto: t.konten[0] });
       expect(texte(z)).toContain('Triage-Lauf gestartet, Mensch über die Brücke');
       expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei, 1 geschlossen, 1 Frage an den Menschen');
@@ -1295,5 +1297,146 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     const t2 = aufbau();
     await fahre(t2.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t2.welt);
     expect(t2.p.aufrufe.filter((a) => a.includes('needs-triage'))).toEqual([]);
+  }, T);
+
+  // #117: the proposals of the learning loop at lern_issue in the Frachtraum, like Sternzeit-Notizen
+  const LERN_URL = 'https://github.com/o/r/issues/50#issuecomment-555';
+  const lernText = lernKommentar(
+    {
+      vorschlaege: [
+        { titel: 'Typprüfung im Gate', beleg: 'PR #10', form: 'test', umsetzung: 'tsc im Test.', wegfallen: 'nichts' },
+        { titel: 'Zeittests robuster', beleg: 'PR #10', form: 'test', umsetzung: 'Schwellen.', wegfallen: 'nichts' },
+        { titel: 'Kundenmail', beleg: 'PR #10', form: 'skilltext', umsetzung: 'Mail an Kunden.', wegfallen: 'nichts' },
+      ],
+      gegriffen: [],
+    },
+    10,
+    9,
+    '2026-11-22',
+    [],
+    [],
+  );
+
+  /** the collecting issue #50: the comment of the loop, proposal 2 decided superfluous, a question about proposal 3; with klar1 proposal 1 decided clear, its Missionsziel missing */
+  const mitLernIssue = (t: ReturnType<typeof aufbau>, klar1 = false) => {
+    const roh = (body: string, i: number, url = `https://github.com/o/r/issues/50#issuecomment-${600 + i}`) => ({ body, author: { login: 'flotte' }, createdAt: `2026-11-22T1${i}:00:00Z`, authorAssociation: 'OWNER', url });
+    const [v1, v2, v3] = lernvorschlaege(50, [{ body: lernText, autor: 'flotte', zeit: 'z', rolle: 'OWNER', url: LERN_URL }]);
+    const e = (x: object, v: typeof v2) => entscheidungAus(x, v.ticket.titel, v.ticket.body, regelnAus('')) as Exclude<Entscheidung, { art: 'ungueltig' }>;
+    const ueber = lernTriageKommentar(e({ entscheidung: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'erledigt', fragen: [], abnahmekriterien: '', verifikationsweg: '' }, v2), v2, 'ready-for-agent');
+    const frage = lernTriageKommentar(
+      e({ entscheidung: 'kritisch', herkunft: 'h', grund: 'g', fragen: [{ frage: 'Darf eine Mail an Kunden gehen?', optionen: ['ja', 'nein'], antwort: 'nein', herkunft: 'Eigenes Urteil: nach außen', grund: 'nicht zurückholbar', beim_menschen: true, marke: 'nach außen' }], abnahmekriterien: '', verifikationsweg: '' }, v3),
+      v3,
+      'ready-for-agent',
+    );
+    const klar = lernTriageKommentar(e({ entscheidung: 'klar', herkunft: 'h', grund: 'g', fragen: [], abnahmekriterien: '- tsc läuft', verifikationsweg: '`bun test`' }, v1), v1, 'ready-for-agent');
+    const aufrufer: Aufrufer = (p, a, o) => {
+      if (p === 'gh' && a[0] === 'issue' && a[1] === 'view' && a[2] === '50') {
+        const mensch = t.p.kommentare.filter((k) => k.nr === 50).map((k, i) => roh(k.text, 5 + i));
+        return ok(JSON.stringify({ comments: [roh(lernText, 0, LERN_URL), roh(ueber, 1), roh(frage, 2), ...(klar1 ? [roh(klar, 3)] : []), ...mensch] }));
+      }
+      return t.welt.aufrufer(p, a, o);
+    };
+    return aufrufer;
+  };
+
+  it('#117: open Lernvorschläge in the report under the topic Lernschleife, decided ones not; an answer names the kennung', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const aufrufer = mitLernIssue(t);
+    const b = await attrappe(() => null, {
+      handlung: (x) => (x.triage.fragen.some((f) => f.ticket === 50) ? { epic: 50, art: 'triage-antwort', nr: 1, seit: '2026-11-22T12:00:00Z', text: JSON.stringify({ option: 'B', text: null }) } : null),
+    });
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      const erste = b.berichte[0].triage;
+      expect(erste.tickets).toEqual([
+        { nr: 50, titel: 'Lernvorschlag 555/1: Typprüfung im Gate', labels: ['Lernschleife'] },
+        { nr: 50, titel: 'Lernvorschlag 555/3: Kundenmail', labels: ['Lernschleife'] },
+      ]);
+      expect(erste.fragen).toEqual([{ ticket: 50, nr: 1, titel: 'Lernvorschlag 555/3: Kundenmail', frage: 'Darf eine Mail an Kunden gehen?', optionen: [{ buchstabe: 'A', text: 'ja' }, { buchstabe: 'B', text: 'nein' }], empfehlung: 'nein', grund: 'nicht zurückholbar', herkunft: 'Eigenes Urteil: nach außen', marke: 'nach außen', seit: '2026-11-22T12:00:00Z', lernvorschlag: 'Lernvorschlag 555/3' }]);
+      const am50 = t.p.kommentare.filter((k) => k.nr === 50);
+      // the kennung alone in the first line: a kennung the question quotes counts for no other proposal
+      expect(am50.map((k) => k.text)).toEqual(['**Antwort des Menschen (Mensch über die Brücke)** — Lernvorschlag 555/3, Frage 1\nFrage: Darf eine Mail an Kunden gehen?\nAntwort: B) nein\nHerkunft: Mensch über die Brücke']);
+      // answered: the question leaves the report, the proposal stays open for the next triage
+      expect(b.berichte.at(-1)!.triage.fragen).toEqual([]);
+      expect(b.berichte.at(-1)!.triage.tickets.map((x) => x.titel)).toContain('Lernvorschlag 555/3: Kundenmail');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#117: a clear proposal whose Missionsziel is missing stays in the Frachtraum with the hint', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const aufrufer = mitLernIssue(t, true);
+    const b = await attrappe(() => null);
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      expect(b.berichte[0].triage.tickets).toEqual([
+        { nr: 50, titel: 'Lernvorschlag 555/1: Typprüfung im Gate — Missionsziel fehlt', labels: ['Lernschleife'] },
+        { nr: 50, titel: 'Lernvorschlag 555/3: Kundenmail', labels: ['Lernschleife'] },
+      ]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#117: a failed read of lern_issue holds back only the proposals, the Sternzeit-Notizen still reach the Frachtraum', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const mitNotiz = mitFrage(t);
+    const aufrufer: Aufrufer = (p, a, o) => (p === 'gh' && a[0] === 'issue' && a[1] === 'view' && a[2] === '50' ? { code: 1, stdout: '', stderr: 'HTTP 502' } : mitNotiz(p, a, o));
+    const b = await attrappe(() => null);
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      expect(b.berichte[0].triage.tickets).toEqual([{ nr: 61, titel: 'Newsletter', labels: ['needs-triage', 'kommunikation'] }]);
+      expect(b.berichte[0].triage.fragen.map((f) => f.ticket)).toEqual([61]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#117: a triage run passes lern_issue; widerruf of a clear proposal acts on its Missionsziel, of a superfluous one only comments at lern_issue', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const lern = (nummer: number, o: Partial<TicketErgebnis>) => ({ nummer, titel: `Vorschlag ${o.lernvorschlag}`, url: LERN_URL, herkunft: 'h', grund: 'g', ...o });
+    const tr = triageAttrappe(
+      ergebnis([
+        lern(50, { lernvorschlag: 'Lernvorschlag 555/1', ergebnis: 'klar', missionsziel: 200 }),
+        lern(50, { lernvorschlag: 'Lernvorschlag 555/2', ergebnis: 'ueberfluessig' }),
+        lern(50, { lernvorschlag: 'Lernvorschlag 555/3', ergebnis: 'ueberfluessig' }),
+        // a clear proposal whose Missionsziel failed is nothing to revoke
+        lern(50, { lernvorschlag: 'Lernvorschlag 556/1', ergebnis: 'klar', fehler: 'Kommentar steht, Missionsziel gescheitert: x' }),
+      ]),
+      50,
+    );
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const d = (k: string) => x.triage.entscheidungen.find((e) => e.titel.startsWith(k));
+        if (!x.triage.entscheidungen.length) return { epic: 0, art: 'triage' };
+        if (!d('Lernvorschlag 555/1')?.widerrufen) return { epic: 200, art: 'triage-widerruf', seit: d('Lernvorschlag 555/1')!.zeit, text: 'Noch nicht.' };
+        if (!d('Lernvorschlag 555/3')?.widerrufen) return { epic: 50, art: 'triage-widerruf', seit: d('Lernvorschlag 555/3')!.zeit, text: 'Doch nicht erledigt.' };
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(tr.aufrufe[0].ziele[0].lernIssue).toBe(50);
+      const e = z.triage!.entscheidungen;
+      expect(e.map((d) => [d.nr, d.titel, d.ergebnis, d.lernvorschlag])).toEqual([
+        [200, 'Lernvorschlag 555/1: Vorschlag Lernvorschlag 555/1', 'klar', 'Lernvorschlag 555/1'],
+        [50, 'Lernvorschlag 555/2: Vorschlag Lernvorschlag 555/2', 'ueberfluessig', 'Lernvorschlag 555/2'],
+        [50, 'Lernvorschlag 555/3: Vorschlag Lernvorschlag 555/3', 'ueberfluessig', 'Lernvorschlag 555/3'],
+      ]);
+      // (nr, zeit) stays a key although two decisions share the collecting issue
+      expect(new Set(e.map((d) => `${d.nr}#${d.zeit}`)).size).toBe(3);
+      expect(e.map((d) => d.widerrufen)).toEqual(['Noch nicht.', null, 'Doch nicht erledigt.']);
+      const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
+      expect(stelle('gh', 'issue', 'comment', '200')).toBeLessThan(stelle('gh', 'issue', 'edit', '200'));
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '200')]).toEqual(['gh', 'issue', 'edit', '200', '--repo', 'o/r', '--remove-label', 'ready-for-agent', '--add-label', 'needs-triage']);
+      expect(t.p.kommentare.filter((k) => k.nr === 50).map((k) => k.text)).toEqual(['**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „überflüssig“ zu Lernvorschlag 555/3 zurückgenommen\nEinwand: Doch nicht erledigt.\nVorher: g (h)\nHerkunft: Mensch über die Brücke']);
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[3] === '50' && a[2] !== 'comment' && a[2] !== 'view')).toEqual([]);
+      expect(texte(z)).toContain('Triage-Entscheidung „überflüssig“ zu Lernvorschlag 555/3 widerrufen, Mensch über die Brücke');
+      // a superfluous proposal closes nothing
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei, 0 geschlossen, 2 überflüssig, 0 Fragen an den Menschen, 1 ohne Ergebnis');
+    } finally {
+      await b.zu();
+    }
   }, T);
 });

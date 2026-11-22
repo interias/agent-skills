@@ -196,3 +196,24 @@ def test_unterwegs_steht_an_frage_entscheidung_und_projekt(zwei):
     assert p['entscheidungen'][0]['handlung']['art'] == 'triage-widerruf'
     assert p['entscheidungen'][1]['handlung'] is None
     assert frachtraum(zwei)[1]['handlung'] is None
+
+
+# ---- #117: Lernvorschläge
+
+def test_lernvorschlaege_wie_tickets_unter_dem_thema_lernschleife(client, bericht):
+    """The driver reports a proposal of the learning loop as a ticket of lern_issue with the topic
+    Lernschleife; its extra field lernvorschlag is dropped like any unknown one, the actions work as for tickets."""
+    b = copy.deepcopy(bericht)
+    kennung = 'Lernvorschlag 555/3'
+    b['triage']['tickets'].append({'nr': 119, 'titel': f'{kennung}: Kundenmail', 'labels': ['Lernschleife']})
+    b['triage']['fragen'].append({**b['triage']['fragen'][0], 'ticket': 119, 'nr': 1, 'titel': f'{kennung}: Kundenmail', 'seit': '2026-11-22T12:00:00Z', 'lernvorschlag': kennung})
+    b['triage']['entscheidungen'].append({'nr': 119, 'titel': 'Lernvorschlag 555/2: Zeittests', 'ergebnis': 'ueberfluessig', 'herkunft': 'h', 'grund': 'g', 'zeit': '2026-11-22T12:00:00.001Z', 'widerrufen': None, 'lernvorschlag': 'Lernvorschlag 555/2'})
+    assert client.post('/api/bericht', json=b).status_code == 200
+    p = frachtraum(client)[0]
+    lern = next(t for t in p['themen'] if t['thema'] == 'Lernschleife')
+    assert [(x['nr'], x['titel'], x['issueUrl']) for x in lern['tickets']] == [(119, f'{kennung}: Kundenmail', 'https://github.com/interias/flotte-probe/issues/119')]
+    f = next(f for f in p['fragen'] if f['ticket'] == 119)
+    assert 'lernvorschlag' not in f
+    assert handlung(client, 'triage-antwort', epic=119, nr=1, seit='2026-11-22T12:00:00Z', text=antwort('A')).status_code == 200
+    assert handlung(client, 'triage-widerruf', epic=119, seit='2026-11-22T12:00:00.001Z', text='Doch nicht erledigt.').status_code == 200
+    assert sorted(h['art'] for h in offene(client)) == ['triage-antwort', 'triage-widerruf']
