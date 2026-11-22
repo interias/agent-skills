@@ -90,7 +90,8 @@ zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/READ
 6. **Nach dem Merge** die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
    lokale Epic-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
    nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
-   in dieses Issue. Umgesetzt wird nichts davon von selbst; du wählst aus.
+   in dieses Issue. Umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet die
+   [Triage](#triage) wie eine Sternzeit-Notiz.
 
 Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-Issue mit Label
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und
@@ -190,7 +191,43 @@ nur ein Kommentar der Rollen `OWNER`, `MEMBER` oder `COLLABORATOR` (`authorAssoc
 Dritter gehen gar nicht ins Modell, das Repository kann öffentlich sein. Steht unter dem letzten
 Kommentar der Triage (Frage, oder Entscheidung, deren Freigabe gescheitert ist) kein solcher
 Kommentar, wird das Ticket übersprungen (`wartet`), ohne Modellaufruf. Triage legt keine Tickets an
-(agent-skills/ADR-0002) und spricht bisher nur GitHub; ein Gitea-Repository steht in `fehler`.
+(agent-skills/ADR-0002), außer aus einem Lernvorschlag über den Auftragsschreiber, und spricht bisher
+nur GitHub; ein Gitea-Repository steht in `fehler`.
+
+**Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl danach jeden
+Vorschlag der Lernschleife an diesem Issue einzeln wie ein Ticket, mit demselben Auftrag an den
+Admiral. Als Vorschlag zählt nur ein Kommentar mit `<!-- lernschleife -->` der Rollen oben. Jeder
+Vorschlag hat die Kennung `Lernvorschlag <id>/<n>` (Id des Kommentars der Lernschleife, Nummer
+darin); alle Kommentare der Triage dazu stehen am `lern_issue` und nennen sie im Kopf, und als Antwort
+zählt dort nur ein Kommentar, der sie in der ersten Zeile nennt (eine weiter unten zitierte Kennung,
+etwa im „Vorher“ eines Widerrufs, zählt nicht).
+
+- **klar:** zuerst der Kommentar `**Triage: Lernvorschlag <id>/<n> wird Missionsziel, Warp frei**`
+  mit Herkunft, dann legt der Auftragsschreiber das Missionsziel an (Abschnitte wie oben nachgetragen
+  und geprüft, gleich mit `ready_label`, im Text der Vorschlag und `Herkunft: <Link des Kommentars>`),
+  dann der Kommentar `Vorschlag <n> aus <Kommentar> → #<neu>, widerrufbar (Lernvorschlag <id>/<n>)`.
+  Widerruf am Missionsziel: `ready_label` ab, `needs-triage` an.
+- **überflüssig:** nur der Kommentar mit Grund; nichts wird angelegt.
+- **kritisch:** genau ein Kommentar mit `<!-- flotte:triage-frage -->` und
+  `**FRAGE AN DEN MENSCHEN (Triage)** — Lernvorschlag <id>/<n> („<Titel>“, Vorschlag <n> aus <Kommentar>): …`.
+
+Ein Vorschlag, zu dem schon eine Entscheidung oder Frage steht, wartet ohne Modellaufruf, bis darunter
+eine Antwort mit seiner Kennung steht; entschiedene erscheinen nicht mehr in der Ausgabe, eine offene
+Frage als `wartet`. Scheitert der erste Kommentar, wird nichts angelegt. Scheitert danach das Anlegen
+(oder der Kommentar mit der Nummer), steht es in `fehler`; in jedem späteren Lauf erscheint der
+Vorschlag als `wartet` mit `fehler` = `Missionsziel fehlt`, im Frachtraum mit `— Missionsziel fehlt`
+hinter dem Titel. Neu angelegt wird nichts von selbst (sonst droht ein doppeltes Missionsziel): Ein
+Mensch prüft, ob es existiert, und schreibt einen Kommentar mit der Kennung in der ersten Zeile; dann
+triagiert der nächste Lauf den Vorschlag neu. Steht unter einem Vorschlag dagegen schon der Kommentar
+`→ #<neu>`, ist er endgültig entschieden: Ein späterer Kommentar mit seiner Kennung startet keine
+Triage mehr, ein zweites Missionsziel entsteht nie; widerrufen wird am Missionsziel. Ein Feld eines
+Vorschlags über mehrere Zeilen gehört ganz zum Vorschlag, eine Leerzeile beendet ihn. Im Frachtraum
+stehen offene Vorschläge als Tickets des `lern_issue` unter dem Thema `Lernschleife`, Titel mit der
+Kennung davor.
+
+**Zum Menschen** kommt eine Frage der Triage nur auf zwei Wegen: als Fragekommentar am Ticket (bei
+einem Lernvorschlag am `lern_issue`) und im Frachtraum der Brücke. Einen Chat, der sie sammelt, gibt
+es nicht; das Entscheidungsrecht steht in `references/entscheidungsrecht.md`.
 
 **Planen:** Der Befehl hält keinen eigenen Zustand und lässt sich beliebig oft wiederholen, etwa
 stündlich über die Aufgabenplanung: `schtasks /Create /SC HOURLY /TN flotte-triage /TR "bun <skills>\flotte\src\cli.ts triage <repo>"`.
@@ -201,15 +238,20 @@ nach einer Handlung des Frachtraums) und meldet sie samt den Entscheidungen sein
 Knopfdruck führt er diesen Befehl für sein Projekt aus (Admiral-Konto, einen Lauf zur Zeit), schreibt
 eine Antwort des Menschen als Kommentar ans Ticket (ohne Triage-Marke; die nächste Triage nimmt sie als
 Tatsache) und widerruft eine Entscheidung: erst der Kommentar, dann `ready_label` ab und `needs-triage`
-an oder das Ticket wieder offen. Felder und Handlungen: `flottenbruecke/SCHNITTSTELLE.md`.
+an oder das Ticket wieder offen. Bei einem Lernvorschlag nennt die Antwort seine Kennung, der Widerruf
+von „klar“ wirkt am Missionsziel, der von „überflüssig“ ist nur der Kommentar am `lern_issue`. Felder
+und Handlungen: `flottenbruecke/SCHNITTSTELLE.md`.
 
 **Ausgabe:** `trocken`, `repos` (`repo`, `forge`), `fehler` (`repo` oder `forge`, `fehler`),
 `tickets` (je `forge`, `nummer`, `titel`, `url`, `ergebnis` = `klar` | `ueberfluessig` | `kritisch` |
 `wartet` | `mission` | `fremd` | `ungueltig`, `geschrieben`, `kommentar`, gegebenenfalls `fehler`, `sitzung`, `herkunft` und `grund` der Entscheidung, bei
-`--trocken` und `klar` der neue `body`) und `fragen` (je `forge`, `ticket`, `url`, `frage`,
-`optionen`, `empfehlung`, `grund`, `herkunft`, `marke` = Punkt der Liste: `nach außen`, `Geld`,
-`Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`). `--trocken` entscheidet
-und druckt, schreibt nichts.
+`--trocken` und `klar` der neue `body`; bei einem Lernvorschlag `lernvorschlag` = Kennung, `nummer`
+das `lern_issue`, `url` der Kommentar der Lernschleife, bei `klar` `missionsziel`) und `fragen` (je
+`forge`, `ticket`, `url`, `frage`, `optionen`, `empfehlung`, `grund`, `herkunft`, `marke` = Punkt der
+Liste: `nach außen`, `Geld`, `Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`;
+bei einem Lernvorschlag `lernvorschlag`) mit den in diesem Lauf neu gestellten Fragen, dazu `offen`
+in derselben Form mit den Fragen früherer Läufe, die unter einem `wartet` noch ohne Antwort stehen.
+`--trocken` entscheidet und druckt, schreibt nichts.
 
 ## Prognose
 

@@ -209,6 +209,8 @@ export interface BerichtTriageEntscheidung {
   grund: string;
   zeit: string;
   widerrufen: string | null;
+  /** #117: a decision about a Lernvorschlag (its kennung); klar: nr is the Missionsziel, ueberfluessig: the collecting issue. The bridge ignores the field. */
+  lernvorschlag?: string;
 }
 
 /**
@@ -220,7 +222,8 @@ export interface BerichtTriage {
   laeuft: boolean;
   tickets: { nr: number; titel: string; labels: string[] }[];
   entscheidungen: BerichtTriageEntscheidung[];
-  fragen: { ticket: number; nr: number; titel: string; frage: string; optionen: Option[]; empfehlung: string; grund: string; herkunft: string; marke: string; seit: string }[];
+  /** #117: lernvorschlag (the kennung) for a question about a proposal of the learning loop; the bridge ignores it */
+  fragen: { ticket: number; nr: number; titel: string; frage: string; optionen: Option[]; empfehlung: string; grund: string; herkunft: string; marke: string; seit: string; lernvorschlag?: string }[];
 }
 
 /** What the run reads for an answer from the bridge: the letter, the free text unchanged after `Antwort:`. */
