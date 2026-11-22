@@ -10,7 +10,8 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   hängen `guard.ps1` als PreToolUse-Hook aus `~/.claude/skills/epic/scripts/` ein; `epic` muss
   dafür installiert sein.
 - **Windows PowerShell 5.1 mit Pester 3.4** (liegt Windows bei) für die Tests der Skripte:
-  `Invoke-Pester .\epic\scripts\<name>.Tests.ps1`.
+  `Invoke-Pester .\epic\scripts\<name>.Tests.ps1`, für das Installationsskript
+  `Invoke-Pester .\install.Tests.ps1`.
 - **Optional: Graphify** für den Code-Graphen von `/epic` (`uv tool install graphifyy`). Ohne es
   läuft `/epic` ohne Graph.
 - **Bun** im Benutzer-`PATH` für den Flotten-Treiber `flotte` (`bun --version`); zur Laufzeit braucht er
@@ -43,15 +44,18 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 
 ## Was das Skript tut
 
-- **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
-  `epic-nacharbeit`, `flotte`, `mail-antwort`, `persona-review`,
-  `codebase-design`, `research`, `prototype`, `tdd`, `diagnosing-bugs`, `code-inspektion` — nach
-  `~/.claude/skills/<name>`. `arbeitspferd/` bleibt außen vor. Ein vorhandener Zielordner
-  wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,
-  wenn die Sicherung nachweislich vollständig ist. Ordner unter alten Namen (`prd`, `prd-nacharbeit`,
-  `prd-aufraeumen`, `prd-flotte`) werden gesichert und entfernt.
+- **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` (die Skills der Tabelle
+  [„Die Teile“](README.md#die-teile)) nach `~/.claude/skills/<name>`. `arbeitspferd/` bleibt außen
+  vor. Ein vorhandener Zielordner wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/`
+  gesichert und erst geleert, wenn die Sicherung nachweislich vollständig ist. Ordner unter alten
+  Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`) werden gesichert und entfernt.
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
+- **Entfernte Skills und Agent-Typen abräumen** (nur ohne `-Skill`): Installierte Kopien von
+  Skills und Agent-Typen, die es im Repository nicht mehr gibt, stehen auf einer festen Liste im
+  Skript; eine solche Kopie wird gesichert und entfernt, wenn ihr Frontmatter-Feld `name:` (in
+  `SKILL.md` bzw. der Agent-Datei) genau ihren Namen trägt. Ein Ordner gleichen Namens mit anderem
+  Inhalt oder ohne `SKILL.md` bleibt stehen, ebenso jeder Name, der nicht auf der Liste steht.
 
 Das zweite Konto (Konfigordner, Startskripte, Theme,
 Windows-Terminal-Profil) richtet `install.ps1` nicht ein, sondern

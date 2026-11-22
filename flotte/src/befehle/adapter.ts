@@ -1,7 +1,6 @@
-// flotte adapter [<ordner> ...]: before the new merge.ps1 is played in (#14, round 5, C3). Lists the
-// project adapters (.claude/epic.md) of the repositories in the given folders, default ~/git, and
-// names those without the key merge: after playing in, nobody but a person merges there
-// (a missing key counts as merge: mensch). Reads the adapter of the default branch on origin when there
+// flotte adapter [<ordner> ...]: lists the project adapters (.claude/epic.md) of the repositories in
+// the given folders, default ~/git, and names those without the key merge: nobody but a person
+// merges there (a missing key counts as merge: mensch). Reads the adapter of the default branch on origin when there
 // is one, else the file in the checkout. Changes nothing.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -56,7 +55,7 @@ export function adapter(argv: string[], a: Aufrufer = aufrufen): unknown {
     adapter: staende,
     ohneMerge: ohne.map((s) => s.repo),
     folge: ohne.length
-      ? `Nach dem Einspielen mergt nur ein Mensch in ${ohne.length} Projekt(en) (fehlender Schlüssel gilt als merge: mensch): ${ohne.map((s) => s.repo).join(', ')}`
+      ? `Es mergt nur ein Mensch in ${ohne.length} Projekt(en) (fehlender Schlüssel gilt als merge: mensch): ${ohne.map((s) => s.repo).join(', ')}`
       : 'Jeder gefundene Adapter nennt merge.',
   };
 }

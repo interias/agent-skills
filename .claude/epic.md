@@ -19,6 +19,7 @@ test_commands:
   ram: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\ram.Tests.ps1"
   sweep: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\sweep.Tests.ps1"
   merge: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\merge.Tests.ps1"
+  install: powershell -NoProfile -Command "Invoke-Pester .\install.Tests.ps1"
   flotte: cd flotte && bun test
   bruecke: cd flottenbruecke && python -m pytest -q
 isolation: none-needed
