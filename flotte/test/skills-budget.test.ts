@@ -1,6 +1,6 @@
 // Growth limit of the skills (Sparpaket, package 6): every SKILL.md of this repository stays within
 // its line budget, and every rule the learning loop gave birth to names its origin with a date.
-// Two skills are over the general budget today; their budget is frozen at today's size, so they
+// One skill is over the general budget today; its budget is frozen at today's size, so it
 // may shrink but not grow. Raising a budget is a decision in a pull request, not a side effect.
 
 import { describe, expect, it } from 'vitest';
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const WURZEL = fileURLToPath(new URL('../..', import.meta.url));
 const BUDGET = 500;
-const EINGEFROREN: Record<string, number> = { epic: 902, 'epic-flotte': 713 };
+const EINGEFROREN: Record<string, number> = { epic: 902 };
 
 const skills = readdirSync(WURZEL).filter((d) => !d.startsWith('.') && statSync(join(WURZEL, d)).isDirectory() && existsSync(join(WURZEL, d, 'SKILL.md')));
 const zeilen = (datei: string) => readFileSync(datei, 'utf8').split(/\r?\n/).length - (readFileSync(datei, 'utf8').endsWith('\n') ? 1 : 0);
@@ -28,7 +28,7 @@ function texte(): { datei: string; text: string }[] {
 
 describe('skills: growth limit', () => {
   it('finds the skills of the repository', () => {
-    expect(skills).toEqual(expect.arrayContaining(['epic', 'epic-flotte', 'flotte', 'codebase-design', 'research', 'prototype', 'tdd', 'diagnosing-bugs', 'code-inspektion']));
+    expect(skills).toEqual(expect.arrayContaining(['epic', 'flotte', 'codebase-design', 'research', 'prototype', 'tdd', 'diagnosing-bugs', 'code-inspektion']));
   });
 
   for (const s of skills) {

@@ -45,24 +45,22 @@ stammt: *Skill*, *Adapter* oder der ADR, in dem sie steht. Wer eine Regel anzwei
 wo er sie ändern kann.
 
 **Wie gefragt wird.** Jede Rückfrage an den Menschen — Vorab-Tor, Abbruchbedingung, Fragerunde
-der Nacharbeit, Vorlage von `/epic-flotte` — nennt **Antwortmöglichkeiten und eine markierte
+der Nacharbeit — nennt **Antwortmöglichkeiten und eine markierte
 Empfehlung** mit einem Satz Begründung. Gestellt wird mit `AskUserQuestion`, sofern die Sitzung
 es hat: die empfohlene Option mit „(Empfehlung)" im Label, Folgen in der Beschreibung, höchstens
 vier Optionen je Frage, mehr als vier Fragen auf mehrere Aufrufe verteilt. Ohne das Werkzeug
 dieselbe Runde als Text — je Frage
 `❓ **Q1** — **<Titel>**: <Sachverhalt, Optionen A/B/… mit Folge>` und darunter
-`➡️ <Empfehlung, Grund>`. **Führt `/epic-flotte` den Lauf** — als Sitzung, die der Admiral
-gestartet hat, als Lauf-Agent oder als übernommener Chat —, fragst du nie mit `AskUserQuestion`: Die Runde geht als Frageblock oder Text an den
+`➡️ <Empfehlung, Grund>`. **Läuft der Lauf unter dem Flotten-Treiber**, fragst du nie mit
+`AskUserQuestion`: Die Runde geht als Frageblock an den
 Admiral, und du beendest deinen Zug; sonst hängt der Lauf, bis ein Mensch klickt. Diese Regel
 gilt für alle Epic-Skills; sie verweisen hierher.
 
-**Unter `/epic-flotte`.** Sagt der Auftrag, dass der Lauf unter `/epic-flotte` läuft, fragst du
-den Admiral statt des Menschen. Was dann anders läuft, hängt vom Träger ab und steht in
-`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft": als **Sitzung** Frageblock statt
-Rückfrage, `FLOTTE-FRAGE` oder `FLOTTE-ENDE` in der ersten Zeile eines Zugs, der den Admiral
-braucht, `Pause` und `weiter`, Entscheidungen und Widerruf des Admirals — sonst wie ein Chat-Lauf; als
-**Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
-**Beim Menschen** liegt dann nur (`epic-flotte/SKILL.md`, „Entscheidungsrecht"): 1. was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb; 2. echtes Geld, das nicht vorher freigegeben ist; 3. Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist; 4. Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert; 5. Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR); 6. Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR). Alles andere entscheidet der Admiral, auch Umfang, ein neues Ticket und ADR-Bezug ohne Bruch.
+**Unter dem Flotten-Treiber.** Sagt der Auftrag, dass der Lauf unter dem Flotten-Treiber läuft,
+fragst du den Admiral statt des Menschen: Frageblock statt Rückfrage, jeder Zug endet mit
+`FLOTTE-FRAGE` oder `FLOTTE-ENDE` (`flotte/references/bloecke.md`), Entscheidungen und Widerruf
+des Admirals (`flotte/references/entscheidungsrecht.md`). Die Form der Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
+**Beim Menschen** liegt dann nur (`flotte/references/entscheidungsrecht.md`, „Entscheidungsrecht"): 1. was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb; 2. echtes Geld, das nicht vorher freigegeben ist; 3. Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist; 4. Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert; 5. Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR); 6. Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR). Alles andere entscheidet der Admiral, auch Umfang, ein neues Ticket und ADR-Bezug ohne Bruch.
 
 **Eine Frage hält nur an, was von ihr abhängt.** Jede Frage eines Frageblocks nennt in
 `Betrifft:` die Pakete, die ohne Antwort nicht starten oder nicht weiterlaufen können — samt
@@ -212,8 +210,7 @@ schreiben nicht in die Forge. Einsatzstellen: Behauptungen im Body prüfen (Phas
 Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
 
 - **Ein Kundschafter je unabhängiger Frage**, höchstens acht in einer Nachricht, **immer im
-  Vordergrund** — du brauchst die Antwort für den nächsten Schritt. Unter `/epic-flotte` nennt der
-  Admiral bei Gelb eine kleinere Zahl.
+  Vordergrund** — du brauchst die Antwort für den nächsten Schritt.
 - **„Nichts gefunden" übernimmst du ungeprüft.** Einen Fund prüfst du selbst nach, wenn daraus ein
   Tor-Punkt, ein Befund oder eine Löschung folgt — sonst nicht.
 - Den Verifikationsweg (4c) und den Vergleich gegen die Ausgangszahlen machst du weiter selbst.
@@ -245,7 +242,7 @@ Schreiber suchen (4b), Nachzählen (Phase 6). Dafür gilt:
   nie, der Anfang des nächsten schon.
 - `git worktree list`: nur das Hauptverzeichnis und die Worktrees **laufender** Läufe anderer
   Epics (`epic-<andere nr>` und ihre Paket-Worktrees). Laufend heißt: ihr Zielissue trägt
-  `status/in-arbeit`, oder der Auftrag nennt sie (`/epic-flotte`). Sie fasst der Lauf nicht an.
+  `status/in-arbeit`, oder der Auftrag nennt sie. Sie fasst der Lauf nicht an.
   Alles andere sind Reste eines früheren Laufs: melden, nicht entfernen — dort kann Arbeit liegen.
 - **Statuslabels aufräumen**, die ein früherer Lauf an Tickets dieses Epics hinterlassen hat
   („Die Statuslabels"); fehlende Labels im Repository anlegen, `epic_label` eingeschlossen.
@@ -524,8 +521,8 @@ Task-Managers. Der Grund für Prozent mit Boden: `scripts/ram.ps1`, Kopfkommenta
 Jeder Messwert steht auf der Lauftafel (`references/lauftafel.md`, „RAM-Messung"). Schlägt die
 Messung fehl (Exit 1), ist das ein Glut-Punkt, und das Paket startet nicht ohne Messwert.
 
-**Unter `/epic-flotte`** fragst du bei `hold` nicht selbst: du beendest den Zug mit einem
-Frageblock der Phase `ram` (`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"), Optionen
+**Unter dem Flotten-Treiber** fragst du bei `hold` nicht selbst: du beendest den Zug mit einem
+Frageblock der Phase `ram` (`flotte/references/bloecke.md`), Optionen
 „warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Die Antwort ist immer `warten`.
 Dann startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn `weiter` kommt (`ok`
 oder eine Freigabe, die nur der Mensch von sich aus gibt), und misst nicht noch einmal. Schlägt die
@@ -558,13 +555,13 @@ läuft — dein eigener oder der eines anderen Laufs: Compose-Projekte (`docker 
 docker erreichbar ist) und Prozesse in den Worktrees unter `worktree_root`. Läuft einer, wartest du
 wie bei `hold` der RAM-Bremse (`Start-Sleep`, neu prüfen); das lässt kein Paket zurück und hält den
 Lauf nicht an. Die geteilten Dienste aus `shared_services` zählen nicht als Stack — sie laufen
-immer; gestartet werden sie nach `service_start`, von dir. Dass `/epic-flotte` den Slot über alle
-Läufe abstimmt, steht dort noch nicht: offener Punkt (#38).
+immer; gestartet werden sie nach `service_start`, von dir. Der Flotten-Treiber stimmt den Slot nicht über alle
+Läufe ab: offener Punkt (#38).
 
 ### 4a — Implementer-Subagent
 
-Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`,
-als Lauf-Agent unter `/epic-flotte` im Vordergrund; mehrere Starts in **einer** Nachricht), davor die Messung
+Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`;
+mehrere Starts in **einer** Nachricht), davor die Messung
 der RAM-Bremse. Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
 und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Merge (5, Punkt 3) — dort, mitten in der
@@ -797,11 +794,11 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - **Pull Request** eröffnen (`references/forge.md`), `base: <basis>`, `head: epic/…`:
   - **Titel = Issue-Titel**, mit Präfix `WIP: `, solange etwas beim Menschen liegt: ein Paket
     zurückgelassen oder blockiert, ein Verifikationsweg oder eine Abnahmeprüfung nicht fahrbar oder
-    rot, eine Freigabe offen. Eine Entscheidung des Admirals von `/epic-flotte` ist kein Grund
+    rot, eine Freigabe offen. Eine Entscheidung des Admirals der Flotte ist kein Grund
     für `WIP:`.
-  - **Body:** unter `/epic-flotte` die Entscheidungen des Admirals zu diesem Epic, je eine Zeile
+  - **Body:** unter dem Flotten-Treiber die Entscheidungen des Admirals zu diesem Epic, je eine Zeile
     mit Link auf seinen Kommentar — der Mensch liest sie spätestens beim Merge
-    (`epic-flotte/SKILL.md`, „Was aufgeschrieben wird"); je Paket eine Zeile mit Ergebnis — hat
+    (`flotte/references/entscheidungsrecht.md`, „Was aufgeschrieben wird"); je Paket eine Zeile mit Ergebnis — hat
     ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Reviewers; die offenen Punkte; die angelegten Tickets (Regel 3); je Kind mit offenem Blocker der Satz aus `references/forge.md`,

@@ -20,7 +20,7 @@ Der Treiber fährt echte `claude -p`-Läufe mit Haiku in `interias/flotte-probe`
 
   ```
   bun src/cli.ts fahren <dir>/flotte-probe --forge interias/flotte-probe --epics 12,13,14 \
-    --konten C:\Users\stefa\.claude,C:\Users\stefa\.claude-arbeitspferd --skill kurz-lauf --modell haiku \
+    --konten <konto1>,<konto2> --skill kurz-lauf --modell haiku \
     --admiral-modell haiku --admiral-effort keine --leerlauf-min 15 --takt-s 15 \
     --sweep-root <dir> --sweep-temp <dir>/leer-temp --ohne-docker --ohne-nacharbeit --max-min 90
   ```

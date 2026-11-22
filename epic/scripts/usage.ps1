@@ -19,7 +19,8 @@
     weighted is the usage in input-token equivalents: input + 1.25 x cache write (5 minutes) +
     2 x cache write (1 hour) + 0.1 x cache read + 5 x output, times the weight of the model.
     Without -ModelWeights every model weighs 1, and weighted compares agents of one model only.
-    It is not the percentage of the plan limit; that comes from get_usage (/epic-flotte).
+    It is not the percentage of the plan limit; that comes from get_usage, under the flotte driver
+    from the rate_limit_event of the runs.
 
     tool_result_chars is the size of the tool results an agent received, in characters per tool,
     largest first. It shows what filled the context: test output (Bash, PowerShell) or reading

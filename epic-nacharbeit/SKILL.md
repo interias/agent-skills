@@ -50,8 +50,8 @@ Arbeit in eine Zukunft, in der niemand mehr weiß, warum sie dasteht. Die drei Z
 die den Fund erklären, sind oft die ganze Lösung. Die Umkehrung gilt genauso: **ein Punkt, der
 nicht in diese Sitzung passt, wird nicht hineingequetscht.** Dann ist das Ticket richtig.
 
-**Unter `/epic-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer (`epic/SKILL.md`,
-„Wie gefragt wird"; Frageblock: `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"). Die
+**Unter dem Flotten-Treiber** gehen die Fragerunden an den Admiral statt an den Nutzer (`epic/SKILL.md`,
+„Wie gefragt wird"; Frageblock: `flotte/references/bloecke.md`). Die
 Ticketfrage entscheidet er; was im Entscheidungsrecht dem Menschen vorbehalten ist, legt er dem
 Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er.
 

@@ -1,5 +1,5 @@
 // flotte belegung <repo> <owner/name> #a #b ... [--laufend #x,#y] [--gemergt #z] [--obergrenze 4]
-// Collision levels and order edges (epic-flotte/SKILL.md, Phase 1) from the adapter and the issues,
+// Collision levels and order edges (flotte/references/belegung.md) from the adapter and the issues,
 // and the occupancy: the largest set of epics in which every pair keeps the limit of its level.
 // The levels are a draft in the skill; in doubt this takes the higher one and names the evidence.
 
@@ -298,7 +298,7 @@ export const kinderAus = (body: string) => [...new Set([...body.matchAll(/^\s*[-
 
 /**
  * Without --epics (acceptance 3, decision B): the open issues with epic_label that carry ready_label
- * themselves or have an open child that does, as /epic-flotte collects them in Phase 0. An epic made
+ * themselves or have an open child that does, as flotte/references/belegung.md collects them. An epic made
  * along the way waits for the person's label. ohneEpic: released issues that are no epic and no child
  * of one (a spec without epic_label waits silently otherwise; follow-up check of #27).
  */

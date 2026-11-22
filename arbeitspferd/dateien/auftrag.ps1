@@ -1,5 +1,5 @@
 # Opens a new Windows Terminal window in a repository and starts the Arbeitspferd there with a prompt.
-# Usage: auftrag.ps1 -Repo <repo> -Auftrag "/epic-flotte"
+# Usage: auftrag.ps1 -Repo <repo> -Auftrag "/epic #15"
 #        auftrag.ps1 -Repo <repo> -Auftrag "weiter" -Resume <session id>
 param(
     [Parameter(Mandatory)][string]$Repo,

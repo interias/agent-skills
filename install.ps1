@@ -19,6 +19,13 @@
     old name is backed up the same way and then removed, so the old and the new name do not
     both trigger.
 
+    Skills and agent definitions this repository no longer has are retired on a full install
+    (without -Skill): an installed copy under a name on the fixed list ($retiredSkills,
+    $retiredAgents) is backed up the same way and then removed, but only when it provably came from
+    here — its SKILL.md (or the agent file) carries that very name in the frontmatter field name:.
+    A folder or file under such a name with other content, a folder without SKILL.md and every
+    name not on the list stay, with one line saying why.
+
     Agent definitions (agents/*.md) are copied file by file. An existing file that differs is
     first backed up to $env:USERPROFILE\.claude\skills-backup\agents-<yyyyMMdd-HHmmss>\.
 
@@ -53,7 +60,23 @@ $renamedSkills = [ordered]@{
     'prd'            = 'epic'
     'prd-nacharbeit' = 'epic-nacharbeit'
     'prd-aufraeumen' = 'epic-aufraeumen'
-    'prd-flotte'     = 'epic-flotte'
+}
+
+# Skills and agents this repository installed once and no longer has (prd-flotte was the old name
+# of epic-flotte). An installed copy is backed up and removed only when its frontmatter name: is
+# the same name, so a folder of someone else's under that name stays.
+$retiredSkills = @('prd-flotte', 'epic-flotte', 'epic-lagebesprechung', 'leitstand')
+$retiredAgents = @('epic-lauf')
+
+# The name: field of the YAML frontmatter of $file, or $null when the file or the field is missing.
+function Get-FrontmatterName([string]$file) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return $null }
+    $lines = @(Get-Content -LiteralPath $file -Encoding UTF8)
+    if (-not $lines -or $lines[0].Trim() -ne '---') { return $null }
+    for ($i = 1; $i -lt $lines.Count -and $lines[$i].Trim() -ne '---'; $i++) {
+        if ($lines[$i] -match '^name:\s*[''"]?([^''"]+?)[''"]?\s*$') { return $Matches[1] }
+    }
+    return $null
 }
 
 # A target that is a reparse point or contains one must not be cleared: the delete would follow
@@ -172,6 +195,30 @@ foreach ($oldName in $renamedSkills.Keys) {
     Write-Host "Removed $oldTarget" -ForegroundColor Green
 }
 
+# Retire installed copies of skills this repository no longer has, only on a full install.
+if (-not $Skill) {
+    foreach ($oldName in $retiredSkills) {
+        if ($allSkills.Name -contains $oldName) { continue }
+        $oldTarget = Join-Path $skillsTarget $oldName
+        if (-not (Test-Path $oldTarget)) { continue }
+
+        Write-Host ""
+        Write-Host "== $oldName (retired) =="
+        if ((Get-FrontmatterName (Join-Path $oldTarget 'SKILL.md')) -ne $oldName) {
+            Write-Host "Kept $oldTarget — no SKILL.md with name: $oldName, so this repository did not install it."
+            continue
+        }
+        if (-not (Test-SafeToClear $oldTarget)) { continue }
+        if ($DryRun) {
+            Write-Host "[DryRun] Would back up $oldTarget to $backupRoot\$oldName-<timestamp>, then remove it"
+            continue
+        }
+        Backup-Folder $oldTarget $oldName
+        Remove-Item -Path $oldTarget -Recurse -Force
+        Write-Host "Removed $oldTarget" -ForegroundColor Green
+    }
+}
+
 # Agent definitions: one file each, backed up when an existing one differs.
 $agentFiles = @(Get-ChildItem -Path (Join-Path $repoRoot 'agents') -Filter '*.md' -File -ErrorAction SilentlyContinue)
 if (-not $Skill -and $agentFiles) {
@@ -207,6 +254,32 @@ if (-not $Skill -and $agentFiles) {
         }
         Copy-Item -Path $file.FullName -Destination $target -Force
         Write-Host "$($file.Name): installed" -ForegroundColor Green
+    }
+
+    # Retire agent definitions this repository no longer has, same guard as for skills.
+    foreach ($oldName in $retiredAgents) {
+        if ($agentFiles.BaseName -contains $oldName) { continue }
+        $target = Join-Path $agentsTarget "$oldName.md"
+        if (-not (Test-Path $target)) { continue }
+        if ((Get-Item -Path $target -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Write-Host "ABORT: $target is a reparse point (symlink) — refusing to touch it." -ForegroundColor Red
+            continue
+        }
+        if ((Get-FrontmatterName $target) -ne $oldName) {
+            Write-Host "Kept $target — its frontmatter has no name: $oldName, so this repository did not install it."
+            continue
+        }
+        if ($DryRun) {
+            Write-Host "[DryRun] Would back up $target to $agentsBackup, then remove it"
+            continue
+        }
+        New-Item -ItemType Directory -Path $agentsBackup -Force | Out-Null
+        Copy-Item -Path $target -Destination $agentsBackup -Force
+        if (-not (Test-Path (Join-Path $agentsBackup "$oldName.md"))) {
+            throw "Backup verification failed for agent '$oldName.md'. Aborting before removing it."
+        }
+        Remove-Item -Path $target -Force
+        Write-Host "$oldName.md: removed (retired)" -ForegroundColor Green
     }
 }
 

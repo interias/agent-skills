@@ -1,7 +1,7 @@
 // The findings of the acceptance at #14 (comment 7013038104): each with a test of its own.
 
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { admiralAuftrag, admiralWerkzeuge, BEIM_MENSCHEN, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
@@ -142,6 +142,15 @@ describe('Befund 5: Konten mit ~', () => {
 });
 
 describe('Befund 7: eine alte merge.ps1 mergt nicht', () => {
+  it('the default merge script is epic/scripts/merge.ps1 and passes the check of the driver: it exists and knows the key merge', () => {
+    const skript = standard('.', 'o/r', [1], ['~/.claude']).mergeSkript;
+    expect(skript.replaceAll('\\', '/')).toMatch(/\/epic\/scripts\/merge\.ps1$/);
+    expect(existsSync(skript)).toBe(true);
+    const text = readFileSync(skript, 'utf8');
+    expect(text).toMatch(/nach_gate/);
+    expect(text).toMatch(/gate_heading/);
+  });
+
   it('with merge: nach_gate and a merge.ps1 that does not know the key, the driver does not call it; a person merges', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate', mergeSkript: '# old merge.ps1: waits for checks, then gh pr merge\n', pr: (_nr, n) => ({ state: n < 2 ? 'OPEN' : 'MERGED' }) });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);

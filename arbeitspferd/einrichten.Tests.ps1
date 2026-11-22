@@ -111,12 +111,6 @@ Describe 'einrichten.ps1 for the second and a third account' {
         @($wt.schemes | Where-Object name -eq 'Claude Code').Count | Should Be 1
     }
 
-    It 'leaves the installed leitstand alone the second time' {
-        ($out | Where-Object { $_ -like 'geschrieben:*leitstand*' }) | Should BeNullOrEmpty
-        $out -contains "unveraendert: $heim\.claude\skills\leitstand\SKILL.md" | Should Be $true
-        Test-Path "$heim\.claude\skills-backup" | Should Be $false
-    }
-
     It 'creates the desktop shortcut' {
         $sc = (New-Object -ComObject WScript.Shell).CreateShortcut("$heim\Desktop\Claude Arbeitspferd 3.lnk")
         $sc.TargetPath | Should Match 'wt\.exe$'

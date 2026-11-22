@@ -127,8 +127,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     sweepDocker: true,
     sweepTemp: null,
     skripte: SKRIPTE,
-    // repository layout, else installed: ~/.claude/skills/leitstand next to ~/.claude/skills/epic
-    mergeSkript: [resolve(SKRIPTE, '../../arbeitspferd/leitstand/scripts/merge.ps1'), resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1')].find((p) => existsSync(p)) ?? resolve(SKRIPTE, '../../leitstand/scripts/merge.ps1'),
+    mergeSkript: resolve(SKRIPTE, 'merge.ps1'),
     admiralName: 'Treiber',
     maxDauerMs: null,
     bruecke: null,
@@ -451,7 +450,7 @@ class Treiber {
       stand: '',
     };
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
-    if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
+    if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~.`);
     // #112: the adapter's merge is the start value of the setting merge
     this.adapter = adapterAus(this.e.repo);
     this.e.merge = this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
@@ -768,7 +767,7 @@ class Treiber {
   // ---- starting and continuing runs
 
   startText(nr: number): string {
-    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (epic-flotte/SKILL.md, „Die Blöcke"). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${this.grenzText()} ${TAFEL_AUS}`;
+    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (flotte/references/bloecke.md). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${this.grenzText()} ${TAFEL_AUS}`;
   }
 
   /** The limit of packages at once for /epic (epic/SKILL.md, Phase 4, "Das Fenster"). */
@@ -793,7 +792,7 @@ class Treiber {
       ep.geparkt = [];
     }
     if (resume && ep.widerrufe?.length) {
-      // epic-flotte/SKILL.md, "Widerruf": the next package, or a point of the follow-up when the PR is open
+      // flotte/references/entscheidungsrecht.md, "Widerruf": the next package, or a point of the follow-up when the PR is open
       text += `\nWiderruf des Menschen, als nächstes Paket umsetzen (liegt dein Pull Request schon offen: als Punkt der Nacharbeit):\n${ep.widerrufe.join('\n')}`;
       ep.widerrufe = [];
     }

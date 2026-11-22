@@ -10,7 +10,7 @@ der Adapter des Projekts es erlaubt.
 
 <picture>
   <source media="(max-width: 600px)" srcset="assets/readme/ablauf-schmal.png">
-  <img src="assets/readme/ablauf.png" width="880" alt="Vom Epic zum Merge, in drei Bändern. Start, Frage 1, wer startet den Lauf: Ein Epic oder eine Spec mit dem Label ready-for-agent startet entweder über den Treiber als Regelweg (flotte fahren, ein claude -p je Epic, verteilt auf Konto 1, 2 und 3) oder durch dich im Chat mit /epic #nr. Die Flottenbrücke zeigt den Stand und nimmt deine Antworten und Handlungen an; nur der Treiber spricht mit ihr, er meldet jeden Takt und holt ab. Lauf, /epic als Orchestrator: Das Vorab-Tor schneidet das Epic in Pakete und fragt einmal; bis zu drei Pakete laufen gleichzeitig in eigenen Worktrees; Review, Verifikation und Sofortmerge je Paket auf den Epic-Branch; am Ende ein Pull Request mit Gate-Block, der Lauf mergt nie. Merge, Frage 2, wer mergt, allein der Adapterschlüssel merge: bei merge: mensch mergst du; bei merge: nach_gate ein Akteur außerhalb des Laufs, die Merge-Schlange des Treibers oder merge.ps1 des Leitstands, nur mit gültigem Gate-Nachweis. Danach /epic-aufraeumen. Die beiden Fragen hängen nicht zusammen.">
+  <img src="assets/readme/ablauf.png" width="880" alt="Vom Epic zum Merge, in drei Bändern. Start, Frage 1, wer startet den Lauf: Ein Epic oder eine Spec mit dem Label ready-for-agent startet entweder über den Treiber als Regelweg (flotte fahren, ein claude -p je Epic, verteilt auf Konto 1, 2 und 3) oder durch dich im Chat mit /epic #nr. Die Flottenbrücke zeigt den Stand und nimmt deine Antworten und Handlungen an; nur der Treiber spricht mit ihr, er meldet jeden Takt und holt ab. Lauf, /epic als Orchestrator: Das Vorab-Tor schneidet das Epic in Pakete und fragt einmal; bis zu drei Pakete laufen gleichzeitig in eigenen Worktrees; Review, Verifikation und Sofortmerge je Paket auf den Epic-Branch; am Ende ein Pull Request mit Gate-Block, der Lauf mergt nie. Merge, Frage 2, wer mergt, allein der Adapterschlüssel merge: bei merge: mensch mergst du; bei merge: nach_gate ein Akteur außerhalb des Laufs, die Merge-Schlange des Treibers mit merge.ps1, nur mit gültigem Gate-Nachweis. Danach /epic-aufraeumen. Die beiden Fragen hängen nicht zusammen.">
 </picture>
 
 Ob der Treiber oder du im Chat einen Lauf startet, ändert nichts daran, wer mergt. **Welchen Weg
@@ -112,10 +112,8 @@ alles Weitere im [README der Brücke](flottenbruecke/README.md).
 | `epic` | Ein Epic auf einem Epic-Branch umsetzen, endet mit offenem PR | [für Menschen](epic/README.md), [Skill](epic/SKILL.md), [Skripte](epic/scripts/README.md) |
 | `epic-nacharbeit` | Offene Punkte eines Laufs in Fragerunden klären und erledigen | [für Menschen](epic-nacharbeit/README.md), [Skill](epic-nacharbeit/SKILL.md) |
 | `epic-aufraeumen` | Nach dem Merge Worktrees und Branches abräumen, nur nachweislich Gemergtes | [für Menschen](epic-aufraeumen/README.md), [Skill](epic-aufraeumen/SKILL.md) |
-| `flotte` | Treiber: mehrere Läufe als `claude -p` auf mehreren Konten, Bremsen, Merge-Schlange, Logbuch | [für Menschen](flotte/README.md), [Skill](flotte/SKILL.md), [Umschalten](flotte/references/umschalten.md) |
+| `flotte` | Treiber: mehrere Läufe als `claude -p` auf mehreren Konten, Bremsen, Merge-Schlange, Logbuch | [für Menschen](flotte/README.md), [Skill](flotte/SKILL.md) |
 | `flottenbruecke/` | Dauerdienst im LAN: fünf Bereiche über alle Einsätze, Antworten per PIN; steuert sonst nichts | [README](flottenbruecke/README.md), [Schnittstelle](flottenbruecke/SCHNITTSTELLE.md) |
-| `epic-flotte` | Dasselbe wie `flotte`, aber als Admiral-Chat | [für Menschen](epic-flotte/README.md), [Skill](epic-flotte/SKILL.md) |
-| `epic-lagebesprechung` | Im laufenden Chat abholen, was bei dir liegt | [für Menschen](epic-lagebesprechung/README.md) |
 | `bereitschaftsraum` | Gespräch in Fragerunden, aus dem eine Mission, ein Missionsziel oder nichts entsteht; angelegt wird über `flotte auftrag` | [Skill](bereitschaftsraum/SKILL.md) |
 | `codebase-design` | Wortschatz für tiefe Module: Schnittstelle, Naht, Tiefe, Löschprobe | [Skill](codebase-design/SKILL.md) |
 | `research` | Eine Frage aus Primärquellen beantworten, als Markdown-Datei mit Fundstellen festhalten | [Skill](research/SKILL.md) |
@@ -123,8 +121,8 @@ alles Weitere im [README der Brücke](flottenbruecke/README.md).
 | `tdd` | Test zuerst, je Abnahmepunkt eine Runde; Tests am Rand des Bausteins | [Skill](tdd/SKILL.md) |
 | `diagnosing-bugs` | Fehler erst mit einer Probe eingrenzen, dann vermuten, messen, beheben | [Skill](diagnosing-bugs/SKILL.md) |
 | `code-inspektion` | Änderung seit einem festen Punkt prüfen: Spec und Standards getrennt, Befunde als Muss, Sollte, Kann | [Skill](code-inspektion/SKILL.md) |
-| `arbeitspferd/` mit `leitstand` | Weitere Konten einrichten; aus der Hauptsitzung Aufträge an Konto 2 geben, überwachen, PRs nach `merge` mergen | [README](arbeitspferd/README.md), [Leitstand für Menschen](arbeitspferd/leitstand/README.md), [Skill](arbeitspferd/leitstand/SKILL.md) |
-| `agents/` | Agent-Typen der Modellstaffel (Kundschafter, Implementer, Reviewer, Lauf) | [Staffel](epic/README.md#modelle-und-denkstufen) |
+| `arbeitspferd/` | Weitere Konten einrichten | [README](arbeitspferd/README.md) |
+| `agents/` | Agent-Typen der Modellstaffel (Kundschafter, Implementer, Reviewer) | [Staffel](epic/README.md#modelle-und-denkstufen) |
 | `mail-antwort` | Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen | [für Menschen](mail-antwort/README.md) |
 | `persona-review` | Bedienung mit Persona-Agenten über Runden messen | [für Menschen](persona-review/README.md) |
 | `assets/` | Bilder der Doku, je mit Quelle und Anleitung zum Neurendern | — |
@@ -142,7 +140,7 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
   Epic-Branch. **Kundschafter** lesen nur.
 - **Vorab-Tor:** die eine Fragerunde zu Beginn eines Laufs.
 - **Admiral:** das Sprachmodell, das Fragen der Läufe im Rahmen seines Entscheidungsrechts
-  beantwortet, als Chat (`/epic-flotte`) oder je Frageblock unter dem **Treiber** (`flotte`).
+  beantwortet, je Frageblock unter dem **Treiber** (`flotte`).
 - **Adapter:** `.claude/epic.md` des Projekts; darf die Regeln der Skills verschärfen, nie lockern.
 - **Gate-Block:** die Ausgabe des Projekt-Gates in der PR-Beschreibung, mit Basis- und Head-SHA.
   **Gate-Nachweis:** der Treiber prüft im Log des Laufs, dass dieser Block aus einem echten
@@ -153,14 +151,13 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
 ## Grenzen
 
 - **Kein Lauf mergt**, auch `gh pr merge` ist gesperrt. Wer mergt, sagt allein der Adapterschlüssel
-  `merge`: Standard `mensch`; bei `nach_gate` genau ein Akteur (Treiber oder `merge.ps1` des
-  Leitstands), nur mit gültigem Gate-Block auf aktueller Basis und Head, grünen Checks und immer
-  mit Merge-Commit. Der Admiral mergt nie.
+  `merge`: Standard `mensch`; bei `nach_gate` genau ein Akteur (der Treiber, mit `merge.ps1`), nur mit gültigem
+  Gate-Block auf aktueller Basis und Head, grünen Checks und immer mit Merge-Commit. Der Admiral mergt nie.
 - **Kein Push auf Hauptzweig oder Basis**, nur auf das Remote des Adapters; das Hauptverzeichnis
   wird nie auf einen anderen Branch umgeschaltet. `guard.ps1` sperrt das als Hook.
 - **Keine Datenmigration, keine gelöschten oder übersprungenen Tests**, nichts über die
   Abnahmeliste hinaus.
-- **Bei dir liegt nur die Liste „Beim Menschen"** (`epic-flotte/SKILL.md`, „Entscheidungsrecht"):
+- **Bei dir liegt nur die Liste „Beim Menschen"** (`flotte/references/entscheidungsrecht.md`):
   was nach außen geht, echtes Geld, Produktivdaten und Zugänge ohne Beschluss, neue Kundentexte,
   eine unübliche neue Abhängigkeit oder ein ADR-Bruch. Keine Antwort lockert eine Regel.
 - **Bremsen:** Ab der RAM-Schwelle startet kein neues Paket; der Treiber hält bei gelbem Limit
@@ -172,8 +169,7 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
 
 ## Ändern
 
-Änderungen nur über Branch und Pull Request, nie direkt in `~/.claude/skills`. Wirksam werden sie
-nach `install.ps1` in einer neuen Sitzung.
+Wie Änderungen ins Repository und auf den Rechner kommen, steht in [`INSTALL.md`](INSTALL.md#ändern).
 
 Die Leiter „kleinste vollständige Änderung" der Implementer und die Befundform der Reviewer
 stammen aus [Ponytail](https://github.com/DietrichGebert/ponytail) von Dietrich Gebert (MIT);

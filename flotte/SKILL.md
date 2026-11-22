@@ -5,10 +5,10 @@ description: Flotten-Treiber — ein Programm statt eines Admiral-Chats führt m
 
 # Flotte
 
-`flotte` ist ein Programm (TypeScript, läuft mit Bun). Es macht, was `/epic-flotte` als Prosa
-beschreibt. Ein Sprachmodell kommt nur an zwei Stellen vor:
+`flotte` ist ein Programm (TypeScript, läuft mit Bun). Es führt mehrere `/epic`-Läufe
+gleichzeitig. Ein Sprachmodell kommt nur an zwei Stellen vor:
 
-- in den **Läufen**: `/epic` unverändert, als `claude -p`, jeder Zug endet mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE` (`epic-flotte/SKILL.md`, „Die Blöcke“),
+- in den **Läufen**: `/epic` unverändert, als `claude -p`, jeder Zug endet mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE` (`references/bloecke.md`),
 - im **Admiral**: ein `claude -p --json-schema` je Frageblock, mit `--tools Read,Grep,Glob`.
 
 Admiral und Läufe starten mit `--strict-mcp-config`: kein MCP-Server und kein claude.ai-Konnektor
@@ -36,7 +36,7 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   Hauptverzeichnis, auch aus einem Worktree), ohne `--forge` das GitHub-Repository von `origin`.
   Beides lässt sich angeben: `fahren <repo> --forge <owner/name>`.
 - **Epics:** ohne `--epics` alle offenen Epics (`epic_label`) mit `ready_label` des Adapters, an
-  sich oder an einem offenen Kind, wie `/epic-flotte` Phase 0. Der Treiber sammelt sie etwa alle
+  sich oder an einem offenen Kind (`references/belegung.md`). Der Treiber sammelt sie etwa alle
   15 Minuten neu ein und nimmt neu freigegebene Epics auf; Belegung und Reihenfolge-Kanten gelten
   für sie wie für die ersten. Ein unterwegs entstandenes Epic ohne das Label wartet. Ein Issue mit
   `ready_label`, das weder `epic_label` trägt noch Kind eines Epics ist, nimmt er nicht; er meldet
@@ -69,16 +69,16 @@ Mögliche Schalter:
 | `--sweep-root <dir>` und `--sweep-temp <dir>` | ohne Angabe läuft kein Sweep |
 | `--ohne-docker` | Docker wird mit aufgeräumt |
 | `--ohne-nacharbeit` | Nacharbeit läuft |
-| `--merge-skript` | `merge.ps1` des Leitstands |
+| `--merge-skript` | `epic/scripts/merge.ps1` |
 | `--max-min` | ohne Grenze |
 | `--bruecke <url>` | Umgebung `FLOTTE_BRUECKE`, sonst keine Brücke; etwa `http://127.0.0.1:4747`. Den Token einer Brücke mit `BRUECKE_TOKEN` liest der Treiber aus `FLOTTE_BRUECKE_TOKEN` |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
 ### Weiteres Konto zuschalten
 
-Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber; der Leitstand kennt
-es nicht. Eingerichtet und angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto
-einrichten“. Zugeschaltet wird es nur, wenn der Mensch es sagt:
+Ein drittes Konto (`~/.claude-arbeitspferd-3`) arbeitet nur unter dem Treiber. Eingerichtet und
+angemeldet wird es wie in `arbeitspferd/README.md`, „Weiteres Konto einrichten“. Zugeschaltet wird
+es nur, wenn der Mensch es sagt:
 
 1. Treiber mit `flotte anhalten <repo>` anhalten (unten). Die Läufe arbeiten weiter, der Zustand steht schon in `zustand.json`.
 2. Mit demselben Aufruf neu starten, `--konten` um das Konto erweitert (Kurzname oder Ordner; `~`
@@ -101,7 +101,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 - `flotte antworten <repo> <epic> <frage> <Antwort>`: eine Antwort des Menschen an den laufenden Treiber.
 - `flotte anhalten <repo>`: hält den Treiber sicher an, etwa zum Aktualisieren. Er startet nichts Neues mehr (kein Lauf, kein Zug, kein Merge aus der Schlange), lässt einen begonnenen Merge mit Gate und `nach_merge` zu Ende laufen und endet dann mit dem Ereignis „Angehalten auf Wunsch“. Läufe arbeiten in ihrer eigenen Prozessgruppe weiter, ein Neustart übernimmt sie. Strg+C beendet dagegen auch einen laufenden `merge.ps1`, ein Gate oder `nach_merge` mitten im Schritt.
 - `flotte zuschauen <repo> <epic> [--einmal]`: folgt dem Log eines Laufs, je Zeile ein Schritt (Werkzeug und Ziel, Text des Laufs).
-- `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). Vor dem Einspielen aufrufen: In diesen Projekten mergt danach ein Mensch.
+- `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). In diesen Projekten mergt nur ein Mensch (ohne Schlüssel gilt `merge: mensch`).
 - `flotte auftrag <repo> <entwurf.md> [--starten] [--trocken]`: der Auftragsschreiber, das einzige Werkzeug, das Missionen und Missionsziele anlegt (agent-skills/ADR-0002). Prüft den Entwurf gegen den Adapter des Ziel-Repositorys und legt nichts an, wenn einem Missionsziel ein Pflichtabschnitt fehlt. Labels `needs-triage`, mit `--starten` `ready_label`. Entwurfsformat und Ergebnis: `README.md`, „Aufträge“.
 - `flotte triage [<repo>...] [--trocken]`: der Admiral klärt die offenen Sternzeit-Notizen (`needs-triage`, `needs-info`) selbst — klar: Abschnitte nachtragen und Warp frei; überflüssig: schließen mit Grund; kritisch: eine gebündelte Frage an den Menschen. Kommentar mit Herkunft vor jeder Änderung, ohne eigenen Zustand wiederholbar. Formen und Planen: `README.md`, „Triage“.
 - `flotte belegung`, `verbrauch`, `ressourcen`, `bloecke`, `lauf`: die Werkzeuge einzeln.
@@ -110,13 +110,13 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
 ## Was der Treiber tut
 
-1. **Einer je Repository.** Die Sperre liegt in `<git common dir>/flotte/treiber.lock`, der Zustand daneben in `zustand.json`. Nach einem Neustart setzt der Treiber aus der Datei fort. Ein Lauf schreibt sein Log selbst und überlebt den Treiber. Läufe, die noch leben (PID und Startzeit passen), beobachtet der Treiber nur.
+1. **Einer je Repository.** Die Sperre liegt in `<git common dir>/flotte/treiber.lock`, der Zustand daneben in `zustand.json`. Nach einem Neustart setzt der Treiber aus der Datei fort. Ein Lauf schreibt sein Log selbst und überlebt den Treiber. Strg+C beendet den Treiber; seine Sperre gibt er nur frei, wenn das Signal ankommt (nicht in einer PowerShell-Pipeline wie `… | Tee-Object`), sonst übernimmt der nächste `fahren`-Aufruf die Sperre, weil ihr Prozess tot ist. Läufe, die noch leben (PID und Startzeit passen), beobachtet der Treiber nur.
 2. **Belegung** aus Adapter und Issues: Kollisionsstufen (keine 4, klein 3, mittel 2, groß 1 gleichzeitig, nie mehr als vier) und Reihenfolge-Kanten. Ein Epic startet erst nach dem Merge seines Vorgängers. Ein startbereites Epic mit `prio_label` (Standard `prio/hoch`, am Epic oder an einem Kind) kommt in die nächste Belegung; harte Kanten und Kollisionsstufen gelten weiter. Hält es nur eine Kollision zurück, startet nichts Neues, das mit ihm kollidiert; laufende Epics bricht der Treiber nie ab. Erst danach gilt der Gleichstand: Es gewinnt die Wahl, deren Epics weniger Gate-Bereiche (`gate_areas`) teilen. Jede neue Belegung nennt ihren Beleg, auch das prio-Label und warum ein prio-Epic wartet.
 3. **Bremsen** in jedem Takt:
    - RAM über `ram.ps1`: `warn` und `hold` halten an, weiter geht es erst 5 Punkte unter der Warnschwelle. Ein Messfehler gilt als `hold`, mit seinem Fehlertext; die nächste gute Messung gibt frei.
    - Plattenplatz.
    - Verbrauch je Konto aus dem `rate_limit_event` der Läufe, in `<CLAUDE_CONFIG_DIR>/flotte/verbrauch.json`. Gelb startet nichts Neues, Rot hält auch Fortsetzungen an. Ein Wert, der älter als 30 Minuten ist, gilt als rot. Ein Lauf meldet nur etwa ein- bis zweimal je Zug, deshalb holt ab 15 Minuten ein Mini-Lauf mit Haiku einen frischen Wert, auch während auf dem Konto ein Lauf arbeitet. Das geschieht nur, wenn auf dem Konto etwas starten oder weiterlaufen will, also nicht, während alles auf den Menschen wartet.
-4. **Fragen:** Der Admiral entscheidet alles außer der Liste „Beim Menschen" (`epic-flotte/SKILL.md`, „Entscheidungsrecht"; im Programm `BEIM_MENSCHEN` in `src/treiber/admiral.ts`), bei beiden Werten von `merge`. Sein Schema lässt als `nr` nur die Nummern der Fragen zu. Jede Entscheidung kommt als Kommentar ans Issue; einflussreiche Entscheidungen kommen zusätzlich ins Logbuch. Was beim Menschen liegt, parkt nur die Pakete aus `Betrifft:`; die übrigen laufen weiter (`weiter ohne <Pakete>`).
+4. **Fragen:** Der Admiral entscheidet alles außer der Liste „Beim Menschen" (`references/entscheidungsrecht.md`; im Programm `BEIM_MENSCHEN` in `src/treiber/admiral.ts`), bei beiden Werten von `merge`. Sein Schema lässt als `nr` nur die Nummern der Fragen zu. Jede Entscheidung kommt als Kommentar ans Issue; einflussreiche Entscheidungen kommen zusätzlich ins Logbuch. Was beim Menschen liegt, parkt nur die Pakete aus `Betrifft:`; die übrigen laufen weiter (`weiter ohne <Pakete>`).
 5. **Fehler:**
    - Ein Fehlstart wird höchstens zweimal neu gestartet.
    - Bei einem Netzfehler setzt der Treiber höchstens zweimal mit `--resume` fort.
@@ -172,4 +172,5 @@ bun src/cli.ts epic <nr> <repo> --mechanik echt --aufrufe echt --konto <CLAUDE_C
 - **Vorrang** eines Epics: das Label `prio/hoch` (Adapter `prio_label`) am Epic oder an einem Kind, oder auf der Brücke „Priorität hoch“/„normal“ (gilt vor dem Label).
 - **Epics im Einsatz steuern** (Brücke, Sternenkarte, mit PIN): ein offenes Epic mit `ready_label` und `epic_label` aufnehmen, auch neben `--epics` (der Treiber prüft das an der Forge, es bleibt nach einem Neustart im Einsatz); ein Epic pausieren (startet nicht; ein laufender Lauf erfährt die Pause vor seinem nächsten Paketstart über die RAM-Messung — der Treiber schreibt `pausiert` in die Haltedatei, `ram.ps1` meldet dann `hold` —, startet kein weiteres Paket, laufende Pakete laufen zu Ende; der nächste Zug wartet, bis es fortgesetzt wird) und fortsetzen; sein Andocken auf „automatisch“, „Mensch prüft“ oder zurück zum Vorschlag stellen (#112). Nichts wird abgebrochen.
 
-Umschalten von `/epic-flotte` und zurück: `references/umschalten.md`.
+Die Regeln hinter Belegung, Bremsen, Blöcken, Entscheidungsrecht und Logbuch:
+`references/belegung.md`, `bremsen.md`, `bloecke.md`, `entscheidungsrecht.md`, `flottenlogbuch.md`.

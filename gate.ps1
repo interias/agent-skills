@@ -11,7 +11,7 @@ $kopf = (git rev-parse HEAD).Trim()
 $teile = [ordered]@{
     flotte  = { Push-Location flotte; bun test; $c = $LASTEXITCODE; Pop-Location; $c }
     bruecke = { Push-Location flottenbruecke; python -m pytest -q -p no:cacheprovider "--basetemp=$(Join-Path $env:TEMP agent-skills-gate-$PID)"; $c = $LASTEXITCODE; Pop-Location; $c }
-    pester  = { $r = Invoke-Pester -Path (Get-ChildItem epic\scripts\*.Tests.ps1).FullName -PassThru -Output None; [int]($r.FailedCount -gt 0) }
+    pester  = { $r = Invoke-Pester -Path (Get-ChildItem epic\scripts\*.Tests.ps1, install.Tests.ps1).FullName -PassThru -Output None; [int]($r.FailedCount -gt 0) }
 }
 $zeilen = @(); $gruen = $true
 foreach ($n in $teile.Keys) {
