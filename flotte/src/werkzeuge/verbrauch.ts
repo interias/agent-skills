@@ -1,5 +1,5 @@
 // flotte verbrauch <CLAUDE_CONFIG_DIR> [--max-alter-min 30]
-// The usage brake (epic-flotte/SKILL.md, "Verbrauchsbremse"). The driver writes
+// The usage brake (flotte/references/bremsen.md, "Verbrauchsbremse"). The driver writes
 // <config>/flotte/verbrauch.json from the rate_limit_event of every run on that account (#14,
 // decision 6 as answered at HALT 1) and reads only that file. A value older than the threshold is
 // red. /api/oauth/usage is not used.

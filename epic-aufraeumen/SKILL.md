@@ -118,7 +118,7 @@ Erst zählen, dann löschen. Trage vier Listen zusammen:
    (`epic/references/worktree.md`, „Worktrees ohne Manifest und Reste auf der Platte").
    **Laufende Läufe anderer Epics** sind kein Befund: `epic-<andere nr>`, ihre Paket-Worktrees und
    Paket-Branches gehören einem Lauf, dessen Zielissue `status/in-arbeit` trägt oder den
-   `/epic-flotte` nennt. Sie stehen auf keiner Liste und werden nicht angefasst, auch nicht als
+   der Auftrag nennt. Sie stehen auf keiner Liste und werden nicht angefasst, auch nicht als
    Altlast.
 4. **Altlasten**, wenn der Nutzer sie einbezogen hat: lokale Branches, deren Gegenstück in der
    Forge gelöscht ist (`git branch -vv` zeigt sie als `origin/…: gone`), und Worktree-Reste

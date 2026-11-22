@@ -18,6 +18,8 @@ test_commands:
   guard: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\guard.Tests.ps1"
   ram: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\ram.Tests.ps1"
   sweep: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\sweep.Tests.ps1"
+  merge: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\merge.Tests.ps1"
+  install: powershell -NoProfile -Command "Invoke-Pester .\install.Tests.ps1"
   flotte: cd flotte && bun test
   bruecke: cd flottenbruecke && python -m pytest -q
 isolation: none-needed
@@ -52,4 +54,4 @@ laufende Stack `flottenbruecke` (4747) und ein laufender Treiber werden nie ange
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
 - `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
 - Gemergt wird nach grünem Gate (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
-- Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(epic-flotte): …`), PR-Titel deutsch.
+- Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(flotte): …`), PR-Titel deutsch.

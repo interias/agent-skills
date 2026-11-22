@@ -1,5 +1,5 @@
-# Pester 3.4 (ships with Windows PowerShell 5.1): Invoke-Pester .\arbeitspferd\leitstand\scripts\merge.Tests.ps1
-# The script runs as a separate pwsh process, the way the Leitstand calls it. gh is a stub script
+# Pester 3.4 (ships with Windows PowerShell 5.1): Invoke-Pester .\epic\scripts\merge.Tests.ps1
+# The script runs as a separate pwsh process, the way the driver calls it. gh is a stub script
 # (-GhCommand) that answers from a list of rules and logs every call; no test reaches GitHub.
 
 $script = Join-Path $PSScriptRoot 'merge.ps1'

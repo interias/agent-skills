@@ -1,7 +1,7 @@
 // The rules of the package loop as pure functions (epic/SKILL.md, "Modelle, Paketklasse,
 // Kundschafter", Phase 4 and 4c): roles per rung, escalation ladder, the window choice, the
 // verification against the Ausgangszahlen, the reading of a call's result, and the blocks to the
-// driver (epic-flotte/SKILL.md, "Die Blöcke").
+// driver (flotte/references/bloecke.md).
 
 import type { LaufErgebnis } from '../werkzeuge/lauf.ts';
 import { pruefeAusgabe, type Ausgaben, type Paket, type Rolle } from './schema.ts';

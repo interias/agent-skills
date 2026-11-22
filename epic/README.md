@@ -118,15 +118,10 @@ wird. Die Agent-Typen liegen unter [`agents/`](../agents/).
 | Implementer nach einer Eskalation aus Urteil | `epic-implementer-urteil-hoch` | Opus, hoch |
 | Reviewer *mechanisch* und *Standard* | `epic-reviewer-standard` | Sonnet, hoch |
 | Reviewer *Urteil* | `epic-reviewer-urteil` | Opus, mittel |
-| Lauf als Subagent unter `/epic-flotte` (Rückfall) | `epic-lauf` | Opus, mittel; Cache eine Stunde |
 
 Der Reviewer ist nie schwächer als der Implementer. Der Admiral hat wenige, folgenreiche Züge; die
 Masse der Arbeit machen die Orchestratoren der Läufe und die Implementer. Deshalb läuft nur er auf
 Fable.
-
-Ein Subagent hält seinen Cache sonst fünf Minuten. Der Lauf-Agent wartet auf jede Welle länger und
-schrieb danach seinen ganzen Kontext neu; mit dem Stunden-Cache (`experimental.cacheTtl: 1h`, ab
-Claude Code 2.1.248) entfällt das.
 
 ## Nach dem Lauf
 

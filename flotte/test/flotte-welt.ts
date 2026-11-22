@@ -71,8 +71,10 @@ export interface Protokoll {
 }
 
 export function aufbau(o: Optionen = {}) {
-  const repo = o.vorhanden?.repo ?? mkdtempSync(join(tmpdir(), 'flotte-repo-'));
+  // the repo sits in its own shell: the driver reads `skripte/../..` as the skills folder, which must not be the temp folder
+  const repo = o.vorhanden?.repo ?? join(mkdtempSync(join(tmpdir(), 'flotte-welt-')), 'repo');
   if (!o.vorhanden) {
+    mkdirSync(repo);
     aufrufen('git', ['init', '-q', repo]);
     mkdirSync(join(repo, '.claude'));
     writeFileSync(join(repo, '.claude', 'epic.md'), `---\n${o.adapter ?? 'merge: mensch'}\n---\n# Adapter\n`);

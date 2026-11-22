@@ -1,14 +1,15 @@
 # Die Flottentafel
 
-Die Flottentafel ist der Leitstand des Admirals für den Menschen: welche Epics laufen, wo jeder
-Lauf steht, was der Admiral selbst entschieden hat, wie nah die Verbrauchsbremse ist und was beim
-Menschen liegt. Sie ist ein **fester Bildschirm ohne Scrollen**: Oben steht immer dasselbe, den
+Die Flottentafel zeigt dem Menschen, welche Epics laufen, wo jeder Lauf steht, was der Admiral
+selbst entschieden hat, wie nah die Verbrauchsbremse ist und was beim Menschen liegt. Der Treiber
+baut seine Tafel selbst (`flotte/src/treiber/tafel.ts`); diese Datei beschreibt die Vorlage
+`flottentafel.html`. Sie ist ein **fester Bildschirm ohne Scrollen**: Oben steht immer dasselbe, den
 unteren Bereich blättern Knöpfe in der Seitenleiste um. Die Lauftafeln der einzelnen Läufe bleiben
 daneben bestehen (`epic/references/lauftafel.md`); die Flottentafel verlinkt sie, statt sie zu
 wiederholen.
 
 Wo die Tafel liegt und ob sie veröffentlicht oder nur geschrieben wird (`plan_artifact`):
-`epic/references/adapter.md`; hier liegt sie im Scratchpad des Admirals. Die URL bleibt über den
+`epic/references/adapter.md`; hier liegt sie im Scratchpad. Die URL bleibt über den
 ganzen Einsatz gleich und wird dem Menschen genannt (bei `file` der Pfad).
 
 ## Die Vorlage
@@ -17,13 +18,13 @@ ganzen Einsatz gleich und wird dem Menschen genannt (bei `file` der Pfad).
 wie die Lauftafel. Sie wird kopiert, nicht nachgebaut:
 
 ```bash
-cp ~/.claude/skills/epic-flotte/references/flottentafel.html "<scratchpad>/flottentafel.html"
+cp ~/.claude/skills/flotte/references/flottentafel.html "<scratchpad>/flottentafel.html"
 ```
 
 **Der `<style>`-Block und das `<script>` werden nicht angefasst.** Der gemeinsame Block am Anfang
 des Styles steht wortgleich in `epic/references/lauftafel.html` und wird nur in beiden Dateien
 zugleich geändert; die Prüfung mit `diff` steht in `lauftafel.md` („Die Vorlage"). Das Script
-zeichnet die Formation und blättert den unteren Bereich; der Admiral pflegt nur HTML-Daten.
+zeichnet die Formation und blättert den unteren Bereich; gepflegt werden nur HTML-Daten.
 
 Die Vorlage trägt die Musterdaten eines erfundenen Einsatzes und zeigt darin **jede** Form einmal:
 alle fünf Laufzustände, alle fünf Paketformen, drei Kollisionsstufen, eine Entscheidung
@@ -65,13 +66,13 @@ kommt ebenfalls von der Systemuhr oder aus `get_usage`, nie aus einer Schätzung
 
 | Einsatzzustand | Markup | wann |
 |---|---|---|
-| Einsatz läuft | `<b class="lauf live">Einsatz läuft</b>` | ab dem Flotten-Tor bis Phase 5 |
-| Beendet | `<b class="lauf done">Beendet</b>` | Endstand nach Phase 5 |
+| Einsatz läuft | `<b class="lauf live">Einsatz läuft</b>` | solange Läufe arbeiten oder warten |
+| Beendet | `<b class="lauf done">Beendet</b>` | Endstand |
 | Abgebrochen | `<b class="lauf fail">Abgebrochen</b>` | der Einsatz endet vorher; der Grund steht als Glut-Punkt unter „Beim Menschen" |
 
 ## RAM-Messung (#37)
 
-Vor jeder Welle misst der Admiral den Speicher (`SKILL.md`, „RAM-Bremse"). **Jeder Messwert steht
+Der Speicher wird nach `bremsen.md`, „RAM-Bremse" gemessen. **Jeder Messwert steht
 auf der Tafel**, ohne neues Element und ohne Eingriff in den `<style>`-Block:
 
 - `.stamp`: die letzte Messung als `<span>RAM <b>66 % · 10,8 GB frei · ok</b></span>` hinter der
@@ -114,7 +115,7 @@ Zeilen zeichnet das Script die Formation**; was hier steht, steht dort. Die Spal
 | Laufzustand | Chip | in der Formation | wann |
 |---|---|---|---|
 | im Dock | `.state.wait` | im Dock links | wartet auf eine Reihenfolge-Kante, eine Kollision oder die Bremse; `data-wartet="#<nr>"` an der Zeile nennt den Grund im Dock |
-| läuft | `.state.live` | Schiff glüht | der Lauf arbeitet — Sitzung, Lauf-Agent oder übernommener Chat |
+| läuft | `.state.live` | Schiff glüht | der Lauf arbeitet |
 | wartet auf dich | `.state.you` | Schiff blinkt | eine Frage, auf die der Lauf wartet, liegt beim Menschen |
 | fertig | `.state.done` | Schiff blau | `FLOTTE-ENDE` ist da; der `.sub` sagt, ob PR offen, gemergt oder aufgeräumt |
 | abgebrochen | `.state.fail` | Schiff rot | der Lauf endet ohne Block oder mit Abbruch; Glut-Punkt unter „Beim Menschen" |
@@ -123,8 +124,7 @@ Zeilen zeichnet das Script die Formation**; was hier steht, steht dort. Die Spal
   des Epics, in der Reihenfolge und im Zustand seiner Lauftafel (`wait`, `live`, `done`, `fail`,
   `block`), dahinter `<span class="mono">abgenommen/gesamt</span>`. Die Zahlen stehen auch im
   `aria-label`.
-- **Lauf**: bei einer Sitzung — von dir gestartet oder übernommen — ein Link auf sie, bei einem
-  Lauf-Agenten die Agent-ID (die ersten sieben Zeichen), dann der Link auf die Lauftafel des Laufs.
+- **Lauf**: der Link auf die Lauftafel des Laufs.
 - **PR**: Link auf den Pull Request, sonst `—`.
 
 Glut tragen auch hier nur „läuft" und „wartet auf dich" (`--live`, `--you`).
@@ -148,14 +148,13 @@ ein Hinweis auf die Tabelle.
 ## Verbrauchsbremse
 
 Die Leiste `<section class="brake <stufe>">` mit `gruen`, `gelb` oder `rot` gibt die letzte Messung
-wieder (`SKILL.md`, „Verbrauchsbremse"):
+wieder (`bremsen.md`, „Verbrauchsbremse"):
 
 - `.lvl`: `Bremse grün`, `Bremse gelb` oder `Bremse rot`.
 - Zwei Balken, 5-Stunden- und Wochenfenster: `<b style="width: <verbraucht>%">`, daneben
   `<verbraucht> % · hochgerechnet <Hochrechnung> %`; in den ersten 30 Minuten eines Fensters
   steht statt der Hochrechnung `—`.
-- `.note`: Reset des 5-Stunden-Fensters und die geschätzten Kosten der nächsten Welle
-  (`nächste Welle ≈ <n> %`) nach „Aus Erfahrung schätzen".
+- `.note`: Reset des 5-Stunden-Fensters.
 
 Das Gelb der Bremse ist ein ruhiger Ton und blinkt nie; es ist keine Glut. Prozente stehen nur auf
 der Tafel, nie im Flottenlogbuch.
@@ -184,7 +183,7 @@ warum ein Platz leer ist.
 **Entscheidungen**: **alle** eigenen Entscheidungen des Einsatzes, neueste oben, je eine
 `<div class="d">` mit dem Epic (oder `Flotte`) in `.lbl`, der Entscheidung in einem Satz und in
 `.hard` Herkunft, „Widerrufen" (was ein Mensch tun müsste) und dem Link auf den Forge-Kommentar —
-dieselben Felder wie der Kommentar in `SKILL.md`. Eine einflussreiche trägt `class="d vorl"` und
+dieselben Felder wie der Kommentar in `entscheidungsrecht.md`. Eine einflussreiche trägt `class="d vorl"` und
 `<span class="vk">Protokoll</span>`, ihr Link führt auf den Eintrag im Entscheidungsprotokoll;
 widerruft der Mensch eine Entscheidung, wird aus der Marke `widerrufen` mit der neuen
 Entscheidung im Satz. Gestrichen wird keine.
@@ -192,13 +191,13 @@ Entscheidung im Satz. Gestrichen wird keine.
 **Bremse**: der Verlauf der Messungen, je Aufwachen eine Zeile, neueste unten: Zeit, Stufe
 (`<span class="stufe gruen|gelb|rot">`), 5 Stunden verbraucht, hochgerechnet, Woche, Zuwachs seit
 der letzten Messung, Pakete dazwischen (Zahl, Paketklassen, Runden oder Eskalationen). Darunter
-eine Zeile mit den Kosten je Paket bisher, getrennt nach Paketklasse — die Grundlage der Schätzung
-in der Leiste und des Vorschlags für `verbrauch.md` im Abschlussbericht.
+eine Zeile mit den Kosten je Paket bisher, getrennt nach Paketklasse — der Vorschlag für
+`verbrauch.md`.
 
 ## Fortschreiben
 
 Dieselbe Datei, derselbe `file_path`, dieselbe URL; `icon` und `<title>` bleiben gleich, ein
-`label` je Fortschreibung. Fortgeschrieben wird bei **jedem** Ereignis aus `SKILL.md`, Phase 3,
+`label` je Fortschreibung. Fortgeschrieben wird bei **jedem** Ereignis,
 im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
 
 - Einsatzzustand, Stand, Nummer der Fortschreibung und Sternzeit in `.stamp`

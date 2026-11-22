@@ -27,6 +27,6 @@ if ($AuftragDatei) {
     claude @extra -- (Get-Content -Raw $AuftragDatei)
 } else {
     Set-Location "$HOME\git"
-    Write-Host "Projekt waehlen: cd <projekt>; dann 'claude' starten, z. B. mit /epic-flotte" -ForegroundColor DarkGray
+    Write-Host "Projekt waehlen: cd <projekt>; dann 'claude' starten, z. B. mit /epic" -ForegroundColor DarkGray
     Write-Host ''
 }
