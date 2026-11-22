@@ -28,7 +28,7 @@ function texte(): { datei: string; text: string }[] {
 
 describe('skills: growth limit', () => {
   it('finds the skills of the repository', () => {
-    expect(skills).toEqual(expect.arrayContaining(['epic', 'epic-flotte', 'flotte', 'codebase-design', 'research', 'prototype']));
+    expect(skills).toEqual(expect.arrayContaining(['epic', 'epic-flotte', 'flotte', 'codebase-design', 'research', 'prototype', 'tdd', 'diagnosing-bugs', 'code-inspektion']));
   });
 
   for (const s of skills) {
