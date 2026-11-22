@@ -257,6 +257,332 @@ export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleM
   return { fragen, kalt, starts, fehlstarts, entscheidungen: z.entscheidungen.filter((d) => d.von !== 'mensch').length };
 }
 
+// ---- Epic runs by role (#64) ----
+// One epic run is split into its work: today the session of /epic and its subagents, under
+// `flotte epic` one `claude -p` session per role. Both arrive here as Arbeit; the loader in
+// befehle/messen.ts decides the role (subagent agentType or the role a session is listed with).
+
+export type Rolle = 'orchestrator' | 'implementer' | 'reviewer' | 'kundschafter' | 'admiral' | 'schnitt' | 'konflikt' | 'andere';
+
+/** Orchestration in the sense of the acceptance table of epic #69: cut, gate, conflict, questions. */
+export const ORCHESTRIERUNG: Rolle[] = ['orchestrator', 'admiral', 'schnitt', 'konflikt'];
+
+/** The role of an agent type or of a listed session: epic-implementer-urteil-hoch is an implementer, epic-lauf the orchestrator. */
+export function rolleAus(agentType: string | null | undefined): Rolle {
+  const t = String(agentType ?? '');
+  if (/implementer/.test(t)) return 'implementer';
+  if (/reviewer/.test(t)) return 'reviewer';
+  if (/kundschafter/.test(t)) return 'kundschafter';
+  if (/admiral/.test(t)) return 'admiral';
+  if (t === 'epic-lauf' || t === 'host' || t === 'orchestrator') return 'orchestrator';
+  if (t === 'schnitt' || t === 'konflikt') return t;
+  return 'andere';
+}
+
+const LEITER = ['mechanisch', 'standard', 'urteil', 'urteil-hoch'];
+
+/** The step of an implementer on the escalation ladder (epic/SKILL.md), or -1. */
+export function stufeAus(agentType: string | null | undefined): number {
+  const m = /implementer-(mechanisch|standard|urteil-hoch|urteil)\b/.exec(String(agentType ?? ''));
+  return m ? LEITER.indexOf(m[1]) : -1;
+}
+
+export interface Arbeit {
+  rolle: Rolle;
+  agentType: string | null;
+  /** package number as in the agent description ('#55', 'Paket 55', '41-p2'), null outside a package */
+  paket: string | null;
+  /** first and last line of its transcript */
+  start: number;
+  ende: number;
+  weighted: number;
+}
+
+export interface PaketMerge {
+  paket: string;
+  zeit: number;
+}
+
+/** Nearest-rank quantile, q in (0, 1]. */
+export function quantil(werte: number[], q: number): number | null {
+  if (!werte.length) return null;
+  const w = [...werte].sort((a, b) => a - b);
+  return w[Math.min(w.length - 1, Math.max(0, Math.ceil(q * w.length) - 1))];
+}
+
+function zeitwerte(werte: number[], teiler: number) {
+  const v = werte.map((x) => x / teiler);
+  const p90 = quantil(v, 0.9);
+  return { ...verteilung(v), p90: p90 === null ? null : runde(p90) };
+}
+
+/**
+ * Model time of a transcript inside a span: per message of the model the gap to the line before,
+ * at most 10 minutes (method of epic #69). Further lines of the same message add about nothing.
+ */
+export function modellzeit(eintraege: Eintrag[], von: number, bis: number): number {
+  let ms = 0;
+  for (let i = 1; i < eintraege.length; i++) {
+    const e = eintraege[i];
+    if (e.art !== 'assistent' || e.zeit < von || e.zeit > bis) continue;
+    ms += Math.min(10 * MIN, Math.max(0, e.zeit - Math.max(eintraege[i - 1].zeit, von)));
+  }
+  return ms;
+}
+
+const MERGE = /\bgit\b[^\n]*\bmerge\b(?![-\w])[^\n]*?\bagent\/(\d+(?:-p\d+)?)/;
+
+/**
+ * Package merges of an orchestrator: a Bash or PowerShell call `git merge … agent/<nr>-…`
+ * (epic/SKILL.md, phase 5), at the time of its result. A result with a conflict or an error does
+ * not count; `--abort` and `merge-base` never do.
+ */
+export function paketMerges(eintraege: Eintrag[]): PaketMerge[] {
+  const out: PaketMerge[] = [];
+  for (let i = 0; i < eintraege.length; i++) {
+    for (const a of eintraege[i].aufrufe) {
+      if (a.name !== 'Bash' && a.name !== 'PowerShell') continue;
+      const befehl = String(a.input.command ?? '');
+      const m = MERGE.exec(befehl);
+      if (!m || /--abort/.test(befehl)) continue;
+      let zeit = eintraege[i].zeit;
+      let text = '';
+      for (let k = i + 1; k < eintraege.length; k++) {
+        const r = eintraege[k].ergebnisse.find((x) => x.id === a.id);
+        if (r) {
+          zeit = eintraege[k].zeit;
+          text = r.text;
+          break;
+        }
+      }
+      if (/CONFLICT|fatal:|Automatic merge failed/.test(text)) continue;
+      out.push({ paket: m[1], zeit });
+    }
+  }
+  return out;
+}
+
+export interface EpicEingabe {
+  arbeiten: Arbeit[];
+  merges: PaketMerge[];
+  /** places of the window (adapter `window`) */
+  fenster: number;
+  /** hard predecessors per package; without them every package not yet started counts as ready */
+  kanten?: Record<string, string[]>;
+  /** run time of the epic without waiting for the person, as the driver measured it (messungen.jsonl) */
+  arbeitMs?: number | null;
+  /** model time of the orchestration between two moments; absent where no model orchestrates */
+  modellzeit?: (von: number, bis: number) => number;
+  /** moments the epic run was started anew (driver: "Lauf gestartet" after the first; flotte epic: event neustart) */
+  neustarts?: number[];
+  /** moments a worker process started, --resume included (flotte epic: its aufruf events); default the first lines of the worker transcripts */
+  workerStarts?: number[];
+  /** moments a call was started anew, not with --resume (flotte epic); counted between a restart and its first worker */
+  neueAufrufe?: number[];
+}
+
+/**
+ * The metrics of the acceptance table of epic #69 for one epic run. Weighted usage per role and per
+ * package; a package carries its own work plus an equal share of the orchestration. A package
+ * occupies a place from its first worker until its first merge (or its last work when it was never
+ * merged). Window loss is the time a place was free while a package not yet started had all its
+ * hard predecessors merged; collisions are not known here, so it is an upper bound.
+ */
+export function epicKennzahlen(x: EpicEingabe) {
+  const summe = x.arbeiten.reduce((s, a) => s + a.weighted, 0);
+  const jeRolle: Partial<Record<Rolle, { weighted: number; anteil: number; auftraege: number }>> = {};
+  for (const a of x.arbeiten) {
+    const r = (jeRolle[a.rolle] ??= { weighted: 0, anteil: 0, auftraege: 0 });
+    r.weighted += a.weighted;
+    r.auftraege++;
+  }
+  for (const r of Object.values(jeRolle)) {
+    r.anteil = summe ? runde((r.weighted * 100) / summe) : 0;
+    r.weighted = Math.round(r.weighted);
+  }
+  const orchestrierung = x.arbeiten.filter((a) => ORCHESTRIERUNG.includes(a.rolle) && !a.paket).reduce((s, a) => s + a.weighted, 0);
+  const istWorker = (a: Arbeit) => a.rolle === 'implementer' || a.rolle === 'reviewer';
+
+  const ersterMerge = (p: string) => x.merges.filter((m) => m.paket === p).reduce<number | null>((t, m) => (t === null || m.zeit < t ? m.zeit : t), null);
+  const nummern = [...new Set(x.arbeiten.filter((a) => a.paket && istWorker(a)).map((a) => a.paket as string))];
+  const pakete = nummern.map((p) => {
+    const mine = x.arbeiten.filter((a) => a.paket === p);
+    const impl = mine.filter((a) => a.rolle === 'implementer').sort((a, b) => a.start - b.start);
+    const rev = mine.filter((a) => a.rolle === 'reviewer');
+    let eskalationen = 0;
+    for (let i = 1; i < impl.length; i++) if (stufeAus(impl[i].agentType) > stufeAus(impl[i - 1].agentType)) eskalationen++;
+    const eigen = mine.reduce((s, a) => s + a.weighted, 0);
+    const iw = impl.reduce((s, a) => s + a.weighted, 0);
+    const rw = rev.reduce((s, a) => s + a.weighted, 0);
+    const gemergt = ersterMerge(p);
+    const reviewerZurueck = rev.filter((a) => gemergt === null || a.ende <= gemergt).reduce<number | null>((t, a) => (t === null || a.ende > t ? a.ende : t), null);
+    return {
+      paket: p,
+      start: Math.min(...mine.filter(istWorker).map((a) => a.start)),
+      ende: gemergt ?? Math.max(...mine.map((a) => a.ende)),
+      gemergt,
+      reviewerZurueck,
+      implementer: Math.round(iw),
+      reviewer: Math.round(rw),
+      andere: Math.round(eigen - iw - rw),
+      summe: Math.round(eigen + orchestrierung / nummern.length),
+      implementerAuftraege: impl.length,
+      eskalationen,
+      merges: x.merges.filter((m) => m.paket === p).length,
+      doppeltGestartet: impl.some((a, i) => impl.slice(i + 1).some((b) => b.start < a.ende)),
+    };
+  });
+
+  // from a merge (or a reviewer coming back) to the next start of a package that was ready at that
+  // merge (its hard predecessors merged), under an hour
+  const bereitBei = (p: string, t: number) => (x.kanten?.[p] ?? []).every((v) => (ersterMerge(v) ?? Infinity) <= t);
+  const bisStart = (t: number, bereitAb: number) => {
+    const s = pakete.filter((p) => p.start >= t && p.start - t < 60 * MIN && bereitBei(p.paket, bereitAb)).reduce<number | null>((m, p) => (m === null || p.start < m ? p.start : m), null);
+    return s === null ? [] : [s - t];
+  };
+  const gemergtBisStart = x.merges.flatMap((m) => bisStart(m.zeit, m.zeit));
+  const zurueckBisStart = pakete.flatMap((p) => (p.reviewerZurueck === null ? [] : bisStart(p.reviewerZurueck, p.gemergt ?? p.reviewerZurueck)));
+  const pruef = pakete.flatMap((p) => (p.gemergt === null || p.reviewerZurueck === null ? [] : [{ von: p.reviewerZurueck, bis: p.gemergt }]));
+
+  // window loss: between the moments where occupancy or readiness can change
+  let verlust = 0;
+  let laufzeit = 0;
+  if (pakete.length) {
+    const punkte = [...new Set(pakete.flatMap((p) => [p.start, p.ende]).concat(x.merges.map((m) => m.zeit)))].sort((a, b) => a - b);
+    laufzeit = punkte[punkte.length - 1] - punkte[0];
+    for (let i = 0; i + 1 < punkte.length; i++) {
+      const t = punkte[i];
+      const belegt = pakete.filter((p) => p.start <= t && p.ende > t).length;
+      const bereit = pakete.some((p) => p.start > t && (x.kanten?.[p.paket] ?? []).every((v) => (ersterMerge(v) ?? Infinity) <= t));
+      if (belegt < x.fenster && bereit) verlust += punkte[i + 1] - t;
+    }
+  }
+
+  const workerStarts = [...(x.workerStarts ?? x.arbeiten.filter(istWorker).map((a) => a.start))].sort((a, b) => a - b);
+  const neustarts = (x.neustarts ?? []).map((t) => {
+    const s = workerStarts.find((v) => v >= t);
+    // a call started anew before the first worker is model usage for the rebuild; --resume of a running call is not
+    const neu = x.neueAufrufe ? x.neueAufrufe.filter((v) => v >= t && v < (s ?? Infinity)).length : null;
+    return { zeit: new Date(t).toISOString(), bis_erster_worker_s: s === undefined ? null : Math.round((s - t) / 1000), neue_aufrufe_bis_worker: neu };
+  });
+
+  const ir = pakete.map((p) => p.implementer + p.reviewer);
+  const mittel = (w: number[]) => (w.length ? Math.round(w.reduce((s, v) => s + v, 0) / w.length) : null);
+  const sek = (w: number[]) => w.map((v) => Math.round(v / 1000));
+  return {
+    /** the single values in seconds, for the sum over several epics (epicSumme) */
+    stichproben: { gemergt_bis_naechster_start: sek(gemergtBisStart), reviewer_zurueck_bis_naechster_start: sek(zurueckBisStart), pruefzeit: sek(pruef.map((p) => p.bis - p.von)), fensterverlust: Math.round(verlust / 1000), laufzeit: Math.round(laufzeit / 1000) },
+    verbrauch: {
+      weighted: Math.round(summe),
+      je_rolle: jeRolle,
+      orchestrierung: { weighted: Math.round(orchestrierung), anteil: summe ? runde((orchestrierung * 100) / summe) : 0 },
+      je_paket: mittel(pakete.map((p) => p.summe)),
+      implementer_reviewer_je_paket: mittel(ir),
+    },
+    pakete: pakete.map((p) => ({ paket: p.paket, implementer: p.implementer, reviewer: p.reviewer, andere: p.andere, summe: p.summe, implementer_auftraege: p.implementerAuftraege, eskalationen: p.eskalationen, merges: p.merges, gemergt: p.gemergt === null ? null : new Date(p.gemergt).toISOString() })),
+    implementer_auftraege_je_paket: pakete.length ? runde(pakete.reduce((s, p) => s + p.implementerAuftraege, 0) / pakete.length) : null,
+    eskalationen: pakete.reduce((s, p) => s + p.eskalationen, 0),
+    zeiten: {
+      durchlauf_min: x.arbeitMs == null ? null : runde(x.arbeitMs / MIN),
+      gemergt_bis_naechster_start_s: zeitwerte(gemergtBisStart, 1000),
+      reviewer_zurueck_bis_naechster_start_s: zeitwerte(zurueckBisStart, 1000),
+      pruefzeit_s: { ...zeitwerte(pruef.map((p) => p.bis - p.von), 1000), modell_s: x.modellzeit ? runde(pruef.reduce((s, p) => s + x.modellzeit!(p.von, p.bis), 0) / 1000) : null },
+      fensterverlust: { minuten: runde(verlust / MIN), laufzeit_min: runde(laufzeit / MIN), anteil: laufzeit ? runde((verlust * 100) / laufzeit) : null },
+    },
+    neustart: { neustarts, doppelt_gestartete_pakete: pakete.filter((p) => p.doppeltGestartet).length, doppelte_merges: pakete.filter((p) => p.merges > 1).length },
+  };
+}
+
+type EpicMessung = ReturnType<typeof epicKennzahlen> & { ungueltige_ausgaben: { aufrufe: number; ungueltig: number } };
+
+/** The table of epic #69 over several epic runs of one deployment: means per epic, per package and over all single values. */
+export function epicSumme(laeufe: EpicMessung[]) {
+  const pakete = laeufe.flatMap((l) => l.pakete);
+  const summe = laeufe.reduce((s, l) => s + l.verbrauch.weighted, 0);
+  const orch = laeufe.reduce((s, l) => s + l.verbrauch.orchestrierung.weighted, 0);
+  const verlust = laeufe.reduce((s, l) => s + l.stichproben.fensterverlust, 0);
+  const laufzeit = laeufe.reduce((s, l) => s + l.stichproben.laufzeit, 0);
+  const durchlauf = laeufe.map((l) => l.zeiten.durchlauf_min).filter((d): d is number => d !== null);
+  const aufrufe = laeufe.reduce((s, l) => s + l.ungueltige_ausgaben.aufrufe, 0);
+  const ungueltig = laeufe.reduce((s, l) => s + l.ungueltige_ausgaben.ungueltig, 0);
+  const alle = (k: 'gemergt_bis_naechster_start' | 'reviewer_zurueck_bis_naechster_start' | 'pruefzeit') => laeufe.flatMap((l) => l.stichproben[k]);
+  return {
+    epics: laeufe.length,
+    pakete: pakete.length,
+    verbrauch_je_epic: laeufe.length ? Math.round(summe / laeufe.length) : null,
+    verbrauch_je_paket: pakete.length ? Math.round(pakete.reduce((s, p) => s + p.summe, 0) / pakete.length) : null,
+    anteil_orchestrierung: summe ? runde((orch * 100) / summe) : null,
+    implementer_reviewer_je_paket: pakete.length ? Math.round(pakete.reduce((s, p) => s + p.implementer + p.reviewer, 0) / pakete.length) : null,
+    durchlauf_min: durchlauf.length ? verteilung(durchlauf) : null,
+    gemergt_bis_naechster_start_s: zeitwerte(alle('gemergt_bis_naechster_start'), 1),
+    reviewer_zurueck_bis_naechster_start_s: zeitwerte(alle('reviewer_zurueck_bis_naechster_start'), 1),
+    pruefzeit_s: { ...zeitwerte(alle('pruefzeit'), 1), modell_s: runde(laeufe.reduce((s, l) => s + (l.zeiten.pruefzeit_s.modell_s ?? 0), 0)) },
+    fensterverlust_anteil: laufzeit ? runde((verlust * 100) / laufzeit) : null,
+    implementer_auftraege_je_paket: pakete.length ? runde(pakete.reduce((s, p) => s + p.implementer_auftraege, 0) / pakete.length) : null,
+    eskalationen: pakete.reduce((s, p) => s + p.eskalationen, 0),
+    ungueltige_ausgaben: { aufrufe, ungueltig, anteil: aufrufe ? runde((ungueltig * 100) / aufrufe) : null },
+    neustart: {
+      bis_erster_worker_s: laeufe.flatMap((l) => l.neustart.neustarts.map((n) => n.bis_erster_worker_s)),
+      neue_aufrufe_bis_worker: laeufe.flatMap((l) => l.neustart.neustarts.map((n) => n.neue_aufrufe_bis_worker)),
+      doppelt_gestartete_pakete: laeufe.reduce((s, l) => s + l.neustart.doppelt_gestartete_pakete, 0),
+      doppelte_merges: laeufe.reduce((s, l) => s + l.neustart.doppelte_merges, 0),
+    },
+  };
+}
+
+/** Role, package and round of a call log of `flotte epic` (<rolle>[-<paket>]-r<runde>.jsonl, src/epic/aufrufe.ts). */
+export function aufrufLog(name: string): { rolle: Rolle; paket: string | null; runde: number } | null {
+  const m = /^([a-z]+)(?:-(.+?))?-r(\d+)\.jsonl$/.exec(name);
+  return m ? { rolle: rolleAus(m[1]), paket: m[2] ?? null, runde: Number(m[3]) } : null;
+}
+
+/** What flotte messen reads from the state of `flotte epic` (<git common dir>/flotte/epics/<nr>/zustand.json, src/epic/zustand.ts). */
+export interface ProgrammZustand {
+  ereignisse: { zeit: string; paket: string | null; art: string; rolle?: string; text: string }[];
+}
+
+/**
+ * The events of `flotte epic` as the source of an epic run (#68): package merges (event gemergt),
+ * restarts (neustart), worker processes started or resumed (aufruf of implementer and reviewer),
+ * calls started anew (aufruf without --resume) and invalid outputs (ungueltig).
+ */
+export function programmEreignisse(z: ProgrammZustand) {
+  const ev = z.ereignisse.map((e) => ({ ...e, t: Date.parse(e.zeit) }));
+  const aufrufe = ev.filter((e) => e.art === 'aufruf');
+  return {
+    merges: ev.filter((e) => e.art === 'gemergt' && e.paket).map((e) => ({ paket: e.paket as string, zeit: e.t })),
+    neustarts: ev.filter((e) => e.art === 'neustart').map((e) => e.t),
+    workerStarts: aufrufe.filter((e) => e.rolle === 'implementer' || e.rolle === 'reviewer').map((e) => e.t),
+    neueAufrufe: aufrufe.filter((e) => !/--resume/.test(e.text)).map((e) => e.t),
+    aufrufe: aufrufe.length,
+    ungueltig: ev.filter((e) => e.art === 'ungueltig').length,
+  };
+}
+
+/**
+ * Invalid outputs of `--json-schema` calls in stream-json logs: a result without
+ * structured_output, or one whose subtype names the structured output.
+ */
+export function ungueltigeAusgaben(logs: string[]): { aufrufe: number; ungueltig: number } {
+  let aufrufe = 0;
+  let ungueltig = 0;
+  for (const log of logs) {
+    for (const zeile of log.split(/\r?\n/)) {
+      if (!zeile.includes('"result"')) continue;
+      let r: { type?: string; subtype?: string; structured_output?: unknown };
+      try {
+        r = JSON.parse(zeile);
+      } catch {
+        continue;
+      }
+      if (r?.type !== 'result') continue;
+      aufrufe++;
+      if (r.structured_output == null || /structured/.test(String(r.subtype ?? ''))) ungueltig++;
+    }
+  }
+  return { aufrufe, ungueltig };
+}
+
 /**
  * Lead time and errors per epic of a driver deployment (Sparpaket, package 3): from the first
  * "Lauf gestartet" to the first "FLOTTE-ENDE, PR", without the time the run waited for the

@@ -68,6 +68,8 @@ export interface LaufErgebnis {
   verbrauch: Verbrauch | null;
   /** structured_output of the last result that has one (--json-schema) */
   strukturiert: unknown;
+  /** the model the init event names */
+  modell?: string | null;
   fehler: Fehlerart;
   dauerMs: number;
   stderr: string;
@@ -81,6 +83,7 @@ export class Auswertung {
   strukturiert: unknown = null;
   /** the tool list of the init event */
   werkzeuge: string[] | null = null;
+  modell: string | null = null;
   sperren: HookSperre[] = [];
   /** the last step of the run (schrittAus) */
   schritt: string | null = null;
@@ -94,6 +97,7 @@ export class Auswertung {
     this.schritt = schrittAus(d) ?? this.schritt;
     if (d?.session_id && !this.sitzung) this.sitzung = String(d.session_id);
     if (d?.type === 'system' && d.subtype === 'init' && Array.isArray(d.tools)) this.werkzeuge = d.tools.map(String);
+    if (d?.type === 'system' && d.subtype === 'init' && typeof d.model === 'string') this.modell = d.model;
     if (d?.type === 'rate_limit_event' && d.rate_limit_info) this.verbrauch = ausEreignis(d.rate_limit_info, jetzt);
     if (d?.type === 'user' && Array.isArray(d.message?.content)) {
       for (const c of d.message.content) {
@@ -115,7 +119,7 @@ export class Auswertung {
   ergebnis(code: number | null, leerlauf: boolean, dauerMs: number, stderr: string): LaufErgebnis {
     const text = [...this.ergebnisse].reverse().find((e) => e.text.trim())?.text ?? '';
     const verweigert = this.ergebnisse.flatMap((e) => e.verweigert);
-    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, sperren: this.sperren, verbrauch: this.verbrauch, strukturiert: this.strukturiert, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
+    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, sperren: this.sperren, verbrauch: this.verbrauch, strukturiert: this.strukturiert, modell: this.modell, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
   }
 }
 

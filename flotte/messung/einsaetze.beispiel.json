@@ -16,6 +16,9 @@
       "startOrdner": ["C--Users-me-git-repo"],
       "laeufeAusOrdnern": true,
       "ausschliessen": ["cccccccc"],
+      "treiberZustand": "C:/Users/me/git/repo/.git/flotte/zustand.json",
+      "fenster": 3,
+      "epicLaeufe": [{ "epic": 1 }, { "epic": 2, "kanten": { "5": ["4"] } }, { "epic": 3, "sitzungen": [{ "konto": "k2", "id": "dddddddd", "rolle": "implementer", "paket": "7" }] }],
       "quelle": "woher die Zuordnung stammt"
     }
   ]

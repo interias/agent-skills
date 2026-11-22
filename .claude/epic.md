@@ -7,6 +7,7 @@ main_branch: main
 base_branch: main
 merge: nach_gate
 gate_command: pwsh -NoProfile -File ./gate.ps1
+lern_issue: 119
 ready_label: ready-for-agent
 skip_labels: [needs-triage, needs-info, wontfix, ready-for-human]
 epic_label: epic
