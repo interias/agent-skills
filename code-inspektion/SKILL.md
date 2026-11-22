@@ -1,6 +1,6 @@
 ---
 name: code-inspektion
-description: Eine Änderung seit einem festen Punkt (Commit, Zweig, eigener Startstand) prüfen, als Erster Offizier. Spec gegen die Abnahmeliste und Standards gegen Projektregeln getrennt, Befunde als Muss, Sollte, Kann.
+description: Als Erster Offizier abnehmen, was ein Ingenieur gebaut hat — ob in einem Missionsziel oder in einem einzelnen Commit. Erst ob das Verlangte dasteht, dann ob es nach den Regeln des Projekts gebaut ist; was fehlt, kommt als Muss, Sollte oder Kann zurück.
 ---
 
 # Code-Inspektion

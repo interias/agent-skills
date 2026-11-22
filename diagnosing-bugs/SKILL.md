@@ -22,8 +22,9 @@ Schritt.
   laufen andere Pakete). Ist sie dort rot, gehört das Rot nicht zu dir: Du vergleichst gegen die
   Ausgangszahlen und behebst es nicht, außer die Abnahmeliste verlangt es.
 - **Rot nach dem Andocken eines anderen Pakets auf dem Missionszweig.** Beide Pakete waren je für
-  sich grün; gesucht ist das Zusammenspiel. Fahr die Datei im Stand vor und nach dem Andocken, dann
-  vergleiche, was das andere Paket an gemeinsamen Dateien, Fixtures und Einstellungen berührt hat.
+  sich grün; gesucht ist das Zusammenspiel. Fahr die Datei im Stand vor und nach dem Andocken (die
+  beiden Eltern des Andock-Commits; eine einzelne Datei des alten Stands holt `git show
+  <commit>:<datei>`), dann vergleiche, was das andere Paket an gemeinsamen Dateien, Fixtures und Einstellungen berührt hat.
 - **Weniger Tests als in den Ausgangszahlen, aber alles grün.** Das ist kein Grün. Suche, welche
   Datei oder welcher Test fehlt (gelöscht, übersprungen, durch einen Fehler beim Einlesen nie
   gestartet) und stelle ihn wieder her.
@@ -45,8 +46,8 @@ Vorschläge für ihre Form, nimm die nächstliegende:
 - ein Stand-Vergleich: derselbe Befehl im Stand vor und im Stand nach der Änderung (Änderung
   vorübergehend zurücknehmen; kein `git stash`, sein Stapel gilt für alle Worktrees der Pakete,
   und das Hauptverzeichnis nicht umschalten),
-- eine nachgespielte Eingabe: das Ereignisprotokoll oder die Nutzlast, bei der es passierte,
-  durch den betroffenen Pfad geschickt.
+- der Fall aus dem Fehlerbericht, wieder abgespielt: etwa die Protokolldatei eines Laufs oder die
+  Datei, an der das Werkzeug scheiterte, als feste Eingabe neben die Probe gelegt.
 
 Ohne Probe keine Ursachenforschung: Jede Vermutung bleibt dann ungeprüft.
 
