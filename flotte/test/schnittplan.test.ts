@@ -153,7 +153,7 @@ describe('#146 Schnittplan: offene Mission, verworfen, Duplikate', () => {
     const plan = { neue_missionen: [], zuordnungen: [{ notiz: 21, art: 'mission', mission: 40, grund: 'gleiches Thema wie #40', herkunft: 'Eigenes Urteil: Thema' }] };
     const t = welt([NOTIZ], plan, { missionen });
     const r = await triagiere(auftrag(), t.w);
-    expect(t.geplant[0].auftrag).toContain('## Mission #40: Portprüfung (3 Kinder)');
+    expect(t.geplant[0].auftrag).toContain('## Mission #40: Portprüfung (3 Kinder, noch 5 frei)');
     expect(t.geplant[0].auftrag).not.toContain('#41');
     expect(t.geplant[0].auftrag).not.toContain('#42');
     expect(r.schnittplan[0].neue_missionen).toEqual([]);

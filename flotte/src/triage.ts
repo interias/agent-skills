@@ -143,13 +143,22 @@ export function offeneFragen(t: Ticket): OffeneFrage[] {
 
 const voll = (text: string, k: string) => (abschnittInhalt(text, k) ?? '').trim() !== '';
 
-/** Fills a section that is missing (appended) or empty (content under its heading). */
+/**
+ * Fills a section that is missing (appended) or empty (content under its heading). #147: the text that was
+ * there stays character for character (line ends, trailing spaces); only the new content is added.
+ */
 function nachtragen(body: string, ueberschrift: string, inhalt: string): string {
-  if (abschnittInhalt(body, ueberschrift) === null) return `${body.trimEnd()}\n\n${ueberschrift}\n${inhalt.trim()}\n`;
-  const zeilen = body.split(/\r?\n/);
-  const i = zeilen.findIndex((z) => z.trim() === ueberschrift.trim());
-  zeilen.splice(i + 1, 0, inhalt.trim());
-  return zeilen.join('\n');
+  if (abschnittInhalt(body, ueberschrift) === null) return `${body}${body && !body.endsWith('\n') ? '\n' : ''}${body ? '\n' : ''}${ueberschrift}\n${inhalt.trim()}\n`;
+  let pos = 0;
+  for (const z of body.split('\n')) {
+    const ende = pos + z.length;
+    if (z.trim() === ueberschrift.trim()) {
+      const eol = z.endsWith('\r') ? '\r\n' : '\n';
+      return ende < body.length ? `${body.slice(0, ende + 1)}${inhalt.trim()}${eol}${body.slice(ende + 1)}` : `${body}${eol}${inhalt.trim()}${eol}`;
+    }
+    pos = ende + 1;
+  }
+  return body;
 }
 
 /**
@@ -427,21 +436,23 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
 export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]): string {
   const jeNotiz = Math.min(NOTIZ_MAX, Math.floor(NOTIZEN_GESAMT / Math.max(1, notizen.length)));
   const jeMission = Math.min(MISSION_MAX, Math.floor(MISSIONEN_GESAMT / Math.max(1, missionen.length)));
+  // #147: the free places spelled out; the limit alone in the text did not keep the model from overfilling
+  const plaetze = (m: OffeneMission) => (m.kinder >= KINDER_MAX ? `${m.kinder} Kinder, voll, keine neuen Kinder` : `${m.kinder} Kinder, noch ${KINDER_MAX - m.kinder} frei`);
   const offen = missionen.length
-    ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${m.kinder} Kinder)\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
+    ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${plaetze(m)})\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
     : '(keine)';
   return `FLOTTE-SCHNITTPLAN
 Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002). Die Kommentare stammen nur von Berechtigten (${BERECHTIGT.join(', ')}), Kommentare Dritter hat das Programm ausgelassen.
 
 Ordne jede Notiz unten genau einmal zu (art):
-- mission: Kind einer offenen Mission unten, wenn sie thematisch passt (mission = deren Nummer). Vorrang vor einer neuen Mission.
+- mission: Kind einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
 - neue_mission: Kind einer neuen Mission für ein Thema mit mehreren Notizen (neue_mission = schluessel aus neue_missionen, mit titel und begruendung). Eine einzelne Notiz wird nur dann eine eigene Mission, wenn sie nirgends passt und groß genug ist.
 - zusammengefuehrt: Duplikat oder Teilstück derselben Sache wie eine andere Notiz (in = die Notiz, die bleibt und selbst mission, neue_mission oder triage ist). Sie wird mit Verweis geschlossen.
 - ueberfluessig: schon erledigt, doppelt oder überholt; grund und fundstelle nennen wo. Sie wird geschlossen.
 - verworfen: lohnt sich nicht oder passt nicht zur Richtung; grund nennt warum. Sie wird als „not planned“ geschlossen, nicht gelöscht.
 - triage: bleibt in der Triage, weil eine Frage beim Menschen liegt oder sie zu dünn ist; grund nennt was fehlt.
 
-Grenzen: höchstens ${NEUE_MISSIONEN_MAX} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
+Grenzen: höchstens ${NEUE_MISSIONEN_MAX} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
 
 herkunft gilt je Zuordnung. ${HERKUNFT_REGEL}
 
@@ -466,6 +477,61 @@ export function schnittplanKommentar(z: Zuordnung): string {
         : [kopf('geschlossen, verworfen (not planned)'), '', `Grund: ${z.grund}`];
   zeilen.push(`Herkunft: ${z.herkunft}`, '', 'Aus dem Schnittplan über alle offenen Sternzeit-Notizen dieses Projekts.');
   zeilen.push('', 'Widerrufbar: das Ticket wieder öffnen und den Einwand als Kommentar schreiben; es trägt seine Labels noch und kommt in die nächste Triage.');
+  return zeilen.join('\n');
+}
+
+/** #147: the one repair call after an invalid plan: the same order, the error and the answer, correct only that. */
+export function schnittplanReparatur(auftrag: string, fehler: string, antwort: unknown): string {
+  return `${auftrag}
+
+# Korrektur
+
+Dein Plan oben war ungültig: ${fehler}
+Deine Antwort war:
+${JSON.stringify(antwort)}
+
+Korrigiere nur das und gib den ganzen Plan noch einmal über das Schema zurück; alles andere bleibt, wie du es entschieden hast.`;
+}
+
+/** #147: a note's way into a mission in the comments: `Mission #40 „Tafel“` or `neue Mission „Portprüfung“`. */
+export function missionsName(m: { nummer?: number; titel: string }): string {
+  return m.nummer === undefined ? `neue Mission „${m.titel}“` : `Mission #${m.nummer} „${m.titel}“`;
+}
+
+/**
+ * #147: the comment at a clear note before it changes: the decision, its place in the cut plan, the sections
+ * appended (the text that was there stays), then joined to the mission and Warp frei.
+ */
+export function schnittplanKlarKommentar(e: Extract<Entscheidung, { art: 'klar' }>, z: Zuordnung, mission: string, entfernt: string[], ready: string): string {
+  const zeilen = [kopf(`Missionsziel von ${mission}, Warp frei`), '', `Herkunft: ${e.herkunft}${e.grund ? ` — ${e.grund}` : ''}`];
+  zeilen.push(`Schnittplan: Missionsziel von ${mission}${z.grund ? ` — ${z.grund}` : ''} (Herkunft: ${z.herkunft})`);
+  if (e.fragen.length) zeilen.push('', 'Entscheidungen:', ...entscheidungsListe(e.fragen));
+  if (e.nachgetragen.length) {
+    zeilen.push('', 'Ergänzt, vom Admiral aus den Fakten des Tickets (der bisherige Text bleibt unverändert stehen):');
+    for (const k of e.nachgetragen) zeilen.push('', k, (abschnittInhalt(e.body, k) ?? '').trim());
+  }
+  zeilen.push('', `Danach: an ${mission} angehängt (Sub-Issue und Liste \`## Missionsziele\`), Labels: ${entfernt.map((l) => `\`${l}\``).join(', ')} ab, \`${ready}\` dazu.`);
+  zeilen.push('', 'Widerrufbar: setz `needs-triage` wieder und schreib den Einwand als Kommentar; die nächste Triage nimmt ihn als Tatsache.');
+  return zeilen.join('\n');
+}
+
+/** #147: the comment at a mission the triage created from the cut plan, right after it exists. */
+export function neueMissionKommentar(m: NeueMission, kinder: Ticket[], spaeter: Ticket[], ready: string): string {
+  const zeilen = [kopf('Mission aus dem Schnittplan'), '', `Titel: ${m.titel}`, `Begründung: ${m.begruendung}`];
+  zeilen.push(`Herkunft: Eigenes Urteil des Admirals im Schnittplan über alle offenen Sternzeit-Notizen dieses Projekts; angelegt vom Auftragsschreiber (agent-skills/ADR-0002).`);
+  zeilen.push(`Warp frei: Die Mission bekommt \`${ready}\` erst, wenn ihr erstes Missionsziel freigegeben ist; gelingt das nicht, bleibt sie ohne und startet keinen Außeneinsatz.`);
+  zeilen.push('', 'Missionsziele (die Sternzeit-Notizen selbst, kein neues Ticket):', ...kinder.map((t) => `- #${t.nummer} ${t.titel}`));
+  if (spaeter.length) zeilen.push('', 'Kommen später dazu, sobald ihre Frage beantwortet ist:', ...spaeter.map((t) => `- #${t.nummer} ${t.titel}`));
+  zeilen.push('', `Widerrufbar: an dieser Mission \`${ready}\` abnehmen und den Einwand hier als Kommentar schreiben; dann startet kein Außeneinsatz.`);
+  return zeilen.join('\n');
+}
+
+/** #147: the comment at an open mission before notes join it. */
+export function missionAnhaengenKommentar(neu: { t: Ticket; zu: Zuordnung }[], ready: string): string {
+  const zeilen = [kopf(`${neu.length === 1 ? 'ein neues Missionsziel' : `${neu.length} neue Missionsziele`} aus dem Schnittplan`), ''];
+  for (const { t, zu: z } of neu) zeilen.push(`- #${t.nummer} ${t.titel}${z.grund ? ` — ${z.grund}` : ''}`, `  Herkunft: ${z.herkunft}`);
+  zeilen.push('', `Sie werden als Sub-Issue verknüpft und in die Liste \`## Missionsziele\` eingetragen (\`- [ ] #<nr> <Titel>\`), danach bekommen sie \`${ready}\`.`);
+  zeilen.push('', 'Widerrufbar: an der Notiz `needs-triage` wieder setzen und den Einwand dort als Kommentar schreiben.');
   return zeilen.join('\n');
 }
 

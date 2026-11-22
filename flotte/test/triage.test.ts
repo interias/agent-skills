@@ -66,6 +66,8 @@ function welt(
         aufrufe.push({ args, eingabe: opt?.eingabe });
         if (args[0] === 'issue' && args[1] === 'list') {
           const label = args[args.indexOf('--label') + 1];
+          // #147: the open mission the cut plan below hangs every note on
+          if (label === 'epic') return { code: 0, stdout: JSON.stringify([{ number: 90, title: 'Sammelmission', body: '## Missionsziele\n', labels: [{ name: 'epic' }] }]), stderr: '' };
           const liste = tickets
             .filter((t) => t.labels.includes(label))
             .map((t) => ({ number: t.number, title: t.title, body: t.body, url: `https://github.com/o/r/issues/${t.number}`, labels: t.labels.map((name) => ({ name })), comments: (t.comments ?? []).map((c) => (typeof c === 'string' ? { body: c, login: 'mensch', rolle: 'OWNER' } : c)).map((c) => ({ body: c.body, author: { login: c.login }, authorAssociation: c.rolle, createdAt: '2026-11-21T10:00:00Z' })) }));
@@ -73,8 +75,12 @@ function welt(
         }
         // the author's role of the ticket itself: gh issue list does not carry it
         if (args[0] === 'api') {
-          if (o.rolleScheitert) return { code: 1, stdout: '', stderr: 'HTTP 502' };
+          const jq = args[args.indexOf('--jq') + 1];
           const nr = Number(/issues\/(\d+)$/.exec(args[1])?.[1]);
+          if (args.includes('--method')) return { code: 0, stdout: '{}', stderr: '' };
+          if (jq === '.sub_issues_summary.total') return { code: 0, stdout: '0\n', stderr: '' };
+          if (jq === '.id') return { code: 0, stdout: `${1000 + nr}\n`, stderr: '' };
+          if (o.rolleScheitert) return { code: 1, stdout: '', stderr: 'HTTP 502' };
           return { code: 0, stdout: `${tickets.find((t) => t.number === nr)?.rolle ?? 'OWNER'}\n`, stderr: '' };
         }
         if (args[0] === 'issue' && args[1] === 'comment' && o.kommentarScheitert) return { code: 1, stdout: '', stderr: 'nein' };
@@ -82,9 +88,10 @@ function welt(
         return { code: 0, stdout: '', stderr: '' };
       },
       starte: async (s: Start): Promise<LaufErgebnis> => {
-        // #146: the cut plan before the single clearing keeps every note in triage (tests: schnittplan.test.ts)
+        // #146/#147: the cut plan before the single clearing hangs every note on the open mission #90, so a clear
+        // one is released there (tests of the plan and the missions: schnittplan.test.ts, schnittplan-forge.test.ts)
         if (s.auftrag.startsWith('FLOTTE-SCHNITTPLAN')) {
-          const zuordnungen = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => ({ notiz: Number(m[1]), art: 'triage', grund: 'Einzelklärung', herkunft: 'Skill-Empfehlung' }));
+          const zuordnungen = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => ({ notiz: Number(m[1]), art: 'mission', mission: 90, grund: 'Einzelklärung', herkunft: 'Skill-Empfehlung' }));
           return { code: 0, sitzung: 'plan', dauerMs: 1000, strukturiert: { neue_missionen: [], zuordnungen } } as LaufErgebnis;
         }
         gestartet.push(s);
@@ -152,16 +159,18 @@ describe('triagiere', () => {
     const r = await triagiere(auftrag(), t.w);
 
     const fuer = (nr: number) => schreibend(t.aufrufe).filter((x) => x.args[2] === String(nr));
-    // clear: comment with origin, then one edit with the sections and the labels
-    const [k1, e1, ...rest1] = fuer(1);
+    // clear: comment with origin, then the sections appended, then (after joining its mission, #147) the labels
+    const [k1, e1, l1, ...rest1] = fuer(1);
     expect(rest1).toEqual([]);
     expect(k1.args[1]).toBe('comment');
     expect(k1.eingabe).toContain(TRIAGE_MARKE);
     expect(k1.eingabe).toContain(`Herkunft: ${HERKUNFT}`);
     expect(k1.eingabe).toMatch(/widerrufbar/i);
-    expect(e1.args).toEqual(['issue', 'edit', '1', '--repo', 'o/r', '--body-file', '-', '--add-label', 'ready-for-agent', '--remove-label', 'needs-triage']);
+    expect(e1.args).toEqual(['issue', 'edit', '1', '--repo', 'o/r', '--body-file', '-']);
     expect(e1.eingabe).toContain('## Abnahmekriterien\n- Ein belegter Port');
     expect(e1.eingabe).toContain('## Verifikationsweg\n`bun test test/start.test.ts`');
+    expect(l1.args).toEqual(['issue', 'edit', '1', '--repo', 'o/r', '--add-label', 'ready-for-agent', '--remove-label', 'needs-triage']);
+    expect(t.aufrufe.find((x) => x.args.includes('--method'))?.args).toEqual(['api', '--method', 'POST', 'repos/o/r/issues/90/sub_issues', '-F', 'sub_issue_id=1001']);
 
     // superfluous: comment with the reason, then close
     const [k2, c2, ...rest2] = fuer(2);
@@ -291,7 +300,7 @@ describe('triagiere', () => {
     const t = welt([tickets[0]], { 1: antwort.klar }, { editScheitert: true });
     const r = await triagiere(auftrag(), t.w);
     expect(r.tickets[0]).toMatchObject({ ergebnis: 'klar', geschrieben: true });
-    expect(r.tickets[0].fehler).toContain('Freigabe gescheitert');
+    expect(r.tickets[0].fehler).toContain('Kommentar steht, Ergänzung des Textes gescheitert');
     // the next run sees the triage comment as the last one, the label still there
     const k = schreibend(t.aufrufe).find((x) => x.args[1] === 'comment')!.eingabe!;
     const t2 = welt([{ ...tickets[0], comments: [k] }], { 1: antwort.klar });
@@ -307,7 +316,7 @@ describe('triagiere', () => {
     const t = welt([{ number: 1, title: 'Portprüfung', body: KLAR_BODY, labels: ['needs-triage', 'needs-info'] }], { 1: antwort.klar });
     const r = await triagiere(auftrag(), t.w);
     expect(r.tickets).toHaveLength(1);
-    expect(schreibend(t.aufrufe).find((x) => x.args[1] === 'edit')?.args).toContain('needs-triage,needs-info');
+    expect(schreibend(t.aufrufe).find((x) => x.args[1] === 'edit' && x.args.includes('--add-label'))?.args).toContain('needs-triage,needs-info');
   });
 
   it('--trocken decides and prints, writes nothing', async () => {
