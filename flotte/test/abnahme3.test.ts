@@ -163,20 +163,22 @@ describe('Nachprüfung #27', () => {
       [t.konten[0], 'gruen'],
       [admiralKonto, 'gelb'],
     ]);
-    expect(texte(z).some((x) => /^Admiral-Konto gelb \(.*\): bei Rot gehen die Fragen ohne Admiral an den Menschen/.test(x))).toBe(true);
+    expect(texte(z).some((x) => /^Admiral-Konto gelb \(.*\): bei Rot weicht der Admiral auf ein Konto mit Luft aus/.test(x))).toBe(true);
     expect(t.p.kommentare.some((k) => /Admiral-Konto gelb/.test(k.text))).toBe(true);
     expect(buch.gesehen().find((x) => x.eingabe.startsWith('FLOTTE-ADMIRAL'))!.konto).toBe(admiralKonto);
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
-  it('a red admiral account is not called: the questions go to the person', async () => {
+  // #111: before, a red admiral account sent the questions to the person; now the admiral moves to
+  // an account of the fleet with room (admiral-ausweichen.test.ts)
+  it('a red admiral account is not called: the admiral answers on the fleet account with room', async () => {
     const t = aufbau({ verbrauch: [0.1, 0.1, 0.95] });
     const admiralKonto = t.konten[2];
     const buch = fragt();
     const z = await fahre(t.einstellung(buch, [3], { konten: [t.konten[0]], admiralKonto, maxDauerMs: 3000 }), t.welt);
-    expect(buch.gesehen().some((x) => x.eingabe.startsWith('FLOTTE-ADMIRAL'))).toBe(false);
-    expect(texte(z)).toContain('#3 Admiral-Konto rot: der Admiral wird nicht gefragt, die Fragen gehen an den Menschen');
-    expect(z.fragen.map((f) => [f.epic, f.nr])).toEqual([[3, 1]]);
+    expect(buch.gesehen().filter((x) => x.eingabe.startsWith('FLOTTE-ADMIRAL')).map((x) => x.konto)).toEqual([t.konten[0]]);
+    expect(texte(z)).toContain('#3 Admiral-Konto rot: der Admiral weicht auf Konto 1 aus');
+    expect(z.fragen).toEqual([]);
   }, T);
 
   it('a stale admiral account is pinged while a run may ask', async () => {

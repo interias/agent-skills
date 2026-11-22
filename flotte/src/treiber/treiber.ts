@@ -217,6 +217,8 @@ export interface FlottenEpic extends EpicZustand {
   auftrag?: { text: string; resume: boolean } | null;
   /** the admiral's answers held back while the whole run waits for the person */
   festgehalten?: string | null;
+  /** #111: a question block that waits for an account with room for the admiral (all red); asked once one is free */
+  wartendeFrage?: FrageBlock | null;
   /** answers of the person to deliver with the next turn */
   nachzureichen?: string[];
   nacharbeitGemacht?: boolean;
@@ -462,6 +464,7 @@ class Treiber {
         this.pings();
         await this.mergeWache();
         this.schlangeWeiter();
+        await this.wartendeFragen();
         this.verteile();
         this.belege();
       }
@@ -671,9 +674,9 @@ class Treiber {
     return { gelb: this.e.verbrauchGelb, rot: this.e.verbrauchRot, leerfahren: this.e.leerfahren.includes(k) };
   }
 
-  /** Advance warning: from red on, the admiral's questions go to the person without an admiral call. */
+  /** Advance warning: from red on, the admiral moves to another account with room, or the question block waits (#111). */
   admiralWarnung(b: Bewertung): void {
-    const text = b.stufe === 'rot' ? `Admiral-Konto rot (${b.grund}): Fragen gehen ohne Admiral an den Menschen`  : `Admiral-Konto gelb (${b.grund}): bei Rot gehen die Fragen ohne Admiral an den Menschen`;
+    const text = b.stufe === 'rot' ? `Admiral-Konto rot (${b.grund}): der Admiral weicht auf ein Konto mit Luft aus, sonst wartet der Frageblock`  : `Admiral-Konto gelb (${b.grund}): bei Rot weicht der Admiral auf ein Konto mit Luft aus`;
     this.ereignis(null, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
   }
@@ -717,6 +720,8 @@ class Treiber {
   brauchtVerbrauch(k: string): boolean {
     // the admiral's account while a run may still ask
     if (k === this.e.admiralKonto && Object.values(this.z.epics).some((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr))) return true;
+    // #111: without --admiral a waiting question block waits for the run's account; a stale value counts as red
+    if (Object.values(this.z.epics).some((ep) => ep.wartendeFrage && ep.konto === k)) return true;
     return Object.values(this.z.epics).some((ep) => (ep.konto === k && this.laufend.has(ep.nr)) || (Boolean(ep.auftrag) && (!ep.konto || ep.konto === k)) || ep.stufe === 'wartend');
   }
 
@@ -1086,13 +1091,49 @@ class Treiber {
     block.fragen = neu;
     // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
     if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
-    const konto = this.e.admiralKonto ?? ep.konto!;
-    if (this.e.admiralKonto && this.bewertung.get(konto)?.stufe === 'rot') {
-      // the admiral's own account would fail the call; the questions go to the person at once, with
-      // the reason (the run's account is judged by the brake before its turn)
-      this.ereignis(nr, `${this.kontoName(konto)} rot: der Admiral wird nicht gefragt, die Fragen gehen an den Menschen`);
-      return this.antwortenVerteilen(ep, block, antwortenAus(null, block).map((a) => ({ ...a, herkunft: 'Treiber: Admiral-Konto rot', marke: 'Admiral-Konto rot', grund: `${this.kontoName(konto)} ist rot (${this.bewertung.get(konto)!.grund}); der Admiral wurde nicht gefragt.` })));
+    const konto = this.admiralKontoFuer(ep);
+    if (!konto) {
+      // #111: no account with room; the block waits in the state and goes to the admiral once one is
+      // free (wartendeFragen), never to the person for this reason. The stage stays: the place stays
+      // taken, and without an order (auftrag) the run gets no turn; on the bridge it waits for nobody.
+      ep.wartendeFrage = block;
+      ep.notiz = 'Frageblock wartet auf ein freies Konto';
+      this.ereignis(nr, `${this.kontoName(this.e.admiralKonto ?? ep.konto!)} rot, kein Konto mit Luft: der Frageblock wartet auf ein freies Konto`);
+      return;
     }
+    return this.admiralFragen(ep, block, konto);
+  }
+
+  /**
+   * #111: the account of the admiral's call: his own unless it is red; then another account of the
+   * fleet with room, green before yellow, each in the order of --konten; null when all are red.
+   * Without --admiral his own is the run's account (flotte/SKILL.md), which may turn red during the turn.
+   */
+  admiralKontoFuer(ep: FlottenEpic): string | null {
+    const eigenes = this.e.admiralKonto ?? ep.konto!;
+    if (this.bewertung.get(eigenes)?.stufe !== 'rot') return eigenes;
+    const andere = this.e.konten.filter((k) => k !== eigenes);
+    return andere.find((k) => this.bewertung.get(k)?.stufe === 'gruen') ?? andere.find((k) => this.bewertung.get(k)?.stufe === 'gelb') ?? null;
+  }
+
+  /** #111: waiting question blocks go to the admiral once an account is free; taken from the state first, so each is asked once. */
+  async wartendeFragen(): Promise<void> {
+    for (const ep of Object.values(this.z.epics)) {
+      if (!ep.wartendeFrage || !BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)) continue;
+      const konto = this.admiralKontoFuer(ep);
+      if (!konto) continue;
+      const block = ep.wartendeFrage;
+      ep.wartendeFrage = null;
+      ep.notiz = '';
+      this.ereignis(ep.nr, `${this.kontoName(konto)} hat Luft: der wartende Frageblock geht an den Admiral`);
+      await this.admiralFragen(ep, block, konto);
+    }
+  }
+
+  async admiralFragen(ep: FlottenEpic, block: FrageBlock, konto: string): Promise<void> {
+    const nr = ep.nr;
+    const eigenes = this.e.admiralKonto ?? ep.konto!;
+    if (konto !== eigenes) this.ereignis(nr, `${this.kontoName(eigenes)} rot: der Admiral weicht auf ${this.kontoName(konto)} aus`);
     this.z.statistik.admiral++;
     // the admiral's own, as before #52: the person's answers are no precedent of his
     const frueher = this.z.entscheidungen.filter((d) => d.epic === nr && d.von !== 'mensch').map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
@@ -1283,7 +1324,7 @@ class Treiber {
       amIssue(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — ${d.frage}\nwiderrufen vom Menschen: ${text}\nVorher: ${d.antwort} (${d.herkunft})`);
       if (d.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte** — Epic #${h.epic}, Frage: ${d.frage}\nwiderrufen vom Menschen: ${text}`);
       if (['gemergt', 'fertig'].includes(ep.stufe) || this.mergesOffen.has(ep.nr)) {
-        return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Merge: der Mensch entscheidet, ob daraus ein Ticket wird`);
+        return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Merge: daraus wird nur ein Ticket, wenn es nötig ist (epic/SKILL.md, Regel 3)`);
       }
       ep.widerrufe = [...(ep.widerrufe ?? []), `widerruf: ${d.frage} → ${text}`];
       if (ep.stufe === 'pr' && !this.laufend.has(ep.nr) && !ep.auftrag) {
