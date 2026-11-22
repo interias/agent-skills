@@ -165,7 +165,33 @@ Sternzeit-Notizen (`needs-triage`, `needs-info`) klärt der Admiral selbst:
 bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/name>] [--konto <k>] [--modell fable] [--trocken]
 ```
 
-Je offenem Ticket ein `claude -p` (Werkzeuge nur `Read,Grep,Glob`): Er stellt sich die Fragen einer
+**Schnittplan** (#146): Vor der Einzelklärung liest ein einziger `claude -p` je Projekt (Werkzeuge nur
+`Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) alle Notizen, die ins Modell gehen
+(Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
+(Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Kinder aus
+`sub_issues_summary`; eine, deren Kinder nicht lesbar sind, kommt nicht in Frage). Er ordnet jede
+Notiz genau einmal zu: `mission` (Kind einer offenen Mission), `neue_mission` (Kind einer neuen
+Mission für ein Thema), `zusammengefuehrt` (Duplikat oder Teilstück; `in` = die Notiz, die bleibt),
+`ueberfluessig` (mit Grund und Fundstelle), `verworfen` (mit Grund) oder `triage` (bleibt in der
+Triage). Grenzen: höchstens 4 neue Missionen je Lauf, eine Mission höchstens 8 Kinder, vorhandene
+zählen mit. Aus einer Notiz entsteht nie ein neues Ticket. Das Programm prüft den Plan; fehlt eine
+Notiz, steht eine doppelt, ist eine Nummer unbekannt, eine Grenze überschritten, fehlt bei `verworfen`
+ein Grund oder bei `ueberfluessig` Grund oder Fundstelle, oder verweist `zusammengefuehrt` auf keine
+Notiz, die bleibt,
+gilt er als Ganzes nicht: nichts wird geschrieben, und für die Notizen dieses Projekts läuft in diesem
+Lauf keine Einzelklärung (der nächste Lauf versucht es neu). Aus einem gültigen Plan werden
+`zusammengefuehrt`, `ueberfluessig` und `verworfen` geschlossen: erst der Kommentar
+`**Triage: zusammengeführt in #<nr>**` bzw. `geschlossen, überflüssig` / `geschlossen, verworfen (not planned)`
+mit Grund und Herkunft, dann `gh issue close --reason "not planned"`; scheitert der Kommentar, ändert
+sich nichts, gelöscht wird nie. Widerruf: das Ticket wieder öffnen und den Einwand als Kommentar
+schreiben. Die übrigen Notizen gehen in die Einzelklärung unten. Missionen anlegen und Kinder
+anhängen gehört noch nicht dazu (#147). Der Auftrag hat ein Gesamtbudget (Notizen zusammen 120 000,
+Missionen 30 000 Zeichen, je Notiz höchstens 6 000, je Mission 2 000); viele Notizen werden kürzer
+gekürzt, keine fällt weg. Über die Brücke erscheint eine vom Plan geschlossene Notiz im Frachtraum als
+Entscheidung „überflüssig“ (Grund mit `verworfen:` bzw. `zusammengeführt in #<nr>`), ihr Widerruf
+öffnet sie wieder; ein ungültiger Plan zählt im Logbuch als „ohne Ergebnis“.
+
+Je verbliebener Notiz ein `claude -p` (Werkzeuge nur `Read,Grep,Glob`): Er stellt sich die Fragen einer
 Fragerunde, beantwortet sie aus Text, Kommentaren, ADRs und Code und entscheidet nach der Liste
 „beim Menschen“ (`src/treiber/admiral.ts`):
 
@@ -251,7 +277,14 @@ das `lern_issue`, `url` der Kommentar der Lernschleife, bei `klar` `missionsziel
 Liste: `nach außen`, `Geld`, `Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`;
 bei einem Lernvorschlag `lernvorschlag`) mit den in diesem Lauf neu gestellten Fragen, dazu `offen`
 in derselben Form mit den Fragen früherer Läufe, die unter einem `wartet` noch ohne Antwort stehen.
-`--trocken` entscheidet und druckt, schreibt nichts.
+`schnittplan` (#146) je Projekt mit Notizen fürs Modell: `forge`, `sitzung`, `neue_missionen` (je
+`schluessel`, `titel`, `begruendung`, `kinder` = Nummern der Notizen), `zuordnungen` (je `notiz`,
+`titel`, `url`, `art`, `grund`, `herkunft`, bei `mission` die Nummer `mission`, bei `neue_mission`
+deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessig` die `fundstelle`;
+bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
+ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
+nur hier, nicht in `tickets`.
+`--trocken` erstellt Plan und Entscheidungen und druckt sie, schreibt nichts.
 
 ## Prognose
 

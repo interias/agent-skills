@@ -196,13 +196,18 @@ export function entscheidungAus(x: unknown, titel: string, body: string, r: Auft
   return { art: 'klar', herkunft, grund, fragen, body: neu, nachgetragen };
 }
 
-export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern?: Lernvorschlag): string {
+/** Body and entitled comments of a ticket, cut after max characters; h is the heading level of its parts. */
+function faktenAus(t: Ticket, max: number, h = '##'): string {
   // strangers' comments never reach the model: no answer of a third party, no injected instruction
   const zugelassen = t.kommentare.filter(berechtigt);
   const fremde = t.kommentare.length - zugelassen.length;
-  const kommentare = zugelassen.length ? zugelassen.map((k) => `### ${k.autor} (${k.rolle}), ${k.zeit}\n${k.body}`).join('\n\n') : '(keine)';
-  let fakten = `## Text\n${t.body.trim() || '(leer)'}\n\n## Kommentare, älteste zuerst\n${kommentare}${fremde ? `\n\n(${fremde} Kommentar${fremde === 1 ? '' : 'e'} Dritter ausgelassen)` : ''}`;
-  if (fakten.length > TEXT_MAX) fakten = `${fakten.slice(0, TEXT_MAX)}\n\n[gekürzt nach ${TEXT_MAX} Zeichen]`;
+  const kommentare = zugelassen.length ? zugelassen.map((k) => `${h}# ${k.autor} (${k.rolle}), ${k.zeit}\n${k.body}`).join('\n\n') : '(keine)';
+  const fakten = `${h} Text\n${t.body.trim() || '(leer)'}\n\n${h} Kommentare, älteste zuerst\n${kommentare}${fremde ? `\n\n(${fremde} Kommentar${fremde === 1 ? '' : 'e'} Dritter ausgelassen)` : ''}`;
+  return fakten.length > max ? `${fakten.slice(0, max)}\n\n[gekürzt nach ${max} Zeichen]` : fakten;
+}
+
+export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern?: Lernvorschlag): string {
+  const fakten = faktenAus(t, TEXT_MAX);
   return `FLOTTE-TRIAGE
 Du bist der Admiral der Flotte und klärst ${lern ? 'einen Vorschlag der Lernschleife' : 'eine Sternzeit-Notiz'} ohne Rückfrage. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm schreibt; ${lern ? 'aus einem klaren Vorschlag legt es über den Auftragsschreiber ein Missionsziel an' : 'Tickets legt niemand an'} (agent-skills/ADR-0002).
 
@@ -265,6 +270,201 @@ export function triageKommentar(e: Exclude<Entscheidung, { art: 'ungueltig' }>, 
   }
   zeilen.push(kopf('geschlossen, überflüssig'), '', `Grund: ${e.grund}`, `Herkunft: ${e.herkunft}`);
   if (e.fragen.length) zeilen.push('', 'Entscheidungen:', ...entscheidungsListe(e.fragen));
+  zeilen.push('', 'Widerrufbar: das Ticket wieder öffnen und den Einwand als Kommentar schreiben; es trägt seine Labels noch und kommt in die nächste Triage.');
+  return zeilen.join('\n');
+}
+
+// ---- #146: the cut plan over all Sternzeit-Notizen of a project, before the single clearing
+
+/** At most this many new missions per run, at most this many children per mission (existing ones count). */
+export const NEUE_MISSIONEN_MAX = 4;
+export const KINDER_MAX = 8;
+const NOTIZ_MAX = 6_000;
+const MISSION_MAX = 2_000;
+/** Total budget of the order: an order too large fails the call, and an invalid plan holds back the whole project. */
+const NOTIZEN_GESAMT = 120_000;
+const MISSIONEN_GESAMT = 30_000;
+const ZUORDNUNGEN = ['mission', 'neue_mission', 'zusammengefuehrt', 'ueberfluessig', 'verworfen', 'triage'] as const;
+export type Zuordnungsart = (typeof ZUORDNUNGEN)[number];
+/** The kinds the triage closes (`not planned`), the comment with origin first. */
+export const GESCHLOSSEN: Zuordnungsart[] = ['zusammengefuehrt', 'ueberfluessig', 'verworfen'];
+
+/** An open mission a note may join: open, not `status/in-arbeit`, its number of children read. */
+export interface OffeneMission {
+  nummer: number;
+  titel: string;
+  body: string;
+  kinder: number;
+}
+
+export interface Zuordnung {
+  notiz: number;
+  art: Zuordnungsart;
+  grund: string;
+  herkunft: string;
+  /** art mission: the open mission */
+  mission?: number;
+  /** art neue_mission: the key of the new mission */
+  neue_mission?: string;
+  /** art zusammengefuehrt: the note that stays */
+  in?: number;
+  /** art ueberfluessig: where it is done, doubled or overtaken */
+  fundstelle?: string;
+}
+
+export interface NeueMission {
+  schluessel: string;
+  titel: string;
+  begruendung: string;
+  kinder: number[];
+}
+
+export type Schnittplan = { art: 'plan'; neue_missionen: NeueMission[]; zuordnungen: Zuordnung[] } | { art: 'ungueltig'; fehler: string };
+
+export function schnittplanSchema(): object {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['neue_missionen', 'zuordnungen'],
+    properties: {
+      neue_missionen: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['schluessel', 'titel', 'begruendung'],
+          properties: { schluessel: { type: 'string' }, titel: { type: 'string' }, begruendung: { type: 'string' } },
+        },
+      },
+      zuordnungen: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['notiz', 'art', 'grund', 'herkunft'],
+          properties: {
+            notiz: { type: 'integer' },
+            art: { type: 'string', enum: [...ZUORDNUNGEN] },
+            grund: { type: 'string' },
+            herkunft: { type: 'string' },
+            mission: { type: 'integer', description: 'nur bei art mission: Nummer der offenen Mission' },
+            neue_mission: { type: 'string', description: 'nur bei art neue_mission: schluessel aus neue_missionen' },
+            in: { type: 'integer', description: 'nur bei art zusammengefuehrt: die Notiz, die bleibt' },
+            fundstelle: { type: 'string', description: 'bei art ueberfluessig: wo es erledigt, doppelt oder überholt ist' },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * What the model's plan allows: each note of the input exactly once, missions and notes only known ones,
+ * the limits kept, closing only with a reason. Anything else is invalid as a whole and changes nothing.
+ */
+export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneMission[]): Schnittplan {
+  const o = x as Record<string, unknown> | null;
+  const nein = (fehler: string): Schnittplan => ({ art: 'ungueltig', fehler });
+  if (!o || !Array.isArray(o.neue_missionen) || !Array.isArray(o.zuordnungen)) return nein('kein Schnittplan im Schema');
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const nummer = (v: unknown) => (Number.isInteger(v) ? (v as number) : undefined);
+  const neu: NeueMission[] = [];
+  for (const m of o.neue_missionen as Record<string, unknown>[]) {
+    const schluessel = text(m?.schluessel);
+    if (!schluessel || !text(m.titel) || !text(m.begruendung)) return nein('neue Mission ohne Schlüssel, Titel oder Begründung');
+    if (neu.some((n) => n.schluessel === schluessel)) return nein(`neue Mission „${schluessel}“ doppelt`);
+    neu.push({ schluessel, titel: text(m.titel), begruendung: text(m.begruendung), kinder: [] });
+  }
+  if (neu.length > NEUE_MISSIONEN_MAX) return nein(`mehr als ${NEUE_MISSIONEN_MAX} neue Missionen (${neu.length})`);
+  const bekannt = new Set(notizen.map((t) => t.nummer));
+  const zuordnungen: Zuordnung[] = [];
+  for (const z of o.zuordnungen as Record<string, unknown>[]) {
+    const notiz = nummer(z?.notiz);
+    if (notiz === undefined || !bekannt.has(notiz)) return nein(`unbekannte Sternzeit-Notiz #${String(z?.notiz)}`);
+    if (zuordnungen.some((y) => y.notiz === notiz)) return nein(`Sternzeit-Notiz #${notiz} doppelt zugeordnet`);
+    if (!ZUORDNUNGEN.includes(z.art as never)) return nein(`Sternzeit-Notiz #${notiz} ohne gültige Art`);
+    const grund = text(z.grund);
+    zuordnungen.push({
+      notiz,
+      art: z.art as Zuordnungsart,
+      grund,
+      herkunft: text(z.herkunft) || `Eigenes Urteil: ${grund || 'ohne Angabe'}`,
+      ...(z.art === 'mission' ? { mission: nummer(z.mission) } : {}),
+      ...(z.art === 'neue_mission' ? { neue_mission: text(z.neue_mission) } : {}),
+      ...(z.art === 'zusammengefuehrt' ? { in: nummer(z.in) } : {}),
+      ...(z.art === 'ueberfluessig' ? { fundstelle: text(z.fundstelle) } : {}),
+    });
+  }
+  const fehlt = notizen.find((t) => !zuordnungen.some((z) => z.notiz === t.nummer));
+  if (fehlt) return nein(`Sternzeit-Notiz #${fehlt.nummer} ohne Zuordnung`);
+  const neueKinder = new Map<number, number>();
+  for (const z of zuordnungen) {
+    const nr = `Sternzeit-Notiz #${z.notiz}`;
+    if (z.art === 'mission') {
+      if (!missionen.some((m) => m.nummer === z.mission)) return nein(`${nr}: Mission #${z.mission ?? '?'} ist nicht offen, im Außeneinsatz oder unbekannt`);
+      neueKinder.set(z.mission!, (neueKinder.get(z.mission!) ?? 0) + 1);
+    } else if (z.art === 'neue_mission') {
+      const m = neu.find((n) => n.schluessel === z.neue_mission);
+      if (!m) return nein(`${nr}: neue Mission „${z.neue_mission}“ nicht im Plan`);
+      m.kinder.push(z.notiz);
+    } else if (z.art === 'zusammengefuehrt') {
+      const ziel = zuordnungen.find((y) => y.notiz === z.in);
+      if (!ziel || z.in === z.notiz || GESCHLOSSEN.includes(ziel.art)) return nein(`${nr}: zusammengeführt in #${z.in ?? '?'}, die nicht bleibt`);
+    } else if (z.art === 'ueberfluessig' && (!z.grund || !z.fundstelle)) return nein(`${nr}: überflüssig ohne Grund oder Fundstelle`);
+    else if (z.art === 'verworfen' && !z.grund) return nein(`${nr}: verworfen ohne Grund`);
+  }
+  for (const [nr, n] of neueKinder) {
+    const m = missionen.find((m) => m.nummer === nr)!;
+    if (m.kinder + n > KINDER_MAX) return nein(`Mission #${nr} hätte mehr als ${KINDER_MAX} Kinder (${m.kinder} + ${n})`);
+  }
+  for (const m of neu) {
+    if (!m.kinder.length) return nein(`neue Mission „${m.schluessel}“ ohne Kinder`);
+    if (m.kinder.length > KINDER_MAX) return nein(`neue Mission „${m.schluessel}“ hätte mehr als ${KINDER_MAX} Kinder (${m.kinder.length})`);
+  }
+  return { art: 'plan', neue_missionen: neu, zuordnungen };
+}
+
+export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]): string {
+  const jeNotiz = Math.min(NOTIZ_MAX, Math.floor(NOTIZEN_GESAMT / Math.max(1, notizen.length)));
+  const jeMission = Math.min(MISSION_MAX, Math.floor(MISSIONEN_GESAMT / Math.max(1, missionen.length)));
+  const offen = missionen.length
+    ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${m.kinder} Kinder)\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
+    : '(keine)';
+  return `FLOTTE-SCHNITTPLAN
+Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002). Die Kommentare stammen nur von Berechtigten (${BERECHTIGT.join(', ')}), Kommentare Dritter hat das Programm ausgelassen.
+
+Ordne jede Notiz unten genau einmal zu (art):
+- mission: Kind einer offenen Mission unten, wenn sie thematisch passt (mission = deren Nummer). Vorrang vor einer neuen Mission.
+- neue_mission: Kind einer neuen Mission für ein Thema mit mehreren Notizen (neue_mission = schluessel aus neue_missionen, mit titel und begruendung). Eine einzelne Notiz wird nur dann eine eigene Mission, wenn sie nirgends passt und groß genug ist.
+- zusammengefuehrt: Duplikat oder Teilstück derselben Sache wie eine andere Notiz (in = die Notiz, die bleibt und selbst mission, neue_mission oder triage ist). Sie wird mit Verweis geschlossen.
+- ueberfluessig: schon erledigt, doppelt oder überholt; grund und fundstelle nennen wo. Sie wird geschlossen.
+- verworfen: lohnt sich nicht oder passt nicht zur Richtung; grund nennt warum. Sie wird als „not planned“ geschlossen, nicht gelöscht.
+- triage: bleibt in der Triage, weil eine Frage beim Menschen liegt oder sie zu dünn ist; grund nennt was fehlt.
+
+Grenzen: höchstens ${NEUE_MISSIONEN_MAX} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
+
+herkunft gilt je Zuordnung. ${HERKUNFT_REGEL}
+
+Antworte nur über das Schema.
+
+# Offene Missionen
+
+${offen}
+
+# Sternzeit-Notizen
+
+${notizen.map((t) => `## Sternzeit-Notiz #${t.nummer}: ${t.titel}\n${faktenAus(t, jeNotiz, '###')}`).join('\n\n')}`;
+}
+
+/** The comment that stands at a note before the triage closes it after the cut plan. */
+export function schnittplanKommentar(z: Zuordnung): string {
+  const zeilen =
+    z.art === 'zusammengefuehrt'
+      ? [kopf(`zusammengeführt in #${z.in}`), '', `Zusammengeführt in #${z.in}: Duplikat oder Teilstück derselben Sache.`, ...(z.grund ? [`Grund: ${z.grund}`] : [])]
+      : z.art === 'ueberfluessig'
+        ? [kopf('geschlossen, überflüssig'), '', `Grund: ${z.grund}`, `Fundstelle: ${z.fundstelle}`]
+        : [kopf('geschlossen, verworfen (not planned)'), '', `Grund: ${z.grund}`];
+  zeilen.push(`Herkunft: ${z.herkunft}`, '', 'Aus dem Schnittplan über alle offenen Sternzeit-Notizen dieses Projekts.');
   zeilen.push('', 'Widerrufbar: das Ticket wieder öffnen und den Einwand als Kommentar schreiben; es trägt seine Labels noch und kommt in die nächste Triage.');
   return zeilen.join('\n');
 }
