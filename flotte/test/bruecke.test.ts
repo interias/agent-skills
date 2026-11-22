@@ -1174,13 +1174,14 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   }, T);
 
-  it('#146: notes closed by the cut plan count as closed, show as decisions and are revoked by reopening; an invalid plan counts as without result', async () => {
+  it('#146: notes closed by the cut plan count as closed, show as decisions and are revoked by reopening; an invalid plan counts as without result; #147: created missions and attached notes are counted', async () => {
     const t = aufbau();
     const zu = (notiz: number, art: string, mehr: object = {}) => ({ notiz, titel: `Notiz ${notiz}`, url: `https://github.com/o/r/issues/${notiz}`, art, grund: 'kein Nutzen', herkunft: 'Eigenes Urteil: x', geschrieben: true, kommentar: 'k', ...mehr });
     const r = {
-      ...ergebnis([]),
+      // 31 and 32 failed at their mission: each counts once as without result, the mission not again
+      ...ergebnis([{ nummer: 30, ergebnis: 'klar', mission: 100, zuordnung: 'neue_mission' }, { nummer: 31, ergebnis: 'klar', zuordnung: 'neue_mission', fehler: 'Kommentar steht, Mission „Q“ nicht angelegt' }, { nummer: 32, ergebnis: 'klar', zuordnung: 'mission', fehler: 'Kommentar steht, Kommentar an Mission #40 gescheitert: nicht angehängt' }]),
       schnittplan: [
-        { forge: 'o/r', neue_missionen: [], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
+        { forge: 'o/r', neue_missionen: [{ schluessel: 'p', titel: 'Port', begruendung: 'b', kinder: [30], nummer: 100, url: 'https://github.com/o/r/issues/100', angehaengt: [30], geschrieben: true }, { schluessel: 'q', titel: 'Q', begruendung: 'b', kinder: [31], fehler: 'HTTP 502' }], missionen: [{ nummer: 40, titel: 'T', kinder: [32], angehaengt: [], kommentar: 'k', geschrieben: false, fehler: 'Kommentar gescheitert, nichts angehängt' }], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
         { forge: 'o/r', neue_missionen: [], zuordnungen: [], fehler: 'Sternzeit-Notiz #1 ohne Zuordnung' },
       ],
     } as Awaited<ReturnType<typeof triagiere>>;
@@ -1196,10 +1197,11 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     });
     try {
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
-      expect(texte(z)).toContain('Triage-Lauf beendet: 0 Warp frei, 2 geschlossen, 0 Fragen an den Menschen, 2 ohne Ergebnis');
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei (1 an Missionen angehängt), 1 Mission angelegt, 2 geschlossen, 0 Fragen an den Menschen, 4 ohne Ergebnis');
       expect(z.triage!.entscheidungen.map((d) => [d.nr, d.ergebnis, d.grund])).toEqual([
         [20, 'ueberfluessig', 'verworfen: kein Nutzen'],
         [21, 'ueberfluessig', 'zusammengeführt in #22: dasselbe'],
+        [30, 'klar', ''],
       ]);
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       expect(stelle('gh', 'issue', 'comment', '20')).toBeLessThan(stelle('gh', 'issue', 'reopen', '20'));

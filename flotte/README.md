@@ -157,6 +157,17 @@ Alle Issues tragen `needs-triage` (Sternzeit-Notiz), mit `--starten` stattdessen
 Labels und den Hinweisen. `--trocken` legt nichts an und zeigt stattdessen Titel, Labels und Text
 jedes Issues (Nummern als `#?`).
 
+**Mission über vorhandene Missionsziele** (#147, nur aus der Triage, kein Entwurf): `missionAnlegen`
+in `src/auftrag/auftrag.ts` legt eine Mission an, deren Missionsziele schon existieren (die
+Sternzeit-Notizen selbst): Body wie oben (`## Missionsziele` mit den Nummern), nur `epic_label`,
+danach jedes Missionsziel als Sub-Issue verknüpft; an den Missionszielen ändert sich dabei nichts.
+`ready_label` setzt der Aufrufer erst, wenn ein Missionsziel freigegeben ist, damit nie eine Mission
+ohne freigegebenes Kind Warp frei hat. Scheitert ein Verknüpfen, nennt der Fehler die schon angelegte
+Mission. `missionszielAnhaengen` hängt ein vorhandenes Missionsziel an eine offene Mission:
+verknüpfen, dann `- [ ] #<nr> <Titel>` unter den letzten Eintrag ihrer Liste (fehlt die Liste, kommt
+sie ans Ende), der übrige Text bleibt. Nennt die Liste es schon (etwa eine widerrufene Notiz, die
+zurückkommt), bleibt alles, wie es ist: kein zweites Verknüpfen, kein zweiter Eintrag.
+
 ## Triage
 
 Sternzeit-Notizen (`needs-triage`, `needs-info`) klärt der Admiral selbst:
@@ -169,7 +180,9 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/
 `Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) alle Notizen, die ins Modell gehen
 (Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
 (Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Kinder aus
-`sub_issues_summary`; eine, deren Kinder nicht lesbar sind, kommt nicht in Frage). Er ordnet jede
+`sub_issues_summary`, im Auftrag als `(<n> Kinder, noch <m> frei)` bzw. `(8 Kinder, voll, keine neuen
+Kinder)`; eine, deren Kinder nicht lesbar sind, kommt nicht in Frage). Passende offene Missionen haben
+ausdrücklich Vorrang vor neuen, so gehen Notizen eines späteren Laufs in die Missionen früherer. Er ordnet jede
 Notiz genau einmal zu: `mission` (Kind einer offenen Mission), `neue_mission` (Kind einer neuen
 Mission für ein Thema), `zusammengefuehrt` (Duplikat oder Teilstück; `in` = die Notiz, die bleibt),
 `ueberfluessig` (mit Grund und Fundstelle), `verworfen` (mit Grund) oder `triage` (bleibt in der
@@ -178,14 +191,18 @@ zählen mit. Aus einer Notiz entsteht nie ein neues Ticket. Das Programm prüft 
 Notiz, steht eine doppelt, ist eine Nummer unbekannt, eine Grenze überschritten, fehlt bei `verworfen`
 ein Grund oder bei `ueberfluessig` Grund oder Fundstelle, oder verweist `zusammengefuehrt` auf keine
 Notiz, die bleibt,
-gilt er als Ganzes nicht: nichts wird geschrieben, und für die Notizen dieses Projekts läuft in diesem
-Lauf keine Einzelklärung (der nächste Lauf versucht es neu). Aus einem gültigen Plan werden
+gilt er nicht. Hat das Modell geantwortet, folgt genau eine **Reparaturrunde** (#147): derselbe Auftrag
+mit dem Fehler und der ungültigen Antwort darunter, „korrigiere nur das“. Ist auch der zweite Plan
+ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte; derselbe Auftrag noch
+einmal scheiterte meist genauso), gilt er als Ganzes nicht: nichts wird geschrieben, und für die
+Notizen dieses Projekts läuft in diesem Lauf keine Einzelklärung (der nächste Lauf versucht es neu).
+Aus einem gültigen Plan werden
 `zusammengefuehrt`, `ueberfluessig` und `verworfen` geschlossen: erst der Kommentar
 `**Triage: zusammengeführt in #<nr>**` bzw. `geschlossen, überflüssig` / `geschlossen, verworfen (not planned)`
 mit Grund und Herkunft, dann `gh issue close --reason "not planned"`; scheitert der Kommentar, ändert
 sich nichts, gelöscht wird nie. Widerruf: das Ticket wieder öffnen und den Einwand als Kommentar
-schreiben. Die übrigen Notizen gehen in die Einzelklärung unten. Missionen anlegen und Kinder
-anhängen gehört noch nicht dazu (#147). Der Auftrag hat ein Gesamtbudget (Notizen zusammen 120 000,
+schreiben. Die übrigen Notizen gehen in die Einzelklärung unten; was danach mit einer klaren geschieht,
+bestimmt ihre Zuordnung im Plan (**Missionen in der Forge**, unten). Der Auftrag hat ein Gesamtbudget (Notizen zusammen 120 000,
 Missionen 30 000 Zeichen, je Notiz höchstens 6 000, je Mission 2 000); viele Notizen werden kürzer
 gekürzt, keine fällt weg. Über die Brücke erscheint eine vom Plan geschlossene Notiz im Frachtraum als
 Entscheidung „überflüssig“ (Grund mit `verworfen:` bzw. `zusammengeführt in #<nr>`), ihr Widerruf
@@ -196,11 +213,47 @@ Fragerunde, beantwortet sie aus Text, Kommentaren, ADRs und Code und entscheidet
 „beim Menschen“ (`src/treiber/admiral.ts`):
 
 - **klar:** fehlende oder leere Abschnitte `acceptance_section`/`verification_section` des Adapters
-  nachgetragen (geprüft wie im Auftragsschreiber), `ready_label` dazu, `needs-triage`/`needs-info` ab.
+  werden ergänzt (geprüft wie im Auftragsschreiber); die Notiz wird nie mehr einzeln freigegeben,
+  sondern geht an ihre Mission (unten). Hat der Plan sie auf `triage` gelassen, bleibt sie ohne jede
+  Änderung in der Triage (`klar`, `geschrieben: false`, `zuordnung: triage`); ein späterer Plan kann
+  sie einer Mission zuordnen. Sie geht trotzdem ins Modell: Nur die Einzelklärung stellt die Frage an
+  den Menschen oder schließt eine überflüssige.
 - **überflüssig:** geschlossen (`not planned`) mit Grund; die Labels bleiben, Wiederöffnen mit einem
   Kommentar bringt es zurück in die Triage.
 - **kritisch:** genau ein Kommentar mit allen Fragen, die nach der Liste beim Menschen liegen; das
-  Label bleibt.
+  Label bleibt, die Notiz kommt erst nach der Antwort (in einem späteren Lauf) in eine Mission.
+
+**Missionen in der Forge** (#147): Die klaren Notizen mit `mission` oder `neue_mission` im Plan werden
+Mission für Mission geschrieben, je Notiz in dieser Reihenfolge:
+
+1. der Kommentar `**Triage: Missionsziel von Mission #<nr> „<Titel>“, Warp frei**` (bzw. `von neuer
+   Mission „<Titel>“`) mit Herkunft der Entscheidung und der Zuordnung, den Entscheidungen und den
+   ergänzten Abschnitten im Wortlaut;
+2. der Text der Notiz wird **ergänzt, nicht ersetzt**: ein fehlender Abschnitt kommt ans Ende, ein
+   leerer bekommt seinen Inhalt unter die Überschrift; der bisherige Text bleibt Zeichen für Zeichen
+   stehen (auch Zeilenenden und Leerzeichen). Ist nichts zu ergänzen, wird er nicht angefasst;
+3. die Mission: eine **neue** entsteht nur, wenn mindestens eines ihrer Kinder in diesem Lauf klar
+   ist, über den Auftragsschreiber (`missionAnlegen`, oben) mit `epic_label`, der Begründung des Plans
+   als Text und den klaren Kindern; danach der Kommentar `**Triage: Mission aus dem Schnittplan**` mit
+   Titel, Begründung, Missionszielen, den Kindern, die nach ihrer Antwort später dazukommen, dem
+   Hinweis, wann sie Warp frei bekommt, und dem Widerruf (`ready_label` an der Mission ab). An eine
+   **offene** Mission kommt zuerst ein Kommentar mit den neuen Missionszielen und ihrer Herkunft, dann
+   wird jede Notiz verknüpft und in ihre Liste `## Missionsziele` eingetragen (`missionszielAnhaengen`;
+   steht sie dort schon, etwa nach einem Widerruf, wird nichts doppelt verknüpft); die Grenze von
+   8 Kindern prüft schon der Plan;
+4. zuletzt `ready_label` dazu, `needs-triage`/`needs-info` ab. Erst jetzt, denn eine Notiz mit
+   `ready_label`, die an keiner Mission hängt, wäre wieder ein eigener Einsatz. Eine **neue** Mission
+   bekommt `ready_label` erst nach ihrem ersten so freigegebenen Missionsziel; scheitert vorher das
+   Verknüpfen, ihr Kommentar oder jede Freigabe, bleibt sie ohne (der Treiber startete sonst einen
+   leeren Außeneinsatz), steht aber mit `nummer` und `url` in der Ausgabe.
+
+Scheitert ein Schritt, bleibt die Notiz bei diesem Schritt stehen und ihr letzter Kommentar ist der der
+Triage: Der nächste Lauf überspringt sie (`wartet`), statt etwas doppelt anzulegen oder zu kommentieren,
+bis ein Mensch darunter kommentiert. Scheitert der Kommentar an einer Notiz, ändert sich an ihr nichts
+und sie kommt nicht in die Mission; scheitert der Kommentar an der Mission, wird nichts angehängt bzw.
+keine Notiz der neuen Mission freigegeben. Ein zweiter Lauf ohne neue Notizen ändert nichts: Die
+freigegebenen tragen kein Triage-Label mehr, die gefragten warten, die auf `triage` gelassenen werden
+wieder nur geklärt.
 
 Eine Mission (Label `epic_label` des Adapters, so legt `flotte auftrag` sie an) überspringt die
 Triage ohne Modellaufruf (`mission`): Sie wird über ihre Missionsziele freigegeben. Ein Ticket, das
@@ -217,7 +270,8 @@ nur ein Kommentar der Rollen `OWNER`, `MEMBER` oder `COLLABORATOR` (`authorAssoc
 Dritter gehen gar nicht ins Modell, das Repository kann öffentlich sein. Steht unter dem letzten
 Kommentar der Triage (Frage, oder Entscheidung, deren Freigabe gescheitert ist) kein solcher
 Kommentar, wird das Ticket übersprungen (`wartet`), ohne Modellaufruf. Triage legt keine Tickets an
-(agent-skills/ADR-0002), außer aus einem Lernvorschlag über den Auftragsschreiber, und spricht bisher
+(agent-skills/ADR-0002), außer aus einem Lernvorschlag über den Auftragsschreiber (ein Missionsziel)
+und ebenso eine Mission aus dem Schnittplan, und spricht bisher
 nur GitHub; ein Gitea-Repository steht in `fehler`.
 
 **Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl danach jeden
@@ -271,20 +325,33 @@ und Handlungen: `flottenbruecke/SCHNITTSTELLE.md`.
 **Ausgabe:** `trocken`, `repos` (`repo`, `forge`), `fehler` (`repo` oder `forge`, `fehler`),
 `tickets` (je `forge`, `nummer`, `titel`, `url`, `ergebnis` = `klar` | `ueberfluessig` | `kritisch` |
 `wartet` | `mission` | `fremd` | `ungueltig`, `geschrieben`, `kommentar`, gegebenenfalls `fehler`, `sitzung`, `herkunft` und `grund` der Entscheidung, bei
-`--trocken` und `klar` der neue `body`; bei einem Lernvorschlag `lernvorschlag` = Kennung, `nummer`
+`--trocken` und `klar` der ergänzte `body`; bei einer Notiz aus dem Schnittplan `zuordnung` = ihre Art
+im Plan, bei `klar` und angehängt `mission` = die Nummer ihrer Mission; bei einem Lernvorschlag
+`lernvorschlag` = Kennung, `nummer`
 das `lern_issue`, `url` der Kommentar der Lernschleife, bei `klar` `missionsziel`) und `fragen` (je
 `forge`, `ticket`, `url`, `frage`, `optionen`, `empfehlung`, `grund`, `herkunft`, `marke` = Punkt der
 Liste: `nach außen`, `Geld`, `Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`;
 bei einem Lernvorschlag `lernvorschlag`) mit den in diesem Lauf neu gestellten Fragen, dazu `offen`
 in derselben Form mit den Fragen früherer Läufe, die unter einem `wartet` noch ohne Antwort stehen.
-`schnittplan` (#146) je Projekt mit Notizen fürs Modell: `forge`, `sitzung`, `neue_missionen` (je
-`schluessel`, `titel`, `begruendung`, `kinder` = Nummern der Notizen), `zuordnungen` (je `notiz`,
+`schnittplan` (#146) je Projekt mit Notizen fürs Modell: `forge`, `sitzung` (die des geltenden Plans),
+nach einer Reparaturrunde `reparatur` (`sitzung` und `fehler` des ersten Plans), `neue_missionen` (je
+`schluessel`, `titel`, `begruendung`, `kinder` = Nummern der Notizen; #147, wenn ein Kind klar war,
+dazu `labels` (mit `ready_label` erst nach der ersten Freigabe), `body`, `kommentar`, `angehaengt` =
+die Notizen in ihr, `geschrieben`, angelegt `nummer` und `url` (auch wenn danach ein Schritt
+scheiterte), gegebenenfalls `fehler`), `missionen` (#147, die offenen Missionen, an die
+Notizen kommen sollten: je `nummer`, `titel`, `kinder` = die vorgesehenen Notizen, `angehaengt`, `kommentar`, `geschrieben`, bei `--trocken` der
+neue `body`, gegebenenfalls `fehler`), `zuordnungen` (je `notiz`,
 `titel`, `url`, `art`, `grund`, `herkunft`, bei `mission` die Nummer `mission`, bei `neue_mission`
 deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessig` die `fundstelle`;
 bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
 ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
 nur hier, nicht in `tickets`.
-`--trocken` erstellt Plan und Entscheidungen und druckt sie, schreibt nichts.
+`--trocken` erstellt Plan und Entscheidungen und druckt sie, schreibt nichts; es zeigt die neuen
+Missionen samt Body, die Listen der offenen und die ergänzten Texte der Notizen. Im Logbuch der Brücke
+zählt der Lauf dazu die angehängten Notizen und die angelegten Missionen
+(`… Warp frei (2 an Missionen angehängt), 1 Mission angelegt, …`); ein gescheiterter Schritt an einer
+Mission zählt einmal als „ohne Ergebnis“, an ihren Notizen, nur ohne solche an der Mission selbst. Die
+Anzeige des Plans ist #148.
 
 ## Prognose
 

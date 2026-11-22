@@ -1633,10 +1633,15 @@ class Treiber {
       const ohne =
         r.tickets.filter((t) => t.fehler || t.ergebnis === 'ungueltig').length +
         r.fehler.length +
-        r.schnittplan.reduce((n, p) => n + (p.fehler ? 1 : 0) + p.zuordnungen.filter((x) => x.fehler).length, 0);
+        // #147: a failed step of a mission shows at its notes already; a mission counts on its own only when none of them did
+        r.schnittplan.reduce((n, p) => n + (p.fehler ? 1 : 0) + p.zuordnungen.filter((x) => x.fehler).length + [...p.neue_missionen, ...(p.missionen ?? [])].filter((m) => m.fehler && !r.tickets.some((t) => t.forge === p.forge && t.fehler && m.kinder.includes(t.nummer))).length, 0);
       // a superfluous proposal closes nothing
       const ueber = entschieden.filter((t) => t.ergebnis === 'ueberfluessig' && t.lernvorschlag).length;
-      this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
+      // #147: the missions created from the cut plan and the notes hung on a mission (the display of the plan is #148)
+      const angelegt = r.schnittplan.reduce((n, p) => n + p.neue_missionen.filter((m) => m.nummer !== undefined).length, 0);
+      const angehaengt = entschieden.filter((t) => t.mission !== undefined).length;
+      const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}`;
+      this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
     } catch (err) {
       this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
     } finally {
