@@ -1009,6 +1009,21 @@ class Treiber {
       return this.halt(ep, 'abgebrochen', `Leerlauf: ${Math.round(this.e.leerlaufMs / 60_000)} min ohne Ausgabe`, true);
     }
     if (r.fehler === 'anmeldung') return this.halt(ep, 'blockiert', `Konto ${this.kontoName(ep.konto ?? '')} ist nicht angemeldet. Ein Mensch meldet es an.`);
+    if (r.fehler === 'limit') {
+      // #132: the account is used up; red until the next measurement says otherwise, and the epic waits for it
+      const konto = ep.konto ?? '';
+      const grund = `Limit erreicht: ${r.text.trim().slice(0, 120) || 'usage_limit_reached'}`;
+      const alt = this.bewertung.get(konto);
+      if (alt) this.bewertung.set(konto, { ...alt, stufe: 'rot', grund });
+      if (ep.sitzung) ep.auftrag = { resume: true, text: this.an(nr, 'Das Konto hatte sein Limit erreicht. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.') };
+      else {
+        await this.aufraeumen(nr);
+        ep.auftrag = { resume: false, text: this.startText(nr) };
+      }
+      ep.notiz = `wartet auf ${this.kontoName(konto)}: ${grund}`;
+      this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, der Lauf wartet, bis das Konto wieder Luft hat`);
+      return;
+    }
     if (r.fehler === 'netz') {
       if (ep.fortsetzungen < 2 && ep.sitzung) {
         ep.fortsetzungen++;

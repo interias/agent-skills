@@ -124,15 +124,16 @@ Fragerunde oder ist Abbruchbedingung.
 
 ## Phase 2 — Die Fragerunden
 
-Nach dem Frontier-Verfahren von `grilling` (Skill aus `mattpocock-skills`, eingerichtet nach
-`mattpocock-skills/README.md`), die Punkte der Liste als Entscheidungsbaum. Gestellt wird jede
-Runde nach `epic/SKILL.md` („Wie gefragt wird"), je Frage mit Antwortmöglichkeiten und deiner
+Im **Frontier-Verfahren**: Die Punkte der Liste bilden einen Entscheidungsbaum. Jede Runde stellt
+alles, was jetzt entscheidbar ist — die Frontier. Was von einer noch offenen Antwort abhängt,
+wartet auf die nächste Runde. Fertig ist die Fragerunde, wenn die Frontier leer ist. Gestellt wird
+jede Runde nach `epic/SKILL.md` („Wie gefragt wird"), je Frage mit Antwortmöglichkeiten und deiner
 Empfehlung.
 
-**Eine Abweichung von `grilling`:** Die Fakten beschaffst du selbst, aber ohne Subagenten (siehe
-oben). Braucht eine Frage einen Fakt aus der Umgebung — steht die Datei noch da, was sagt der
-Adapter, ist der Test fahrbar —, sieh selbst nach, bevor du fragst. Eine Frage, die auf einem
-ungeprüften Fakt steht, kostet eine ganze Runde.
+**Die Fakten beschaffst du selbst, aber ohne Subagenten** (siehe oben). Braucht eine Frage einen
+Fakt aus der Umgebung — steht die Datei noch da, was sagt der Adapter, ist der Test fahrbar —, sieh
+selbst nach, bevor du fragst. Eine Frage, die auf einem ungeprüften Fakt steht, kostet eine ganze
+Runde.
 
 ### Die eine Frage, die jeder Punkt beantworten muss
 

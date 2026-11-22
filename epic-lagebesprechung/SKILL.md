@@ -57,9 +57,8 @@ leer: ein Satz „Nichts liegt bei dir", und zurück zum normalen Ablauf.
 
 ## 2 — Fragerunden
 
-Nach dem Frontier-Verfahren aus `grilling` (Skill aus `mattpocock-skills`, wie in
-`epic-nacharbeit`, Phase 2), gestellt nach `epic/SKILL.md` („Wie gefragt wird").
-`AskUserQuestion` ist hier richtig: Der Mensch hat die Lagebesprechung selbst
+Im Frontier-Verfahren, wie in `epic-nacharbeit`, Phase 2, gestellt nach `epic/SKILL.md` („Wie
+gefragt wird"). `AskUserQuestion` ist hier richtig: Der Mensch hat die Lagebesprechung selbst
 aufgerufen und sitzt davor.
 
 - **Vor der ersten Frage** die Entscheidungen aus Quelle 2 mit Frage, Entscheidung, Warum und

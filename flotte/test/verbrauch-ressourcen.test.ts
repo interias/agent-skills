@@ -54,6 +54,16 @@ describe('verbrauch', () => {
     expect(bewerte({ ...v(0.95, 4.9), fuenf: { anteil: 0.95, reset: jetzt - 60_000 } }, jetzt).stufe).toBe('gruen');
   });
 
+  it('rates a used-up weekly window red until its reset (#132)', () => {
+    const b = bewerte(v(0.04, 2, { woche: [1, 5] }), jetzt);
+    expect(b).toMatchObject({ stufe: 'rot', grund: expect.stringContaining('Wochenlimit erschöpft bis') });
+    // also when the 5-hour window has reset since the reading, and when the account is driven empty
+    expect(bewerte({ ...v(0.9, 4.9, { woche: [1, 5] }), fuenf: { anteil: 0.9, reset: jetzt - 60_000 } }, jetzt).stufe).toBe('rot');
+    expect(bewerte(v(0.04, 2, { woche: [1, 5] }), jetzt, 30, { gelb: 60, rot: 85, leerfahren: true }).stufe).toBe('rot');
+    // once the weekly window has reset, it no longer holds
+    expect(bewerte({ ...v(0.04, 2), sieben: { anteil: 1, reset: jetzt - 60_000 } }, jetzt).stufe).toBe('gruen');
+  });
+
   it('lowers the fleet limit by the weekly projection', () => {
     expect(bewerte(v(0.1, 2, { woche: [0.5, 3] }), jetzt).obergrenze).toBe(2); // 117 %
     expect(bewerte(v(0.1, 2, { woche: [0.8, 3] }), jetzt).obergrenze).toBe(1); // 187 %

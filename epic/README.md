@@ -12,8 +12,8 @@ Projektadapters in [`references/adapter.md`](references/adapter.md), die Skripte
 Die orangen Halte sind die Stellen, an denen du entscheidest. Dazwischen läuft alles ohne
 Rückfrage; den Stand zeigt die Forge.
 
-1. **Plan klären und Epic schneiden** mit den vorgelagerten Skills (`grill-with-docs`, `to-spec`,
-   `to-tickets`).
+1. **Plan klären und Epic schneiden** im Gespräch des
+   Bereitschaftsraums ([Skill](../bereitschaftsraum/SKILL.md)).
 2. **Freigeben:** Label `ready-for-agent` an der Spec oder an den Kind-Tickets.
 3. **`/epic #<nr>` starten** und am Vorab-Tor einmal alle Fragen beantworten.
 4. **Pull Request prüfen und mergen.** Das tut kein Lauf. Ob ein Mensch mergt oder nach grünem
