@@ -317,7 +317,7 @@ Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") u
   nichts Neues mehr, bekommt jede arbeitende Sitzung `Pause bis <Reset>` oder `Pause bis RAM ok`,
   nach dem Ende der Pause `weiter`. Auch das steht auf der Flottentafel.
 
-- **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" beantworten und dem Menschen vorlegen.
+- **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" immer mit `warten` beantworten, `weiter` folgt bei `ok`.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
   entscheidest du, schreibst es auf („Was aufgeschrieben wird") und antwortest dem Lauf — er
@@ -687,7 +687,7 @@ laufen in jeder Stufe weiter; die Bremse hält nur Neues zurück.
 |---|---|
 | `ok` | normal |
 | `warn` | **keine neue Welle**, auch kein neues Epic; jedes `FLOTTE-WELLE` und jede arbeitende Sitzung bekommt `Pause bis RAM ok`. Du sagst es dem Menschen im Chat, in einem Satz mit Messwert; fragen musst du nicht |
-| `hold` | wie `warn`, zusätzlich **bekommt kein laufendes Epic ein neues Paket**: auch ein Frageblock `ram` eines Laufs (er hat selbst `hold` gemessen) wird mit `warten` beantwortet. Du **fragst den Menschen** („Den Menschen fragen"): „warten bis `ok`" (Empfehlung: es hilft, Speicher freizugeben) oder „freigeben" — die Freigabe gilt für die nächste Welle und geht den wartenden Läufen als `weiter` zu |
+| `hold` | wie `warn`, zusätzlich **bekommt kein laufendes Epic ein neues Paket**: auch ein Frageblock `ram` eines Laufs (er hat selbst `hold` gemessen) wird mit `warten` beantwortet. Gefragt wird niemand, die Bremse regelt sich selbst: `weiter` kommt bei `ok`. Freigeben kann nur der Mensch, von sich aus; du startest nie trotz `hold`. Seine Freigabe gilt für die nächste Welle und geht den wartenden Läufen als `weiter` zu |
 
 **Schlägt die Messung fehl** (Exit 1 von `ram.ps1`), startest du nichts und sagst es dem Menschen;
 ohne Messwert gilt die Bremse als `hold`.

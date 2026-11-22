@@ -526,9 +526,9 @@ Messung fehl (Exit 1), ist das ein Glut-Punkt, und das Paket startet nicht ohne 
 
 **Unter `/epic-flotte`** fragst du bei `hold` nicht selbst: du beendest den Zug mit einem
 Frageblock der Phase `ram` (`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"), Optionen
-„warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Der Admiral legt es dem Menschen vor.
-Auf seine Antwort `warten` startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn
-`weiter` kommt (`ok` oder Freigabe des Menschen), und misst dann nicht noch einmal. Schlägt die
+„warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Die Antwort ist immer `warten`.
+Dann startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn `weiter` kommt (`ok`
+oder eine Freigabe, die nur der Mensch von sich aus gibt), und misst nicht noch einmal. Schlägt die
 Messung fehl, geht derselbe Block hinaus, mit dem Fehlertext statt des Messwerts.
 
 ### Gestufte Verifikation und der Slot (#38)

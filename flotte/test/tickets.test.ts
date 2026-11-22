@@ -8,7 +8,9 @@ import { admiralAuftrag, BEIM_MENSCHEN, TICKET_REGEL } from '../src/treiber/admi
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
 import { frage } from './flotte-welt.ts';
 
-const block = leseBlock(frage(3, 'tor', [{ betrifft: 'Lauf', frage: 'Soll dafür ein neues Ticket angelegt werden?' }])) as FrageBlock;
+const block = leseBlock(frage(3, 'tor', [{ betrifft: 'Lauf' }])) as FrageBlock;
+// frage() writes a generic question; the block has to carry the ticket question itself
+block.fragen[0].frage = 'Soll dafür ein neues Ticket angelegt werden?';
 const text = admiralAuftrag(block, 'Epic #3 in o/r.');
 const leer = (s: string) => s.replace(/\s+/g, ' ');
 
@@ -18,6 +20,7 @@ describe('#113: Tickets nur, wenn nötig', () => {
     const admiral = text.slice(text.indexOf('Alles andere entscheidest du'));
     expect(liste).toContain(BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p}`).join('\n'));
     expect(liste).not.toMatch(/neue[sn]? Ticket|Ticketfrage|Ticket anlegen/);
+    expect(text).toContain('1. Soll dafür ein neues Ticket angelegt werden?');
     expect(admiral).toContain('ein neues Ticket');
     expect(admiral).toContain(TICKET_REGEL);
     expect(TICKET_REGEL).toContain('Eine Ticketfrage geht nicht an den Menschen.');
