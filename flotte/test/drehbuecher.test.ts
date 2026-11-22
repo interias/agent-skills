@@ -34,6 +34,19 @@ describe('Drehbücher (#14)', () => {
     expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(true);
   }, T);
 
+  it('D1b (#132): an account limit is no failed start; the run continues once the account has room', async () => {
+    const t = aufbau();
+    const limit = "You've hit your weekly limit · resets Nov 24, 3am (Europe/Berlin)";
+    const buch = drehbuch([lauf(3, [{ text: limit, fehler: true }], 1), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    const laeufe = fuer(buch.gesehen(), 3);
+    expect(laeufe).toHaveLength(2);
+    expect(laeufe[1].args).toEqual(expect.arrayContaining(['--resume', 's3']));
+    expect(z.epics['3']).toMatchObject({ stufe: 'fertig', neustarts: 0 });
+    expect(z.ereignisse.some((e) => /Limit erreicht/.test(e.text) && /kein Fehlstart/.test(e.text))).toBe(true);
+    expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(false);
+  }, T);
+
   it('D2: the admiral decides a gate question; answer by --resume, comment at the issue, the run goes on', async () => {
     const t = aufbau();
     const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);

@@ -105,6 +105,8 @@ export function bewerte(v: Verbrauch | null, jetzt: number, maxAlterMin = 30, s:
   const basis = { obergrenze, fuenf, sieben, alterMin };
   if (alterMin > maxAlterMin) return { stufe: 'rot', grund: `Wert ${alterMin} min alt (Schwelle ${maxAlterMin})`, ...basis };
   if (!fuenf) return { stufe: 'rot', grund: '5-Stunden-Fenster fehlt', ...basis };
+  // #132: a used-up weekly window holds every run until its reset, whatever the 5-hour window says
+  if (v.sieben && v.sieben.anteil >= 1 && v.sieben.reset > jetzt) return { stufe: 'rot', grund: `Wochenlimit erschöpft bis ${sieben!.reset}`, ...basis };
   // a window whose reset lies in the past has started over
   if (v.fuenf && v.fuenf.reset <= jetzt) return { stufe: 'gruen', grund: '5-Stunden-Fenster seit der Messung zurückgesetzt', ...basis };
   const h = fuenf.hochrechnung;

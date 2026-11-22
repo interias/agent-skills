@@ -35,7 +35,7 @@ export function hookRegel(text: string): string {
   return /Gesperrt durch Hook \(([^:)]+)/.exec(t)?.[1].trim() ?? t.slice(0, 80);
 }
 
-export type Fehlerart = 'netz' | 'anmeldung' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | null;
+export type Fehlerart = 'netz' | 'anmeldung' | 'limit' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | null;
 
 const kurz = (s: unknown, n = 100) => String(s ?? '').split(/\r?\n/).find((z) => z.trim())?.trim().slice(0, n) ?? '';
 
@@ -125,12 +125,15 @@ export class Auswertung {
 
 // narrow on purpose (acceptance, low): a 5xx number or "login" anywhere in a text is no evidence
 const NETZ = /ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed|network error|Overloaded|API Error: (500|502|503|504|529)\b|connection error/i;
+// #132: the account's usage limit; no failed start, the run waits until the account has room
+const LIMIT = /usage_limit_reached|hit your (weekly |session |opus |)limit/i;
 const ANMELDUNG = /Failed to authenticate|OAuth (token|session) (has )?expired|not logged in|Please run \/login|Invalid API key|authentication_error/i;
 
 export function fehlerart(ergebnisse: Ergebnis[], code: number | null, leerlauf: boolean, stderr: string): Fehlerart {
   if (leerlauf) return 'leerlauf';
   const letzte = ergebnisse[ergebnisse.length - 1];
   const fehlerText = [letzte?.istFehler ? letzte.text : '', letzte?.grund === 'api_error' ? 'api_error' : '', stderr].join(' ');
+  if (LIMIT.test(fehlerText) && (letzte?.istFehler || code !== 0)) return 'limit';
   if (ANMELDUNG.test(fehlerText) && (letzte?.istFehler || code !== 0)) return 'anmeldung';
   if ((letzte?.istFehler || code !== 0) && NETZ.test(fehlerText)) return 'netz';
   if (!ergebnisse.length) return 'kein_ergebnis';
