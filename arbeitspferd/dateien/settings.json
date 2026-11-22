@@ -4,7 +4,6 @@
   },
   "model": "opus[1m]",
   "enabledPlugins": {
-    "mattpocock-skills@claude-plugins-official": true,
     "ribbon@robonuggets": true
   },
   "extraKnownMarketplaces": {

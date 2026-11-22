@@ -127,7 +127,6 @@ alles Weitere im [README der Brücke](flottenbruecke/README.md).
 | `agents/` | Agent-Typen der Modellstaffel (Kundschafter, Implementer, Reviewer, Lauf) | [Staffel](epic/README.md#modelle-und-denkstufen) |
 | `mail-antwort` | Anwender-Mail recherchieren, bei Bedarf umsetzen, Antwort entwerfen | [für Menschen](mail-antwort/README.md) |
 | `persona-review` | Bedienung mit Persona-Agenten über Runden messen | [für Menschen](persona-review/README.md) |
-| `mattpocock-skills/` | Einrichtung der vorgelagerten Skills (`grill-with-docs`, `to-spec`, `to-tickets` …) für Gitea | [README](mattpocock-skills/README.md) |
 | `assets/` | Bilder der Doku, je mit Quelle und Anleitung zum Neurendern | — |
 
 ## Begriffe
@@ -176,6 +175,7 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
 nach `install.ps1` in einer neuen Sitzung.
 
 Die Leiter „kleinste vollständige Änderung" der Implementer und die Befundform der Reviewer
-stammen aus [Ponytail](https://github.com/DietrichGebert/ponytail) von Dietrich Gebert (MIT), die
-vorgelagerten Skills aus dem Plugin `mattpocock-skills`. Das Plugin `agentenflotte` wird unter
-[interias/agentenflotte](https://github.com/interias/agentenflotte) gepflegt.
+stammen aus [Ponytail](https://github.com/DietrichGebert/ponytail) von Dietrich Gebert (MIT);
+alle Quellen, Lizenzen und was übernommen wurde, stehen in [`QUELLEN.md`](QUELLEN.md). Das Plugin
+`agentenflotte` wird unter [interias/agentenflotte](https://github.com/interias/agentenflotte)
+gepflegt.
