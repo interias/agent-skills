@@ -4,6 +4,7 @@
 // unknown command.
 
 import { adapter } from './befehle/adapter.ts';
+import { epic } from './befehle/epic.ts';
 import { auftrag } from './befehle/auftrag.ts';
 import { lernen } from './befehle/lernen.ts';
 import { messen } from './befehle/messen.ts';
@@ -29,6 +30,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   anhalten,
   zuschauen: (argv) => zuschauen(argv),
   adapter: (argv) => adapter(argv),
+  epic: (argv) => epic(argv),
   lernen: (argv) => lernen(argv),
   auftrag: (argv) => auftrag(argv),
 };

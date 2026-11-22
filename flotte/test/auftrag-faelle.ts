@@ -97,6 +97,7 @@ export function auftragFaelle(neu: () => Pruefstand | Promise<Pruefstand>) {
       const p = await neu();
       const vorher = new Set((await p.issues()).map((i) => i.nummer));
       const r = await auftragAusfuehren(ENTWURF_DREI, REGELN, p.forge, { starten: false, trocken: false });
+      if (r.trocken) throw new Error('trocken: false returned a dry result');
       const neue = (await p.issues()).filter((i) => !vorher.has(i.nummer));
       expect(neue).toHaveLength(4);
       const m = neue.find((i) => i.nummer === r.mission!.nummer)!;
@@ -124,6 +125,7 @@ export function auftragFaelle(neu: () => Pruefstand | Promise<Pruefstand>) {
         const p = await neu();
         const vorher = new Set((await p.issues()).map((i) => i.nummer));
         const r = await auftragAusfuehren(ENTWURF_DREI, REGELN, p.forge, { starten, trocken: false });
+        if (r.trocken) throw new Error('trocken: false returned a dry result');
         const neue = (await p.issues()).filter((i) => !vorher.has(i.nummer));
         const status = starten ? 'ready-for-agent' : 'needs-triage';
         expect(neue.find((i) => i.nummer === r.mission!.nummer)!.labels.sort()).toEqual(['epic', status].sort());
@@ -139,6 +141,7 @@ export function auftragFaelle(neu: () => Pruefstand | Promise<Pruefstand>) {
       const p = await neu();
       const vorher = (await p.issues()).length;
       const r = await auftragAusfuehren(ENTWURF_DREI, REGELN, p.forge, { starten: true, trocken: true });
+      if (!r.trocken) throw new Error('trocken: true created issues');
       expect((await p.issues()).length).toBe(vorher);
       expect(r.trocken).toBe(true);
       expect(r.mission).toMatchObject({ titel: 'Probe des Auftragsschreibers', labels: ['epic', 'ready-for-agent'] });

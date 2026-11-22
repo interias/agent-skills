@@ -15,9 +15,9 @@ import { giteaForge } from '../src/auftrag/gitea.ts';
 import { auftrag } from '../src/befehle/auftrag.ts';
 import { auftragFaelle, ENTWURF_DREI, REGELN, type IssueStand, type Pruefstand } from './auftrag-faelle.ts';
 
-const COMPOSE = join(import.meta.dir, 'gitea', 'compose.yaml');
+const COMPOSE = join(import.meta.dirname, 'gitea', 'compose.yaml');
 // in a package worktree (folder "73") the package number, anywhere else (the gate on main) "gate"
-const ordner = basename(resolve(import.meta.dir, '..', '..'));
+const ordner = basename(resolve(import.meta.dirname, '..', '..'));
 const PROJEKT = `agent-skills-${/^\d+$/.test(ordner) ? ordner : 'gate'}-gitea-${process.pid}`;
 const ADMIN = 'flotte-test';
 const PASSWORT = `pw-${crypto.randomUUID()}`;
@@ -149,6 +149,7 @@ describe('auftrag: shared cases, Gitea layer against a throwaway Gitea', () => {
     const name = await neuesRepo();
     const p = pruefstand(name);
     const r = await auftragAusfuehren(ENTWURF_DREI, REGELN, p.forge, { starten: false, trocken: false });
+    if (r.trocken) throw new Error('trocken: false returned a dry result');
     const mission = (await p.issues()).find((i) => i.nummer === r.mission!.nummer)!;
     expect(mission.verknuepft).toEqual(r.ziele.map((z) => z.nummer));
     const epic = (await alle(`/repos/${ADMIN}/${name}/labels`)).find((l) => l.name === 'epic');
