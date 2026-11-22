@@ -44,7 +44,7 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
 ## Was das Skript tut
 
 - **Skills:** kopiert jeden Ordner der obersten Ebene mit `SKILL.md` — `epic`, `epic-aufraeumen`,
-  `epic-flotte`, `epic-lagebesprechung`, `epic-nacharbeit`, `flotte`, `mail-antwort`, `persona-review`,
+  `epic-nacharbeit`, `flotte`, `mail-antwort`, `persona-review`,
   `codebase-design`, `research`, `prototype`, `tdd`, `diagnosing-bugs`, `code-inspektion` — nach
   `~/.claude/skills/<name>`. `arbeitspferd/` bleibt außen vor. Ein vorhandener Zielordner
   wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/` gesichert und erst geleert,

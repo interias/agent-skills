@@ -28,10 +28,10 @@ Der Fließtext des Adapters sind **Projektregeln**, zum Beispiel Doku-Pflicht, M
 oder Fachsprache. Sie gelten wie Regeln des Skills. Der Adapter darf den Skill **verschärfen, nie
 lockern**. Ein Eintrag, der eine Regel des Skills aufheben würde, ist ein Punkt für das Vorab-Tor.
 
-Ein Abschnitt **`## Entscheidungsregeln`** im Fließtext legt fest, wie der Admiral von
-`/epic-flotte` wiederkehrende Fragen in diesem Projekt entscheidet: je Regel ein Satz, mit Datum
+Ein Abschnitt **`## Entscheidungsregeln`** im Fließtext legt fest, wie der Admiral
+der Flotte wiederkehrende Fragen in diesem Projekt entscheidet: je Regel ein Satz, mit Datum
 und Anlass (meist ein Widerruf). Sie binden den Admiral und gehen der Empfehlung des Skills vor
-(`epic-flotte/SKILL.md`, „Entscheidungsrecht"). Was dort beim Menschen liegt, können sie ihm nicht
+(`flotte/references/entscheidungsrecht.md`, „Entscheidungsrecht"). Was dort beim Menschen liegt, können sie ihm nicht
 übertragen. Fehlt der Abschnitt, gilt die Rangfolge des Skills.
 
 ## Fehlt der Adapter
@@ -158,7 +158,7 @@ Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 ### Merge (#14)
 
 Wer einen Epic-PR oder einen anderen Pull Request eines Laufs mergt, steht **nur hier**. Die
-Regeln 1 von `epic` und `epic-flotte`, `guard.ps1` und der Leitstand verweisen auf diesen
+Regel 1 von `epic`, der Flotten-Treiber, `guard.ps1` und der Leitstand verweisen auf diesen
 Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
 
 | Schlüssel | Bedeutung | Standard |
@@ -274,7 +274,7 @@ alle drei Skills.
 | `references/adapter.md` | diese Datei |
 | `references/forge.md` | Forge-Zugriff, Eigenheiten der Gitea-Instanz, Kommentare aus Dateien, Nachzählen, Pull Request |
 | `references/lauftafel.md` | Aufbau und Fortschreiben der Lauftafel |
-| `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Konsole". Wird kopiert, nicht nachgebaut; ihr gemeinsamer Block steht wortgleich in `epic-flotte/references/flottentafel.html` |
+| `references/lauftafel.html` | die Vorlage der Lauftafel im Design „Konsole". Wird kopiert, nicht nachgebaut; ihr gemeinsamer Block steht wortgleich in `flotte/references/flottentafel.html` |
 | `references/worktree.md` | Worktrees rüsten und abräumen, auch ohne Manifest und Reste auf der Platte |
 | `scripts/worktree.ps1` | das Skript dazu; `Up`, `Down` und `CleanupStale` sind der einzige Weg, Worktrees zu rüsten und abzuräumen |
 | `scripts/ram.ps1` | die RAM-Messung der RAM-Bremse (`SKILL.md`, Phase 4) |

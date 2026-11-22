@@ -1,6 +1,6 @@
 ---
 name: epic-kundschafter
-description: Kundschafter eines /epic-Laufs — liest und liefert Fundstellen, ändert nichts. Nur auf Auftrag aus /epic, /epic-flotte oder deren Subagenten.
+description: Kundschafter eines /epic-Laufs — liest und liefert Fundstellen, ändert nichts. Nur auf Auftrag aus /epic oder dessen Subagenten.
 model: haiku
 effort: low
 tools: Read, Grep, Glob, Bash

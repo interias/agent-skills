@@ -3,8 +3,8 @@
     Measures the memory of the Windows host and rates it ok, warn or hold (#37, epic #34).
 
 .DESCRIPTION
-    The RAM brake of /epic and /epic-flotte: run before every package start (/epic) and before
-    every wave (/epic-flotte). It measures on the Windows side, because that is where the crash
+    The RAM brake of /epic and the flotte driver: run before every package start (/epic) and
+    in every tick (flotte). It measures on the Windows side, because that is where the crash
     happens; the WSL VM is part of it (vmmemWSL).
 
     "Free" is the memory Windows can hand out at once: free plus standby (cached) pages, the
