@@ -132,6 +132,26 @@ describe('#146 Schnittplan: 12 Notizen zu 3 Themen', () => {
     expect(schnittplanAuftrag([ticket({ number: 1, title: 'N', body: 'y'.repeat(5_000) })], [])).toContain('y'.repeat(5_000));
   });
 
+  it('#148: a note with many comments keeps its text and the newest ones (a revocation), the oldest go with a note', () => {
+    const alt = Array.from({ length: 30 }, (_, i) => ({ body: `ALT-${i} ${'z'.repeat(400)}`, autor: 'mensch', zeit: `2026-11-0${(i % 9) + 1}`, rolle: 'OWNER' }));
+    const widerruf = { body: '**Widerruf des Menschen (Mensch über die Brücke)** — Nicht wieder in Mission #40', autor: 'flotte', zeit: '2026-11-22', rolle: 'OWNER' };
+    const viel = (nr: number): Ticket => ({ ...ticket({ number: nr, title: `N ${nr}`, body: `TEXT-${nr} kurz` }), kommentare: [...alt, widerruf] });
+    // many notes: each gets far less than its comments need
+    const a = schnittplanAuftrag(Array.from({ length: 60 }, (_, i) => viel(i + 1)), []);
+    expect(a.length).toBeLessThan(200_000);
+    for (const nr of [1, 30, 60]) {
+      const teil = a.slice(a.indexOf(`## Sternzeit-Notiz #${nr}: `), a.indexOf(`## Sternzeit-Notiz #${nr + 1}: `) >>> 0);
+      expect(teil).toContain(`TEXT-${nr} kurz`);
+      expect(teil).toContain('Nicht wieder in Mission #40');
+      expect(teil).not.toContain('ALT-0 ');
+      expect(teil).toMatch(/\(\d+ ältere Kommentare ausgelassen\)/);
+    }
+    // within its share a note keeps every comment
+    const wenig = schnittplanAuftrag([{ ...viel(1), kommentare: [...alt.slice(0, 5), widerruf] }], []);
+    expect(wenig).toContain('ALT-0 ');
+    expect(wenig).not.toContain('ältere Kommentare ausgelassen');
+  });
+
   it('an invalid plan changes nothing and runs no single clearing for the notes of this project', async () => {
     const t = welt(ZWOELF, { ...DREI_THEMEN, zuordnungen: DREI_THEMEN.zuordnungen.slice(1) });
     const r = await triagiere(auftrag(), t.w);

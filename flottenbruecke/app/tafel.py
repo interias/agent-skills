@@ -8,7 +8,8 @@
 # them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
 # The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`) and
 # (#61) the released ones outside the driver's deployment (`freigegeben`), with the steering actions on their way.
-# The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`).
+# The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`),
+# with (#148) the cut plan of its last triage run.
 
 import json
 import re
@@ -109,6 +110,30 @@ def thema_von(labels: list[str]) -> list[str]:
     return [x for x in labels if x not in OHNE_THEMA and not x.startswith('status/')]
 
 
+def schnittplan(tr: dict, forge: str, link, offen_h: dict) -> dict | None:
+    """#148: the cut plan of the last triage run: per mission its children, its state and the revocation on its
+    way; the notes it closed with the note they went into. None: an older driver, or no plan yet."""
+    s = tr.get('schnittplan')
+    if not s:
+        return None
+    zustand = lambda m: 'widerrufen' if m.get('widerrufen') else 'fehler' if m.get('fehler') else 'frei' if m.get('freigegeben') else 'offen'
+    return {
+        'zeit': s['zeit'],
+        'fehler': s.get('fehler'),
+        'missionen': [{
+            **m,
+            'id': f"schnitt:{forge}#{m['nr']}",
+            'forge': forge,
+            'issueUrl': link(m['nr']) or m.get('url'),
+            'kinder': [{**k, 'issueUrl': link(k['nr'])} for k in m.get('kinder', [])],
+            'zustand': zustand(m),
+            'widerrufbar': not m.get('widerrufen') and bool(m.get('neu') or m.get('kinder')),
+            'handlung': _handlung(offen_h.get((m['nr'], 'schnitt-widerruf', None, None))),
+        } for m in s.get('missionen', [])],
+        'notizen': [{**n, 'issueUrl': link(n['nr']), 'verweisUrl': link(n['verweis']) if n.get('verweis') else None} for n in s.get('notizen', [])],
+    }
+
+
 def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, veraltet: bool, offen_h: dict) -> dict:
     """#116: the triage state of a project, bundled: the open questions, the decisions of the triage runs
     (newest first) and the Sternzeit-Notizen by topic; a topic with an open question first, "ohne Thema" last."""
@@ -147,6 +172,7 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
         'handlung': _handlung(offen_h.get((0, 'triage', None, None))),
         'fragen': fragen,
         'entscheidungen': entscheidungen,
+        'schnittplan': schnittplan(tr, forge, link, offen_h),
         'themen': [{'thema': th, 'tickets': themen[th]} for th in reihe],
     }
 

@@ -45,11 +45,12 @@ export interface BrueckenAntwort {
  * #116 Frachtraum: triage (epic 0) starts a triage run of the project; triage-antwort answers a critical
  * question of the triage (epic the ticket, nr and seit the question, text the JSON `{"option", "text"}`);
  * triage-widerruf revokes a decision of a triage run (epic the ticket, seit its zeit, text the objection).
+ * #148: schnitt-widerruf revokes a mission of the last cut plan (epic the mission, text the objection).
  */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -211,6 +212,21 @@ export interface BerichtTriageEntscheidung {
   widerrufen: string | null;
   /** #117: a decision about a Lernvorschlag (its kennung); klar: nr is the Missionsziel, ueberfluessig: the collecting issue. The bridge ignores the field. */
   lernvorschlag?: string;
+  /** #148, klar: the mission the note hangs on (a revocation loosens it there). The bridge ignores the field. */
+  mission?: number;
+}
+
+/**
+ * #148: the cut plan of the last triage run for the Frachtraum: the missions it created (neu) or hung notes on,
+ * each with the notes it linked (kinder) and whether they got Warp frei; the notes it closed (merged into
+ * verweis, superfluous, rejected). widerrufen: the person's objection once schnitt-widerruf ran; fehler: a failed
+ * step of the run or of the revocation.
+ */
+export interface BerichtSchnittplan {
+  zeit: string;
+  fehler: string | null;
+  missionen: { nr: number; url: string | null; titel: string; begruendung: string; neu: boolean; kinder: { nr: number; titel: string; grund: string }[]; freigegeben: boolean; fehler: string | null; widerrufen: string | null }[];
+  notizen: { nr: number; titel: string; art: 'zusammengefuehrt' | 'ueberfluessig' | 'verworfen'; grund: string; verweis: number | null; fundstelle: string; fehler: string | null }[];
 }
 
 /**
@@ -222,6 +238,8 @@ export interface BerichtTriage {
   laeuft: boolean;
   tickets: { nr: number; titel: string; labels: string[] }[];
   entscheidungen: BerichtTriageEntscheidung[];
+  /** #148: the cut plan of the last triage run; null before the first one or when it cut none */
+  schnittplan: BerichtSchnittplan | null;
   /** #117: lernvorschlag (the kennung) for a question about a proposal of the learning loop; the bridge ignores it */
   fragen: { ticket: number; nr: number; titel: string; frage: string; optionen: Option[]; empfehlung: string; grund: string; herkunft: string; marke: string; seit: string; lernvorschlag?: string }[];
 }
@@ -260,7 +278,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim()))),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim()))),
   );
 }
 

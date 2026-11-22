@@ -31,6 +31,19 @@
 .bereich[data-bereich="frachtraum"] .widerrufen { color: var(--lila); }
 .bereich[data-bereich="frachtraum"] .wider { justify-self: start; min-height: 32px; }
 
+/* #148: the cut plan: a mission with its children, the closed notes */
+.bereich[data-bereich="frachtraum"] .fr-mission.frei { --c: var(--gruen); }
+.bereich[data-bereich="frachtraum"] .fr-mission.offen { --c: var(--blau); }
+.bereich[data-bereich="frachtraum"] .fr-mission.fehler { --c: var(--orange); }
+.bereich[data-bereich="frachtraum"] .fr-mission.widerrufen { --c: var(--flaeche2); }
+.bereich[data-bereich="frachtraum"] .fr-ergebnis.frei { background: var(--gruen); color: #000; }
+.bereich[data-bereich="frachtraum"] .fr-ergebnis.fehler { background: var(--orange); color: #000; }
+.bereich[data-bereich="frachtraum"] .fr-klein-kopf { margin: 2px 0 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--blau); }
+.bereich[data-bereich="frachtraum"] .fr-kinder { margin: 0; }
+.bereich[data-bereich="frachtraum"] .fr-fehler { color: var(--orange); }
+.bereich[data-bereich="frachtraum"] .fr-geschlossen { margin-top: 8px; }
+.bereich[data-bereich="frachtraum"] .fr-grund { flex: 1 1 100%; color: var(--matt); font-size: 12.5px; }
+
 /* the Sternzeit-Notizen by topic */
 .bereich[data-bereich="frachtraum"] .fr-themen { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 8px; }
 .bereich[data-bereich="frachtraum"] .fr-thema { background: var(--flaeche); border-radius: 14px; padding: 6px 12px 8px; min-width: 0; }

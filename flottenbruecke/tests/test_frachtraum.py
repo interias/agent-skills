@@ -217,3 +217,102 @@ def test_lernvorschlaege_wie_tickets_unter_dem_thema_lernschleife(client, berich
     assert handlung(client, 'triage-antwort', epic=119, nr=1, seit='2026-11-22T12:00:00Z', text=antwort('A')).status_code == 200
     assert handlung(client, 'triage-widerruf', epic=119, seit='2026-11-22T12:00:00.001Z', text='Doch nicht erledigt.').status_code == 200
     assert sorted(h['art'] for h in offene(client)) == ['triage-antwort', 'triage-widerruf']
+
+
+# ---- #148: the cut plan of the last triage run, a mission revoked
+
+SCHNITT = {'epic': 70, 'text': 'Suche und Filter sind zwei Dinge; erst den Filter allein.'}
+
+
+@pytest.mark.parametrize('pin', [None, '0000'])
+def test_schnitt_widerruf_braucht_die_pin(zwei, pin):
+    assert handlung(zwei, 'schnitt-widerruf', pin=pin, **SCHNITT).status_code == 401
+    assert offene(zwei) == []
+
+
+def test_schnitt_widerruf_angenommen_abgeholt_und_unterwegs_an_der_mission(zwei):
+    r = handlung(zwei, 'schnitt-widerruf', **SCHNITT)
+    assert r.status_code == 200 and r.json()['ok']
+    [h] = offene(zwei)
+    assert (h['epic'], h['art'], h['nr'], h['seit'], h['text'], h['herkunft']) == (70, 'schnitt-widerruf', None, None, SCHNITT['text'], 'Mensch über die Brücke')
+    [m70, m71, m41] = frachtraum(zwei)[0]['schnittplan']['missionen']
+    assert m70['handlung']['art'] == 'schnitt-widerruf' and m70['handlung']['abgeholt'] is True
+    assert m71['handlung'] is None and m41['handlung'] is None
+    assert zwei.post(f"/api/handlungen/{h['id']}/quittung").json() == {'ok': True}
+    assert [x['handlung'] for x in zwei.get('/api/tafel').json()['erledigt'] if x['art'] == 'handlung'] == ['schnitt-widerruf']
+    # a mission the run only hung a note on can be revoked as well
+    assert handlung(zwei, 'schnitt-widerruf', epic=41, text='Englisch kommt später.').status_code == 200
+
+
+def test_schnitt_widerruf_was_nicht_passt(zwei, bericht):
+    # the form: a mission and the objection
+    assert handlung(zwei, 'schnitt-widerruf', epic=70).status_code == 422
+    assert handlung(zwei, 'schnitt-widerruf', epic=70, text='   ').status_code == 422
+    assert handlung(zwei, 'schnitt-widerruf', epic=0, text='nein').status_code == 422
+    # a mission not in the plan, another project
+    assert handlung(zwei, 'schnitt-widerruf', epic=38, text='nein').status_code == 404
+    assert handlung(zwei, 'schnitt-widerruf', forge='interias/notizen', epic=70, text='nein').status_code == 404
+    assert offene(zwei) == []
+    # revoked already; an open mission the run hung nothing on
+    bericht['triage']['schnittplan']['missionen'][0]['widerrufen'] = 'schon'
+    bericht['triage']['schnittplan']['missionen'][2]['kinder'] = []
+    zwei.post('/api/bericht', json=bericht)
+    assert handlung(zwei, 'schnitt-widerruf', **SCHNITT).status_code == 409
+    assert handlung(zwei, 'schnitt-widerruf', epic=41, text='nein').status_code == 409
+    # an older driver without the plan
+    del bericht['triage']['schnittplan']
+    zwei.post('/api/bericht', json=bericht)
+    assert handlung(zwei, 'schnitt-widerruf', **SCHNITT).status_code == 404
+    assert offene(zwei) == []
+
+
+def test_schnittplan_in_der_tafel(zwei):
+    s = frachtraum(zwei)[0]['schnittplan']
+    assert s['zeit'] == '2026-11-20T13:04:40Z' and s['fehler'] is None
+    m70, m71, m41 = s['missionen']
+    assert (m70['nr'], m70['titel'], m70['neu'], m70['zustand'], m70['widerrufbar']) == (70, 'Logbuch durchsuchen und filtern', True, 'frei', True)
+    assert m70['begruendung'].startswith('Drei Sternzeit-Notizen')
+    assert m70['issueUrl'] == 'https://github.com/interias/flotte-probe/issues/70'
+    assert m70['id'] == 'schnitt:interias/flotte-probe#70' and m70['forge'] == FORGE
+    assert [(k['nr'], k['titel'], k['issueUrl']) for k in m70['kinder']] == [
+        (57, 'Logbuch nach Mission filtern', 'https://github.com/interias/flotte-probe/issues/57'),
+        (65, 'Volltextsuche im Logbuch', 'https://github.com/interias/flotte-probe/issues/65'),
+    ]
+    assert (m71['zustand'], m71['fehler']) == ('fehler', 'Freigabe der Mission #71 gescheitert: HTTP 502')
+    assert (m41['neu'], m41['zustand'], m41['issueUrl'], [k['grund'] for k in m41['kinder']]) == (False, 'frei', 'https://github.com/interias/flotte-probe/issues/41', ['Gehört zur Begrüßungsdatei, die Mission hat noch Platz'])
+    assert [(n['nr'], n['art'], n['verweis'], n['verweisUrl']) for n in s['notizen']] == [
+        (68, 'zusammengefuehrt', 57, 'https://github.com/interias/flotte-probe/issues/57'),
+        (58, 'ueberfluessig', None, None),
+        (69, 'verworfen', None, None),
+    ]
+    assert s['notizen'][1]['fundstelle'] == '#43 Sternenkarte'
+    # the second project reports no plan
+    assert frachtraum(zwei)[1]['schnittplan'] is None
+
+
+def test_schnittplan_zustaende(client, bericht):
+    ms = bericht['triage']['schnittplan']['missionen']
+    ms[0]['widerrufen'] = 'zu groß'
+    ms[0]['fehler'] = 'Widerruf: Labels an #65 gescheitert: HTTP 502'
+    ms[1]['fehler'] = None
+    client.post('/api/bericht', json=bericht)
+    m70, m71, _ = frachtraum(client)[0]['schnittplan']['missionen']
+    assert (m70['zustand'], m70['widerrufbar'], m70['fehler']) == ('widerrufen', False, 'Widerruf: Labels an #65 gescheitert: HTTP 502')
+    assert (m71['zustand'], m71['widerrufbar']) == ('offen', True)
+
+
+def test_bericht_ohne_schnittplan_bleibt_gueltig_und_ungueltiger_ist_422(client, bericht):
+    alt = copy.deepcopy(bericht)
+    del alt['triage']['schnittplan']
+    assert client.post('/api/bericht', json=alt).status_code == 200
+    assert frachtraum(client)[0]['schnittplan'] is None
+    for weg, wert in [(('notizen', 0, 'art'), 'vielleicht'), (('missionen', 0, 'nr'), 0)]:
+        kaputt = copy.deepcopy(bericht)
+        x = kaputt['triage']['schnittplan']
+        for k in weg[:-1]:
+            x = x[k]
+        x[weg[-1]] = wert
+        assert client.post('/api/bericht', json=kaputt).status_code == 422
+    zuviel = copy.deepcopy(bericht)
+    zuviel['triage']['schnittplan']['missionen'] *= 7
+    assert client.post('/api/bericht', json=zuviel).status_code == 422

@@ -205,14 +205,29 @@ export function entscheidungAus(x: unknown, titel: string, body: string, r: Auft
   return { art: 'klar', herkunft, grund, fragen, body: neu, nachgetragen };
 }
 
-/** Body and entitled comments of a ticket, cut after max characters; h is the heading level of its parts. */
+/**
+ * Body and entitled comments of a ticket within max characters; h is the heading level of its parts. #148: over max
+ * the oldest comments go first (with a note how many), then the text is cut; the newest comment (an answer, a
+ * revocation of the person) stays. Only a newest comment longer than max itself is cut at its end.
+ */
 function faktenAus(t: Ticket, max: number, h = '##'): string {
   // strangers' comments never reach the model: no answer of a third party, no injected instruction
   const zugelassen = t.kommentare.filter(berechtigt);
   const fremde = t.kommentare.length - zugelassen.length;
-  const kommentare = zugelassen.length ? zugelassen.map((k) => `${h}# ${k.autor} (${k.rolle}), ${k.zeit}\n${k.body}`).join('\n\n') : '(keine)';
-  const fakten = `${h} Text\n${t.body.trim() || '(leer)'}\n\n${h} Kommentare, älteste zuerst\n${kommentare}${fremde ? `\n\n(${fremde} Kommentar${fremde === 1 ? '' : 'e'} Dritter ausgelassen)` : ''}`;
-  return fakten.length > max ? `${fakten.slice(0, max)}\n\n[gekürzt nach ${max} Zeichen]` : fakten;
+  const text = t.body.trim() || '(leer)';
+  const bau = (body: string, alt: number) => {
+    const ks = zugelassen.slice(alt);
+    const kommentare = ks.length ? ks.map((k) => `${h}# ${k.autor} (${k.rolle}), ${k.zeit}\n${k.body}`).join('\n\n') : '(keine)';
+    const weg = alt ? `(${alt} ältere${alt === 1 ? 'r' : ''} Kommentar${alt === 1 ? '' : 'e'} ausgelassen)\n\n` : '';
+    return `${h} Text\n${body}\n\n${h} Kommentare, älteste zuerst\n${weg}${kommentare}${fremde ? `\n\n(${fremde} Kommentar${fremde === 1 ? '' : 'e'} Dritter ausgelassen)` : ''}`;
+  };
+  let alt = 0;
+  let fakten = bau(text, 0);
+  while (fakten.length > max && alt < zugelassen.length - 1) fakten = bau(text, ++alt);
+  if (fakten.length <= max) return fakten;
+  const rest = max - bau('', alt).length - 40;
+  if (rest > 0) return bau(`${text.slice(0, rest)}\n[gekürzt nach ${rest} Zeichen]`, alt);
+  return `${fakten.slice(0, max)}\n\n[gekürzt nach ${max} Zeichen]`;
 }
 
 export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern?: Lernvorschlag): string {
