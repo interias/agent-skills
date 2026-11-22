@@ -48,13 +48,82 @@ export const SCHEMA = {
   required: ['antworten'],
 };
 
+/**
+ * The only questions that lie with the person (#110), the same list as epic-flotte/SKILL.md and
+ * epic/SKILL.md ("Entscheidungsrecht"); it replaced "Immer beim Menschen" and the extra list for
+ * merge: nach_gate. Everything else the admiral decides, whatever the merge mode.
+ */
+export const BEIM_MENSCHEN = [
+  'was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb',
+  'echtes Geld, das nicht vorher freigegeben ist',
+  'Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist',
+  'Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert',
+  'Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR)',
+  'Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR)',
+];
+
+/**
+ * #112: marker words per point of BEIM_MENSCHEN, in the same order, and a short name of the point.
+ * An epic whose body or children (title and body) name one gets the proposal "Mensch prüft" for its
+ * merge. Cautious on purpose: a wrong proposal costs a look, a missed one an unchecked merge. A word
+ * in capitals (AGB, SMS) counts only in capitals and as a whole word; a word after `=` only as a whole
+ * word ("=Token" misses "Tokens", "=Rechte" misses "Rechteck"); any other counts at the start of a word
+ * in any case ("Zahlung" finds "Zahlungen"). ADR inside a phrase takes its number too ("Bruch mit
+ * ADR-0003"); the point asks for a break, so a mere mention of an ADR counts nothing.
+ */
+export const MERKMALE: { punkt: string; woerter: string[] }[] = [
+  { punkt: 'nach außen', woerter: ['E-Mail', 'Mail an', 'Newsletter', 'Nachricht an', 'Nachrichten an', 'SMS', 'versenden', 'an Dritte', 'Webhook'] },
+  { punkt: 'Geld', woerter: ['Geld', 'Zahlung', 'Bezahl', 'Rechnung', 'Preis', 'Abrechnung', 'Abonnement','Stripe', 'PayPal'] },
+  { punkt: 'Produktivdaten', woerter: ['Produktivdaten', 'Produktion', 'Datenmigration', 'Migration von Daten', 'Daten migrieren', 'Backfill'] },
+  { punkt: 'Sicherheit und Zugänge', woerter: ['Sicherheit', 'Zugang', 'Zugänge', 'Zugangsdaten', '=Token', 'Passwort', 'Berechtigung', '=Rechte', 'Secret', 'API-Key', 'Login'] },
+  { punkt: 'Kundentext', woerter: ['Kunde', 'Kundin', 'Versprechen', 'AGB'] },
+  { punkt: 'Architektur', woerter: ['neue Abhängigkeit', 'Abhängigkeit hinzu', 'Bruch mit ADR', 'Bruch mit dem ADR', 'Bruch mit einem ADR', 'bricht ADR', 'bricht mit ADR', 'bricht das ADR', 'widerspricht ADR', 'gegen ADR', 'ADR ablösen', 'ADR ändern', 'ADR aufheben', 'Bruch mit einer Architekturentscheidung', 'bricht eine Architekturentscheidung'] },
+];
+
+const merkmalMuster = (eintrag: string) => {
+  const ganz = eintrag.startsWith('=');
+  const wort = ganz ? eintrag.slice(1) : eintrag;
+  const gross = wort === wort.toUpperCase() && /\p{Lu}/u.test(wort);
+  const text = wort
+    .split(' ')
+    .map((w) => (w === 'ADR' ? 'ADR(?:s|-\\d+)?(?![\\p{L}\\p{N}])' : w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    .join('\\s+');
+  const ende = gross ? '(?=s?(?![\\p{L}\\p{N}]))' : ganz ?'(?![\\p{L}\\p{N}])' : '';
+  return new RegExp(`(?<![\\p{L}\\p{N}])${text}${ende}`, gross ? 'u' : 'iu');
+};
+const MUSTER = MERKMALE.map((m) => ({ punkt: m.punkt, muster: m.woerter.map(merkmalMuster) }));
+
+/**
+ * #112: the proposal for an epic from its texts (the epic first, then its children): the reason
+ * `<Punkt>: „<Fundwort>“ in #<nr>` for the first hit, null without one. No language model.
+ */
+export function mergeVorschlag(texte: { nr: number; text: string }[]): string | null {
+  for (const t of texte) {
+    for (const m of MUSTER) {
+      for (const r of m.muster) {
+        const fund = r.exec(t.text)?.[0];
+        if (fund) return `${m.punkt}: „${fund.replace(/\s+/g, ' ')}“ in #${t.nr}`;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The rule for new tickets (#113), word for word the same in epic/SKILL.md and
+ * epic-nacharbeit/SKILL.md. The admiral decides a ticket question; it never goes to the person.
+ */
+export const TICKET_REGEL =
+  'Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht ins laufende Epic passt. Was mit bescheidenem Aufwand passt, wird im Epic erledigt. Jedes neue Ticket trägt `needs-triage` und einen Satz zur Ursache, und der Epic-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.';
+
 const RECHT = `Du bist der Admiral einer Flotte von /epic-Läufen. Ein Lauf hat seinen Zug mit einem Frageblock beendet. Du entscheidest jede Frage oder legst sie dem Menschen vor. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs, Adapter .claude/epic.md, Out-of-Scope), um zu urteilen.
 
-Die Grenze zieht eine Frage: Lässt sich die Entscheidung bis zum Merge des Epic-PRs widerrufen? Dann entscheidest du. Sonst liegt sie beim Menschen (beim_menschen: true).
+Beim Menschen (beim_menschen: true) liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre:
+${BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
-Du entscheidest: jede Tor-, Nacharbeits- und Abbruchfrage, die sich bis zum Merge umkehren lässt, auch gegen die Empfehlung des Laufs und mit eigener Antwort; einen nicht fahrbaren Verifikationsweg; Kanten und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope nur in eine Richtung: der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil wird offener Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen.
+Alles andere entscheidest du, auch gegen die Empfehlung des Laufs und mit eigener Antwort: jede Tor-, Nacharbeits- und Abbruchfrage, auch den Umfang (weglassen, dazunehmen, in ein Ticket verschieben), ein neues Ticket, einen ADR-Bezug ohne Bruch, das Löschen von Arbeitsständen und das Ausrollen in Produktion, wenn es beschlossen ist; einen nicht fahrbaren Verifikationsweg; Kanten und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope nur in eine Richtung: der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil wird offener Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen. Der Verbrauch des Planlimits ist kein Kostenthema: Ihn regeln die Bremsen des Treibers. Jede Entscheidung steht am Issue und ist bis zum Merge des Epic-PRs widerrufbar.
 
-Immer beim Menschen, auch wenn die Antwort vorsichtig wäre: Kosten (bezahlte Aufrufe, Dienste, jedes Budget, auch „keine Kosten"); Ausrollen (Deploy, Produktion, Betrieb, ein laufender Dienst); Personendaten im Repository (Namen, Geburtsdaten, Kontakte echter Personen); Produktiv- oder Stammdaten; Zugriff aus no_access, fehlendes Schreibrecht, gate_approvals; ein Adaptereintrag oder eine Antwort, die eine Regel lockert; eine Freigabe trotz RAM-hold; PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde, alles nach dem Merge.
+${TICKET_REGEL}
 
 Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Merge umkehren lässt. Warten, Aufschieben oder Weglassen ist keine neutrale Wahl: Es kostet Zeit und lässt Arbeit liegen; wähle es gegen eine solche Empfehlung nur mit einem Grund aus dem Repository (ADR, Adapter, Out-of-Scope, ein Befund), den du im grund nennst.
 
@@ -64,15 +133,9 @@ Herkunft, die erste, die greift: „Projektregel: <welche>" (Abschnitt Entscheid
 
 einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist, sich nur auf eigenes Urteil stützt, einen Widerspruch auflöst, den Umfang ändert, etwas ungeprüft lässt oder mehr als ein Paket betrifft. Im Zweifel true.
 
-antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „Kosten", „Schema", „Umfang", „nach außen sichtbar", „Ausrollen"), und umkehrbar sagt, ob sich seine Antwort bis zum Merge des Epic-PRs noch ändern lässt.`;
+antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „nach außen", „Geld", „Produktivdaten", „Zugang", „Kundentext", „Architektur"), und umkehrbar sagt, ob sich seine Antwort bis zum Merge des Epic-PRs noch ändern lässt.`;
 
-/**
- * merge: nach_gate (acceptance 3, finding 3): no person sees the PR before the merge, so "revocable
- * until the merge" means follow-up work on the base. These questions then go to the person.
- */
-export const NACH_GATE = `Dieses Projekt mergt mit merge: nach_gate: Vor dem Merge sieht kein Mensch den Pull Request, und Widerrufen hieße Folgearbeit auf der Basis. Deshalb liegen hier zusätzlich beim Menschen (beim_menschen: true), auch wenn der Lauf eine Empfehlung hat und auch wenn sie vorsichtig ist: Schema oder Migration (Datenbank, Datenformat, gespeicherte Daten); ein ADR (neu, geändert, abgelöst, oder ein Widerspruch zu einem); der Umfang des Epics (etwas weglassen, dazunehmen, in ein Ticket verschieben); Löschen von Daten; alles nach außen Sichtbare (öffentliche Schnittstelle, Oberfläche und Texte für Nutzer, Veröffentlichtes, Nachrichten an Dritte). Für diese Fragen gilt „Folge der Empfehlung des Laufs" nicht. Alle anderen Fragen entscheidest du wie oben.`;
-
-export function admiralAuftrag(block: FrageBlock, kontext: string, merge: string | null = null): string {
+export function admiralAuftrag(block: FrageBlock, kontext: string): string {
   const fragen = block.fragen
     .map((f) => [
       `${f.nr}. ${f.frage}`,
@@ -84,7 +147,7 @@ export function admiralAuftrag(block: FrageBlock, kontext: string, merge: string
       `   Regel/Quelle: ${f.quelle}`,
     ].join('\n'))
     .join('\n');
-  return `FLOTTE-ADMIRAL\n${RECHT}${merge === 'nach_gate' ? `\n\n${NACH_GATE}` : ''}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
+  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
 }
 
 export function admiralArgs(block: FrageBlock): string[] {

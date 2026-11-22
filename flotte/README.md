@@ -29,7 +29,8 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brücke (Maschinenraum,
 mit PIN) lassen sich ändern: Epics gleichzeitig (1–4), Pakete je Epic gleichzeitig (1–3), die Konten
 der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
-100 % leerfahren“, die RAM-Schwelle, das Plattenminimum und der Leerlauf. Der Treiber prüft die
+100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
+Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR). Der Treiber prüft die
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
@@ -41,7 +42,12 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
   Standard).
 - **Neustart:** Die Werte der Brücke stehen in `zustand.json` und gelten weiter. Ein Startparameter,
   der ausdrücklich gesetzt ist, gewinnt beim Start; das Ereignis nennt beide Werte.
-- **Nicht einstellbar:** Merge-Regel (Adapter), Rechte, Geheimnisse, Updates.
+- **Andocken je Projekt und Epic (#112):** Startwert ist `merge` des Adapters. Die Brücke verschärft nur:
+  „automatisch“ gibt es nur bei `merge: nach_gate`, `merge.ps1` bleibt die harte Grenze. Je Epic
+  schlägt der Treiber „Mensch prüft“ vor, wenn Body des Epics oder Titel/Body eines Kindes ein
+  Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`), und
+  zeigt den Grund; ein Schalter am Epic (Sternenkarte) überstimmt Vorschlag und Projekt.
+- **Nicht einstellbar:** die Merge-Regel des Adapters, Rechte, Geheimnisse, Updates.
 
 Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
 
@@ -212,4 +218,5 @@ Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wur
 Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
 wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
 Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
-der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen (Brücke, Sternenkarte).
+der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen, sein Andocken stellen
+(Brücke, Sternenkarte).

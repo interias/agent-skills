@@ -160,8 +160,9 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
   wird nie auf einen anderen Branch umgeschaltet. `guard.ps1` sperrt das als Hook.
 - **Keine Datenmigration, keine gelöschten oder übersprungenen Tests**, nichts über die
   Abnahmeliste hinaus.
-- **Was sich nach dem Merge nicht widerrufen lässt, liegt bei dir:** Produktivdaten, Zugriffe,
-  Freigaben aus `gate_approvals`, gelockerte Regeln, gelöschte Remote-Branches.
+- **Bei dir liegt nur die Liste „Beim Menschen"** (`epic-flotte/SKILL.md`, „Entscheidungsrecht"):
+  was nach außen geht, echtes Geld, Produktivdaten und Zugänge ohne Beschluss, neue Kundentexte,
+  eine unübliche neue Abhängigkeit oder ein ADR-Bruch. Keine Antwort lockert eine Regel.
 - **Bremsen:** Ab der RAM-Schwelle startet kein neues Paket; der Treiber hält bei gelbem Limit
   Neues und bei rotem auch Fortsetzungen an.
 - **Aufräumen löscht nur**, was nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`.

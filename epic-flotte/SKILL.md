@@ -271,7 +271,7 @@ mindestens Stufe mittel.
   geschrieben wird sie nach `plan_artifact` (`epic/references/adapter.md`); die URL bleibt über den
   Einsatz gleich.
 - **Flotten-Tor:** Was vor dem Start nur ein Mensch entscheiden kann (siehe „Entscheidungsrecht",
-  Spalte *Mensch*), legst du jetzt vor, einmal, nach „Den Menschen fragen". Ist nichts zu
+  Liste *Beim Menschen*), legst du jetzt vor, einmal, nach „Den Menschen fragen". Ist nichts zu
   melden, sag das in einem Satz und starte.
 
 ## Phase 2 — Starten
@@ -317,7 +317,7 @@ Aufwachen mit einem Block misst du zuerst den Verbrauch („Verbrauchsbremse") u
   nichts Neues mehr, bekommt jede arbeitende Sitzung `Pause bis <Reset>` oder `Pause bis RAM ok`,
   nach dem Ende der Pause `weiter`. Auch das steht auf der Flottentafel.
 
-- **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" beantworten und dem Menschen vorlegen.
+- **`FLOTTE-FRAGE … ram`:** nach „RAM-Bremse" immer mit `warten` beantworten, `weiter` folgt bei `ok`.
 
 - **`FLOTTE-FRAGE`:** jede Frage nach „Entscheidungsrecht" einordnen. Was du entscheiden darfst,
   entscheidest du, schreibst es auf („Was aufgeschrieben wird") und antwortest dem Lauf — er
@@ -385,31 +385,31 @@ Wenn kein Epic mehr startbereit ist und kein Lauf mehr läuft:
 ## Entscheidungsrecht
 
 Du entscheidest — das ist der Zweck dieses Skills. Der Mensch bestätigt deine Entscheidungen nicht
-vorab: Er liest sie nach und widerruft, was ihm nicht passt. Die Grenze zieht deshalb eine Frage:
-**Lässt sich die Entscheidung nach dem Fakt widerrufen?** Was sich widerrufen lässt, entscheidest
-du und schreibst es auf. Was sich nicht widerrufen lässt, liegt beim Menschen, und der Lauf wartet.
+vorab: Er liest sie nach und widerruft, was ihm nicht passt. Jede Entscheidung steht am Issue
+(„Was aufgeschrieben wird") und ist bis zum Merge des Epic-PRs widerrufbar. **Beim Menschen**
+liegt nur diese Liste, auch wenn die Antwort vorsichtig wäre; nur dafür wartet der Lauf:
 
-Herkunft: Vorgabe des Menschen vom 12.11.2026. Bis dahin galt eine Entscheidung ohne Herkunft als
-vorläufig, und der Pull Request trug `WIP:`, bis ein Mensch sie bestätigt hatte.
+1. was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb
+2. echtes Geld, das nicht vorher freigegeben ist
+3. Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist
+4. Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert
+5. Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR)
+6. Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR)
 
-| Du entscheidest | Immer der Mensch |
-|---|---|
-| Jede Tor-, Nacharbeits- und Abbruchfrage eines Laufs, die sich bis zum Merge des Epic-PRs umkehren lässt — auch gegen die Empfehlung des Laufs und mit eigener Antwort | Produktiv- oder Stammdaten (Regel 4, Tor-Punkt 5) |
-| Nicht fahrbarer Verifikationsweg (Tor-Punkt 9), Kanten aus `body` (Tor-Punkt 11), Belegung und Reihenfolge der Epics | Zugriff aus `no_access` (Tor-Punkt 4), fehlendes Schreibrecht (10), `gate_approvals` (12) |
-| Widerspruch zu einem ADR oder Out-of-Scope (Tor-Punkt 6), in eine Richtung: Der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil des Issues wird offener Punkt | Ein Adaptereintrag oder eine Antwort würde eine Regel lockern (Tor-Punkt 3) |
-| Nacharbeit: Handgriffe (lokal, reversibel), „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge | Eine Freigabe trotz RAM-`hold` (die Umkehr wäre ein Absturz) |
-| Einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen | PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde, und alles nach dem Merge des Epic-PRs |
-| | Kosten (bezahlte Aufrufe, Dienste, jedes Budget, auch „keine Kosten"), Ausrollen (Deploy, Produktion, Betrieb, ein laufender Dienst), Personendaten im Repository (Namen, Geburtsdaten, Kontakte echter Personen) — auch wenn die Antwort vorsichtig wäre |
+**Alles andere entscheidest du**, auch gegen die Empfehlung des Laufs und mit eigener Antwort:
+jede Tor-, Nacharbeits- und Abbruchfrage, auch den Umfang, ein neues Ticket, einen ADR-Bezug ohne
+Bruch, das Löschen von Arbeitsständen und das Ausrollen in Produktion, wenn es beschlossen ist;
+einen nicht fahrbaren Verifikationsweg (Tor-Punkt 9), Kanten aus `body` (Tor-Punkt 11), Belegung
+und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope (Tor-Punkt 6) in eine Richtung —
+der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil des Issues wird offener
+Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien,
+Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen. Der Verbrauch des
+Planlimits ist kein Kostenthema: Ihn regeln die Bremsen. Das gilt für beide Werte von `merge`;
+gemergt wird nie von dir (Regel 1), und keine Antwort lockert eine Regel (Regel 3).
 
-Herkunft der letzten Zeile: Nachspiel von 41 alten Fragen mit dem Admiral des Flotten-Treibers
-(#14, 20.11.2026). Er entschied Kosten und Ausrollen selbst, vorsichtig, aber nicht in seinem Recht.
-
-**Bei `merge: nach_gate`** sieht vor dem Merge kein Mensch den Pull Request; „bis zum Merge
-umkehrbar" heißt dann Folgearbeit auf der Basis. Dort liegen zusätzlich beim Menschen: Schema oder
-Migration, ein ADR (neu, geändert, abgelöst oder ein Widerspruch zu einem), der Umfang des Epics,
-das Löschen von Daten und alles nach außen Sichtbare (öffentliche Schnittstelle, Oberfläche und
-Texte für Nutzer, Veröffentlichtes, Nachrichten an Dritte). Regel 0 unten gilt für diese Fragen
-nicht. Herkunft: Abnahme 3 an #14, Entscheidung des Menschen vom 20.11.2026.
+Herkunft: Vorgabe des Menschen vom 12.11.2026 (nachlesen und widerrufen statt bestätigen). Die
+Liste ersetzt seit dem 22.11.2026 die Spalte „Immer der Mensch" und die Zusatzliste für
+`merge: nach_gate` (#110): Von 37 Antworten des Menschen folgten 31 der Empfehlung.
 
 **Worauf du dich stützt**, in dieser Rangfolge. Die erste, die greift, ist die **Herkunft** deiner
 Entscheidung:
@@ -430,7 +430,7 @@ Entscheidung:
 Der Mensch kann jede deiner Entscheidungen widerrufen; eine Frage, auf die er die Empfehlung
 anklickt, kostet dagegen Wartezeit für nichts. Herkunft: Auswertung vom 18.11.2026 (hexanite) —
 von rund 55 Einzelfragen in drei Tagen folgten 48 der Empfehlung, etwa die Hälfte lag nach der
-Tabelle oben schon bei dir, und eine davon ließ die Flotte 545 Minuten warten. Vier Regeln:
+damaligen Tabelle schon bei dir, und eine davon ließ die Flotte 545 Minuten warten. Vier Regeln:
 
 0. **Eine klare Empfehlung des Laufs übernimmst du.** Ist sie begründet, wirkt nur lokal und lässt
    sich bis zum Merge umkehren, folgst du ihr. Warten, Aufschieben oder Weglassen ist keine neutrale
@@ -465,7 +465,7 @@ Die Optionen eines Frageblocks schreibt ein Lauf, der nur sein Epic kennt. Du ke
 die Forge und die früheren Entscheidungen. Trifft keine Option die Lage, oder gibt es eine
 bessere, antwortest du mit eigenem Text statt mit einem Buchstaben: `Antwort: <was der Lauf tun
 soll, so genau, dass er nicht nachfragen muss>`. Maßgeblich bleibt die Frage, nicht die Form der
-Antwort: Was in der rechten Spalte steht, liegt weiter beim Menschen.
+Antwort: Was auf der Liste „Beim Menschen" steht, liegt weiter beim Menschen.
 
 ### Was aufgeschrieben wird
 
@@ -522,8 +522,8 @@ Kommentar am Issue oder im Protokoll. Diese Kommentare liest du zu Beginn eines 
 - **An den Lauf:** `widerruf: <Frage> → <neue Entscheidung>`, an seinem nächsten Prüfpunkt
   (Sitzung oder übernommener Chat: sobald der Zug endet). Der Lauf setzt es als nächstes Paket um,
   ein Lauf-Agent in der nächsten Welle, notfalls einer zusätzlichen. Liegt sein Pull Request schon
-  offen, wird es ein Punkt für `/epic-nacharbeit`. Nach dem Merge des Pull Requests entscheidet
-  der Mensch, ob daraus ein Ticket wird.
+  offen, wird es ein Punkt für `/epic-nacharbeit`. Nach dem Merge des Pull Requests wird daraus
+  nur ein Ticket, wenn es nötig ist (`epic/SKILL.md`, Regel 3).
 - **In der Forge:** am Kommentar der Entscheidung und, wenn sie dort steht, im Protokoll die Zeile
   „widerrufen vom Menschen: <neue Entscheidung>". Gestrichen wird nichts.
 - **Die Regel dahinter.** Ein Widerruf heißt, dass deine Entscheidungsfindung an dieser Stelle
@@ -687,7 +687,7 @@ laufen in jeder Stufe weiter; die Bremse hält nur Neues zurück.
 |---|---|
 | `ok` | normal |
 | `warn` | **keine neue Welle**, auch kein neues Epic; jedes `FLOTTE-WELLE` und jede arbeitende Sitzung bekommt `Pause bis RAM ok`. Du sagst es dem Menschen im Chat, in einem Satz mit Messwert; fragen musst du nicht |
-| `hold` | wie `warn`, zusätzlich **bekommt kein laufendes Epic ein neues Paket**: auch ein Frageblock `ram` eines Laufs (er hat selbst `hold` gemessen) wird mit `warten` beantwortet. Du **fragst den Menschen** („Den Menschen fragen"): „warten bis `ok`" (Empfehlung: es hilft, Speicher freizugeben) oder „freigeben" — die Freigabe gilt für die nächste Welle und geht den wartenden Läufen als `weiter` zu |
+| `hold` | wie `warn`, zusätzlich **bekommt kein laufendes Epic ein neues Paket**: auch ein Frageblock `ram` eines Laufs (er hat selbst `hold` gemessen) wird mit `warten` beantwortet. Gefragt wird niemand, die Bremse regelt sich selbst: `weiter` kommt bei `ok`. Freigeben kann nur der Mensch, von sich aus; du startest nie trotz `hold`. Seine Freigabe gilt für die nächste Welle und geht den wartenden Läufen als `weiter` zu |
 
 **Schlägt die Messung fehl** (Exit 1 von `ram.ps1`), startest du nichts und sagst es dem Menschen;
 ohne Messwert gilt die Bremse als `hold`.
@@ -705,7 +705,7 @@ im selben Zug wie jede Fortschreibung.
 
 - Das Hauptverzeichnis ist nicht sauber.
 - Das Flotten-Tor hat Punkte.
-- Fragen aus der rechten Spalte des Entscheidungsrechts liegen vor — dann warten nur die
+- Fragen von der Liste „Beim Menschen" des Entscheidungsrechts liegen vor — dann warten nur die
   betroffenen Läufe; die übrigen laufen weiter.
 
 Wird der Einsatz abgebrochen, bleibt jeder Lauf mit seinem Stand stehen; du schreibst je

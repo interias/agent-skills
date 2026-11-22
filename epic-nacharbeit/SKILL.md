@@ -1,6 +1,6 @@
 ---
 name: epic-nacharbeit
-description: Die offenen Punkte eines abgeschlossenen /epic-Laufs abarbeiten — Fragerunden im Frontier-Verfahren, je Punkt entscheiden ob er in diese Sitzung passt oder ein Ticket braucht, dann umsetzen und nachdokumentieren. Legt keine Issues ohne ausdrückliche Entscheidung an.
+description: Die offenen Punkte eines abgeschlossenen /epic-Laufs abarbeiten — Fragerunden im Frontier-Verfahren, je Punkt entscheiden ob er in diese Sitzung passt oder ein Ticket braucht, dann umsetzen und nachdokumentieren. Legt ein Ticket nur an, wenn es nötig ist, mit needs-triage.
 ---
 
 # Epic-Nacharbeit
@@ -40,25 +40,20 @@ diese Sitzung gehört.
 
 ## Die Regel, um die es geht
 
-**Keine Issues ohne ausdrückliche Entscheidung.** Nicht „höchstens drei", nicht „nur mit
-`needs-triage`" — sondern: du legst kein Issue an, bis in einer Fragerunde entschieden wurde,
-dass dieser Punkt eines braucht.
+Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht ins laufende Epic passt. Was mit
+bescheidenem Aufwand passt, wird im Epic erledigt. Jedes neue Ticket trägt `needs-triage` und einen
+Satz zur Ursache, und der Epic-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den
+Menschen.
 
-Der Grund ist nicht Vorsicht, sondern Messbarkeit. Ein Fund eines Reviewers ist in dem Moment
-noch keine Aufgabe; er ist eine Beobachtung. Ob daraus eine Aufgabe wird, hängt an einer Frage,
-die ein Agent nicht beantworten kann: *lohnt der Aufwand?* Ein Ticket anzulegen ist billig und
-fühlt sich nach Fortschritt an — und es verlagert Arbeit in eine Zukunft, in der niemand mehr
-weiß, warum sie dasteht. Die drei Zeilen Nachtrag, die den Fund erklären, sind oft die ganze
-Lösung.
-
-Die Umkehrung gilt genauso: **ein Punkt, der nicht in diese Sitzung passt, wird nicht
-hineingequetscht.** Dann ist das Ticket richtig, und du legst es an — nach der Entscheidung.
+Der Grund: Ein Ticket anzulegen ist billig und fühlt sich nach Fortschritt an — und es verlagert
+Arbeit in eine Zukunft, in der niemand mehr weiß, warum sie dasteht. Die drei Zeilen Nachtrag,
+die den Fund erklären, sind oft die ganze Lösung. Die Umkehrung gilt genauso: **ein Punkt, der
+nicht in diese Sitzung passt, wird nicht hineingequetscht.** Dann ist das Ticket richtig.
 
 **Unter `/epic-flotte`** gehen die Fragerunden an den Admiral statt an den Nutzer (`epic/SKILL.md`,
-„Wie gefragt wird"; Frageblock: `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"). Eine
-Entscheidung, die er im Rahmen seines Entscheidungsrechts trifft und in der Forge vermerkt, ist
-eine ausdrückliche Entscheidung im Sinn dieser Regel; was dort dem Menschen vorbehalten ist, legt
-er dem Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er.
+„Wie gefragt wird"; Frageblock: `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"). Die
+Ticketfrage entscheidet er; was im Entscheidungsrecht dem Menschen vorbehalten ist, legt er dem
+Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er.
 
 ---
 
@@ -148,7 +143,9 @@ Zweck dieses Ablaufs:
 > **Passt dieser Punkt in diese Sitzung — umsetzen und nachdokumentieren —, oder braucht er ein
 > eigenes Ticket?**
 
-Beantworte sie nicht nach Gefühl, sondern nach Volumen. Nenne in der Frage, was du geschätzt hast:
+Du entscheidest sie selbst (Regel oben): Sie geht nicht als Frage an den Menschen, sondern steht
+in der Runde als Zeile `✔ <Punkt> — Sitzung` oder `✔ <Punkt> — Ticket`, mit Grund.
+Beantworte sie nicht nach Gefühl, sondern nach Volumen. Nenne dabei, was du geschätzt hast:
 welche Dateien, wie viele Zeilen, ob Code oder nur Text, ob ein Test dazukommt, ob eine Suite
 betroffen ist. Ein Punkt gehört in ein Ticket, wenn eins davon zutrifft:
 
@@ -220,10 +217,10 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   geschlossen ist, verliert `status/blockiert`. Ein Kind, das nach dem Merge des Pull Requests
   offen bleibt (etwa weil `Closes` scheiterte und es noch nicht von Hand zu ist),
   verliert `status/in-arbeit`. Ein Punkt, der zum Ticket wird, ändert am alten Ticket nichts.
-- **Neu angelegte Issues** — falls die Fragerunde welche verlangt hat — tragen das
-  Triage-Label des Projekts, **nie** das Freigabe-Label, und im Body: der Fund, woher er kommt
-  (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die Fundstellen. Ein maschinell
-  vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
+- **Neu angelegte Issues** — falls die Entscheidung welche verlangt hat — tragen das
+  Triage-Label des Projekts (`needs-triage`), **nie** das Freigabe-Label, und im Body: der Fund,
+  woher er kommt (Lauf, Ticket, Reviewer), was daran noch zu entscheiden ist, und die
+  Fundstellen. Ein maschinell vorbereitetes Ticket, das aussieht wie ein triagiertes, ist schlimmer als keins.
 - **Die Lauftafel des `/epic`-Laufs** (`references/lauftafel.md`; entfällt bei `Lauftafel aus`), bei `plan_artifact: publish`
   (`epic/references/adapter.md`): Diese Sitzung hat ein anderes Scratchpad als der
   ursprüngliche Lauf, ein lokaler `file_path` trägt hier also nicht mehr. Die URL steht im

@@ -61,8 +61,8 @@ den Admiral statt des Menschen. Was dann anders läuft, hängt vom Träger ab un
 `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft": als **Sitzung** Frageblock statt
 Rückfrage, `FLOTTE-FRAGE` oder `FLOTTE-ENDE` in der ersten Zeile eines Zugs, der den Admiral
 braucht, `Pause` und `weiter`, Entscheidungen und Widerruf des Admirals — sonst wie ein Chat-Lauf; als
-**Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der
-Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
+**Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
+**Beim Menschen** liegt dann nur (`epic-flotte/SKILL.md`, „Entscheidungsrecht"): 1. was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb; 2. echtes Geld, das nicht vorher freigegeben ist; 3. Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist; 4. Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert; 5. Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR); 6. Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR). Alles andere entscheidet der Admiral, auch Umfang, ein neues Ticket und ADR-Bezug ohne Bruch.
 
 **Eine Frage hält nur an, was von ihr abhängt.** Jede Frage eines Frageblocks nennt in
 `Betrifft:` die Pakete, die ohne Antwort nicht starten oder nicht weiterlaufen können — samt
@@ -90,9 +90,8 @@ Flotten-Treiber.
    `gh pr merge`. Durch Hook durchgesetzt.
 2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
    Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
-3. **Der Reviewer legt keine Issues an.** Funde außerhalb des Pakets gehen in deinen
-   Abschlussbericht, höchstens drei pro Lauf, als Vorschlag. Damit ist die Schleife „Agenten
-   erzeugen sich ihre eigene Arbeit" mechanisch unterbrochen.
+3. **Der Reviewer legt keine Issues an**, Funde außerhalb des Pakets gehen an dich.
+   Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht ins laufende Epic passt. Was mit bescheidenem Aufwand passt, wird im Epic erledigt. Jedes neue Ticket trägt `needs-triage` und einen Satz zur Ursache, und der Epic-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.
 4. **Datenmigration ist Handarbeit.** Eine Schema-Migration darf ein Paket schreiben; ein Skript,
    das Produktiv- oder Stammdaten umschreibt, wird vorgeschlagen, nicht ausgeführt.
 5. **Keine Testsuite wird grün gemacht, indem Tests gelöscht oder übersprungen werden.**
@@ -527,9 +526,9 @@ Messung fehl (Exit 1), ist das ein Glut-Punkt, und das Paket startet nicht ohne 
 
 **Unter `/epic-flotte`** fragst du bei `hold` nicht selbst: du beendest den Zug mit einem
 Frageblock der Phase `ram` (`epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft"), Optionen
-„warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Der Admiral legt es dem Menschen vor.
-Auf seine Antwort `warten` startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn
-`weiter` kommt (`ok` oder Freigabe des Menschen), und misst dann nicht noch einmal. Schlägt die
+„warten bis `ok`" (Empfehlung) und „trotz `hold` starten". Die Antwort ist immer `warten`.
+Dann startest du nichts und beendest den Zug ohne Block; du setzt fort, wenn `weiter` kommt (`ok`
+oder eine Freigabe, die nur der Mensch von sich aus gibt), und misst nicht noch einmal. Schlägt die
 Messung fehl, geht derselbe Block hinaus, mit dem Fehlertext statt des Messwerts.
 
 ### Gestufte Verifikation und der Slot (#38)
@@ -805,7 +804,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
     (`epic-flotte/SKILL.md`, „Was aufgeschrieben wird"); je Paket eine Zeile mit Ergebnis — hat
     ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
-    Reviewers; die offenen Punkte; je Kind mit offenem Blocker der Satz aus `references/forge.md`,
+    Reviewers; die offenen Punkte; die angelegten Tickets (Regel 3); je Kind mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
   - **Gate-Block**, bei `merge: nach_gate`, auch in einem Repository mit Checks: Die Merge-Regel
     (`merge.ps1`, der Flotten-Treiber) mergt nur mit ihm (`references/adapter.md`, „Merge").
@@ -853,8 +852,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
 - `git worktree list`: das Hauptverzeichnis und der Epic-Worktree, plus gemeldete schmutzige
   Worktrees und die Worktrees anderer laufender Läufe (Phase 0a).
 - **Bericht an den Menschen:** Reihenfolge und warum; je Paket bzw. Story abgenommen oder nicht,
-  mit Beleg; zurückgelassene Pakete mit Branch; übersprungene Tickets mit Grund; Reviewer-Funde
-  außerhalb (höchstens drei) als Vorschlag zur Entscheidung; Links auf Pull Request und Tafel, mit
+  mit Beleg; zurückgelassene Pakete mit Branch; übersprungene Tickets mit Grund; angelegte
+  Tickets (Regel 3) mit Ursache; Links auf Pull Request und Tafel, mit
   dem Satz, was der Merge auf `<basis>` auslöst.
 
 ---

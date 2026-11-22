@@ -13,12 +13,12 @@ in [`SKILL.md`](SKILL.md). Dasselbe als Programm statt als Chat ist der Flotten-
   je Paar, nie mehr als vier. Der Träger Sitzung ist an einem echten Einsatz noch nicht erprobt
   (Stand 12.11.2026).
 - **Entscheidungsrecht:** Der Admiral entscheidet die Fragen der Läufe endgültig; du bestätigst
-  nichts vorab, sondern liest nach und widerrufst, was dir nicht passt. Die Grenze: Was sich nach
-  dem Fakt nicht widerrufen lässt, bleibt bei dir, und der Lauf wartet.
-
-  | Der Admiral entscheidet | Immer du |
-  |---|---|
-  | jede Frage eines Laufs, die bis zum Merge umkehrbar ist, auch gegen die Empfehlung des Laufs und mit eigener Antwort; Belegung und Reihenfolge; Handgriffe der Nacharbeit | Produktiv- und Stammdaten, Zugriffe, Freigaben aus `gate_approvals`, das Lockern einer Regel, eine Freigabe trotz RAM-Bremse, Mergen, Remote-Branch löschen, alles nach dem Merge |
+  nichts vorab, sondern liest nach und widerrufst, was dir nicht passt. Bei dir liegt nur die
+  Liste „Beim Menschen" in `SKILL.md`, „Entscheidungsrecht": was nach außen geht und sich nicht
+  zurückholen lässt, echtes Geld ohne Freigabe, Produktivdaten ohne Beschluss, Sicherheit und
+  Zugänge ohne Abstimmung, neue Texte und Versprechen an Kunden, eine unübliche neue Abhängigkeit
+  oder ein Bruch mit einem ADR. Alles andere entscheidet der Admiral; gemergt wird nach dem
+  Adapterschlüssel `merge`, nie vom Admiral.
 
 - **Nachlesen:** Jede Entscheidung steht als Kommentar am betroffenen Issue und im Pull Request
   des Epics. Die einflussreichen — Abweichung von der Empfehlung des Laufs, eigenes Urteil,

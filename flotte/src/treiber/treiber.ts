@@ -22,7 +22,7 @@ import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHa
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
-import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, setze as setzeEinstellung, START_PARAMETER, type Wert, zeige } from './einstellungen.ts';
+import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -60,6 +60,8 @@ export interface Einstellung {
   verbrauchRot: number;
   /** #58: CLAUDE_CONFIG_DIR of the accounts that run until the 5-hour window is used up */
   leerfahren: string[];
+  /** #112: how the project merges; the adapter's merge at the start, automatisch only with merge: nach_gate */
+  merge: Stellung;
   /** #58: the settings given explicitly as start parameters; they win over the bridge's at the start */
   gesetzt?: EinstellungName[];
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
@@ -113,6 +115,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     verbrauchGelb: 60,
     verbrauchRot: 85,
     leerfahren: [],
+    merge: 'mensch',
     kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
@@ -217,6 +220,8 @@ export interface FlottenEpic extends EpicZustand {
   auftrag?: { text: string; resume: boolean } | null;
   /** the admiral's answers held back while the whole run waits for the person */
   festgehalten?: string | null;
+  /** #111: a question block that waits for an account with room for the admiral (all red); asked once one is free */
+  wartendeFrage?: FrageBlock | null;
   /** answers of the person to deliver with the next turn */
   nachzureichen?: string[];
   nacharbeitGemacht?: boolean;
@@ -253,6 +258,8 @@ export interface FlottenEpic extends EpicZustand {
   pausiert?: string | null;
   /** #61: the priority set on the bridge; it wins over the label for this epic */
   prioritaet?: 'hoch' | 'normal';
+  /** #112: the person's switch on the bridge; it overrules the proposal and the project until the merge */
+  merge?: Stellung | null;
   /** detail view (#51): the Agent calls of the runs with their returns, and how often a process was started or continued */
   agenten?: AgentEintrag[];
   starts?: number;
@@ -294,6 +301,9 @@ export interface FlottenZustand extends Zustand {
 type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean };
 
 type PrInfo = { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
+
+/** #112: the reason of a PR held for a person by the epic's merge (not by the adapter) */
+const MENSCH_PRUEFT = 'Andocken: Mensch prüft';
 
 /** number of the driver's own question when the PR of FLOTTE-ENDE is not the epic's */
 export const PR_FRAGE = 99;
@@ -422,9 +432,12 @@ class Treiber {
     };
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
     if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~ (flotte/references/umschalten.md).`);
+    // #112: the adapter's merge is the start value of the setting merge
+    this.adapter = adapterAus(this.e.repo);
+    this.e.merge = this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
     this.einstellungenLaden(new Date(anfang).toISOString());
     if (this.e.auto) {
-      this.e.epics = this.einsammeln(adapterAus(this.e.repo));
+      this.e.epics = this.einsammeln(this.adapter);
       this.gesammelt = this.w.jetzt();
     }
     // #61: taken in on the bridge, the epic stays in the deployment until it is done
@@ -462,6 +475,7 @@ class Treiber {
         this.pings();
         await this.mergeWache();
         this.schlangeWeiter();
+        await this.wartendeFragen();
         this.verteile();
         this.belege();
       }
@@ -671,9 +685,9 @@ class Treiber {
     return { gelb: this.e.verbrauchGelb, rot: this.e.verbrauchRot, leerfahren: this.e.leerfahren.includes(k) };
   }
 
-  /** Advance warning: from red on, the admiral's questions go to the person without an admiral call. */
+  /** Advance warning: from red on, the admiral moves to another account with room, or the question block waits (#111). */
   admiralWarnung(b: Bewertung): void {
-    const text = b.stufe === 'rot' ? `Admiral-Konto rot (${b.grund}): Fragen gehen ohne Admiral an den Menschen`  : `Admiral-Konto gelb (${b.grund}): bei Rot gehen die Fragen ohne Admiral an den Menschen`;
+    const text = b.stufe === 'rot' ? `Admiral-Konto rot (${b.grund}): der Admiral weicht auf ein Konto mit Luft aus, sonst wartet der Frageblock`  : `Admiral-Konto gelb (${b.grund}): bei Rot weicht der Admiral auf ein Konto mit Luft aus`;
     this.ereignis(null, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
   }
@@ -717,6 +731,8 @@ class Treiber {
   brauchtVerbrauch(k: string): boolean {
     // the admiral's account while a run may still ask
     if (k === this.e.admiralKonto && Object.values(this.z.epics).some((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr))) return true;
+    // #111: without --admiral a waiting question block waits for the run's account; a stale value counts as red
+    if (Object.values(this.z.epics).some((ep) => ep.wartendeFrage && ep.konto === k)) return true;
     return Object.values(this.z.epics).some((ep) => (ep.konto === k && this.laufend.has(ep.nr)) || (Boolean(ep.auftrag) && (!ep.konto || ep.konto === k)) || ep.stufe === 'wartend');
   }
 
@@ -1101,13 +1117,49 @@ class Treiber {
     block.fragen = neu;
     // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
     if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
-    const konto = this.e.admiralKonto ?? ep.konto!;
-    if (this.e.admiralKonto && this.bewertung.get(konto)?.stufe === 'rot') {
-      // the admiral's own account would fail the call; the questions go to the person at once, with
-      // the reason (the run's account is judged by the brake before its turn)
-      this.ereignis(nr, `${this.kontoName(konto)} rot: der Admiral wird nicht gefragt, die Fragen gehen an den Menschen`);
-      return this.antwortenVerteilen(ep, block, antwortenAus(null, block).map((a) => ({ ...a, herkunft: 'Treiber: Admiral-Konto rot', marke: 'Admiral-Konto rot', grund: `${this.kontoName(konto)} ist rot (${this.bewertung.get(konto)!.grund}); der Admiral wurde nicht gefragt.` })));
+    const konto = this.admiralKontoFuer(ep);
+    if (!konto) {
+      // #111: no account with room; the block waits in the state and goes to the admiral once one is
+      // free (wartendeFragen), never to the person for this reason. The stage stays: the place stays
+      // taken, and without an order (auftrag) the run gets no turn; on the bridge it waits for nobody.
+      ep.wartendeFrage = block;
+      ep.notiz = 'Frageblock wartet auf ein freies Konto';
+      this.ereignis(nr, `${this.kontoName(this.e.admiralKonto ?? ep.konto!)} rot, kein Konto mit Luft: der Frageblock wartet auf ein freies Konto`);
+      return;
     }
+    return this.admiralFragen(ep, block, konto);
+  }
+
+  /**
+   * #111: the account of the admiral's call: his own unless it is red; then another account of the
+   * fleet with room, green before yellow, each in the order of --konten; null when all are red.
+   * Without --admiral his own is the run's account (flotte/SKILL.md), which may turn red during the turn.
+   */
+  admiralKontoFuer(ep: FlottenEpic): string | null {
+    const eigenes = this.e.admiralKonto ?? ep.konto!;
+    if (this.bewertung.get(eigenes)?.stufe !== 'rot') return eigenes;
+    const andere = this.e.konten.filter((k) => k !== eigenes);
+    return andere.find((k) => this.bewertung.get(k)?.stufe === 'gruen') ?? andere.find((k) => this.bewertung.get(k)?.stufe === 'gelb') ?? null;
+  }
+
+  /** #111: waiting question blocks go to the admiral once an account is free; taken from the state first, so each is asked once. */
+  async wartendeFragen(): Promise<void> {
+    for (const ep of Object.values(this.z.epics)) {
+      if (!ep.wartendeFrage || !BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)) continue;
+      const konto = this.admiralKontoFuer(ep);
+      if (!konto) continue;
+      const block = ep.wartendeFrage;
+      ep.wartendeFrage = null;
+      ep.notiz = '';
+      this.ereignis(ep.nr, `${this.kontoName(konto)} hat Luft: der wartende Frageblock geht an den Admiral`);
+      await this.admiralFragen(ep, block, konto);
+    }
+  }
+
+  async admiralFragen(ep: FlottenEpic, block: FrageBlock, konto: string): Promise<void> {
+    const nr = ep.nr;
+    const eigenes = this.e.admiralKonto ?? ep.konto!;
+    if (konto !== eigenes) this.ereignis(nr, `${this.kontoName(eigenes)} rot: der Admiral weicht auf ${this.kontoName(konto)} aus`);
     this.z.statistik.admiral++;
     // the admiral's own, as before #52: the person's answers are no precedent of his
     const frueher = this.z.entscheidungen.filter((d) => d.epic === nr && d.von !== 'mensch').map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
@@ -1116,7 +1168,7 @@ class Treiber {
       ...this.programm(),
       repo: this.e.repo,
       konto,
-      auftrag: admiralAuftrag(block, kontext, this.adapter.merge),
+      auftrag: admiralAuftrag(block, kontext),
       modell: this.e.admiralModell,
       extraArgs: [...admiralArgs(block), ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
       werkzeuge: admiralWerkzeuge,
@@ -1298,7 +1350,7 @@ class Treiber {
       amIssue(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — ${d.frage}\nwiderrufen vom Menschen: ${text}\nVorher: ${d.antwort} (${d.herkunft})`);
       if (d.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte** — Epic #${h.epic}, Frage: ${d.frage}\nwiderrufen vom Menschen: ${text}`);
       if (['gemergt', 'fertig'].includes(ep.stufe) || this.mergesOffen.has(ep.nr)) {
-        return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Merge: der Mensch entscheidet, ob daraus ein Ticket wird`);
+        return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Merge: daraus wird nur ein Ticket, wenn es nötig ist (epic/SKILL.md, Regel 3)`);
       }
       ep.widerrufe = [...(ep.widerrufe ?? []), `widerruf: ${d.frage} → ${text}`];
       if (ep.stufe === 'pr' && !this.laufend.has(ep.nr) && !ep.auftrag) {
@@ -1310,6 +1362,7 @@ class Treiber {
       return this.ereignis(h.epic, `Widerruf des Menschen zu Frage ${h.nr} (über die Brücke): ${text.slice(0, 120)}`);
     }
     if (h.art === 'pausieren' || h.art === 'fortsetzen' || h.art === 'prioritaet') return this.steuern(h, ep);
+    if (h.art === 'merge') return this.mergeStellen(h, ep);
     if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || ep.aufgegebenAm) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic ist ${ep.stufe}, nichts zu tun`);
     if (h.art === 'aufgeben') {
       ep.stufe = 'abgebrochen';
@@ -1405,6 +1458,37 @@ class Treiber {
     this.imLogbuch(nr, `Epic #${nr} fortgesetzt${ep.auftrag && !this.laufend.has(nr) ? ', der zurückgehaltene Zug geht an den Lauf' : ''}; ${HERKUNFT_BRUECKE}`);
   }
 
+  /**
+   * #112: the person's switch for the merge of one epic: automatisch, mensch, or null (back to the
+   * proposal). automatisch only while the adapter says merge: nach_gate. From this turn on: an epic
+   * that waits in pr for a person because of its merge joins the merge queue (wiederAndocken); one in
+   * the queue but not yet at its head stays out of it (kopf); a merge under way runs to its end.
+   */
+  mergeStellen(h: BrueckenHandlung, ep: FlottenEpic): void {
+    const nr = ep.nr;
+    const nein = (grund: string) => this.ereignis(nr, `Andocken über die Brücke abgelehnt: ${grund}`);
+    if (!this.e.epics.includes(nr)) return nein('Epic ist nicht im Einsatz');
+    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Epic ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    const neu = h.text?.trim() || null;
+    if (neu !== null && neu !== 'automatisch' && neu !== 'mensch') return nein(`unbekannte Stellung ${JSON.stringify(h.text).slice(0, 40)}`);
+    const gesperrt = this.mergeGesperrt('merge', neu);
+    if (gesperrt) return nein(gesperrt);
+    const vorher = this.stellung(ep);
+    ep.merge = neu;
+    const jetzt = this.stellung(ep);
+    this.imLogbuch(nr, `Andocken von #${nr} von ${vorher.stellung} → auf ${neu ?? `${jetzt.herkunft === 'vorschlag' ? 'den Vorschlag' : 'die Einstellung des Projekts'} (${jetzt.stellung})`}, ${HERKUNFT_BRUECKE}`);
+    this.wiederAndocken();
+  }
+
+  /** #112: a PR held for a person only by its merge goes to the merge queue once its merge says automatisch */
+  wiederAndocken(): void {
+    for (const ep of Object.values(this.z.epics)) {
+      if (ep.stufe !== 'pr' || !ep.pr || !ep.notiz.includes(MENSCH_PRUEFT) || this.z.schlange.includes(ep.nr) || this.laufend.has(ep.nr) || ep.auftrag || this.menschPrueft(ep)) continue;
+      ep.prBereitGemeldet = false;
+      this.andocken(ep);
+    }
+  }
+
   /** #61: the released epics outside the deployment for the bridge; a forge that does not answer keeps the last list */
   freigegebenLesen(): void {
     if (!this.bruecke || this.w.jetzt() - this.freigegebenZeit < PAKETE_MS) return;
@@ -1453,7 +1537,18 @@ class Treiber {
   }
 
   standardWert(name: EinstellungName): Wert {
+    if (name === 'merge') return this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
     return name === 'konten' ? this.startKonten.map((d) => this.kontoKurz(d)) : EINSTELLUNGEN[name].standard;
+  }
+
+  /** #112: the bridge only tightens: automatisch is refused while the adapter says merge: mensch (merge.ps1 would refuse it too) */
+  mergeGesperrt(name: EinstellungName, wert: unknown): string | null {
+    return name === 'merge' && wert === 'automatisch' && this.adapter.merge !== 'nach_gate' ? NUR_NACH_GATE : null;
+  }
+
+  /** #112: the merge of an epic now: the person's switch, else the proposal from its content, else the project */
+  stellung(ep: FlottenEpic): WirksameStellung {
+    return wirksameStellung(this.e.merge, this.adapter.merge, this.bilder.find((b) => b.nr === ep.nr)?.mergeVorschlag ?? null, ep.merge);
   }
 
   /**
@@ -1472,7 +1567,7 @@ class Treiber {
         delete gespeichert[name];
         if (JSON.stringify(b.wert) !== JSON.stringify(jetzt)) this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel}: Startparameter ${START_PARAMETER[name] ?? ''} gilt (${zeige(jetzt)}) statt ${zeige(b.wert)} von der Brücke`);
       } else if (b) {
-        const fehler = setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
+        const fehler = this.mergeGesperrt(name, b.wert) ?? setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
         if (!fehler) {
           this.herkunft.set(name, { herkunft: 'bruecke', seit: b.seit });
           continue;
@@ -1506,7 +1601,7 @@ class Treiber {
     const gelb = name === 'verbrauchGelb' ? roh.wert : this.e.verbrauchGelb;
     const rot = name === 'verbrauchRot' ? roh.wert : this.e.verbrauchRot;
     const quer = (name === 'verbrauchGelb' || name === 'verbrauchRot') && typeof gelb === 'number' && typeof rot === 'number' && gelb >= rot ? `gelb (${gelb}) muss unter rot (${rot}) liegen` : null;
-    const fehler = setzeEinstellung({ ...this.e }, name, roh.wert, this.kontenAuswahl()) ?? quer;
+    const fehler = setzeEinstellung({ ...this.e }, name, roh.wert, this.kontenAuswahl()) ?? quer ?? this.mergeGesperrt(name, roh.wert);
     if (fehler) return this.ereignis(null, `Einstellung ${titel} über die Brücke abgelehnt: ${fehler}`);
     setzeEinstellung(this.e, name, roh.wert, this.kontenAuswahl());
     const nachher = this.einstellung(name);
@@ -1516,6 +1611,7 @@ class Treiber {
     const text = `Einstellung ${titel} von ${zeige(vorher)} → auf ${zeige(nachher)}, ${HERKUNFT_BRUECKE}`;
     this.ereignis(null, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+    if (name === 'merge') this.wiederAndocken();
     if (name === 'paketeJeEpic' && nachher !== vorher) for (const ep of Object.values(this.z.epics)) if (!ENDE.has(ep.stufe)) ep.grenze = this.e.paketeJeEpic;
   }
 
@@ -1523,9 +1619,12 @@ class Treiber {
   einstellungenBericht(): BerichtEinstellung[] {
     const auswahl = [...this.kontenAuswahl().keys()];
     return NAMEN.map((name) => {
-      const a: { titel: string; leer: boolean; min?: number; max?: number; konto?: string } = EINSTELLUNGEN[name];
+      const a: { titel: string; leer: boolean; min?: number; max?: number; konto?: string; werte?: string[] } = EINSTELLUNGEN[name];
       const h = this.herkunft.get(name) ?? { herkunft: 'standard' as const, seit: this.z.stand };
-      return { name, titel: a.titel, wert: this.einstellung(name), herkunft: h.herkunft, seit: h.seit, standard: this.standardWert(name), leer: a.leer, ...(a.konto ? { auswahl } : { min: a.min, max: a.max }) };
+      // #112: only the words the driver takes now, and why automatisch is missing
+      const werte = a.werte?.filter((w) => !this.mergeGesperrt(name, w));
+      const art = a.konto ? { auswahl } : werte ? { werte, hinweis: werte.length < a.werte!.length ? NUR_NACH_GATE : null } : { min: a.min, max: a.max };
+      return { name, titel: a.titel, wert: this.einstellung(name), herkunft: h.herkunft, seit: h.seit, standard: this.standardWert(name), leer: a.leer, ...art };
     });
   }
 
@@ -1817,6 +1916,7 @@ class Treiber {
           imEinsatz: this.e.epics.includes(ep.nr),
           pausiert: ep.pausiert ?? null,
           prioritaet: ep.prioritaet ?? null,
+          merge: this.stellung(ep),
           gestartetAm: ep.gestartetAm ?? null,
           schlangeSeit: this.z.schlange.includes(ep.nr) ? (ep.schlangeSeit ?? null) : null,
           gateSeit: ep.gateSeit ?? null,
@@ -1888,7 +1988,15 @@ class Treiber {
     if (fremd) return this.prFrage(ep, fremd);
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
     ep.endeAm = new Date(this.w.jetzt()).toISOString();
+    this.andocken(ep);
+  }
+
+  /** #112: into the merge queue, unless the epic's merge says a person looks (or merge.ps1 cannot merge for us) */
+  andocken(ep: FlottenEpic): void {
+    const nr = ep.nr;
     if (this.adapter.merge !== 'nach_gate') return this.prBereit(ep, 'merge: mensch');
+    const mensch = this.menschPrueft(ep);
+    if (mensch) return this.prBereit(ep, mensch);
     if (this.mergeAlt) return this.prBereit(ep, this.mergeAlt);
     // the merge queue (#14, round 5): in the order of FLOTTE-ENDE, only the head is up; beside the
     // loop, since merge.ps1 and the gate take minutes (acceptance finding 12)
@@ -1899,6 +2007,13 @@ class Treiber {
     ep.notiz = `PR #${ep.pr}: Merge-Schlange, Platz ${this.z.schlange.indexOf(nr) + 1}`;
     this.ereignis(nr, `Schlange: Platz ${this.z.schlange.indexOf(nr) + 1} (${this.z.schlange.map((n) => `#${n}`).join(', ')})`);
     this.schlangeWeiter();
+  }
+
+  /** #112: why a person merges this epic by its merge (switch, proposal, project); null when the driver merges */
+  menschPrueft(ep: FlottenEpic): string | null {
+    const s = this.stellung(ep);
+    if (s.stellung === 'automatisch') return null;
+    return `${MENSCH_PRUEFT}, ${s.herkunft === 'epic' ? 'Schalter am Epic' : s.herkunft === 'vorschlag' ? `Vorschlag: ${s.grund}` : 'Einstellung des Projekts'}`;
   }
 
   prInfo(pr: number): PrInfo | null {
@@ -1979,6 +2094,9 @@ class Treiber {
    * its next FLOTTE-ENDE. Without gate_command in the adapter a person merges: nothing proves the gate.
    */
   async kopf(ep: FlottenEpic): Promise<void> {
+    // #112: switched to mensch on the bridge while it waited in the queue
+    const mensch = this.menschPrueft(ep);
+    if (mensch) return this.prBereit(ep, mensch);
     let selbst: 'voll' | 'teil' | null = null;
     const info = this.prInfo(ep.pr!);
     // follow-up check of #27: only a PR on the expected base is merged

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { basename, join, resolve } from 'node:path';
@@ -13,7 +13,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
-import { admiral, aufbau, drehbuch, ende, frage, lauf } from './flotte-welt.ts';
+import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
 
 const T = 30_000;
 const beispiel = (datei: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../flottenbruecke/beispiel/${datei}`, import.meta.url)), 'utf8'));
@@ -262,11 +262,15 @@ describe('Flottenbrücke (#28)', () => {
       [38, 'pausieren', null],
       [39, 'fortsetzen', null],
       [41, 'prioritaet', null],
+      [38, 'merge', null],
     ]);
+    expect(liste.find((h) => h.art === 'merge')!.text).toBe('mensch');
     expect(liste.find((h) => h.art === 'prioritaet')!.text).toBe('hoch');
     expect(handlungenAusJson([{ id: 1, epic: 2, art: 'widerruf', nr: 1, seit: 'x', text: ' ' }, { id: 2, epic: 2, art: 'loeschen' }, null])).toEqual([]);
     // #61: the epic actions need an epic; prioritaet carries its value as text (the driver checks it)
-    expect(handlungenAusJson([{ id: 3, epic: 0, art: 'pausieren' }, { id: 4, epic: 0, art: 'aufnehmen' }, { id: 5, epic: 2, art: 'prioritaet', text: null }])).toEqual([]);
+    expect(handlungenAusJson([{ id: 3, epic: 0, art: 'pausieren' }, { id: 4, epic: 0, art: 'aufnehmen' }, { id: 5, epic: 2, art: 'prioritaet', text: null }, { id: 6, epic: 0, art: 'merge', text: 'mensch' }])).toEqual([]);
+    // #112: back to the proposal is merge without text
+    expect(handlungenAusJson([{ id: 7, epic: 2, art: 'merge', text: null }])).toHaveLength(1);
   });
 
   it('usage per account: both windows with reset in the report', async () => {
@@ -578,8 +582,8 @@ describe('Einstellungen über die Brücke (#58)', () => {
   it('every setting: a valid value holds from the next turn, as event and in the logbook; an invalid one is refused with an event; the report names value and origin', async () => {
     const t = aufbau();
     const [k1, k2] = t.konten.map((k) => basename(k));
-    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30]];
-    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate']];
+    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch']];
+    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['rechte', 'alle']];
     const b = await attrappe(() => null, { handlung: nacheinander([...gueltig, ...ungueltig].map(([n, w]) => einstellen(n, w))) });
     try {
       const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
@@ -589,7 +593,9 @@ describe('Einstellungen über die Brücke (#58)', () => {
       expect(texte).toContain(`Einstellung Konten der Läufe von ${k1}, ${k2} → auf ${k2}, Mensch über die Brücke`);
       expect(texte.filter((x) => /über die Brücke abgelehnt/.test(x))).toHaveLength(ungueltig.length);
       expect(texte).toContain('Einstellung Verbrauch 5 h gelb über (%) über die Brücke abgelehnt: gelb (80) muss unter rot (70) liegen');
-      expect(texte.some((x) => /unbekannte Einstellung "merge"/.test(x))).toBe(true);
+      expect(texte.some((x) => /unbekannte Einstellung "rechte"/.test(x))).toBe(true);
+      // #112: the adapter of this world says merge: mensch, so the bridge cannot loosen it
+      expect(texte).toContain('Einstellung Andocken über die Brücke abgelehnt: der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate');
       expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Einstellung .*Mensch über die Brücke\.$/.test(k.text))).toHaveLength(gueltig.length);
       expect(Object.keys(z.einstellungen!).sort()).toEqual(gueltig.map(([n]) => n).sort());
       // every action acknowledged, the refused ones too
@@ -598,6 +604,7 @@ describe('Einstellungen über die Brücke (#58)', () => {
       for (const [name, wert] of gueltig) expect(letzter.einstellungen.find((x) => x.name === name)).toMatchObject({ wert, herkunft: 'bruecke' });
       expect(letzter.einstellungen.find((x) => x.name === 'konten')).toMatchObject({ standard: [k1, k2], leer: false, auswahl: expect.arrayContaining([k1, k2]) });
       expect(letzter.einstellungen.find((x) => x.name === 'obergrenze')).toMatchObject({ min: 1, max: 4, leer: true, standard: null });
+      expect(letzter.einstellungen.find((x) => x.name === 'merge')).toMatchObject({ titel: 'Andocken', standard: 'mensch', leer: false, werte: ['mensch'], hinweis: expect.stringContaining('merge: nach_gate') });
       // in effect: limit and idle limit; still no account path in the report
       expect(letzter.obergrenze).toBe(2);
       expect(letzter.leerlaufS).toBe(1800);
@@ -940,6 +947,143 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(r.epics.find((e) => e.nr === 4)).toMatchObject({ prio: true, prioritaet: 'hoch' });
       expect(r.epics.find((e) => e.nr === 3)).toMatchObject({ prio: false, prioritaet: 'normal' });
       expect(z.epics['3'].stufe).toBe('fertig');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
+
+describe('Andocken je Projekt und Epic (#112)', () => {
+  const NACH_GATE = 'merge: nach_gate\ngate_command: gate voll';
+  const texte = (z: { ereignisse: { text: string }[] }) => z.ereignisse.map((x) => x.text);
+
+  it('the proposal from the content: an epic that names a point of BEIM_MENSCHEN waits for a person, the reason on the bridge; the other one is merged', async () => {
+    const t = aufbau({ adapter: NACH_GATE, bodies: { 3: '## Betroffene Module\n- a\n\nSchickt eine E-Mail an neue Nutzer.', 4: '## Betroffene Module\n- b' }, pr: (nr, n) => ({ state: nr === 13 && n < 3 ? 'OPEN' : 'MERGED' }) });
+    const b = await attrappe(() => null);
+    try {
+      const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [...gateGefahren(), { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      expect(t.p.merges).toEqual([14]);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      const grund = 'nach außen: „E-Mail“ in #3';
+      expect(t.p.kommentare.find((k) => k.nr === 3 && k.text.startsWith('**PR bereit'))!.text).toContain(`Andocken: Mensch prüft, Vorschlag: ${grund}`);
+      const mitPr = b.berichte.find((x) => x.epics.find((e) => e.nr === 3)?.stufe === 'pr')!;
+      expect(mitPr.epics.find((e) => e.nr === 3)!.merge).toEqual({ stellung: 'mensch', herkunft: 'vorschlag', grund });
+      expect(mitPr.epics.find((e) => e.nr === 4)!.merge).toEqual({ stellung: 'automatisch', herkunft: 'projekt', grund: null });
+      // the project's setting: the adapter's merge, both words on offer
+      expect(mitPr.einstellungen.find((x) => x.name === 'merge')).toMatchObject({ wert: 'automatisch', herkunft: 'standard', standard: 'automatisch', werte: ['automatisch', 'mensch'], hinweis: null });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('the setting of the project holds from the next turn; the epic overrules it; a PR held by its merge joins the queue when the switch says automatisch', async () => {
+    const t = aufbau({ adapter: NACH_GATE, pr: () => ({ state: 'OPEN' }) });
+    let schritt = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (schritt === 0) {
+          schritt++;
+          return { epic: 0, art: 'einstellen', text: JSON.stringify({ name: 'merge', wert: 'mensch' }) };
+        }
+        if (schritt === 1 && x.einstellungen.find((e) => e.name === 'merge')?.wert === 'mensch') {
+          schritt++;
+          return { epic: 4, art: 'merge', text: 'automatisch' };
+        }
+        const e3 = x.epics.find((e) => e.nr === 3);
+        if (schritt === 2 && e3?.stufe === 'pr' && /Andocken: Mensch prüft, Einstellung des Projekts/.test(e3.notiz)) {
+          schritt++;
+          return { epic: 3, art: 'merge', text: 'automatisch' };
+        }
+        return null;
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 500 }, ...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [{ warte: 500 }, ...gateGefahren(), { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
+      const x = texte(z);
+      expect(x).toContain('Einstellung Andocken von automatisch → auf mensch, Mensch über die Brücke');
+      expect(x).toContain('Andocken von #4 von mensch → auf automatisch, Mensch über die Brücke');
+      expect(x).toContain('Andocken von #3 von mensch → auf automatisch, Mensch über die Brücke');
+      // #4 merged without waiting for a person, #3 first waited for one, then joined the queue
+      expect([...t.p.merges].sort()).toEqual([13, 14]);
+      expect(t.p.kommentare.filter((k) => k.nr === 4 && k.text.startsWith('**PR bereit'))).toHaveLength(0);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig', merge: 'automatisch' });
+      expect(z.epics['4']).toMatchObject({ stufe: 'fertig', merge: 'automatisch' });
+      expect(t.p.kommentare.filter((k) => k.nr === 3 && /^\*\*PR bereit.*Andocken: Mensch prüft, Einstellung des Projekts/.test(k.text))).toHaveLength(1);
+      const r = b.berichte.find((y) => y.epics.find((e) => e.nr === 4)?.merge.herkunft === 'epic')!;
+      expect(r.epics.find((e) => e.nr === 4)!.merge).toEqual({ stellung: 'automatisch', herkunft: 'epic', grund: null });
+      expect(r.einstellungen.find((e) => e.name === 'merge')).toMatchObject({ wert: 'mensch', herkunft: 'bruecke' });
+      expect(z.einstellungen!.merge).toMatchObject({ wert: 'mensch' });
+      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text === '**Flotte (Treiber)** — Andocken von #4 von mensch → auf automatisch, Mensch über die Brücke.')).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('the epic switch: automatisch refused under merge: mensch, an unknown word refused, mensch and back to the proposal taken; all acknowledged', async () => {
+    const t = aufbau({ bodies: { 3: '## Betroffene Module\n- a\n\nNeue Preise für das Abonnement.' } });
+    const rest: Wunsch[] = [{ epic: 3, art: 'merge', text: 'automatisch' }, { epic: 3, art: 'merge', text: 'irgendwie' }, { epic: 3, art: 'merge', text: 'mensch' }, { epic: 3, art: 'merge', text: null }, { epic: 7, art: 'merge', text: 'mensch' }];
+    const b = await attrappe(() => null, { handlung: () => rest.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), t.welt);
+      const x = texte(z);
+      expect(x).toContain('Andocken über die Brücke abgelehnt: der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate');
+      expect(x).toContain('Andocken über die Brücke abgelehnt: unbekannte Stellung "irgendwie"');
+      expect(x).toContain('Andocken von #3 von mensch → auf mensch, Mensch über die Brücke');
+      expect(x).toContain('Andocken von #3 von mensch → auf den Vorschlag (mensch), Mensch über die Brücke');
+      expect(x).toContain('Handlung merge über die Brücke: Epic gehört nicht zu diesem Einsatz');
+      expect(z.epics['3'].merge).toBeNull();
+      expect(b.berichte.at(-1)!.epics.find((e) => e.nr === 3)!.merge).toEqual({ stellung: 'mensch', herkunft: 'vorschlag', grund: 'Geld: „Preis“ in #3' });
+      expect(b.hQuittungen.filter((n) => n > 0)).toHaveLength(5);
+      // the setting of a project with merge: mensch offers only mensch, and says why
+      expect(b.berichte.at(-1)!.einstellungen.find((e) => e.name === 'merge')).toMatchObject({ wert: 'mensch', werte: ['mensch'] });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('a stored automatisch does not outlive a restart under merge: mensch: dropped with an event, the adapter holds', async () => {
+    const t = aufbau({ adapter: NACH_GATE });
+    const b = await attrappe(() => null, { handlung: (x) => (x.einstellungen.find((e) => e.name === 'merge')?.herkunft === 'bruecke' ? null : { epic: 0, art: 'einstellen', text: JSON.stringify({ name: 'merge', wert: 'automatisch' }) }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 1500 }), t.welt);
+      expect(z.einstellungen!.merge).toMatchObject({ wert: 'automatisch' });
+    } finally {
+      await b.zu();
+    }
+    writeFileSync(join(t.repo, '.claude', 'epic.md'), '---\nmerge: mensch\n---\n# Adapter\n');
+    const b2 = await attrappe(() => null);
+    try {
+      const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten } });
+      const z = await fahre(t2.einstellung(drehbuch([]), [], { bruecke: b2.url, dauerhaft: true, maxDauerMs: 1000 }), t2.welt);
+      expect(texte(z)).toContain('Einstellung Andocken von der Brücke (automatisch) gilt nicht mehr: der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate');
+      expect(b2.berichte.at(-1)!.einstellungen.find((e) => e.name === 'merge')).toMatchObject({ wert: 'mensch', herkunft: 'standard', werte: ['mensch'] });
+      expect(z.einstellungen!.merge).toBeUndefined();
+    } finally {
+      await b2.zu();
+    }
+  }, T);
+
+  it('switched to mensch while it waits in the merge queue: at the head it goes to a person, not to merge.ps1', async () => {
+    const t = aufbau({ adapter: NACH_GATE, mergeDauerMs: 1500, pr: () => ({ state: 'OPEN' }) });
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        // #4 stands behind #3, whose merge is under way
+        if (gesendet || x.schlange[0] !== 3 || !x.schlange.includes(4)) return null;
+        gesendet = true;
+        return { epic: 4, art: 'merge', text: 'mensch' };
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [{ warte: 200 }, ...gateGefahren(), { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, maxDauerMs: 5000 }), t.welt);
+      expect(gesendet).toBe(true);
+      expect(t.p.merges).toEqual([13]);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['4']).toMatchObject({ stufe: 'pr', merge: 'mensch' });
+      expect(t.p.kommentare.filter((k) => k.nr === 4 && k.text.startsWith('**PR bereit') && k.text.includes('Andocken: Mensch prüft, Schalter am Epic'))).toHaveLength(1);
     } finally {
       await b.zu();
     }

@@ -112,7 +112,7 @@ def test_gelb_bleibt_unter_rot_auch_mit_einer_wartenden_aenderung(client, berich
 
 def test_unbekannte_einstellung_und_unfertiger_body(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert einstellen(client, 'merge', 1).status_code == 422
+    assert einstellen(client, 'rechte', 1).status_code == 422
     for text in (None, 'kein json', '[1]', '{"name": "obergrenze"}', '{"wert": 2}'):
         body = {'forge': FORGE, 'epic': 0, 'art': 'einstellen', 'text': text}
         assert client.post('/api/handlung', json=body, headers=PIN).status_code == 422, text

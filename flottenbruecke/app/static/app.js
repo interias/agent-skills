@@ -12,7 +12,10 @@ const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
 const PHASE = { implementer: 'Implementer', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Merge' };
 const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
-const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf', aufnehmen: 'Aufnehmen', pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität' };
+const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf', aufnehmen: 'Aufnehmen', pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität', merge: 'Andocken' };
+// #112: how a mission merges (the key stays merge): the driver after the gate, or a person looks at every PR
+const ANDOCKEN = { automatisch: 'automatisch nach Andockprüfung', mensch: 'Mensch prüft jedes Andocken' };
+const andockenWort = (text) => (text ? ANDOCKEN[text] ?? text : 'zurück zum Vorschlag');
 const VON = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
 
 const $ = (id) => document.getElementById(id);
@@ -515,6 +518,7 @@ function handlungWort(x) {
   const wort = { einreihen: 'neu eingereiht', aufnehmen: 'in den Einsatz aufgenommen', pausieren: 'pausiert', fortsetzen: 'fortgesetzt' }[x.handlung];
   if (wort) return wort;
   if (x.handlung === 'prioritaet') return `Priorität ${esc(x.text)}`;
+  if (x.handlung === 'merge') return `Andocken: ${esc(andockenWort(x.text))}`;
   return `Widerruf Frage ${x.nr} → ${esc(x.text)}`;
 }
 

@@ -53,13 +53,14 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     ramWarn: 'Ab dieser RAM-Auslastung warnt der Treiber; automatisch gilt die Vorgabe des Projekts.',
     platteMinGb: 'Unter so viel freiem Plattenplatz startet nichts Neues.',
     leerlaufMin: 'Nach so vielen Minuten ohne Lebenszeichen fasst der Treiber nach oder bricht den Zug ab.',
+    merge: 'Automatisch dockt der Treiber nach grüner Andockprüfung an, sonst prüft ein Mensch jedes Andocken. Berührt eine Mission einen Punkt der Liste „beim Menschen“, schlägt der Treiber dort „Mensch prüft“ vor; den Schalter je Mission gibt es auf der Sternenkarte.',
   };
   // drafts: "forge|name" -> the value the person picked and has not sent yet
   const entwuerfe = new Map();
   let letzte = null;
   const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  const art = (e) => (Array.isArray(e.wert) || Array.isArray(e.standard) ? 'liste' : e.auswahl ? 'konto' : e.max - e.min <= 3 ? 'stufe' : 'zahl');
-  const anzeige = (e, w) => (w == null ? (e.name === 'admiral' ? 'Konto des Epics' : 'automatisch') : Array.isArray(w) ? (w.length ? w.join(', ') : 'keine') : String(w));
+  const art = (e) => (Array.isArray(e.wert) || Array.isArray(e.standard) ? 'liste' : e.werte ? 'wahl' : e.auswahl ? 'konto' : e.max - e.min <= 3 ? 'stufe' : 'zahl');
+  const anzeige = (e, w) => (w == null ? (e.name === 'admiral' ? 'Konto des Epics' : 'automatisch') : Array.isArray(w) ? (w.length ? w.join(', ') : 'keine') : e.werte ? ANDOCKEN[w] ?? String(w) : String(w));
   // what the driver runs now, or what is on its way there
   const basis = (e) => (e.offen ? e.offen.wert : e.wert);
   const wann = (iso) => {
@@ -94,6 +95,8 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     const a = art(e);
     const chip = (typ, name, wert, text, an) => `<label class="mr-chip"><input type="${typ}" name="${name}" value="${esc(wert)}"${an ? ' checked' : ''}${aus ? ' disabled' : ''}><span>${esc(text)}</span></label>`;
     if (a === 'liste') return e.auswahl.map((k) => chip('checkbox', id, k, k, (w ?? []).includes(k))).join('');
+    // #112: a choice of words, only those the driver takes now
+    if (a === 'wahl') return e.werte.map((x) => chip('radio', id, x, ANDOCKEN[x] ?? x, w === x)).join('');
     if (a === 'konto') return chip('radio', id, '', 'Konto des Epics', w == null) + e.auswahl.map((k) => chip('radio', id, k, k, w === k)).join('');
     if (a === 'stufe') {
       const stufen = Array.from({ length: e.max - e.min + 1 }, (_, i) => e.min + i);
@@ -128,7 +131,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
       : `<b>${esc(anzeige(e, e.wert))}</b> · wirksam seit ${esc(wann(e.seit))}`;
     return `<div class="mr-karte mr-einst-zeile${e.offen ? ' wartet' : ''}" role="group" aria-labelledby="${id}-t" data-forge="${esc(p.forge)}" data-name="${esc(e.name)}">
 <h4 id="${id}-t">${esc(e.titel)} <span class="mr-herkunft ${esc(e.herkunft)}">${esc(HERKUNFT[e.herkunft] ?? e.herkunft)}</span></h4>
-<p class="mr-hilfe">${esc(HILFE[e.name] ?? '')}</p>
+<p class="mr-hilfe">${esc(HILFE[e.name] ?? '')}</p>${e.hinweis ? `<p class="mr-hilfe mr-grenze">${esc(e.hinweis)}</p>` : ''}
 <p class="mr-stand">${stand}</p>
 <div class="mr-regler">${reglerHtml(e, id, w, !darf || geholt)}</div>
 <div class="knoepfe"><button type="button" class="knopf haupt" data-uebernehmen${darf && !geholt && gueltig(e, w) && (!gleich(w, basis(e)) || (e.je && !e.einig)) ? '' : ' disabled'}>Übernehmen</button><span class="status" role="status"></span></div></div>`;

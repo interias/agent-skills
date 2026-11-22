@@ -65,13 +65,17 @@ Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo n
 Stufen.
 
 **Einstellungen** (#58): je Einstellung `{name, titel, wert, herkunft, seit, standard, leer, min?, max?,
-auswahl?}`, immer alle zehn in dieser Reihenfolge. `herkunft` ist `start` (Startparameter oder ein
+auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (elf; ein älterer Treiber meldet die
+ersten zehn ohne `merge`). `herkunft` ist `start` (Startparameter oder ein
 vom Standard abweichender Startwert), `bruecke` (zuletzt über die Brücke geändert) oder `standard`;
 `seit` ist bei `bruecke` der Zeitpunkt der Änderung, sonst der Beginn des Einsatzes. `standard` ist
 der Wert ohne Startparameter und Brücke. `leer: true` heißt, `wert` darf `null` sein (zurück auf
 automatisch). Zahlen sind ganze Zahlen zwischen `min` und `max` (die Brücke übernimmt die Grenzen von
 hier, statt sie selbst zu kennen); Konten stehen als Kurzname wie in `konten[]` (`Konto <n>`, sonst
 Ordnername, nie ein Pfad), `auswahl` nennt die Konten, die es auf dem Rechner des Treibers gibt.
+Eine Wahl unter Wörtern (#112, `merge`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
+und `hinweis`, warum eines fehlt (sonst `null`); die Brücke lehnt ein anderes Wort mit `422` und dem
+Hinweis ab.
 
 | `name` | `titel` | Wert | Grenzen, Standard | Wirkung |
 |---|---|---|---|---|
@@ -85,8 +89,16 @@ Ordnername, nie ein Pfad), `auswahl` nennt die Konten, die es auf dem Rechner de
 | `ramWarn` | RAM-Schwelle (%) | Zahl oder `null` | 50–84 (unter der Halte-Schwelle von `ram.ps1`, Standard 85), `null` = Adapter, sonst 75; Startparameter `--ram-warn` | Warnschwelle für `ram.ps1` und die Rückkehr 5 Punkte darunter |
 | `platteMinGb` | Plattenminimum (GB) | Zahl | 1–1000, Standard 20; Startparameter `--platte-min-gb` | darunter startet nichts Neues |
 | `leerlaufMin` | Leerlauf (Minuten bis Nachfassen/Abbruch) | Zahl | 5–480, Standard 60; Startparameter `--leerlauf-min` | gilt für jeden Zug, der danach beginnt; ein laufender Zug behält seine Grenze. `leerlaufS` folgt |
+| `merge` | Andocken | `automatisch` oder `mensch` | `werte`; Standard = Adapterschlüssel `merge` (`nach_gate` → `automatisch`, sonst `mensch`) | wie das Projekt andockt, ab dem nächsten Takt: `automatisch` = Merge-Schlange und `merge.ps1` nach grünem Gate, `mensch` = wie `merge: mensch` (PR bereit, ein Mensch mergt). Je Epic gilt die wirksame Stellung (Epic-Feld `merge`); ein PR, der nur wegen ihr wartet, kommt bei `automatisch` in die Schlange |
 
-Nicht einstellbar (bewusst): die Merge-Regel (Adapter), Rechte, Geheimnisse, Updates.
+**Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
+sagt. Sonst fehlt es in `werte`, `hinweis` sagt warum, und der Treiber lehnt es ab (Ereignis
+`Einstellung Andocken über die Brücke abgelehnt: der Adapter sagt merge: mensch, …`); ein
+gespeichertes `automatisch` fällt nach einem Neustart mit einem Ereignis weg. Die harte Grenze bleibt
+`merge.ps1`: Es liest `merge` vom Standardzweig und mergt nur bei `nach_gate`.
+
+Nicht einstellbar (bewusst): die Merge-Regel des Adapters (`merge` dort lockert die Brücke nie), Rechte,
+Geheimnisse, Updates.
 
 Gespeichert sind Änderungen der Brücke im Zustand des Treibers (`zustand.json`, `einstellungen`);
 sie gelten nach einem Neustart weiter. Ein Startparameter, der ausdrücklich gesetzt ist, gewinnt beim
@@ -107,6 +119,7 @@ dazu
 | `imEinsatz` | optional (#61): das Epic gehört zum Einsatz dieses Treibers (`--epics`, eingesammelt oder aufgenommen). Ein Epic eines früheren Einsatzes kann im Zustand stehen, ohne gefahren zu werden: `false`. Fehlt es (älterer Treiber), gilt `true` |
 | `pausiert` | optional (#61): ISO-Zeit, seit der der Mensch das Epic pausiert hat, sonst `null` |
 | `prioritaet` | optional (#61): `hoch` oder `normal`, wie der Mensch sie auf der Brücke gesetzt hat; `null`: keine, es gilt das Label |
+| `merge` | optional (#112): `{stellung, herkunft, grund}`, wie das Epic jetzt andockt. `stellung` `automatisch` oder `mensch`; `herkunft` `epic` (Schalter des Menschen auf der Brücke), `vorschlag` (Body des Epics oder Titel/Body eines Kindes nennt ein Merkmalswort eines Punkts von `BEIM_MENSCHEN`, `MERKMALE` in `flotte/src/treiber/admiral.ts`: dann `mensch`; gelesen beim Start, Nachsammeln und Aufnehmen, ein später geänderter Body wirkt erst beim nächsten Start) oder `projekt` (die Einstellung `merge`); `grund` der Grund des Vorschlags `<Punkt>: „<Fundwort>“ in #<nr>`, auch wenn der Schalter ihn überstimmt, sonst `null`. Ohne `nach_gate` im Adapter ist `stellung` immer `mensch`. Fehlt es (älterer Treiber), zeigt die Brücke keinen Schalter |
 | `pakete[]` | `{name, nr, titel, stand, beginn, ende}` je Kind-Ticket, in jeder Stufe, auch `wartend`; `stand` `fertig` (geschlossen oder schon in den Epic-Branch gemergt, `ende` dann die Zeit dieses Merges), `laeuft` (`status/in-arbeit`), `geparkt` (wartet auf eine Antwort), `zurueckgelassen` (`status/haengt`), `blockiert` (`status/blockiert`), `offen`. Im spec-Modus leer. Dazu optional die Detailfelder (unten) |
 | `neustarts` | optional (Detailansicht, #51): wie oft der Treiber für das Epic nach dem ersten Start einen Prozess gestartet oder fortgesetzt hat (jede Fortsetzung nach einer Antwort, jeder Neustart nach einem Fehlstart). Zählt über ein Neu-Einreihen durch den Menschen weiter (seit dem ersten Start, wie `runde`). Fehlt bei einem älteren Treiber und bei einem Epic ohne Start |
 | `plaetze` | optional (#51): `{belegt, von?}`, nur bei `laeuft`/`nacharbeit`/`frage` und wenn der Treiber Agent-Aufrufe des Laufs sah. `belegt` = Pakete in Implementer, Review oder Nachbesserung (Merge belegt keinen Platz; 0, wenn gerade kein Prozess läuft), `von` = `window` des Projektadapters (Standard nach `epic/references/adapter.md`: 3 mit `test_isolation_env` oder `isolation: none-needed`, sonst 1; höchstens 3), fehlt, wenn unbekannt |
@@ -224,26 +237,28 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 | `pausieren` | Epic im Bericht, `imEinsatz`, nicht `gemergt`/`fertig`/aufgegeben, nicht `pausiert`, mit PIN | `pausiert` = jetzt, auch als Feld `pausiert` in der Haltedatei des Epics: ein wartendes Epic startet nicht; ein laufender Lauf erfährt die Pause vor seinem nächsten Paketstart über die RAM-Messung (`ram.ps1` meldet `hold` mit `reason: "paused"`), startet kein weiteres Paket, laufende Pakete laufen zu Ende, der Zug endet mit `FLOTTE-FRAGE ram`; der nächste Zug (Antwort des Admirals, Fortsetzung, Nacharbeit) bleibt zurückgehalten; Merge-Schlange und Merge laufen weiter. Ereignis und Flottenlogbuch |
 | `fortsetzen` | Epic `pausiert`, sonst wie `pausieren` | hebt die Pause auf (auch in der Haltedatei); der zurückgehaltene Zug geht unverändert an den Lauf, ein wartendes Epic startet nach der Belegung. Ereignis und Flottenlogbuch |
 | `prioritaet` | `text` `hoch` oder `normal` (sonst `422`), sonst wie `pausieren` ohne die Pause | setzt die Priorität des Epics; sie gilt vor dem Label `prio/hoch`: hoch geht unter den startbereiten bei freiem Platz zuerst, Reihenfolge-Kanten und Kollisionen bleiben vorrangig. Ereignis und Flottenlogbuch |
+| `merge` | #112: `text` `automatisch`, `mensch` oder `null` (zurück zum Vorschlag), sonst `422`; das Epic trägt `merge` im Bericht (sonst `409`); `automatisch` nur, wenn `werte` der Einstellung `merge` es nennt (sonst `409` mit dem Hinweis); sonst wie `prioritaet` | setzt den Schalter des Epics (`merge` im Zustand, gilt nach einem Neustart bis zum Merge); er überstimmt Vorschlag und Projekt. Ein PR, der nur wegen seiner Stellung auf einen Menschen wartet, kommt bei `automatisch` in die Merge-Schlange; ein Epic in der Schlange, das auf `mensch` geht, wird als Kopf nicht gemergt (PR bereit); ein laufender Merge läuft zu Ende. `automatisch` unter `merge: mensch` lehnt auch der Treiber ab. Ereignis und Flottenlogbuch |
 
 `einreihen` und `aufgeben` schließen sich aus: Bis zum Abholen gilt die letzte. Danach antwortet die
 Brücke `409`. Endet der Einsatz, weil alles blockiert ist, wirkt die Handlung beim nächsten Start.
-Ebenso schließen sich `pausieren` und `fortsetzen` je Epic aus; von `prioritaet` und `aufnehmen` gilt
-je Epic die letzte bis zum Abholen.
+Ebenso schließen sich `pausieren` und `fortsetzen` je Epic aus; von `prioritaet`, `merge` und
+`aufnehmen` gilt je Epic die letzte bis zum Abholen.
 
-**Epics steuern** (#61): `aufnehmen`, `pausieren`, `fortsetzen` und `prioritaet` betreffen ein Epic
-(`epic` ≥ 1, sonst `422`), `nr` und `seit` sind `null`, `text` ist nur bei `prioritaet` gesetzt
-(`hoch` oder `normal`). Angenommen werden sie wie `widerruf` nur mit PIN; `404`, wenn die Brücke das
+**Epics steuern** (#61): `aufnehmen`, `pausieren`, `fortsetzen`, `prioritaet` und (#112) `merge`
+betreffen ein Epic (`epic` ≥ 1, sonst `422`), `nr` und `seit` sind `null`, `text` ist nur bei
+`prioritaet` (`hoch` oder `normal`) und `merge` (`automatisch`, `mensch` oder `null`) gesetzt. Angenommen werden sie wie `widerruf` nur mit PIN; `404`, wenn die Brücke das
 Epic nicht kennt (`aufnehmen`: `409`, wenn es nicht in `freigegeben[]` steht), `409`, wenn es nicht
 passt (Spalte oben). Der Treiber prüft selbst noch einmal; was nicht passt (Epic unbekannt oder nicht
 im Einsatz, nicht freigegeben, schon pausiert, nicht pausiert, unbekannte Priorität), ändert nichts und
 wird ein Ereignis `<Handlung> über die Brücke abgelehnt: <Grund>` (`Aufnehmen`, `Pausieren`,
-`Fortsetzen`, `Priorität`); quittiert wird beides. Wirkung ab dem Takt, in dem der Treiber sie abholt;
+`Fortsetzen`, `Priorität`, `Andocken`); quittiert wird beides. Wirkung ab dem Takt, in dem der Treiber sie abholt;
 nichts Laufendes wird abgebrochen. `aufnehmen` umgeht weder `ready_label` noch die Merge-Regel noch
 ein Tor. Ereignis und Kommentar im Flottenlogbuch:
 `Epic #<nr> in den Einsatz aufgenommen, Mensch über die Brücke`,
 `Epic #<nr> pausiert, <Lage>; Mensch über die Brücke`, `Epic #<nr> fortgesetzt[, der zurückgehaltene
 Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt> → auf <neu>, Mensch
-über die Brücke`. Beispiel beim Abholen:
+über die Brücke`, `Andocken von #<nr> von <alt> → auf <neu>, Mensch über die Brücke` (`null`: `auf den
+Vorschlag (<Stellung>)` oder `auf die Einstellung des Projekts (<Stellung>)`). Beispiel beim Abholen:
 
 ```json
 {
@@ -259,8 +274,8 @@ Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt
 ```
 
 In `GET /api/tafel` trägt jede Zeile in `projekte[].epics[]` dazu `imEinsatz`, `pausiert`,
-`prioritaet` und die noch nicht quittierten Handlungen `pause` (`pausieren`/`fortsetzen`) und
-`vorrang` (`prioritaet`), je `{id, art, text, zeit, abgeholt, quittiert}` oder `null`; jedes Projekt
+`prioritaet`, `merge` (#112, aus dem Bericht, sonst `null`) und die noch nicht quittierten Handlungen
+`pause` (`pausieren`/`fortsetzen`), `vorrang` (`prioritaet`) und `andocken` (`merge`), je `{id, art, text, zeit, abgeholt, quittiert}` oder `null`; jedes Projekt
 trägt `freigegeben[]` `{nr, titel, issueUrl, handlung}`. Die Karten der Brücke tragen `pausiert` und
 `prio` (die Schiffsliste zeigt beides).
 

@@ -132,8 +132,9 @@ Claude Code 2.1.248) entfällt das.
 
 - **[`/epic-nacharbeit`](../epic-nacharbeit/SKILL.md)** arbeitet ab, was der Lauf offen gelassen
   hat. Jeder Punkt wird einzeln in einer Fragerunde entschieden, bevor er angefasst wird: passt er
-  in die Sitzung oder braucht er ein Ticket. Issues legt der Skill nur nach deiner ausdrücklichen
-  Entscheidung an. Sind alle Kinder zu, schließt er das Epic.
+  in die Sitzung oder braucht er ein Ticket. Ein neues Ticket legt der Skill nur an, wenn es nötig
+  ist, mit `needs-triage` und einem Satz zur Ursache; gefragt wirst du das nicht. Sind alle Kinder
+  zu, schließt er das Epic.
 - **[`/epic-aufraeumen`](../epic-aufraeumen/SKILL.md)** läuft nach dem Merge. Es löscht nur, was
   nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`, und einen Remote-Branch nur nach
   deiner Zustimmung. Was wann aufgeräumt wird: [`scripts/README.md`](scripts/README.md).

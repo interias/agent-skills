@@ -15,6 +15,8 @@ interface Art {
   max?: number;
   /** an account (`eins`) or a list of accounts (`liste`) from the choice of known accounts */
   konto?: 'eins' | 'liste';
+  /** one of these words (#112) */
+  werte?: string[];
   /** null is allowed: back to the automatic value */
   leer: boolean;
   standard: Wert;
@@ -31,6 +33,8 @@ export const EINSTELLUNGEN = {
   ramWarn: { titel: 'RAM-Schwelle (%)', min: 50, max: 84, leer: true, standard: null },
   platteMinGb: { titel: 'Plattenminimum (GB)', min: 1, max: 1000, leer: false, standard: 20 },
   leerlaufMin: { titel: 'Leerlauf (Minuten bis Nachfassen/Abbruch)', min: 5, max: 480, leer: false, standard: 60 },
+  // #112: the standard is the adapter's (treiber.ts, standardWert); automatisch only with merge: nach_gate
+  merge: { titel: 'Andocken', werte: ['automatisch', 'mensch'], leer: false, standard: 'mensch' },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -59,6 +63,35 @@ export interface BerichtEinstellung {
   min?: number;
   max?: number;
   auswahl?: string[];
+  /** #112: the words the driver takes now, and why one is missing (null: none missing) */
+  werte?: string[];
+  hinweis?: string | null;
+}
+
+/** #112: how an epic is merged: by the driver after the gate (merge.ps1), or a person looks at every PR */
+export type Stellung = 'automatisch' | 'mensch';
+
+export interface WirksameStellung {
+  stellung: Stellung;
+  /** projekt: the project's setting; vorschlag: the content touches BEIM_MENSCHEN; epic: the person's switch on the bridge */
+  herkunft: 'projekt' | 'vorschlag' | 'epic';
+  /** the reason of the proposal, also when the switch overrules it; null without one */
+  grund: string | null;
+}
+
+/** why automatisch is not to be had: merge.ps1 refuses everything but merge: nach_gate on the default branch */
+export const NUR_NACH_GATE = 'der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate';
+
+/**
+ * #112: the merge of one epic. The person's switch overrules everything, a proposal from the content
+ * overrules the project. automatisch never holds while the adapter says merge: mensch, whatever was
+ * stored: the bridge can only tighten.
+ */
+export function wirksameStellung(projekt: Stellung, adapter: 'mensch' | 'nach_gate', vorschlag: string | null, epic: Stellung | null | undefined): WirksameStellung {
+  const frei = adapter === 'nach_gate';
+  if (epic === 'mensch' || (epic === 'automatisch' && frei)) return { stellung: epic, herkunft: 'epic', grund: vorschlag };
+  if (vorschlag) return { stellung: 'mensch', herkunft: 'vorschlag', grund: vorschlag };
+  return { stellung: frei ? projekt : 'mensch', herkunft: 'projekt', grund: null };
 }
 
 /** The value as the bridge sees it; accounts by their short name. */
@@ -84,6 +117,8 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return e.plattMinGb;
     case 'leerlaufMin':
       return Math.round(e.leerlaufMs / 60_000);
+    case 'merge':
+      return e.merge;
   }
 }
 
@@ -102,6 +137,8 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
     if (fremd.length) return `unbekanntes Konto ${fremd.join(', ').slice(0, 100)} (bekannt: ${[...auswahl.keys()].join(', ')})`;
     if (new Set(liste).size !== liste.length) return 'ein Konto doppelt';
     if (name === 'konten' && !liste.length) return 'mindestens ein Konto';
+  } else if (a.werte) {
+    if (typeof wert !== 'string' || !a.werte.includes(wert)) return `${JSON.stringify(wert)?.slice(0, 40)} ist nicht ${a.werte.join(' oder ')}`;
   } else if (!Number.isInteger(wert) || (wert as number) < a.min! || (wert as number) > a.max!) {
     return `${JSON.stringify(wert)?.slice(0, 40)} liegt nicht zwischen ${a.min} und ${a.max}`;
   }
@@ -137,6 +174,9 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'leerlaufMin':
       e.leerlaufMs = n! * 60_000;
+      break;
+    case 'merge':
+      e.merge = wert as Stellung;
       break;
   }
   return null;
