@@ -269,6 +269,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'prioritaet': ep.get('prioritaet'),
                 'pause': _handlung(offen_h.get((nr, 'pause', None, None))),
                 'vorrang': _handlung(offen_h.get((nr, 'prioritaet', None, None))),
+                # #112: how it merges now (an older driver: None, no switch) and the switch on its way
+                'merge': ep.get('merge'),
+                'andocken': _handlung(offen_h.get((nr, 'merge', None, None))),
             })
         karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte

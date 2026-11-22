@@ -2,7 +2,7 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität).
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken).
 Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
@@ -71,7 +71,11 @@ Der Treiber holt die Handlung im nächsten Takt ab; bis zur Quittung steht an ih
 unterwegs ist. Eine Pause bricht nichts ab: Ein wartendes Epic startet nicht; ein laufender Lauf erfährt
 sie vor seinem nächsten Paketstart über die RAM-Messung (`ram.ps1` liest sie aus seiner Haltedatei und
 meldet `hold`), startet kein weiteres Paket und lässt die laufenden zu Ende laufen; danach wartet das
-Epic samt der Antwort des Admirals, bis es fortgesetzt wird. „Priorität hoch“
+Epic samt der Antwort des Admirals, bis es fortgesetzt wird. **Andocken (#112):** Jedes Epic zeigt,
+wie es andockt (automatisch nach Andockprüfung oder Mensch prüft), woher das kommt (Einstellung des
+Projekts, Vorschlag mit Grund, Schalter an der Mission) und bietet „Mensch prüft“, „Automatisch
+andocken“ (nur wenn der Treiber es anbietet, also bei `merge: nach_gate`) und „Zurück zum Vorschlag“.
+„Priorität hoch“
 lässt es unter den startbereiten zuerst auf einen freien Platz, Reihenfolge und Kollisionen gelten
 weiter; sie gilt vor dem Label `prio/hoch`. Die Zeile zeigt `prio`, `pausiert` (gestrichelter Rand,
 blau, nie rot) und „nicht im Einsatz“. Jede Handlung steht im Flottenlogbuch und unter „Erledigt
@@ -217,14 +221,15 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   nur als Halt eines Epics, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
   Seite sie.
-  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die zehn wirksamen Werte
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die elf wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
-  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen) und ein Satz, was er bremst. Eine
-  Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
+  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken) und ein Satz, was
+  er bremst. Eine Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
   dem Bericht, `422` darüber hinaus); bis zur Quittung steht dort „wartet auf den Treiber“. Sie gilt
   ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne
-  `einstellungen` im Bericht: nur lesend mit Hinweis. Merge-Regel, Rechte, Geheimnisse und Updates
-  gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
+  `einstellungen` im Bericht: nur lesend mit Hinweis. Andocken (#112) verschärft nur: „automatisch“
+  steht nur zur Wahl, wenn der Adapter `merge: nach_gate` sagt, sonst nennt die Zeile den Grund. Die
+  Merge-Regel des Adapters, Rechte, Geheimnisse und Updates gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das

@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { bereicheAus, bereicheVon } from '../treiber/gate.ts';
+import { mergeVorschlag } from '../treiber/admiral.ts';
 
 export type Kollision = 'keine' | 'klein' | 'mittel' | 'gross';
 
@@ -28,6 +29,8 @@ export interface EpicBild {
   prio?: boolean;
   /** child tickets of the epic (its checklist and Kinder: list), for the package bar of the bridge */
   kinder?: number[];
+  /** #112: why a person should look at the merge (the content touches BEIM_MENSCHEN); missing without a hit */
+  mergeVorschlag?: string;
 }
 
 export interface Adapter {
@@ -318,21 +321,26 @@ export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, numm
   // the priority label on the epic or on one of its children
   const hatPrio = (j: { labels?: { name?: string }[] }) => (j.labels ?? []).some((l) => l?.name === adapter.prio_label);
   const bilder = nummern.map((nr) => {
-    const r = aufrufer('gh', ['issue', 'view', String(nr), '--repo', forgeRepo, '--json', 'body,labels']);
+    const r = aufrufer('gh', ['issue', 'view', String(nr), '--repo', forgeRepo, '--json', 'body,labels,title']);
     if (r.code) throw new Error(`gh issue view ${nr}: ${r.stderr.trim()}`);
     const j = JSON.parse(r.stdout);
     const body = String(j.body ?? '');
     let prio = hatPrio(j);
+    // #112: title and body of the epic and of each child, for the merge proposal
+    const texte = [{ nr, text: `${j.title ?? ''}\n${body}` }];
     const kinderBodies = kinderAus(body).map((k) => {
-      const c = aufrufer('gh', ['issue', 'view', String(k), '--repo', forgeRepo, '--json', 'body,labels']);
+      const c = aufrufer('gh', ['issue', 'view', String(k), '--repo', forgeRepo, '--json', 'body,labels,title']);
       if (c.code) return '';
       const kj = JSON.parse(c.stdout);
       prio ||= hatPrio(kj);
+      texte.push({ nr: k, text: `${kj.title ?? ''}\n${kj.body ?? ''}` });
       return String(kj.body ?? '');
     });
     const bild = bildAus(nr, [body, ...kinderBodies], adapter, nummern, prio);
     const kinder = kinderAus(body);
     if (kinder.length) bild.kinder = kinder;
+    const vorschlag = mergeVorschlag(texte);
+    if (vorschlag) bild.mergeVorschlag = vorschlag;
     return bild;
   });
   return { bilder, adapter };

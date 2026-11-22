@@ -29,6 +29,9 @@
 .bereich[data-bereich="sternenkarte"] .sk-stufe:hover, .bereich[data-bereich="sternenkarte"] .sk-kante:hover { filter: brightness(1.15); }
 .bereich[data-bereich="sternenkarte"] .sk-warum { font: 13px/1.4 var(--lesen); color: var(--matt); overflow-wrap: anywhere; }
 .bereich[data-bereich="sternenkarte"] .sk-prog { color: var(--himmel); }
+/* #112: how the mission merges; a person looking is the colour of a wait */
+.bereich[data-bereich="sternenkarte"] .sk-andocken b { color: var(--text); font-weight: 600; }
+.bereich[data-bereich="sternenkarte"] .sk-andocken.mensch b { color: var(--gold); }
 .bereich[data-bereich="sternenkarte"] .sk-kantenzeile { display: flex; flex-wrap: wrap; gap: 4px 16px; font: 13px/1.4 var(--lesen); }
 .bereich[data-bereich="sternenkarte"] .sk-kanten { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .bereich[data-bereich="sternenkarte"] .sk-eti { color: var(--leise); font: 11.5px var(--disp); letter-spacing: .08em; text-transform: uppercase; }

@@ -488,7 +488,7 @@ def test_vertrag_handlungen(client, bericht):
     handlung(client)
     handlung(client, 'widerruf', **WIDERRUF)
     handlung(client, 'einstellen', epic=0, text='{"name": "obergrenze", "wert": 2}')
-    for epic, art, text in [(43, 'aufnehmen', None), (38, 'pausieren', None), (39, 'fortsetzen', None), (41, 'prioritaet', 'hoch')]:
+    for epic, art, text in [(43, 'aufnehmen', None), (38, 'pausieren', None), (39, 'fortsetzen', None), (41, 'prioritaet', 'hoch'), (38, 'merge', 'mensch')]:
         assert handlung(client, art, epic=epic, text=text).status_code == 200
     geliefert = abholen(client, 'handlungen')
     assert [sorted(h) for h in geliefert] == [sorted(h) for h in beispiel]

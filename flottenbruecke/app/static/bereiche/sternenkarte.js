@@ -1,6 +1,6 @@
 // Sternenkarte (#43): the projects with their open epics and backlog, from the flat view
 // `projekte[].epics` of /api/tafel (the bridge asks no forge). #61: the epics of the deployment are
-// steered here with the PIN (pause, continue, priority), the released ones outside it (`freigegeben`)
+// steered here with the PIN (pause, continue, priority; #112 the switch for Andocken), the released ones outside it (`freigegeben`)
 // can be taken in; the driver carries every action out from its next turn on. The shell (huelle.js)
 // calls zeichne(t, el) on every load while the area is visible; t is null before the first load, then
 // the helpers of app.js do not exist yet. All scripts of the page share one scope: keep every name
@@ -31,14 +31,33 @@
     : link(x.issueUrl, `#${x.nr}<small> ${x.stufe === 'abgebrochen' ? 'aufgegeben' : x.stufe ? 'erledigt' : 'nicht mehr offen'}</small>`, 'sk-kante erledigt'));
 
   // #61: an action on its way to the driver, in place of its buttons until the driver acknowledges it
-  const unterwegsHtml = (h) => `<span class="status gut">${esc(HANDLUNG[h.art] ?? h.art)}${h.art === 'prioritaet' ? ` ${esc(h.text)}` : ''} · ${uhrzeit(h.zeit)} · ${h.abgeholt ? 'abgeholt, der Treiber führt es aus' : 'angekommen, der Treiber holt es im nächsten Takt ab'}</span>`;
+  const unterwegsHtml = (h) => `<span class="status gut">${esc(HANDLUNG[h.art] ?? h.art)}${h.art === 'prioritaet' ? ` ${esc(h.text)}` : h.art === 'merge' ? `: ${esc(andockenWort(h.text))}` : ''} · ${uhrzeit(h.zeit)} · ${h.abgeholt ? 'abgeholt, der Treiber führt es aus' : 'angekommen, der Treiber holt es im nächsten Takt ab'}</span>`;
   const knopfHtml = (p, nr, art, text, wort, cls = 'zweit') => `<button type="button" class="knopf ${cls}" data-steuern="${art}" data-forge="${esc(p.forge)}" data-epic="${nr}"${text ? ` data-text="${text}"` : ''}>${wort}</button>`;
 
   const steuernHtml = (e, p, pin) => {
     if (!pin || !e.imEinsatz) return '';
     const pause = e.pause ? unterwegsHtml(e.pause) : e.pausiert ? knopfHtml(p, e.nr, 'fortsetzen', null, 'Fortsetzen', 'haupt') : knopfHtml(p, e.nr, 'pausieren', null, 'Pausieren');
     const vorrang = e.vorrang ? unterwegsHtml(e.vorrang) : e.prio ? knopfHtml(p, e.nr, 'prioritaet', 'normal', 'Priorität normal') : knopfHtml(p, e.nr, 'prioritaet', 'hoch', 'Priorität hoch');
-    return `<div class="knoepfe sk-steuern">${pause}${vorrang}<span class="status"></span></div>`;
+    return `<div class="knoepfe sk-steuern">${pause}${vorrang}${andockenKnoepfe(e, p)}<span class="status"></span></div>`;
+  };
+
+  // #112: how the epic merges now and why; the switch overrules the proposal and the project, automatisch only where the driver offers it
+  const HERKUNFT_ANDOCKEN = { projekt: 'Einstellung des Projekts', vorschlag: 'Vorschlag', epic: 'Schalter an der Mission' };
+  const andockenHtml = (e) => {
+    if (!e.merge) return '';
+    const m = e.merge;
+    const grund = m.grund ? (m.herkunft === 'epic' ? ` (Vorschlag war: ${esc(m.grund)})` : `: ${esc(m.grund)}`) : '';
+    return `<div class="sk-warum sk-andocken ${esc(m.stellung)}">Andocken: <b>${esc(ANDOCKEN[m.stellung] ?? m.stellung)}</b> · ${esc(HERKUNFT_ANDOCKEN[m.herkunft] ?? m.herkunft)}${grund}</div>`;
+  };
+  const andockenKnoepfe = (e, p) => {
+    if (!e.merge) return '';
+    if (e.andocken) return unterwegsHtml(e.andocken);
+    const frei = (p.einstellungen ?? []).find((x) => x.name === 'merge')?.werte?.includes('automatisch');
+    const anders = e.merge.stellung === 'mensch' ? (frei ? 'automatisch' : null) : 'mensch';
+    return [
+      anders ? knopfHtml(p, e.nr, 'merge', anders, anders === 'mensch' ? 'Mensch prüft' : 'Automatisch andocken') : '',
+      e.merge.herkunft === 'epic' ? knopfHtml(p, e.nr, 'merge', null, 'Zurück zum Vorschlag') : '',
+    ].join('');
   };
 
   const markenHtml = (e) => [
@@ -61,7 +80,7 @@
     return `<li class="sk-epic ${esc(e.stufe)}${e.prio ? ' prio-hoch' : ''}${e.pausiert ? ' pausiert' : ''}" data-k="${esc(k)}">
 <div class="sk-zeile">${link(e.issueUrl, `#${e.nr}`, 'nr')}<span class="sk-titel">${esc(e.titel)}</span><span class="sk-marken">${markenHtml(e)}<button type="button" class="sk-stufe ${esc(e.stufe)}" data-karte="${esc(k)}" title="Karte auf der Brücke zeigen">${esc(STUFE[e.stufe] ?? e.stufe)}</button></span></div>
 ${warum || pause || e.konto || pr || prognose ? `<div class="sk-warum">${[warum ? esc(warum) : '', pause ? esc(pause) : '', e.konto && e.stufe !== 'wartend' ? esc(e.konto) : '', pr, prognose].filter(Boolean).join(' · ')}</div>` : ''}
-${kanten ? `<div class="sk-kantenzeile">${kanten}</div>` : ''}${paketeHtml(e, k)}${steuernHtml(e, p, pin)}</li>`;
+${andockenHtml(e)}${kanten ? `<div class="sk-kantenzeile">${kanten}</div>` : ''}${paketeHtml(e, k)}${steuernHtml(e, p, pin)}</li>`;
   };
 
   // #61: released, not in the deployment: the driver checks label and release again when it takes it in
@@ -119,7 +138,7 @@ ${pin ? `<div class="knoepfe sk-steuern">${f.handlung ? unterwegsHtml(f.handlung
           else if (epic) huelle.springe('bruecke', () => karteIn(KARTE[epic.stufe] ?? 'e2-liste', epic.stufe === 'pr' ? `${epic.id}:s` : epic.id));
         });
       }
-      const hinweis = t.pin && t.projekte.some((p) => (p.epics ?? []).length || (p.freigegeben ?? []).length) ? '<p class="sk-hinweis">Pausieren, Fortsetzen, Priorität und Aufnehmen wirken ab dem nächsten Takt des Treibers, nichts Laufendes wird abgebrochen. Jede Handlung braucht die PIN.</p>' : '';
+      const hinweis = t.pin && t.projekte.some((p) => (p.epics ?? []).length || (p.freigegeben ?? []).length) ? '<p class="sk-hinweis">Pausieren, Fortsetzen, Priorität, Andocken und Aufnehmen wirken ab dem nächsten Takt des Treibers, nichts Laufendes wird abgebrochen. Jede Handlung braucht die PIN.</p>' : '';
       const html = t.projekte.length ? `${KOPF}${hinweis}${t.projekte.map((p) => projektHtml(p, t.pin)).join('')}` : `${KOPF}<p class="bereich-leer">Noch kein Projekt gemeldet.</p>`;
       // same html: leave the DOM alone (the 10 s load, text selection, scroll)
       if (el.dataset.sig !== html) {

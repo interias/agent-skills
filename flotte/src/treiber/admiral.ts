@@ -63,6 +63,53 @@ export const BEIM_MENSCHEN = [
 ];
 
 /**
+ * #112: marker words per point of BEIM_MENSCHEN, in the same order, and a short name of the point.
+ * An epic whose body or children (title and body) name one gets the proposal "Mensch prüft" for its
+ * merge. Cautious on purpose: a wrong proposal costs a look, a missed one an unchecked merge. A word
+ * in capitals (AGB, SMS) counts only in capitals and as a whole word; a word after `=` only as a whole
+ * word ("=Token" misses "Tokens", "=Rechte" misses "Rechteck"); any other counts at the start of a word
+ * in any case ("Zahlung" finds "Zahlungen"). ADR inside a phrase takes its number too ("Bruch mit
+ * ADR-0003"); the point asks for a break, so a mere mention of an ADR counts nothing.
+ */
+export const MERKMALE: { punkt: string; woerter: string[] }[] = [
+  { punkt: 'nach außen', woerter: ['E-Mail', 'Mail an', 'Newsletter', 'Nachricht an', 'Nachrichten an', 'SMS', 'versenden', 'an Dritte', 'Webhook'] },
+  { punkt: 'Geld', woerter: ['Geld', 'Zahlung', 'Bezahl', 'Rechnung', 'Preis', 'Abrechnung', 'Abonnement','Stripe', 'PayPal'] },
+  { punkt: 'Produktivdaten', woerter: ['Produktivdaten', 'Produktion', 'Datenmigration', 'Migration von Daten', 'Daten migrieren', 'Backfill'] },
+  { punkt: 'Sicherheit und Zugänge', woerter: ['Sicherheit', 'Zugang', 'Zugänge', 'Zugangsdaten', '=Token', 'Passwort', 'Berechtigung', '=Rechte', 'Secret', 'API-Key', 'Login'] },
+  { punkt: 'Kundentext', woerter: ['Kunde', 'Kundin', 'Versprechen', 'AGB'] },
+  { punkt: 'Architektur', woerter: ['neue Abhängigkeit', 'Abhängigkeit hinzu', 'Bruch mit ADR', 'Bruch mit dem ADR', 'Bruch mit einem ADR', 'bricht ADR', 'bricht mit ADR', 'bricht das ADR', 'widerspricht ADR', 'gegen ADR', 'ADR ablösen', 'ADR ändern', 'ADR aufheben', 'Bruch mit einer Architekturentscheidung', 'bricht eine Architekturentscheidung'] },
+];
+
+const merkmalMuster = (eintrag: string) => {
+  const ganz = eintrag.startsWith('=');
+  const wort = ganz ? eintrag.slice(1) : eintrag;
+  const gross = wort === wort.toUpperCase() && /\p{Lu}/u.test(wort);
+  const text = wort
+    .split(' ')
+    .map((w) => (w === 'ADR' ? 'ADR(?:s|-\\d+)?(?![\\p{L}\\p{N}])' : w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    .join('\\s+');
+  const ende = gross ? '(?=s?(?![\\p{L}\\p{N}]))' : ganz ?'(?![\\p{L}\\p{N}])' : '';
+  return new RegExp(`(?<![\\p{L}\\p{N}])${text}${ende}`, gross ? 'u' : 'iu');
+};
+const MUSTER = MERKMALE.map((m) => ({ punkt: m.punkt, muster: m.woerter.map(merkmalMuster) }));
+
+/**
+ * #112: the proposal for an epic from its texts (the epic first, then its children): the reason
+ * `<Punkt>: „<Fundwort>“ in #<nr>` for the first hit, null without one. No language model.
+ */
+export function mergeVorschlag(texte: { nr: number; text: string }[]): string | null {
+  for (const t of texte) {
+    for (const m of MUSTER) {
+      for (const r of m.muster) {
+        const fund = r.exec(t.text)?.[0];
+        if (fund) return `${m.punkt}: „${fund.replace(/\s+/g, ' ')}“ in #${t.nr}`;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * The rule for new tickets (#113), word for word the same in epic/SKILL.md and
  * epic-nacharbeit/SKILL.md. The admiral decides a ticket question; it never goes to the person.
  */
