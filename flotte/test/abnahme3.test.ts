@@ -1,7 +1,7 @@
 // The findings 2, 3, 4 and 7 of acceptance 3 at #14 (comment 7040727108).
 
 import { describe, expect, it } from 'vitest';
-import { admiralAuftrag, NACH_GATE } from '../src/treiber/admiral.ts';
+import { admiralAuftrag, BEIM_MENSCHEN } from '../src/treiber/admiral.ts';
 import { fahre, PR_FRAGE } from '../src/treiber/treiber.ts';
 import { gateForm, gateKern, gateLaeufeImLog } from '../src/treiber/gate.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
@@ -84,29 +84,28 @@ describe('Befund 2: Gate-Nachweis im Log des Laufs', () => {
   }, T);
 });
 
+// #110 replaced the extra list for merge: nach_gate by the one list BEIM_MENSCHEN: the boundary of
+// the admiral no longer depends on the merge mode.
 describe('Befund 3: Grenze des Admirals bei merge: nach_gate', () => {
   const block = leseBlock(frage(3, 'tor', [{ betrifft: 'Lauf' }])) as FrageBlock;
 
-  it('names schema, ADR, scope, deleting data and everything visible outside, and lifts the rule to follow the run', () => {
-    expect(NACH_GATE).toMatch(/Schema oder Migration/);
-    expect(NACH_GATE).toMatch(/ein ADR/);
-    expect(NACH_GATE).toMatch(/Umfang des Epics/);
-    expect(NACH_GATE).toMatch(/Löschen von Daten/);
-    expect(NACH_GATE).toMatch(/nach außen Sichtbare/);
-    expect(NACH_GATE).toMatch(/gilt „Folge der Empfehlung des Laufs" nicht/);
-    expect(admiralAuftrag(block, 'k', 'nach_gate')).toContain(NACH_GATE);
-    expect(admiralAuftrag(block, 'k', 'mensch')).not.toContain(NACH_GATE);
-    expect(admiralAuftrag(block, 'k')).not.toContain(NACH_GATE);
+  it('#110: no extra list for nach_gate; schema, scope and ADR without a break are no longer the person\'s', () => {
+    const text = admiralAuftrag(block, 'k');
+    expect(text).not.toMatch(/nach_gate|Schema oder Migration|gilt „Folge der Empfehlung des Laufs" nicht/);
+    for (const p of BEIM_MENSCHEN) expect(text).toContain(p);
   });
 
-  it('the driver gives the admiral the merge mode of the adapter', async () => {
+  it('the driver gives the admiral the same decision right in both merge modes', async () => {
+    const auftraege: string[] = [];
     for (const merge of ['nach_gate', 'mensch']) {
       const t = aufbau({ adapter: `merge: ${merge}\ngate_command: gate voll` });
       const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
       await fahre(t.einstellung(buch, [3]), t.welt);
       const a = buch.gesehen().find((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))!;
-      expect(a.eingabe.includes(NACH_GATE)).toBe(merge === 'nach_gate');
+      for (const p of BEIM_MENSCHEN) expect(a.eingabe).toContain(p);
+      auftraege.push(a.eingabe.slice(0, a.eingabe.indexOf('Epic #3 in ')));
     }
+    expect(auftraege[0]).toBe(auftraege[1]);
   }, T);
 });
 

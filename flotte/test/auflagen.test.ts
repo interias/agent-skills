@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { admiralAuftrag, admiralWerkzeuge, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
+import { admiralAuftrag, admiralWerkzeuge, BEIM_MENSCHEN, antwortenAus, laufWerkzeuge, schemaFuer } from '../src/treiber/admiral.ts';
 import { fahre, SPERREN_GRENZE, standard } from '../src/treiber/treiber.ts';
 import { hookRegel } from '../src/werkzeuge/lauf.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
@@ -302,10 +302,13 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
 
 describe('Runde 6: Zuständigkeit und Empfehlung des Laufs im Auftrag des Admirals', () => {
   const text = admiralAuftrag(block(3, 1), 'Epic #3 in o/r.');
-  const mensch = text.slice(text.indexOf('Immer beim Menschen'), text.indexOf('\n', text.indexOf('Immer beim Menschen')));
+  const mensch = text.slice(text.indexOf('Beim Menschen (beim_menschen: true)'), text.indexOf('Alles andere entscheidest du'));
 
-  it('names costs, rollout and personal data as the person\'s, even when cautious', () => {
-    for (const w of ['Kosten', 'Ausrollen', 'Deploy', 'Produktion', 'Personendaten', 'Geburtsdaten', 'auch wenn die Antwort vorsichtig wäre']) expect(mensch).toContain(w);
+  // #110: the list "Immer beim Menschen" (costs, rollout, personal data, ...) became the one list BEIM_MENSCHEN
+  it('names only the list as the person\'s, even when cautious', () => {
+    expect(mensch).toContain('liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre');
+    for (const p of BEIM_MENSCHEN) expect(mensch).toContain(p);
+    for (const w of ['Kosten', 'Ausrollen', 'Personendaten']) expect(mensch).not.toContain(w);
   });
 
   it('follows a clear, local, reversible recommendation of the run; waiting needs a reason from the repository', () => {

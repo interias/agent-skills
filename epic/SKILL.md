@@ -61,8 +61,8 @@ den Admiral statt des Menschen. Was dann anders läuft, hängt vom Träger ab un
 `epic-flotte/SKILL.md`, „Wie ein Lauf unter dir läuft": als **Sitzung** Frageblock statt
 Rückfrage, `FLOTTE-FRAGE` oder `FLOTTE-ENDE` in der ersten Zeile eines Zugs, der den Admiral
 braucht, `Pause` und `weiter`, Entscheidungen und Widerruf des Admirals — sonst wie ein Chat-Lauf; als
-**Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der
-Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
+**Lauf-Agent** (Subagent) zusätzlich Vordergrund und Wellen mit `FLOTTE-WELLE`. Die Form der Fragen steht in „Wie gefragt wird". Alles andere gilt unverändert.
+**Beim Menschen** liegt dann nur (`epic-flotte/SKILL.md`, „Entscheidungsrecht"): 1. was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb; 2. echtes Geld, das nicht vorher freigegeben ist; 3. Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist; 4. Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert; 5. Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR); 6. Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR). Alles andere entscheidet der Admiral, auch Umfang, ein neues Ticket und ADR-Bezug ohne Bruch.
 
 **Eine Frage hält nur an, was von ihr abhängt.** Jede Frage eines Frageblocks nennt in
 `Betrifft:` die Pakete, die ohne Antwort nicht starten oder nicht weiterlaufen können — samt

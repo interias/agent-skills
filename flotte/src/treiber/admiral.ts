@@ -48,13 +48,26 @@ export const SCHEMA = {
   required: ['antworten'],
 };
 
+/**
+ * The only questions that lie with the person (#110), the same list as epic-flotte/SKILL.md and
+ * epic/SKILL.md ("Entscheidungsrecht"); it replaced "Immer beim Menschen" and the extra list for
+ * merge: nach_gate. Everything else the admiral decides, whatever the merge mode.
+ */
+export const BEIM_MENSCHEN = [
+  'was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb',
+  'echtes Geld, das nicht vorher freigegeben ist',
+  'Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist',
+  'Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert',
+  'Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR)',
+  'Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR)',
+];
+
 const RECHT = `Du bist der Admiral einer Flotte von /epic-Läufen. Ein Lauf hat seinen Zug mit einem Frageblock beendet. Du entscheidest jede Frage oder legst sie dem Menschen vor. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs, Adapter .claude/epic.md, Out-of-Scope), um zu urteilen.
 
-Die Grenze zieht eine Frage: Lässt sich die Entscheidung bis zum Merge des Epic-PRs widerrufen? Dann entscheidest du. Sonst liegt sie beim Menschen (beim_menschen: true).
+Beim Menschen (beim_menschen: true) liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre:
+${BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
-Du entscheidest: jede Tor-, Nacharbeits- und Abbruchfrage, die sich bis zum Merge umkehren lässt, auch gegen die Empfehlung des Laufs und mit eigener Antwort; einen nicht fahrbaren Verifikationsweg; Kanten und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope nur in eine Richtung: der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil wird offener Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen.
-
-Immer beim Menschen, auch wenn die Antwort vorsichtig wäre: Kosten (bezahlte Aufrufe, Dienste, jedes Budget, auch „keine Kosten"); Ausrollen (Deploy, Produktion, Betrieb, ein laufender Dienst); Personendaten im Repository (Namen, Geburtsdaten, Kontakte echter Personen); Produktiv- oder Stammdaten; Zugriff aus no_access, fehlendes Schreibrecht, gate_approvals; ein Adaptereintrag oder eine Antwort, die eine Regel lockert; eine Freigabe trotz RAM-hold; PR mergen, Remote-Branch löschen, ein Issue schließen, das kein Skill schließen würde, alles nach dem Merge.
+Alles andere entscheidest du, auch gegen die Empfehlung des Laufs und mit eigener Antwort: jede Tor-, Nacharbeits- und Abbruchfrage, auch den Umfang (weglassen, dazunehmen, in ein Ticket verschieben), ein neues Ticket, einen ADR-Bezug ohne Bruch, das Löschen von Arbeitsständen und das Ausrollen in Produktion, wenn es beschlossen ist; einen nicht fahrbaren Verifikationsweg; Kanten und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope nur in eine Richtung: der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil wird offener Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen. Der Verbrauch des Planlimits ist kein Kostenthema: Ihn regeln die Bremsen des Treibers. Jede Entscheidung steht am Issue und ist bis zum Merge des Epic-PRs widerrufbar.
 
 Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Merge umkehren lässt. Warten, Aufschieben oder Weglassen ist keine neutrale Wahl: Es kostet Zeit und lässt Arbeit liegen; wähle es gegen eine solche Empfehlung nur mit einem Grund aus dem Repository (ADR, Adapter, Out-of-Scope, ein Befund), den du im grund nennst.
 
@@ -64,15 +77,9 @@ Herkunft, die erste, die greift: „Projektregel: <welche>" (Abschnitt Entscheid
 
 einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist, sich nur auf eigenes Urteil stützt, einen Widerspruch auflöst, den Umfang ändert, etwas ungeprüft lässt oder mehr als ein Paket betrifft. Im Zweifel true.
 
-antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „Kosten", „Schema", „Umfang", „nach außen sichtbar", „Ausrollen"), und umkehrbar sagt, ob sich seine Antwort bis zum Merge des Epic-PRs noch ändern lässt.`;
+antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „nach außen", „Geld", „Produktivdaten", „Zugang", „Kundentext", „Architektur"), und umkehrbar sagt, ob sich seine Antwort bis zum Merge des Epic-PRs noch ändern lässt.`;
 
-/**
- * merge: nach_gate (acceptance 3, finding 3): no person sees the PR before the merge, so "revocable
- * until the merge" means follow-up work on the base. These questions then go to the person.
- */
-export const NACH_GATE = `Dieses Projekt mergt mit merge: nach_gate: Vor dem Merge sieht kein Mensch den Pull Request, und Widerrufen hieße Folgearbeit auf der Basis. Deshalb liegen hier zusätzlich beim Menschen (beim_menschen: true), auch wenn der Lauf eine Empfehlung hat und auch wenn sie vorsichtig ist: Schema oder Migration (Datenbank, Datenformat, gespeicherte Daten); ein ADR (neu, geändert, abgelöst, oder ein Widerspruch zu einem); der Umfang des Epics (etwas weglassen, dazunehmen, in ein Ticket verschieben); Löschen von Daten; alles nach außen Sichtbare (öffentliche Schnittstelle, Oberfläche und Texte für Nutzer, Veröffentlichtes, Nachrichten an Dritte). Für diese Fragen gilt „Folge der Empfehlung des Laufs" nicht. Alle anderen Fragen entscheidest du wie oben.`;
-
-export function admiralAuftrag(block: FrageBlock, kontext: string, merge: string | null = null): string {
+export function admiralAuftrag(block: FrageBlock, kontext: string): string {
   const fragen = block.fragen
     .map((f) => [
       `${f.nr}. ${f.frage}`,
@@ -84,7 +91,7 @@ export function admiralAuftrag(block: FrageBlock, kontext: string, merge: string
       `   Regel/Quelle: ${f.quelle}`,
     ].join('\n'))
     .join('\n');
-  return `FLOTTE-ADMIRAL\n${RECHT}${merge === 'nach_gate' ? `\n\n${NACH_GATE}` : ''}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
+  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
 }
 
 export function admiralArgs(block: FrageBlock): string[] {

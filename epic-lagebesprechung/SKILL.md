@@ -31,7 +31,7 @@ Vier Quellen, in dieser Rangfolge. Die Rangfolge ist auch die Reihenfolge der Vo
 **Blockierendes zuerst.**
 
 1. **Fragen, auf die ein Lauf wartet.** Unter `/epic-flotte`: offene `FLOTTE-FRAGE`n aus der
-   rechten Spalte des Entscheidungsrechts — Flottentafel „Beim Menschen", `questions` im
+   Liste „Beim Menschen" des Entscheidungsrechts — Flottentafel „Beim Menschen", `questions` im
    Flottenlogbuch. Unter `/epic`: ein offenes Vorab-Tor oder eine Abbruchbedingung.
 2. **Einflussreiche Entscheidungen des Admirals** seit der letzten Vorlage: die Einträge im
    Entscheidungsprotokoll am Flottenlogbuch (`epic-flotte/SKILL.md`, „Was aufgeschrieben wird").
