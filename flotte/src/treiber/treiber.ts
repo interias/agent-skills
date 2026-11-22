@@ -450,6 +450,7 @@ class Treiber {
     for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
     if (this.e.bruecke) this.bruecke = new Bruecke(this.e.bruecke, this.e.brueckeToken);
     this.wiederholungenSchliessen();
+    this.optionenNachlesen();
 
     for (;;) {
       const halt = this.anhaltenGewuenscht();
@@ -1194,6 +1195,18 @@ class Treiber {
       ep.auftrag = { resume: true, text: this.an(a.epic, 'Arbeite die geparkten Pakete ab, dann FLOTTE-ENDE.') };
     }
     return true;
+  }
+
+  /** Open questions stored without options, from a run that wrote them into the text: read again from the wording. */
+  optionenNachlesen(): void {
+    for (const x of this.z.fragen) {
+      if (x.beantwortet || x.optionen?.length || !x.roh) continue;
+      const b = leseBlock(`FLOTTE-FRAGE ${x.epic} nachlesen\n${x.roh}`);
+      const f = b?.art === 'frage' ? b.fragen[0] : undefined;
+      if (!f?.optionen.length) continue;
+      x.frage = f.frage;
+      x.optionen = f.optionen;
+    }
   }
 
   /** Open repeats of a question the person has answered since are closed with that answer (bridge shows each once). */
