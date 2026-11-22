@@ -57,7 +57,7 @@ Mögliche Schalter:
 | `--skill` | `epic` |
 | `--modell` | Standard des Kontos |
 | `--admiral-modell` / `--admiral-effort` | `fable` / `high` |
-| `--admiral <konto>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen; der Treiber bewertet seinen Verbrauch trotzdem (Pings, Stufe auf Tafel und im Logbuch). Bei Gelb warnt er im Logbuch vor, bei Rot gehen die Fragen ohne Admiral-Aufruf an den Menschen |
+| `--admiral <konto>` | das Konto des Epics; mit Angabe laufen alle Admiral-Aufrufe auf diesem Konto, etwa Läufe auf Konto 2 und der Admiral auf Konto 1. Es muss nicht in `--konten` stehen; der Treiber bewertet seinen Verbrauch trotzdem (Pings, Stufe auf Tafel und im Logbuch). Bei Gelb warnt er im Logbuch vor. Bei Rot fragt er den Admiral auf einem Konto aus `--konten` mit Luft (grün vor gelb, in der Reihenfolge von `--konten`); hat keins Luft, wartet der Frageblock im Zustand, bis ein Konto frei wird, und geht dann einmal an den Admiral. An den Menschen geht deshalb keine Frage. Das gilt auch ohne `--admiral` für das Konto des Epics |
 | `--epics <n,n>` | die freigegebenen Epics, laufend neu eingesammelt |
 | `--dauerhaft` | Ende, wenn Schlange und Kandidaten leer sind |
 | `--ping-modell` | `haiku` |
