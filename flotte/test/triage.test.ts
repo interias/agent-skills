@@ -82,6 +82,11 @@ function welt(
         return { code: 0, stdout: '', stderr: '' };
       },
       starte: async (s: Start): Promise<LaufErgebnis> => {
+        // #146: the cut plan before the single clearing keeps every note in triage (tests: schnittplan.test.ts)
+        if (s.auftrag.startsWith('FLOTTE-SCHNITTPLAN')) {
+          const zuordnungen = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => ({ notiz: Number(m[1]), art: 'triage', grund: 'Einzelklärung', herkunft: 'Skill-Empfehlung' }));
+          return { code: 0, sitzung: 'plan', dauerMs: 1000, strukturiert: { neue_missionen: [], zuordnungen } } as LaufErgebnis;
+        }
         gestartet.push(s);
         const nr = Number(/Sternzeit-Notiz #(\d+)/.exec(s.auftrag)?.[1]);
         return { code: 0, sitzung: 's', dauerMs: 1000, strukturiert: antworten[nr] } as LaufErgebnis;

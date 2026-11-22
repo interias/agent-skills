@@ -19,7 +19,7 @@ import { regelnAus } from '../befehle/auftrag.ts';
 import { lernTickets, triagiere, triageTickets } from '../befehle/triage.ts';
 import { TRIAGE_LABEL } from '../auftrag/auftrag.ts';
 import { LERN_MARKE } from '../lernen.ts';
-import { LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
+import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
@@ -1616,12 +1616,27 @@ class Treiber {
         widerrufen: null,
         ...(t.lernvorschlag ? { lernvorschlag: t.lernvorschlag } : {}),
       }));
-      this.z.triage = { entscheidungen: [...neu, ...(this.z.triage?.entscheidungen ?? [])].slice(0, TRIAGE_ENTSCHEIDUNGEN_MAX) };
+      // #146: a note closed by the cut plan (merged, superfluous, rejected) is a closing decision like
+      // ueberfluessig: shown in the Frachtraum, revoked by reopening it (the display of the plan is #148)
+      const geplant = r.schnittplan.flatMap((p) => p.zuordnungen.filter((x) => x.geschrieben && !x.fehler && GESCHLOSSEN.includes(x.art)));
+      const ausPlan: BerichtTriageEntscheidung[] = geplant.map((x) => ({
+        nr: x.notiz,
+        titel: x.titel.slice(0, 300),
+        ergebnis: 'ueberfluessig',
+        herkunft: x.herkunft.slice(0, 500),
+        grund: (x.art === 'zusammengefuehrt' ? `zusammengeführt in #${x.in}${x.grund ? `: ${x.grund}` : ''}` : x.art === 'ueberfluessig' ? `${x.grund} (Fundstelle: ${x.fundstelle})` : `verworfen: ${x.grund}`).slice(0, 4000),
+        zeit,
+        widerrufen: null,
+      }));
+      this.z.triage = { entscheidungen: [...ausPlan, ...neu, ...(this.z.triage?.entscheidungen ?? [])].slice(0, TRIAGE_ENTSCHEIDUNGEN_MAX) };
       const zahl = (e: string) => entschieden.filter((t) => t.ergebnis === e).length;
-      const ohne = r.tickets.filter((t) => t.fehler || t.ergebnis === 'ungueltig').length + r.fehler.length;
+      const ohne =
+        r.tickets.filter((t) => t.fehler || t.ergebnis === 'ungueltig').length +
+        r.fehler.length +
+        r.schnittplan.reduce((n, p) => n + (p.fehler ? 1 : 0) + p.zuordnungen.filter((x) => x.fehler).length, 0);
       // a superfluous proposal closes nothing
       const ueber = entschieden.filter((t) => t.ergebnis === 'ueberfluessig' && t.lernvorschlag).length;
-      this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei, ${zahl('ueberfluessig') - ueber} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
+      this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
     } catch (err) {
       this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
     } finally {

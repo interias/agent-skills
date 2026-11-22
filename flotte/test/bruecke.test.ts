@@ -1109,6 +1109,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     fragen: Array.from({ length: fragen }, () => ({ forge: 'o/r', ticket: 9, url: '', frage: 'f', optionen: [], empfehlung: '', grund: '', herkunft: '', marke: '' })),
     offen: [],
     fehler: [],
+    schnittplan: [],
   });
   const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
 
@@ -1168,6 +1169,41 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // they outlive a restart in the state
       expect(z.triage!.entscheidungen.map((d) => d.nr)).toEqual([7, 8]);
       expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#146: notes closed by the cut plan count as closed, show as decisions and are revoked by reopening; an invalid plan counts as without result', async () => {
+    const t = aufbau();
+    const zu = (notiz: number, art: string, mehr: object = {}) => ({ notiz, titel: `Notiz ${notiz}`, url: `https://github.com/o/r/issues/${notiz}`, art, grund: 'kein Nutzen', herkunft: 'Eigenes Urteil: x', geschrieben: true, kommentar: 'k', ...mehr });
+    const r = {
+      ...ergebnis([]),
+      schnittplan: [
+        { forge: 'o/r', neue_missionen: [], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
+        { forge: 'o/r', neue_missionen: [], zuordnungen: [], fehler: 'Sternzeit-Notiz #1 ohne Zuordnung' },
+      ],
+    } as Awaited<ReturnType<typeof triagiere>>;
+    const tr = triageAttrappe(r, 50);
+    const aufrufer: Aufrufer = (p, a, o) => (p === 'gh' && a[0] === 'issue' && a[1] === 'reopen' ? (t.p.aufrufe.push([p, ...a]), ok()) : t.welt.aufrufer(p, a, o));
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const d = x.triage.entscheidungen.find((e) => e.nr === 20);
+        if (!x.triage.entscheidungen.length) return { epic: 0, art: 'triage' };
+        if (d && !d.widerrufen) return { epic: 20, art: 'triage-widerruf', seit: d.zeit, text: 'Lohnt sich doch.' };
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      expect(texte(z)).toContain('Triage-Lauf beendet: 0 Warp frei, 2 geschlossen, 0 Fragen an den Menschen, 2 ohne Ergebnis');
+      expect(z.triage!.entscheidungen.map((d) => [d.nr, d.ergebnis, d.grund])).toEqual([
+        [20, 'ueberfluessig', 'verworfen: kein Nutzen'],
+        [21, 'ueberfluessig', 'zusammengeführt in #22: dasselbe'],
+      ]);
+      const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
+      expect(stelle('gh', 'issue', 'comment', '20')).toBeLessThan(stelle('gh', 'issue', 'reopen', '20'));
+      expect(texte(z)).toContain('Triage-Entscheidung „geschlossen“ zu #20 widerrufen (wieder geöffnet), Mensch über die Brücke');
     } finally {
       await b.zu();
     }
