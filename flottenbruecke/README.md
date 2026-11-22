@@ -2,7 +2,7 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen widerrufen).
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen).
 Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
@@ -94,7 +94,16 @@ ein Block mit der Zahl der Notizen und der offenen Fragen; Projekte mit Fragen s
 - **Entscheidungen des Triage-Laufs** — was ein über die Brücke gestarteter Lauf freigegeben (Warp frei)
   oder geschlossen hat, mit Grund und Herkunft. **› Widerrufen** mit einem Einwand: Der Treiber
   kommentiert zuerst am Ticket, dann nimmt er Warp frei zurück (`needs-triage` wieder an) oder öffnet die
-  Notiz wieder.
+  Notiz wieder. War die Notiz an eine Mission gehängt, löst er sie zuerst daraus (#148).
+- **Schnittplan** (#148) — das Ergebnis des letzten Triage-Laufs: je Mission Titel (Link), Begründung,
+  ihre Missionsziele (Links, mit dem Grund des Plans) und der Zustand (Warp frei, nicht freigegeben,
+  widerrufen, Fehler); „neue Mission“ hat der Lauf angelegt, „bestehende Mission“ nur ergänzt. Die
+  Missionen gibt der Lauf selbst frei. **› Widerrufen** mit einem Einwand nimmt das zurück: Der Treiber
+  kommentiert zuerst, dann löst er die angehängten Missionsziele, gibt sie mit `needs-triage` in die
+  Triage zurück, pausiert einen laufenden Außeneinsatz der Mission (ihr PR wartet dann auf einen
+  Menschen), nimmt eine noch wartende aus dem Einsatz und schließt eine neue Mission als
+  „not planned“; eine bestehende bleibt. Darunter die zusammengeführten und geschlossenen Notizen mit
+  Grund, Fundstelle und Verweis.
 - **Sternzeit-Notizen nach Thema** — Thema sind die fachlichen Labels (ohne `needs-triage`, `needs-info`,
   `ready-for-agent`, `status/*`, `epic`), sonst „ohne Thema“; Notizen mit offener Frage zuerst. Die
   Befehlszeile findet jede Notiz und jede Frage.
@@ -103,7 +112,7 @@ ein Block mit der Zahl der Notizen und der offenen Fragen; Projekte mit Fragen s
 `flotte triage` aus (`flotte/README.md`, „Triage“), einen Lauf je Projekt zur Zeit. Jede Handlung braucht
 die PIN und wirkt ab dem nächsten Takt des Treibers; nichts existiert nur auf der Brücke. Die Daten liest
 der Treiber aus der Forge (`triage` im Bericht, `SCHNITTSTELLE.md`); ein älterer Treiber fehlt hier.
-Bilder: `doku/v3-frachtraum-1440.png`, `-390.png`.
+Bilder: `doku/v3-frachtraum-1440.png`, `-390.png`; Schnittplan: `doku/v3-frachtraum-schnittplan-1440.png`, `-390.png`.
 
 ## Schiffsliste
 
@@ -280,7 +289,9 @@ python -c "import json,urllib.request as u;[u.urlopen(u.Request('http://127.0.0.
 ```
 
 `beispiel/holodeck.json` ist eine Liste mit einem Body je Projekt; die Zeile schickt jeden.
-`beispiel/bericht-notizen.json` ist ein zweites, kleines Projekt (der Frachtraum mit zwei Projekten).
+`beispiel/bericht-notizen.json` ist ein zweites, kleines Projekt (der Frachtraum mit zwei Projekten);
+`beispiel/bericht.json` trägt den Schnittplan eines Triage-Laufs (zwei neue Missionen, eine bestehende,
+drei geschlossene Notizen).
 
 ## Entwickeln
 

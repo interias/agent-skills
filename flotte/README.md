@@ -204,7 +204,9 @@ sich nichts, gelöscht wird nie. Widerruf: das Ticket wieder öffnen und den Ein
 schreiben. Die übrigen Notizen gehen in die Einzelklärung unten; was danach mit einer klaren geschieht,
 bestimmt ihre Zuordnung im Plan (**Missionen in der Forge**, unten). Der Auftrag hat ein Gesamtbudget (Notizen zusammen 120 000,
 Missionen 30 000 Zeichen, je Notiz höchstens 6 000, je Mission 2 000); viele Notizen werden kürzer
-gekürzt, keine fällt weg. Über die Brücke erscheint eine vom Plan geschlossene Notiz im Frachtraum als
+gekürzt, keine fällt weg. Gekürzt wird eine Notiz (#148) zuerst um ihre ältesten Kommentare (mit dem
+Vermerk `(N ältere Kommentare ausgelassen)`), dann am Text; der neueste Kommentar, etwa ein Widerruf
+oder eine Antwort des Menschen, bleibt stehen. Über die Brücke erscheint eine vom Plan geschlossene Notiz im Frachtraum als
 Entscheidung „überflüssig“ (Grund mit `verworfen:` bzw. `zusammengeführt in #<nr>`), ihr Widerruf
 öffnet sie wieder; ein ungültiger Plan zählt im Logbuch als „ohne Ergebnis“.
 
@@ -317,10 +319,37 @@ und die unbeantworteten Fragen der Triage aus der Forge (beim Start, höchstens 
 nach einer Handlung des Frachtraums) und meldet sie samt den Entscheidungen seiner Triage-Läufe. Auf
 Knopfdruck führt er diesen Befehl für sein Projekt aus (Admiral-Konto, einen Lauf zur Zeit), schreibt
 eine Antwort des Menschen als Kommentar ans Ticket (ohne Triage-Marke; die nächste Triage nimmt sie als
-Tatsache) und widerruft eine Entscheidung: erst der Kommentar, dann `ready_label` ab und `needs-triage`
-an oder das Ticket wieder offen. Bei einem Lernvorschlag nennt die Antwort seine Kennung, der Widerruf
-von „klar“ wirkt am Missionsziel, der von „überflüssig“ ist nur der Kommentar am `lern_issue`. Felder
-und Handlungen: `flottenbruecke/SCHNITTSTELLE.md`.
+Tatsache) und widerruft eine Entscheidung: erst der Kommentar, dann (#148) bei einer an eine Mission
+gehängten Notiz das Lösen aus ihr (Sub-Issue und Zeile der Liste `## Missionsziele`), `ready_label` ab
+und `needs-triage` an, oder das Ticket wieder offen. Bei einem Lernvorschlag nennt die Antwort seine Kennung, der Widerruf
+von „klar“ wirkt am Missionsziel, der von „überflüssig“ ist nur der Kommentar am `lern_issue`.
+
+**Schnittplan über die Brücke** (#148): Der Treiber meldet den Schnittplan seines letzten Triage-Laufs
+(`triage.schnittplan`): die angelegten Missionen (Nummer, Titel, Begründung, verknüpfte Missionsziele,
+Warp frei oder nicht, Fehler) und die offenen, an die der Lauf Notizen hängte, dazu die geschlossenen
+Notizen mit Grund und Verweis. Die Missionen sind vom Lauf schon freigegeben; je Mission kann der Mensch
+sie im Frachtraum **widerrufen** (`schnitt-widerruf`, mit Einwand). Jede Änderung erst nach dem Kommentar
+`**Widerruf des Menschen (Mensch über die Brücke)** — …` mit Einwand und Herkunft:
+
+- **neue Mission** (vom Lauf angelegt): `ready_label` ab. Wartet sie im Einsatz und lief noch nie
+  (kein Zug, kein Auftrag), wird sie ausgetragen (aus dem Einsatz, aus `aufgenommen` und aus dem Zustand;
+  sie startet nicht und hält das Ende des Einsatzes nicht auf). Hat sie schon begonnen, wird sie pausiert
+  (der laufende Zug läuft zu Ende, keine Arbeit geht verloren, wie `pausieren`) und ihr Schalter fürs
+  Andocken auf `mensch` gestellt (#112): Ihr PR, auch einer noch vor dem Kopf der Merge-Schlange, wird nur
+  von einem Menschen gemergt; ein schon laufender Merge läuft zu Ende. Jede vom Lauf verknüpfte Notiz
+  bekommt einen Kommentar, wird gelöst (`DELETE …/issues/<mission>/sub_issue`, Zeile aus der Liste) und
+  bekommt `ready_label` ab, `needs-triage` an; zuletzt wird die Mission `not planned` geschlossen (nie
+  gelöscht, wieder zu öffnen; offen böte der nächste Schnittplan sie wieder an).
+- **bestehende Mission:** nur die vom Lauf angehängten Notizen gehen so zurück; die Mission bleibt, wie
+  ein Mensch sie freigegeben hat.
+
+Der Kommentar an der Notiz sagt, dass sie nicht wieder in diese Mission soll; er trägt keine Triage-Marke,
+also wartet die Notiz danach nicht (`wartetAufAntwort`), und die nächste Triage nimmt ihn als Tatsache.
+Ihre Entscheidung „Warp frei“ gilt damit als widerrufen. Der Widerruf einer einzelnen Entscheidung
+(`triage-widerruf`) einer angehängten Notiz nennt im Kommentar ebenso das Lösen und „Nicht wieder in
+Mission #<nr>“. Scheitert ein Schritt, steht er im Ereignis,
+im Flottenlogbuch und am Eintrag der Mission (`fehler`); nichts wird wiederholt. Scheitert schon der
+erste Kommentar an der Mission, ändert sich nichts. Felder und Handlungen: `flottenbruecke/SCHNITTSTELLE.md`.
 
 **Ausgabe:** `trocken`, `repos` (`repo`, `forge`), `fehler` (`repo` oder `forge`, `fehler`),
 `tickets` (je `forge`, `nummer`, `titel`, `url`, `ergebnis` = `klar` | `ueberfluessig` | `kritisch` |

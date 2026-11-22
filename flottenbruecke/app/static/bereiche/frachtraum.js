@@ -1,8 +1,8 @@
 // Frachtraum (#116): the Sternzeit-Notizen of every project, from `frachtraum` of /api/tafel (the driver
 // reads them from the forge, the bridge bundles them by project and topic). Per project: the critical
 // questions of the triage with a button per option (the recommendation marked) and a free text, the
-// decisions of the triage runs to read and revoke, the notes by topic, and "Triage-Lauf starten" (also
-// for all projects). Every action needs the PIN; the driver carries it out from its next turn on, always
+// decisions of the triage runs to read and revoke, (#148) the cut plan of the last run with "Widerrufen" per
+// mission, the notes by topic, and "Triage-Lauf starten" (also for all projects). Every action needs the PIN; the driver carries it out from its next turn on, always
 // as a comment at the ticket. The shell (huelle.js) calls zeichne(t, el) on every load while the area is
 // visible; t is null before the first load, then the helpers of app.js do not exist yet. All scripts of
 // the page share one scope: keep every name inside this call.
@@ -12,6 +12,13 @@
   const KOPF = '<h2 class="ek bereich-kopf">Frachtraum</h2>';
   const ERGEBNIS = { klar: 'Warp frei', ueberfluessig: 'geschlossen' };
   const WIDERRUF = { klar: 'Warp frei wird zurückgenommen, die Notiz wird wieder eine Sternzeit-Notiz.', ueberfluessig: 'Die Notiz wird wieder geöffnet.' };
+  // #148: the state of a mission of the cut plan, what closed a note, what a revocation does
+  const ZUSTAND = { frei: 'Warp frei', offen: 'nicht freigegeben', widerrufen: 'widerrufen', fehler: 'Fehler' };
+  const GESCHLOSSEN = { zusammengefuehrt: 'zusammengeführt', ueberfluessig: 'überflüssig', verworfen: 'verworfen' };
+  const MISSION_WIDERRUF = {
+    neu: 'Warp frei wird zurückgenommen, ein laufender Außeneinsatz angehalten; die Missionsziele kehren als Sternzeit-Notizen in die Triage zurück, die Mission wird als „not planned“ geschlossen (nicht gelöscht).',
+    alt: 'Nur die Missionsziele, die der Triage-Lauf angehängt hat, kehren als Sternzeit-Notizen in die Triage zurück; die Mission bleibt, wie sie ist.',
+  };
   // drafts: question id -> { wahl, text }, decision id -> { text }; the 10 s load draws again
   const entwuerfe = new Map();
   const offen = new Set(); // opened revocation forms
@@ -67,9 +74,48 @@
     else if (d.handlung) fuss = `<div>${unterwegs(d.handlung, 'Widerruf')}</div>`;
     else if (pin && d.widerrufbar) {
       const auf = offen.has(d.id);
-      fuss = `<button type="button" class="wider" data-wider aria-expanded="${auf}">› Widerrufen</button>${auf ? `<div class="wider-form"><p class="fr-klein">${esc(WIDERRUF[d.ergebnis] ?? '')} Dein Einwand steht vorher als Kommentar am Ticket; der nächste Triage-Lauf nimmt ihn als Tatsache.</p><textarea placeholder="Dein Einwand" aria-label="Einwand gegen die Entscheidung zu #${d.nr}" data-text>${esc(entwuerfe.get(d.id)?.text ?? '')}</textarea><div class="knoepfe"><button type="button" class="knopf haupt" data-widerrufen>Widerruf senden</button><button type="button" class="knopf zweit" data-wzu>Abbrechen</button><span class="status" role="status"></span></div></div>` : ''}`;
+      fuss = `<button type="button" class="wider" data-wider aria-expanded="${auf}">› Widerrufen</button>${auf ? widerrufForm(d.id, WIDERRUF[d.ergebnis] ?? '', `Einwand gegen die Entscheidung zu #${d.nr}`) : ''}`;
     }
     return `${kopf}${warum}${fuss}`;
+  }
+
+  // ---- #148: the cut plan of the last triage run: each mission with its children and "Widerrufen", the closed notes
+
+  function widerrufForm(id, erklaerung, label) {
+    return `<div class="wider-form"><p class="fr-klein">${esc(erklaerung)} Dein Einwand steht vorher als Kommentar am Ticket; der nächste Triage-Lauf nimmt ihn als Tatsache.</p><textarea placeholder="Dein Einwand" aria-label="${esc(label)}" data-text>${esc(entwuerfe.get(id)?.text ?? '')}</textarea><div class="knoepfe"><button type="button" class="knopf haupt" data-widerrufen>Widerruf senden</button><button type="button" class="knopf zweit" data-wzu>Abbrechen</button><span class="status" role="status"></span></div></div>`;
+  }
+
+  function missionHtml(m, pin) {
+    const kopf = `<div class="fr-zeile">${link(m.issueUrl, `#${m.nr}`, 'nr')}<span class="fr-titel">${esc(m.titel)}</span><span class="fr-ergebnis ${esc(m.zustand)}">${esc(ZUSTAND[m.zustand] ?? m.zustand)}</span><span class="fr-seit">${m.neu ? 'neue Mission' : 'bestehende Mission'}</span></div>`;
+    const warum = m.begruendung ? `<p class="warum">${esc(m.begruendung)}</p>` : '';
+    const fehler = m.fehler ? `<p class="warum fr-fehler"><b>Fehler:</b> ${esc(m.fehler)}</p>` : '';
+    const kinder = m.kinder.length
+      ? `<ul class="fr-tickets fr-kinder" aria-label="Missionsziele von #${m.nr}">${m.kinder.map((k) => `<li class="fr-ticket">${link(k.issueUrl, `#${k.nr}`, 'nr')}<span class="fr-titel">${esc(k.titel)}${k.grund ? ` <span class="fr-herkunft">— ${esc(k.grund)}</span>` : ''}</span></li>`).join('')}</ul>`
+      : '<p class="fr-klein">Kein Missionsziel angehängt.</p>';
+    let fuss = '';
+    if (m.widerrufen) fuss = `<p class="warum widerrufen">widerrufen → ${esc(m.widerrufen)}</p>`;
+    else if (m.handlung) fuss = `<div>${unterwegs(m.handlung, 'Widerruf')}</div>`;
+    else if (pin && m.widerrufbar) {
+      const auf = offen.has(m.id);
+      fuss = `<button type="button" class="wider" data-wider aria-expanded="${auf}">› Widerrufen</button>${auf ? widerrufForm(m.id, MISSION_WIDERRUF[m.neu ? 'neu' : 'alt'], `Einwand gegen Mission #${m.nr}`) : ''}`;
+    }
+    return `${kopf}${warum}${fehler}<h5 class="fr-klein-kopf">Missionsziele</h5>${kinder}${fuss}`;
+  }
+
+  function notizHtml(n) {
+    const wie = n.art === 'zusammengefuehrt' && n.verweis ? `zusammengeführt in ${link(n.verweisUrl, `#${n.verweis}`)}` : esc(GESCHLOSSEN[n.art] ?? n.art);
+    const fund = n.fundstelle ? ` <span class="fr-herkunft">(Fundstelle: ${esc(n.fundstelle)})</span>` : '';
+    return `<li class="fr-ticket">${link(n.issueUrl, `#${n.nr}`, 'nr')}<span class="fr-titel">${esc(n.titel)}</span><span class="fr-label">${wie}</span><span class="fr-grund">${esc(n.grund)}${fund}${n.fehler ? ` <span class="fr-fehler">Fehler: ${esc(n.fehler)}</span>` : ''}</span></li>`;
+  }
+
+  function schnittHtml(s, pin) {
+    if (!s) return '';
+    const kopf = `<h4 class="fr-unter">Schnittplan <span class="fr-klein">des letzten Triage-Laufs · ${esc(wann(s.zeit))}</span></h4>`;
+    const fehler = s.fehler ? `<p class="warum fr-fehler"><b>Kein Schnittplan:</b> ${esc(s.fehler)}</p>` : '';
+    const missionen = s.missionen.length ? `<ol class="fr-liste">${s.missionen.map((m) => `<li class="fr-karte fr-mission ${esc(m.zustand)}" data-id="${esc(m.id)}">${missionHtml(m, pin)}</li>`).join('')}</ol>` : '';
+    const notizen = s.notizen.length ? `<section class="fr-thema fr-geschlossen"><h5>Zusammengeführt und geschlossen <span class="fr-anzahl">${s.notizen.length}</span></h5><ul class="fr-tickets">${s.notizen.map(notizHtml).join('')}</ul></section>` : '';
+    if (!fehler && !missionen && !notizen) return `${kopf}<p class="fr-klein">Der letzte Lauf hat keine Mission angelegt oder ergänzt und keine Notiz geschlossen.</p>`;
+    return `${kopf}${fehler}${missionen}${notizen}`;
   }
 
   // ---- the Sternzeit-Notizen by topic; a ticket with two topics stands in both
@@ -93,7 +139,7 @@
     return `<section class="fr-projekt${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}">
 <h3 class="fr-kopf">${link(p.url, esc(p.kurz), 'fr-name')}<span class="fr-zahl">${zahl(p.zahl, 'Sternzeit-Notiz', 'Sternzeit-Notizen')}${p.fragen.length ? ` · ${zahl(p.fragen.length, 'Frage', 'Fragen')} an dich` : ''}${still}</span></h3>
 <div class="knoepfe fr-start">${startHtml(p, pin)}<span class="fr-klein">${gelesen}</span><span class="status" role="status"></span></div>
-${fragen}${entsch}${themen}</section>`;
+${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
   }
 
   function html(t) {
@@ -101,7 +147,7 @@ ${fragen}${entsch}${themen}</section>`;
     if (!ps.length) return `${KOPF}<p class="bereich-leer">Noch kein Treiber meldet Sternzeit-Notizen.</p>`;
     const frei = ps.filter((p) => !p.laeuft && !p.handlung);
     const alle = t.pin && ps.length > 1 ? `<div class="knoepfe fr-alle"><button type="button" class="knopf zweit" data-start="alle"${frei.length ? '' : ' disabled'}>Triage-Lauf für alle</button><span class="status" role="status"></span></div>` : '';
-    const hinweis = `<p class="fr-hinweis">Der Triage-Lauf klärt jede Sternzeit-Notiz selbst; nur was nach der Liste „beim Menschen“ zu dir gehört, steht hier als Frage. Antworten und Widerrufe stehen als Kommentar am Ticket, nichts nur hier. ${t.pin ? 'Jede Handlung braucht die PIN und wirkt ab dem nächsten Takt des Treibers.' : 'Handeln abgeschaltet: keine PIN gesetzt.'}</p>`;
+    const hinweis = `<p class="fr-hinweis">Der Triage-Lauf klärt jede Sternzeit-Notiz selbst; nur was nach der Liste „beim Menschen“ zu dir gehört, steht hier als Frage. Die Missionen seines Schnittplans gibt er selbst frei; du kannst jede widerrufen. Antworten und Widerrufe stehen als Kommentar am Ticket, nichts nur hier. ${t.pin ? 'Jede Handlung braucht die PIN und wirkt ab dem nächsten Takt des Treibers.' : 'Handeln abgeschaltet: keine PIN gesetzt.'}</p>`;
     return `${KOPF}${hinweis}${alle}${ps.map((p) => projektHtml(p, t.pin)).join('')}`;
   }
 
@@ -118,7 +164,7 @@ ${fragen}${entsch}${themen}</section>`;
 
   const finde = (id) => {
     for (const p of letzte?.frachtraum ?? []) {
-      const x = p.fragen.find((f) => f.id === id) ?? p.entscheidungen.find((d) => d.id === id);
+      const x = p.fragen.find((f) => f.id === id) ?? p.entscheidungen.find((d) => d.id === id) ?? p.schnittplan?.missionen.find((m) => m.id === id);
       if (x) return x;
     }
     return null;
@@ -163,7 +209,9 @@ ${fragen}${entsch}${themen}</section>`;
       status.textContent = 'Einwand schreiben';
       return;
     }
-    if (await senden('/api/handlung', { forge: d.forge, epic: d.nr, art: 'triage-widerruf', nr: null, seit: d.zeit, text }, karte, status)) {
+    // #148: a mission of the cut plan, else a decision of the triage run
+    const body = d.id.startsWith('schnitt:') ? { forge: d.forge, epic: d.nr, art: 'schnitt-widerruf', nr: null, seit: null, text } : { forge: d.forge, epic: d.nr, art: 'triage-widerruf', nr: null, seit: d.zeit, text };
+    if (await senden('/api/handlung', body, karte, status)) {
       offen.delete(d.id);
       entwuerfe.delete(d.id);
       karte.querySelector('textarea').value = '';
@@ -231,6 +279,7 @@ ${fragen}${entsch}${themen}</section>`;
       const liste = [];
       for (const p of t.frachtraum ?? []) {
         for (const f of p.fragen) liste.push({ art: 'Frage', titel: `#${f.ticket} ${f.frage}`, info: mehrere ? p.kurz : '', ziel: hin('.fr-frage-karte', (x) => x.dataset.id === f.id) });
+        for (const m of p.schnittplan?.missionen ?? []) liste.push({ art: 'Mission', titel: `#${m.nr} ${m.titel}`, info: mehrere ? p.kurz : '', ziel: hin('.fr-mission', (x) => x.dataset.id === m.id) });
         const gesehen = new Set();
         for (const th of p.themen) {
           for (const x of th.tickets) {

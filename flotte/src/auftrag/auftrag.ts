@@ -243,6 +243,11 @@ export function mitMissionszielen(body: string, ziele: { titel: string; nummer: 
   return liste.join('\n');
 }
 
+/** #148: the body of a mission without the line of this Missionsziel in its list (`- [ ] #<nr> …`); the rest stays as it is. */
+export function ohneMissionsziel(body: string, nummer: number): string {
+  return body.replace(new RegExp(`^- \\[[ xX]\\] #${nummer}(?!\\d).*(\\r?\\n|$)`, 'gm'), '');
+}
+
 /**
  * #147: an existing Missionsziel joins an open mission: linked as its child, then into the list of its body.
  * One its list names already (linked before, e.g. a revoked note coming back) is left as it is: a second link

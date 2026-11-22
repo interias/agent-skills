@@ -17,13 +17,13 @@ import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neu
 import { lerne } from '../befehle/lernen.ts';
 import { regelnAus } from '../befehle/auftrag.ts';
 import { lernTickets, triagiere, triageTickets } from '../befehle/triage.ts';
-import { TRIAGE_LABEL } from '../auftrag/auftrag.ts';
+import { ohneMissionsziel, TRIAGE_LABEL } from '../auftrag/auftrag.ts';
 import { LERN_MARKE } from '../lernen.ts';
 import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
-import { antwortZeile, type Bericht, type BerichtPaket, type BerichtTriage, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
+import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
@@ -301,8 +301,9 @@ export interface FlottenZustand extends Zustand {
   einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string }>>;
   /** #61: epics taken into the deployment on the bridge; they join it again after a restart until they are done */
   aufgenommen?: number[];
-  /** #116: the decisions of the triage runs started on the bridge, newest first, revocable there; they outlive a restart */
-  triage?: { entscheidungen: BerichtTriageEntscheidung[] };
+  /** #116: the decisions of the triage runs started on the bridge, newest first, revocable there; they outlive a restart.
+   * #148: the cut plan of the last of them, its missions revocable there */
+  triage?: { entscheidungen: BerichtTriageEntscheidung[]; schnittplan?: BerichtSchnittplan | null };
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -1363,6 +1364,7 @@ class Treiber {
     if (h.art === 'triage') return this.triageStarten();
     if (h.art === 'triage-antwort') return this.triageAntworten(h);
     if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
+    if (h.art === 'schnitt-widerruf') return this.schnittWiderrufen(h);
     if (!ep) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic gehört nicht zu diesem Einsatz`);
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
@@ -1615,6 +1617,7 @@ class Treiber {
         zeit: t.lernvorschlag ? new Date(this.w.jetzt() + i).toISOString() : zeit,
         widerrufen: null,
         ...(t.lernvorschlag ? { lernvorschlag: t.lernvorschlag } : {}),
+        ...(t.mission !== undefined ? { mission: t.mission } : {}),
       }));
       // #146: a note closed by the cut plan (merged, superfluous, rejected) is a closing decision like
       // ueberfluessig: shown in the Frachtraum, revoked by reopening it (the display of the plan is #148)
@@ -1628,7 +1631,7 @@ class Treiber {
         zeit,
         widerrufen: null,
       }));
-      this.z.triage = { entscheidungen: [...ausPlan, ...neu, ...(this.z.triage?.entscheidungen ?? [])].slice(0, TRIAGE_ENTSCHEIDUNGEN_MAX) };
+      this.z.triage = { entscheidungen: [...ausPlan, ...neu, ...(this.z.triage?.entscheidungen ?? [])].slice(0, TRIAGE_ENTSCHEIDUNGEN_MAX), schnittplan: this.schnittplanFuerBericht(r, zeit) };
       const zahl = (e: string) => entschieden.filter((t) => t.ergebnis === e).length;
       const ohne =
         r.tickets.filter((t) => t.fehler || t.ergebnis === 'ungueltig').length +
@@ -1648,6 +1651,41 @@ class Treiber {
       this.triageLaeuft = false;
       this.triageLesen(true);
     }
+  }
+
+  /**
+   * #148: the cut plan of this project from the output of a triage run, for the Frachtraum: the missions it created
+   * (with a number) and the open ones it hung notes on, each with the notes linked in this run; the notes it closed.
+   * null when the run cut no plan for this project (no note went to the model).
+   */
+  schnittplanFuerBericht(r: Awaited<ReturnType<typeof triagiere>>, zeit: string): BerichtSchnittplan | null {
+    const p = r.schnittplan.find((x) => x.forge === this.e.forge);
+    if (!p) return null;
+    const ready = this.adapter.ready_label;
+    const k = (s: string | undefined, n: number) => (s ?? '').slice(0, n);
+    const kind = (nr: number) => {
+      const z = p.zuordnungen.find((x) => x.notiz === nr);
+      return { nr, titel: k(z?.titel ?? r.tickets.find((t) => t.nummer === nr)?.titel, 300), grund: k(z?.grund, 2000) };
+    };
+    const neue = p.neue_missionen
+      .filter((m) => m.nummer !== undefined)
+      .map((m) => ({ nr: m.nummer!, url: m.url ?? null, titel: k(m.titel, 300), begruendung: k(m.begruendung, 4000), neu: true, kinder: (m.angehaengt ?? []).map(kind), freigegeben: (m.labels ?? []).includes(ready), fehler: m.fehler ? k(m.fehler, 1000) : null, widerrufen: null }));
+    const offene = (p.missionen ?? []).map((m) => ({
+      nr: m.nummer,
+      url: null,
+      titel: k(m.titel, 300),
+      begruendung: '',
+      neu: false,
+      kinder: m.angehaengt.map(kind),
+      // a person released the mission; the run released the notes it hung on it
+      freigegeben: r.tickets.some((t) => t.forge === p.forge && t.mission === m.nummer && !t.fehler),
+      fehler: m.fehler ? k(m.fehler, 1000) : null,
+      widerrufen: null,
+    }));
+    const notizen = p.zuordnungen
+      .filter((x) => GESCHLOSSEN.includes(x.art) && (x.geschrieben || x.fehler))
+      .map((x) => ({ nr: x.notiz, titel: k(x.titel, 300), art: x.art as 'zusammengefuehrt' | 'ueberfluessig' | 'verworfen', grund: k(x.grund, 4000), verweis: x.in ?? null, fundstelle: k(x.fundstelle, 1000), fehler: x.fehler ? k(x.fehler, 1000) : null }));
+    return { zeit, fehler: p.fehler ? k(p.fehler, 1000) : null, missionen: [...neue, ...offene].slice(0, 20), notizen: notizen.slice(0, 200) };
   }
 
   /**
@@ -1697,8 +1735,8 @@ class Treiber {
 
   /**
    * triage-widerruf: a decision of a triage run taken back, the comment with the person's objection first
-   * (no change without a comment naming the origin): released → ready_label off, needs-triage on;
-   * closed → reopened. The next triage run judges it again with the objection as a fact.
+   * (no change without a comment naming the origin): released → loosened from its mission (#148), ready_label
+   * off, needs-triage on; closed → reopened. The next triage run judges it again with the objection as a fact.
    */
   triageWiderrufen(h: BrueckenHandlung): void {
     const nein = (grund: string) => this.ereignis(null, `Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: ${grund}`);
@@ -1718,15 +1756,132 @@ class Treiber {
       return this.imLogbuch(null, `Triage-Entscheidung „überflüssig“ zu ${d.lernvorschlag} widerrufen, ${HERKUNFT_BRUECKE}`);
     }
     const was = klar ? 'Warp frei' : 'geschlossen';
-    if (!kommentar(this.w.aufrufer, this.e.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „${was}“ zu Sternzeit-Notiz #${d.nr} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+    // #148: a note the cut plan hung on a mission leaves it, the same way as with schnitt-widerruf
+    const mission = klar && !d.lernvorschlag ? d.mission : undefined;
+    const los = mission !== undefined ? `\nAus Mission #${mission} gelöst (Sub-Issue und Liste \`## Missionsziele\`). Nicht wieder in Mission #${mission}: Die nächste Triage ordnet diese Notiz neu zu, ohne diese Mission.` : '';
+    if (!kommentar(this.w.aufrufer, this.e.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „${was}“ zu Sternzeit-Notiz #${d.nr} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}${los}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
       return nein(`Kommentar an #${d.nr} gescheitert, nichts geändert`);
     }
     d.widerrufen = text.slice(0, 4000);
+    this.triageZeit = 0;
+    const geloest = mission !== undefined ? this.notizLoesen(mission, d.nr) : null;
+    if (geloest) return this.imLogbuch(null, `Widerruf der Triage-Entscheidung zu #${d.nr}: Kommentar steht, ${geloest}; Labels unverändert`);
     const args = klar ? ['issue', 'edit', String(d.nr), '--repo', this.e.forge, '--remove-label', this.adapter.ready_label, '--add-label', TRIAGE_LABEL] : ['issue', 'reopen', String(d.nr), '--repo', this.e.forge];
     const x = this.w.aufrufer('gh', args);
-    this.triageZeit = 0;
     if (x.code) return this.imLogbuch(null, `Widerruf der Triage-Entscheidung zu #${d.nr}: Kommentar steht, ${klar ? 'Labels' : 'Wiederöffnen'} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
-    this.imLogbuch(null, `Triage-Entscheidung „${was}“ zu #${d.nr} widerrufen (${klar ? `${this.adapter.ready_label} ab, ${TRIAGE_LABEL} an` : 'wieder geöffnet'}), ${HERKUNFT_BRUECKE}`);
+    const weg = mission !== undefined ? `von Mission #${mission} gelöst, ` : '';
+    this.imLogbuch(null, `Triage-Entscheidung „${was}“ zu #${d.nr} widerrufen (${klar ? `${weg}${this.adapter.ready_label} ab, ${TRIAGE_LABEL} an` : 'wieder geöffnet'}), ${HERKUNFT_BRUECKE}`);
+  }
+
+  /**
+   * #148: a revoked mission that did not start yet leaves the deployment for good: out of the epics, the ones taken
+   * in on the bridge and the state, so it neither starts nor holds the end of the deployment; its ready_label is off.
+   */
+  austragen(ep: FlottenEpic): void {
+    const nr = ep.nr;
+    this.e.epics = this.e.epics.filter((n) => n !== nr);
+    this.z.aufgenommen = (this.z.aufgenommen ?? []).filter((n) => n !== nr);
+    this.bilder = this.bilder.filter((b) => b.nr !== nr);
+    this.z.schlange = this.z.schlange.filter((n) => n !== nr);
+    this.loslassen(nr);
+    delete this.z.epics[nr];
+    this.imLogbuch(nr, `Mission #${nr} aus dem Einsatz genommen (widerrufen, nicht gestartet), ${HERKUNFT_BRUECKE}`);
+  }
+
+  /**
+   * #148: a note taken back out of a mission: its sub-issue link removed, then its line out of the list
+   * `## Missionsziele` of the mission (the body read now). The comment stands already; triage-widerruf and
+   * schnitt-widerruf both come here. Returns the step that failed, or null; nothing is repeated.
+   */
+  notizLoesen(mission: number, notiz: number): string | null {
+    const gh = (args: string[], eingabe?: string) => this.w.aufrufer('gh', args, eingabe === undefined ? undefined : { eingabe });
+    const nein = (was: string, x: { stdout: string; stderr: string }) => `${was} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`;
+    // the sub-issue API takes the database id of the child, not its number
+    const id = gh(['api', `repos/${this.e.forge}/issues/${notiz}`, '--jq', '.id']);
+    if (id.code || !/^\d+$/.test(id.stdout.trim())) return nein(`Id von #${notiz} lesen`, id);
+    const los = gh(['api', '--method', 'DELETE', `repos/${this.e.forge}/issues/${mission}/sub_issue`, '-F', `sub_issue_id=${id.stdout.trim()}`]);
+    if (los.code) return nein(`Sub-Issue #${notiz} von Mission #${mission} lösen`, los);
+    const v = gh(['issue', 'view', String(mission), '--repo', this.e.forge, '--json', 'body']);
+    let body: string | null;
+    try {
+      body = v.code ? null : String(JSON.parse(v.stdout).body ?? '');
+    } catch {
+      body = null;
+    }
+    if (body === null) return nein(`Sub-Issue gelöst, Liste der Mission #${mission} lesen`, v);
+    const neu = ohneMissionsziel(body, notiz);
+    if (neu === body) return null;
+    const e = gh(['issue', 'edit', String(mission), '--repo', this.e.forge, '--body-file', '-'], neu);
+    return e.code ? nein(`Sub-Issue gelöst, Liste der Mission #${mission} schreiben`, e) : null;
+  }
+
+  /**
+   * #148 schnitt-widerruf: a mission of the last cut plan taken back, each change after a comment with origin and
+   * objection. A mission the run created: ready_label off, a run on it paused (the way of pausieren: the turn under
+   * way ends after its package, nothing is thrown away), each note the run linked loosened and back in the triage,
+   * then the mission closed as not planned (never deleted; else the next plan would offer it again). An open
+   * mission: only the notes the run hung on it go back, the mission stays as a person released it. The comment at
+   * each note says it shall not return to this mission; written without the marks of the triage, the next triage
+   * run takes it as a fact and the note does not wait (wartetAufAntwort). A failed step stands in the event, the
+   * fleet logbook and the report (fehler of the mission); nothing is repeated.
+   */
+  schnittWiderrufen(h: BrueckenHandlung): void {
+    const nr = h.epic;
+    const nein = (grund: string) => this.ereignis(null, `Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: ${grund}`);
+    const m = this.z.triage?.schnittplan?.missionen.find((x) => x.nr === nr);
+    if (!m) return nein(`Mission #${nr} steht nicht im Schnittplan des letzten Triage-Laufs`);
+    if (m.widerrufen) return nein(`Mission #${nr} ist schon widerrufen`);
+    const text = this.ohneMarke(h.text ?? '');
+    if (!text) return nein(`kein Einwand zu Mission #${nr}`);
+    const ready = this.adapter.ready_label;
+    const entscheidungen = this.z.triage!.entscheidungen;
+    // a note revoked on its own left the mission already
+    const kinder = m.kinder.filter((k) => !entscheidungen.some((d) => d.nr === k.nr && d.ergebnis === 'klar' && d.mission === nr && d.widerrufen));
+    const liste = kinder.map((k) => `#${k.nr}`).join(', ') || 'keine';
+    const kopf = m.neu
+      ? `**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Mission #${nr} „${m.titel}“ aus dem Schnittplan zurückgenommen\nEinwand: ${text}\nDanach: \`${ready}\` ab, ein laufender Außeneinsatz angehalten (pausiert, gemergt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele ${liste} gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).`
+      : `**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Missionsziele aus dem Schnittplan zurückgenommen: ${liste}\nEinwand: ${text}\nDanach: gelöst (Sub-Issue und Liste \`## Missionsziele\`) und zurück in die Triage; die Mission selbst bleibt, wie sie ist.`;
+    if (!kommentar(this.w.aufrufer, this.e.forge, nr, this.ohneMarke(`${kopf}\nHerkunft: ${HERKUNFT_BRUECKE}`))) return nein(`Kommentar an Mission #${nr} gescheitert, nichts geändert`);
+    m.widerrufen = text.slice(0, 4000);
+    this.triageZeit = 0;
+    const fehler: string[] = [];
+    const gh = (args: string[], was: string) => {
+      const x = this.w.aufrufer('gh', args);
+      if (x.code) fehler.push(`${was} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
+      return !x.code;
+    };
+    if (m.neu) {
+      gh(['issue', 'edit', String(nr), '--repo', this.e.forge, '--remove-label', ready], `${ready} an Mission #${nr} abnehmen`);
+      const ep = this.z.epics[nr];
+      if (ep && this.e.epics.includes(nr) && !['gemergt', 'fertig'].includes(ep.stufe) && !ep.aufgegebenAm) {
+        if (ep.stufe === 'wartend' && !this.laufend.has(nr) && !ep.auftrag) this.austragen(ep);
+        else {
+          // started already: the turn under way ends after its package (pausieren); no PR of it, and no entry of the
+          // merge queue not yet at its head, merges without a person (#112 switch); a merge under way runs to its end
+          if (!ep.pausiert) this.steuern({ ...h, art: 'pausieren', text: null }, ep);
+          if (ep.merge !== 'mensch') this.mergeStellen({ ...h, art: 'merge', text: 'mensch' }, ep);
+        }
+      }
+    }
+    for (const k of kinder) {
+      const an = `**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Sternzeit-Notiz #${k.nr} aus Mission #${nr} „${m.titel}“ gelöst\nEinwand: ${text}\nNicht wieder in Mission #${nr}: Die nächste Triage ordnet diese Notiz neu zu, ohne diese Mission.\nDanach: Sub-Issue gelöst, aus der Liste \`## Missionsziele\` genommen, \`${ready}\` ab, \`${TRIAGE_LABEL}\` an.\nHerkunft: ${HERKUNFT_BRUECKE}`;
+      if (!kommentar(this.w.aufrufer, this.e.forge, k.nr, this.ohneMarke(an))) {
+        fehler.push(`Kommentar an #${k.nr} gescheitert, die Notiz bleibt in der Mission`);
+        continue;
+      }
+      const los = this.notizLoesen(nr, k.nr);
+      if (los) {
+        fehler.push(`#${k.nr}: ${los}`);
+        continue;
+      }
+      if (!gh(['issue', 'edit', String(k.nr), '--repo', this.e.forge, '--remove-label', ready, '--add-label', TRIAGE_LABEL], `Labels an #${k.nr}`)) continue;
+      // its decision of the triage run is taken back with it
+      for (const d of entscheidungen) if (d.nr === k.nr && d.ergebnis === 'klar' && d.mission === nr && !d.widerrufen) d.widerrufen = m.widerrufen;
+    }
+    if (m.neu) gh(['issue', 'close', String(nr), '--repo', this.e.forge, '--reason', 'not planned'], `Mission #${nr} schließen`);
+    if (fehler.length) m.fehler = `Widerruf: ${fehler.join('; ')}`.slice(0, 1000);
+    const was = m.neu ? `Mission #${nr} aus dem Schnittplan widerrufen (${ready} ab, ${liste} zurück in die Triage, geschlossen)` : `Missionsziele ${liste} aus Mission #${nr} widerrufen (zurück in die Triage, die Mission bleibt)`;
+    this.imLogbuch(null, `${was}${fehler.length ? `; gescheitert: ${fehler.join('; ').slice(0, 300)}` : ''}, ${HERKUNFT_BRUECKE}`);
   }
 
   // ---- settings (#58)
@@ -2166,7 +2321,7 @@ class Treiber {
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
       freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
-      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], fragen: this.triageStand?.fragen ?? [] },
+      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, fragen: this.triageStand?.fragen ?? [] },
     };
   }
 

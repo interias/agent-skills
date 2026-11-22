@@ -183,6 +183,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(404, 'Diese Entscheidung des Triage-Laufs kennt die Brücke nicht.')
             if d.get('widerrufen'):
                 raise HTTPException(409, 'Diese Entscheidung ist schon widerrufen.')
+        elif h.art == 'schnitt-widerruf':
+            # #148: a mission of the last cut plan in the report; the driver comments first, then loosens and closes
+            m = next((m for m in (triage.get('schnittplan') or {}).get('missionen', []) if m['nr'] == h.epic), None)
+            if m is None:
+                raise HTTPException(404, 'Diese Mission steht nicht im Schnittplan des letzten Triage-Laufs.')
+            if m.get('widerrufen'):
+                raise HTTPException(409, 'Diese Mission ist schon widerrufen.')
+            if not m.get('neu') and not m.get('kinder'):
+                raise HTTPException(409, 'An dieser Mission hat der Triage-Lauf nichts angehängt.')
         elif h.art == 'einstellen':
             # belongs to the project: the bridge checks against the limits of the report, the driver checks again
             liste = b.get('einstellungen')

@@ -16,7 +16,7 @@ import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, typ
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import type { TicketErgebnis, triagiere } from '../src/befehle/triage.ts';
-import { type Entscheidung, entscheidungAus, lernTriageKommentar, lernvorschlaege, type Ticket, triageKommentar } from '../src/triage.ts';
+import { type Entscheidung, entscheidungAus, lernTriageKommentar, lernvorschlaege, type Ticket, TRIAGE_MARKE, triageKommentar, wartetAufAntwort } from '../src/triage.ts';
 import { lernKommentar } from '../src/lernen.ts';
 
 const T = 30_000;
@@ -271,6 +271,8 @@ describe('Flottenbrücke (#28)', () => {
       [0, 'triage', null],
       [61, 'triage-antwort', 1],
       [58, 'triage-widerruf', null],
+      // #148: a mission of the cut plan
+      [70, 'schnitt-widerruf', null],
     ]);
     expect(liste.find((h) => h.art === 'merge')!.text).toBe('mensch');
     expect(liste.find((h) => h.art === 'prioritaet')!.text).toBe('hoch');
@@ -281,6 +283,8 @@ describe('Flottenbrücke (#28)', () => {
     expect(handlungenAusJson([{ id: 7, epic: 2, art: 'merge', text: null }])).toHaveLength(1);
     // #116: triage belongs to the project (epic 0), an answer needs its question, a revocation its decision and the objection
     expect(handlungenAusJson([{ id: 8, epic: 3, art: 'triage' }, { id: 9, epic: 61, art: 'triage-antwort', nr: null, seit: 'x', text: '{}' }, { id: 10, epic: 58, art: 'triage-widerruf', nr: null, seit: 'x', text: ' ' }])).toEqual([]);
+    // #148: a revocation of a mission needs the mission and the objection
+    expect(handlungenAusJson([{ id: 11, epic: 0, art: 'schnitt-widerruf', text: 'x' }, { id: 12, epic: 70, art: 'schnitt-widerruf', text: ' ' }])).toEqual([]);
   });
 
   it('usage per account: both windows with reset in the report', async () => {
@@ -1206,6 +1210,234 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       expect(stelle('gh', 'issue', 'comment', '20')).toBeLessThan(stelle('gh', 'issue', 'reopen', '20'));
       expect(texte(z)).toContain('Triage-Entscheidung „geschlossen“ zu #20 widerrufen (wieder geöffnet), Mensch über die Brücke');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  // #148: the cut plan in the report, schnitt-widerruf per mission
+  const plan = (missionNeu: number) => {
+    const zu = (notiz: number, art: string, mehr: object = {}) => ({ notiz, titel: `Notiz ${notiz}`, url: `https://github.com/o/r/issues/${notiz}`, art, grund: `Grund ${notiz}`, herkunft: 'Eigenes Urteil: x', ...mehr });
+    return {
+      ...ergebnis([
+        { nummer: 30, ergebnis: 'klar', mission: missionNeu, zuordnung: 'neue_mission' },
+        { nummer: 31, ergebnis: 'klar', mission: missionNeu, zuordnung: 'neue_mission' },
+        { nummer: 32, ergebnis: 'klar', mission: 40, zuordnung: 'mission' },
+        { nummer: 33, ergebnis: 'klar', mission: 40, zuordnung: 'mission' },
+      ]),
+      schnittplan: [
+        {
+          forge: 'o/r',
+          neue_missionen: [
+            { schluessel: 'p', titel: 'Portprüfung', begruendung: 'Drei Notizen zum selben Port', kinder: [30, 31, 34], nummer: missionNeu, url: `https://github.com/o/r/issues/${missionNeu}`, labels: ['epic', 'ready-for-agent'], angehaengt: [30, 31], geschrieben: true },
+            // not created: no clear child, no number
+            { schluessel: 'q', titel: 'Q', begruendung: 'b', kinder: [35] },
+          ],
+          missionen: [{ nummer: 40, titel: 'Tafel', kinder: [32, 33], angehaengt: [32, 33], kommentar: 'k', geschrieben: true }],
+          sitzung: 's',
+          zuordnungen: [zu(20, 'verworfen', { geschrieben: true }), zu(21, 'zusammengefuehrt', { in: 22, geschrieben: true }), zu(23, 'ueberfluessig', { fundstelle: 'PR #9', geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' }), zu(22, 'triage'), zu(30, 'neue_mission', { neue_mission: 'p' }), zu(31, 'neue_mission', { neue_mission: 'p' }), zu(32, 'mission', { mission: 40 }), zu(33, 'mission', { mission: 40 })],
+        },
+      ],
+    } as Awaited<ReturnType<typeof triagiere>>;
+  };
+
+  /** the forge of the cut plan: ids, unlinking, the bodies of the missions, closing; failing: calls that fail */
+  const schnittForge = (t: ReturnType<typeof aufbau>, bodies: Record<number, string>, failing: (a: string[]) => boolean = () => false): Aufrufer => (p, a, o) => {
+    if (p !== 'gh') return t.welt.aufrufer(p, a, o);
+    const id = /^repos\/o\/r\/issues\/(\d+)$/.exec(a[1] ?? '');
+    const mitsch = (x: { code: number; stdout: string; stderr: string }) => (t.p.aufrufe.push([p, ...a]), failing(a) ? { code: 1, stdout: '', stderr: 'HTTP 502' } : x);
+    if (a[0] === 'api' && id && a[2] === '--jq') return mitsch(ok(`9000${id[1]}\n`));
+    if (a[0] === 'api' && a[2] === 'DELETE') return mitsch(ok());
+    if (a[0] === 'issue' && a[1] === 'view' && a.includes('body') && bodies[Number(a[2])] !== undefined) return mitsch(ok(JSON.stringify({ body: bodies[Number(a[2])] })));
+    if (a[0] === 'issue' && a[1] === 'close') return mitsch(ok());
+    if (a[0] === 'issue' && a[1] === 'edit' && a.includes('--body-file')) {
+      if (failing(a)) return mitsch(ok());
+      bodies[Number(a[2])] = o?.eingabe ?? '';
+      return mitsch(ok());
+    }
+    if (failing(a)) return mitsch(ok());
+    return t.welt.aufrufer(p, a, o);
+  };
+
+  it('#148: the driver reports the cut plan of its last triage run: missions with children and reason, the notes it closed', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(plan(100), 50);
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(b.berichte[0].triage.schnittplan).toBeNull();
+      const s = b.berichte.at(-1)!.triage.schnittplan!;
+      expect(Date.parse(s.zeit)).toBeGreaterThan(0);
+      expect(s.fehler).toBeNull();
+      expect(s.missionen).toEqual([
+        { nr: 100, url: 'https://github.com/o/r/issues/100', titel: 'Portprüfung', begruendung: 'Drei Notizen zum selben Port', neu: true, kinder: [{ nr: 30, titel: 'Notiz 30', grund: 'Grund 30' }, { nr: 31, titel: 'Notiz 31', grund: 'Grund 31' }], freigegeben: true, fehler: null, widerrufen: null },
+        { nr: 40, url: null, titel: 'Tafel', begruendung: '', neu: false, kinder: [{ nr: 32, titel: 'Notiz 32', grund: 'Grund 32' }, { nr: 33, titel: 'Notiz 33', grund: 'Grund 33' }], freigegeben: true, fehler: null, widerrufen: null },
+      ]);
+      expect(s.notizen).toEqual([
+        { nr: 20, titel: 'Notiz 20', art: 'verworfen', grund: 'Grund 20', verweis: null, fundstelle: '', fehler: null },
+        { nr: 21, titel: 'Notiz 21', art: 'zusammengefuehrt', grund: 'Grund 21', verweis: 22, fundstelle: '', fehler: null },
+        { nr: 23, titel: 'Notiz 23', art: 'ueberfluessig', grund: 'Grund 23', verweis: null, fundstelle: 'PR #9', fehler: 'Kommentar gescheitert, nichts geändert' },
+      ]);
+      // the mission number of an attached note stands at its decision, and the plan outlives a restart in the state
+      expect(z.triage!.entscheidungen.filter((d) => d.ergebnis === 'klar').map((d) => [d.nr, d.mission])).toEqual([[30, 100], [31, 100], [32, 40], [33, 40]]);
+      expect(z.triage!.schnittplan!.missionen.map((m) => m.nr)).toEqual([100, 40]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#148 schnitt-widerruf of a mission the run created: comment first, ready_label off, its run paused and its merge with a person, each note loosened and back in the triage, the mission closed', async () => {
+    // merge: nach_gate: without the switch the PR of the turn under way would merge by itself
+    const t = aufbau({ adapter: 'merge: nach_gate' });
+    // the new mission is epic 3, its run under way
+    const tr = triageAttrappe(plan(3), 50);
+    const bodies: Record<number, string> = { 3: 'Drei Notizen zum selben Port\n\n## Missionsziele\n- [ ] #30 Notiz 30\n- [ ] #31 Notiz 31\n\n> **Reihenfolge:** x\n' };
+    // the label of #31 fails: it stands in the report and the logbook, nothing is repeated
+    const aufrufer = schnittForge(t, bodies, (a) => a[0] === 'issue' && a[1] === 'edit' && a[2] === '31' && a.includes('--add-label'));
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (!x.triage.schnittplan) return { epic: 0, art: 'triage' };
+        if (!x.triage.schnittplan.missionen[0].widerrufen) return { epic: 3, art: 'schnitt-widerruf', text: 'Port gehört in die Tafel-Mission. <!-- flotte:triage -->' };
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
+      const am3 = t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Widerruf'));
+      expect(am3).toHaveLength(1);
+      expect(am3[0].text).toBe('**Widerruf des Menschen (Mensch über die Brücke)** — Mission #3 „Portprüfung“ aus dem Schnittplan zurückgenommen\nEinwand: Port gehört in die Tafel-Mission.\nDanach: `ready-for-agent` ab, ein laufender Außeneinsatz angehalten (pausiert, gemergt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele #30, #31 gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).\nHerkunft: Mensch über die Brücke');
+      // the comment before every change
+      const an3 = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'comment' && a[3] === '3');
+      const kommentar3 = t.p.aufrufe.indexOf(an3[t.p.kommentare.filter((k) => k.nr === 3).indexOf(am3[0])]);
+      expect(kommentar3).toBeGreaterThanOrEqual(0);
+      expect(kommentar3).toBeLessThan(stelle('gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label'));
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label')]).toEqual(['gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label', 'ready-for-agent']);
+      // the run on it is paused, never aborted
+      expect(t.p.meldungen.some((m) => /^#3 Epic #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/.test(m))).toBe(true);
+      expect(z.epics['3'].pausiert).toBeTruthy();
+      expect(z.ereignisse.some((x) => /abgebrochen|aufgegeben/.test(x.text))).toBe(false);
+      // the PR the turn ended with waits for a person: the switch of the epic says mensch, merge.ps1 never ran
+      expect(z.epics['3'].merge).toBe('mensch');
+      expect(texte(z)).toContain('Andocken von #3 von automatisch → auf mensch, Mensch über die Brücke');
+      expect(t.p.merges).toEqual([]);
+      for (const n of ['30', '31']) {
+        const an = t.p.kommentare.filter((k) => k.nr === Number(n));
+        expect(an).toHaveLength(1);
+        expect(an[0].text).toContain(`Sternzeit-Notiz #${n} aus Mission #3 „Portprüfung“ gelöst\nEinwand: Port gehört in die Tafel-Mission.\nNicht wieder in Mission #3`);
+        expect(stelle('gh', 'issue', 'comment', n)).toBeLessThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/3/sub_issue', '-F', `sub_issue_id=9000${n}`));
+        // the next triage takes the comment as a fact: the note does not wait behind its earlier triage comment
+        const notiz: Ticket = { nummer: Number(n), titel: `Notiz ${n}`, body: '', url: '', labels: ['needs-triage'], kommentare: [{ body: `${TRIAGE_MARKE}\n**Triage: Missionsziel von Mission #3, Warp frei**`, autor: 'flotte', zeit: '1', rolle: 'OWNER' }, { body: an[0].text, autor: 'flotte', zeit: '2', rolle: 'OWNER' }] };
+        expect(wartetAufAntwort(notiz)).toBe(false);
+      }
+      expect(t.p.kommentare.every((k) => !k.text.includes('flotte:triage'))).toBe(true);
+      expect(stelle('gh', 'issue', 'edit', '30', '--repo', 'o/r', '--remove-label')).toBeGreaterThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/3/sub_issue', '-F', 'sub_issue_id=900030'));
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '30', '--repo', 'o/r', '--remove-label')]).toEqual(['gh', 'issue', 'edit', '30', '--repo', 'o/r', '--remove-label', 'ready-for-agent', '--add-label', 'needs-triage']);
+      // the list of the mission without both lines, the rest as it was
+      expect(bodies[3]).toBe('Drei Notizen zum selben Port\n\n## Missionsziele\n\n> **Reihenfolge:** x\n');
+      // closed last, not planned, never deleted
+      const zu = stelle('gh', 'issue', 'close', '3');
+      expect(t.p.aufrufe[zu]).toEqual(['gh', 'issue', 'close', '3', '--repo', 'o/r', '--reason', 'not planned']);
+      expect(zu).toBeGreaterThan(stelle('gh', 'issue', 'edit', '31', '--repo', 'o/r', '--remove-label'));
+      expect(t.p.aufrufe.some((a) => a.includes('delete'))).toBe(false);
+      // the failed step: in the report and the logbook, once
+      const m = b.berichte.at(-1)!.triage.schnittplan!.missionen[0];
+      expect(m.widerrufen).toBe('Port gehört in die Tafel-Mission.');
+      expect(m.fehler).toBe('Widerruf: Labels an #31 gescheitert: HTTP 502');
+      expect(texte(z)).toContain('Mission #3 aus dem Schnittplan widerrufen (ready-for-agent ab, #30, #31 zurück in die Triage, geschlossen); gescheitert: Labels an #31 gescheitert: HTTP 502, Mensch über die Brücke');
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'edit' && a[3] === '31')).toHaveLength(1);
+      // the decisions of the notes go with it: #30 revoked, #31 still revocable on its own
+      expect(z.triage!.entscheidungen.filter((d) => d.mission === 3).map((d) => [d.nr, d.widerrufen])).toEqual([[30, 'Port gehört in die Tafel-Mission.'], [31, null]]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#148 schnitt-widerruf of an open mission: only the notes the run hung on it go back, the mission stays; triage-widerruf of an attached note loosens it too', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(plan(100), 50);
+    const bodies: Record<number, string> = { 40: 'Tafel\n\n## Missionsziele\n- [x] #12 Alt\n- [ ] #32 Notiz 32\n- [ ] #33 Notiz 33\n' };
+    const aufrufer = schnittForge(t, bodies);
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const s = x.triage.schnittplan;
+        if (!s) return { epic: 0, art: 'triage' };
+        const d33 = x.triage.entscheidungen.find((d) => d.nr === 33)!;
+        if (!d33.widerrufen) return { epic: 33, art: 'triage-widerruf', seit: d33.zeit, text: 'Gehört nicht zur Tafel.' };
+        if (!s.missionen[1].widerrufen) return { epic: 40, art: 'schnitt-widerruf', text: 'Die Tafel ist voll genug.' };
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
+      // triage-widerruf of #33: comment, loosened (sub-issue, list line), then the labels
+      expect(stelle('gh', 'issue', 'comment', '33')).toBeLessThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/40/sub_issue', '-F', 'sub_issue_id=900033'));
+      expect(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/40/sub_issue', '-F', 'sub_issue_id=900033')).toBeLessThan(stelle('gh', 'issue', 'edit', '33', '--repo', 'o/r', '--remove-label'));
+      expect(texte(z)).toContain('Triage-Entscheidung „Warp frei“ zu #33 widerrufen (von Mission #40 gelöst, ready-for-agent ab, needs-triage an), Mensch über die Brücke');
+      // its comment names the loosening and that it shall not return to this mission
+      const am33 = t.p.kommentare.filter((k) => k.nr === 33);
+      expect(am33).toHaveLength(1);
+      expect(am33[0].text).toContain('Aus Mission #40 gelöst (Sub-Issue und Liste `## Missionsziele`). Nicht wieder in Mission #40: Die nächste Triage ordnet diese Notiz neu zu, ohne diese Mission.\nHerkunft: Mensch über die Brücke');
+      // schnitt-widerruf of #40: only #32 is left to go back
+      const am40 = t.p.kommentare.filter((k) => k.nr === 40);
+      expect(am40.map((k) => k.text)).toEqual(['**Widerruf des Menschen (Mensch über die Brücke)** — Missionsziele aus dem Schnittplan zurückgenommen: #32\nEinwand: Die Tafel ist voll genug.\nDanach: gelöst (Sub-Issue und Liste `## Missionsziele`) und zurück in die Triage; die Mission selbst bleibt, wie sie ist.\nHerkunft: Mensch über die Brücke']);
+      expect(stelle('gh', 'issue', 'comment', '40')).toBeLessThan(stelle('gh', 'issue', 'comment', '32'));
+      expect(stelle('gh', 'issue', 'comment', '32')).toBeLessThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/40/sub_issue', '-F', 'sub_issue_id=900032'));
+      expect(t.p.aufrufe.filter((a) => a[1] === 'api' && a[3] === 'DELETE')).toHaveLength(2);
+      expect(bodies[40]).toBe('Tafel\n\n## Missionsziele\n- [x] #12 Alt\n');
+      // the mission itself: no label, no close
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && ['close', 'reopen'].includes(a[2]))).toEqual([]);
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'edit' && a[3] === '40' && !a.includes('--body-file'))).toEqual([]);
+      expect(texte(z)).toContain('Missionsziele #32 aus Mission #40 widerrufen (zurück in die Triage, die Mission bleibt), Mensch über die Brücke');
+      const m = b.berichte.at(-1)!.triage.schnittplan!.missionen[1];
+      expect([m.widerrufen, m.fehler]).toEqual(['Die Tafel ist voll genug.', null]);
+      expect(z.epics['3'].pausiert ?? null).toBeNull();
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#148 schnitt-widerruf of a mission that did not start yet: out of the deployment for good, not paused; the driver ends', async () => {
+    const t = aufbau();
+    // #4 is the new mission; one place, #3 runs first, #4 waits
+    const tr = triageAttrappe(plan(4), 50);
+    const aufrufer = schnittForge(t, { 4: '## Missionsziele\n- [ ] #30 Notiz 30\n- [ ] #31 Notiz 31\n' });
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (!x.triage.schnittplan) return { epic: 0, art: 'triage' };
+        if (x.epics.find((e) => e.nr === 4)?.stufe === 'wartend' && !x.triage.schnittplan.missionen[0].widerrufen) return { epic: 4, art: 'schnitt-widerruf', text: 'Doch nicht.' };
+        return null;
+      },
+    });
+    try {
+      // no turn for #4 in the script: a start would fail the test
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3, 4], { bruecke: b.url, obergrenze: 1 }), { ...t.welt, aufrufer, triagiere: tr.f });
+      expect(texte(z)).toContain('Mission #4 aus dem Einsatz genommen (widerrufen, nicht gestartet), Mensch über die Brücke');
+      expect(z.epics['4']).toBeUndefined();
+      expect(z.aufgenommen ?? []).not.toContain(4);
+      expect(texte(z).some((x) => /Epic #4 pausiert|#4 Lauf gestartet|Andocken von #4/.test(x))).toBe(false);
+      expect(t.p.meldungen.some((m) => /^#4 Lauf gestartet/.test(m))).toBe(false);
+      expect(b.berichte.at(-1)!.epics.map((e) => e.nr)).toEqual([3]);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(t.p.aufrufe.some((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'close' && a[3] === '4')).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#148 schnitt-widerruf that does not fit or whose comment fails changes nothing', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(plan(100), 50);
+    const aufrufer = schnittForge(t, {}, (a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '100');
+    const liste: Wunsch[] = [{ epic: 77, art: 'schnitt-widerruf', text: 'nein' }, { epic: 100, art: 'schnitt-widerruf', text: 'nein' }];
+    const b = await attrappe(() => null, { handlung: (x) => (x.triage.schnittplan ? liste.shift() ?? null : { epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      expect(texte(z)).toContain('Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: Mission #77 steht nicht im Schnittplan des letzten Triage-Laufs');
+      expect(texte(z)).toContain('Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: Kommentar an Mission #100 gescheitert, nichts geändert');
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[1] === 'api' || ['edit', 'close'].includes(a[2])) && a[3] !== '99')).toEqual([]);
+      expect(z.triage!.schnittplan!.missionen[0].widerrufen).toBeNull();
     } finally {
       await b.zu();
     }

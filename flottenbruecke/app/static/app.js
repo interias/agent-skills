@@ -523,6 +523,8 @@ function handlungWort(x) {
   if (x.handlung === 'merge') return `Andocken: ${esc(andockenWort(x.text))}`;
   if (x.handlung === 'triage') return 'Triage-Lauf gestartet';
   if (x.handlung === 'triage-widerruf') return `#${x.ticket} Triage-Entscheidung widerrufen → ${esc(x.text)}`;
+  // #148: the epic is the mission
+  if (x.handlung === 'schnitt-widerruf') return `Mission aus dem Schnittplan widerrufen → ${esc(x.text)}`;
   if (x.handlung === 'triage-antwort') {
     let a = {};
     try { a = JSON.parse(x.text); } catch { /* the question without the answer */ }
