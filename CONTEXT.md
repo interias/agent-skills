@@ -1,6 +1,6 @@
 # agent-skills
 
-Die Skills, mit denen Agenten freigegebene Epics aus der Forge umsetzen, und der Leitstand, der
+Die Skills, mit denen Agenten freigegebene Epics aus der Forge umsetzen, und der Treiber, der
 mehrere solcher Läufe gleichzeitig führt.
 
 ## Language

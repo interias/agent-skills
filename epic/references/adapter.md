@@ -158,12 +158,12 @@ Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 ### Merge (#14)
 
 Wer einen Epic-PR oder einen anderen Pull Request eines Laufs mergt, steht **nur hier**. Die
-Regel 1 von `epic`, der Flotten-Treiber, `guard.ps1` und der Leitstand verweisen auf diesen
+Regel 1 von `epic`, der Flotten-Treiber und `guard.ps1` verweisen auf diesen
 Schlüssel. Ein Lauf mergt nie, in keiner Einstellung.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `merge` | `mensch`: ein Mensch mergt. `nach_gate`: genau ein Akteur mergt nach grünem Gate-Block und, wo es Checks gibt, nach grünen Checks — der Flotten-Treiber, bis zum Umschalten `merge.ps1` des Leitstands. Immer mit Merge-Commit | `mensch` |
+| `merge` | `mensch`: ein Mensch mergt. `nach_gate`: genau ein Akteur mergt nach grünem Gate-Block und, wo es Checks gibt, nach grünen Checks — der Flotten-Treiber mit `merge.ps1`. Immer mit Merge-Commit | `mensch` |
 | `gate_heading` | Überschrift des Abschnitts mit dem Gate-Block in der PR-Beschreibung | `## Gate` |
 | `gate_green` | Zeile, die einen grünen Gate-Lauf abschließt | `Gate grün.` |
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die das Gate lief | `Basis \S+ @ ([0-9a-f]{7,40})` |

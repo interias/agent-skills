@@ -329,7 +329,7 @@ describe('C3: Adapter ohne merge vor dem Einspielen', () => {
     const r = adapter([wurzel]) as { adapter: { repo: string; merge: string | null; quelle: string }[]; ohneMerge: string[]; folge: string };
     expect(r.adapter.map((a) => [a.repo.endsWith('mit') ? 'mit' : 'ohne', a.merge, a.quelle]).sort()).toEqual([['mit', 'nach_gate', 'Arbeitskopie'], ['ohne', null, 'Arbeitskopie']]);
     expect(r.ohneMerge).toEqual([join(wurzel, 'ohne')]);
-    expect(r.folge).toMatch(/mergt der Leitstand in 1 Projekt\(en\) nicht mehr selbst/);
+    expect(r.folge).toMatch(/mergt nur ein Mensch in 1 Projekt\(en\)/);
     expect(schluessel('---\nmerge: "mensch"\n---', 'merge')).toBe('mensch');
     expect(schluessel('kein Frontmatter\nmerge: x', 'merge')).toBeNull();
   });

@@ -14,8 +14,6 @@
     - Enters ~/.claude and every ~/.claude-arbeitspferd* folder as additionalDirectories in the
       settings.json of every ~/.claude-arbeitspferd* folder, so no start stops at the trust prompt.
     - Copies themes/claude-farbe.json into ~/.claude/themes, same backup rule.
-    - Installs the skill leitstand/ into ~/.claude/skills/leitstand, same backup rule. install.ps1 leaves
-      it out, so only machines with a second account get it. A second call leaves unchanged files alone.
     - Creates the junctions skills, agents, output-styles, plugins and themes in the config folder,
       pointing to ~/.claude (not for the main account). Existing entries are left alone. Nothing is
       ever deleted.
@@ -127,13 +125,6 @@ foreach ($k in $konten) {
         ConvertTo-Json $settings -Depth 32 | Set-Content $settingsDatei -Encoding utf8NoBOM
         "eingetragen in $settingsDatei`: $($fehlend -join ', ')"
     }
-}
-
-# Skill leitstand, kept out of install.ps1 so only machines with a second account get it
-$skillSrc = Join-Path $src 'leitstand'
-foreach ($f in Get-ChildItem $skillSrc -File -Recurse) {
-    $rel = [IO.Path]::GetRelativePath($skillSrc, $f.DirectoryName).TrimStart('.')
-    Copy-WithBackup $f.FullName (Join-Path $main "skills\leitstand\$rel") (Join-Path $backup "leitstand\$rel")
 }
 
 # Shared folders of the main account, as junctions
