@@ -22,7 +22,7 @@ bevor er angefasst wird. Die Anweisungen an den Agenten stehen in [`SKILL.md`](S
      Commit, Abschnitt „Nacharbeit“ im PR), sonst auf `nacharbeit/<epic-nr>-<slug>` mit eigenem PR.
   5. **Nachdokumentieren:** Kommentar am Epic je Punkt mit Begründung, Statuslabels nachziehen,
      das Epic schließen, wenn PR gemergt und alle Kinder zu sind.
-- **Die eine Regel:** kein neues Issue ohne ausdrückliche Entscheidung in einer Fragerunde. Neue
-  Issues tragen das Triage-Label, nie `ready-for-agent`.
+- **Die eine Regel:** ein neues Ticket nur, wenn es nötig ist, mit `needs-triage` und einem Satz zur
+  Ursache, nie mit `ready-for-agent`; die Ticketfrage geht nicht an den Menschen.
 - **Nie** direkt auf den Basiszweig committen, auch nicht für einen Einzeiler; mergen tut auch
   dieser Skill nicht.
