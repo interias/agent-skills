@@ -161,7 +161,7 @@ export async function auftragAusfuehren(text: string, r: AuftragsRegeln, forge: 
   const zielLabels = labelsFuer('ziel', r, o.starten);
   if (o.trocken) {
     return {
-      trocken: true,
+      trocken: true as const,
       mission: e.mission ? { titel: e.mission.titel, labels: labelsFuer('mission', r, o.starten), body: missionBody(e.mission, e.ziele.map((z) => ({ titel: z.titel, nummer: null }))) } : null,
       ziele: e.ziele.map((z) => ({ titel: z.titel, labels: zielLabels, body: zielBody(z, e.mission ? null : undefined) })),
       hinweise,
@@ -196,5 +196,5 @@ export async function auftragAusfuehren(text: string, r: AuftragsRegeln, forge: 
     const body = missionBody(e.mission, ziele);
     await schritt(`Liste der Missionsziele in Mission ${nr(mission.nummer)} schreiben`, () => forge.bodySetzen(mission!.nummer, body));
   }
-  return { trocken: false, mission, ziele, labels: { mission: mission ? labelsFuer('mission', r, o.starten) : null, ziele: zielLabels }, hinweise };
+  return { trocken: false as const, mission, ziele, labels: { mission: mission ? labelsFuer('mission', r, o.starten) : null, ziele: zielLabels }, hinweise };
 }
