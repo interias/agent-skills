@@ -682,5 +682,37 @@
   "freigegeben": [
     { "nr": 43, "titel": "Mini-Epic: Statusseite" },
     { "nr": 44, "titel": "Spec: Exportskript" }
-  ]
+  ],
+  "triage": {
+    "gelesen": "2026-11-20T14:30:00Z",
+    "laeuft": false,
+    "tickets": [
+      { "nr": 60, "titel": "Dunkles Farbschema für die Tafel", "labels": ["needs-triage", "oberflaeche"] },
+      { "nr": 61, "titel": "Newsletter an alle Kunden zum Release", "labels": ["needs-triage", "kommunikation"] },
+      { "nr": 62, "titel": "Konfigurationsdatei dokumentieren", "labels": ["needs-info", "doku"] },
+      { "nr": 63, "titel": "Tippfehler in der Hilfe", "labels": ["needs-triage", "doku", "oberflaeche"] },
+      { "nr": 64, "titel": "Idee: Sprachausgabe für neue Fragen", "labels": ["needs-triage"] }
+    ],
+    "entscheidungen": [
+      { "nr": 57, "titel": "Logbuch nach Mission filtern", "ergebnis": "klar", "herkunft": "Skill-Empfehlung", "grund": "Abnahmekriterien und Verifikationsweg nachgetragen; keine Frage liegt beim Menschen.", "zeit": "2026-11-20T13:04:10Z", "widerrufen": null },
+      { "nr": 58, "titel": "Alte Tafel-Ansicht wiederherstellen", "ergebnis": "ueberfluessig", "herkunft": "Präzedenz: #43", "grund": "Überholt durch die Sternenkarte.", "zeit": "2026-11-20T13:04:30Z", "widerrufen": null }
+    ],
+    "fragen": [
+      {
+        "ticket": 61,
+        "nr": 1,
+        "titel": "Newsletter an alle Kunden zum Release",
+        "frage": "Darf der Newsletter an alle Kunden gehen?",
+        "optionen": [
+          { "buchstabe": "A", "text": "an alle Kunden" },
+          { "buchstabe": "B", "text": "nur an die Testliste" }
+        ],
+        "empfehlung": "nur an die Testliste",
+        "grund": "Eine Mail an alle Kunden lässt sich nicht zurückholen.",
+        "herkunft": "Eigenes Urteil: geht nach außen",
+        "marke": "nach außen",
+        "seit": "2026-11-20T13:05:00Z"
+      }
+    ]
+  }
 }

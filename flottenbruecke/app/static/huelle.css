@@ -95,3 +95,7 @@
   .fuss { bottom: var(--pillen); padding-bottom: 4px; background: #000; }
   .logbuch { bottom: calc(var(--pillen) + 40px); max-height: 40vh; }
 }
+/* six pills (#116): on a narrow phone the longest word must still fit its pill */
+@media (max-width: 420px) {
+  .pille { padding: 0 1px; font-size: 10px; letter-spacing: 0; }
+}

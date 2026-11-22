@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf'}
+# #116: the actions that point at one question or decision (nr, seit), not at the whole epic
+BEZUG = ('widerruf', 'triage-antwort', 'triage-widerruf')
 # #112: how an epic merges (Andocken): the driver after the gate, or a person looks at every PR
 STELLUNGEN = ('automatisch', 'mensch')
 
@@ -231,6 +233,52 @@ class Einstellwert(BaseModel):
     hinweis: str | None = Field(None, max_length=500)
 
 
+class TriageTicket(BaseModel):
+    """An open Sternzeit-Notiz (needs-triage or needs-info) of the forge (#116); the bridge links it from the project's url."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    labels: list[str] = Field([], max_length=50)
+
+
+class TriageEntscheidung(BaseModel):
+    """What a triage run of this driver decided and wrote (#116): released (klar) or closed (ueberfluessig); (nr, zeit) is the key."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    ergebnis: Literal['klar', 'ueberfluessig']
+    herkunft: str = Field('', max_length=500)
+    grund: str = Field('', max_length=4000)
+    zeit: str = Field(max_length=40)
+    widerrufen: str | None = Field(None, max_length=4000)
+
+
+class TriageFrage(BaseModel):
+    """A critical question of the triage at a ticket, still without an answer (#116); (ticket, nr, seit) is the key, seit the time of its comment."""
+
+    ticket: int = Field(ge=1)
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    frage: str = Field(max_length=4000)
+    optionen: list[Option] = Field([], max_length=26)
+    empfehlung: str = Field('', max_length=2000)
+    grund: str = Field('', max_length=4000)
+    herkunft: str = Field('', max_length=500)
+    marke: str = Field('', max_length=80)
+    seit: str = Field(max_length=40)
+
+
+class Triage(BaseModel):
+    """The triage state of a project (#116): the open Sternzeit-Notizen, the decisions of the driver's triage runs, the open questions."""
+
+    # when the driver last read the forge; a triage run under way
+    gelesen: str | None = Field(None, max_length=40)
+    laeuft: bool = False
+    tickets: list[TriageTicket] = Field([], max_length=500)
+    entscheidungen: list[TriageEntscheidung] = Field([], max_length=200)
+    fragen: list[TriageFrage] = Field([], max_length=200)
+
+
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:
     """Why the driver would refuse the value, or None. `andere`: the value each other setting has or is about to get."""
     e = next((x for x in liste if x['name'] == name), None)
@@ -289,6 +337,8 @@ class Bericht(BaseModel):
     einstellungen: list[Einstellwert] | None = Field(None, max_length=20)
     # #61: released epics outside the deployment (aufnehmen); an older driver has none
     freigegeben: list[Freigegeben] = Field([], max_length=500)
+    # #116: the triage state (Frachtraum); an older driver has none
+    triage: Triage | None = None
 
 
 # Holodeck (#44): a file name only, never a path; the bridge resolves it against its own store
@@ -338,16 +388,20 @@ class Antwort(BaseModel):
 
 
 class Handlung(BaseModel):
-    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority or its merge."""
+    """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority or its merge;
+    #116: start a triage run, answer a critical question of the triage, revoke a decision of the triage."""
 
+    # owner/name; triage: also `alle`, one action per project that reports a triage state
     forge: str = Field(max_length=200)
+    # the epic; triage-antwort and triage-widerruf: the ticket; einstellen and triage: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge']
-    # widerruf: the decision (its nr and zeit)
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf']
+    # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
     # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON; prioritaet: hoch or normal;
-    # merge (#112): automatisch or mensch, None back to the proposal
+    # merge (#112): automatisch or mensch, None back to the proposal; triage-antwort: {"option", "text"} as JSON;
+    # triage-widerruf: the person's objection
     text: str | None = Field(None, max_length=4000)
 
     @model_validator(mode='after')
@@ -355,7 +409,28 @@ class Handlung(BaseModel):
         self.text = (self.text or '').strip() or None
         if self.art == 'widerruf' and (self.nr is None or not self.seit or not self.text):
             raise ValueError('Widerruf: nr, seit und die neue Entscheidung')
-        if self.art == 'einstellen':
+        if self.art == 'triage':
+            # belongs to the project like einstellen
+            if self.epic != 0:
+                raise ValueError('Triage-Lauf: epic 0')
+            self.nr, self.seit, self.text = None, None, None
+        elif self.art == 'triage-antwort':
+            try:
+                d = json.loads(self.text or '')
+            except ValueError:
+                d = None
+            if not isinstance(d, dict) or not isinstance(d.get('option'), (str, type(None))) or not isinstance(d.get('text'), (str, type(None))):
+                raise ValueError('Triage-Antwort: text {"option", "text"}')
+            option = (d.get('option') or '').strip().upper() or None
+            text = (d.get('text') or '').strip()[:4000] or None
+            if self.epic < 1 or self.nr is None or self.nr < 1 or not self.seit or (option is not None and not re.fullmatch(r'[A-Z]', option)) or not (option or text):
+                raise ValueError('Triage-Antwort: Ticket, Frage (nr, seit) und eine Option oder eigener Text')
+            self.text = json.dumps({'option': option, 'text': text}, ensure_ascii=False)
+        elif self.art == 'triage-widerruf':
+            if self.epic < 1 or not self.seit or not self.text:
+                raise ValueError('Widerruf einer Triage-Entscheidung: Ticket, seit (= zeit der Entscheidung) und der Einwand')
+            self.nr = None
+        elif self.art == 'einstellen':
             # belongs to the project: epic 0; the text is read here once, so the store holds one form
             try:
                 d = json.loads(self.text or '')
@@ -374,6 +449,6 @@ class Handlung(BaseModel):
             self.nr, self.seit = None, None
         elif self.art in ('aufnehmen', 'pausieren', 'fortsetzen') and self.epic < 1:
             raise ValueError('Diese Handlung braucht ein Epic')
-        elif self.art != 'widerruf':
+        elif self.art not in BEZUG:
             self.nr, self.seit, self.text = None, None, None
         return self

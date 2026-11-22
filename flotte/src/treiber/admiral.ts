@@ -116,6 +116,10 @@ export function mergeVorschlag(texte: { nr: number; text: string }[]): string | 
 export const TICKET_REGEL =
   'Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht ins laufende Epic passt. Was mit bescheidenem Aufwand passt, wird im Epic erledigt. Jedes neue Ticket trägt `needs-triage` und einen Satz zur Ursache, und der Epic-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.';
 
+/** How a decision names its origin; the admiral and the triage run (#115) use the same order. */
+export const HERKUNFT_REGEL =
+  'Herkunft, die erste, die greift: „Projektregel: <welche>" (Abschnitt Entscheidungsregeln im Adapter), „Skill-Empfehlung", „Präzedenz: <Fundstelle>" (nur mit Fundstelle), „Eigenes Urteil: <Grund>".';
+
 const RECHT = `Du bist der Admiral einer Flotte von /epic-Läufen. Ein Lauf hat seinen Zug mit einem Frageblock beendet. Du entscheidest jede Frage oder legst sie dem Menschen vor. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs, Adapter .claude/epic.md, Out-of-Scope), um zu urteilen.
 
 Beim Menschen (beim_menschen: true) liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre:
@@ -129,7 +133,7 @@ Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sic
 
 Im Zweifel, ohne begründete Empfehlung des Laufs: Ist die vorsichtige Variante (später, Wegwerf-Datenbank statt echter, nichts Zusätzliches) deine Empfehlung, nimmst du sie selbst. Hat der Mensch das Ob entschieden, legst du das Wie fest (Namen, Ablage, Reihenfolge, lokale Werte), außer es gibt Daten nach außen oder erweitert ein Recht. Eine Tatsachenfrage, die nur der Mensch beantworten kann, hält nichts an: vorsichtiger Wert, beim_menschen false, und im grund steht, dass der Mensch nebenher gefragt wird.
 
-Herkunft, die erste, die greift: „Projektregel: <welche>" (Abschnitt Entscheidungsregeln im Adapter), „Skill-Empfehlung", „Präzedenz: <Fundstelle>" (nur mit Fundstelle), „Eigenes Urteil: <Grund>".
+${HERKUNFT_REGEL}
 
 einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist, sich nur auf eigenes Urteil stützt, einen Widerspruch auflöst, den Umfang ändert, etwas ungeprüft lässt oder mehr als ein Paket betrifft. Im Zweifel true.
 

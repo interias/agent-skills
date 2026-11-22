@@ -78,5 +78,35 @@
     "text": "mensch",
     "zeit": "2026-11-20T14:45:00+00:00",
     "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 11,
+    "epic": 0,
+    "art": "triage",
+    "nr": null,
+    "seit": null,
+    "text": null,
+    "zeit": "2026-11-20T14:46:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 12,
+    "epic": 61,
+    "art": "triage-antwort",
+    "nr": 1,
+    "seit": "2026-11-20T13:05:00Z",
+    "text": "{\"option\": \"B\", \"text\": null}",
+    "zeit": "2026-11-20T14:47:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 13,
+    "epic": 58,
+    "art": "triage-widerruf",
+    "nr": null,
+    "seit": "2026-11-20T13:04:30Z",
+    "text": "Die alte Ansicht brauchen wir noch für den Beamer im Besprechungsraum.",
+    "zeit": "2026-11-20T14:48:00+00:00",
+    "herkunft": "Mensch über die Brücke"
   }
 ]

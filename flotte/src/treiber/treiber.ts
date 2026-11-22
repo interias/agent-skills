@@ -15,10 +15,15 @@ import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from
 import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
 import { lerne } from '../befehle/lernen.ts';
+import { regelnAus } from '../befehle/auftrag.ts';
+import { lernTickets, triagiere, triageTickets } from '../befehle/triage.ts';
+import { TRIAGE_LABEL } from '../auftrag/auftrag.ts';
+import { LERN_MARKE } from '../lernen.ts';
+import { LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
-import { antwortZeile, type Bericht, type BerichtPaket, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
+import { antwortZeile, type Bericht, type BerichtPaket, type BerichtTriage, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
@@ -142,6 +147,8 @@ export interface Welt {
   startZeit: (pid: number) => number | null;
   jetzt: () => number;
   melde: (zeile: string) => void;
+  /** #116: the triage run of `flotte triage`; default the real one */
+  triagiere?: typeof triagiere;
 }
 
 export const echteWelt: Welt = {
@@ -294,6 +301,8 @@ export interface FlottenZustand extends Zustand {
   einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string }>>;
   /** #61: epics taken into the deployment on the bridge; they join it again after a restart until they are done */
   aufgenommen?: number[];
+  /** #116: the decisions of the triage runs started on the bridge, newest first, revocable there; they outlive a restart */
+  triage?: { entscheidungen: BerichtTriageEntscheidung[] };
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -323,6 +332,14 @@ export function guardArgs(guard: string): string[] {
 
 /** how often the driver reads the child tickets of an epic for the package bar of the bridge */
 export const PAKETE_MS = 5 * 60_000;
+
+/**
+ * #116: how often the driver reads the Sternzeit-Notizen for the Frachtraum without a cause (two gh calls):
+ * they change seldom and mostly through a triage run or an action of the Frachtraum, after which it reads at once.
+ */
+export const TRIAGE_MS = 30 * 60_000;
+/** #116: the decisions of the triage runs the report carries, newest first */
+export const TRIAGE_ENTSCHEIDUNGEN_MAX = 50;
 
 /** hook refusals an epic may collect before it is blocked (acceptance finding B) */
 export const SPERREN_GRENZE = 3;
@@ -401,6 +418,10 @@ class Treiber {
   freigegeben: number[] = [];
   freigegebenZeit = 0;
   freiTitel = new Map<number, string>();
+  /** #116: the Sternzeit-Notizen and open questions of the triage from the forge, when they were read, a triage run under way */
+  triageStand: Pick<BerichtTriage, 'gelesen' | 'tickets' | 'fragen'> | null = null;
+  triageZeit = 0;
+  triageLaeuft = false;
 
   constructor(
     readonly e: Einstellung,
@@ -480,6 +501,7 @@ class Treiber {
       }
       this.paketeLesen();
       this.freigegebenLesen();
+      this.triageLesen();
       this.speichern();
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
@@ -1338,6 +1360,9 @@ class Treiber {
     const amIssue = (text: string) => kommentar(this.w.aufrufer, this.e.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
     if (h.art === 'einstellen') return this.einstellen(h);
     if (h.art === 'aufnehmen') return this.aufnehmen(h);
+    if (h.art === 'triage') return this.triageStarten();
+    if (h.art === 'triage-antwort') return this.triageAntworten(h);
+    if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
     if (!ep) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Epic gehört nicht zu diesem Einsatz`);
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
@@ -1512,6 +1537,176 @@ class Treiber {
       this.freiTitel.set(nr, t);
     }
     return this.freiTitel.get(nr)!;
+  }
+
+  // ---- the Frachtraum (#116): the triage of the project from the bridge; nothing exists on the bridge only
+
+  /**
+   * The open Sternzeit-Notizen and the critical questions of the triage still without an answer, from the
+   * forge (the comments with the marks of the triage); at most every TRIAGE_MS, or now. A forge that does not
+   * answer keeps the last state; a failed read of lern_issue only drops the proposals.
+   */
+  triageLesen(jetzt = false): void {
+    if (!this.bruecke || (!jetzt && (this.triageLaeuft || this.w.jetzt() - this.triageZeit < TRIAGE_MS))) return;
+    this.triageZeit = this.w.jetzt();
+    const k = (s: string, n = 4000) => s.slice(0, n);
+    try {
+      const liste = triageTickets(this.w.aufrufer, this.e.forge);
+      // #117: the proposals of the learning loop as tickets of the collecting issue, topic LERN_THEMA, the kennung before the title;
+      // a decided one (the last comment of the triage no question, no answer below it) is no longer open, unless its Missionsziel is missing
+      // its own try: a failed read of lern_issue must not hold back the Sternzeit-Notizen
+      let lern: ReturnType<typeof lernTickets> = [];
+      try {
+        if (this.adapter.lern_issue) lern = lernTickets(this.w.aufrufer, this.e.forge, this.adapter.lern_issue);
+      } catch {
+        lern = [];
+      }
+      const alle: { t: Ticket; titel: string; labels: string[]; lernvorschlag?: string }[] = [
+        ...liste.map((t) => ({ t, titel: t.titel, labels: t.labels })),
+        ...lern
+          .filter((v) => !missionszielAngelegt(v.ticket) && (!wartetAufAntwort(v.ticket) || offeneFragen(v.ticket).length || missionszielFehlt(v.ticket)))
+          .map((v) => ({ t: v.ticket, titel: `${v.kennung}: ${v.ticket.titel}${missionszielFehlt(v.ticket) ? ' — Missionsziel fehlt' : ''}`, labels: [LERN_THEMA], lernvorschlag: v.kennung })),
+      ];
+      this.triageStand = {
+        gelesen: new Date(this.w.jetzt()).toISOString(),
+        tickets: alle.map((x) => ({ nr: x.t.nummer, titel: k(x.titel, 300), labels: x.labels.slice(0, 50) })),
+        fragen: alle
+          .flatMap((x) => offeneFragen(x.t).map((f) => ({ ticket: x.t.nummer, nr: f.nr, titel: k(x.titel, 300), frage: k(f.frage), optionen: f.optionen.slice(0, 26).map((o, i) => ({ buchstabe: String.fromCharCode(65 + i), text: k(o, 2000) })), empfehlung: k(f.empfehlung, 2000), grund: k(f.grund), herkunft: k(f.herkunft, 500), marke: k(f.marke, 80), seit: f.seit, ...(x.lernvorschlag ? { lernvorschlag: x.lernvorschlag } : {}) })))
+          .slice(0, 200),
+      };
+    } catch {
+      // the Frachtraum shows the last state and when it was read
+    }
+  }
+
+  /**
+   * triage over the bridge: a triage run (`flotte triage`) for this project beside the loop, on the
+   * admiral's account (another with room when it is red). One at a time.
+   */
+  triageStarten(): void {
+    const nein = (grund: string) => this.ereignis(null, `Triage-Lauf über die Brücke abgelehnt: ${grund}`);
+    if (this.triageLaeuft) return nein('ein Triage-Lauf läuft schon');
+    // the account like a question block of the admiral: his own, else one with room (#111)
+    const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
+    if (!konto) return nein('kein Konto mit Luft');
+    this.triageLaeuft = true;
+    this.imLogbuch(null, `Triage-Lauf gestartet, ${HERKUNFT_BRUECKE}`);
+    this.nebenbei(this.triageFahren(konto));
+  }
+
+  async triageFahren(konto: string): Promise<void> {
+    try {
+      const datei = join(this.e.repo, '.claude', 'epic.md');
+      const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
+      const r = await (this.w.triagiere ?? triagiere)(
+        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.admiralModell ?? 'fable', trocken: false, programm: this.programm() },
+        { aufrufer: this.w.aufrufer, starte: (s) => this.w.starte(s) },
+      );
+      const zeit = new Date(this.w.jetzt()).toISOString();
+      // #117: a proposal decided clear counts once its Missionsziel exists (revoked there); its entries get a time of their own,
+      // since several superfluous proposals share the collecting issue and (nr, zeit) is the key
+      const entschieden = r.tickets.filter((t) => t.geschrieben && (t.ergebnis === 'klar' || t.ergebnis === 'ueberfluessig') && (t.lernvorschlag && t.ergebnis === 'klar' ? Boolean(t.missionsziel) : !t.fehler));
+      const neu: BerichtTriageEntscheidung[] = entschieden.map((t, i) => ({
+        nr: t.missionsziel ?? t.nummer,
+        titel: (t.lernvorschlag ? `${t.lernvorschlag}: ${t.titel}` : t.titel).slice(0, 300),
+        ergebnis: t.ergebnis as 'klar' | 'ueberfluessig',
+        herkunft: (t.herkunft ?? '').slice(0, 500),
+        grund: (t.grund ?? '').slice(0, 4000),
+        zeit: t.lernvorschlag ? new Date(this.w.jetzt() + i).toISOString() : zeit,
+        widerrufen: null,
+        ...(t.lernvorschlag ? { lernvorschlag: t.lernvorschlag } : {}),
+      }));
+      this.z.triage = { entscheidungen: [...neu, ...(this.z.triage?.entscheidungen ?? [])].slice(0, TRIAGE_ENTSCHEIDUNGEN_MAX) };
+      const zahl = (e: string) => entschieden.filter((t) => t.ergebnis === e).length;
+      const ohne = r.tickets.filter((t) => t.fehler || t.ergebnis === 'ungueltig').length + r.fehler.length;
+      // a superfluous proposal closes nothing
+      const ueber = entschieden.filter((t) => t.ergebnis === 'ueberfluessig' && t.lernvorschlag).length;
+      this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei, ${zahl('ueberfluessig') - ueber} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
+    } catch (err) {
+      this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
+    } finally {
+      this.triageLaeuft = false;
+      this.triageLesen(true);
+    }
+  }
+
+  /**
+   * the marks of the triage never stand in a comment of the person: the next triage would take it for its own;
+   * until none is left, a mark nested in a mark comes back after one pass
+   */
+  ohneMarke(text: string): string {
+    let t = text;
+    while (t.includes(TRIAGE_FRAGE_MARKE) || t.includes(TRIAGE_MARKE) || t.includes(LERN_MARKE)) t = t.replaceAll(TRIAGE_FRAGE_MARKE, '').replaceAll(TRIAGE_MARKE, '').replaceAll(LERN_MARKE, '');
+    return t.trim();
+  }
+
+  /**
+   * triage-antwort: the person's answer to a critical question of the triage, as one comment at the
+   * ticket without the marks of the triage; the next triage run takes it as a fact (the driver's gh
+   * account is OWNER or COLLABORATOR, BERECHTIGT in src/triage.ts). Nothing changes at the ticket.
+   */
+  triageAntworten(h: BrueckenHandlung): void {
+    const nein = (grund: string) => this.ereignis(null, `Triage-Antwort über die Brücke abgelehnt: ${grund}`);
+    let roh: { option?: unknown; text?: unknown } | null;
+    try {
+      roh = JSON.parse(h.text ?? '');
+    } catch {
+      roh = null;
+    }
+    const option = typeof roh?.option === 'string' ? roh.option.trim().toUpperCase() : '';
+    const text = typeof roh?.text === 'string' ? this.ohneMarke(roh.text) : '';
+    if (!option && !text) return nein(`keine Option und kein Text zu #${h.epic}`);
+    // read now when the forge was not read since the start: the question must stand there
+    if (!this.triageStand) this.triageLesen(true);
+    const f = this.triageStand?.fragen.find((x) => x.ticket === h.epic && x.nr === h.nr && x.seit === h.seit);
+    if (!f) return nein(`keine offene Frage ${h.nr} an #${h.epic}`);
+    const o = f.optionen.find((x) => x.buchstabe === option);
+    if (option && !o) return nein(`Option ${option.slice(0, 4)} gibt es bei Frage ${h.nr} an #${h.epic} nicht`);
+    const antwort = [o ? `${o.buchstabe}) ${o.text}` : '', text].filter(Boolean).join(' — ');
+    // the question and the option come from the forge: the whole comment without a mark
+    // #117: an answer to a Lernvorschlag names its kennung in the first line, so the next triage gives it to that proposal;
+    // the question goes to the second, a kennung it quotes counts for no other proposal
+    const wozu = f.lernvorschlag ? `${f.lernvorschlag}, Frage ${f.nr}\nFrage: ${f.frage}` : `Sternzeit-Notiz #${h.epic}, Frage ${f.nr}: ${f.frage}`;
+    if (!kommentar(this.w.aufrufer, this.e.forge, h.epic, this.ohneMarke(`**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${wozu}\nAntwort: ${antwort}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+      return nein(`Kommentar an #${h.epic} gescheitert`);
+    }
+    this.triageStand!.fragen = this.triageStand!.fragen.filter((x) => x !== f);
+    this.triageZeit = 0;
+    this.ereignis(null, `Triage-Antwort des Menschen an #${h.epic}, Frage ${f.nr} (über die Brücke): ${antwort.slice(0, 120)}`);
+  }
+
+  /**
+   * triage-widerruf: a decision of a triage run taken back, the comment with the person's objection first
+   * (no change without a comment naming the origin): released → ready_label off, needs-triage on;
+   * closed → reopened. The next triage run judges it again with the objection as a fact.
+   */
+  triageWiderrufen(h: BrueckenHandlung): void {
+    const nein = (grund: string) => this.ereignis(null, `Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: ${grund}`);
+    const d = this.z.triage?.entscheidungen.find((x) => x.nr === h.epic && x.zeit === h.seit);
+    if (!d) return nein(`keine solche Entscheidung zu #${h.epic}`);
+    if (d.widerrufen) return nein(`die Entscheidung zu #${h.epic} ist schon widerrufen`);
+    const text = this.ohneMarke(h.text ?? '');
+    if (!text) return nein(`kein Einwand zu #${h.epic}`);
+    const klar = d.ergebnis === 'klar';
+    // #117: a superfluous proposal created and closed nothing: the objection naming its kennung is all, the next triage judges it again
+    if (d.lernvorschlag && !klar) {
+      if (!kommentar(this.w.aufrufer, this.e.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „überflüssig“ zu ${d.lernvorschlag} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+        return nein(`Kommentar an #${d.nr} gescheitert, nichts geändert`);
+      }
+      d.widerrufen = text.slice(0, 4000);
+      this.triageZeit = 0;
+      return this.imLogbuch(null, `Triage-Entscheidung „überflüssig“ zu ${d.lernvorschlag} widerrufen, ${HERKUNFT_BRUECKE}`);
+    }
+    const was = klar ? 'Warp frei' : 'geschlossen';
+    if (!kommentar(this.w.aufrufer, this.e.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „${was}“ zu Sternzeit-Notiz #${d.nr} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+      return nein(`Kommentar an #${d.nr} gescheitert, nichts geändert`);
+    }
+    d.widerrufen = text.slice(0, 4000);
+    const args = klar ? ['issue', 'edit', String(d.nr), '--repo', this.e.forge, '--remove-label', this.adapter.ready_label, '--add-label', TRIAGE_LABEL] : ['issue', 'reopen', String(d.nr), '--repo', this.e.forge];
+    const x = this.w.aufrufer('gh', args);
+    this.triageZeit = 0;
+    if (x.code) return this.imLogbuch(null, `Widerruf der Triage-Entscheidung zu #${d.nr}: Kommentar steht, ${klar ? 'Labels' : 'Wiederöffnen'} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
+    this.imLogbuch(null, `Triage-Entscheidung „${was}“ zu #${d.nr} widerrufen (${klar ? `${this.adapter.ready_label} ab, ${TRIAGE_LABEL} an` : 'wieder geöffnet'}), ${HERKUNFT_BRUECKE}`);
   }
 
   // ---- settings (#58)
@@ -1951,6 +2146,7 @@ class Treiber {
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
       freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
+      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], fragen: this.triageStand?.fragen ?? [] },
     };
   }
 

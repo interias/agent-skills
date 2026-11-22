@@ -1,7 +1,8 @@
 // The learning loop after a merged epic (Sparpaket, package 6): a cheap model reads what the run
 // left in the forge and proposes at most three lessons, each in the cheapest durable form. Nothing
 // is applied: the proposals go as one comment to the collecting issue `lern_issue` of the adapter,
-// and the person picks. Without lern_issue the comment is only printed.
+// and `flotte triage` decides each proposal like a ticket (#117, src/triage.ts). Without lern_issue the
+// comment is only printed.
 //
 // Growth stays bounded: every proposal names what can go in exchange, every rule the loop gave
 // birth to carries an id (`Lernschleife L<n>`), each loop says per id whether the rule applied in
