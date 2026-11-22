@@ -94,8 +94,36 @@ export function buchstabenAus(text: string): string | null {
   return m ? m[1].split(/\s*[,;]\s*/).join(', ') : null;
 }
 
+/**
+ * A run that writes its options into the question text (`… - A) … - B) … ➡️ **C** …`, no
+ * `— Optionen:` field): question, options, recommendation and Betrifft from the running text, so
+ * the bridge offers buttons instead of free text only.
+ */
+function fliesstext(f: Map<string, string>): void {
+  const text = f.get('Frage') ?? '';
+  const a = /(?:^|\s)(?:-\s+)?A\)\s/.exec(text);
+  if (!a || !/(?:^|\s)B\)\s/.test(text.slice(a.index))) return;
+  let rest = text.slice(a.index);
+  const pfeil = /\s*(?:➡️|➡|→|=>)\s*/.exec(rest);
+  let nach = '';
+  if (pfeil) {
+    nach = rest.slice(pfeil.index + pfeil[0].length);
+    rest = rest.slice(0, pfeil.index);
+  }
+  const betrifft = /\s*Betrifft:\s*([^.]*)\.?\s*$/.exec(nach);
+  if (betrifft) {
+    if (!f.has('Betrifft')) f.set('Betrifft', betrifft[1]);
+    nach = nach.slice(0, betrifft.index);
+  }
+  f.set('Frage', text.slice(0, a.index).trim());
+  f.set('Optionen', rest.replace(/(^|\s)-\s+(?=[A-Z]\)\s)/g, '$1').trim());
+  const empf = nach.replace(/\*\*/g, '').trim();
+  if (empf && !f.has('Empfehlung')) f.set('Empfehlung', empf);
+}
+
 function frageAus(nr: number, zeile: string): Frage {
   const f = felder(zeile);
+  if (!f.has('Optionen')) fliesstext(f);
   const empf = f.get('Empfehlung');
   return {
     nr,

@@ -133,6 +133,17 @@ describe('Drehbücher (#14)', () => {
     expect(z.fragen[1].wiederholungVon).toBe('2026-11-21T16:30:00.000Z');
   }, T);
 
+  it('D3e: an open question stored without options gets them from its wording at start', async () => {
+    const t = aufbau();
+    const z0 = leer(t.repo);
+    z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig' } as never;
+    const roh = '1. **QR-Code.** - A) so lassen - B) Ticket: eine URL ➡️ **A**. Betrifft: nichts in dieser Sitzung.';
+    z0.fragen = [{ epic: 3, nr: 1, frage: roh.slice(3), optionen: [], roh, empfehlung: 'A', wartet: 'der ganze Lauf', ganzerLauf: true, seit: '2026-11-21T19:27:42.126Z' }] as never;
+    schreibeZustand(flotteDir(t.repo), z0);
+    const z = await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+    expect(z.fragen[0]).toMatchObject({ frage: '**QR-Code.**', optionen: [{ buchstabe: 'A', text: 'so lassen' }, { buchstabe: 'B', text: 'Ticket: eine URL' }] });
+  }, T);
+
   it('D4: a run that ends without block is asked once, then aborted with its state at the issue', async () => {
     const t = aufbau();
     const buch = drehbuch([lauf(3, [{ text: 'Ich habe aufgehört.' }]), lauf(3, [{ text: 'Immer noch kein Block.' }])]);
