@@ -299,7 +299,11 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
     Die fremde Mission bekommt Eröffnungs- und Abschlusskommentar, wird aber **nie per `Closes`
     geschlossen**.
   - Hängen nur **einzelne** Missionsziele daran, werden diese übersprungen (Phase 2d).
-  - Sonst: Vorab-Tor.
+  - Sonst **parkt die Mission** (#169): kein Paket-Worktree, kein Pull Request (einen angelegten
+    Missions-Worktree räumt `Down` ab); ein Kommentar an der Mission nennt den Grund (welche Mission
+    offen ist) und die Wiederaufnahme (ihr Andocken). Unter dem Flotten-Treiber endet der Zug mit
+    `FLOTTE-ENDE` ohne Pull Request, das jede offene Vorbedingung als `#<n>` nennt; der Treiber setzt
+    die Mission dann auf wartend und startet sie nach dem Andocken neu (#133).
 - **Basis bestimmen**, wenn `base_branch: from-issue`: aus der Kopfzeile oder den Further Notes,
   sonst der Branch, von dem die vorausgesetzten Missionen abgezweigt sind (`git log --merges`). Nicht
   raten.
@@ -310,10 +314,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
   Erste Offizier blind.
 - **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
-  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt.
-  Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Bei mehr als
-  einer Handvoll Behauptungen gehen sie gebündelt an Kundschafter („Modelle, Paketklasse,
-  Kundschafter").
+  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt; eine
+  nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Die Lesearbeit vor dem
+  Vorab-Tor — Behauptungen, Fundstellen, berührte Module, Kanten — geht an Kundschafter (#200).
 - Widerspricht das Issue einem ADR oder einem Out-of-Scope-Eintrag, ist eines von beiden falsch —
   das entscheidet ein Mensch (Vorab-Tor).
 
@@ -361,8 +364,8 @@ mit einem Halbsatz Begründung.
   `exclusive_paths` ändert, das Wort `Exklusiv` in `modules_section` trägt, in eine Datenwurzel
   mit mehreren Erzeugern schreibt oder einen Punkt aus `gate_approvals` braucht.
 
-Laufen nach dem Graphen nie zwei Pakete gleichzeitig, sag es im Plan in einem Satz, statt
-Parallelität vorzutäuschen.
+**Pakete ohne Kante und ohne gemeinsame Datei starten gleichzeitig;** „nacheinander“ nur mit
+genannter Kante oder Datei (#201). Läuft nach dem Graphen nie mehr als eins, sagt das der Plan in einem Satz.
 
 ### 2c — Das Vorab-Tor
 
@@ -370,7 +373,7 @@ Damit der Lauf danach unbeaufsichtigt bleibt, wird **alles Fragwürdige hier gef
 eine Runde nach „Wie gefragt wird"** — danach keine Rückfrage mehr.
 Vorzulegen ist:
 
-1. Eine vorausgesetzte Mission ist offen, und die transitive Auflösung greift nicht.
+1. Entfällt: Eine offene Vorbedingung ohne transitive Auflösung parkt die Mission (Phase 1, #169).
 2. Das Zielissue ist nicht offen, trägt im Modus `spec` nicht das `ready_label`, oder der Modus
    ist nicht ableitbar.
 3. Ein Adapterwert fehlt und ist nicht ableitbar, oder ein Adaptereintrag würde eine Regel dieses
@@ -462,20 +465,21 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket
   alles Angedockte, und ein Konflikt kann nur noch von einem gleichzeitig laufenden Paket kommen.
 - **Rüsten und Abräumen nur mit `Up`, `Down` und `CleanupStale`**, nie von Hand. `Up` liest den
-  Adapter selbst und verlinkt **alle** `link_dirs` und `always_link`; während der Umstellung (2c,
-  Punkt 13) bekommt jeder Aufruf `-AdapterFile <epic-worktree>/.claude/epic.md`. **Ein Paket, das das Lockfile
-  ändert und eine echte Installation bräuchte, ist per `Up` nicht rüstbar** — ein Tor-Punkt (2c,
-  Punkt 14), keine Handarbeit. Exit 1 heißt: das Skript im Wortlaut melden, nichts von Hand
-  nachholen; bei `Up` hält das Paket an. `Down` nie aus einer Shell aufrufen, die im Worktree
-  steht. Aufruf und Regeln: **`references/worktree.md`**. Lies die Datei, bevor du den ersten
-  Worktree anlegst.
+  Adapter selbst und verlinkt **alle** `link_dirs` und `always_link`. Kein `bun install`, `npm install`
+  oder Gegenstück je Worktree für ein Verzeichnis, das `link_dirs` nennt (#200). Während der
+  Umstellung (2c, Punkt 13) bekommt jeder Aufruf `-AdapterFile <epic-worktree>/.claude/epic.md`.
+  **Ein Paket, das das Lockfile ändert und eine echte Installation bräuchte, ist per `Up` nicht
+  rüstbar** — ein Tor-Punkt (2c, Punkt 14). Exit 1 heißt: das Skript im Wortlaut melden, nichts von
+  Hand nachholen; bei `Up` hält das Paket an. `Down` nie aus einer Shell aufrufen, die im Worktree
+  steht. Aufruf und Regeln: **`references/worktree.md`** — lies sie vor dem ersten Worktree.
 
 ## Phase 4 — Das Fenster
 
 Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0), höchstens drei, denn
 deine Nachprüfung ist die Engstelle. Nennt der Auftrag „höchstens N Pakete gleichzeitig“, senkt N
 das Fenster, nie darüber (#60); es gilt ab dem nächsten frei werdenden Platz, laufende Pakete
-laufen zu Ende. Wird ein Platz frei, rückt sofort das nächste startbereite Paket nach.
+laufen zu Ende. Wird ein Platz frei, rückt sofort das nächste startbereite Paket nach, nicht erst
+nach der Nacharbeit des Andockens (#200).
 
 **Startbereit** ist ein Paket, wenn alle harten Vorgänger **angedockt** sind und zu keinem laufenden
 Paket eine Kollisionskante besteht. Ein Exklusivknoten startet nur bei leeren Plätzen. Bei mehreren
@@ -487,14 +491,12 @@ Vorschau, keine Entscheidung. Eine Abweichung von der Vorschau trägst du auf de
 Grund.
 
 **Das Fenster gleitet je Paket, nicht je Belegung.** Jedes Paket geht seinen Weg einzeln weiter,
-sobald sein eigener Schritt fertig ist: Der Erste Offizier startet, wenn **sein** Ingenieur zurück
-ist, deine Nachprüfung, wenn **sein** Erster Offizier zurück ist — nie erst, wenn die Nachbarn so weit
-sind. Läuft für ein Paket ein langer Befehl (Volllauf, Andockprüfung, Slot-Fahrt), legst du ihn in den
-Hintergrund und führst inzwischen die anderen Pakete weiter: Berichte lesen, Erste Offiziere starten,
-andocken, Nachrücker starten. Die Grenze „nie zwei Vollläufe gleichzeitig" (4c) bleibt. Herkunft:
-Messung vom 18.11.2026 (hexanite, Missionen #240/#241) — in 70 % der Laufzeit arbeitete kein
-Ingenieur und kein Erster Offizier; zwei Pakete, deren Ingenieure nach 22 und 31 Minuten fertig
-waren, warteten 108 und 116 Minuten auf ihren Ersten Offizier, weil der dritte noch lief.
+sobald sein eigener Schritt fertig ist: Ist **sein** Ingenieur zurück, startet der Erste Offizier,
+und deine Nachprüfung (4c) startet **zugleich mit** seinem Ersten Offizier, nicht danach; was er
+korrigiert, fährst du gezielt nach. Nie wartet ein Paket auf die Nachbarn. Einen langen Befehl
+(Volllauf, Andockprüfung, Slot-Fahrt) legst du in den Hintergrund und führst inzwischen die anderen
+Pakete weiter; „nie zwei Vollläufe gleichzeitig" (4c) bleibt. Herkunft: Messung vom 18.11.2026
+(hexanite #240/#241) — in 70 % der Laufzeit arbeitete weder Ingenieur noch Erster Offizier.
 
 ### Die RAM-Bremse (#37)
 
@@ -599,15 +601,17 @@ alles **ausgeschrieben**:
   Dev-Server startet, beendet ihn am Ende des Pakets (Regel 13, Skill, #38).
 - Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable, soweit er
   ohne vollen Stack geht (`test_commands`); den Rest fährst du in 4c im Slot.
-- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
-  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
-  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Die Agent-Dateien der
-  Ingenieure verweisen auf diesen Punkt — schreib ihn deshalb ausgeschrieben in den Auftrag.
-- Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
-  Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
-  grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
-  was er nicht konnte und warum. **Übernimmt er bestehende
-  Arbeit** (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
+- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die Tests der berührten Dateien
+  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende **genau ein**
+  Volllauf je betroffener Suite, **als Hintergrundbefehl mit Logdatei**, deren Ende er liest, wenn
+  die Meldung kommt — kein `sleep`, keine Schleife, kein Neustart, kein Zerlegen. **Ein Aufruf über
+  10 Minuten im Vordergrund ist verboten**: sein Ergebnis kommt nie an (#190, 23.11.2026). Protokoll
+  in den Bericht; die Agent-Dateien der Ingenieure verweisen hierher — schreib den Punkt aus.
+- Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt der Beleg — dazu prüft er vor
+  dem Bericht jeden Abnahmepunkt selbst und nennt je Punkt den Beleg (Test, `Datei:Zeile`, Befehl
+  mit echter Ausgabe; #201); das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
+  grün/rot, Pfad der Logdatei); was er nicht konnte und warum. **Übernimmt er bestehende Arbeit**
+  (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
   Original-Hash) und Autor. Ein fremder Autor im Pull Request sieht sonst nach einem Fehler aus.
 
 Verlangt ein Paket, dass etwas „im Issue vermerkt" wird, notiert der Ingenieur den Text — das
