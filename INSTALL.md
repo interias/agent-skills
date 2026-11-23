@@ -16,29 +16,47 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   läuft `/mission` ohne Graph.
 - **Bun** im Benutzer-`PATH` für den Flotten-Treiber `flotte` (`bun --version`); zur Laufzeit braucht er
   keine Pakete.
-- **Optional: Docker** für die [Flottenbrücke](flottenbruecke/README.md); `install.ps1` lässt sie aus.
+- **Docker** für die [Flottenbrücke](flottenbruecke/README.md); ohne Docker scheitert ihr Einrichten mit einer Meldung, die Skills installiert `install.ps1` trotzdem.
 - **Python mit Pillow** für die Skripte von `mail-antwort`.
 - **Python mit Playwright und Chromium** für das Kit von `persona-review`; prüfen mit
   `python -P persona-review/scripts/selftest.py`.
 
 ## Ablauf
 
+Erst die Brücke, dann die Skills; am Ende führt die Brücke im Browser durch den Rest (Konten anlegen
+und anmelden, Forge verknüpfen, Projekt hinzufügen).
+
 1. **Auf `main` und aktuell sein:** `git status` sauber, `git pull`. Installiert wird der Stand des
    ausgecheckten Branches.
-2. **Trocken prüfen** und die Ausgabe lesen:
+2. **Brücke einrichten** (fehlt `flottenbruecke/.env`, macht `install.ps1` das in Schritt 4 selbst):
+
+   ```powershell
+   powershell -File flottenbruecke\einrichten.ps1            # oder mit -Autostart
+   ```
+
+   Legt `flottenbruecke/.env` aus `.env.example` an und fragt die PIN verdeckt ab (leer: Antworten
+   bleiben abgeschaltet; sie wird nie ausgegeben), startet `docker compose up -d --build --wait`, legt
+   `~/.claude/flotte/konten.json` mit den Konten 1–3 an, wenn sie fehlt, und öffnet die Brücke im
+   Browser. Nur mit `-Autostart` legt es geplante Aufgaben beim Anmelden an: `Flottenbruecke` und je
+   Startskript in `~/.claude/flotte/start/*.ps1` eine `Flotte <name>`, je für den angemeldeten Benutzer;
+   Docker Desktop muss dafür selbst beim Anmelden starten. Ein zweiter Lauf ändert nichts Bestehendes.
+   `install.ps1 -OhneBruecke` lässt die Brücke aus; so ruft der Treiber es beim Einspielen auf.
+3. **Trocken prüfen** und die Ausgabe lesen:
 
    ```powershell
    powershell -File install.ps1 -DryRun
    ```
 
-3. **Installieren:**
+4. **Installieren:**
 
    ```powershell
    powershell -File install.ps1
    ```
 
-   Nur einen Skill: `-Skill <ordnername>`. Die Agent-Typen bleiben dann unberührt.
-4. **Nachprüfen:** Jeder Skill-Ordner des Repositorys liegt unter `~/.claude/skills/<name>` und
+   Nur einen Skill: `-Skill <ordnername>`. Die Agent-Typen bleiben dann unberührt. Fehlt
+   `flottenbruecke/.env`, ruft ein voller Lauf (nicht `-DryRun`, nicht `-Skill`) zuerst
+   `flottenbruecke\einrichten.ps1` auf.
+5. **Nachprüfen:** Jeder Skill-Ordner des Repositorys liegt unter `~/.claude/skills/<name>` und
    jede Datei aus `agents/` unter `~/.claude/agents/`. Neue Skills und Agent-Typen greifen erst in
    einer neuen Sitzung.
 

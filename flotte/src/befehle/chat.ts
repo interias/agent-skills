@@ -204,10 +204,10 @@ export class ChatDienst {
   }
 
   get tafel(): Record<string, string> {
-    return this.w.tafel ?? kontenTafel();
+    return this.w.tafel ?? kontenTafel(undefined, true);
   }
 
-  /** the short names of the accounts this machine has, for the person's choice in the bridge; never a path */
+  /** the short names of the active accounts this machine has (#94), for the person's choice in the bridge; never a path */
   konten(): string[] {
     return Object.keys(this.tafel).filter((k) => /^\d+$/.test(k) && existsSync(kontoAus(k, this.tafel)));
   }

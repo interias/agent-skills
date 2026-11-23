@@ -3,12 +3,13 @@
 // call per question block. Everything the driver decides is in this file and tested by the
 // scripts D1–D21 (test/drehbuecher.test.ts).
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
-import { kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
+import { aktiveAuswahl, KONTEN_DATEI, kontenTafel, kontoAus, kurzname, liesKonten } from '../werkzeuge/konten.ts';
+import { anmeldung, konten as kontenBefehl, type KontenWelt } from '../befehle/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -156,6 +157,8 @@ export interface Welt {
   triagiere?: typeof triagiere;
   /** #154: stand.json of the installed skill set; default the one next to this driver */
   stand?: () => SkillStand | null;
+  /** #95: konten.json, the home folder of new accounts and the terminal for a sign-in; default the real ones */
+  konten?: Partial<Pick<KontenWelt, 'datei' | 'heim' | 'terminal'>>;
 }
 
 export const echteWelt: Welt = {
@@ -461,6 +464,8 @@ class Treiber {
   /** answers of the bridge in the state, to acknowledge after the next save */
   zuQuittieren: number[] = [];
   handlungenZuQuittieren: number[] = [];
+  /** #95: account folder → when a run on it stopped at the sign-in */
+  abgemeldet = new Map<string, number>();
   freiGbWert: number | null = null;
   /** a report right after an event is on its way */
   meldungGeplant = false;
@@ -1100,7 +1105,8 @@ class Treiber {
       }
     }
     if (this.ramBremse.halt || !this.platteGenug) return;
-    const gruen = this.e.konten.filter((k) => this.bewertung.get(k)?.stufe === 'gruen' && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    // #95: a deactivated account gets no new epic, its running ones go on
+    const gruen = this.e.konten.filter((k) => this.bewertung.get(k)?.stufe === 'gruen' && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity) && this.kontoAktiv(k));
     if (!gruen.length) return;
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
@@ -1236,6 +1242,7 @@ class Treiber {
       await this.aufraeumen(nr);
       return this.halt(ep, 'abgebrochen', `Leerlauf: ${Math.round(this.e.leerlaufMs / 60_000)} min ohne Ausgabe`, true);
     }
+    if (r.fehler === 'anmeldung') this.abgemeldet.set(resolve(ep.konto ?? ''), this.w.jetzt());
     if (r.fehler === 'anmeldung') return this.halt(ep, 'blockiert', `Konto ${this.kontoName(ep.konto ?? '')} ist nicht angemeldet. Ein Mensch meldet es an.`);
     if (r.fehler === 'netz') {
       if (ep.fortsetzungen < 2 && ep.sitzung) {
@@ -1638,6 +1645,7 @@ class Treiber {
     if (h.art === 'aufnehmen') return this.aufnehmen(h);
     if (h.art === 'triage') return this.triageStarten();
     if (h.art === 'einspielen') return this.einspielenAnfordern(h);
+    if (h.art.startsWith('konto_')) return this.kontoHandlung(h);
     if (h.art === 'triage-antwort') return this.triageAntworten(h);
     if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
     if (h.art === 'schnitt-widerruf') return this.schnittWiderrufen(h);
@@ -1796,6 +1804,58 @@ class Treiber {
   imLogbuch(epic: number | null, text: string): void {
     this.ereignis(epic, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+  }
+
+  // ---- accounts (#95)
+
+  get kontenWelt(): KontenWelt {
+    return { datei: KONTEN_DATEI, heim: homedir(), aufrufer: this.w.aufrufer, ...this.w.konten };
+  }
+
+  kontoAktiv(dir: string): boolean {
+    try {
+      return aktiveAuswahl([dir], this.kontenWelt.datei, this.kontenWelt.heim).length > 0;
+    } catch {
+      return true;
+    }
+  }
+
+  /** konten.json for the bridge: aktiv and the sign-in without a call (#94 decision 3); a run stopped at the sign-in counts until the credentials change */
+  kontenListe(): Bericht['kontenListe'] {
+    const w = this.kontenWelt;
+    try {
+      return liesKonten(w.datei)
+        .filter((k) => /^\d{1,3}$/.test(k.nr) && Number(k.nr) > 0)
+        .map((k) => {
+          let a: string = anmeldung(k, w, false);
+          const dir = kontoAus(k.nr, kontenTafel(w.datei), w.heim);
+          const weg = this.abgemeldet.get(resolve(dir));
+          if (a === 'angemeldet' && weg !== undefined && statSync(join(dir, '.credentials.json')).mtimeMs < weg) a = 'nicht angemeldet';
+          return { nr: Number(k.nr), name: k.name.slice(0, 60), farbe: /^#[0-9A-Fa-f]{6}$/.test(k.farbe) ? k.farbe : '#D97757', aktiv: k.aktiv, anmeldung: a };
+        });
+    } catch {
+      return null;
+    }
+  }
+
+  /** konto_anlegen, _deaktivieren, _aktivieren, _anmelden over the bridge, with the PIN: like `flotte konten`; nothing running stops */
+  kontoHandlung(h: BrueckenHandlung): void {
+    const nr = String(h.epic);
+    try {
+      if (h.art === 'konto_anlegen') {
+        const r = kontenBefehl(['anlegen', ...(h.text ? ['--name', h.text] : [])], this.kontenWelt) as { angelegt: { nr: string; name: string } };
+        return this.imLogbuch(null, `Konto ${r.angelegt.nr} (${r.angelegt.name}) angelegt, Anmeldung am Rechner; ${HERKUNFT_BRUECKE}`);
+      }
+      if (h.art === 'konto_anmelden') {
+        kontenBefehl(['anmelden', nr], this.kontenWelt);
+        return this.imLogbuch(null, `Konto ${nr}: Terminal zum Anmelden am Rechner geöffnet; ${HERKUNFT_BRUECKE}`);
+      }
+      const aktiv = h.art === 'konto_aktivieren';
+      kontenBefehl([aktiv ? 'aktivieren' : 'deaktivieren', nr], this.kontenWelt);
+      this.imLogbuch(null, `Konto ${nr} ${aktiv ? 'aktiviert' : 'deaktiviert, laufende Missionen laufen dort zu Ende'}; ${HERKUNFT_BRUECKE}`);
+    } catch (e) {
+      this.ereignis(null, `Konto-Handlung ${h.art} über die Brücke abgelehnt: ${(e as Error).message.slice(0, 200)}`);
+    }
   }
 
   /**
@@ -2354,10 +2414,12 @@ class Treiber {
 
   // ---- settings (#58)
 
-  /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's */
+  /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's; without the deactivated ones (#94) */
   kontenAuswahl(): Map<string, string> {
     const m = new Map<string, string>();
-    for (const d of [...Object.keys(kontenTafel()).map((n) => kontoAus(n)), ...this.startKonten, ...this.alleKonten()]) {
+    const { datei, heim } = this.kontenWelt;
+    const tafel = kontenTafel(datei);
+    for (const d of aktiveAuswahl([...Object.keys(tafel).map((n) => kontoAus(n, tafel, heim)), ...this.startKonten, ...this.alleKonten()], datei, heim)) {
       const k = this.kontoKurz(d);
       if (!m.has(k) && existsSync(d)) m.set(k, d);
     }
@@ -2821,6 +2883,7 @@ class Treiber {
       }),
       schlange: this.z.schlange,
       // usage per account (#28, v2): stage, both windows with reset; the logbook keeps the stage only
+      kontenListe: this.kontenListe(),
       konten: this.alleKonten()
         .filter((k) => this.bewertung.has(k))
         .map((k) => {

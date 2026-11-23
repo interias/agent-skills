@@ -2,7 +2,8 @@
 // driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN,
 // and (#37) the Web-Push of this device, when the bridge has a VAPID key. #154: the stand of the bridge and of
 // each driver, a newer main of the source, and "Einspielen und Treiber neu starten" (PIN), one driver or all.
-// With several drivers, every setting stands once for all of them.
+// With several drivers, every setting stands once for all of them. #96: the accounts of konten.json with
+// their buttons, and the guided start while an account, the forge or a project is missing.
 // A field the report lacks gets an honest empty line, never a made-up value.
 // The shell (huelle.js) calls zeichne(t, el) on every load while the area is visible; t is null
 // before the first load, then the helpers of app.js do not exist yet. All scripts of the page share
@@ -39,6 +40,61 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     return `<article class="mr-karte${r.veraltet ? ' veraltet' : ''}"><h3>${esc(r.name || 'Rechner')}</h3>
 <dl><dt>RAM</dt><dd>${ram}</dd><dt>Platte</dt><dd>${platte}</dd><dt>Obergrenze</dt><dd>${grenze}</dd><dt>Takt</dt><dd>${takt}</dd></dl></article>`;
   };
+
+  // ---- accounts (#96): name, colour, aktiv and sign-in per account of konten.json; the buttons are actions
+  // with the PIN the driver fetches (#95). The sign-in itself happens at the machine: nothing of it comes here.
+  const ANMELDUNG = { angemeldet: 'angemeldet', 'nicht angemeldet': 'nicht angemeldet', 'ordner fehlt': 'Ordner fehlt', unklar: 'unklar' };
+  const wartetAufRechner = (h) => (h ? `<span class="mr-wartet">${h.art === 'konto_anmelden' ? 'Anmelden' : h.art === 'konto_anlegen' ? 'Anlegen' : h.art === 'konto_aktivieren' ? 'Aktivieren' : 'Deaktivieren'} wartet auf den Rechner${h.abgeholt ? ' · abgeholt' : ''}</span>` : '');
+
+  function kontoEintragHtml(k, t) {
+    const zu = !t.pin || k.handlung ? ' disabled' : '';
+    const anmeldung = k.anmeldung ? `<b class="${k.anmeldung === 'angemeldet' ? 'ok' : 'knapp'}">${esc(ANMELDUNG[k.anmeldung] ?? k.anmeldung)}</b>` : nichts('Anmeldung');
+    const anmelden = k.anmeldung === 'angemeldet' ? '' : `<button type="button" class="knopf haupt" data-konto="konto_anmelden"${zu}>Am Rechner anmelden</button>`;
+    const schalter = `<button type="button" class="knopf zweit" data-konto="${k.aktiv ? 'konto_deaktivieren' : 'konto_aktivieren'}"${zu}>${k.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>`;
+    return `<article class="mr-karte mr-konto${k.aktiv ? '' : ' mr-aus'}${k.veraltet ? ' veraltet' : ''}" data-forge="${esc(k.forge)}" data-nr="${esc(k.nr)}" data-name="${esc(k.name)}">
+<h3><span class="mr-farbe" style="background:${esc(k.farbe)}"></span>${esc(k.name)} <span class="mr-hilfe">Konto ${esc(k.nr)}</span></h3>
+<dl><dt>Rechner</dt><dd>${esc(k.rechner) || nichts('Rechner')}</dd><dt>Aktiv</dt><dd>${k.aktiv ? '<b class="ok">ja</b>' : '<b>nein</b> · bekommt keine neue Mission'}</dd><dt>Anmeldung</dt><dd>${anmeldung}</dd></dl>
+<div class="knoepfe">${anmelden}${schalter}<span class="status" role="status">${wartetAufRechner(k.handlung)}</span></div></article>`;
+  }
+
+  function kontenListeHtml(t) {
+    const liste = t.kontenListe ?? [];
+    const anlegen = (t.anlegen ?? []).map((a) => `<div class="knoepfe" data-forge="${esc(a.forge)}" data-rechner="${esc(a.rechner)}"><button type="button" class="knopf zweit" data-konto="konto_anlegen"${!t.pin || a.handlung ? ' disabled' : ''}>Konto anlegen${(t.anlegen ?? []).length > 1 ? ` auf ${esc(a.rechner)}` : ''}</button><span class="status" role="status">${wartetAufRechner(a.handlung)}</span></div>`).join('');
+    const ohne = t.pin ? '' : `<p class="mr-hilfe">Knöpfe abgeschaltet: ${huelle.ohnePin(t)}.</p>`;
+    if (!liste.length && !anlegen) return '';
+    return `${ohne}${liste.length ? `<div class="mr-reihe">${liste.map((k) => kontoEintragHtml(k, t)).join('')}</div>` : ''}${anlegen}`;
+  }
+
+  // the guided start (#96): what is still missing, in this order; finished steps fold away
+  const SCHRITT = {
+    konto: { titel: 'Konto anlegen', text: 'Ein Konto ist ein Claude-Konfigordner auf dem Rechner. Mit laufendem Treiber legt „Konto anlegen“ unten das nächste an; ohne Treiber am Rechner: <code>flotte konten anlegen</code>.' },
+    anmeldung: { titel: 'Am Rechner anmelden', text: '„Am Rechner anmelden“ öffnet dort ein Terminal mit <code>claude</code>; die Anmeldung (<code>/login</code>) machst du am Rechner, nichts davon geht durch die Brücke. Ohne Treiber: <code>flotte konten anmelden &lt;nr&gt;</code>.' },
+    forge: { titel: 'Forge verknüpfen', text: 'GitHub am Rechner mit <code>gh auth login</code>. Sobald ein Treiber ein Projekt meldet, steht die Verknüpfung.' },
+    projekt: { titel: 'Projekt hinzufügen', text: 'Im Repository-Ordner den Treiber starten (<code>flotte fahren</code>, siehe Skill <code>flotte</code>); sein erster Bericht legt das Projekt hier an.' },
+  };
+  const STAND_SCHRITT = { offen: 'offen', wartet: 'wartet auf den Rechner', fertig: 'fertig' };
+
+  function einrichtenHtml(t) {
+    const e = t.einrichten;
+    if (!e || e.fertig) return '';
+    return `<h3 class="mr-titel">Einrichten</h3><ol class="mr-schritte">${e.schritte.map((s) => `<li class="mr-schritt ${esc(s.stand)}"><details${s.stand === 'fertig' ? '' : ' open'}><summary>${esc(SCHRITT[s.schritt]?.titel ?? s.schritt)} <b class="mr-marke ${s.stand === 'fertig' ? 'gruen' : s.stand === 'wartet' ? 'gelb' : 'aus'}">${esc(STAND_SCHRITT[s.stand] ?? s.stand)}</b></summary><p class="mr-hilfe">${SCHRITT[s.schritt]?.text ?? ''}</p></details></li>`).join('')}</ol>`;
+  }
+
+  async function kontoKnopf(ev) {
+    const b = ev.target.closest('[data-konto]');
+    const art = b.dataset.konto;
+    const karte = b.closest('[data-forge]');
+    const nr = art === 'konto_anlegen' ? 0 : Number(karte.dataset.nr);
+    const frage = {
+      konto_anlegen: 'Ein neues Konto anlegen? Der Rechner legt seinen Ordner an; anmelden musst du dich danach dort.',
+      konto_anmelden: `Am Rechner ein Terminal zum Anmelden von ${karte.dataset.name} öffnen? Dort gibst du /login ein.`,
+      konto_deaktivieren: `${karte.dataset.name} deaktivieren? Es bekommt keine neue Mission, laufende laufen dort zu Ende; der Ordner bleibt.`,
+      konto_aktivieren: `${karte.dataset.name} wieder aktivieren?`,
+    }[art];
+    if (!(await bestaetigen(frage, b.textContent))) return;
+    const zeile = b.closest('.knoepfe');
+    if (await senden('/api/handlung', { forge: karte.dataset.forge, epic: nr, art, nr: null, seit: null, text: null }, zeile, zeile.querySelector('.status'))) await laden();
+  }
 
   // ---- Werft (#90): per repository and machine the stand of each stack, its last log and the two buttons;
   // the bridge only stores what the person asks, the Werft fetches it in its next takt (every 15 s)
@@ -386,7 +442,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
@@ -397,6 +453,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
           else if (ev.target.closest('[data-freigeben]')) werftKnopf(ev, 'migration_freigeben');
           else if (ev.target.closest('[data-push]')) push(ev);
           else if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
+          else if (ev.target.closest('[data-konto]')) kontoKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
