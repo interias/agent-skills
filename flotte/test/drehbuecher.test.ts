@@ -446,7 +446,10 @@ describe('Drehbücher (#14)', () => {
     }, T);
 
     it('with a PR in the merge queue: it stays in the queue, lets nothing dock before #4 and docks after it', async () => {
-      const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: spaeteKante(), signale: { 'haelt-3': /^#3 bleibt in der Schlange: Vorgänger #4 noch nicht gemergt/ } });
+      // a PR is merged only by merge.ps1, never from outside while it is held
+      let gemergt: number[] = [];
+      const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: spaeteKante(), pr: (nr) => ({ state: gemergt.includes(nr) ? 'MERGED' : 'OPEN' }), signale: { 'haelt-3': /^#3 bleibt in der Schlange: Vorgänger #4 noch nicht gemergt/ } });
+      gemergt = t.p.merges;
       const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [{ signal: 'haelt-3' }, ...gateGefahren(), { text: ende(4, 14) }])]);
       const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
       expect(t.p.merges).toEqual([14, 13]);
