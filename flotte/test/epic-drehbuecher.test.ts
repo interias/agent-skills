@@ -454,6 +454,23 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(w.kommentare[69].find((k) => k.includes('**Abschluss**'))).toContain('Abnahmestufe entfällt');
   }, T);
 
+  it('P19j: Closes #<spec> only in mode spec (no children) with every package accepted; never the target issue in mode tickets', async () => {
+    const pakete = [paket('69-p1'), paket('69-p2')];
+    const spec = (o: Partial<EpicDrehbuch> = {}): EpicDrehbuch => ({ schnitt: { version: 1, modus: 'spec', pakete, tor: [], zuordnung: [{ story: '1', paket: '69-p1' }, { story: '2', paket: '69-p2' }] }, ...o });
+    const ganz = await fahre(spec());
+    expect(ganz.w.pr?.body).toContain('Closes #69');
+    expect(ganz.w.pr?.body.match(/^Closes #/gm)).toHaveLength(1);
+    // counter-check: a package left behind, no Closes
+    const muss = { befunde: [{ gruppe: 'muss', fundstelle: 'x', text: 'nie gut' }], strukturell: false };
+    const halb = await fahre(spec({ aufrufe: { 'reviewer:69-p2': [{ ausgabe: muss }] } }));
+    expect(halb.z.pakete['69-p2'].stufe).toBe('zurueckgelassen');
+    expect(halb.w.pr?.body).not.toContain('Closes #69');
+    // counter-check: mode tickets, all done: the children close, the epic never
+    const tickets = await fahre(buch([paket('155'), paket('156')]));
+    expect(tickets.w.pr?.body).toContain('Closes #155');
+    expect(tickets.w.pr?.body).not.toContain('Closes #69');
+  }, T);
+
   it('P19i: the program ends after the Abnahmestufe, before the pull request: the restart does not run it again', async () => {
     const repo = neuesRepo();
     const welt = neueWelt();

@@ -387,6 +387,10 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
     async body(ticket) {
       return String(JSON.parse(await gh(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'body'])).body ?? '');
     },
+    async unterIssues(ticket) {
+      const aus = await gh(['api', `repos/${e.forge}/issues/${ticket}/sub_issues`, '--paginate', '--jq', '.[].number']);
+      return aus.split(/\s+/).filter(Boolean).map(Number);
+    },
     async kommentare(ticket) {
       const j = JSON.parse(await gh(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'comments']));
       return ((j.comments ?? []) as { body: string }[]).map((k) => k.body);

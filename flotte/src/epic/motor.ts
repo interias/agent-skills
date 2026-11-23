@@ -105,6 +105,8 @@ export interface Mechanik {
   graph(): Promise<{ available: boolean; grund?: string; pfad?: string }>;
   /** the body of an issue (the target issue: children and user stories for the check of the cut) */
   body(ticket: number): Promise<string>;
+  /** the sub-issues of an issue from the API (dependency_source api): children linked only there stay in the cut's check; a read error throws like body */
+  unterIssues(ticket: number): Promise<number[]>;
   kommentare(ticket: number): Promise<string[]>;
   kommentar(ticket: number, text: string): Promise<void>;
   /** sets one status label and takes the other two off, then reads it back (mission/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
@@ -397,7 +399,7 @@ class EpicLauf {
     let b = bewerteAufruf('schnitt', r);
     // the form against the target issue: a story or a child left out of the model's own lists
     if (b.art === 'ok') {
-      const f = abdeckungFehler(b.daten, await this.m.body(this.e.epic));
+      const f = abdeckungFehler(b.daten, await this.m.body(this.e.epic), b.daten.modus === 'tickets' ? await this.m.unterIssues(this.e.epic) : []);
       if (f) b = { art: 'ungueltig', fehler: f };
     }
     if (b.art !== 'ok') {
@@ -968,10 +970,11 @@ class EpicLauf {
       ...pakete.flatMap((p) => p.lastflakes.map((f) => `- Lastflake in Paket ${p.nr}: ${f}`)),
       ...(this.z.offenePunkte ?? []).map((x) => `- ${x}`),
     ];
-    // Phase 6: WIP while something lies with the person; Closes only a fully accepted child, never the target issue
+    // Phase 6: WIP while something lies with the person; Closes a fully accepted child, the target issue only in mode spec (no children) with every package done
     const wip = anzahl('zurueckgelassen') + anzahl('blockiert') > 0 || this.z.abnahme?.ok === false;
     const zeile = (p: PaketZustand) => `- Paket ${p.nr}: ${p.stufe === 'fertig' ? `${p.nichtsZuMergen ? 'nichts zu mergen' : `gemergt (${p.mergeCommit})`}, Runde ${p.runde}, Klasse ${p.klasse}` : p.stufe === 'blockiert' ? `blockiert durch ${p.blockiertDurch}` : `zurückgelassen: ${p.grund} (Branch ${p.branch})`}`;
     const closes = pakete.filter((p) => p.stufe === 'fertig' && /^\d+$/.test(p.nr) && Number(p.nr) !== this.e.epic).map((p) => `Closes #${p.nr}`);
+    if (this.z.schnitt.ergebnis?.modus === 'spec' && pakete.length && pakete.every((p) => p.stufe === 'fertig')) closes.push(`Closes #${this.e.epic}`);
     const teststand = `Ausgangszahlen: ${this.zahlen(this.z.basis ?? [])}`;
     const body = ['## Pakete', ...pakete.map(zeile), '', teststand, '', '## Abnahmestufe', this.abnahmeZeile(), '', '## Offene Punkte', offen.join('\n') || 'keine', '', LAUFTAFEL, ...(closes.length ? ['', ...closes] : [])].join('\n');
     const { pr, fehler } = await this.m.abschluss({ wip, body });

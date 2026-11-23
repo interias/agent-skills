@@ -35,6 +35,8 @@ export interface EpicDrehbuch {
   schnitt: Omit<Schnitt, 'modus' | 'zuordnung' | 'uebersprungen'> & Partial<Pick<Schnitt, 'modus' | 'zuordnung' | 'uebersprungen'>>;
   /** body of an issue (the target issue: its children, its user stories); default empty */
   bodies?: Record<number, string>;
+  /** sub-issues of an issue from the API (dependency_source api); default none */
+  unterIssues?: Record<number, number[]>;
   /** 'schnitt' or '<rolle>:<paket>' → answers in order, the last one repeats; missing: the default */
   aufrufe?: Record<string, Antwort[]>;
   /** Ausgangszahlen of the epic worktree; default one suite of 249 tests in 18 files */
@@ -253,6 +255,9 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     },
     async body(ticket) {
       return buch.bodies?.[ticket] ?? '';
+    },
+    async unterIssues(ticket) {
+      return buch.unterIssues?.[ticket] ?? [];
     },
     async kommentare(ticket) {
       return welt.kommentare[ticket] ?? [];
