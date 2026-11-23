@@ -400,6 +400,76 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(takt(gegen.z, '140', 'start')).toBe(takt(gegen.z, '139', 'gemergt'));
   }, T);
 
+  it('P19e: acceptance_commands set: run once in the epic worktree after the last merge, in a free slot; the result stands in the PR body', async () => {
+    const { z, w } = await fahre(buch([paket('150'), paket('151')], { abnahme: { e2e: true, sicht: true } }));
+    expect(getan(w, /^abnahme /).map((p) => p.was)).toEqual(['abnahme /wt/epic-69']);
+    const abnahme = w.protokoll.findIndex((p) => /^abnahme /.test(p.was));
+    expect(w.protokoll.slice(0, abnahme).filter((p) => /^merge --no-ff /.test(p.was))).toHaveLength(2);
+    expect(w.protokoll[abnahme - 1].was).toBe('slot frei');
+    expect(getan(w, /^abschluss$/)).toHaveLength(1);
+    expect(w.pr?.wip).toBe(false);
+    expect(w.pr?.body).toContain('## Abnahmestufe\nAbnahmestufe grün (acceptance_commands einmal im Missions-Worktree, im Slot): e2e: grün; sicht: grün');
+    expect(z.ereignisse.filter((e) => e.art === 'slot').map((e) => e.text)).toEqual(['Abnahmestufe: Slot genommen, acceptance_commands im Missions-Worktree', 'Abnahmestufe: Slot freigegeben, grün']);
+  }, T);
+
+  it('P19f: the slot is busy at the Abnahmestufe: it waits like hold, nothing left behind, runs once it is free', async () => {
+    // readings: 152 starts (free), then busy three times at the Abnahmestufe, then free
+    const { z, w } = await fahre(buch([paket('152')], { abnahme: { e2e: true }, slot: [false, true, true, true, false] }));
+    expect(getan(w, /^slot belegt$/)).toHaveLength(3);
+    expect(getan(w, /^abnahme /)).toHaveLength(1);
+    expect(w.protokoll.findIndex((p) => /^abnahme /.test(p.was))).toBeGreaterThan(w.protokoll.map((p) => p.was).lastIndexOf('slot belegt'));
+    expect(z.ereignisse.filter((e) => e.art === 'slot').map((e) => e.text)).toEqual([
+      'belegt: ein voller Stack des Projekts läuft; die Abnahmestufe wartet, kein Paket bleibt zurück',
+      'frei, die Abnahmestufe fährt',
+      'Abnahmestufe: Slot genommen, acceptance_commands im Missions-Worktree',
+      'Abnahmestufe: Slot freigegeben, grün',
+    ]);
+    expect(z.pakete['152'].stufe).toBe('fertig');
+    expect(w.pr?.wip).toBe(false);
+  }, T);
+
+  it('P19g: the Abnahmestufe red or not runnable: WIP and an open point; the run does not stop, no package left behind', async () => {
+    for (const [ergebnis, text] of [
+      [false, 'Abnahmestufe rot (acceptance_commands einmal im Missions-Worktree, im Slot): e2e: Exit 1: 2 E2E-Tests rot'],
+      ['nicht fahrbar', 'Abnahmestufe rot (acceptance_commands einmal im Missions-Worktree, im Slot): nicht fahrbar: e2e: docker nicht erreichbar'],
+    ] as const) {
+      const { z, w } = await fahre(buch([paket('153')], { abnahme: { e2e: ergebnis } }));
+      expect(z.phase).toBe('fertig');
+      expect(z.pakete['153'].stufe).toBe('fertig');
+      expect(getan(w, /^abschluss WIP$/)).toHaveLength(1);
+      expect(w.pr?.body).toContain(text);
+      expect(z.offenePunkte?.some((x) => x.startsWith('Abnahmestufe rot oder nicht fahrbar: '))).toBe(true);
+      expect(z.ende).toContain('- Abnahmestufe rot oder nicht fahrbar: ');
+    }
+  }, T);
+
+  it('P19h: without acceptance_commands the Abnahmestufe falls away: no slot reading, no run, the report says so', async () => {
+    const { z, w } = await fahre(buch([paket('154')]));
+    expect(getan(w, /^abnahme /)).toHaveLength(0);
+    expect(getan(w, /^slot /)).toHaveLength(1);
+    expect(z.abnahme).toBeNull();
+    expect(w.pr?.wip).toBe(false);
+    expect(w.pr?.body).toContain('## Abnahmestufe\nAbnahmestufe entfällt: der Adapter nennt keine acceptance_commands.');
+    expect(z.ende).toContain('Abnahmestufe entfällt');
+    expect(w.kommentare[69].find((k) => k.includes('**Abschluss**'))).toContain('Abnahmestufe entfällt');
+  }, T);
+
+  it('P19i: the program ends after the Abnahmestufe, before the pull request: the restart does not run it again', async () => {
+    const repo = neuesRepo();
+    const welt = neueWelt();
+    const b = buch([paket('155')], { abnahme: { e2e: false } });
+    const u = attrappe(b, welt);
+    u.mechanik.abschluss = async () => {
+      throw new Error('Programm beendet vor dem Pull Request');
+    };
+    await expect(fahreEpic(einstellung(repo), u)).rejects.toThrow(/vor dem Pull Request/);
+    expect(liesLauf(epicDir(repo, 69), 69).abnahme).toMatchObject({ ok: false });
+    const { z, w } = await fahre(b, { repo, welt });
+    expect(getan(w, /^abnahme /)).toHaveLength(1);
+    expect(getan(w, /^abschluss WIP$/)).toHaveLength(1);
+    expect(z.offenePunkte?.filter((x) => x.startsWith('Abnahmestufe rot'))).toHaveLength(1);
+  }, T);
+
   it('P20: permission_denials block the package without a second try', async () => {
     const { z, w } = await fahre(buch([paket('140'), paket('141', { nach: ['140'] }), paket('142')], { aufrufe: { 'implementer:140': [{ verweigert: [{ tool_name: 'Bash', tool_input: { command: 'git push' } }] }] } }));
     expect(aufrufeVon(w, 'implementer', '140')).toHaveLength(1);
