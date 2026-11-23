@@ -32,7 +32,7 @@ sie in der Git-Ablage.
 | Mini-Mission | Pakete | Kante | gedacht für |
 |---|---|---|---|
 | A Obstkorb | a1, a2, a3: je eine Datei in `obst/` | keine | volles Fenster; verdeckt muss jede Datei in `obst/REGISTER.md` stehen, parallele Pakete fügen an derselben Stelle ein: **P14** Konflikt mechanisch |
-| B Verse mit Wächter | b1 Wächter in der Andockprüfung (*Urteil*), b2 Vierzeiler, b3 Zweizeiler | b2 nach b1 | harte Kante, eine Urteil-Klasse (Opus); Auslöser `probe-rot-epic`: der erste Kopf des Missions-Branches, der b3 angedockt hat (der Merge bringt `verse/fruehling.txt`), macht `verse` rot, bis zum Revert; fest an b3, in beiden Motoren gleich: **P13** |
+| B Verse mit Wächter | b1 Wächter in der Andockprüfung (*Urteil*), b2 Vierzeiler, b3 Zweizeiler | b2 nach b1 | harte Kante, eine Urteil-Klasse (Opus); Auslöser `probe-rot-epic`: der erste Kopf des Missions-Branches, der b3 angedockt hat (das Andocken bringt `verse/fruehling.txt`), macht `verse` rot, bis zum Revert; fest an b3, in beiden Motoren gleich: **P13** |
 | C Themen | c1 Thema nacht, c2 Thema sommer | keine | verdeckt verlangt `thema/STAND.md` eine höhere Version und einen Grund, beide Pakete schreiben verschiedene Gründe in dieselben Zeilen: **P15** Konflikt inhaltlich; Auslöser `probe-rot-paket` an c1: ab dem zweiten Lauf der Andockprüfung ist `thema` rot, bis `thema/KONTRAST.md` die Zeile `- nacht` hat: **P10** |
 
 Ob ein Fall eintritt, entscheidet der Lauf: Erkennt der Orchestrator die Kopplung vorher, legt er
@@ -281,7 +281,7 @@ Umschalten entscheidet der Mensch.
 
 ## Verfehlte Ziele: was vor dem Umschalten gilt
 
-Festgeschrieben nach der Triage von #108 und dem Vorab-Tor von Epic #161. Der Auslöser von P13 ist
+Festgeschrieben nach der Triage von #108 und dem Vorab-Tor von Mission #161. Der Auslöser von P13 ist
 seitdem fest an b3 (`regeln.ps1`), und P8 ist geändert; die Zahlen oben stammen noch aus der Zeit davor.
 
 | Ziel | nachher (Mittel) | vor dem Umschalten |
