@@ -52,6 +52,14 @@
 .zaehler.ruhig { background: #2a2a38; color: var(--matt); }
 .zaehler.alarm { animation: alarm 2.4s ease-in-out infinite; }
 
+/* #48: over the remote entry (Tailscale) only viewing; blue like a pause, never red */
+.nur-ansicht {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 12px; flex: none; border-radius: var(--rund);
+  border: 2px dashed var(--blau); color: var(--blau); font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.nur-ansicht[hidden] { display: none; }
+
 /* ---- the areas as pills */
 .pillen { display: flex; gap: 4px; flex: none; }
 .pille {

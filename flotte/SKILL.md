@@ -78,6 +78,7 @@ Mögliche Schalter:
 | `--merge-skript` | `mission/scripts/merge.ps1` |
 | `--max-min` | ohne Grenze |
 | `--bruecke <url>` | Umgebung `FLOTTE_BRUECKE`, sonst keine Brücke; etwa `http://127.0.0.1:4747`. Den Token einer Brücke mit `BRUECKE_TOKEN` liest der Treiber aus `FLOTTE_BRUECKE_TOKEN` |
+| `--meldung an\|aus` | `aus`; `an`: je neuer Frage an den Menschen und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), auch im Maschinenraum schaltbar |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Missionen gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Missionen, die dort laufen, fragen oder an ihrem PR stehen; eine angedockte, blockierte oder abgebrochene Mission gibt den Platz frei |
 
 ### Weiteres Konto zuschalten
@@ -105,7 +106,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
 - `flotte zustand <repo>`: Zustand und Sperre.
 - `flotte antworten <repo> <epic> <frage> <Antwort>`: eine Antwort des Menschen an den laufenden Treiber.
-- `flotte anhalten <repo>`: hält den Treiber sicher an, etwa zum Aktualisieren. Er startet nichts Neues mehr (kein Lauf, kein Zug, kein Andocken aus der Schlange), lässt ein begonnenes Andocken mit Andockprüfung und `nach_merge` zu Ende laufen und endet dann mit dem Ereignis „Angehalten auf Wunsch“. Läufe arbeiten in ihrer eigenen Prozessgruppe weiter, ein Neustart übernimmt sie. Strg+C beendet dagegen auch einen laufenden `merge.ps1`, eine Andockprüfung oder `nach_merge` mitten im Schritt.
+- `flotte anhalten <repo>`: hält den Treiber sicher an, etwa zum Aktualisieren. Er startet nichts Neues mehr (kein Lauf, kein Zug, kein Andocken aus der Schlange), lässt ein begonnenes Andocken mit Andockprüfung und `nach_merge` zu Ende laufen und endet dann mit dem Ereignis „Angehalten auf Wunsch“. Läufe arbeiten in ihrer eigenen Prozessgruppe weiter, ein Neustart übernimmt sie. Strg+C beendet dagegen auch einen laufenden `merge.ps1`, eine Andockprüfung oder `nach_merge` mitten im Schritt. Über die Brücke hält die Handlung `einspielen` (#154) ebenso an, spielt danach `main` der Quelle ein und startet den Treiber mit derselben Kommandozeile neu (`README.md`, „Anhalten und neu starten“).
 - `flotte zuschauen <repo> <epic> [--einmal]`: folgt dem Log eines Laufs, je Zeile ein Schritt (Werkzeug und Ziel, Text des Laufs).
 - `flotte adapter [<ordner>...]`: nennt die Projektadapter ohne Schlüssel `merge` (ohne Angabe die Repositorys unter `~/git`). In diesen Projekten dockt nur ein Mensch an (ohne Schlüssel gilt `merge: mensch`).
 - `flotte auftrag <repo> <entwurf.md> [--starten] [--trocken]`: der Auftragsschreiber, das einzige Werkzeug, das Missionen und Missionsziele anlegt (agent-skills/ADR-0002). Prüft den Entwurf gegen den Adapter des Ziel-Repositorys und legt nichts an, wenn einem Missionsziel ein Pflichtabschnitt fehlt. Labels `needs-triage`, mit `--starten` `ready_label`. Entwurfsformat und Ergebnis: `README.md`, „Aufträge“.

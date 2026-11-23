@@ -22,6 +22,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/mission-nacharbeit` abarbeiten |
+| `--meldung an` | je neuer Frage an dich und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), mehrere eines Takts als eine mit der Zahl; Standard `aus`, auch im Maschinenraum schaltbar. Inhalt nur Projektkürzel, Nummer, Art und Titel |
 
 ## Einstellungen ohne Neustart
 
@@ -29,7 +30,8 @@ Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brüc
 mit PIN) lassen sich ändern: Missionen gleichzeitig (1–4), Pakete je Mission gleichzeitig (1–3), die Konten
 der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
 100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
-Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR). Der Treiber prüft die
+Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#37) die Windows-Meldung
+bei „Braucht dich“. Der Treiber prüft die
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
@@ -46,7 +48,8 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
   schlägt der Treiber „Mensch prüft“ vor, wenn Body der Mission oder Titel/Body eines Missionsziels ein
   Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`), und
   zeigt den Grund; ein Schalter an der Mission (Sternenkarte) überstimmt Vorschlag und Projekt.
-- **Nicht einstellbar:** die Andock-Regel des Adapters, Rechte, Geheimnisse, Updates.
+- **Nicht einstellbar:** die Andock-Regel des Adapters, Rechte, Geheimnisse. Ein Update ist keine
+  Einstellung, sondern die Handlung „Einspielen“ (unten, „Anhalten und neu starten“).
 
 Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
 
@@ -68,6 +71,39 @@ Der Treiber startet dann nichts Neues mehr, lässt ein begonnenes Andocken zu En
 mit dem Ereignis „Angehalten auf Wunsch“. Danach aktualisieren und mit demselben Aufruf neu
 starten. Läuft kein Treiber, wirkt die Datei `anhalten` beim nächsten Start sofort; löschen, wenn
 das nicht gewollt ist.
+
+**Stand und Einspielen über die Brücke (#154).** `install.ps1` schreibt in jeden installierten
+Skill-Ordner `stand.json`: Commit und Datum der Quelle, Zeitpunkt der Installation und den Ordner der
+Quelle. Der Treiber meldet diesen Stand und seine Startzeit an die Brücke (`version` im Bericht) und
+vergleicht ihn, wenn er mit Brücke fährt, beim Start und danach höchstens alle 15 Minuten (`STAND_MS`) mit `main` von
+`origin` der Quelle (`git fetch`, kein Forge-Aufruf, also GitHub wie Gitea). Liegt dort ein neuerer
+Commit, zeigt die Brücke „Neuer Stand verfügbar: <commit>, <datum>, <PR-Titel>“. Ohne `stand.json`
+(ein Treiber aus dem Repository statt aus der Installation) meldet er keinen Stand und lehnt das
+Einspielen ab.
+
+Der Knopf „Einspielen und Treiber neu starten“ im Maschinenraum (PIN, je Treiber oder für alle) legt
+die Handlung `einspielen` ab. Der Treiber holt sie ab und geht den Weg von Hand
+(`src/treiber/stand.ts`):
+
+1. **Anhalten** wie `flotte anhalten`: nichts Neues mehr; ein offenes Andocken (Andock-Schlange mit
+   Andockprüfung, `merge.ps1` und `nach_merge`) läuft zu Ende, bis dahin meldet die Brücke „Wartet auf das
+   Andocken von #…“. Laufende Läufe arbeiten weiter.
+2. **Einspielen** in der Quelle: nur sauber und auf `main`, dann `git pull --ff-only origin main` und
+   `install.ps1`. Ist die Quelle nicht sauber, steht sie nicht auf `main` oder scheitert ein Schritt,
+   wird nichts weiter getan. Auf einem Rechner spielt nur ein Treiber zur Zeit ein (Sperrdatei
+   `flotte-einspielen.lock` im Temp-Ordner, „für alle“); hat ein anderer denselben Stand schon
+   eingespielt, folgt nur der Neustart.
+3. **Brücke bauen** nur, wenn sich `flottenbruecke/` seit dem Commit ihres Images geändert hat (die
+   Brücke legt ihn in die Handlung; unbekannt: gebaut): `docker compose up -d --build` in
+   `flottenbruecke/` mit `BRUECKE_COMMIT` und `BRUECKE_DATUM` als Build-Argumente.
+4. **Neu starten** mit derselben Kommandozeile (Programm, Skript, Argumente, Ordner, Umgebung) im
+   selben Terminal; der zuerst gestartete Prozess bleibt als einzige Hülle und wartet darauf. Ein so
+   gestarteter Treiber (`FLOTTE_HUELLE`) startet beim nächsten Einspielen nichts selbst, sondern endet
+   mit Exit-Code 75 (`NEUSTART`), und die Hülle startet denselben Aufruf neu; jeden anderen Exit-Code
+   gibt sie weiter. So wartet nach beliebig vielen Updates höchstens ein Prozess. Der neue Treiber
+   übernimmt die laufenden Läufe (D16), meldet den neuen Stand und schreibt ins Logbuch
+   „Neuer Stand eingespielt: <alt> → <neu> (<datum>), Brücke neu gebaut | unverändert; …“ oder
+   „Einspielen gescheitert: <grund>; …“.
 
 Ein weiteres Konto zuschalten: [`SKILL.md`](SKILL.md), „Weiteres Konto
 zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/README.md).

@@ -14,7 +14,8 @@
 // Besides the areas: huelle.springe(bereich, ziel) goes to an area and brings an element of it into
 // view like a hit of the command line (ziel: the element or a function returning it), and
 // huelle.beiTafel(f) calls f(t) after every load of /api/tafel (at once when one is there already);
-// the ship list (#41) draws itself that way.
+// the ship list (#41) draws itself that way. huelle.ohnePin(t) names why acting is off: no PIN set, or
+// (#48) view only over the remote entry, where the board comes with nurAnsicht and the page never asks for the PIN.
 //
 // Routing over location.hash (#bruecke is the default, an unknown hash shows the bridge); a jump
 // sets the hash, so the Back button goes back. All scripts of the page share one global scope: the
@@ -97,6 +98,7 @@ const huelle = (() => {
 
   function tafel(t) {
     stand = t;
+    id('nur-ansicht').hidden = !t.nurAnsicht;
     const n = t.braucht.length;
     const z = id('zaehler');
     z.classList.toggle('alarm', n > 0);
@@ -212,3 +214,4 @@ const huelle = (() => {
 
   return { bereich, tafel, springe, beiTafel };
 })();
+huelle.ohnePin = (t) => (t?.nurAnsicht ? 'nur Ansicht über den Fernweg' : 'keine PIN gesetzt');

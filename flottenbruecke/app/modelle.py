@@ -4,12 +4,13 @@
 import json
 import re
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen'}
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
 BEZUG = ('widerruf', 'triage-antwort', 'triage-widerruf')
 # #112: how an epic merges (Andocken): the driver after the gate, or a person looks at every PR
@@ -59,8 +60,8 @@ class Paket(BaseModel):
     beginn: str | None = Field(None, max_length=40)
     ende: str | None = Field(None, max_length=40)
     # detail view (#51), from the Agent calls in the run's log, spec packages too (#151); an older driver and a package
-    # without a call have none. phase: implementer, review, nachbesserung, merge (none once merged)
-    phase: Literal['implementer', 'review', 'nachbesserung', 'merge'] | None = None
+    # without a call have none. phase: implementer, review, nachbesserung, merge, abgebrochen (#173; none once merged)
+    phase: Literal['implementer', 'review', 'nachbesserung', 'merge', 'abgebrochen'] | None = None
     runde: int | None = Field(None, ge=1)
     # the class of the latest implementer call, `stufeStart` the one of the first call when it differs
     stufe: Literal['mechanisch', 'standard', 'urteil', 'urteil-hoch'] | None = None
@@ -376,6 +377,34 @@ class Triage(BaseModel):
     abschluss: TriageAbschluss | None = None
 
 
+class NeuerStand(BaseModel):
+    """#154: the newer commit on main of the source of the driver's skill set, with the title of its pull request."""
+
+    commit: str = Field(pattern=r'^[0-9a-f]{7,40}$')
+    datum: str = Field('', max_length=40)
+    titel: str = Field('', max_length=300)
+
+
+class Einspielen(BaseModel):
+    """#154: the update the person asked for: since when, and the merges the driver waits for before it halts."""
+
+    seit: str = Field(max_length=40)
+    wartetAuf: list[int] = Field([], max_length=50)
+
+
+class Version(BaseModel):
+    """#154: the stand the driver runs: commit and date of its installed skill set (None without stand.json), when it
+    was installed and when the driver started; neu a newer main of the source, geprueft when it last asked."""
+
+    commit: str | None = Field(None, pattern=r'^[0-9a-f]{7,40}$')
+    datum: str | None = Field(None, max_length=40)
+    installiert: str | None = Field(None, max_length=40)
+    gestartet: str = Field(max_length=40)
+    neu: NeuerStand | None = None
+    geprueft: str | None = Field(None, max_length=40)
+    einspielen: Einspielen | None = None
+
+
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:
     """Why the driver would refuse the value, or None. `andere`: the value each other setting has or is about to get."""
     e = next((x for x in liste if x['name'] == name), None)
@@ -436,6 +465,8 @@ class Bericht(BaseModel):
     freigegeben: list[Freigegeben] = Field([], max_length=500)
     # #116: the triage state (Frachtraum); an older driver has none
     triage: Triage | None = None
+    # #154: the stand of the driver; an older driver has none
+    version: Version | None = None
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
@@ -603,13 +634,14 @@ class Antwort(BaseModel):
 
 class Handlung(BaseModel):
     """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority or its merge;
-    #116: start a triage run, answer a critical question of the triage, revoke a decision of the triage; #148: revoke a mission of the cut plan."""
+    #116: start a triage run, answer a critical question of the triage, revoke a decision of the triage; #148: revoke a mission of the cut plan;
+    #154: install the newest stand and start the driver again."""
 
-    # owner/name; triage: also `alle`, one action per project that reports a triage state
+    # owner/name; triage: also `alle`, one action per project that reports a triage state; einspielen (#154): also `alle`
     forge: str = Field(max_length=200)
-    # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen and triage: 0
+    # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen, triage and einspielen: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen']
     # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
@@ -623,10 +655,10 @@ class Handlung(BaseModel):
         self.text = (self.text or '').strip() or None
         if self.art == 'widerruf' and (self.nr is None or not self.seit or not self.text):
             raise ValueError('Widerruf: nr, seit und die neue Entscheidung')
-        if self.art == 'triage':
-            # belongs to the project like einstellen
+        if self.art in ('triage', 'einspielen'):
+            # belongs to the project like einstellen; einspielen (#154): the bridge sets the text itself
             if self.epic != 0:
-                raise ValueError('Triage-Lauf: epic 0')
+                raise ValueError('Triage-Lauf und Einspielen: epic 0')
             self.nr, self.seit, self.text = None, None, None
         elif self.art == 'triage-antwort':
             try:
@@ -670,3 +702,35 @@ class Handlung(BaseModel):
         elif self.art not in BEZUG:
             self.nr, self.seit, self.text = None, None, None
         return self
+
+
+class PushSchluessel(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+# #159 Nacharbeit: the push services of Chrome/Android, Firefox, Edge and Safari
+PUSH_HOSTS = ('fcm.googleapis.com',)
+PUSH_HOST_ENDUNGEN = ('.push.services.mozilla.com', '.notify.windows.com', '.push.apple.com')
+
+
+class PushAbo(BaseModel):
+    """#37: a device's push subscription as PushSubscription.toJSON() gives it; the service only over HTTPS."""
+
+    endpoint: str = Field(pattern=r'^https://', max_length=2000)
+    keys: PushSchluessel
+
+    @model_validator(mode='after')
+    def nur_bekannte_dienste(self) -> 'PushAbo':
+        # the bridge posts to every subscription, so only the push services of the browsers, no target in the LAN
+        teile = urlsplit(self.endpoint)
+        host = (teile.hostname or '').lower()
+        if teile.username is not None or teile.password is not None or teile.port not in (None, 443):
+            raise ValueError('Endpunkt ohne Benutzerangaben und nur über Port 443')
+        if host not in PUSH_HOSTS and not host.endswith(PUSH_HOST_ENDUNGEN):
+            raise ValueError('Endpunkt nur bei einem bekannten Push-Dienst')
+        return self
+
+
+class PushAbmeldung(BaseModel):
+    endpoint: str = Field(max_length=2000)

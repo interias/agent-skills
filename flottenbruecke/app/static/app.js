@@ -9,7 +9,7 @@ const PIN_KEY = 'flottenbruecke-pin';
 const STILL = matchMedia('(prefers-reduced-motion: reduce)');
 const BREIT = matchMedia('(min-width: 701px)');
 const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
-const PHASE = { implementer: 'Ingenieur', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Andocken' };
+const PHASE = { implementer: 'Ingenieur', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Andocken', abgebrochen: 'Review abgebrochen' };
 const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
 const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf', aufnehmen: 'Aufnehmen', pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität', merge: 'Andocken' };
@@ -207,7 +207,7 @@ function frageHtml(x, t) {
   const empf = !x.empfohlen.length && x.empfehlung ? `<p class="warum"><b>Empfehlung:</b> ${esc(x.empfehlung)}</p>` : '';
   return `${vorne}${x.mehrfach && x.optionen.length ? '<span class="hinweis">mehrere möglich</span>' : ''}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
 ${frei ? `<textarea placeholder="${x.optionen.length ? 'Freitext, erreicht den Lauf unverändert (optional)' : 'Deine Antwort, erreicht den Lauf unverändert'}" aria-label="Freitext"${zu}>${esc(e.text || '')}</textarea>` : ''}
-<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Freitext</button>` : ''}<span class="status">${t.pin ? '' : 'Antworten abgeschaltet: keine PIN gesetzt'}</span></div>${wortlaut}`;
+<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Freitext</button>` : ''}<span class="status">${t.pin ? '' : `Antworten abgeschaltet: ${huelle.ohnePin(t)}`}</span></div>${wortlaut}`;
 }
 
 function sendeText(x, e) {
@@ -515,7 +515,7 @@ function zeileHtml(x) {
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
   // #116: an action of the Frachtraum belongs to a ticket or the project, not to an epic
-  if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.werft)) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
+  if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.handlung === 'einspielen' || x.werft)) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
   if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${handlungWort(x)}</b></span>`;
   // admiral
   return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
@@ -528,6 +528,7 @@ function handlungWort(x) {
   if (x.handlung === 'prioritaet') return `Priorität ${esc(x.text)}`;
   if (x.handlung === 'merge') return `Andocken: ${esc(andockenWort(x.text))}`;
   if (x.handlung === 'triage') return 'Triage-Lauf gestartet';
+  if (x.handlung === 'einspielen') return 'Einspielen und Treiber neu starten';
   // #90: an action for the Werft of a repository
   if (x.handlung === 'nachziehen') return `Werft: ${esc(x.stack)} jetzt nachziehen`;
   if (x.handlung === 'migration_freigeben') return `Werft: Arbeits-Migration von ${esc(x.stack)} freigegeben`;
@@ -603,6 +604,8 @@ function widerrufVerdrahten(wo, d, neu) {
 // ---- sending with the PIN
 
 async function senden(pfad, body, el, status) {
+  // #48: over the remote entry the bridge refuses it anyway; no PIN dialog there
+  if (stand?.nurAnsicht) return false;
   for (let versuch = 0; versuch < 2; versuch++) {
     const pin = lager.get(PIN_KEY) || (await pinFragen());
     if (!pin) return false;
@@ -742,6 +745,19 @@ function schleife() {
   else requestAnimationFrame(schleife);
 }
 
+// ---- #154: the stand of bridge and driver in the foot of every page, details in the Maschinenraum
+
+function fussStand(t) {
+  const k = (c) => (c ? c.slice(0, 7) : '?');
+  const treiber = [...new Set(t.projekte.filter((p) => p.version?.commit).map((p) => p.version.commit))];
+  const neu = t.projekte.some((p) => p.version?.neu);
+  const el = $('fuss-stand');
+  el.textContent = `B ${k(t.bruecke?.commit)} · T ${treiber.length > 1 ? `${treiber.length} Stände` : k(treiber[0])}${neu ? ' · neu' : ''}`;
+  el.classList.toggle('neu', neu);
+  const lang = t.projekte.filter((p) => p.version).map((p) => `Treiber ${p.kurz}: ${k(p.version.commit)}${p.version.datum ? ` vom ${datum(p.version.datum)?.toLocaleString('de-DE') ?? ''}` : ''}, gestartet ${datum(p.version.gestartet)?.toLocaleString('de-DE') ?? ''}${p.version.neu ? `; neuer Stand ${k(p.version.neu.commit)}` : ''}`);
+  el.title = [`Brücke: ${k(t.bruecke?.commit)}${t.bruecke?.datum ? ` vom ${datum(t.bruecke.datum)?.toLocaleString('de-DE') ?? ''}` : ''}`, ...lang].join('\n');
+}
+
 // ---- the ticker of the logbook in the lower bar
 
 function laufband(t) {
@@ -815,17 +831,22 @@ async function laden() {
     const r = await fetch('/api/tafel', { cache: 'no-store' });
     if (!r.ok) throw new Error(String(r.status));
     const t = await r.json();
+    // #48: over the remote entry only viewing: every area draws itself as without a PIN
+    if (t.nurAnsicht) t.pin = false;
     versatz = Date.parse(t.jetzt) - Date.now();
     const vorher = positionen();
     const vorherErledigt = new Set((stand?.erledigt ?? []).map((x) => x.id));
     stand = t;
     // on the phone only level 1 is open, unless nothing waits there
     if (erstes) $('e2').open = BREIT.matches || !t.braucht.length;
+    // #37: with Web-Push on (HTTPS, VAPID key) the service worker belongs to the installed app
+    if (erstes && t.push && isSecureContext && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     kopf(t);
     ebene1(t);
     ebene2(t);
     ebene3(t, vorherErledigt);
     laufband(t);
+    fussStand(t);
     tabAlarm(t.braucht.length);
     huelle.tafel(t);
     lebenszeichen();
