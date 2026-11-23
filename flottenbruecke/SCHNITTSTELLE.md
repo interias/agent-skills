@@ -59,7 +59,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 | `entscheidungen[]` | `{epic, nr, frage, antwort, herkunft, grund, einflussreich, zeit, widerrufen, von}`: die Entscheidungen des Admirals und (#52) die Antworten des Menschen, `von` `mensch`, `admiral` oder `lauf` (der Admiral folgte der Empfehlung des Laufs). Der Treiber schickt **alle Entscheidungen jedes nicht gemergten Epics** und dazu die letzten 100, zusammen höchstens die neuesten 500 (Grenze der Brücke); Texte kürzt er auf 4000 Zeichen (`herkunft` 500), damit nie der ganze Bericht abgelehnt wird. Eine Antwort des Menschen wird beim Anwenden zur Entscheidung (`herkunft` `Mensch über die Brücke` oder `Mensch über die Flotte`, `einflussreich` `false`, `zeit` = Zeitpunkt der Antwort). Ein älterer Treiber ohne `von`: Die Brücke liest `mensch` aus einer `herkunft`, die mit „Mensch“ beginnt, sonst `admiral`; ein unbekanntes Wort ist kein `422`. „Erledigt heute“ zeigt die des Admirals von heute, die Detailansicht des Epics alle bis zum Merge (unten) |
 | `sitzungen[]` | optional (Schiffsliste, #41): die Sitzungen aller Konten des Treibers aus `claude agents --json` je Konto (nur lesend, höchstens einmal je Minute): `{konto, projekt, name, status, kind, seit}`. `konto` wie in `konten[]`, `projekt` **nur der letzte Ordnername** des Arbeitsverzeichnisses (nie der Pfad; ein Wert mit `/` oder `\` wird mit `422` abgelehnt), `status` etwa `busy`/`idle`, `kind` etwa `interactive`, `seit` ISO aus `startedAt`. Kein `cwd`, keine `pid`, keine Sitzungs-ID; die Brücke verwirft unbekannte Felder. Fehlt das Feld (älterer Treiber) oder ist es leer, bleibt die Liste ohne Sitzungen |
 | `einstellungen[]` | optional (#58): die wirksamen Einstellungen des Treibers, die der Mensch auf der Brücke ändern kann (unten). Fehlt das Feld (älterer Treiber), zeigt die Brücke keine |
-| `triage` | optional (#116, Frachtraum): `{gelesen, laeuft, tickets[], entscheidungen[], fragen[]}`, unten. Fehlt es (älterer Treiber), zeigt der Frachtraum das Projekt nicht |
+| `triage` | optional (#116, Frachtraum): `{gelesen, laeuft, tickets[], entscheidungen[], fragen[], schnittplan, abschluss}`, unten. Fehlt es (älterer Treiber), zeigt der Frachtraum das Projekt nicht |
 | `freigegeben[]` | optional (#61): `{nr, titel}` der offenen Epics der Forge mit `epic_label` und `ready_label` (am Epic oder an einem Kind, wie ohne `--epics`), die **nicht** im Einsatz sind. Der Treiber liest sie nur mit Brücke, höchstens alle 5 min; die Brücke bietet für sie „Aufnehmen“ an. Fehlt das Feld (älterer Treiber), gilt `[]` |
 
 Die Prozentwerte gehen nur an die Brücke im eigenen Netz. Das Logbuch im Repo nennt weiter nur
@@ -79,7 +79,35 @@ die dieser Treiber über die Brücke gestartet hat, neueste zuerst, höchstens 5
 (`triage`, überdauert einen Neustart): `{nr, titel, ergebnis, herkunft, grund, zeit, widerrufen}`,
 `ergebnis` `klar` (Warp frei) oder `ueberfluessig` (geschlossen), nur was geschrieben und ohne Fehler
 umgesetzt ist; (`nr`, `zeit`) ist der Schlüssel für den Widerruf. `laeuft` ist `true`, solange ein
-Triage-Lauf des Treibers läuft. Die Brücke baut die Links aus `url` des Projekts (`<url>/issues/<nr>`).
+Triage-Lauf des Treibers läuft. Dazu optional (#148, Kurzinfo im Kopf des Projekts): `seit` (Start des
+laufenden Laufs), `fortschritt` `{n, m}` (Notiz n von m, nur wenn der Treiber es kennt; sonst weglassen,
+die Brücke zeigt dann keinen Zähler) und `beendet` `{zeit, epics, fragen, gescheitert?, fehler?}` (Ende des letzten Laufs, die
+Missionen seines Schnittplans, die Fragen des Laufs; `gescheitert` ein Lauf, der abbrach, `fehler` dessen Grund
+oder der Fehler eines ungültigen Schnittplans; der Treiber hält es nur im Speicher). Die Brücke baut die Links aus `url` des Projekts (`<url>/issues/<nr>`).
+Eine Entscheidung `klar`, deren Notiz der Schnittplan an eine Mission hängte, trägt beim Treiber dazu
+`mission` (die Brücke verwirft das Feld); ihr Widerruf löst die Notiz aus dieser Mission.
+
+**Schnittplan** (#148): `schnittplan` (optional, `null` vor dem ersten Triage-Lauf oder wenn der letzte
+keinen Plan schnitt; fehlt es, älterer Treiber, zeigt der Frachtraum keinen) ist der Schnittplan des
+letzten Triage-Laufs dieses Treibers, gespeichert im Zustand: `{zeit, fehler, missionen[], notizen[]}`.
+`fehler`: der Plan war ungültig, nichts geschrieben. `missionen[]` (höchstens 20) je `{nr, url, titel,
+begruendung, neu, kinder[] {nr, titel, grund}, freigegeben, fehler, widerrufen}`: `neu` die vom Lauf
+angelegten Missionen (nur mit Nummer; `url` aus der Ausgabe von `flotte triage`), sonst eine offene
+Mission, an die der Lauf Notizen hängte (`url` `null`, `begruendung` leer); `kinder` die in diesem Lauf
+verknüpften Notizen mit dem Grund des Plans; `freigegeben` bei `neu`: die Mission trägt `ready_label`,
+sonst: mindestens ein angehängtes Kind bekam Warp frei; `fehler` ein gescheiterter Schritt des Laufs oder
+(`Widerruf: …`) des Widerrufs; `widerrufen` der Einwand nach `schnitt-widerruf`. `notizen[]` (höchstens
+200) die vom Plan geschlossenen, je `{nr, titel, art, grund, verweis, fundstelle, fehler}`, `art`
+`zusammengefuehrt` (`verweis` = die Notiz, die bleibt), `ueberfluessig` (`fundstelle`) oder `verworfen`.
+
+**Abschluss** (#147): `abschluss` (optional, `null` vor dem ersten Triage-Lauf; fehlt es, älterer Treiber,
+zeigt der Frachtraum nichts) sagt, wie der letzte Triage-Lauf dieses Treibers endete, gespeichert im
+Zustand: `{zeit, zustand, geprueft, sauber, abweichungen[], grund}`. `zustand` `beendet` (jede Notiz der
+Eingabe in einem erlaubten Endzustand), `unvollstaendig` (die Abschlussprüfung nach dem Schreiben fand
+Notizen ohne erlaubten Endzustand) oder `abgebrochen` (`grund`: `Treiber angehalten`, `Treiber mit Ctrl+C
+beendet` oder `Neustart des Treibers`, wenn der Lauf beim Start noch als laufend galt). `abweichungen[]`
+(höchstens 200) je `{nr, titel, zustand, grund}`: `zustand` was die Forge zeigt (`offen, needs-triage`,
+`geschlossen`, …), `grund` welcher Endzustand fehlt. Die Endzustände: README von flotte, „Triage“.
 
 **Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, liest der Treiber dazu die Kommentare dieses
 Issues (`gh issue view`, ein Aufruf) und meldet jeden noch offenen Vorschlag der Lernschleife (keine
@@ -99,9 +127,19 @@ Vorschläge eines `lern_issue` mit „Frage“, sobald einer eine offene Frage h
 
 In `GET /api/tafel` steht `frachtraum[]`, ein Eintrag je Projekt mit `triage`, die mit offenen Fragen
 zuerst: `{forge, kurz, url, aktiv, veraltet, gelesen, laeuft, zahl, handlung, fragen[], entscheidungen[],
-themen[]}`. `handlung` ist ein noch nicht quittierter Triage-Lauf; jede Frage trägt dazu `id`, `issueUrl`,
+themen[]}`. `handlung` ist ein noch nicht quittierter Triage-Lauf; `kurzinfo` (#148) ist `null` oder
+`{zustand, seit, …}`: `unterwegs` (Handlung angenommen, kein laufender Lauf gemeldet; `abgeholt`, `seit` =
+Zeit der Handlung), `laeuft` (`laeuft` im Bericht; `seit` aus dem Bericht, sonst die Handlung;
+`fortschritt` `{n, m}` oder `null`; `still`: der Treiber ist veraltet, die Anzeige warnt statt „bitte warten“) oder `beendet` (`beendet` im Bericht, höchstens 15 Minuten alt, 2 Minuten Uhrversatz erlaubt, kein
+neuer Lauf; `seit` = Ende, `epics`, `fragen` = die jetzt offenen Fragen der Tafel, `gescheitert`, `fehler`; #147: endete derselbe Lauf `unvollstaendig` oder `abgebrochen` und ist nicht gescheitert, dazu `abschluss` `{zustand, unsauber, grund}`, die Anzeige sagt dann „unvollständig … N Notizen nicht sauber abgearbeitet“ bzw. „abgebrochen“ statt „beendet“, die Liste steht darunter), in dieser Rangfolge `laeuft`, `unterwegs`, `beendet`; jede Frage trägt dazu `id`, `issueUrl`,
 `empfohlen` (die Buchstaben der Empfehlung, sonst die Option, deren Text der Empfehlung gleicht) und
 `handlung` (die Antwort unterwegs), jede Entscheidung `id`, `issueUrl`, `widerrufbar` und `handlung`.
+`schnittplan` (#148, sonst `null`) ist `{zeit, fehler, missionen[], notizen[]}` wie im Bericht; jede
+Mission trägt dazu `id`, `forge`, `issueUrl`, `kinder[].issueUrl`, `zustand` (`widerrufen`, `fehler`,
+`frei` oder `offen`, in dieser Rangfolge), `widerrufbar` (nicht widerrufen und neu oder mit Kindern) und
+`handlung` (der Widerruf unterwegs), jede Notiz `issueUrl` und `verweisUrl`.
+`abschluss` (#147, sonst `null`) wie im Bericht, jede Abweichung dazu mit `issueUrl`; der Frachtraum zeigt
+`unvollstaendig` als „N Notizen nicht sauber abgearbeitet“ mit der Liste, `abgebrochen` mit dem Grund.
 `themen[]` bündelt die Tickets nach Thema, `{thema, tickets[] {nr, titel, issueUrl, labels, themen, frage}}`:
 Thema sind die Labels ohne `needs-triage`, `needs-info`, `ready-for-agent`, `status/*` und `epic`, sonst
 „ohne Thema“; ein Ticket mit zwei Themen steht in beiden. Ein Thema mit offener Frage steht oben, „ohne
@@ -281,18 +319,19 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 | `fortsetzen` | Epic `pausiert`, sonst wie `pausieren` | hebt die Pause auf (auch in der Haltedatei); der zurückgehaltene Zug geht unverändert an den Lauf, ein wartendes Epic startet nach der Belegung. Ereignis und Flottenlogbuch |
 | `prioritaet` | `text` `hoch` oder `normal` (sonst `422`), sonst wie `pausieren` ohne die Pause | setzt die Priorität des Epics; sie gilt vor dem Label `prio/hoch`: hoch geht unter den startbereiten bei freiem Platz zuerst, Reihenfolge-Kanten und Kollisionen bleiben vorrangig. Ereignis und Flottenlogbuch |
 | `merge` | #112: `text` `automatisch`, `mensch` oder `null` (zurück zum Vorschlag), sonst `422`; das Epic trägt `merge` im Bericht (sonst `409`); `automatisch` nur, wenn `werte` der Einstellung `merge` es nennt (sonst `409` mit dem Hinweis); sonst wie `prioritaet` | setzt den Schalter des Epics (`merge` im Zustand, gilt nach einem Neustart bis zum Merge); er überstimmt Vorschlag und Projekt. Ein PR, der nur wegen seiner Stellung auf einen Menschen wartet, kommt bei `automatisch` in die Merge-Schlange; ein Epic in der Schlange, das auf `mensch` geht, wird als Kopf nicht gemergt (PR bereit); ein laufender Merge läuft zu Ende. `automatisch` unter `merge: mensch` lehnt auch der Treiber ab. Ereignis und Flottenlogbuch |
-| `triage` | #116: `epic` `0`, `nr`, `seit`, `text` `null`, mit PIN; `forge` ein Projekt mit `triage` im Bericht (`404` unbekannt, `409` ohne `triage` oder bei `laeuft`) oder `alle`: eine Handlung je Projekt mit `triage` ohne laufenden Lauf (Antwort `{ok, id, ids}`) | führt `flotte triage` (`triagiere`) für sein Projekt nebenher aus, auf dem Admiral-Konto (rot: ein anderes mit Luft), einen zur Zeit. Ereignis und Flottenlogbuch `Triage-Lauf gestartet, Mensch über die Brücke` und `Triage-Lauf beendet: N Warp frei, M geschlossen[, Ü überflüssig], K Fragen an den Menschen[, L ohne Ergebnis]` (Ü: überflüssige Lernvorschläge, #117; sie schließen nichts) |
+| `triage` | #116: `epic` `0`, `nr`, `seit`, `text` `null`, mit PIN; `forge` ein Projekt mit `triage` im Bericht (`404` unbekannt, `409` ohne `triage` oder bei `laeuft`) oder `alle`: eine Handlung je Projekt mit `triage` ohne laufenden Lauf (Antwort `{ok, id, ids}`) | führt `flotte triage` (`triagiere`) für sein Projekt nebenher aus, auf dem Admiral-Konto (rot: ein anderes mit Luft), einen zur Zeit. Ereignis und Flottenlogbuch `Triage-Lauf gestartet, Mensch über die Brücke` und `Triage-Lauf beendet: N Warp frei[ (A an Missionen angehängt)][, P Missionen angelegt], M geschlossen[, Ü überflüssig], K Fragen an den Menschen[, L ohne Ergebnis]` (Ü: überflüssige Lernvorschläge, #117; sie schließen nichts; A und P aus dem Schnittplan, #147). Findet die Abschlussprüfung Notizen ohne erlaubten Endzustand (#147), heißt die Zeile `Triage-Lauf unvollständig: …` mit `; X Notizen nicht sauber abgearbeitet: #a (<grund>), …`; ein angehaltener Lauf `Triage-Lauf abgebrochen: Treiber angehalten; bis dahin …` (die Zahlen wie oben; seine Entscheidungen und sein Schnittplan bis dahin stehen im Bericht), bei Ctrl+C oder einem beim Neustart noch laufenden Lauf `Triage-Lauf abgebrochen: <grund>` |
 | `triage-antwort` | #116: `epic` = Ticket, `nr` und `seit` die Frage aus `triage.fragen` (sonst `404`), `text` das JSON `{"option", "text"}`: ein Buchstabe der Frage (sonst `422`) und/oder eigener Text, mindestens eines; mit PIN | ein Kommentar ans Ticket ohne Triage-Marken (der Treiber entfernt sie auch aus dem Freitext): `**Antwort des Menschen (Mensch über die Brücke)** — Sternzeit-Notiz #<nr>, Frage <n>: <Frage>`, `Antwort: <B) Optionstext — eigener Text>`, `Herkunft: Mensch über die Brücke`. Der `gh`-Account des Treibers zählt als berechtigt, der nächste Triage-Lauf nimmt die Antwort als Tatsache. #117: Bei einem Lernvorschlag steht der Kommentar am `lern_issue`, die erste Zeile endet mit `— Lernvorschlag <id>/<n>, Frage <n>`, die Frage folgt als `Frage: <Frage>` in der zweiten (als Antwort zählt die Kennung nur in der ersten Zeile). Sonst ändert sich nichts. Ereignis |
-| `triage-widerruf` | #116: `epic` = Ticket, `seit` = `zeit` der Entscheidung aus `triage.entscheidungen` (sonst `404`), `text` der Einwand (`422` ohne), noch nicht widerrufen (`409`); mit PIN | zuerst der Kommentar `**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „Warp frei“ (oder „geschlossen“) zu Sternzeit-Notiz #<nr> zurückgenommen` mit `Einwand`, `Vorher` und `Herkunft`; scheitert er, ändert sich nichts. Dann `klar`: `ready_label` ab, `needs-triage` an; `ueberfluessig`: wieder geöffnet. #117: Bei einem Lernvorschlag ist `klar` dasselbe am Missionsziel (`epic` = dessen Nummer); `ueberfluessig` ist nur der Kommentar `… Triage-Entscheidung „überflüssig“ zu Lernvorschlag <id>/<n> zurückgenommen` am `lern_issue`, der nächste Triage-Lauf entscheidet den Vorschlag neu. Ereignis und Flottenlogbuch |
+| `schnitt-widerruf` | #148: `epic` = Mission aus `triage.schnittplan.missionen` (sonst `404`), `text` der Einwand (`422` ohne), noch nicht widerrufen und neu oder mit Kindern (sonst `409`); mit PIN | zuerst der Kommentar an der Mission `**Widerruf des Menschen (Mensch über die Brücke)** — Mission #<nr> „<Titel>“ aus dem Schnittplan zurückgenommen` (bestehende Mission: `— Missionsziele aus dem Schnittplan zurückgenommen: #a, #b`) mit `Einwand`, was danach geschieht, und `Herkunft`; scheitert er, ändert sich nichts. Neue Mission: `ready_label` ab; im Einsatz, noch nie gestartet (`wartend`, kein Zug, kein Auftrag): aus dem Einsatz ausgetragen (auch aus `aufgenommen` und dem Zustand); schon gestartet: pausiert (wie `pausieren`) und Andocken auf `mensch` (wie `merge`, #112), ihr PR wird nur von einem Menschen gemergt. Je Kind (ohne die schon einzeln widerrufenen): Kommentar `… — Sternzeit-Notiz #<n> aus Mission #<nr> „<Titel>“ gelöst` mit `Einwand`, `Nicht wieder in Mission #<nr>: …` und `Herkunft`, ohne Triage-Marke; dann Sub-Issue gelöst (`DELETE /repos/{o}/{r}/issues/{mission}/sub_issue`), Zeile `- [ ] #<n>` aus der Liste der Mission, `ready_label` ab, `needs-triage` an; ihre Entscheidung `klar` gilt als widerrufen. Zuletzt eine neue Mission `gh issue close --reason "not planned"`. Gescheiterte Schritte: `fehler` der Mission (`Widerruf: …`), Ereignis und Flottenlogbuch; nichts wird wiederholt |
+| `triage-widerruf` | #116: `epic` = Ticket, `seit` = `zeit` der Entscheidung aus `triage.entscheidungen` (sonst `404`), `text` der Einwand (`422` ohne), noch nicht widerrufen (`409`); mit PIN | zuerst der Kommentar `**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „Warp frei“ (oder „geschlossen“) zu Sternzeit-Notiz #<nr> zurückgenommen` mit `Einwand`, `Vorher` und `Herkunft`; scheitert er, ändert sich nichts. Dann `klar`: hing die Notiz an einer Mission (#148; der Kommentar nennt dann das Lösen und `Nicht wieder in Mission #<nr>`), erst gelöst wie bei `schnitt-widerruf` (scheitert das, bleiben die Labels), dann `ready_label` ab, `needs-triage` an; `ueberfluessig`: wieder geöffnet. #117: Bei einem Lernvorschlag ist `klar` dasselbe am Missionsziel (`epic` = dessen Nummer); `ueberfluessig` ist nur der Kommentar `… Triage-Entscheidung „überflüssig“ zu Lernvorschlag <id>/<n> zurückgenommen` am `lern_issue`, der nächste Triage-Lauf entscheidet den Vorschlag neu. Ereignis und Flottenlogbuch |
 
 `einreihen` und `aufgeben` schließen sich aus: Bis zum Abholen gilt die letzte. Danach antwortet die
 Brücke `409`. Endet der Einsatz, weil alles blockiert ist, wirkt die Handlung beim nächsten Start.
 Ebenso schließen sich `pausieren` und `fortsetzen` je Epic aus; von `prioritaet`, `merge` und
 `aufnehmen` gilt je Epic die letzte bis zum Abholen; ebenso (#116) je Projekt von `triage`, je Frage von
-`triage-antwort` und je Entscheidung von `triage-widerruf`. Was beim Treiber nicht passt (ein Lauf läuft
+`triage-antwort`, je Entscheidung von `triage-widerruf` und (#148) je Mission von `schnitt-widerruf`. Was beim Treiber nicht passt (ein Lauf läuft
 schon, kein Konto mit Luft, Frage nicht mehr offen, unbekannte Option, Entscheidung unbekannt oder schon
-widerrufen, Kommentar gescheitert), ändert nichts und wird ein Ereignis `Triage-Lauf …`, `Triage-Antwort …`
-oder `Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: <Grund>`; quittiert wird beides.
+widerrufen, Kommentar gescheitert), ändert nichts und wird ein Ereignis `Triage-Lauf …`, `Triage-Antwort …`,
+`Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: <Grund>` oder `Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: <Grund>`; quittiert wird beides.
 
 **Epics steuern** (#61): `aufnehmen`, `pausieren`, `fortsetzen`, `prioritaet` und (#112) `merge`
 betreffen ein Epic (`epic` ≥ 1, sonst `422`), `nr` und `seit` sind `null`, `text` ist nur bei

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { starte, laufUmgebung, fehlerart, liesLog } from '../src/werkzeuge/lauf.ts';
 import { lies as liesVerbrauch } from '../src/werkzeuge/verbrauch.ts';
-import { sperren, entsperren, lies, schreibe, leer, neuesEpic } from '../src/werkzeuge/zustand.ts';
+import { sperren, entsperren, lebt, lies, schreibe, leer, neuesEpic } from '../src/werkzeuge/zustand.ts';
 import { drehbuch, mitAttrappe } from './attrappe.ts';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'flotte-t-'));
@@ -43,6 +43,42 @@ describe('lauf', () => {
     expect(r).toMatchObject({ leerlauf: true, fehler: 'leerlauf', code: null });
     expect(Date.now() - anfang).toBeLessThan(10_000);
   });
+
+  // #147: a run ends with its whole process tree; the stand-in's child stands for a tool call claude started
+  const kinder = (datei: string) => (existsSync(`${datei}.kinder`) ? readFileSync(`${datei}.kinder`, 'utf8').split('\n').filter(Boolean).map(Number) : []);
+  const tot = async (pids: number[]) => {
+    const ende = Date.now() + 5000;
+    while (pids.some(lebt) && Date.now() < ende) await new Promise((r) => setTimeout(r, 50));
+    return pids.filter(lebt);
+  };
+
+  it('#147 after a timeout no process of the run lives on, its children neither', async () => {
+    const d = drehbuch([{ schritte: [{ text: 'los' }, { kind: 120_000 }] }]);
+    let pid = 0;
+    const r = await starte({ repo: tmp(), konto: tmp(), auftrag: 'x', leerlaufMs: 300, stilleMaxMs: 600, beimStart: (p) => (pid = p), ...mitAttrappe(d.datei) });
+    expect(r).toMatchObject({ leerlauf: true, fehler: 'leerlauf' });
+    expect(kinder(d.datei)).toHaveLength(1);
+    expect(await tot([pid, ...kinder(d.datei)])).toEqual([]);
+  }, 20_000);
+
+  it('#147 an abort ends the whole process tree at once; aborted before the start, nothing is spawned', async () => {
+    const d = drehbuch([{ schritte: [{ text: 'los' }, { kind: 120_000 }] }]);
+    const abbruch = new AbortController();
+    let pid = 0;
+    const lauf = starte({ repo: tmp(), konto: tmp(), auftrag: 'x', leerlaufMs: 60_000, abbruch: abbruch.signal, beimStart: (p) => (pid = p), ...mitAttrappe(d.datei) });
+    const ende = Date.now() + 10_000;
+    while (!kinder(d.datei).length && Date.now() < ende) await new Promise((r) => setTimeout(r, 50));
+    expect(kinder(d.datei)).toHaveLength(1);
+    const anfang = Date.now();
+    abbruch.abort('Treiber angehalten');
+    const r = await lauf;
+    expect(r.fehler).toBe('abbruch');
+    expect(Date.now() - anfang).toBeLessThan(5000);
+    expect(await tot([pid, ...kinder(d.datei)])).toEqual([]);
+    const vorher = d.gesehen().length;
+    expect((await starte({ repo: tmp(), konto: tmp(), auftrag: 'x', abbruch: abbruch.signal, ...mitAttrappe(d.datei) })).fehler).toBe('abbruch');
+    expect(d.gesehen()).toHaveLength(vorher);
+  }, 20_000);
 
   it('reports exit codes, missing results, network and login errors (D1, D18)', async () => {
     const ohne = drehbuch([{ schritte: [], exit: 1 }]);

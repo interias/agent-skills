@@ -198,3 +198,69 @@ export async function auftragAusfuehren(text: string, r: AuftragsRegeln, forge: 
   }
   return { trocken: false as const, mission, ziele, labels: { mission: mission ? labelsFuer('mission', r, o.starten) : null, ziele: zielLabels }, hinweise };
 }
+
+/**
+ * #147: a mission over Missionsziele that exist already (Sternzeit-Notizen the triage cut into it): created with
+ * its final list (the numbers are known), then linked to each. Nothing of a Missionsziel changes here. Only
+ * epic_label: ready_label comes from the caller once a Missionsziel is released, so a mission never stands
+ * released without a released child (the driver would start an empty run). A forge failure after creating
+ * names what already exists, and carries the mission (error.mission) for the caller.
+ */
+export async function missionAnlegen(m: Teil, ziele: { titel: string; nummer: number }[], r: AuftragsRegeln, forge: Forge, o: Pick<Auftrag, 'trocken'>) {
+  const labels = [r.epic_label];
+  const body = missionBody(m, ziele);
+  if (o.trocken) return { trocken: true as const, mission: { titel: m.titel, labels, body } };
+  let neu: AngelegtesIssue;
+  try {
+    neu = await forge.anlegen({ titel: m.titel, body, labels });
+  } catch (err) {
+    throw new Error(`Mission „${m.titel}“ anlegen gescheitert: ${(err as Error).message}\nNichts angelegt.`);
+  }
+  for (const z of ziele) {
+    try {
+      await forge.verknuepfen(neu.nummer, z.nummer);
+    } catch (err) {
+      throw Object.assign(new Error(`Missionsziel ${nr(z.nummer)} mit Mission ${nr(neu.nummer)} verknüpfen gescheitert: ${(err as Error).message}\nSchon angelegt: ${neu.url}`), { mission: neu });
+    }
+  }
+  return { trocken: false as const, mission: { ...neu, titel: m.titel, labels, body } };
+}
+
+/**
+ * #147: the body of a mission with these Missionsziele in its list `## Missionsziele` (below its last entry; a list
+ * is added when it has none). One listed already is not added again; the rest of the text stays as it is.
+ */
+export function mitMissionszielen(body: string, ziele: { titel: string; nummer: number }[]): string {
+  const neu = ziele.filter((z) => !new RegExp(`^- \\[[ xX]\\] #${z.nummer}(?!\\d)`, 'm').test(body));
+  if (!neu.length) return body;
+  const zeilen = neu.map((z) => `- [ ] ${nr(z.nummer)} ${z.titel}`);
+  const liste = body.split('\n');
+  const kopf = liste.findIndex((z) => z.trim() === '## Missionsziele');
+  if (kopf < 0) return `${body}${body.endsWith('\n') ? '' : '\n'}\n## Missionsziele\n${zeilen.join('\n')}\n`;
+  let i = kopf;
+  for (let j = kopf + 1; j < liste.length && !/^#{1,2}\s/.test(liste[j]); j++) if (/^- \[[ xX]\] /.test(liste[j])) i = j;
+  liste.splice(i + 1, 0, ...zeilen);
+  return liste.join('\n');
+}
+
+/** #148: the body of a mission without the line of this Missionsziel in its list (`- [ ] #<nr> …`); the rest stays as it is. */
+export function ohneMissionsziel(body: string, nummer: number): string {
+  return body.replace(new RegExp(`^- \\[[ xX]\\] #${nummer}(?!\\d).*(\\r?\\n|$)`, 'gm'), '');
+}
+
+/**
+ * #147: an existing Missionsziel joins an open mission: linked as its child, then into the list of its body.
+ * One its list names already (linked before, e.g. a revoked note coming back) is left as it is: a second link
+ * fails at the forge. Returns the new body; throws on a forge failure (the link stands when only the body failed).
+ */
+export async function missionszielAnhaengen(forge: Forge, mission: { nummer: number; body: string }, ziel: { titel: string; nummer: number }): Promise<string> {
+  const body = mitMissionszielen(mission.body, [ziel]);
+  if (body === mission.body) return body;
+  await forge.verknuepfen(mission.nummer, ziel.nummer);
+  try {
+    await forge.bodySetzen(mission.nummer, body);
+  } catch (err) {
+    throw new Error(`verknüpft, Liste der Mission ${nr(mission.nummer)} gescheitert: ${(err as Error).message}`);
+  }
+  return body;
+}

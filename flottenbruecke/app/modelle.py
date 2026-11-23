@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf'}
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
 BEZUG = ('widerruf', 'triage-antwort', 'triage-widerruf')
 # #112: how an epic merges (Andocken): the driver after the gate, or a person looks at every PR
@@ -268,15 +268,105 @@ class TriageFrage(BaseModel):
     seit: str = Field(max_length=40)
 
 
+class SchnittKind(BaseModel):
+    """#148: a note the triage run linked to a mission of its cut plan, with the plan's reason."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    grund: str = Field('', max_length=2000)
+
+
+class SchnittMission(BaseModel):
+    """#148: a mission of the cut plan: created by the run (neu) or an open one it hung notes on; nr is the key of schnitt-widerruf."""
+
+    nr: int = Field(ge=1)
+    url: str | None = Field(None, max_length=300)
+    titel: str = Field('', max_length=300)
+    begruendung: str = Field('', max_length=4000)
+    neu: bool = False
+    kinder: list[SchnittKind] = Field([], max_length=50)
+    # neu: the mission carries ready_label; an open one: the run released the notes it hung on it
+    freigegeben: bool = False
+    fehler: str | None = Field(None, max_length=1000)
+    widerrufen: str | None = Field(None, max_length=4000)
+
+
+class SchnittNotiz(BaseModel):
+    """#148: a note the cut plan closed: merged into verweis, superfluous (fundstelle) or rejected."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    art: Literal['zusammengefuehrt', 'ueberfluessig', 'verworfen']
+    grund: str = Field('', max_length=4000)
+    verweis: int | None = Field(None, ge=1)
+    fundstelle: str = Field('', max_length=1000)
+    fehler: str | None = Field(None, max_length=1000)
+
+
+class Schnittplan(BaseModel):
+    """#148: the cut plan of the driver's last triage run."""
+
+    zeit: str = Field(max_length=40)
+    fehler: str | None = Field(None, max_length=1000)
+    missionen: list[SchnittMission] = Field([], max_length=20)
+    notizen: list[SchnittNotiz] = Field([], max_length=200)
+
+
+class TriageAbweichung(BaseModel):
+    """#147: a note of the input of a triage run without an allowed end state after it."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    zustand: str = Field('', max_length=300)
+    grund: str = Field('', max_length=1000)
+
+
+class TriageAbschluss(BaseModel):
+    """#147: how the driver's last triage run ended: beendet, unvollstaendig (the notes not cleanly worked off) or abgebrochen (grund)."""
+
+    zeit: str = Field(max_length=40)
+    zustand: Literal['beendet', 'unvollstaendig', 'abgebrochen']
+    geprueft: int = Field(0, ge=0)
+    sauber: int = Field(0, ge=0)
+    abweichungen: list[TriageAbweichung] = Field([], max_length=200)
+    grund: str | None = Field(None, max_length=1000)
+
+
+class TriageFortschritt(BaseModel):
+    """#148: note n of m of the run under way; only a driver that knows it reports it."""
+
+    n: int = Field(ge=1)
+    m: int = Field(ge=1)
+
+
+class TriageBeendet(BaseModel):
+    """#148: the end of the driver's last triage run: when, the missions of its cut plan, the questions for the person."""
+
+    zeit: str = Field(max_length=40)
+    epics: int = Field(ge=0)
+    fragen: int = Field(ge=0)
+    # the run failed, or its cut plan was invalid: the reason
+    gescheitert: bool = False
+    fehler: str | None = Field(None, max_length=1000)
+
+
 class Triage(BaseModel):
     """The triage state of a project (#116): the open Sternzeit-Notizen, the decisions of the driver's triage runs, the open questions."""
 
     # when the driver last read the forge; a triage run under way
     gelesen: str | None = Field(None, max_length=40)
     laeuft: bool = False
+    # #148: when the run under way started, how far it is (only if known), how the last one ended
+    seit: str | None = Field(None, max_length=40)
+    fortschritt: TriageFortschritt | None = None
+    beendet: TriageBeendet | None = None
     tickets: list[TriageTicket] = Field([], max_length=500)
     entscheidungen: list[TriageEntscheidung] = Field([], max_length=200)
     fragen: list[TriageFrage] = Field([], max_length=200)
+    # #148: the cut plan of the last triage run; an older driver has none
+    schnittplan: Schnittplan | None = None
+    # #147: how the last triage run ended; an older driver has none
+    abschluss: TriageAbschluss | None = None
 
 
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:
@@ -389,19 +479,19 @@ class Antwort(BaseModel):
 
 class Handlung(BaseModel):
     """What the person asks the driver to do: requeue or give up a blocked epic, revoke a decision, change a setting, take an epic in, pause or continue it, set its priority or its merge;
-    #116: start a triage run, answer a critical question of the triage, revoke a decision of the triage."""
+    #116: start a triage run, answer a critical question of the triage, revoke a decision of the triage; #148: revoke a mission of the cut plan."""
 
     # owner/name; triage: also `alle`, one action per project that reports a triage state
     forge: str = Field(max_length=200)
-    # the epic; triage-antwort and triage-widerruf: the ticket; einstellen and triage: 0
+    # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen and triage: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf']
     # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
     # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON; prioritaet: hoch or normal;
     # merge (#112): automatisch or mensch, None back to the proposal; triage-antwort: {"option", "text"} as JSON;
-    # triage-widerruf: the person's objection
+    # triage-widerruf and schnitt-widerruf: the person's objection
     text: str | None = Field(None, max_length=4000)
 
     @model_validator(mode='after')
@@ -430,6 +520,10 @@ class Handlung(BaseModel):
             if self.epic < 1 or not self.seit or not self.text:
                 raise ValueError('Widerruf einer Triage-Entscheidung: Ticket, seit (= zeit der Entscheidung) und der Einwand')
             self.nr = None
+        elif self.art == 'schnitt-widerruf':
+            if self.epic < 1 or not self.text:
+                raise ValueError('Widerruf einer Mission des Schnittplans: die Mission und der Einwand')
+            self.nr, self.seit = None, None
         elif self.art == 'einstellen':
             # belongs to the project: epic 0; the text is read here once, so the store holds one form
             try:

@@ -1,6 +1,7 @@
 // The triage run (#115): flotte triage decides Sternzeit-Notizen itself. A clear one gets its
 // sections and Warp frei, a superfluous one is closed, a critical one gets exactly one bundled
-// question; no ticket changes without a comment naming the origin first.
+// question; no ticket changes without a comment naming the origin first. #146: all of it from the one admiral
+// call of the project (the cut plan), no call per note.
 
 import { describe, expect, it } from 'vitest';
 import { regelnAus } from '../src/befehle/auftrag.ts';
@@ -66,6 +67,8 @@ function welt(
         aufrufe.push({ args, eingabe: opt?.eingabe });
         if (args[0] === 'issue' && args[1] === 'list') {
           const label = args[args.indexOf('--label') + 1];
+          // #147: the open mission the cut plan below hangs every note on
+          if (label === 'epic') return { code: 0, stdout: JSON.stringify([{ number: 90, title: 'Sammelmission', body: '## Missionsziele\n', labels: [{ name: 'epic' }] }]), stderr: '' };
           const liste = tickets
             .filter((t) => t.labels.includes(label))
             .map((t) => ({ number: t.number, title: t.title, body: t.body, url: `https://github.com/o/r/issues/${t.number}`, labels: t.labels.map((name) => ({ name })), comments: (t.comments ?? []).map((c) => (typeof c === 'string' ? { body: c, login: 'mensch', rolle: 'OWNER' } : c)).map((c) => ({ body: c.body, author: { login: c.login }, authorAssociation: c.rolle, createdAt: '2026-11-21T10:00:00Z' })) }));
@@ -73,8 +76,12 @@ function welt(
         }
         // the author's role of the ticket itself: gh issue list does not carry it
         if (args[0] === 'api') {
-          if (o.rolleScheitert) return { code: 1, stdout: '', stderr: 'HTTP 502' };
+          const jq = args[args.indexOf('--jq') + 1];
           const nr = Number(/issues\/(\d+)$/.exec(args[1])?.[1]);
+          if (args.includes('--method')) return { code: 0, stdout: '{}', stderr: '' };
+          if (jq === '.sub_issues_summary.total') return { code: 0, stdout: '0\n', stderr: '' };
+          if (jq === '.id') return { code: 0, stdout: `${1000 + nr}\n`, stderr: '' };
+          if (o.rolleScheitert) return { code: 1, stdout: '', stderr: 'HTTP 502' };
           return { code: 0, stdout: `${tickets.find((t) => t.number === nr)?.rolle ?? 'OWNER'}\n`, stderr: '' };
         }
         if (args[0] === 'issue' && args[1] === 'comment' && o.kommentarScheitert) return { code: 1, stdout: '', stderr: 'nein' };
@@ -82,9 +89,20 @@ function welt(
         return { code: 0, stdout: '', stderr: '' };
       },
       starte: async (s: Start): Promise<LaufErgebnis> => {
+        // #146/#147: the one call of the project clears every note in its cut plan: a superfluous one is closed there,
+        // the others hang on the open mission #90 (tests of the plan and the missions: schnittplan.test.ts,
+        // schnittplan-forge.test.ts). An answer outside the schema for one note fails the whole call.
         gestartet.push(s);
-        const nr = Number(/Sternzeit-Notiz #(\d+)/.exec(s.auftrag)?.[1]);
-        return { code: 0, sitzung: 's', dauerMs: 1000, strukturiert: antworten[nr] } as LaufErgebnis;
+        expect(s.auftrag.startsWith('FLOTTE-SCHNITTPLAN')).toBe(true);
+        const nummern = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => Number(m[1]));
+        const a = nummern.map((n) => antworten[n] as Record<string, unknown> | null);
+        if (a.some((x) => !x)) return { code: 1, sitzung: 'plan', dauerMs: 1000, strukturiert: null } as LaufErgebnis;
+        const zuordnungen = nummern.map((notiz, i) => {
+          const { entscheidung, herkunft, grund, fragen, abnahmekriterien, verifikationsweg } = a[i]!;
+          if (entscheidung === 'ueberfluessig') return { notiz, art: 'ueberfluessig', grund, herkunft, fundstelle: herkunft, fragen };
+          return { notiz, art: 'mission', mission: 90, grund, herkunft, fragen, abnahmekriterien, verifikationsweg };
+        });
+        return { code: 0, sitzung: 'plan', dauerMs: 1000, strukturiert: { neue_missionen: [], zuordnungen } } as LaufErgebnis;
       },
     },
   };
@@ -147,16 +165,18 @@ describe('triagiere', () => {
     const r = await triagiere(auftrag(), t.w);
 
     const fuer = (nr: number) => schreibend(t.aufrufe).filter((x) => x.args[2] === String(nr));
-    // clear: comment with origin, then one edit with the sections and the labels
-    const [k1, e1, ...rest1] = fuer(1);
+    // clear: comment with origin, then the sections appended, then (after joining its mission, #147) the labels
+    const [k1, e1, l1, ...rest1] = fuer(1);
     expect(rest1).toEqual([]);
     expect(k1.args[1]).toBe('comment');
     expect(k1.eingabe).toContain(TRIAGE_MARKE);
     expect(k1.eingabe).toContain(`Herkunft: ${HERKUNFT}`);
     expect(k1.eingabe).toMatch(/widerrufbar/i);
-    expect(e1.args).toEqual(['issue', 'edit', '1', '--repo', 'o/r', '--body-file', '-', '--add-label', 'ready-for-agent', '--remove-label', 'needs-triage']);
+    expect(e1.args).toEqual(['issue', 'edit', '1', '--repo', 'o/r', '--body-file', '-']);
     expect(e1.eingabe).toContain('## Abnahmekriterien\n- Ein belegter Port');
     expect(e1.eingabe).toContain('## Verifikationsweg\n`bun test test/start.test.ts`');
+    expect(l1.args).toEqual(['issue', 'edit', '1', '--repo', 'o/r', '--add-label', 'ready-for-agent', '--remove-label', 'needs-triage']);
+    expect(t.aufrufe.find((x) => x.args.includes('--method'))?.args).toEqual(['api', '--method', 'POST', 'repos/o/r/issues/90/sub_issues', '-F', 'sub_issue_id=1001']);
 
     // superfluous: comment with the reason, then close
     const [k2, c2, ...rest2] = fuer(2);
@@ -175,14 +195,18 @@ describe('triagiere', () => {
     expect(k3[0].eingabe).toContain('Welcher Zahlungsanbieter');
 
     nurMitKommentar(t.aufrufe);
-    expect(r.tickets.map((x) => [x.nummer, x.ergebnis, x.geschrieben])).toEqual([[1, 'klar', true], [2, 'ueberfluessig', true], [3, 'kritisch', true]]);
+    // the superfluous one is closed by the plan and stands there, not in tickets
+    expect(r.tickets.map((x) => [x.nummer, x.ergebnis, x.geschrieben])).toEqual([[1, 'klar', true], [3, 'kritisch', true]]);
+    expect(r.schnittplan[0].zuordnungen.find((z) => z.notiz === 2)).toMatchObject({ art: 'ueberfluessig', geschrieben: true });
     expect(r.fragen).toEqual([
       { forge: 'o/r', ticket: 3, url: 'https://github.com/o/r/issues/3', frage: 'Darf der Newsletter an alle Kunden gehen?', optionen: ['ja', 'nein, nur Testliste'], empfehlung: 'nein, nur Testliste', grund: 'nicht zurückholbar', herkunft: 'Eigenes Urteil: geht nach außen', marke: 'nach außen' },
       { forge: 'o/r', ticket: 3, url: 'https://github.com/o/r/issues/3', frage: 'Welcher Zahlungsanbieter?', optionen: ['Stripe', 'PayPal'], empfehlung: 'Stripe', grund: 'Kosten', herkunft: 'Eigenes Urteil: echtes Geld', marke: 'Geld' },
     ]);
     // the model may read the repository, nothing else
     expect(t.gestartet[0].extraArgs).toEqual(expect.arrayContaining(['--tools', 'Read,Grep,Glob']));
-    expect(t.gestartet).toHaveLength(3);
+    // #146: one admiral call for the three notes
+    expect(t.gestartet).toHaveLength(1);
+    expect(r.schnittplan[0].aufrufe).toBe(1);
   });
 
   it('when the comment fails, the ticket does not change (no edit, no close)', async () => {
@@ -190,6 +214,7 @@ describe('triagiere', () => {
     const r = await triagiere(auftrag(), t.w);
     expect(schreibend(t.aufrufe).filter((x) => x.args[1] !== 'comment')).toEqual([]);
     expect(r.tickets.every((x) => !x.geschrieben && x.fehler)).toBe(true);
+    expect(r.schnittplan[0].zuordnungen.find((z) => z.notiz === 2)).toMatchObject({ geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' });
   });
 
   it('the check catches an edit without a comment before it', () => {
@@ -286,7 +311,7 @@ describe('triagiere', () => {
     const t = welt([tickets[0]], { 1: antwort.klar }, { editScheitert: true });
     const r = await triagiere(auftrag(), t.w);
     expect(r.tickets[0]).toMatchObject({ ergebnis: 'klar', geschrieben: true });
-    expect(r.tickets[0].fehler).toContain('Freigabe gescheitert');
+    expect(r.tickets[0].fehler).toContain('Kommentar steht, Ergänzung des Textes gescheitert');
     // the next run sees the triage comment as the last one, the label still there
     const k = schreibend(t.aufrufe).find((x) => x.args[1] === 'comment')!.eingabe!;
     const t2 = welt([{ ...tickets[0], comments: [k] }], { 1: antwort.klar });
@@ -302,7 +327,7 @@ describe('triagiere', () => {
     const t = welt([{ number: 1, title: 'Portprüfung', body: KLAR_BODY, labels: ['needs-triage', 'needs-info'] }], { 1: antwort.klar });
     const r = await triagiere(auftrag(), t.w);
     expect(r.tickets).toHaveLength(1);
-    expect(schreibend(t.aufrufe).find((x) => x.args[1] === 'edit')?.args).toContain('needs-triage,needs-info');
+    expect(schreibend(t.aufrufe).find((x) => x.args[1] === 'edit' && x.args.includes('--add-label'))?.args).toContain('needs-triage,needs-info');
   });
 
   it('--trocken decides and prints, writes nothing', async () => {
@@ -310,8 +335,9 @@ describe('triagiere', () => {
     const r = await triagiere(auftrag(true), t.w);
     expect(t.aufrufe.filter((x) => x.args[1] !== 'list' && x.args[0] !== 'api')).toEqual([]);
     expect(r.trocken).toBe(true);
-    expect(r.tickets.map((x) => [x.ergebnis, x.geschrieben])).toEqual([['klar', false], ['ueberfluessig', false], ['kritisch', false]]);
+    expect(r.tickets.map((x) => [x.ergebnis, x.geschrieben])).toEqual([['klar', false], ['kritisch', false]]);
     expect(r.tickets[0].kommentar).toContain('Herkunft');
+    expect(r.schnittplan[0].zuordnungen.find((z) => z.notiz === 2)).toMatchObject({ art: 'ueberfluessig', geschrieben: false, kommentar: expect.stringContaining('Schon mit #7 erledigt.') });
     expect(r.fragen).toHaveLength(2);
   });
 
@@ -319,14 +345,15 @@ describe('triagiere', () => {
     const t = welt([tickets[0]], { 1: null });
     const r = await triagiere(auftrag(), t.w);
     expect(schreibend(t.aufrufe)).toEqual([]);
-    expect(r.tickets[0]).toMatchObject({ ergebnis: 'ungueltig', geschrieben: false });
+    expect(r.tickets).toEqual([]);
+    expect(r.schnittplan[0].fehler).toContain('Schema');
   });
 });
 
 describe('offene Fragen aus dem Kommentar der Triage (#116)', () => {
   const kritisch = entscheidungAus(antwort.kritisch, 'Newsletter', 'Text', REGELN) as Exclude<Entscheidung, { art: 'ungueltig' }>;
   const ticket = (kommentare: Ticket['kommentare']): Ticket => ({ nummer: 61, titel: 'Newsletter', body: 'Text', url: 'https://github.com/o/r/issues/61', labels: ['needs-triage'], kommentare });
-  const frage = (rolle = 'OWNER') => ({ body: triageKommentar(kritisch, ticket([]), ['needs-triage'], 'ready-for-agent'), autor: 'flotte', zeit: '2026-11-20T13:05:00Z', rolle });
+  const frage = (rolle = 'OWNER') => ({ body: triageKommentar(kritisch, ticket([]), ['needs-triage']), autor: 'flotte', zeit: '2026-11-20T13:05:00Z', rolle });
 
   it('reads back every question with the person as triageKommentar wrote it, the time of the comment as seit', () => {
     expect(offeneFragen(ticket([frage()]))).toEqual([

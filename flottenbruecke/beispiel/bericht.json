@@ -713,6 +713,57 @@
         "marke": "nach außen",
         "seit": "2026-11-20T13:05:00Z"
       }
-    ]
+    ],
+    "schnittplan": {
+      "zeit": "2026-11-20T13:04:40Z",
+      "fehler": null,
+      "missionen": [
+        {
+          "nr": 70,
+          "url": "https://github.com/interias/flotte-probe/issues/70",
+          "titel": "Logbuch durchsuchen und filtern",
+          "begruendung": "Drei Sternzeit-Notizen wollen dasselbe: Einträge im Logbuch wiederfinden. Eine Mission statt drei einzelner Läufe.",
+          "neu": true,
+          "kinder": [
+            { "nr": 57, "titel": "Logbuch nach Mission filtern", "grund": "Kern der Mission" },
+            { "nr": 65, "titel": "Volltextsuche im Logbuch", "grund": "Dieselbe Liste, dieselbe Datei" }
+          ],
+          "freigegeben": true,
+          "fehler": null,
+          "widerrufen": null
+        },
+        {
+          "nr": 71,
+          "url": "https://github.com/interias/flotte-probe/issues/71",
+          "titel": "Exportformate",
+          "begruendung": "Export als CSV und als Markdown teilen sich den Exportpfad.",
+          "neu": true,
+          "kinder": [
+            { "nr": 67, "titel": "Export als CSV", "grund": "Erstes Format des Exports" }
+          ],
+          "freigegeben": false,
+          "fehler": "Freigabe der Mission #71 gescheitert: HTTP 502",
+          "widerrufen": null
+        },
+        {
+          "nr": 41,
+          "url": null,
+          "titel": "Mini-Epic: Begrüßungsdatei",
+          "begruendung": "",
+          "neu": false,
+          "kinder": [
+            { "nr": 66, "titel": "Begrüßung auch auf Englisch", "grund": "Gehört zur Begrüßungsdatei, die Mission hat noch Platz" }
+          ],
+          "freigegeben": true,
+          "fehler": null,
+          "widerrufen": null
+        }
+      ],
+      "notizen": [
+        { "nr": 68, "titel": "Logbuch nach Epic filtern", "art": "zusammengefuehrt", "grund": "Dasselbe wie #57 mit anderem Wort.", "verweis": 57, "fundstelle": "", "fehler": null },
+        { "nr": 58, "titel": "Alte Tafel-Ansicht wiederherstellen", "art": "ueberfluessig", "grund": "Überholt durch die Sternenkarte.", "verweis": null, "fundstelle": "#43 Sternenkarte", "fehler": null },
+        { "nr": 69, "titel": "Ton bei jedem Merge", "art": "verworfen", "grund": "Lenkt ab; die Brücke meldet sich nur, wenn sie den Menschen braucht.", "verweis": null, "fundstelle": "", "fehler": null }
+      ]
+    }
   }
 }
