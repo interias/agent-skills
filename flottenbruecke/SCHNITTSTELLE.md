@@ -5,12 +5,14 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
 [`beispiel/antworten.json`](beispiel/antworten.json),
 [`beispiel/handlungen.json`](beispiel/handlungen.json) und
 [`beispiel/holodeck.json`](beispiel/holodeck.json): pytest prüft die Brücke dagegen,
-`bun test` (`flotte/test/bruecke.test.ts`, `holodeck.test.ts`) den Treiber.
+`bun test` (`flotte/test/bruecke.test.ts`, `holodeck.test.ts`) den Treiber. Für den Chat
+(Abschnitt 8) ist es [`beispiel/chat.json`](beispiel/chat.json).
 
 ## Grundregeln
 
-- **Nur der Treiber** spricht per HTTP mit der Brücke. Läufe und Admiral laufen weiter mit
-  `--strict-mcp-config` und sehen sie nicht; kein MCP.
+- **Nur der Treiber** spricht per HTTP mit der Brücke, für den Chat dazu `flotte chat`
+  (Abschnitt 8). Läufe und Admiral laufen weiter mit `--strict-mcp-config` und sehen sie nicht;
+  kein MCP.
 - **Basis-URL:** `flotte fahren --bruecke http://127.0.0.1:4747` oder Umgebung `FLOTTE_BRUECKE`.
   Ohne sie meldet der Treiber nichts. Läuft die Brücke mit Zertifikat (#37), gilt
   `https://127.0.0.1:4747` mit `NODE_EXTRA_CA_CERTS` auf das Stammzertifikat von mkcert (`INSTALL.md`).
@@ -18,8 +20,8 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
   Fehler des Treibers: ein Ereignis beim Wechsel (erreichbar ↔ nicht erreichbar), sonst still
   weiter. Ist die Brücke aus, bleiben `flotte antworten` und das Issue als Weg.
 - **Nur über den LAN-Eingang:** Über den Fernzugriff (Tailscale, #48, agent-skills/ADR-0006) antwortet die
-  Brücke auf Bericht, Abholen, Quittieren und Holodeck mit `403`, ebenso auf die Werft (Abschnitt 6);
-  Treiber und Werft melden sich wie bisher am Rechner.
+  Brücke auf Bericht, Abholen, Quittieren und Holodeck mit `403`, ebenso auf die Werft (Abschnitt 6) und den Chat-Dienst (Abschnitt 8);
+  Treiber, Werft und Chat-Dienst melden sich wie bisher am Rechner.
 - **Token (optional):** Setzt die Brücke `BRUECKE_TOKEN`, schickt der Treiber den Wert aus
   `FLOTTE_BRUECKE_TOKEN` als Kopf `X-Bruecke-Token` bei allen Aufrufen.
 - **Alt und neu passen zusammen:** Alle Felder, die v2 dazugebracht hat, sind im Bericht
@@ -598,12 +600,121 @@ mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` 
 - **`GET /sw.js`**: der Service Worker (zeigt den Push, ein Tipp öffnet die Brücke). Das Manifest
   `/static/manifest.webmanifest` trägt `id` und `scope` `/`.
 
+## 8. Bereitschaftsraum (Chat)
+
+Der Chat der Brücke (agent-skills/ADR-0004). Die Brücke speichert nur Nachrichten, Antworten und
+Stand, nie Anmeldedaten. Ein Dienst je Rechner, `flotte chat --repos <ordner> [--bruecke <url>]
+[--takt-s 10]` (umgesetzt in `flotte/src/befehle/chat.ts`), holt die Nachrichten, führt je Chat
+eine fortgesetzte `claude -p`-Sitzung auf dem Konto und Modell des Chats aus und legt auf Knopfdruck
+des Menschen über den Auftragsschreiber an. Basis-URL, Zeitgrenze und `X-Bruecke-Token` wie in den
+Grundregeln; `401` ohne passenden Token. Jede Antwort der Brücke ist JSON (die beiden `POST` etwa
+`{"ok": true}`); einen `2xx` ohne JSON-Körper wertet der Dienst als nicht angenommen. Der Dienst
+schickt nie einen Pfad, ein Konto-Verzeichnis oder Anmeldedaten, nur Texte und Kurznamen. Der
+gemeinsame Vertrag ist [`beispiel/chat.json`](beispiel/chat.json) (je eine Nachricht beider Arten,
+eine Quittung, je eine Antwort beider Arten); `bun test` prüft den Dienst dagegen
+(`flotte/test/chat.test.ts`).
+
+**Bindung an einen Rechner.** Konto-Kurznamen und `claude`-Sitzungen gelten nur auf ihrem Rechner.
+Ein Chat gehört dem Rechner, dessen Antwort zuerst eine `sitzung` brachte; vorher darf jeder Rechner
+seine Nachrichten übernehmen (ein Rechner ohne das Repository antwortet mit `fehler` und
+`sitzung: null` und belegt den Chat damit nicht). Die Brücke merkt sich dazu den `rechner` der
+Quittung, auf die die erste Antwort mit `sitzung` folgte.
+
+**`GET /api/chat/nachrichten?rechner=<name>&konten=<k1,k2,…>`** — die Nachrichten ohne Antwort,
+älteste zuerst, die dieser Rechner übernehmen darf: aus Chats ohne Rechner, deren `konto` unter
+den `konten` dieses Rechners steht, und aus Chats, die an diesen Rechner gebunden sind; Nachrichten eines an einen anderen Rechner gebundenen Chats nie.
+`rechner` ist der Rechnername des Dienstes, `konten` die Kurznamen der Konten, die es auf ihm gibt
+(nur Ziffern, durch Komma getrennt, nie Pfade). Die Brücke merkt sich beides je Rechner und bietet
+daraus die Kontowahl je Chat an. Antwort:
+`[{id, chat, forge, art, konto, modell, text, entwurf, starten, sitzung, zeit}]`.
+
+| Feld | Bedeutet | Form |
+|---|---|---|
+| `id` | die Nachricht | Ganzzahl |
+| `chat` | das Gespräch; alle Nachrichten eines Chats teilen Konto, Repository und Sitzung | Ganzzahl |
+| `forge` | Repository des Chats | `owner/name`, beide Teile `^[A-Za-z0-9][A-Za-z0-9_.-]*$` |
+| `art` | `text`: der Mensch schreibt oder antwortet auf eine Fragekarte; `anlegen`: er drückt „anlegen“ oder „anlegen und starten“ am Entwurf | `text` \| `anlegen` |
+| `konto` | Kurzname des Kontos, das der Mensch gewählt hat | `1`, `2`, `3` … (nur Ziffern, nie ein Pfad) |
+| `modell` | gewähltes Modell oder `null` (dann `claude-opus-5-5`) | `^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,80}$` |
+| `text` | die Nachricht des Menschen (die Wahl einer Karte als Text, etwa `Q1 A`) | bei `text` nicht leer, bei `anlegen` `null` |
+| `entwurf` | der Entwurf, der angelegt werden soll (der letzte `entwurf` einer Antwort des Chats) | bei `anlegen` nicht leer, sonst `null` |
+| `starten` | „anlegen und starten“ (`ready_label`, Warp frei) statt „anlegen“ (`needs-triage`) | Wahrheitswert, bei `text` `false` |
+| `sitzung` | `sitzung` der letzten Antwort des Chats, `null` vor der ersten | `^[A-Za-z0-9][A-Za-z0-9_-]{0,100}$` |
+| `zeit` | Eingang, ISO | |
+
+Was nicht passt, lässt der Dienst liegen.
+
+**Anlegen ist eine Freigabe.** Eine Nachricht `art: anlegen` legt Issues an und mit `starten` gibt
+sie der Flotte frei; der Dienst prüft dahinter nichts mehr. Die Brücke nimmt sie deshalb nur mit
+PIN an (`X-Bruecke-Pin` wie bei `POST /api/handlung`), und ihr `entwurf` ist immer wörtlich der
+`entwurf` der letzten Antwort dieses Chats, den der Mensch gesehen hat, nie eine Eingabe des
+Formulars. Ohne PIN oder ohne einen solchen Entwurf entsteht keine Nachricht `anlegen`.
+
+**`POST /api/chat/nachrichten/{id}/quittung`**, Body `{rechner}` — der Dienst übernimmt die
+Nachricht, bevor er etwas startet. `200` übernommen (auch wiederholt vom selben Rechner); `409`,
+wenn der Chat an einen anderen Rechner gebunden ist, ein anderer Rechner die Nachricht schon hat
+oder im Chat schon eine andere Nachricht quittiert und unbeantwortet ist (je Chat höchstens eine);
+`404` unbekannt. Danach liefert `GET` sie nur noch diesem Rechner, bis sie eine Antwort hat; so holt
+ein neu gestarteter Dienst sie wieder.
+
+**`POST /api/chat/nachrichten/{id}/antwort`**, Body
+`{text, sitzung, fehler, karten, entwurf}`, bei `art: anlegen` dazu `missionen` — schließt die
+Nachricht ab. `200` gespeichert, `404` unbekannt; eine zweite Antwort auf dieselbe Nachricht ändert
+nichts und gibt ebenfalls `200`.
+
+| Feld | Bedeutet | Form |
+|---|---|---|
+| `text` | Nachricht an den Menschen (Markdown) oder `null`; bei `anlegen` die Liste des Angelegten mit den Hinweisen des Auftragsschreibers | Text \| `null` |
+| `sitzung` | die Sitzung des Chats; die Brücke merkt sie sich für die nächste Nachricht und bindet den Chat beim ersten Wert an den quittierenden Rechner | wie oben \| `null` |
+| `fehler` | `null` oder ein Satz für den Menschen: Verbrauchsbremse rot (`Verbrauchsbremse rot auf Konto 2 (…): kein Aufruf. Später noch einmal senden.`), unbekanntes Konto, fehlendes Repository, gescheiterter Aufruf, eine Antwort ohne die verlangte Form (dann steht ihr Text unverändert in `text`), `Anlegen gescheitert: …` | Text \| `null` |
+| `karten` | Fragekarten der Runde: je Karte `frage` (Titel, Sachverhalt, Einzel- oder Mehrfachwahl, Empfehlung) und `optionen` als Knöpfe; Freitext ist immer erlaubt (Antwort als `art: text`) | `[{frage, optionen: [Text]}]`, sonst `[]` |
+| `entwurf` | der Entwurf im Format des Auftragsschreibers, sobald er steht; die Brücke zeigt ihn mit „anlegen“ und „anlegen und starten“ | Text \| `null` |
+| `missionen` | nur bei `art: anlegen`: die angelegten Issues, Mission vor ihren Missionszielen; `[]`, wenn das Anlegen scheiterte | `[{nummer, url, titel}]` |
+
+Mindestens `text` oder `fehler` ist gesetzt.
+
+**Stand des Chats** (`offen`, `angelegt`, `verworfen`) führt die Brücke. Hier gilt nur: Nach einer
+Antwort auf `art: anlegen` mit `fehler: null` und nicht leerem `missionen` setzt sie „angelegt“ und
+zeigt die Links; „verworfen“ ist ein Klick in der Brücke und kommt nie beim Dienst an.
+
+**Ablauf je Takt:** zuerst Antworten nachliefern, die die Brücke noch nicht nahm (sie laufen nicht
+noch einmal), dann `GET`, dann je freiem Chat die älteste Nachricht: Quittung, dann
+
+- `art: text`: Verbrauchsbremse des Kontos (bei Rot nur die Meldung als `fehler`, kein Aufruf),
+  `claude -p` mit `--resume <sitzung>` und `--json-schema` (`{text, karten, entwurf}`) im Ordner
+  `<ordner>/<name>` des Rechners, Antwort;
+- `art: anlegen`: kein `claude` und keine Verbrauchsbremse; der Dienst ruft
+  `flotte auftrag <ordner>/<name> - [--starten]` mit `entwurf` auf stdin auf und antwortet mit
+  `missionen`.
+
+Je Chat läuft höchstens eines; mehrere Chats laufen nebeneinander.
+
+**Rechte des Chats:** Das Modell liest nur, und nur im Repository: `--tools Read,Grep,Glob`,
+`--permission-mode dontAsk`, `--strict-mcp-config`; meldet `claude` beim Start ein anderes
+Werkzeug, bricht der Dienst den Aufruf ab. Die Grenze zum Repository zieht die Lesesperre, ein
+`PreToolUse`-Hook für `Read|Grep|Glob` per `--settings` (`flotte/src/befehle/chat-lesesperre.ts`,
+`onFailure: block`, das Repository als Argument): Jeder Pfad außerhalb des Repositorys, auch über einen
+Link, wird mit Exit 2 abgelehnt, ebenso jedes Glob-Muster mit `..` (auch nach Klammer-Expansion und
+Zeichenklassen), Laufwerk, `~`, Backslash, runden Klammern oder einem Anfang mit `/`. `--allowedTools 'Read(./**)'` bleibt stehen, engt aber nichts ein, denn
+Lesewerkzeuge brauchen keine Freigabe (Probe 23.11.2026). Kein Bash: Anlegen ist allein die Nachrichtenart
+`anlegen`, also der Knopf des Menschen, und Missionen entstehen nur über den Auftragsschreiber
+(agent-skills/ADR-0002).
+
 ## Was die Seite selbst nutzt
 
 `GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]`, `sitzungen[]` und `push`, der
 öffentliche VAPID-Schlüssel oder `null`), `POST /api/push` und `POST /api/push/abmelden` (Abschnitt 7), `GET /holodeck/…` (im
 abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
-(`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender
+(`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Für den Bereitschaftsraum (#85),
+alle mit `X-Bruecke-Pin`: `POST /api/chat` (`{forge, konto, modell, text}`, ein neuer Chat mit seiner
+ersten Nachricht; `konto` muss ein Rechner melden, sonst `409`), `POST /api/chat/{id}/nachricht`
+(`{text}`), `POST /api/chat/{id}/einstellung` (`{konto, modell}`; ein anderes Konto nach der ersten
+Sitzung oder während ein Rechner eine Nachricht des Chats bearbeitet `409`), `POST /api/chat/{id}/anlegen` (`{starten, von}`: `von` ist die Nachricht, deren Antwort
+den gezeigten Entwurf brachte; `409` ohne Entwurf, bei einem neueren, solange eine Nachricht wartet oder
+der Chat nicht offen ist) und `POST /api/chat/{id}/verwerfen`. In `GET /api/tafel` steht
+`bereitschaftsraum` `{pin, modell, konten[{konto, rechner[]}], rechner[], projekte[], chats[]}`, je Chat
+Stand, Verlauf, die Karten der letzten Antwort, der letzte Entwurf `{von, text}` und die angelegten
+`missionen`. Fünf falsche PINs je Absender
 sperren für fünf Minuten. Über den Fernzugriff (#48) trägt `GET /api/tafel` `nurAnsicht: true` (im LAN
 `false`), und jede Anfrage außer GET und HEAD bekommt `403`, auch mit richtiger PIN.

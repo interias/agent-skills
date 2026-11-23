@@ -624,15 +624,15 @@ def test_seite_bindet_skript_und_stil_mit_inhaltsstand_ein(client):
     assert client.get(f'/static/app.js?v={stand.group(1)}').status_code == 200
 
 
-BEREICHE = ['bruecke', 'holodeck', 'frachtraum', 'sternenkarte', 'maschinenraum', 'logbuch']
+BEREICHE = ['bruecke', 'holodeck', 'frachtraum', 'bereitschaftsraum', 'sternenkarte', 'maschinenraum', 'logbuch']
 
 
-def test_huelle_zeigt_die_sechs_bereiche_ohne_komm(client):
+def test_huelle_zeigt_die_sieben_bereiche_ohne_komm(client):
     html = client.get('/').text
     for b in BEREICHE:
         assert f'<a class="pille" href="#{b}" data-bereich="{b}">' in html
         assert f'<section class="bereich" data-bereich="{b}"' in html
-    assert len(re.findall(r'class="pille" ', html)) == 6
+    assert len(re.findall(r'class="pille" ', html)) == 7
     assert not re.search(r'#komm\b|data-bereich="komm"', html, re.IGNORECASE)
     # the board stays the area "Brücke": its three levels live in that section
     bruecke = html.split('data-bereich="bruecke" aria-label="Brücke">', 1)[1].split('</section>\n<section', 1)[0]

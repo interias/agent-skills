@@ -136,7 +136,7 @@ Pull Request; den Worktree entfernst du danach wieder. Verweist der Auftrag auf 
 dessen Nummer in den Entwurf ein und lässt den Trockenlauf erneut laufen. Andocken tut der Mensch,
 nicht du.
 
-**Darfst du nicht schreiben** (Chat auf der Flottenbrücke: im Repository nur lesen, dazu `flotte auftrag`): Es gibt
+**Darfst du nicht schreiben** (Chat auf der Flottenbrücke: im Repository nur lesen; anlegen tut der Dienst, wenn der Mensch in der Brücke „anlegen“ drückt): Es gibt
 keinen Doku-Pull-Request. Dann steht jedes ADR als fertiger Text und jede Begriffsänderung als
 fertiger Absatz im Entwurf unter `## Doku (nachzutragen)` des Missions- oder Zieltexts, und die
 Zusammenfassung nennt es als offenen Punkt. Behaupte nie, etwas sei festgehalten, was nicht

@@ -1,0 +1,61 @@
+{
+  "nachrichten": [
+    {
+      "id": 41,
+      "chat": 12,
+      "forge": "interias/flotte-probe",
+      "art": "text",
+      "konto": "2",
+      "modell": null,
+      "text": "Die Probe soll eine Seite mit den letzten Läufen bekommen.",
+      "entwurf": null,
+      "starten": false,
+      "sitzung": "5f0c2a4e-9b1d-4c7e-8a3f-2d6b1e9c4a70",
+      "zeit": "2026-11-23T10:02:11+00:00"
+    },
+    {
+      "id": 42,
+      "chat": 12,
+      "forge": "interias/flotte-probe",
+      "art": "anlegen",
+      "konto": "2",
+      "modell": null,
+      "text": null,
+      "entwurf": "# Missionsziel: Seite mit den letzten Läufen\n\n## Was\nEine Seite zeigt die letzten zehn Läufe der Probe.\n\n## Abnahmekriterien\n- Die Seite listet die letzten zehn Läufe mit Zeit und Ergebnis.\n\n## Verifikationsweg\n`bun test`; die Seite im Browser ansehen.\n",
+      "starten": true,
+      "sitzung": "5f0c2a4e-9b1d-4c7e-8a3f-2d6b1e9c4a70",
+      "zeit": "2026-11-23T10:09:40+00:00"
+    }
+  ],
+  "quittung": {
+    "rechner": "STATION-A"
+  },
+  "antworten": [
+    {
+      "text": "Ich habe `CONTEXT.md` und die Seitenstruktur gelesen. Zwei Fragen, bevor ich den Entwurf schreibe.",
+      "sitzung": "5f0c2a4e-9b1d-4c7e-8a3f-2d6b1e9c4a70",
+      "fehler": null,
+      "karten": [
+        {
+          "frage": "Q1 — Umfang (Einzelwahl): Wie viele Läufe zeigt die Seite? Empfehlung A: zehn reichen für den Überblick.",
+          "optionen": ["A — die letzten zehn", "B — alle mit Blättern", "C — zurückstellen"]
+        }
+      ],
+      "entwurf": null
+    },
+    {
+      "text": "Angelegt mit Warp frei: Missionsziel #57 „Seite mit den letzten Läufen“.",
+      "sitzung": "5f0c2a4e-9b1d-4c7e-8a3f-2d6b1e9c4a70",
+      "fehler": null,
+      "karten": [],
+      "entwurf": null,
+      "missionen": [
+        {
+          "nummer": 57,
+          "url": "https://github.com/interias/flotte-probe/issues/57",
+          "titel": "Seite mit den letzten Läufen"
+        }
+      ]
+    }
+  ]
+}
