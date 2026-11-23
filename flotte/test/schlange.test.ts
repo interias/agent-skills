@@ -179,7 +179,28 @@ describe('A: die Merge-Schlange', () => {
     expect(t.p.gates).toHaveLength(2);
     expect(texte(z).some((x) => /^#4 Gate des Treibers rot, die Ursache liegt außerhalb des Diffs \(Testsperre\): einmal wiederholt$/.test(x))).toBe(true);
     expect(buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe))).toHaveLength(1);
+    // the green gate after it resets the repeat for a later red
+    expect(z.epics['4'].gateAussenWiederholt).toBe(false);
   }, T);
+
+  for (const [fall, rotText, gates] of [
+    ['red from outside twice: the second red goes back to the run', 'Testsperre belegt: ein anderer Lauf hält sie', 2],
+    ['a test that merely timed out is no cause outside: back to the run at once', 'FAIL test/x.test.ts > y: timed out after 5000 ms', 1],
+  ] as const) {
+    it(`#25: ${fall}`, async () => {
+      const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }], { rot: (cwd) => cwd.endsWith('e4'), rotText });
+      // #4 ends again only once the driver has given it back (event), then stays red: the test stops at the second return
+      const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ signal: 'kopf-13' }, ...t.nachweis(4), { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: GRENZE }), t.welt);
+      const zuege4 = buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe));
+      expect(zuege4[1].eingabe).toMatch(/die Andockprüfung gefahren \(`gate teil`\): rot\. Nichts gepusht/);
+      // the gate runs before the first return: one, or two with the repeat
+      const zurueck = texte(z).findIndex((x) => /^#4 zurück an den Lauf \(1 von 2\)/.test(x));
+      expect(zurueck).toBeGreaterThanOrEqual(0);
+      expect(texte(z).slice(0, zurueck).filter((x) => /^#4 Gate des Treibers rot nach/.test(x))).toHaveLength(gates);
+      expect(texte(z).slice(0, zurueck).filter((x) => /einmal wiederholt/.test(x))).toHaveLength(gates - 1);
+    }, T);
+  }
 
   it('#25: a conflict when the base comes in goes back to the run without counting against it; the worktree is left as it was; the fifth time blocks', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/x.txt', inhalt: 'drei\n' }, { nr: 5, datei: 'a/x.txt', inhalt: 'fünf\n' }]);

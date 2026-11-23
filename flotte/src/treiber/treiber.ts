@@ -322,10 +322,14 @@ export interface FlottenZustand extends Zustand {
 /** #25: basis: a conflict with the base (not the run's doing); aussen: a red gate whose output names a cause outside the diff */
 type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean; basis?: boolean; aussen?: string };
 
-/** #25: causes of a red gate outside the diff: a test lock held by another run, a time limit under load */
+/**
+ * #25: causes of a red gate outside the diff, only as the gate itself says them on a line of their own
+ * (`Testsperre belegt …`, `Zeitgrenze des Gates …`) or as the driver's own kill of the gate call
+ * (`Zeitgrenze <ms> ms` at the end); a test that merely timed out is the run's matter.
+ */
 const AUSSEN: [RegExp, string][] = [
-  [/testsperre|test lock|lock (is )?held|gesperrt/i, 'Testsperre'],
-  [/zeitgrenze|timed? ?out|timeout|ETIMEDOUT/i, 'Zeitgrenze'],
+  [/^\s*Testsperre belegt\b/im, 'Testsperre'],
+  [/^\s*Zeitgrenze des Gates\b|Zeitgrenze \d+ ms\s*$/im, 'Zeitgrenze'],
 ];
 /** #25: conflicts with the base in the merge queue before the epic is blocked; they do not count against the run */
 const BASIS_GRENZE = 5;
@@ -2760,6 +2764,7 @@ class Treiber {
       const g = await this.nachziehen(ep, voll ? 'Teil-Lauf von merge.ps1 abgelehnt' : null);
       if (g.art === 'gruen') {
         selbst = g.teil ? 'teil' : 'voll';
+        ep.gateAussenWiederholt = false;
         continue;
       }
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
