@@ -4,6 +4,7 @@
 import json
 import re
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -591,11 +592,27 @@ class PushSchluessel(BaseModel):
     auth: str = Field(min_length=1, max_length=100)
 
 
+# #159 Nacharbeit: the push services of Chrome/Android, Firefox, Edge and Safari
+PUSH_HOSTS = ('fcm.googleapis.com',)
+PUSH_HOST_ENDUNGEN = ('.push.services.mozilla.com', '.notify.windows.com', '.push.apple.com')
+
+
 class PushAbo(BaseModel):
     """#37: a device's push subscription as PushSubscription.toJSON() gives it; the service only over HTTPS."""
 
     endpoint: str = Field(pattern=r'^https://', max_length=2000)
     keys: PushSchluessel
+
+    @model_validator(mode='after')
+    def nur_bekannte_dienste(self) -> 'PushAbo':
+        # the bridge posts to every subscription, so only the push services of the browsers, no target in the LAN
+        teile = urlsplit(self.endpoint)
+        host = (teile.hostname or '').lower()
+        if teile.username is not None or teile.password is not None or teile.port not in (None, 443):
+            raise ValueError('Endpunkt ohne Benutzerangaben und nur über Port 443')
+        if host not in PUSH_HOSTS and not host.endswith(PUSH_HOST_ENDUNGEN):
+            raise ValueError('Endpunkt nur bei einem bekannten Push-Dienst')
+        return self
 
 
 class PushAbmeldung(BaseModel):

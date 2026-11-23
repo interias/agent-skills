@@ -10,7 +10,7 @@ from app.main import Einstellung, erzeuge
 from app.meldung import inhalt, schluessel_erzeugen
 
 PIN = {'X-Bruecke-Pin': '4711'}
-ABO = {'endpoint': 'https://push.example/abo/1', 'keys': {'p256dh': 'BOeffentlich', 'auth': 'geheim'}}
+ABO = {'endpoint': 'https://fcm.googleapis.com/fcm/send/abo-1', 'keys': {'p256dh': 'BOeffentlich', 'auth': 'geheim'}}
 SCHLUESSEL = schluessel_erzeugen()
 
 
@@ -58,7 +58,28 @@ def test_abo_nur_mit_pin(baue, bericht, dienst):
 
 
 def test_abo_nur_ueber_https(baue):
-    assert abonnieren(baue(), {**ABO, 'endpoint': 'http://push.example/abo'}).status_code == 422
+    assert abonnieren(baue(), {**ABO, 'endpoint': 'http://fcm.googleapis.com/fcm/send/abo'}).status_code == 422
+
+
+@pytest.mark.parametrize('endpoint', [
+    'https://fcm.googleapis.com/fcm/send/abc',
+    'https://updates.push.services.mozilla.com/wpush/v2/abc',
+    'https://wns2-par02p.notify.windows.com/w/?token=abc',
+    'https://web.push.apple.com/abc',
+])
+def test_abo_bei_bekanntem_push_dienst(baue, endpoint):
+    assert abonnieren(baue(), {**ABO, 'endpoint': endpoint}).json() == {'ok': True}
+
+
+@pytest.mark.parametrize('endpoint', [
+    'https://192.168.1.10/',
+    'https://fcm.googleapis.com.evil.example/',
+    'https://evilpush.apple.com/abc',
+    'https://nutzer:pw@fcm.googleapis.com/fcm/send/abc',
+    'https://fcm.googleapis.com:8443/fcm/send/abc',
+])
+def test_abo_bei_anderem_ziel_abgelehnt(baue, endpoint):
+    assert abonnieren(baue(), {**ABO, 'endpoint': endpoint}).status_code == 422
 
 
 def test_abmelden_nur_mit_pin_dann_kein_versand(baue, bericht, dienst):
@@ -74,7 +95,7 @@ def test_abmelden_nur_mit_pin_dann_kein_versand(baue, bericht, dienst):
 
 def test_abgelaufenes_abo_wird_geloescht(baue, bericht, dienst):
     c = baue()
-    zwei = {**ABO, 'endpoint': 'https://push.example/abo/2'}
+    zwei = {**ABO, 'endpoint': 'https://fcm.googleapis.com/fcm/send/abo-2'}
     abonnieren(c)
     abonnieren(c, zwei)
     dienst.status[ABO['endpoint']] = 410

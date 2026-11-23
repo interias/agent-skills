@@ -496,7 +496,10 @@ mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` 
   Kürzel ist der Repository-Name ohne Besitzer, der Titel höchstens 60 Zeichen. Nie Fragetext, Lage,
   Grund, Log, Pfade oder Transkript.
 - **`POST /api/push`** mit `X-Bruecke-Pin`: das Abo des Geräts, wie `PushSubscription.toJSON()` es
-  liefert, `{endpoint, keys: {p256dh, auth}}`; `endpoint` nur `https://`. `200 {ok}`, ohne oder mit
+  liefert, `{endpoint, keys: {p256dh, auth}}`; `endpoint` nur `https://` bei einem bekannten Push-Dienst
+  (Host `fcm.googleapis.com` oder endend auf `.push.services.mozilla.com`, `.notify.windows.com`,
+  `.push.apple.com`), ohne Benutzerangaben, Port keiner oder 443, sonst `422`: Die Brücke schickt an
+  jedes Abo, also an kein Ziel im LAN. `200 {ok}`, ohne oder mit
   falscher PIN `401`/`403`/`429` wie bei den Antworten, ohne VAPID-Schlüssel `409`.
 - **`POST /api/push/abmelden`** mit `X-Bruecke-Pin`: `{endpoint}`; `200 {ok, geloescht}`. Meldet der
   Push-Dienst ein Abo mit `404` oder `410` als abgelaufen, löscht die Brücke es selbst; jeder andere

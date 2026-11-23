@@ -68,6 +68,7 @@ def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
     urls += re.findall(r'"(/static/[^"]+)"', lan.get('/').text)
     assert {'/', '/api/tafel', '/healthz', '/sw.js'} <= set(urls)
     assert len([p for p in lesende if '{' in p]) == 1, 'a new reading route with parameters needs a URL here'
+    vorher = lan.get('/api/tafel').json()
     for url in urls:
         a, b = lan.get(url), fern.get(url)
         assert (url, a.status_code, b.status_code) == (url, 200, 200)
@@ -77,6 +78,8 @@ def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
             assert tb == ta
         else:
             assert b.content == a.content, url
+    # reading over the remote entry changes nothing: a GET with a side effect, outside ABHOLEN, shows up here
+    assert lan.get('/api/tafel').json() == vorher
 
 
 def test_tafel_ueber_den_fernweg_zeigt_offene_antwort_und_handlung(fern, gefuellt):
