@@ -4,7 +4,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { aufrufen, aufrufenAsync } from '../src/aufruf.ts';
@@ -78,6 +78,61 @@ describe('der Slot (#66)', () => {
     // a shared service of the project (Sollte 7): the prefix app- alone does not hold the slot
     expect(stackLaeuft(ls([{ Name: 'app-services', Status: 'running(2)', ConfigFiles: 'C:\\src\\app\\compose.yml' }]), 'C:/src/app', 'C:/src/app-worktrees', ['12', 'epic-69'])).toBe(false);
     expect(stackLaeuft('', 'C:/src/app', 'C:/src/app-worktrees', [])).toBe(false);
+  });
+});
+
+describe('die Abnahmestufe (#108)', () => {
+  const mitAdapter = (adapter: string, code: (befehl: string) => number = () => 0) => {
+    const repo = mkdtempSync(join(tmpdir(), 'flotte-abnahme-'));
+    aufrufen('git', ['init', '-q', repo]);
+    mkdirSync(join(repo, '.claude'));
+    writeFileSync(join(repo, '.claude', 'epic.md'), adapter);
+    const gefahren: { befehl: string; cwd?: string }[] = [];
+    const m = echteMechanik({
+      repo,
+      epic: 69,
+      epicBranch: 'epic/69-programm',
+      basis: 'origin/main',
+      forge: 'o/r',
+      halter: join(repo, 'halter'),
+      aufrufer: async (p, _args, o) => {
+        gefahren.push({ befehl: p, cwd: o?.cwd });
+        const c = code(p);
+        return { code: c, stdout: c ? '2 failed\n' : 'ok\n', stderr: '' };
+      },
+    });
+    return { m, gefahren, weg: () => rmSync(repo, { recursive: true, force: true }) };
+  };
+
+  it('acceptance_commands as a map or a list; each runs once in the given worktree, red on exit ≠ 0', async () => {
+    const karteForm = mitAdapter('---\nacceptance_commands:\n  e2e: npx playwright test\n  sicht: npm run sicht\n---\n', (b) => (b === 'npm run sicht' ? 1 : 0));
+    try {
+      expect(karteForm.m.abnahmeBefehle()).toEqual(['e2e', 'sicht']);
+      expect(await karteForm.m.abnahme('C:/wt/epic-69')).toEqual([
+        { name: 'e2e', ok: true, text: 'e2e: grün' },
+        { name: 'sicht', ok: false, text: 'sicht: Exit 1: 2 failed' },
+      ]);
+      expect(karteForm.gefahren).toEqual([
+        { befehl: 'npx playwright test', cwd: 'C:/wt/epic-69' },
+        { befehl: 'npm run sicht', cwd: 'C:/wt/epic-69' },
+      ]);
+    } finally {
+      karteForm.weg();
+    }
+    const liste = mitAdapter('---\nacceptance_commands: [npm run e2e]\n---\n');
+    try {
+      expect(liste.m.abnahmeBefehle()).toEqual(['npm run e2e']);
+    } finally {
+      liste.weg();
+    }
+    const ohne = mitAdapter(ADAPTER);
+    try {
+      expect(ohne.m.abnahmeBefehle()).toEqual([]);
+      expect(await ohne.m.abnahme('C:/wt/epic-69')).toEqual([]);
+      expect(ohne.gefahren).toEqual([]);
+    } finally {
+      ohne.weg();
+    }
   });
 });
 

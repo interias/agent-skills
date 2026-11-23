@@ -134,6 +134,8 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
   const tests = karte(adapterText, 'test_commands');
   const lints = karte(adapterText, 'lint_commands');
   const vorCommit = frontmatter(adapterText).get('pre_commit_checks') ?? [];
+  // Phase 6, Abnahmestufe: a map like test_commands, or a list whose commands are their own names
+  const abnahmen = karte(adapterText, 'acceptance_commands') ?? Object.fromEntries((frontmatter(adapterText).get('acceptance_commands') ?? []).map((b) => [b, b]));
   const common = dirname(flotteDir(repo));
   const lockVon = (name: string) => join(common, 'epic-locks', `${name}.json`);
   // a holder file keeps the locks of this epic alive between two program runs (worktree.ps1,
@@ -272,6 +274,15 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
         const locks = existsSync(join(common, 'epic-locks')) ? readdirSync(join(common, 'epic-locks')).filter((n) => n.endsWith('.json')).map((n) => n.slice(0, -5)) : [];
         return { belegt: ls !== null && stackLaeuft(ls, repo, worktreeRoot(), locks) };
       }),
+    abnahmeBefehle: () => Object.keys(abnahmen),
+    async abnahme(wt) {
+      const out: { name: string; ok: boolean; text: string }[] = [];
+      for (const [name, befehl] of Object.entries(abnahmen)) {
+        const r = await shell(befehl, wt);
+        out.push({ name, ok: !r.code, text: r.code ? `${name}: Exit ${r.code}: ${flach(r.stderr || r.stdout).slice(-600)}` : `${name}: grün` });
+      }
+      return out;
+    },
     async volllauf(wt): Promise<Testlauf> {
       if (!tests) throw new Error(`.claude/epic.md in ${repo} nennt keine test_commands; ohne sie gibt es keine Ausgangszahlen`);
       const out: Testlauf = [];

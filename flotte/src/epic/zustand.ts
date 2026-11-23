@@ -143,6 +143,8 @@ export interface EpicLaufZustand {
   ereignisse: Ereignis[];
   /** Glut points (a label that would not stick, a failed clean-up after a merge): open points at the end */
   offenePunkte?: string[];
+  /** Phase 6, Abnahmestufe: missing until it ran, null when the adapter names no acceptance_commands */
+  abnahme?: { ok: boolean; text: string } | null;
   /** the FLOTTE-ENDE block once the run ended */
   ende: string | null;
 }

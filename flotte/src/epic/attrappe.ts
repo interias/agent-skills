@@ -55,6 +55,8 @@ export interface EpicDrehbuch {
   ram?: RamStufe[];
   /** the slot is busy (a full stack runs) per reading, the last one repeats; default free */
   slot?: boolean[];
+  /** acceptance_commands of the adapter by name → green, red or not runnable (Phase 6); default none */
+  abnahme?: Record<string, boolean | 'nicht fahrbar'>;
   /** answers of the driver, `nachTakten` after the question was asked (default 1) */
   antworten?: { frage: number; antwort: string; nachTakten?: number }[];
   /** takts after an account limit until the account is free (default 2) */
@@ -86,9 +88,11 @@ export interface Welt {
   /** the epic worktree is mid-merge with this branch (a conflict) */
   offenerMerge: string | null;
   letzterMerge: string | null;
+  /** what the end handed to the pull request */
+  pr: { wip: boolean; body: string } | null;
 }
 
-export const neueWelt = (): Welt => ({ takt: 0, gemergt: [], kommentare: {}, status: {}, protokoll: [], aufrufe: [], bloecke: [], vollaeufe: { jetzt: 0, max: 0 }, stand: {}, nrVon: {}, gestorben: [], offenerMerge: null, letzterMerge: null });
+export const neueWelt = (): Welt => ({ takt: 0, gemergt: [], kommentare: {}, status: {}, protokoll: [], aufrufe: [], bloecke: [], vollaeufe: { jetzt: 0, max: 0 }, stand: {}, nrVon: {}, gestorben: [], offenerMerge: null, letzterMerge: null, pr: null });
 
 const BASIS: Testlauf = [{ name: 'flotte', dateien: 18, tests: 249, rot: [] }];
 const nachstes = <T>(liste: T[] | undefined, i: number): T | undefined => (liste?.length ? liste[Math.min(i, liste.length - 1)] : undefined);
@@ -163,6 +167,16 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       const belegt = nachstes(buch.slot, slotN++) ?? false;
       log(`slot ${belegt ? 'belegt' : 'frei'}`);
       return { belegt };
+    },
+    abnahmeBefehle() {
+      return Object.keys(buch.abnahme ?? {});
+    },
+    async abnahme(worktree) {
+      log(`abnahme ${worktree}`);
+      const r = Object.entries(buch.abnahme ?? {});
+      const nicht = r.find(([, x]) => x === 'nicht fahrbar');
+      if (nicht) throw new Error(`${nicht[0]}: docker nicht erreichbar`);
+      return r.map(([name, gruen]) => ({ name, ok: gruen === true, text: gruen === true ? `${name}: grün` : `${name}: Exit 1: 2 E2E-Tests rot` }));
     },
     async volllauf(worktree) {
       welt.vollaeufe.jetzt++;
@@ -255,8 +269,9 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       log('eroeffnung');
       return null;
     },
-    async abschluss({ wip }) {
+    async abschluss({ wip, body }) {
       log(`abschluss${wip ? ' WIP' : ''}`);
+      welt.pr = { wip, body };
       return { pr: 'https://github.com/o/r/pull/100' };
     },
   };
