@@ -969,6 +969,8 @@ class EpicLauf {
    * once in the epic worktree, in the slot, after the last merge. A busy slot waits a takt like hold
    * (false); red or not runnable is an open point and makes the pull request WIP, never a stop.
    * The result stays in the state, so a restart after it does not run them again.
+   * No slot run per package in 4c (decided at #108): whether a diff touches the surface is a
+   * judgement no actor of the program makes; this stage is the one run of the full stack.
    */
   private async abnahmestufe(): Promise<boolean> {
     const z = this.z;
