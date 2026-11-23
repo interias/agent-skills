@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { aufrufen, type Aufrufer } from '../aufruf.ts';
+import { aufrufen, type Aufrufer, pwshPfad } from '../aufruf.ts';
 import { KONTEN_DATEI, kontoAus, kontenTafel, liesKonten, schreibeKonten, type Konto } from '../werkzeuge/konten.ts';
 
 export type Anmeldung = 'angemeldet' | 'nicht angemeldet' | 'ordner fehlt' | 'unklar';
@@ -44,7 +44,10 @@ export function anmeldung(k: Konto, w: KontenWelt, aufruf = true): Anmeldung {
 /** A new window at the machine with `claude` on the account, for its /login; nothing of it goes through the bridge (#95). */
 export function terminalMitClaude(dir: string): void {
   if (process.platform !== 'win32') throw new Error('Ein Terminal öffnen kann flotte nur unter Windows; am Rechner: CLAUDE_CONFIG_DIR setzen, claude starten, /login.');
-  spawn('pwsh', ['-NoProfile', '-Command', "Start-Process pwsh -ArgumentList '-NoExit', '-Command', 'claude'"], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  // the full path: a Store install puts only an app alias on PATH, which spawn cannot start (aufruf.ts)
+  const kind = spawn(pwshPfad(), ['-NoProfile', '-Command', "Start-Process pwsh -ArgumentList '-NoExit', '-Command', 'claude'"], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, detached: true, stdio: 'ignore', windowsHide: true });
+  kind.on('error', () => {});
+  kind.unref();
 }
 
 function finde(liste: Konto[], nr: string | undefined): Konto {

@@ -31,7 +31,7 @@
     that source. Without a git repository at the top of the source, no stand.json is written.
 
     When the Flottenbruecke is missing (flottenbruecke\einrichten.ps1 there, no flottenbruecke\.env), a full
-    install (not -DryRun, not -Skill) first runs flottenbruecke\einrichten.ps1 (#97); if that fails, the
+    install (not -DryRun, not -Skill, not -OhneBruecke) first runs flottenbruecke\einrichten.ps1 (#97); if that fails, the
     skills are installed anyway.
 
     Agent definitions (agents/*.md) are copied file by file. An existing file that differs is
@@ -40,6 +40,10 @@
 .PARAMETER Skill
     Optional. Install only this one skill (folder name) instead of all skills in the repo.
     The agent definitions are then left alone.
+
+.PARAMETER OhneBruecke
+    Never set up the Flottenbruecke, even when it is missing. The driver passes it when it installs a new
+    stand without a console (Einspielen, #154).
 
 .PARAMETER DryRun
     Show what would happen without copying, backing up, or deleting anything.
@@ -53,7 +57,8 @@
 [CmdletBinding()]
 param(
     [string]$Skill,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$OhneBruecke
 )
 
 $ErrorActionPreference = 'Stop'
@@ -163,7 +168,7 @@ if (-not $skillsToInstall) {
 
 # #97: the bridge first, then the skills; only when it is missing (no .env), never on -DryRun or -Skill
 $brueckeEinrichten = Join-Path $repoRoot 'flottenbruecke\einrichten.ps1'
-if (-not $DryRun -and -not $Skill -and (Test-Path $brueckeEinrichten) -and -not (Test-Path (Join-Path $repoRoot 'flottenbruecke\.env'))) {
+if (-not $DryRun -and -not $Skill -and -not $OhneBruecke -and (Test-Path $brueckeEinrichten) -and -not (Test-Path (Join-Path $repoRoot 'flottenbruecke\.env'))) {
     Write-Host "Flottenbruecke fehlt: richte sie zuerst ein ($brueckeEinrichten)."
     try { & $brueckeEinrichten } catch { Write-Host "Bruecke nicht eingerichtet: $($_.Exception.Message) Die Skills werden trotzdem installiert; spaeter: flottenbruecke\einrichten.ps1." -ForegroundColor Yellow }
 }

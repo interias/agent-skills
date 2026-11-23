@@ -103,7 +103,8 @@ export function einspielen(a: Aufrufer, s: SkillStand, brueckeCommit: string | n
   r.datum = git('log', '-1', '--format=%cI', 'HEAD').stdout.trim();
   // installed already (by the driver of another project, for "alle"): nothing to do but the restart
   if (r.auf === s.commit) return { ...r, bruecke: 'unveraendert' };
-  const install = a('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(s.quelle, 'install.ps1')], { cwd: s.quelle });
+  // #97: without a console: never the interactive setup of a bridge, the bridge is rebuilt below
+  const install = a('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(s.quelle, 'install.ps1'), '-OhneBruecke'], { cwd: s.quelle });
   if (install.code) return { ...nein(`install.ps1 Exit ${install.code}: ${(install.stderr || install.stdout).trim().split(/\r?\n/).pop() ?? ''}`), auf: r.auf, datum: r.datum };
   // exit 0: unchanged since the image; 1: changed; anything else (an unknown commit): rebuilt to be sure
   const diff = brueckeCommit ? git('diff', '--quiet', brueckeCommit, 'HEAD', '--', 'flottenbruecke/').code : 1;

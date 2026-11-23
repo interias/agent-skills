@@ -57,7 +57,14 @@ def test_tank_traegt_die_anmeldung(client, bericht):
 
 
 def test_aelterer_treiber_ohne_kontenliste_gilt_als_eingerichtet(client, bericht):
+    bericht = {k: v for k, v in bericht.items() if k != 'kontenListe'}
     client.post('/api/bericht', json=bericht)
     t = client.get('/api/tafel').json()
     assert t['einrichten']['fertig'] is True
     assert t['kontenListe'] == []
+
+
+def test_huelle_startet_ohne_anker_im_maschinenraum_wenn_nicht_eingerichtet():
+    from pathlib import Path
+    js = (Path(__file__).parent.parent / 'app' / 'static' / 'huelle.js').read_text(encoding='utf-8')
+    assert "if (stand === null && !location.hash && t.einrichten && !t.einrichten.fertig) gehe('maschinenraum');" in js

@@ -80,7 +80,7 @@ describe('Einspielen (#154): die Schritte in ihrer Reihenfolge, als Attrappe', (
       'git pull --ff-only origin main',
       'git rev-parse HEAD',
       'git log -1 --format=%cI HEAD',
-      `powershell -NoProfile -ExecutionPolicy Bypass -File ${join(quelle, 'install.ps1')} @${quelle}`,
+      `powershell -NoProfile -ExecutionPolicy Bypass -File ${join(quelle, 'install.ps1')} -OhneBruecke @${quelle}`,
       'git diff --quiet ccccccc HEAD -- flottenbruecke/',
       `docker compose up -d --build @${join(quelle, 'flottenbruecke')}`,
     ]);

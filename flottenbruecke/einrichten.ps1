@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Sets up the Flottenbrücke on this machine: .env with the PIN, the container, the accounts list and,
+    Sets up the Flottenbruecke on this machine: .env with the PIN, the container, the accounts list and,
     only with -Autostart, scheduled tasks at logon. A second run changes nothing that exists.
 
 .DESCRIPTION
@@ -94,7 +94,8 @@ if ($Autostart) {
     foreach ($a in $aufgaben) {
         if (Get-ScheduledTask -TaskName $a.Name -ErrorAction SilentlyContinue) { "Aufgabe vorhanden: $($a.Name)"; continue }
         $aktion = New-ScheduledTaskAction -Execute $a.Ausfuehren -Argument $a.Argumente -WorkingDirectory $a.Ordner
-        Register-ScheduledTask -TaskName $a.Name -Trigger (New-ScheduledTaskTrigger -AtLogOn) -Action $aktion | Out-Null
+        # for the signed-in user: no admin rights needed
+        Register-ScheduledTask -TaskName $a.Name -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $aktion -User $env:USERNAME | Out-Null
         "Aufgabe angelegt: $($a.Name) (beim Anmelden)"
     }
 }

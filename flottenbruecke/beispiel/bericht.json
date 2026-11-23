@@ -684,6 +684,10 @@
     { "nr": 43, "titel": "Mini-Epic: Statusseite" },
     { "nr": 44, "titel": "Spec: Exportskript" }
   ],
+  "kontenListe": [
+    { "nr": 1, "name": "Hauptkonto", "farbe": "#8FB573", "aktiv": true, "anmeldung": "angemeldet" },
+    { "nr": 2, "name": "Arbeitspferd", "farbe": "#D97757", "aktiv": true, "anmeldung": "angemeldet" }
+  ],
   "version": {
     "commit": "698cb10f3a2e4d5c6b7a8f9e0d1c2b3a4f5e6d7c",
     "datum": "2026-11-22T21:14:00+01:00",

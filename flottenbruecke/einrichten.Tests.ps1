@@ -22,9 +22,9 @@ function Set-Attrappen([string]$pin = '', [int]$dockerCode = 0, [string[]]$vorha
     function global:Read-Host { [void]$global:eProtokoll.Add('pin'); $s = New-Object Security.SecureString; foreach ($c in $global:ePin.ToCharArray()) { $s.AppendChar($c) }; $s }
     function global:Start-Process { param($FilePath) [void]$global:eProtokoll.Add("browser $FilePath") }
     function global:Get-ScheduledTask { param($TaskName, $ErrorAction) if ($global:eVorhanden -contains $TaskName) { $TaskName } }
-    function global:Register-ScheduledTask { param($TaskName, $Trigger, $Action) [void]$global:eProtokoll.Add("aufgabe $TaskName") }
+    function global:Register-ScheduledTask { param($TaskName, $Trigger, $Action, $User) [void]$global:eProtokoll.Add("aufgabe $TaskName") }
     function global:New-ScheduledTaskAction { 'aktion' }
-    function global:New-ScheduledTaskTrigger { 'ausloeser' }
+    function global:New-ScheduledTaskTrigger { param([switch]$AtLogOn, $User) 'ausloeser' }
     foreach ($n in $attrappen) { if ((Get-Command $n).CommandType -ne 'Function') { throw "Attrappe $n fehlt" } }
 }
 

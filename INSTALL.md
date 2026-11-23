@@ -38,8 +38,9 @@ und anmelden, Forge verknüpfen, Projekt hinzufügen).
    bleiben abgeschaltet; sie wird nie ausgegeben), startet `docker compose up -d --build --wait`, legt
    `~/.claude/flotte/konten.json` mit den Konten 1–3 an, wenn sie fehlt, und öffnet die Brücke im
    Browser. Nur mit `-Autostart` legt es geplante Aufgaben beim Anmelden an: `Flottenbruecke` und je
-   Startskript in `~/.claude/flotte/start/*.ps1` eine `Flotte <name>`. Ein zweiter Lauf ändert nichts
-   Bestehendes.
+   Startskript in `~/.claude/flotte/start/*.ps1` eine `Flotte <name>`, je für den angemeldeten Benutzer;
+   Docker Desktop muss dafür selbst beim Anmelden starten. Ein zweiter Lauf ändert nichts Bestehendes.
+   `install.ps1 -OhneBruecke` lässt die Brücke aus; so ruft der Treiber es beim Einspielen auf.
 3. **Trocken prüfen** und die Ausgabe lesen:
 
    ```powershell

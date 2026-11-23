@@ -13,7 +13,7 @@ KONTEN = [
 
 def mit_konten(bericht):
     b = copy.deepcopy(bericht)
-    b['kontenListe'] = KONTEN
+    b['kontenListe'] = copy.deepcopy(KONTEN)
     return b
 
 
@@ -61,7 +61,7 @@ def test_unbekanntes_konto_abgelehnt(client, bericht):
 
 
 def test_ohne_kontenliste_im_bericht_409(client, bericht):
-    client.post('/api/bericht', json=bericht)
+    client.post('/api/bericht', json={k: v for k, v in bericht.items() if k != 'kontenListe'})
     assert handeln(client, 'konto_anlegen', 0).status_code == 409
     assert handeln(client, 'konto_anmelden', 1).status_code == 409
 
@@ -73,3 +73,12 @@ def test_bericht_traegt_anmeldestatus_ohne_geheimnis(client, bericht):
     falsch = mit_konten(bericht)
     falsch['kontenListe'][0]['anmeldung'] = 'sk-ant-irgendwas'
     assert client.post('/api/bericht', json=falsch).status_code == 422
+
+
+def test_erledigt_nennt_das_konto_nicht_eine_mission(client, bericht):
+    client.post('/api/bericht', json=mit_konten(bericht))
+    assert handeln(client, 'konto_deaktivieren', 2).status_code == 200
+    h = offene(client)[0]
+    client.post(f"/api/handlungen/{h['id']}/quittung")
+    x = next(x for x in client.get('/api/tafel').json()['erledigt'] if x.get('handlung') == 'konto_deaktivieren')
+    assert (x['epic'], x['konto']) == (None, 2)

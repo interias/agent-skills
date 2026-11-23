@@ -277,13 +277,14 @@ Describe 'install.ps1 sets up the Flottenbruecke first when it is missing (#97)'
         Test-Path "$repo\eingerichtet.txt" | Should Be $true
     }
 
-    It 'leaves a bridge with .env alone, and runs nothing on -DryRun or -Skill' {
+    It 'leaves a bridge with .env alone, and runs nothing on -DryRun, -Skill or -OhneBruecke' {
         $repo = New-RepoMitBruecke -mitEnv
         $null = Invoke-Install $repo (New-Home) @()
         Test-Path "$repo\eingerichtet.txt" | Should Be $false
         $ohne = New-RepoMitBruecke
         $null = Invoke-Install $ohne (New-Home) @('-DryRun')
         $null = Invoke-Install $ohne (New-Home) @('-Skill', 'mission')
+        $null = Invoke-Install $ohne (New-Home) @('-OhneBruecke')
         Test-Path "$ohne\eingerichtet.txt" | Should Be $false
     }
 }

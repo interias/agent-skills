@@ -482,6 +482,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 z = json.loads(h['text'])
                 titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
                 x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
+            elif h['art'].startswith('konto_'):
+                # #95: an account of the machine, no epic
+                x = {**x, 'epic': None, 'konto': h['epic'] or None}
             elif h['art'].startswith('triage') or h['art'] == 'einspielen':
                 # #116: a ticket of the triage, no epic; #154: the update belongs to the project
                 x = {**x, 'epic': None, 'ticket': h['epic'] or None}

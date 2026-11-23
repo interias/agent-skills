@@ -2269,7 +2269,9 @@ class Treiber {
   /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's; without the deactivated ones (#94) */
   kontenAuswahl(): Map<string, string> {
     const m = new Map<string, string>();
-    for (const d of aktiveAuswahl([...Object.keys(kontenTafel()).map((n) => kontoAus(n)), ...this.startKonten, ...this.alleKonten()])) {
+    const { datei, heim } = this.kontenWelt;
+    const tafel = kontenTafel(datei);
+    for (const d of aktiveAuswahl([...Object.keys(tafel).map((n) => kontoAus(n, tafel, heim)), ...this.startKonten, ...this.alleKonten()], datei, heim)) {
       const k = this.kontoKurz(d);
       if (!m.has(k) && existsSync(d)) m.set(k, d);
     }
