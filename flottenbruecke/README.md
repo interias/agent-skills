@@ -330,6 +330,13 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   Gitea der Hinweis, dass der Treiber es noch nicht fährt (#127), und **Am Rechner verknüpfen** (PIN): Der
   Rechner öffnet ein Terminal mit `gh auth login` bzw. fragt dort Benutzer und Token für den
   Git-Credential-Speicher ab; kein Token geht durch die Brücke. Bilder: `doku/v3-maschinenraum-forge-1440.png`, `-390.png`.
+  Davor (#126) **Projekte**: je Projekt Repository, Rechner und **Entfernen** (PIN): Der Treiber hält an wie
+  `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; ein neuer Start des
+  Treibers bringt es zurück. Eine geplante Aufgabe „Flotte <name>“ (Autostart) bleibt und startet den Treiber bei jeder Anmeldung wieder, damit kehrt das Projekt zurück; abschalten in der Aufgabenplanung (Aufgabe „Flotte <name>“ deaktivieren oder löschen). Darunter **Projekt hinzufügen** (PIN) mit dem Ordner am Rechner und dem
+  Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar) prüft den Ordner,
+  legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
+  was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.
+  Meldet sich kein Treiber, nennt die Seite den Weg am Rechner (`flotte projekt hinzufuegen`).
   Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die fünfzehn wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was

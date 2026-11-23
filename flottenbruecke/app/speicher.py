@@ -15,7 +15,9 @@ create table if not exists projekte (
   forge text primary key,
   angelegt text not null,
   empfangen text not null,
-  bericht text not null
+  bericht text not null,
+  entfernt text,
+  entfernt_gestartet text
 );
 create table if not exists stufen (
   forge text not null,
@@ -136,16 +138,26 @@ class Speicher:
             # databases of the first version have no option column
             if 'option' not in [z['name'] for z in self.db.execute('pragma table_info(antworten)')]:
                 self.db.execute('alter table antworten add column option text')
+            # #126: the mark of a removed project and the start of the driver that was asked to halt
+            if 'entfernt' not in [z['name'] for z in self.db.execute('pragma table_info(projekte)')]:
+                self.db.execute('alter table projekte add column entfernt text')
+                self.db.execute('alter table projekte add column entfernt_gestartet text')
 
     def bericht_speichern(self, forge: str, bericht: dict, jetzt: str) -> bool:
         """Stores the report; True when it created the project."""
         with self.lock, self.db:
-            neu = self.db.execute('select 1 from projekte where forge = ?', (forge,)).fetchone() is None
+            alt = self.db.execute('select entfernt, entfernt_gestartet from projekte where forge = ?', (forge,)).fetchone()
+            neu = alt is None
             text = json.dumps(bericht, ensure_ascii=False)
             if neu:
-                self.db.execute('insert into projekte values (?, ?, ?, ?)', (forge, jetzt, jetzt, text))
+                self.db.execute('insert into projekte (forge, angelegt, empfangen, bericht) values (?, ?, ?, ?)', (forge, jetzt, jetzt, text))
             else:
                 self.db.execute('update projekte set empfangen = ?, bericht = ? where forge = ?', (jetzt, text, forge))
+            gestartet = (bericht.get('version') or {}).get('gestartet')
+            if alt is not None and alt['entfernt'] and gestartet != alt['entfernt_gestartet']:
+                # #126: a newly started driver of a removed project brings it back; a removal the old one never fetched does not halt it
+                self.db.execute('update projekte set entfernt = null, entfernt_gestartet = null where forge = ?', (forge,))
+                self.db.execute("update handlungen set quittiert = ? where forge = ? and art = 'projekt_entfernen' and abgeholt is null and quittiert is null", (jetzt, forge))
             for ep in bericht['epics']:
                 alt = self.db.execute('select stufe from stufen where forge = ? and nr = ?', (forge, ep['nr'])).fetchone()
                 if alt is None or alt['stufe'] != ep['stufe']:
@@ -153,12 +165,21 @@ class Speicher:
             return neu
 
     def projekte(self) -> list[dict]:
+        """The list of projects, without the removed ones (#126)."""
         with self.lock:
-            zeilen = self.db.execute('select * from projekte order by forge').fetchall()
+            zeilen = self.db.execute('select * from projekte where entfernt is null order by forge').fetchall()
         return [{'forge': z['forge'], 'angelegt': z['angelegt'], 'empfangen': z['empfangen'], 'bericht': json.loads(z['bericht'])} for z in zeilen]
 
     def projekt(self, forge: str) -> dict | None:
-        return next((p for p in self.projekte() if p['forge'] == forge), None)
+        """One project, also a removed one (entfernt: since when, else None)."""
+        with self.lock:
+            z = self.db.execute('select * from projekte where forge = ?', (forge,)).fetchone()
+        return None if z is None else {'forge': z['forge'], 'angelegt': z['angelegt'], 'empfangen': z['empfangen'], 'bericht': json.loads(z['bericht']), 'entfernt': z['entfernt']}
+
+    def entfernt_merken(self, forge: str, gestartet: str | None, jetzt: str) -> None:
+        """#126: takes the project out of the list; nothing is deleted. A report of a driver with another start brings it back."""
+        with self.lock, self.db:
+            self.db.execute('update projekte set entfernt = ?, entfernt_gestartet = ? where forge = ?', (jetzt, gestartet, forge))
 
     def stufen_seit(self) -> dict[tuple[str, int], str]:
         with self.lock:

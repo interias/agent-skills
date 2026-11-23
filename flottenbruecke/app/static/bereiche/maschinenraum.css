@@ -53,6 +53,9 @@
 .bereich[data-bereich="maschinenraum"] .mr-zahl { width: 6.5em; height: 40px; padding: 0 12px; border-radius: var(--rund); border: 2px solid var(--linie); background: #05050a; color: var(--text); font: 16px var(--lesen); }
 .bereich[data-bereich="maschinenraum"] .mr-zahl:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
 .bereich[data-bereich="maschinenraum"] .mr-zahl:disabled { opacity: .45; }
+.bereich[data-bereich="maschinenraum"] .mr-feld { display: inline-flex; flex-direction: column; gap: 4px; flex: 1 1 18em; min-width: 0; color: var(--leise); font: 12px var(--lesen); }
+.bereich[data-bereich="maschinenraum"] .mr-ordner { width: 100%; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--rund); border: 2px solid var(--linie); background: #05050a; color: var(--text); font: 16px var(--lesen); }
+.bereich[data-bereich="maschinenraum"] .mr-ordner:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
 .bereich[data-bereich="maschinenraum"] .mr-bereich { color: var(--leise); font: 12px var(--lesen); }
 /* #154: the stand; a newer main in gold, nothing red or blinking (red stays with "Braucht dich") */
 .bereich[data-bereich="maschinenraum"] .mr-stand-karte { align-content: start; }

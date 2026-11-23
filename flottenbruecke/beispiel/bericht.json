@@ -692,6 +692,7 @@
     { "nr": 2, "name": "Arbeitspferd", "farbe": "#D97757", "aktiv": true, "anmeldung": "angemeldet" }
   ],
   "forgeStatus": { "art": "github", "forge": "interias/flotte-probe", "angemeldet": true, "konto": "interias", "rechte": "ok", "treiber": true },
+  "projektHandlungen": true,
   "version": {
     "commit": "698cb10f3a2e4d5c6b7a8f9e0d1c2b3a4f5e6d7c",
     "datum": "2026-11-22T21:14:00+01:00",

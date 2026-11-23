@@ -88,9 +88,10 @@ const AUSNAHMEN = {
 // ---- Scope --------------------------------------------------------------------------------
 // Every Markdown file of the repository, plus the texts of the Brücke a person sees and the string
 // literals of the driver source flotte/src (#183: log book, events, forge comments, Tafel, the
-// prompts it hands to runs).
+// prompts it hands to runs) and the HTML sources of the pictures under assets/ (#183).
 const BRUECKE = /^flottenbruecke\/app\/([^/]+\.py|static\/.+\.(html|js|css|svg|webmanifest))$/;
 const TREIBER = /^flotte\/src\/.+\.ts$/;
+const BILDER = /^assets\/.+\.html$/;
 
 function dateien(): string[] {
   const out: string[] = [];
@@ -100,7 +101,7 @@ function dateien(): string[] {
       const rel = relative(WURZEL, voll).replace(/\\/g, '/');
       if (AUSNAHMEN.pfade.some((a) => a.muster.test(rel) || a.muster.test(`${rel}/`))) continue;
       if (statSync(voll).isDirectory()) gehe(voll);
-      else if (rel.endsWith('.md') || BRUECKE.test(rel) || TREIBER.test(rel)) out.push(rel);
+      else if (rel.endsWith('.md') || BRUECKE.test(rel) || TREIBER.test(rel) || BILDER.test(rel)) out.push(rel);
     }
   };
   gehe(WURZEL);
@@ -323,13 +324,17 @@ describe('Wächter gegen Altbegriffe', () => {
     expect(html(h).flatMap((s) => treffer(s.text).map((w) => `${s.zeile}: ${w}`)).sort()).toEqual(['2: Epic', '4: Merge']);
   });
 
+  it('checks the HTML sources of the pictures under assets/ (#183)', () => {
+    expect(dateien().filter((d) => d.startsWith('assets/') && d.endsWith('.html'))).toContain('assets/readme/ablauf.html');
+  });
+
   it('every exception names its reason', () => {
     const alle = [...AUSNAHMEN.pfade, ...AUSNAHMEN.woerter, ...AUSNAHMEN.bereiche, ...AUSNAHMEN.zeilen, ...AUSNAHMEN.stellen];
     expect(alle.filter((a) => !a.grund)).toEqual([]);
   });
 
   // Red while an old term stands — on purpose, without skip or threshold.
-  it('skill texts, docs, the Brücke and the driver contain no old terms', () => {
+  it('skill texts, docs, the Brücke, the driver and the pictures contain no old terms', () => {
     expect(bericht(funde())).toBe('keine Altbegriffe');
   });
 });

@@ -38,7 +38,7 @@ Im Hauptverzeichnis (dein Arbeitsverzeichnis), mit Bash:
 1. `git fetch -q origin`, dann den Worktree anlegen:
    `git worktree add ../flotte-probe-wt-N -B epic/N origin/main`
 2. In `../flotte-probe-wt-N` je Missionsziel in der beantworteten Reihenfolge: die Datei genau wie im Missionsziel beschrieben anlegen, `git add`, `git commit -m "feat: <Titel des Missionsziels> (#K)"`.
-3. In `CHANGELOG.md` am Ende eine Zeile `- Epic #N: <Titel des Epics>` anhängen und committen.
+3. In `CHANGELOG.md` am Ende eine Zeile `- Mission #N: <Titel der Mission>` anhängen und committen.
 4. **Andockprüfung** (immer genau so, auch bei jedem späteren Zug):
    - `git fetch -q origin` und `git merge --no-edit origin/main`. Konflikt in `CHANGELOG.md`: beide Zeilen behalten, Konfliktmarken entfernen, `git add CHANGELOG.md`, `git commit --no-edit`. Ein anderer Konflikt: Zug mit FLOTTE-FRAGE N abbruch beenden.
    - `git diff --check origin/main...HEAD` muss ohne Ausgabe enden.
@@ -56,7 +56,7 @@ Im Hauptverzeichnis (dein Arbeitsverzeichnis), mit Bash:
    Gate grün.
    ```
 
-   Gibt es noch keinen PR für `epic/N`: `gh pr create --repo interias/flotte-probe --base main --head epic/N --title "Epic #N: <Titel>" --body-file ../pr-N.md`.
+   Gibt es noch keinen PR für `epic/N`: `gh pr create --repo interias/flotte-probe --base main --head epic/N --title "Mission #N: <Titel>" --body-file ../pr-N.md`.
    Gibt es ihn: `gh pr edit <nr> --repo interias/flotte-probe --body-file ../pr-N.md`.
 6. Zurück ins Hauptverzeichnis, `git worktree remove ../flotte-probe-wt-N`, `../pr-N.md` löschen.
 7. Der Zug endet mit:
