@@ -75,6 +75,10 @@ export interface Mechanik {
   ram(): Promise<Ram>;
   /** the slot (mission/SKILL.md, rule 12): busy while a full stack of the project runs */
   slot(): Promise<{ belegt: boolean }>;
+  /** acceptance_commands of the adapter by name (Phase 6, Abnahmestufe); empty: none set, the stage falls away */
+  abnahmeBefehle(): string[];
+  /** Phase 6: every acceptance command once in the worktree, red on an exit code ≠ 0; the caller holds the slot */
+  abnahme(worktree: string): Promise<{ name: string; ok: boolean; text: string }[]>;
   /** test_commands of the adapter, all suites */
   volllauf(worktree: string): Promise<Testlauf>;
   /** one red file alone, with the adapter's worker limit: true when green */
@@ -282,7 +286,7 @@ class EpicLauf {
         this.aufrufe();
         this.befehle();
         this.startbereitNachtragen();
-        if (Object.values(z.pakete).every(istEnde) && !this.laufend.size && !this.befehl) {
+        if (Object.values(z.pakete).every(istEnde) && !this.laufend.size && !this.befehl && (await this.abnahmestufe())) {
           await this.abschluss();
           return z;
         }
@@ -663,13 +667,7 @@ class EpicLauf {
       return;
     }
     // the slot is busy (a full stack of the project runs): wait like hold, running packages go on (P19)
-    const slot = await this.m.slot();
-    if (slot.belegt !== this.z.slot.belegt) {
-      this.z.slot.belegt = slot.belegt;
-      this.ereignis('slot', null, slot.belegt ? 'belegt: ein voller Stack des Projekts läuft; kein neuer Start, laufende Pakete laufen weiter' : 'frei, Starts gehen weiter');
-      this.speichere();
-    }
-    if (slot.belegt) return;
+    if (await this.slotBelegt('kein neuer Start, laufende Pakete laufen weiter', 'Starts gehen weiter')) return;
     if (hold) {
       // a release counts for the next start
       starts = kandidaten.slice(0, 1);
@@ -684,6 +682,17 @@ class EpicLauf {
     // warn starts; the reading stands with the start (mission/SKILL.md, "Die RAM-Bremse")
     if (ram.level === 'warn') this.ereignis('ram', null, `warn bei ${ram.percent_used ?? '?'} %, Start: ${starts.join(', ')}`);
     for (const nr of starts) await this.starteEines(this.z.pakete[nr]);
+  }
+
+  /** reads the slot (mission/SKILL.md, rule 12); a change stands in the log with what waits or goes on */
+  private async slotBelegt(wartet: string, weiter: string): Promise<boolean> {
+    const slot = await this.m.slot();
+    if (slot.belegt !== this.z.slot.belegt) {
+      this.z.slot.belegt = slot.belegt;
+      this.ereignis('slot', null, slot.belegt ? `belegt: ein voller Stack des Projekts läuft; ${wartet}` : `frei, ${weiter}`);
+      this.speichere();
+    }
+    return slot.belegt;
   }
 
   private async starteEines(p: PaketZustand) {
@@ -913,6 +922,41 @@ class EpicLauf {
     await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Epic #${this.e.epic} mit flotte mission: Basis ${this.e.basis}, Epic-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
   }
 
+  /**
+   * Phase 6, Abnahmestufe (mission/SKILL.md, "Gestufte Verifikation und der Slot"): acceptance_commands
+   * once in the epic worktree, in the slot, after the last merge. A busy slot waits a takt like hold
+   * (false); red or not runnable is an open point and makes the pull request WIP, never a stop.
+   * The result stays in the state, so a restart after it does not run them again.
+   */
+  private async abnahmestufe(): Promise<boolean> {
+    const z = this.z;
+    if (z.abnahme !== undefined) return true;
+    if (!this.m.abnahmeBefehle().length) {
+      z.abnahme = null;
+      this.speichere();
+      return true;
+    }
+    if (await this.slotBelegt('die Abnahmestufe wartet, kein Paket bleibt zurück', 'die Abnahmestufe fährt')) return false;
+    this.ereignis('slot', null, 'Abnahmestufe: Slot genommen, acceptance_commands im Missions-Worktree');
+    this.speichere();
+    try {
+      const r = await this.m.abnahme(z.epicWorktree!);
+      z.abnahme = { ok: r.every((x) => x.ok), text: r.map((x) => x.text).join('; ') };
+    } catch (f) {
+      z.abnahme = { ok: false, text: `nicht fahrbar: ${flach(f instanceof Error ? f.message : String(f))}` };
+    }
+    this.ereignis('slot', null, `Abnahmestufe: Slot freigegeben, ${z.abnahme.ok ? 'grün' : 'rot'}`);
+    if (!z.abnahme.ok) this.glut(`Abnahmestufe rot oder nicht fahrbar: ${z.abnahme.text}`, null);
+    this.speichere();
+    return true;
+  }
+
+  private abnahmeZeile(): string {
+    const a = this.z.abnahme;
+    if (!a) return 'Abnahmestufe entfällt: der Adapter nennt keine acceptance_commands.';
+    return `Abnahmestufe ${a.ok ? 'grün' : 'rot'} (acceptance_commands einmal im Missions-Worktree, im Slot): ${a.text}`;
+  }
+
   private async abschluss() {
     const pakete = Object.values(this.z.pakete);
     const anzahl = (s: string) => pakete.filter((p) => p.stufe === s).length;
@@ -925,19 +969,19 @@ class EpicLauf {
       ...(this.z.offenePunkte ?? []).map((x) => `- ${x}`),
     ];
     // Phase 6: WIP while something lies with the person; Closes only a fully accepted child, never the target issue
-    const wip = anzahl('zurueckgelassen') + anzahl('blockiert') > 0;
+    const wip = anzahl('zurueckgelassen') + anzahl('blockiert') > 0 || this.z.abnahme?.ok === false;
     const zeile = (p: PaketZustand) => `- Paket ${p.nr}: ${p.stufe === 'fertig' ? `${p.nichtsZuMergen ? 'nichts zu mergen' : `gemergt (${p.mergeCommit})`}, Runde ${p.runde}, Klasse ${p.klasse}` : p.stufe === 'blockiert' ? `blockiert durch ${p.blockiertDurch}` : `zurückgelassen: ${p.grund} (Branch ${p.branch})`}`;
     const closes = pakete.filter((p) => p.stufe === 'fertig' && /^\d+$/.test(p.nr) && Number(p.nr) !== this.e.epic).map((p) => `Closes #${p.nr}`);
     const teststand = `Ausgangszahlen: ${this.zahlen(this.z.basis ?? [])}`;
-    const body = ['## Pakete', ...pakete.map(zeile), '', teststand, '', '## Offene Punkte', offen.join('\n') || 'keine', '', LAUFTAFEL, ...(closes.length ? ['', ...closes] : [])].join('\n');
+    const body = ['## Pakete', ...pakete.map(zeile), '', teststand, '', '## Abnahmestufe', this.abnahmeZeile(), '', '## Offene Punkte', offen.join('\n') || 'keine', '', LAUFTAFEL, ...(closes.length ? ['', ...closes] : [])].join('\n');
     const { pr, fehler } = await this.m.abschluss({ wip, body });
     if (fehler) {
       this.glut(fehler, null);
       offen.push(`- ${fehler}`);
     }
-    await this.kommentiere(String(this.e.epic), 'abschluss', [`**Abschluss** Epic #${this.e.epic}: Pull Request ${pr ?? 'keiner'}. ${LAUFTAFEL}.`, ...pakete.map(zeile), teststand, '', '### Was das Epic offen lässt', offen.join('\n') || 'nichts'].join('\n'));
+    await this.kommentiere(String(this.e.epic), 'abschluss', [`**Abschluss** Epic #${this.e.epic}: Pull Request ${pr ?? 'keiner'}. ${LAUFTAFEL}.`, ...pakete.map(zeile), teststand, this.abnahmeZeile(), '', '### Was das Epic offen lässt', offen.join('\n') || 'nichts'].join('\n'));
     this.z.phase = 'fertig';
-    this.z.ende = endeBlock(this.e.epic, pr, `Epic #${this.e.epic}: ${anzahl('fertig')} Pakete gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert.`, offen.join('\n'));
+    this.z.ende = endeBlock(this.e.epic, pr, `Epic #${this.e.epic}: ${anzahl('fertig')} Pakete gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert. ${this.abnahmeZeile()}`, offen.join('\n'));
     this.ereignis('ende', null, `${anzahl('fertig')} gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert`);
     this.speichere();
     this.u.leitung.melde(this.z.ende);
