@@ -316,3 +316,35 @@ def test_bericht_ohne_schnittplan_bleibt_gueltig_und_ungueltiger_ist_422(client,
     zuviel = copy.deepcopy(bericht)
     zuviel['triage']['schnittplan']['missionen'] *= 7
     assert client.post('/api/bericht', json=zuviel).status_code == 422
+
+
+# ---- #147: how the last triage run ended
+
+ABSCHLUSS = {
+    'zeit': '2026-11-22T10:15:00Z', 'zustand': 'unvollstaendig', 'geprueft': 5, 'sauber': 3, 'grund': None,
+    'abweichungen': [
+        {'nr': 57, 'titel': 'Logbuch nach Mission filtern', 'zustand': 'offen, needs-triage', 'grund': 'in der Triage ohne offene Frage an den Menschen'},
+        {'nr': 65, 'titel': 'Volltextsuche im Logbuch', 'zustand': 'offen, ready-for-agent', 'grund': 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)'},
+    ],
+}
+
+
+def test_abschluss_des_triage_laufs_im_frachtraum(client, bericht):
+    bericht['triage']['abschluss'] = ABSCHLUSS
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    a = frachtraum(client)[0]['abschluss']
+    assert (a['zustand'], a['geprueft'], a['sauber'], a['zeit']) == ('unvollstaendig', 5, 3, '2026-11-22T10:15:00Z')
+    assert [(x['nr'], x['grund'], x['issueUrl']) for x in a['abweichungen']] == [
+        (57, 'in der Triage ohne offene Frage an den Menschen', 'https://github.com/interias/flotte-probe/issues/57'),
+        (65, 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)', 'https://github.com/interias/flotte-probe/issues/65'),
+    ]
+    # aborted: the reason, no list
+    bericht['triage']['abschluss'] = {**ABSCHLUSS, 'zustand': 'abgebrochen', 'abweichungen': [], 'geprueft': 0, 'sauber': 0, 'grund': 'Neustart des Treibers'}
+    client.post('/api/bericht', json=bericht)
+    assert frachtraum(client)[0]['abschluss']['grund'] == 'Neustart des Treibers'
+    # an unknown end state is refused; an older driver has none
+    bericht['triage']['abschluss'] = {**ABSCHLUSS, 'zustand': 'halb'}
+    assert client.post('/api/bericht', json=bericht).status_code == 422
+    del bericht['triage']['abschluss']
+    client.post('/api/bericht', json=bericht)
+    assert frachtraum(client)[0]['abschluss'] is None

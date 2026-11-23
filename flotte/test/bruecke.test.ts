@@ -11,7 +11,8 @@ import { aufrufen, type Aufrufer } from '../src/aufruf.ts';
 import { anhalten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
 import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
-import { flotteDir } from '../src/werkzeuge/zustand.ts';
+import { flotteDir, leer, lebt, neuesEpic, schreibe as schreibeZustand, startZeit } from '../src/werkzeuge/zustand.ts';
+import { spawn } from 'node:child_process';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
@@ -1226,6 +1227,91 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(texte(z)).toContain('Triage-Lauf beendet: 0 Warp frei, Warp frei nachgeholt für Mission #100, 0 geschlossen, 0 Fragen an den Menschen, 1 ohne Ergebnis');
       expect(t.p.kommentare.some((k) => k.nr === 99 && k.text.includes('Warp frei nachgeholt für Mission #100'))).toBe(true);
     } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#147 Abschlussprüfung: notes without an allowed end state stand as an error in the logbook and the Frachtraum; the run counts as incomplete', async () => {
+    const t = aufbau();
+    const abw = (nr: number, grund: string) => ({ forge: 'o/r', nr, titel: `Notiz ${nr}`, zustand: 'offen, needs-triage', grund });
+    const tr = triageAttrappe({ ...ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'h', grund: 'g' }]), abschluss: { geprueft: 3, sauber: 1, abweichungen: [abw(4, 'in der Triage ohne offene Frage an den Menschen'), abw(6, 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)')] }, zustand: 'unvollstaendig' }, 50);
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      const zeile = 'Triage-Lauf unvollständig: 1 Warp frei, 0 geschlossen, 0 Fragen an den Menschen; 2 Notizen nicht sauber abgearbeitet: #4 (in der Triage ohne offene Frage an den Menschen), #6 (ready-for-agent ohne Mission (kein Sub-Issue einer Mission))';
+      expect(texte(z)).toContain(zeile);
+      expect(texte(z).some((x) => x.startsWith('Triage-Lauf beendet'))).toBe(false);
+      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text.includes(zeile))).toBe(true);
+      expect(b.berichte.at(-1)!.triage.abschluss).toMatchObject({ zustand: 'unvollstaendig', geprueft: 3, sauber: 1, abweichungen: [{ nr: 4, titel: 'Notiz 4', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }, { nr: 6 }] });
+      // a clean run says beendet as before
+      const t2 = aufbau();
+      const tr2 = triageAttrappe({ ...zwei(), abschluss: { geprueft: 3, sauber: 3, abweichungen: [] }, zustand: 'beendet' }, 50);
+      const b2 = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+      try {
+        const z2 = await fahre(t2.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b2.url }), { ...t2.welt, triagiere: tr2.f });
+        expect(texte(z2)).toContain('Triage-Lauf beendet: 1 Warp frei, 1 geschlossen, 1 Frage an den Menschen');
+        expect(z2.triage!.abschluss).toMatchObject({ zustand: 'beendet', geprueft: 3, sauber: 3, abweichungen: [] });
+      } finally {
+        await b2.zu();
+      }
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#147 flotte anhalten ends a triage run under way with its whole process tree; it is reported as aborted', async () => {
+    const t = aufbau();
+    const buch = drehbuch([lauf(3, [{ warte: 8000 }, { text: ende(3, 13) }]), { wenn: '^TRIAGE-ATTRAPPE', schritte: [{ text: 'los' }, { kind: 120_000 }] }]);
+    let pid = 0;
+    const f: typeof triagiere = async (o, w) => {
+      const r = await w.starte({ ...(o.programm ?? {}), repo: o.ziele[0].repo, konto: o.konto, auftrag: 'TRIAGE-ATTRAPPE', leerlaufMs: 60_000, beimStart: (p) => (pid = p) });
+      expect(r.fehler).toBe('abbruch');
+      return ergebnis([]);
+    };
+    const kinder = () => (existsSync(`${buch.datei}.kinder`) ? readFileSync(`${buch.datei}.kinder`, 'utf8').split('\n').filter(Boolean).map(Number) : []);
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    try {
+      const warte = (async () => {
+        const bis = Date.now() + 15_000;
+        while (!kinder().length && Date.now() < bis) await new Promise((r) => setTimeout(r, 50));
+        anhalten([t.repo]);
+      })();
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), { ...t.welt, triagiere: f });
+      await warte;
+      expect(kinder()).toHaveLength(1);
+      const bis = Date.now() + 5000;
+      while ([pid, ...kinder()].some(lebt) && Date.now() < bis) await new Promise((r) => setTimeout(r, 50));
+      expect([pid, ...kinder()].filter(lebt)).toEqual([]);
+      expect(texte(z)).toContain('Triage-Lauf abgebrochen: Treiber angehalten');
+      expect(z.triageLauf).toBeUndefined();
+      expect(z.triage!.abschluss).toMatchObject({ zustand: 'abgebrochen', grund: 'Treiber angehalten' });
+      expect(b.berichte.at(-1)!.triage).toMatchObject({ laeuft: false, abschluss: { zustand: 'abgebrochen' } });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#147 a triage run still under way in the state at a restart is reported as aborted, not forgotten; its process is ended', async () => {
+    const t = aufbau();
+    const rest = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 120000)'], { stdio: 'ignore', windowsHide: true, detached: true });
+    const z0 = leer(t.repo);
+    z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig' } as never;
+    Object.assign(z0, { triageLauf: { seit: '2026-11-22T10:00:00.000Z', pids: [{ pid: rest.pid!, seit: startZeit(rest.pid!) }, { pid: 999_999, seit: 1 }] } });
+    schreibeZustand(flotteDir(t.repo), z0);
+    const b = await attrappe(() => null);
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [3], { bruecke: b.url }), t.welt);
+      const zeile = 'Triage-Lauf abgebrochen: beim Neustart des Treibers galt der Lauf seit 2026-11-22T10:00:00.000Z noch als laufend';
+      expect(texte(z)).toContain(zeile);
+      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text.includes(zeile))).toBe(true);
+      expect(z.triageLauf).toBeUndefined();
+      expect(z.triage!.abschluss).toMatchObject({ zustand: 'abgebrochen', grund: 'Neustart des Treibers' });
+      expect(b.berichte[0].triage.abschluss).toMatchObject({ zustand: 'abgebrochen' });
+      const bis = Date.now() + 5000;
+      while (lebt(rest.pid!) && Date.now() < bis) await new Promise((r) => setTimeout(r, 50));
+      expect(lebt(rest.pid!)).toBe(false);
+    } finally {
+      if (lebt(rest.pid!)) rest.kill();
       await b.zu();
     }
   }, T);

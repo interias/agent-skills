@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { mitMissionszielen } from '../src/auftrag/auftrag.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
+import { abschlusspruefung } from '../src/triage-abschluss.ts';
 import { entscheidungAus, schnittplanAuftrag, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE } from '../src/triage.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
 
@@ -69,9 +70,18 @@ function forge(issues: Issue[]) {
           if (lesen[2] === 'events') return ok((i.markiert ?? []).filter((l) => l === 'ready-for-agent').map(() => '1\n').join(''));
           return ok(i.kinder.map((k) => issues.find((x) => x.number === k)).filter((k) => k && k.state === 'open' && k.labels.includes('ready-for-agent')).map((k) => `${k!.number}\n`).join(''));
         }
+        // #147: the final check reads each note again: state, labels, comments, and its parent mission
+        if (args[0] === 'issue' && args[1] === 'view') {
+          const i = finde(Number(args[2]));
+          return ok(JSON.stringify({ number: i.number, title: i.title, state: i.state.toUpperCase(), labels: i.labels.map((name) => ({ name })), comments: i.comments.map((c, j) => ({ body: c.body, author: { login: c.login }, authorAssociation: c.rolle, createdAt: `2026-11-22T11:0${j}:00Z` })) }));
+        }
         if (args[0] === 'api') {
           const nr = Number(/issues\/(\d+)$/.exec(args[1])![1]);
           const jq = wert('--jq');
+          if (jq === '.parent_issue_url') {
+            const eltern = issues.find((x) => x.kinder.includes(nr));
+            return ok(eltern ? `https://api.github.com/repos/o/r/issues/${eltern.number}\n` : 'null\n');
+          }
           if (jq === '.id') return ok(`${1000 + nr}\n`);
           if (jq === '.sub_issues_summary.total') return ok(`${finde(nr).kinder.length}\n`);
           return ok('OWNER\n');
@@ -495,5 +505,68 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
     expect(mitMissionszielen(MISSION_40, [{ nummer: 30, titel: 'Alte Tafel' }])).toBe(MISSION_40);
     expect(mitMissionszielen('Text', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n');
     expect(mitMissionszielen('Text\n\n## Missionsziele\n\nmehr', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n\nmehr');
+  });
+});
+
+describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubten Zustand', () => {
+  const READY = 'ready-for-agent';
+  const nr = (r: { abschluss: { abweichungen: { nr: number }[] } }) => r.abschluss.abweichungen.map((a) => a.nr);
+
+  it('after the run no note carries ready_label without hanging on a mission; every child and every new mission carries it', async () => {
+    const f = welt();
+    const { r, aufrufe } = await lauf(f, PLAN, ANTWORTEN);
+    // the forge is read again after writing, per note of the input
+    expect(aufrufe.filter((x) => x.args[0] === 'issue' && x.args[1] === 'view').map((x) => x.args[2])).toEqual(['1', '100', '2', '3', '40', '4', '5']);
+    for (const n of [1, 2, 3]) expect(f.finde(n).labels).toContain(READY);
+    expect(f.finde(100).labels).toContain(READY);
+    const freigegeben = f.issues.filter((i) => i.state === 'open' && i.labels.includes(READY) && !i.labels.includes('epic'));
+    for (const i of freigegeben) expect(f.issues.some((m) => m.labels.includes('epic') && m.state === 'open' && m.kinder.includes(i.number))).toBe(true);
+    // 1, 2 (new mission 100), 3 (mission 40) released, 5 asked: clean; 4 left in triage by the plan without a question
+    expect(r.abschluss).toMatchObject({ geprueft: 5, sauber: 4 });
+    expect(r.abschluss.abweichungen).toEqual([{ forge: 'o/r', nr: 4, titel: 'Logbuch-Idee', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }]);
+    expect(r.zustand).toBe('unvollstaendig');
+  });
+
+  it('reports a note without an allowed end state as an error: ready without mission, child of a new mission without ready, closed without reason', async () => {
+    // the mission's own release fails: its released children hang on a mission without Warp frei
+    const f = welt();
+    const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'edit' && a[2] === '100' && a.includes('--add-label') });
+    expect(nr(r)).toEqual([1, 2, 4]);
+    expect(r.abschluss.abweichungen[0]).toMatchObject({ zustand: `offen, ${READY}, Kind von #100`, grund: `Mission #100 ist neu und trägt kein ${READY}` });
+
+    // a lost link and a closing without reason, read by the check itself
+    const g = welt();
+    await lauf(g, PLAN, ANTWORTEN);
+    g.finde(40).kinder = [30];
+    g.finde(5).state = 'closed';
+    g.finde(5).comments = [];
+    const abw = abschlusspruefung(g.aufrufer([]), 'o/r', REGELN, [g.finde(3), g.finde(5)].map((i) => ({ nummer: i.number, titel: i.title })), []);
+    expect(abw).toEqual([
+      { forge: 'o/r', nr: 3, titel: 'Tafel zeigt den Port', zustand: `offen, ${READY}`, grund: `${READY} ohne Mission (kein Sub-Issue einer Mission)` },
+      { forge: 'o/r', nr: 5, titel: 'Newsletter zum Port', zustand: 'geschlossen', grund: 'geschlossen ohne Grund im letzten Kommentar der Triage' },
+    ]);
+  });
+
+  it('closed with a reason (merged, superfluous, rejected) and asked notes are clean; a clean run is beendet', async () => {
+    const f = forge([notiz(1, 'A', 'a'), notiz(2, 'B', 'b'), notiz(3, 'C', 'c'), notiz(4, 'D', 'd')]);
+    const plan: Plan = () => ({
+      neue_missionen: [],
+      zuordnungen: [
+        { notiz: 1, art: 'zusammengefuehrt', in: 4, grund: 'dasselbe', herkunft: 'h' },
+        { notiz: 2, art: 'ueberfluessig', grund: 'erledigt', fundstelle: '#9', herkunft: 'h' },
+        { notiz: 3, art: 'verworfen', grund: 'passt nicht', herkunft: 'h' },
+        { notiz: 4, art: 'triage', grund: 'Frage', herkunft: 'h' },
+      ],
+    });
+    const { r } = await lauf(f, plan, { 4: KRITISCH });
+    expect(r.abschluss).toEqual({ geprueft: 4, sauber: 4, abweichungen: [] });
+    expect(r.zustand).toBe('beendet');
+  });
+
+  it('--trocken: no final check against the forge, the output says it is left out', async () => {
+    const { r, aufrufe } = await lauf(welt(), PLAN, ANTWORTEN, { trocken: true });
+    expect(aufrufe.some((x) => x.args[1] === 'view' || x.args.includes('.parent_issue_url'))).toBe(false);
+    expect(r.abschluss).toEqual({ geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'trocken: nichts geschrieben, keine Abschlussprüfung' });
+    expect(r.zustand).toBe('beendet');
   });
 });

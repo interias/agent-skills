@@ -312,6 +312,26 @@ class Schnittplan(BaseModel):
     notizen: list[SchnittNotiz] = Field([], max_length=200)
 
 
+class TriageAbweichung(BaseModel):
+    """#147: a note of the input of a triage run without an allowed end state after it."""
+
+    nr: int = Field(ge=1)
+    titel: str = Field('', max_length=300)
+    zustand: str = Field('', max_length=300)
+    grund: str = Field('', max_length=1000)
+
+
+class TriageAbschluss(BaseModel):
+    """#147: how the driver's last triage run ended: beendet, unvollstaendig (the notes not cleanly worked off) or abgebrochen (grund)."""
+
+    zeit: str = Field(max_length=40)
+    zustand: Literal['beendet', 'unvollstaendig', 'abgebrochen']
+    geprueft: int = Field(0, ge=0)
+    sauber: int = Field(0, ge=0)
+    abweichungen: list[TriageAbweichung] = Field([], max_length=200)
+    grund: str | None = Field(None, max_length=1000)
+
+
 class Triage(BaseModel):
     """The triage state of a project (#116): the open Sternzeit-Notizen, the decisions of the driver's triage runs, the open questions."""
 
@@ -323,6 +343,8 @@ class Triage(BaseModel):
     fragen: list[TriageFrage] = Field([], max_length=200)
     # #148: the cut plan of the last triage run; an older driver has none
     schnittplan: Schnittplan | None = None
+    # #147: how the last triage run ended; an older driver has none
+    abschluss: TriageAbschluss | None = None
 
 
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:

@@ -173,6 +173,8 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
         'fragen': fragen,
         'entscheidungen': entscheidungen,
         'schnittplan': schnittplan(tr, forge, link, offen_h),
+        # #147: the end of the last triage run, each note not cleanly worked off with its link
+        'abschluss': {**a, 'abweichungen': [{**x, 'issueUrl': link(x['nr'])} for x in a.get('abweichungen', [])]} if (a := tr.get('abschluss')) else None,
         'themen': [{'thema': th, 'tickets': themen[th]} for th in reihe],
     }
 

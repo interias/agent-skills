@@ -13,6 +13,7 @@ import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { auftragAusfuehren, missionAnlegen, missionszielAnhaengen, mitMissionszielen, TRIAGE_LABEL, type AuftragsRegeln } from '../auftrag/auftrag.ts';
 import { githubForge } from '../auftrag/github.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
+import { abschlusspruefung, type Abschluss } from '../triage-abschluss.ts';
 import { kommentar } from '../treiber/forge.ts';
 import { BERECHTIGT, entscheidungAus, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, neueMissionKommentar, offeneFragen, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
@@ -169,6 +170,8 @@ export interface Nachgeholt {
  * fragen: the questions to the person asked in this run; offen (#117): those of earlier runs still without
  * an answer, so a reader of the output needs no comment of the forge. schnittplan (#146): per project the
  * cut plan made before the single clearing. nachgeholt (#149): the missions of the triage released later.
+ * abschluss (#147): the final check of every note of the input (the notes for the model and the waiting ones)
+ * against the forge after writing; zustand: unvollstaendig when a note misses its end state.
  */
 export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const tickets: TicketErgebnis[] = [];
@@ -177,6 +180,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const fehler: { forge: string; fehler: string }[] = [];
   const schnittplan: SchnittplanErgebnis[] = [];
   const nachgeholt: Nachgeholt[] = [];
+  const abschluss: Abschluss = o.trocken ? { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'trocken: nichts geschrieben, keine Abschlussprüfung' } : { geprueft: 0, sauber: 0, abweichungen: [] };
   for (const z of o.ziele) {
     let liste: Ticket[];
     try {
@@ -268,8 +272,18 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     }
     if (plan && klare.size) await freigeben(o, w, z, plan, klare);
     if (z.lernIssue) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
+    if (!o.trocken) {
+      // #147: a mission and a stranger's ticket are no notes the run works off (README, "Triage")
+      const eingabe = liste.filter((t) => notizen.includes(t) || (!t.labels.includes(z.regeln.epic_label) && wartetAufAntwort(t)));
+      const neu = schnittplan.filter((p) => p.forge === z.forge).flatMap((p) => p.neue_missionen.flatMap((m) => (m.nummer === undefined ? [] : [m.nummer])));
+      const abw = abschlusspruefung(w.aufrufer, z.forge, z.regeln, eingabe, neu);
+      abschluss.geprueft += eingabe.length;
+      abschluss.sauber += eingabe.length - abw.length;
+      abschluss.abweichungen.push(...abw);
+    }
   }
-  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt };
+  const zustand: 'beendet' | 'unvollstaendig' = abschluss.abweichungen.length ? 'unvollstaendig' : 'beendet';
+  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand };
 }
 
 /**

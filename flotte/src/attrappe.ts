@@ -13,7 +13,7 @@
 //        | { "zeile": object }                                                                -> any stream-json line
 //        | { "verbrauch": [fuenf, sieben] }                                                   -> a rate_limit_event (shares 0..1)
 //        | { "warte": ms } | { "stderr": string } | { "haenge": true }                        -> wait, write stderr, never end
-//        | { "kind": ms }                                                                     -> a silent child process for ms (a gate)
+//        | { "kind": ms }                                                                     -> a silent child process for ms (a gate); its pid in <drehbuch>.kinder
 
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
@@ -79,7 +79,12 @@ async function main(): Promise<number> {
     if ('warte' in s) await pause(s.warte);
     else if ('stderr' in s) process.stderr.write(s.stderr + '\n');
     else if ('haenge' in s) await pause(24 * 3_600_000);
-    else if ('kind' in s) await new Promise((r) => spawn(process.execPath, ['-e', `setTimeout(() => {}, ${s.kind})`], { stdio: 'ignore', windowsHide: true }).on('close', r));
+    else if ('kind' in s) {
+      const k = spawn(process.execPath, ['-e', `setTimeout(() => {}, ${s.kind})`], { stdio: 'ignore', windowsHide: true });
+      // #147: its pid next to the script, so a test can see that it ends with the run
+      if (k.pid) appendFileSync(`${datei}.kinder`, `${k.pid}\n`);
+      await new Promise((r) => k.on('close', r));
+    }
     else if ('zeile' in s) raus({ session_id: sitzung, ...s.zeile });
     else if ('verbrauch' in s) {
       const jetzt = Math.floor(Date.now() / 1000);

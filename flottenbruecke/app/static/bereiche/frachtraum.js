@@ -2,7 +2,7 @@
 // reads them from the forge, the bridge bundles them by project and topic). Per project: the critical
 // questions of the triage with a button per option (the recommendation marked) and a free text, the
 // decisions of the triage runs to read and revoke, (#148) the cut plan of the last run with "Widerrufen" per
-// mission, the notes by topic, and "Triage-Lauf starten" (also for all projects). Every action needs the PIN; the driver carries it out from its next turn on, always
+// mission, (#147) how the last run ended, the notes by topic, and "Triage-Lauf starten" (also for all projects). Every action needs the PIN; the driver carries it out from its next turn on, always
 // as a comment at the ticket. The shell (huelle.js) calls zeichne(t, el) on every load while the area is
 // visible; t is null before the first load, then the helpers of app.js do not exist yet. All scripts of
 // the page share one scope: keep every name inside this call.
@@ -118,6 +118,15 @@
     return `${kopf}${fehler}${missionen}${notizen}`;
   }
 
+  // ---- #147: how the last triage run ended: the notes not cleanly worked off, or why it was aborted
+
+  function abschlussHtml(a) {
+    if (!a || a.zustand === 'beendet') return '';
+    if (a.zustand === 'abgebrochen') return `<p class="warum fr-fehler"><b>Triage-Lauf abgebrochen</b> · ${esc(wann(a.zeit))}${a.grund ? `: ${esc(a.grund)}` : ''}</p>`;
+    const liste = a.abweichungen.map((x) => `<li class="fr-ticket">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span><span class="fr-label">${esc(x.zustand)}</span><span class="fr-grund fr-fehler">${esc(x.grund)}</span></li>`).join('');
+    return `<section class="fr-thema fr-unsauber"><h5 class="fr-fehler">${zahl(a.abweichungen.length, 'Notiz', 'Notizen')} nicht sauber abgearbeitet <span class="fr-klein">Triage-Lauf unvollständig · ${esc(wann(a.zeit))}</span></h5><ul class="fr-tickets">${liste}</ul></section>`;
+  }
+
   // ---- the Sternzeit-Notizen by topic; a ticket with two topics stands in both
 
   const ticketHtml = (x, thema) => `<li class="fr-ticket${x.frage ? ' gefragt' : ''}">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span>${x.frage ? '<span class="fr-marke">Frage an dich</span>' : ''}${x.themen.filter((t) => t !== thema).map((t) => `<span class="fr-label">${esc(t)}</span>`).join('')}</li>`;
@@ -139,7 +148,7 @@
     return `<section class="fr-projekt${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}">
 <h3 class="fr-kopf">${link(p.url, esc(p.kurz), 'fr-name')}<span class="fr-zahl">${zahl(p.zahl, 'Sternzeit-Notiz', 'Sternzeit-Notizen')}${p.fragen.length ? ` · ${zahl(p.fragen.length, 'Frage', 'Fragen')} an dich` : ''}${still}</span></h3>
 <div class="knoepfe fr-start">${startHtml(p, pin)}<span class="fr-klein">${gelesen}</span><span class="status" role="status"></span></div>
-${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
+${abschlussHtml(p.abschluss)}${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
   }
 
   function html(t) {
