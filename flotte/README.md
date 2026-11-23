@@ -283,7 +283,16 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" werft [<ordner>...] [--bruecke http
 - Mit `--bruecke` (oder `FLOTTE_BRUECKE`, Token `FLOTTE_BRUECKE_TOKEN`) meldet sie je Takt den
   Stand und holt Handlungen ab (`flottenbruecke/SCHNITTSTELLE.md`, „Werft“); ist die Brücke aus,
   zieht sie weiter nach.
-- Migrationen, Sicherung und deren Freigabe (#89) liest sie aus dem Adapter, fährt sie aber noch nicht.
+- `<stack>.migration_test` läuft direkt nach einem grünen `nachziehen`; scheitert sie, steht der
+  Stack rot wie bei einem Fehler im Nachziehen.
+- Hat der Stack `migration_arbeit`, nimmt die Werft nach dem Nachziehen die Sicherung
+  (`<stack>.sicherung`) und prüft sie (`epic/references/adapter.md`, „Geprüfte Sicherung“). Dann
+  wartet die Migration auf die Freigabe des Menschen auf der Brücke (Handlung `migration_freigeben`
+  mit PIN), gebunden an Commit, Sicherung und den Befehl zur Zeit der Sicherung (nennt der Adapter
+  inzwischen einen anderen, wird sie abgelehnt). Erst dann läuft sie, genau einmal: Der Stand
+  (`arbeit` je Stack: `wartet`, `gesperrt`, `laeuft`, `migriert`, `rot`) wird vor dem Start
+  geschrieben, auch nach einem Absturz startet dieselbe Freigabe sie nicht noch einmal. Ohne
+  geprüfte Sicherung steht der Stack rot und jede Freigabe wird abgelehnt.
 
 ## Prognose
 
