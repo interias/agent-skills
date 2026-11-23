@@ -824,7 +824,7 @@ class Treiber {
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
   blockForm(nr: number): string {
-    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter.`;
+    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, jede in einer Zeile: \`1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe> — Grund: … — Regel/Quelle: …\`, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter.`;
   }
 
   an(nr: number, text: string): string {
@@ -1172,7 +1172,7 @@ class Treiber {
       this.ereignis(nr, 'RAM-Frage: weiter, sobald die Bremse frei ist');
       return;
     }
-    if (!block.fragen.length) return this.rohFrage(ep, block, vermerk);
+    if (!block.fragen.length) this.rohAlsFrage(ep, block);
     // a run that was told to go on without the parked packages may ask the same again at once: the
     // question already lies with the person, so neither the admiral nor the bridge sees it twice
     // (or he answered while the run was busy, and the answer still waits to be passed on)
@@ -1365,16 +1365,14 @@ class Treiber {
     }
   }
 
-  /** A question block without a parsable question: the whole block goes to the person (#28, Rückfall). */
-  rohFrage(ep: FlottenEpic, block: FrageBlock, vermerk?: string): void {
-    const nr = ep.nr;
-    const zeit = new Date(this.w.jetzt()).toISOString();
-    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: vermerk ?? '', optionen: [], grund: '', herkunft: 'Treiber: Block nicht zerlegbar', marke: 'Block unlesbar', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
-    kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — Der Block FLOTTE-FRAGE ${block.phase} ließ sich nicht in Fragen zerlegen. Wortlaut:\n\n${block.roh}\n\nAntworten, im Repository: \`flotte antworten . ${nr} 1 "<Antwort>"\``);
-    this.ereignis(nr, `❓ FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut liegt beim Menschen`);
-    ep.stufe = 'frage';
-    ep.notiz = 'wartet auf den Menschen';
-    ep.festgehalten = this.an(nr, `Antwort auf FLOTTE-FRAGE ${block.phase}: Der Block ließ sich nicht in Fragen zerlegen; der Mensch hat ihn gelesen und antwortet.`);
+  /**
+   * A question block without a parsable question (#28, Rückfall). #152: its wording is one question for
+   * the admiral like any other; it reaches the person only when he names a point of BEIM_MENSCHEN (or
+   * gives no usable answer). The empty question text lets the bridge show the wording.
+   */
+  rohAlsFrage(ep: FlottenEpic, block: FrageBlock): void {
+    this.ereignis(ep.nr, `FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut geht als eine Frage an den Admiral`);
+    block.fragen = [{ nr: 1, frage: '', betrifft: 'Lauf', lage: `Der Block ließ sich nicht in Fragen zerlegen. Wortlaut:\n${block.roh}`, optionen: [], mehrfach: false, empfehlung: null, grund: '', quelle: '', roh: block.roh }];
   }
 
   // ---- the Flottenbrücke (#28): only the driver talks to it; off or slow is no error

@@ -239,16 +239,31 @@ describe('Flottenbrücke (#28)', () => {
     expect(t.p.meldungen.filter((m) => /Flottenbrücke nicht erreichbar/.test(m))).toHaveLength(1);
   }, T);
 
-  it('a block that does not parse: the wording goes to the person, a free-text answer reaches the run unchanged', async () => {
+  it('#152: a block that does not parse goes to the admiral first; he decides, the person is not asked', async () => {
+    const roh = 'FLOTTE-FRAGE 3 tor\nIch weiß nicht weiter: Datei anlegen oder nicht?\nSTAND: Tor';
+    const t = aufbau();
+    const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), admiral(3, [{ nr: 1, antwort: 'Leg sie an.', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    const an = buch.gesehen().find((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))!;
+    expect(an.eingabe).toContain('Ich weiß nicht weiter: Datei anlegen oder nicht?');
+    // the order of the run names the question line in its wording
+    expect(buch.gesehen()[0].eingabe).toContain('jede in einer Zeile: `1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe>');
+    expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))[1].eingabe).toMatch(/Antwort des Admirals auf FLOTTE-FRAGE tor:\n1\. Antwort: Leg sie an\./);
+    expect(z.fragen).toEqual([]);
+    expect(t.p.kommentare.some((k) => k.nr === 3 && /FRAGE AN DEN MENSCHEN/.test(k.text))).toBe(false);
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
+  it('a block that does not parse and the admiral names a point for the person: the wording goes to the person, a free-text answer reaches the run unchanged', async () => {
     const roh = 'FLOTTE-FRAGE 3 tor\nIch weiß nicht weiter: Datei anlegen oder nicht?\nSTAND: Tor';
     const b = await attrappe((f) => (f.frage === '' && f.roh.includes('Ich weiß nicht weiter') ? { option: null, text: 'Leg sie an.' } : null));
     try {
       const t = aufbau();
-      const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
-      expect(buch.gesehen().some((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))).toBe(false);
-      expect(laeufe[1].eingabe).toMatch(/nicht in Fragen zerlegen[\s\S]*\n1\. Antwort: Leg sie an\.$/);
+      expect(buch.gesehen().filter((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))).toHaveLength(1);
+      expect(laeufe[1].eingabe).toMatch(/1\. liegt beim Menschen[\s\S]*\n1\. Antwort: Leg sie an\.$/);
       expect(t.p.kommentare.some((k) => k.nr === 3 && k.text.includes('Ich weiß nicht weiter'))).toBe(true);
       expect(z.fragen[0]).toMatchObject({ frage: '', roh, beantwortet: 'Antwort: Leg sie an.' });
       expect(z.epics['3'].stufe).toBe('fertig');
@@ -1579,7 +1594,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(t.p.aufrufe.filter((a) => a[1] === 'api' && a[3] === 'DELETE')).toHaveLength(2);
       expect(bodies[40]).toBe('Tafel\n\n## Missionsziele\n- [x] #12 Alt\n');
       // the mission itself: no label, no close
-      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && ['close', 'reopen'].includes(a[2]))).toEqual([]);
+      // (#145: the run's own mission #3 is closed after its merge)
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && ['close', 'reopen'].includes(a[2]) && a[3] !== '3')).toEqual([]);
       expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'edit' && a[3] === '40' && !a.includes('--body-file'))).toEqual([]);
       expect(texte(z)).toContain('Missionsziele #32 aus Mission #40 widerrufen (zurück in die Triage, die Mission bleibt), Mensch über die Brücke');
       const m = b.berichte.at(-1)!.triage.schnittplan!.missionen[1];
@@ -1681,7 +1697,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
       expect(texte(z)).toContain('Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: Mission #77 steht nicht im Schnittplan des letzten Triage-Laufs');
       expect(texte(z)).toContain('Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: Kommentar an Mission #100 gescheitert, nichts geändert');
-      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[1] === 'api' || ['edit', 'close'].includes(a[2])) && a[3] !== '99')).toEqual([]);
+      // (#145: the run's own mission #3 is closed after its merge)
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[1] === 'api' || ['edit', 'close'].includes(a[2])) && a[3] !== '99' && a[3] !== '3')).toEqual([]);
       expect(z.triage!.schnittplan!.missionen[0].widerrufen).toBeNull();
     } finally {
       await b.zu();
@@ -1791,7 +1808,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(texte(z)).toContain('Triage-Antwort über die Brücke abgelehnt: Option C gibt es bei Frage 1 an #61 nicht');
       expect(texte(z)).toContain('Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: keine solche Entscheidung zu #7');
       expect(t.p.kommentare.filter((k) => k.nr === 61 || k.nr === 7)).toEqual([]);
-      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && ['edit', 'reopen', 'close'].includes(a[2] ?? '') && a[3] !== '99')).toEqual([]);
+      // (#145: the run's own mission #3 is closed after its merge)
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && ['edit', 'reopen', 'close'].includes(a[2] ?? '') && a[3] !== '99' && a[3] !== '3')).toEqual([]);
       expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[3] === '61' || a[3] === '7'))).toEqual([]);
       expect(b.hQuittungen.filter((x) => x > 0)).toHaveLength(5);
     } finally {
