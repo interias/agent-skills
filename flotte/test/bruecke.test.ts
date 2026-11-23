@@ -3,18 +3,20 @@
 
 import { describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { basename, join, resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../src/aufruf.ts';
-import { anhalten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
+import { anhalten, einspielenUndNeustarten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
+import { NEUSTART, type SkillStand } from '../src/treiber/stand.ts';
 import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
 import { flotteDir, leer, lebt, neuesEpic, schreibe as schreibeZustand, startZeit } from '../src/werkzeuge/zustand.ts';
 import { spawn } from 'node:child_process';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
-import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
+import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, quelleMitOrigin } from './flotte-welt.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import type { TicketErgebnis, triagiere } from '../src/befehle/triage.ts';
 import { type Entscheidung, entscheidungAus, lernTriageKommentar, lernvorschlaege, type Ticket, TRIAGE_MARKE, triageKommentar, wartetAufAntwort } from '../src/triage.ts';
@@ -274,6 +276,8 @@ describe('Flottenbrücke (#28)', () => {
       [58, 'triage-widerruf', null],
       // #148: a mission of the cut plan
       [70, 'schnitt-widerruf', null],
+      // #154: einspielen belongs to the project
+      [0, 'einspielen', null],
     ]);
     expect(liste.find((h) => h.art === 'merge')!.text).toBe('mensch');
     expect(liste.find((h) => h.art === 'prioritaet')!.text).toBe('hoch');
@@ -1889,6 +1893,129 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(texte(z)).toContain('Triage-Entscheidung „überflüssig“ zu Lernvorschlag 555/3 widerrufen, Mensch über die Brücke');
       // a superfluous proposal closes nothing
       expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei, 0 geschlossen, 2 überflüssig, 0 Fragen an den Menschen, 1 ohne Ergebnis');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
+
+describe('Stand und Einspielen über die Brücke (#154)', () => {
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const quelle = mkdtempSync(join(tmpdir(), 'flotte-quelle-'));
+  writeFileSync(join(quelle, 'install.ps1'), '# attrappe');
+  const stand = (commit: string): SkillStand => ({ commit, datum: '2026-11-20T10:00:00+01:00', installiert: '2026-11-21T08:00:00+01:00', quelle });
+  const fetches = (t: { p: { aufrufe: string[][] } }) => t.p.aufrufe.filter((a) => a[0] === 'git' && a.includes('fetch'));
+
+  it('the report names the stand and the start; a newer commit on main of the source appears as a hint, asked once in the run', async () => {
+    const q = quelleMitOrigin();
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), { ...t.welt, stand: () => ({ ...stand(q.alt), quelle: q.quelle }) });
+      const v = b.berichte.at(-1)!.version;
+      expect(v).toMatchObject({ commit: q.alt, datum: '2026-11-20T10:00:00+01:00', installiert: '2026-11-21T08:00:00+01:00', einspielen: null });
+      expect(v.neu).toMatchObject({ commit: q.neu, titel: 'Schnittplan: Triage fasst Notizen' });
+      expect(Date.parse(v.gestartet)).toBeGreaterThan(0);
+      expect(v.geprueft).not.toBeNull();
+      // many turns, one question to the source (at most every 15 minutes)
+      expect(b.berichte.length).toBeGreaterThan(5);
+      expect(fetches(t)).toHaveLength(1);
+      // without stand.json: no stand, no question, and the update is refused
+      const ohne = aufbau();
+      const b2 = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'einspielen', text: null }) });
+      try {
+        const z = await fahre(ohne.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3], { bruecke: b2.url }), { ...ohne.welt, stand: () => null });
+        expect(b2.berichte.at(-1)!.version).toMatchObject({ commit: null, neu: null, einspielen: null });
+        expect(fetches(ohne)).toHaveLength(0);
+        expect(z.einspielen).toBeUndefined();
+        expect(ohne.p.meldungen).toContain('Einspielen über die Brücke abgelehnt: der Stand des Skill-Satzes ist unbekannt (kein stand.json; einmal install.ps1 von Hand)');
+      } finally {
+        await b2.zu();
+      }
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('einspielen: the driver halts while the run works on, install and restart follow in order, the new driver takes the run over and shows the new stand', async () => {
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || !x.epics[0]?.prozess) return null;
+        gesendet = true;
+        return { epic: 0, art: 'einspielen', text: '{"bruecke": "ccccccc"}' };
+      },
+    });
+    try {
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ warte: 2500 }, { text: ende(3, 13) }])]);
+      const anfang = Date.now();
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), { ...t.welt, stand: () => stand(A) });
+      expect(Date.now() - anfang).toBeLessThan(2400);
+      expect(z.einspielen).toEqual({ bruecke: 'ccccccc' });
+      expect(z.epics['3'].stufe).toBe('laeuft');
+      const n = t.p.meldungen.findIndex((m) => m.startsWith('Einspielen und Neustart angefordert: nichts Neues mehr; laufende Läufe arbeiten weiter'));
+      expect(n).toBeGreaterThanOrEqual(0);
+      expect(t.p.meldungen.findIndex((m) => /^Angehalten auf Wunsch: kein Merge offen, 1 Lauf/.test(m))).toBeGreaterThan(n);
+      expect(b.hQuittungen).toHaveLength(1);
+      expect(b.berichte.some((x) => x.version.einspielen !== null)).toBe(true);
+      // the steps after the halt, as an attrappe records them: einspielen, then the same command line
+      const schritte: string[] = [];
+      const a: Aufrufer = (programm, args) => {
+        schritte.push(programm === 'git' ? `git ${args.slice(2, 4).join(' ')}` : `${programm} ${args.slice(0, 3).join(' ')}`);
+        if (args[2] === 'rev-parse' && args[3] === '--abbrev-ref') return { code: 0, stdout: 'main\n', stderr: '' };
+        if (args[2] === 'rev-parse') return { code: 0, stdout: `${B}\n`, stderr: '' };
+        if (args[2] === 'log') return { code: 0, stdout: '2026-11-23T09:00:00+01:00\n', stderr: '' };
+        return { code: args[2] === 'diff' ? 1 : 0, stdout: '', stderr: '' };
+      };
+      const neustart = () => {
+        schritte.push('neustart');
+        return 0;
+      };
+      expect(einspielenUndNeustarten(flotteDir(t.repo), z.einspielen!, a, () => stand(A), neustart, false)).toBe(0);
+      expect(schritte).toEqual(['git status --porcelain', 'git rev-parse --abbrev-ref', 'git pull --ff-only', 'git rev-parse HEAD', 'git log -1', 'powershell -NoProfile -ExecutionPolicy Bypass', 'git diff --quiet', 'docker compose up -d', 'neustart']);
+      // started by the hull: it installs and writes eingespielt.json too, but ends with NEUSTART and starts nothing
+      const huelleDir = mkdtempSync(join(tmpdir(), 'flotte-huelle-'));
+      const inHuelle: string[] = [];
+      expect(einspielenUndNeustarten(huelleDir, z.einspielen!, a, () => stand(A), () => (inHuelle.push('neustart'), 0), true)).toBe(NEUSTART);
+      expect(inHuelle).toEqual([]);
+      expect(existsSync(join(huelleDir, 'eingespielt.json'))).toBe(true);
+      // the new driver: same settings, the new stand; the run is watched, not started again
+      const weiter = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), { ...t.welt, stand: () => stand(B) });
+      expect(weiter.epics['3'].stufe).toBe('fertig');
+      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(t.p.meldungen).toContain('Neuer Stand eingespielt: aaaaaaa → bbbbbbb (2026-11-23T09:00:00+01:00), Brücke neu gebaut; Treiber mit derselben Kommandozeile neu gestartet, Mensch über die Brücke');
+      expect(b.berichte.at(-1)!.version).toMatchObject({ commit: B, einspielen: null });
+      expect(weiter.einspielen).toBeUndefined();
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('no restart while a merge is open: the button waits and says for which, the driver halts only after the merge', async () => {
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', mergeDauerMs: 1500, pr: () => ({ state: 'OPEN' }) });
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || x.schlange[0] !== 3) return null;
+        gesendet = true;
+        return { epic: 0, art: 'einspielen', text: null };
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), { ...t.welt, stand: () => stand(A) });
+      expect(gesendet).toBe(true);
+      expect(z.einspielen).toEqual({ bruecke: null });
+      expect(t.p.merges).toEqual([13]);
+      expect(b.berichte.some((x) => x.version.einspielen?.wartetAuf.includes(3))).toBe(true);
+      expect(t.p.meldungen).toContain('Einspielen und Neustart angefordert: nichts Neues mehr, wartet auf das Andocken von #3; laufende Läufe arbeiten weiter und werden nach dem Neustart übernommen, Mensch über die Brücke');
+      const gemergt = t.p.zeitleiste.indexOf('gemergt 13');
+      const halt = t.p.zeitleiste.findIndex((x) => x.startsWith('Angehalten auf Wunsch'));
+      expect(gemergt).toBeGreaterThanOrEqual(0);
+      expect(halt).toBeGreaterThan(gemergt);
     } finally {
       await b.zu();
     }

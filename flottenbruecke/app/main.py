@@ -5,7 +5,9 @@
 # epic in, pause or continue an epic and set its priority (#61), and set how an epic merges (#112): the
 # bridge only tightens, merge.ps1 stays the hard limit. No merge of its own, no abort. The Holodeck (#44)
 # shows the prototypes each driver sends, sealed off from the bridge. With a VAPID key (#37) each new
-# event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN.
+# event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN. #154: it shows the stand of
+# itself (BRUECKE_COMMIT, BRUECKE_DATUM, build arguments of its image) and of each driver, and carries the update
+# the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again.
 
 import hashlib
 import hmac
@@ -68,10 +70,13 @@ class Einstellung:
     vapid_kontakt: str = 'mailto:flottenbruecke@localhost'
     # replaces pywebpush.webpush (tests: the push service as a stand-in)
     push_senden: object = None
+    # #154: commit and date of the image, build arguments filled when the driver (or a person) builds it
+    commit: str = ''
+    datum: str = ''
 
     @classmethod
     def aus_umgebung(cls) -> 'Einstellung':
-        return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt)
+        return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt, commit=os.environ.get('BRUECKE_COMMIT', ''), datum=os.environ.get('BRUECKE_DATUM', ''))
 
 
 class Pinwache:
@@ -165,7 +170,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/api/tafel')
     def board() -> dict:
         # push: the public VAPID key when Web-Push is on (#37), else None
-        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen()), 'push': push.oeffentlich if push else None}
+        # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
+        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}}
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')
@@ -180,6 +186,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
         if h.art == 'triage':
             return triage_starten(h)
+        if h.art == 'einspielen':
+            return einspielen_starten(h)
         p = speicher.projekt(h.forge)
         b = p['bericht'] if p else {}
         ep = next((x for x in b.get('epics', []) if x['nr'] == h.epic), None)
@@ -273,6 +281,34 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         for forge in ziele:
             gespeichert = speicher.handlung_setzen(forge, 0, 'triage', None, None, None, stempel())
             # fetched already: that one starts the run, nothing more to do here
+            if gespeichert is not None:
+                ids.append(gespeichert['id'])
+        if not ids:
+            raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
+        return {'ok': True, 'id': ids[0], 'ids': ids}
+
+    def einspielen_starten(h: Handlung) -> dict:
+        """#154: one update per driver, or (forge `alle`) one for each driver that reports its stand and is not halting
+        for one already. The text is the commit of this bridge's image: the driver builds it only when flottenbruecke/
+        changed since."""
+        kann = lambda b: b.get('version') and not b['version'].get('einspielen')
+        if h.forge == 'alle':
+            ziele = [p['forge'] for p in speicher.projekte() if kann(p['bericht'])]
+            if not ziele:
+                raise HTTPException(409, 'Kein Treiber kann gerade einspielen.')
+        else:
+            p = speicher.projekt(h.forge)
+            if p is None:
+                raise HTTPException(404, 'Dieses Projekt kennt die Brücke nicht.')
+            if not p['bericht'].get('version'):
+                raise HTTPException(409, 'Dieser Treiber meldet keinen Stand (älterer Stand): einspielen von Hand.')
+            if p['bericht']['version'].get('einspielen'):
+                raise HTTPException(409, 'Der Treiber hält schon zum Einspielen an.')
+            ziele = [h.forge]
+        text = json.dumps({'bruecke': e.commit or None})
+        ids = []
+        for forge in ziele:
+            gespeichert = speicher.handlung_setzen(forge, 0, 'einspielen', None, None, text, stempel())
             if gespeichert is not None:
                 ids.append(gespeichert['id'])
         if not ids:

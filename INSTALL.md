@@ -49,6 +49,11 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   vor. Ein vorhandener Zielordner wird vorher nach `~/.claude/skills-backup/<name>-<Zeitstempel>/`
   gesichert und erst geleert, wenn die Sicherung nachweislich vollständig ist. Ordner unter alten
   Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`) werden gesichert und entfernt.
+- **Stand (#154):** schreibt in jeden installierten Skill-Ordner `stand.json` mit Commit und Datum des
+  ausgecheckten Stands, dem Zeitpunkt und dem Ordner der Quelle. Die Flottenbrücke zeigt ihn; der
+  Treiber spielt über ihren Knopf „Einspielen und Treiber neu starten“ von dieser Quelle aus ein
+  (`flotte/README.md`, „Anhalten und neu starten“). Liegt die Quelle nicht oben in einem Git-Repository,
+  entsteht keine Datei (Zeile `No stand: …`).
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
 - **Entfernte Skills und Agent-Typen abräumen** (nur ohne `-Skill`): Installierte Kopien von

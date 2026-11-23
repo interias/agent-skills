@@ -118,5 +118,15 @@
     "text": "Suche und Filter sind zwei Dinge; erst den Filter allein.",
     "zeit": "2026-11-20T14:49:00+00:00",
     "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 15,
+    "epic": 0,
+    "art": "einspielen",
+    "nr": null,
+    "seit": null,
+    "text": "{\"bruecke\": null}",
+    "zeit": "2026-11-20T14:50:00+00:00",
+    "herkunft": "Mensch über die Brücke"
   }
 ]

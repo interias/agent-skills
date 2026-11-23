@@ -220,7 +220,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         takt = b.get('taktS', 60)
         veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=max(3 * takt, 180))
         aktiv = b.get('aktiv', True) and not veraltet
-        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen)})
+        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen), 'version': b.get('version')})
         # the newest report of a machine speaks for its RAM and disk, of an account for its usage
         r = rechner.get(b.get('rechner', ''))
         if r is None or r['empfangen'] < p['empfangen']:
@@ -241,6 +241,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         for h in handlungen:
             if h['forge'] == forge and not h['quittiert'] and h['art'] != 'einstellen':
                 offen_h[(h['epic'], HANDLUNG_GRUPPE[h['art']], h['nr'], h['seit'])] = h
+        # #154: the update on its way to the driver (the button waits for it)
+        liste[-1]['einspielen'] = _handlung(offen_h.get((0, 'einspielen', None, None)))
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
         schwelle = schwelle_lang(b.get('epics', []))
         # #52: the decisions of each epic not merged, newest first; the rest stays in the logbook and at the issues
@@ -416,8 +418,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 z = json.loads(h['text'])
                 titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
                 x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
-            elif h['art'].startswith('triage'):
-                # #116: a ticket of the triage, no epic
+            elif h['art'].startswith('triage') or h['art'] == 'einspielen':
+                # #116: a ticket of the triage, no epic; #154: the update belongs to the project
                 x = {**x, 'epic': None, 'ticket': h['epic'] or None}
             erledigt.append(x)
 

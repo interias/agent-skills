@@ -496,6 +496,8 @@ def test_vertrag_handlungen(client, bericht):
     assert handlung(client, 'triage-widerruf', epic=58, seit='2026-11-20T13:04:30Z', text='Die alte Ansicht brauchen wir noch für den Beamer im Besprechungsraum.').status_code == 200
     # #148: a mission of the cut plan
     assert handlung(client, 'schnitt-widerruf', epic=70, text='Suche und Filter sind zwei Dinge; erst den Filter allein.').status_code == 200
+    # #154: the update of the driver
+    assert handlung(client, 'einspielen', epic=0).status_code == 200
     geliefert = abholen(client, 'handlungen')
     assert [sorted(h) for h in geliefert] == [sorted(h) for h in beispiel]
     for g, b in zip(geliefert, beispiel):

@@ -2,7 +2,12 @@
 name: flottenbruecke
 services:
   bruecke:
-    build: .
+    build:
+      context: .
+      # #154: commit and date of the source, set by the driver when it rebuilds after an update
+      args:
+        BRUECKE_COMMIT: ${BRUECKE_COMMIT:-}
+        BRUECKE_DATUM: ${BRUECKE_DATUM:-}
     restart: unless-stopped
     env_file:
       - path: .env

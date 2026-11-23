@@ -95,7 +95,7 @@ describe('lauf', () => {
   });
 
   it('hands down no desktop variables and sets the account only when it is not the default', () => {
-    const env = laufUmgebung({ PATH: 'p', CLAUDECODE: '1', CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH: '1', ANTHROPIC_BASE_URL: 'x', CLAUDE_CONFIG_DIR: 'alt' }, '~/.claude-arbeitspferd');
+    const env = laufUmgebung({ PATH: 'p', CLAUDECODE: '1', CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH: '1', ANTHROPIC_BASE_URL: 'x', CLAUDE_CONFIG_DIR: 'alt', FLOTTE_HUELLE: '1' }, '~/.claude-arbeitspferd');
     expect(env).toEqual({ PATH: 'p', CLAUDE_CONFIG_DIR: join(homedir(), '.claude-arbeitspferd'), CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0' });
     expect(laufUmgebung({}, '~/.claude').CLAUDE_CONFIG_DIR).toBeUndefined();
   });

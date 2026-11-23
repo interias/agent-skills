@@ -1,6 +1,7 @@
 // Maschinenraum (#42): accounts as tanks, the machines (RAM, disk, fleet limit) and the beat of each
 // driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN,
-// and (#37) the Web-Push of this device, when the bridge has a VAPID key.
+// and (#37) the Web-Push of this device, when the bridge has a VAPID key. #154: the stand of the bridge and of
+// each driver, a newer main of the source, and "Einspielen und Treiber neu starten" (PIN), one driver or all.
 // With several drivers, every setting stands once for all of them.
 // A field the report lacks gets an honest empty line, never a made-up value.
 // The shell (huelle.js) calls zeichne(t, el) on every load while the area is visible; t is null
@@ -198,6 +199,53 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     }
   }
 
+  // ---- #154: the stand of bridge and drivers; the update is an action the driver fetches (ADR-0005)
+  const kurz = (c) => (c ? c.slice(0, 7) : null);
+  const standWert = (c, d) => (c ? `<code>${esc(kurz(c))}</code>${d ? ` · ${esc(wann(d))}` : ''}` : nichts('Stand'));
+  const mitVersion = (t) => t.projekte.filter((p) => p.version);
+  const kannEinspielen = (t, p) => t.pin && p.version && !p.version.einspielen && !(p.einspielen && p.einspielen.abgeholt);
+
+  function einspielenStand(t, p) {
+    const v = p.version;
+    if (v.einspielen) {
+      const w = v.einspielen.wartetAuf;
+      return `<span class="mr-wartet">${w.length ? `Wartet auf das Andocken von ${w.map((n) => `#${n}`).join(', ')}` : 'Hält an'}</span>, dann spielt der Treiber ein und startet neu.`;
+    }
+    if (p.einspielen) return `<span class="mr-wartet">wartet auf den Treiber</span>${p.einspielen.abgeholt ? ' · abgeholt' : ''}`;
+    return t.pin ? '' : 'Einspielen abgeschaltet: keine PIN gesetzt.';
+  }
+
+  function treiberStandHtml(t, p) {
+    const v = p.version;
+    if (!v) return `<article class="mr-karte mr-stand-karte${p.veraltet ? ' veraltet' : ''}"><h3>Treiber · ${esc(p.kurz)}</h3><p class="mr-hilfe">Dieser Treiber meldet keinen Stand (älterer Stand): einspielen von Hand.</p></article>`;
+    const neu = v.neu
+      ? `<p class="mr-neu" role="status">Neuer Stand verfügbar: <code>${esc(kurz(v.neu.commit))}</code>, ${esc(wann(v.neu.datum))}, ${esc(v.neu.titel)}</p>`
+      : `<p class="mr-hilfe">${v.geprueft ? `Aktuell mit main, geprüft ${esc(wann(v.geprueft))}.` : v.commit ? 'Noch nicht mit main verglichen.' : ''}</p>`;
+    const status = einspielenStand(t, p);
+    return `<article class="mr-karte mr-stand-karte${v.neu ? ' neu' : ''}${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}"><h3>Treiber · ${esc(p.kurz)}</h3>
+<dl><dt>Stand</dt><dd>${standWert(v.commit, v.datum)}</dd><dt>Eingespielt</dt><dd>${v.installiert ? esc(wann(v.installiert)) : nichts('Zeitpunkt')}</dd><dt>Gestartet</dt><dd>${esc(wann(v.gestartet))}</dd></dl>
+${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' : 'zweit'}" data-einspielen="${esc(p.forge)}"${kannEinspielen(t, p) ? '' : ' disabled'}>Einspielen und Treiber neu starten</button><span class="status" role="status">${status}</span></div></article>`;
+  }
+
+  function standHtml(t) {
+    const b = t.bruecke ?? {};
+    const bruecke = `<article class="mr-karte mr-stand-karte"><h3>Brücke</h3><dl><dt>Stand</dt><dd>${standWert(b.commit, b.datum)}</dd></dl>${b.commit ? '' : '<p class="mr-hilfe">Gebaut ohne Stand: beim nächsten Einspielen über den Treiber kommt er dazu.</p>'}</article>`;
+    const ps = mitVersion(t);
+    const alle = t.pin && ps.length > 1 ? `<div class="knoepfe mr-alle"><button type="button" class="knopf zweit" data-einspielen="alle"${ps.some((p) => kannEinspielen(t, p)) ? '' : ' disabled'}>Einspielen und alle Treiber neu starten</button><span class="status" role="status"></span></div>` : '';
+    const hinweis = '<p class="mr-hinweis">Einspielen hält den Treiber an: Er startet nichts Neues, ein laufendes Andocken läuft zu Ende, laufende Läufe arbeiten weiter. Dann holt er main, spielt den Skill-Satz ein, baut die Brücke neu, wenn sie sich geändert hat, und startet mit derselben Kommandozeile neu; die Läufe übernimmt er. Braucht die PIN.</p>';
+    return `<h3 class="mr-titel">Stand</h3>${hinweis}${alle}<div class="mr-reihe">${bruecke}${t.projekte.map((p) => treiberStandHtml(t, p)).join('')}</div>`;
+  }
+
+  async function einspielenKnopf(ev) {
+    const b = ev.target.closest('[data-einspielen]');
+    const ziel = b.dataset.einspielen;
+    const p = (letzte?.projekte ?? []).find((x) => x.forge === ziel);
+    const wer = ziel === 'alle' ? 'alle Treiber' : `den Treiber von ${p?.kurz ?? ziel}`;
+    if (!(await bestaetigen(`Neuen Stand für ${wer} einspielen und neu starten? Laufende Läufe arbeiten weiter und werden danach übernommen; ein offenes Andocken wartet der Treiber ab.`, 'Einspielen'))) return;
+    const zeile = b.closest('.knoepfe');
+    if (await senden('/api/handlung', { forge: ziel, epic: 0, art: 'einspielen', nr: null, seit: null, text: null }, zeile, zeile.querySelector('.status'))) await laden();
+  }
+
   // ---- Web-Push (#37): this device subscribes with the PIN; the bridge pushes each new event of "Braucht dich"
   const kannPush = () => isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
@@ -247,7 +295,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
@@ -255,6 +303,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
         el.addEventListener('click', (ev) => {
           if (ev.target.closest('[data-uebernehmen]')) uebernehmen(ev);
           if (ev.target.closest('[data-push]')) push(ev);
+          if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
