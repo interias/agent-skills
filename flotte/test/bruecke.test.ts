@@ -1165,8 +1165,15 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(b.berichte[0].triage).toMatchObject({ laeuft: false, tickets: [], fragen: [], entscheidungen: [] });
       expect(Date.parse(b.berichte[0].triage.gelesen!)).toBeGreaterThan(0);
       expect(b.berichte.some((x) => x.triage.laeuft)).toBe(true);
+      // #148: the running report names its start, no progress (the driver does not know it); the last one the end with the counters
+      const laufend = b.berichte.find((x) => x.triage.laeuft)!.triage;
+      expect(Date.parse(laufend.seit!)).toBeGreaterThan(0);
+      expect(laufend.fortschritt).toBeUndefined();
+      expect(b.berichte[0].triage.beendet).toBeUndefined();
       const letzter = b.berichte.at(-1)!.triage;
       expect(letzter.laeuft).toBe(false);
+      expect(letzter.seit).toBeUndefined();
+      expect(letzter.beendet).toEqual({ zeit: expect.any(String), epics: 0, fragen: 1 });
       expect(letzter.entscheidungen.map((d) => [d.nr, d.ergebnis, d.herkunft, d.grund, d.widerrufen])).toEqual([
         [7, 'klar', 'Skill-Empfehlung', 'Abschnitte nachgetragen', null],
         [8, 'ueberfluessig', 'Präzedenz: #3', 'schon erledigt', null],
@@ -1174,6 +1181,23 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // they outlive a restart in the state
       expect(z.triage!.entscheidungen.map((d) => d.nr)).toEqual([7, 8]);
       expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#148: a failed triage run ends in the report as beendet with the error', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    const kaputt: typeof triagiere = async () => {
+      await new Promise((x) => setTimeout(x, 50));
+      throw new Error('kein Konto antwortet');
+    };
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: kaputt });
+      const letzter = b.berichte.at(-1)!.triage;
+      expect(letzter.laeuft).toBe(false);
+      expect(letzter.beendet).toEqual({ zeit: expect.any(String), epics: 0, fragen: 0, gescheitert: true, fehler: expect.stringContaining('kein Konto antwortet') });
     } finally {
       await b.zu();
     }
@@ -1296,6 +1320,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // the mission number of an attached note stands at its decision, and the plan outlives a restart in the state
       expect(z.triage!.entscheidungen.filter((d) => d.ergebnis === 'klar').map((d) => [d.nr, d.mission])).toEqual([[30, 100], [31, 100], [32, 40], [33, 40]]);
       expect(z.triage!.schnittplan!.missionen.map((m) => m.nr)).toEqual([100, 40]);
+      // the short info counts the missions of the plan, the created and the existing one
+      expect(b.berichte.at(-1)!.triage.beendet).toMatchObject({ epics: 2 });
     } finally {
       await b.zu();
     }

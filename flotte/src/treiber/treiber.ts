@@ -428,6 +428,9 @@ class Treiber {
   triageStand: Pick<BerichtTriage, 'gelesen' | 'tickets' | 'fragen'> | null = null;
   triageZeit = 0;
   triageLaeuft = false;
+  /** #148: when the run under way started, how the last one ended (in memory only: a short info of the Frachtraum) */
+  triageSeit = '';
+  triageBeendet: BerichtTriage['beendet'];
 
   constructor(
     readonly e: Einstellung,
@@ -1608,6 +1611,8 @@ class Treiber {
     const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
     if (!konto) return nein('kein Konto mit Luft');
     this.triageLaeuft = true;
+    this.triageSeit = new Date(this.w.jetzt()).toISOString();
+    this.triageBeendet = undefined;
     this.imLogbuch(null, `Triage-Lauf gestartet, ${HERKUNFT_BRUECKE}`);
     this.nebenbei(this.triageFahren(konto));
   }
@@ -1664,8 +1669,10 @@ class Treiber {
       const nach = (r.nachgeholt ?? []).filter((m) => m.geschrieben && !m.fehler);
       const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}${nach.length ? `, Warp frei nachgeholt für ${nach.map((m) => `Mission #${m.nummer}`).join(', ')}` : ''}`;
       this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length, ...(this.z.triage?.schnittplan?.fehler ? { fehler: this.z.triage.schnittplan.fehler } : {}) };
     } catch (err) {
       this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: 0, fragen: 0, gescheitert: true, fehler: String(err).slice(0, 300) };
     } finally {
       this.triageLaeuft = false;
       this.triageLesen(true);
@@ -2343,7 +2350,7 @@ class Treiber {
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
       freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
-      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, fragen: this.triageStand?.fragen ?? [] },
+      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, ...(this.triageLaeuft ? { seit: this.triageSeit } : {}), ...(this.triageBeendet ? { beendet: this.triageBeendet } : {}), tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, fragen: this.triageStand?.fragen ?? [] },
     };
   }
 
