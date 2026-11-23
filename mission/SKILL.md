@@ -361,8 +361,9 @@ mit einem Halbsatz Begründung.
   `exclusive_paths` ändert, das Wort `Exklusiv` in `modules_section` trägt, in eine Datenwurzel
   mit mehreren Erzeugern schreibt oder einen Punkt aus `gate_approvals` braucht.
 
-Laufen nach dem Graphen nie zwei Pakete gleichzeitig, sag es im Plan in einem Satz, statt
-Parallelität vorzutäuschen.
+**Pakete ohne Kante und ohne gemeinsame Datei starten gleichzeitig;** „nacheinander“ nur mit genannter
+Kante oder Datei (#201: im Schnitt lief 1,05 Paket bei drei Plätzen). Laufen nach dem Graphen nie
+zwei Pakete gleichzeitig, sag es im Plan in einem Satz, statt Parallelität vorzutäuschen.
 
 ### 2c — Das Vorab-Tor
 
@@ -606,11 +607,11 @@ alles **ausgeschrieben**:
   **Ein Aufruf über 10 Minuten im Vordergrund ist verboten**: Das Werkzeug schiebt ihn weg, sein
   Ergebnis kommt nie an (#190, Messung vom 23.11.2026: Vollläufe 3–5× je Paket). Das Protokoll geht
   in den Bericht. Die Agent-Dateien der Ingenieure verweisen hierher — schreib den Punkt aus.
-- Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
-  Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
-  grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
-  was er nicht konnte und warum. **Übernimmt er bestehende
-  Arbeit** (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
+- Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt der Beleg — dazu prüft er vor
+  dem Bericht jeden Abnahmepunkt selbst und nennt je Punkt den Beleg (Test, `Datei:Zeile`, Befehl
+  mit echter Ausgabe; #201); das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
+  grün/rot, Pfad der Logdatei); was er nicht konnte und warum. **Übernimmt er bestehende Arbeit**
+  (Cherry-pick, fremde Commits, Code aus einem anderen Branch), nennt er Quelle (Branch,
   Original-Hash) und Autor. Ein fremder Autor im Pull Request sieht sonst nach einem Fehler aus.
 
 Verlangt ein Paket, dass etwas „im Issue vermerkt" wird, notiert der Ingenieur den Text — das

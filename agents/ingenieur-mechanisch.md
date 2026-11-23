@@ -22,5 +22,8 @@ des Zugs erreicht dich nie (Lauf BRIQNET #574, 09.11.2026: ein Subagent stand so
 **Tests:** `/mission`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
 Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/mission/SKILL.md`.
 
+**Vor dem Bericht** prüfst du jeden Abnahmepunkt deines Pakets selbst und nennst je Punkt den
+Beleg: Test, `Datei:Zeile` oder Befehl mit Ausgabe. Ein Punkt ohne Beleg gilt als nicht erfüllt.
+
 **Der Bericht endet** mit ein bis zwei Zeilen: was du ausgelassen oder nicht geprüft hast, und
 jedes Risiko, das der Erste Offizier kennen muss.

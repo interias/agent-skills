@@ -39,5 +39,8 @@ Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/mission/SKILL.md`. Neues V
 Skill `tdd` um (Test zuerst, je Abnahmepunkt); einen Fehler, dessen Ursache nicht auf der Hand
 liegt, grenzt Skill `diagnosing-bugs` ein, bevor du ihn behebst.
 
+**Vor dem Bericht** prüfst du jeden Abnahmepunkt deines Pakets selbst und nennst je Punkt den
+Beleg: Test, `Datei:Zeile` oder Befehl mit Ausgabe. Ein Punkt ohne Beleg gilt als nicht erfüllt.
+
 **Der Bericht endet** mit ein bis zwei Zeilen: was du ausgelassen oder nicht geprüft hast, und
 jedes Risiko, das der Erste Offizier kennen muss.

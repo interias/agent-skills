@@ -34,3 +34,21 @@ describe('#190: the Ingenieur runs the full suite exactly once, in the backgroun
     }
   });
 });
+
+const phase2b = abschnitt('### 2b — Der Graph', '### 2c');
+
+describe('#201: independent packages at the same time, the Ingenieur checks himself before the report', () => {
+  it('2b: packages without an edge and without a shared file start at the same time', () => {
+    expect(phase2b).toContain('Pakete ohne Kante und ohne gemeinsame Datei starten gleichzeitig');
+    expect(phase2b).toMatch(/„nacheinander“ nur mit genannter Kante oder Datei/);
+  });
+
+  it('4a and every Ingenieur agent file: each acceptance point checked by himself, with its evidence', () => {
+    expect(phase4a).toContain('prüft er vor dem Bericht jeden Abnahmepunkt selbst und nennt je Punkt den Beleg');
+    for (const { n, text } of ingenieure) expect(text, n).toContain('**Vor dem Bericht** prüfst du jeden Abnahmepunkt deines Pakets selbst');
+  });
+
+  it('the Erster Offizier stays unchanged: still checks each point against evidence', () => {
+    expect(phase4b).toContain('Ist jeder Abnahmepunkt erfüllt — nachweisbar, nicht behauptet?');
+  });
+});
