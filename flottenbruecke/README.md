@@ -34,6 +34,7 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 - **Brücke** (`#bruecke`, Startseite) — das Board unten.
 - **Holodeck** (`#holodeck`) — die Prototypen der Projekte, unten.
 - **Frachtraum** (`#frachtraum`) — die Sternzeit-Notizen aller Projekte, unten.
+- **Bereitschaftsraum** (`#bereitschaftsraum`) — der Chat, aus dem eine Mission entsteht, unten.
 - **Sternenkarte** (`#sternenkarte`) — Projekte mit ihrem Backlog, unten.
 - **Maschinenraum** (`#maschinenraum`), **Logbuch** (`#logbuch`) — siehe unten.
 
@@ -268,11 +269,32 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das
   Feld „Logbuch“ im Fuß und „Alle im Logbuch“ unter dem Laufband führen hierher.
 
+## Bereitschaftsraum
+
+Der Chat der Brücke (#85, agent-skills/ADR-0004): ein Gespräch über ein Repository, aus dem eine
+Mission, ein Missionsziel oder nichts entsteht. Die Brücke startet kein `claude`; der Dienst
+`flotte chat --repos <ordner> --bruecke <url>` auf einem Rechner holt die Nachrichten, führt je Chat
+eine fortgesetzte Sitzung auf dem gewählten Konto und antwortet (`SCHNITTSTELLE.md`, Abschnitt 6). Die
+Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
+
+- **Chats je Repository** mit Stand: offen, angelegt (nach erfolgreichem Anlegen, mit Links auf die
+  angelegten Issues), verworfen (ein Klick hier, beim Dienst kommt davon nichts an).
+- **Neuer Chat**: Repository (`owner/name`), Konto aus den Konten, die die Dienste melden, Modell
+  (Standard `claude-opus-5-5`), erste Nachricht. Das Konto steht fest, sobald der Chat eine Sitzung hat
+  (dann gehört er dem Rechner, der zuerst eine Sitzung brachte); das Modell lässt sich jederzeit ändern.
+- **Fragekarten** der letzten Antwort als Knöpfe; die Wahl geht mit dem Freitext als eine Nachricht
+  zurück (`Q1 A`, bei Mehrfachwahl `Q2 A, C`).
+- **Entwurf** mit „Anlegen“ (Issues zur Triage) und „Anlegen und starten“ (dazu Warp frei), nach einer
+  Rückfrage. Angelegt wird wörtlich der Entwurf der letzten Antwort, die ihn brachte; kam inzwischen ein
+  neuerer oder wartet eine Nachricht noch, lehnt die Brücke ab.
+
+Jede Handlung braucht die PIN; ohne gesetzte PIN ist Schreiben abgeschaltet. Ansehen ist frei im LAN.
+
 ## Aktualisieren
 
 `git pull`, dann `docker compose up -d --build` im Ordner. Das Volume bleibt; v2 legt auf einem
 v1-Volume nur die Tabelle `handlungen` an und nimmt weiter Berichte eines älteren Treibers an, v3
-ebenso die Tabelle `prototypen`.
+ebenso die Tabelle `prototypen`, der Bereitschaftsraum die Tabellen `chats`, `chat_nachrichten` und `chat_rechner`.
 
 ## Treiber
 
