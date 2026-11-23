@@ -356,6 +356,21 @@ Describe 'worktree.ps1 Down' {
         }
     }
 
+    It 'prunes the entry of a worktree whose folder is gone and clears its lock' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        [IO.Directory]::Delete((Join-Path $t.Worktree 'server\node_modules'), $false)
+        Remove-Item -LiteralPath $t.Worktree -Recurse -Force
+        $entry = [regex]::Escape(($t.Worktree -replace '\\', '/'))
+        (git -C $t.Repo worktree list --porcelain) -join "`n" | Should Match $entry
+        $r = Invoke-DownWithPath $t (Get-PathWithoutDocker)
+        $r.Exit | Should Be 0
+        $r.Output | Should Match 'Lock removed'
+        (git -C $t.Repo worktree list --porcelain) -join "`n" | Should Not Match $entry
+        Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $false
+        Test-Path (Join-Path $t.Repo 'server\node_modules\dep\index.js') | Should Be $true
+    }
+
     It 'leaves a folder git no longer knows in place with its lock when it is not empty or a link' {
         $target = Join-Path $TestDrive 'link-target'
         New-Item -ItemType Directory -Path $target -Force | Out-Null
