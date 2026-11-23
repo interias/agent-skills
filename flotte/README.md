@@ -458,7 +458,7 @@ Anzeige des Plans ist #148.
 
 ## Werft
 
-Nach einem Merge auf `main` zieht die Werft die berührten Stacks nach, auf dem Rechner und nicht im
+Nach dem Andocken auf `main` zieht die Werft die berührten Stacks nach, auf dem Rechner und nicht im
 Brücken-Container (agent-skills/ADR-0005). Einmal je Rechner aus einem Terminal starten (Sperre
 `~/.flotte/werft.lock`; ein zweiter Start endet mit Exit 1, die Sperre eines toten Prozesses wird
 übernommen):

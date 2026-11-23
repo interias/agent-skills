@@ -216,7 +216,7 @@ dockt es nicht an.
 
 ### Werft (#88)
 
-Was nach einem Merge auf `main_branch` nachgezogen wird, liest die Werft (`flotte werft`,
+Was nach dem Andocken auf `main_branch` nachgezogen wird, liest die Werft (`flotte werft`,
 agent-skills/ADR-0005) aus `origin/<main_branch>`. Fehlt der Schlüssel, zieht sie in diesem
 Repository nichts nach. Ein Lauf liest ihn nicht.
 
@@ -237,7 +237,7 @@ Freigabe nennt Commit, Dateiname und Prüfsumme; vor der Migration rechnet die W
 nach, eine geänderte oder fehlende Datei sperrt. Jedes `nachziehen` des Stacks nimmt eine neue
 Sicherung, eine Freigabe der alten wirkt dann nicht mehr. Die Werft merkt sich auch
 `migration_arbeit` zur Zeit der Sicherung und fährt genau diesen Befehl; nennt der Adapter
-inzwischen einen anderen (etwa ein Merge, der nur den Adapter ändert), wird die Freigabe abgelehnt
+inzwischen einen anderen (etwa ein Andocken, das nur den Adapter ändert), wird die Freigabe abgelehnt
 und die Migration gesperrt.
 
 ```yaml
