@@ -6,7 +6,7 @@ import { fahre } from '../src/treiber/treiber.ts';
 import { aufbau, drehbuch, ende, lauf } from './flotte-welt.ts';
 
 const T = 30_000;
-const fuer = (g: { eingabe: string }[], nr: number) => g.filter((x) => new RegExp(`^Flotte, Mission #${nr}\\b`).test(x.eingabe));
+const fuer = <G extends { eingabe: string }>(g: G[], nr: number) => g.filter((x) => new RegExp(`^Flotte, Mission #${nr}\\b`).test(x.eingabe));
 const modul = (nr: number) => `## Betroffene Module\n- m${nr}\n`;
 
 describe('#198: vor dem Start prüfen', () => {

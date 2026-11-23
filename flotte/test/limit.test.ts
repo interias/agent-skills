@@ -7,7 +7,7 @@ import { limitReset } from '../src/werkzeuge/lauf.ts';
 import { aufbau, drehbuch, ende, lauf } from './flotte-welt.ts';
 
 const T = 30_000;
-const fuer = (g: { eingabe: string }[], nr: number) => g.filter((x) => new RegExp(`^Flotte, Mission #${nr}\\b`).test(x.eingabe));
+const fuer = <G extends { eingabe: string }>(g: G[], nr: number) => g.filter((x) => new RegExp(`^Flotte, Mission #${nr}\\b`).test(x.eingabe));
 const uhr = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
 const texte = (z: { ereignisse: { epic: number | null; text: string }[] }) => z.ereignisse.map((e) => `${e.epic ? `#${e.epic} ` : ''}${e.text}`);
 
