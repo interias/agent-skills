@@ -329,6 +329,8 @@ describe('Flottenbrücke (#28)', () => {
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
       const blockiert = b.berichte.find((x) => x.epics[0].stufe === 'blockiert')!.epics[0];
       expect(blockiert.grund).toMatch(/nicht angemeldet/);
+      // #199: the bridge shows the cause before the reason
+      expect(blockiert.grund).toMatch(/^Ursache anderes: Konto .* ist nicht angemeldet/);
       expect(blockiert.haltZeit).toBeTruthy();
       expect(blockiert.log.some((l) => /blockiert/.test(l))).toBe(true);
       const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));

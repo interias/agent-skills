@@ -278,6 +278,8 @@ export interface FlottenEpic extends EpicZustand {
   gateSeit?: string | null;
   /** #199: after a limit with a reset time or a 429: nothing runs on the mission or its account before this time, ISO */
   limitBis?: string | null;
+  /** #199: the cause of a block, shown before its reason on the bridge */
+  haltUrsache?: 'Limit' | 'Erlaubnis' | 'anderes' | null;
   /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
   endeAm?: string | null;
   gateS?: number;
@@ -1267,13 +1269,14 @@ class Treiber {
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
     this.loslassen(ep.nr);
     ep.stufe = stufe;
-    if (stufe === 'blockiert') {
-      // #199: the cause on the bridge (its reason, haltGrund, and the note) and in the logbook
-      const u = ursache(grund);
-      if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${u}: ${grund.split('\n')[0]}.`);
-      grund = `Ursache ${u}: ${grund}`;
-    }
     ep.notiz = grund.split('\n')[0];
+    ep.haltUrsache = null;
+    if (stufe === 'blockiert') {
+      // #199: the cause on the bridge (before the reason in the report, and in the note) and in the logbook
+      ep.haltUrsache = ursache(grund);
+      ep.notiz = `Ursache ${ep.haltUrsache}: ${ep.notiz}`;
+      if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${ep.haltUrsache}: ${grund.split('\n')[0]}.`);
+    }
     ep.haltGrund = grund.slice(0, 3000);
     ep.haltZeit = new Date(this.w.jetzt()).toISOString();
     ep.aufgegebenAm = null;
@@ -1589,7 +1592,7 @@ class Treiber {
     }
     // einreihen: the counters start over; with a session the run continues where it stopped
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
     if (ep.sitzung && ep.konto) {
       ep.stufe = 'laeuft';
       // #54: questions of the run still without an answer are said to be open, never decided by the run
@@ -2591,7 +2594,7 @@ class Treiber {
           schritt: ep.schritt ?? null,
           schrittZeit: ep.schrittZeit ?? null,
           prozess: this.laufend.has(ep.nr),
-          grund: halt ? (ep.haltGrund ?? ep.notiz) : '',
+          grund: halt ? `${ep.haltUrsache && ep.haltGrund ? `Ursache ${ep.haltUrsache}: ` : ''}${ep.haltGrund ?? ep.notiz}` : '',
           haltZeit: halt ? (ep.haltZeit ?? null) : null,
           // "Log ansehen" on the blockade card: the driver's last events of this epic
           log: halt ? this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => `${new Date(x.zeit).toTimeString().slice(0, 5)} ${x.text.slice(0, 300)}`) : [],
