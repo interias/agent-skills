@@ -12,7 +12,7 @@ alte Wert `off`): `adapter.md`.
 
 Unter dem Flotten-Treiber (`flotte`) sagt der Auftrag `Lauftafel aus`. Dann baut, veröffentlicht
 und fortschreibt der Lauf keine Tafel, in keiner Phase, auch nicht in `/mission-nacharbeit`; die
-Flottenbrücke zeigt den Stand (Kind-Tickets mit Labels, Ereignisse, Fragen). Der Lauf liest die
+Flottenbrücke zeigt den Stand (Missionsziele mit Labels, Ereignisse, Fragen). Der Lauf liest die
 Tafel nie zurück, es geht also nichts verloren, solange das, was sonst nur auf ihr stünde, in die
 Forge geht:
 
@@ -118,10 +118,10 @@ Das hängt an `issue_form`:
 
 | Modus | Kopf `.no` | Paket | Nr.-Spalte | Zielsatz | Module |
 |---|---|---|---|---|---|
-| `tickets` | `Epic #<nr>` | ein Kind-Ticket | Issue-Nummer, `#943` | Titel des Kindes | aus seinem `modules_section` |
+| `tickets` | `Mission #<nr>` | ein Missionsziel | Issue-Nummer, `#943` | Titel des Missionsziels | aus seinem `modules_section` |
 | `spec` | `Spec #<nr>` | ein vom Orchestrator geschnittenes Paket | `P1`, `P2`, … | Ziel aus dem Schnitt | aus dem Schnitt |
 
-Übersprungene Kinder stehen nicht in der Tabelle. Sie gehören in den Eröffnungskommentar.
+Übersprungene Missionsziele stehen nicht in der Tabelle. Sie gehören in den Eröffnungskommentar.
 
 ## Die Spalte „Module"
 

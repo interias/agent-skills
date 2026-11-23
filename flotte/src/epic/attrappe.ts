@@ -195,7 +195,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       if (nr.startsWith('epic-')) {
         const basis = buch.basis ?? BASIS;
         const p = welt.letzterMerge ? welt.nrVon[welt.letzterMerge] : null;
-        return p && buch.epicRot?.includes(p) ? basis.map((s) => ({ ...s, rot: [{ datei: 'epic.test.ts', test: 'nach dem Merge' }] })) : basis;
+        return p && buch.epicRot?.includes(p) ? basis.map((s) => ({ ...s, rot: [{ datei: 'epic.test.ts', test: 'nach dem Andocken' }] })) : basis;
       }
       const n = (zaehler[`volllauf:${nr}`] = (zaehler[`volllauf:${nr}`] ?? -1) + 1);
       return nachstes(buch.tests?.[nr], n) ?? buch.basis ?? BASIS;
@@ -221,7 +221,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     },
     async merge(branch): Promise<MergeVersuch> {
       // as git: no merge while the epic worktree is mid-merge (MERGE_HEAD)
-      if (welt.offenerMerge) throw new Error(`merge ${branch}: der Epic-Worktree steckt mitten im Merge von ${welt.offenerMerge}`);
+      if (welt.offenerMerge) throw new Error(`merge ${branch}: der Missions-Worktree steckt mitten im Andocken von ${welt.offenerMerge}`);
       log(`merge --no-ff ${branch}`);
       const konflikt = buch.konflikt?.[welt.nrVon[branch]];
       if (konflikt?.length) {
@@ -232,7 +232,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       welt.letzterMerge = branch;
       if (buch.abbruchNachMerge === welt.nrVon[branch] && !welt.gestorben.includes(`merge ${branch}`)) {
         welt.gestorben.push(`merge ${branch}`);
-        return sterben(`Programm beendet nach dem Merge von ${branch} (Drehbuch)`);
+        return sterben(`Programm beendet nach dem Andocken von ${branch} (Drehbuch)`);
       }
       return { ok: true, commit: `m${welt.gemergt.length}` };
     },

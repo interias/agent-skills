@@ -14,6 +14,7 @@ import { NEUSTART, type SkillStand } from '../src/treiber/stand.ts';
 import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
 import { flotteDir, leer, lebt, neuesEpic, schreibe as schreibeZustand, startZeit } from '../src/werkzeuge/zustand.ts';
+import { liesMessungen } from '../src/werkzeuge/prognose.ts';
 import { spawn } from 'node:child_process';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, quelleMitOrigin } from './flotte-welt.ts';
@@ -358,7 +359,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/neu eingereiht\. Grund der Blockade war: Konto .* ist nicht angemeldet/);
       expect(z.epics['3'].stufe).toBe('fertig');
-      expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Epic neu eingereiht vom Menschen'))).toHaveLength(1);
+      expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Mission neu eingereiht vom Menschen'))).toHaveLength(1);
       expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
     } finally {
       await b.zu();
@@ -470,7 +471,7 @@ describe('Flottenbrücke (#28)', () => {
     });
     try {
       // #4 ends only once #3 waits for it (an event), so the requeue meets an open predecessor
-      const t = aufbau({ bodies, signale: { 'wartet-3': /^#3 neu eingereiht .*Vorgänger #4 noch nicht gemergt, wartet/ } });
+      const t = aufbau({ bodies, signale: { 'wartet-3': /^#3 neu eingereiht .*Vorgänger #4 noch nicht angedockt, wartet/ } });
       const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
       const buch = drehbuch([lauf(3, [abgemeldet], 1), lauf(4, [{ signal: 'wartet-3' }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, maxDauerMs: 120_000 }), t.welt);
@@ -480,7 +481,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(t.p.zeitleiste.indexOf('gemergt 14')).toBeLessThan(t.p.zeitleiste.indexOf('gemergt 13'));
       expect(t.p.zeitleiste.indexOf('gemergt 14')).toBeGreaterThan(-1);
       expect(z.epics['3'].stufe).toBe('fertig');
-      expect(z.ereignisse.some((e) => e.epic === 3 && /neu eingereiht vom Menschen \(über die Brücke\), Vorgänger #4 noch nicht gemergt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
+      expect(z.ereignisse.some((e) => e.epic === 3 && /neu eingereiht vom Menschen \(über die Brücke\), Vorgänger #4 noch nicht angedockt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
     } finally {
       await b.zu();
     }
@@ -559,7 +560,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(z.epics['3'].widerrufe ?? []).toEqual([]);
       expect(z.entscheidungen[0].widerrufen).toBe('zu spät');
       const texte = z.ereignisse.filter((e) => e.epic === 3).map((e) => e.text);
-      expect(texte.some((x) => /Widerruf zu Frage 1 kam nach dem Merge/.test(x))).toBe(true);
+      expect(texte.some((x) => /Widerruf zu Frage 1 kam nach dem Andocken/.test(x))).toBe(true);
       expect(texte.some((x) => /Widerruf über die Brücke zu Frage 1: schon widerrufen/.test(x))).toBe(true);
     } finally {
       await b.zu();
@@ -616,7 +617,7 @@ describe('Flottenbrücke (#28)', () => {
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       writeFileSync(`${buch.datei}.signal-weiter`, '');
       expect(z.epics['3'].stufe).toBe('laeuft');
-      expect(t.p.meldungen.some((m) => /^Angehalten auf Wunsch: kein Merge offen, 1 Lauf/.test(m))).toBe(true);
+      expect(t.p.meldungen.some((m) => /^Angehalten auf Wunsch: kein Andocken offen, 1 Lauf/.test(m))).toBe(true);
       // the request is used up: the next start runs normally
       expect(datei && !existsSync(datei)).toBe(true);
       const weiter = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
@@ -724,8 +725,8 @@ describe('Einstellungen über die Brücke (#58)', () => {
   it('every setting: a valid value holds from the next turn, as event and in the logbook; an invalid one is refused with an event; the report names value and origin', async () => {
     const t = aufbau();
     const [k1, k2] = t.konten.map((k) => basename(k));
-    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['meldung', 'an']];
-    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['meldung', 'laut'], ['rechte', 'alle']];
+    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['triageModell', 'sonnet'], ['admiralModell', 'opus'], ['meldung', 'an']];
+    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['triageModell', 'haiku'], ['admiralModell', 'claude-opus-5-5'], ['admiralModell', null], ['meldung', 'laut'], ['rechte', 'alle']];
     const b = await attrappe(() => null, { handlung: nacheinander([...gueltig, ...ungueltig].map(([n, w]) => einstellen(n, w))) });
     try {
       const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
@@ -747,6 +748,10 @@ describe('Einstellungen über die Brücke (#58)', () => {
       expect(letzter.einstellungen.find((x) => x.name === 'konten')).toMatchObject({ standard: [k1, k2], leer: false, auswahl: expect.arrayContaining([k1, k2]) });
       expect(letzter.einstellungen.find((x) => x.name === 'obergrenze')).toMatchObject({ min: 1, max: 4, leer: true, standard: null });
       expect(letzter.einstellungen.find((x) => x.name === 'merge')).toMatchObject({ titel: 'Andocken', standard: 'mensch', leer: false, werte: ['mensch'], hinweis: expect.stringContaining('merge: nach_gate') });
+      // #166: the models of triage and admiral, a choice of three words
+      expect(letzter.einstellungen.find((x) => x.name === 'triageModell')).toMatchObject({ standard: 'opus', leer: false, werte: ['opus', 'fable', 'sonnet'], hinweis: null });
+      expect(letzter.einstellungen.find((x) => x.name === 'admiralModell')).toMatchObject({ standard: 'fable', leer: false, werte: ['opus', 'fable', 'sonnet'] });
+      expect(texte).toContain('Einstellung Modell der Triage über die Brücke abgelehnt: "haiku" ist nicht opus oder fable oder sonnet');
       // in effect: limit and idle limit; still no account path in the report
       expect(letzter.obergrenze).toBe(2);
       expect(letzter.leerlaufS).toBe(1800);
@@ -840,6 +845,29 @@ describe('Einstellungen über die Brücke (#58)', () => {
     }
   }, T);
 
+  it('#166: the admiral model of the bridge holds for the next question block', async () => {
+    const t = aufbau({});
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || x.epics.filter((e) => e.prozess).length < 1) return null;
+        gesendet = true;
+        return einstellen('admiralModell', 'opus');
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      // the stand-in world starts the admiral without --model; the setting of the bridge gives it one
+      const modelle = buch.gesehen().filter((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL')).map((g) => (g.args.includes('--model') ? g.args[g.args.indexOf('--model') + 1] : null));
+      expect(modelle).toEqual(['opus']);
+      expect(z.einstellungen).toMatchObject({ admiralModell: { wert: 'opus' } });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('the same value is no change for the run (#60)', async () => {
     const t = aufbau({});
     let gesendet = false;
@@ -883,8 +911,8 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(b.berichte[0].epics.map((e) => [e.nr, e.imEinsatz])).toEqual([[3, true]]);
       expect(z.epics['4'].stufe).toBe('fertig');
       expect(z.aufgenommen).toEqual([4]);
-      expect(texte(z)).toContain('Epic #4 in den Einsatz aufgenommen, Mensch über die Brücke');
-      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text === '**Flotte (Treiber)** — Epic #4 in den Einsatz aufgenommen, Mensch über die Brücke.')).toBe(true);
+      expect(texte(z)).toContain('Mission #4 in den Einsatz aufgenommen, Mensch über die Brücke');
+      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text === '**Flotte (Treiber)** — Mission #4 in den Einsatz aufgenommen, Mensch über die Brücke.')).toBe(true);
       const danach = b.berichte.find((x) => x.epics.some((e) => e.nr === 4))!;
       expect(danach.freigegeben).toEqual([]);
       expect(danach.epics.find((e) => e.nr === 4)!.imEinsatz).toBe(true);
@@ -921,7 +949,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
     const b = await attrappe(() => null, { handlung: nacheinander([{ epic: 5, art: 'aufnehmen' }, { epic: 3, art: 'aufnehmen' }]) });
     try {
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 400 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), t.welt);
-      expect(texte(z)).toContain('Aufnehmen über die Brücke abgelehnt: kein offenes Epic mit epic und ready-for-agent');
+      expect(texte(z)).toContain('Aufnehmen über die Brücke abgelehnt: keine offene Mission mit epic und ready-for-agent');
       expect(texte(z)).toContain('Aufnehmen über die Brücke abgelehnt: schon im Einsatz');
       expect(z.epics['5']).toBeUndefined();
       expect(z.aufgenommen ?? []).toEqual([]);
@@ -947,13 +975,13 @@ describe('Epics steuern über die Brücke (#61)', () => {
       const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, obergrenze: 1 }), t.welt);
       expect(z.epics['4']).toMatchObject({ stufe: 'fertig', pausiert: null });
       const m = t.p.meldungen;
-      expect(index(m, /^#4 Epic #4 pausiert, startet nicht; Mensch über die Brücke$/)).toBeGreaterThanOrEqual(0);
-      expect(index(m, /^#4 Epic #4 pausiert/)).toBeLessThan(index(m, /^#3 Zug zu Ende/));
-      expect(index(m, /^#4 Epic #4 fortgesetzt; Mensch über die Brücke$/)).toBeLessThan(index(m, /^#4 Lauf gestartet/));
+      expect(index(m, /^#4 Mission #4 pausiert, startet nicht; Mensch über die Brücke$/)).toBeGreaterThanOrEqual(0);
+      expect(index(m, /^#4 Mission #4 pausiert/)).toBeLessThan(index(m, /^#3 Zug zu Ende/));
+      expect(index(m, /^#4 Mission #4 fortgesetzt; Mensch über die Brücke$/)).toBeLessThan(index(m, /^#4 Lauf gestartet/));
       const pausiert = b.berichte.find((x) => x.epics.find((e) => e.nr === 4)?.pausiert)!.epics.find((e) => e.nr === 4)!;
       expect(pausiert).toMatchObject({ stufe: 'wartend', notiz: 'pausiert vom Menschen' });
       expect(Date.parse(pausiert.pausiert!)).toBeGreaterThan(0);
-      expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Epic #4 (pausiert|fortgesetzt)/.test(k.text))).toHaveLength(2);
+      expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Mission #4 (pausiert|fortgesetzt)/.test(k.text))).toHaveLength(2);
     } finally {
       await b.zu();
     }
@@ -979,13 +1007,41 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/Antwort des Admirals auf FLOTTE-FRAGE tor:\n1\. A/);
       const m = t.p.meldungen;
-      const pause = index(m, /^#3 Epic #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/);
+      const pause = index(m, /^#3 Mission #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/);
       expect(pause).toBeGreaterThanOrEqual(0);
       expect(pause).toBeLessThan(index(m, /^#3 Zug zu Ende/));
-      expect(index(m, /^#3 Zug zu Ende/)).toBeLessThan(index(m, /^#3 Epic #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
-      expect(index(m, /^#3 Epic #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
+      expect(index(m, /^#3 Zug zu Ende/)).toBeLessThan(index(m, /^#3 Mission #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
+      expect(index(m, /^#3 Mission #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
       expect(z.ereignisse.some((x) => /abgebrochen|Leerlauf|beendet den Zug/.test(x.text))).toBe(false);
       expect(gestoppt).toBeGreaterThan(5);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#202: a pause is no work: the measurement takes it off arbeitS and keeps it as pauseS', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const e = x.epics[0];
+        if (e?.prozess && !e.pausiert) return { epic: 3, art: 'pausieren' };
+        // the held turn waits at least 3 s for the person
+        if (e?.pausiert && !e.prozess && e.stufe === 'laeuft' && Date.now() - Date.parse(e.pausiert) > 3000) return { epic: 3, art: 'fortsetzen' };
+        return null;
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pausiert: null });
+      const [m] = liesMessungen(flotteDir(t.repo)).filter((x) => x.epic === 3);
+      const gesamt = Math.round((Date.parse(m.ende) - Date.parse(m.start)) / 1000);
+      expect(m.pauseS).toBeGreaterThanOrEqual(1);
+      expect(m.limitS).toBe(0);
+      expect(m.menschWartenS).toBe(0);
+      expect(m.arbeitS).toBe(Math.max(0, gesamt - m.pauseS! - m.limitS! - m.menschWartenS));
+      expect(m.arbeitS).toBeLessThan(gesamt);
+      expect(z.ereignisse.some((x) => x.text.startsWith(`Gemessen für die Prognose: ${Math.round(m.arbeitS / 60)} min Arbeit`))).toBe(true);
     } finally {
       await b.zu();
     }
@@ -1037,8 +1093,8 @@ describe('Epics steuern über die Brücke (#61)', () => {
       const m = t.p.meldungen;
       const frageWeg = index(m, /^#3 RAM-Frage wegen der Pause: weiter nach fortsetzen$/);
       expect(frageWeg).toBeGreaterThanOrEqual(0);
-      expect(frageWeg).toBeLessThan(index(m, /^#3 Epic #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
-      expect(index(m, /^#3 Epic #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
+      expect(frageWeg).toBeLessThan(index(m, /^#3 Mission #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
+      expect(index(m, /^#3 Mission #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
       // the driver's own brake stays free: the pause is no memory reading
       expect(m.some((x) => /RAM (hold|warn)|wartet auf RAM|RAM-Frage: weiter, sobald/.test(x))).toBe(false);
     } finally {
@@ -1064,7 +1120,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(x).toContain('Fortsetzen über die Brücke abgelehnt: nicht pausiert');
       expect(x).toContain('Pausieren über die Brücke abgelehnt: schon pausiert');
       expect(x).toContain('Priorität über die Brücke abgelehnt: unbekannte Priorität "dringend"');
-      expect(x).toContain('Handlung pausieren über die Brücke: Epic gehört nicht zu diesem Einsatz');
+      expect(x).toContain('Handlung pausieren über die Brücke: Mission gehört nicht zu diesem Einsatz');
       expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pausiert: null });
       expect(z.epics['3'].prioritaet).toBeUndefined();
       expect(b.hQuittungen.filter((n) => n > 0)).toHaveLength(6);
@@ -1174,7 +1230,7 @@ describe('Andocken je Projekt und Epic (#112)', () => {
       expect(x).toContain('Andocken über die Brücke abgelehnt: unbekannte Stellung "irgendwie"');
       expect(x).toContain('Andocken von #3 von mensch → auf mensch, Mensch über die Brücke');
       expect(x).toContain('Andocken von #3 von mensch → auf den Vorschlag (mensch), Mensch über die Brücke');
-      expect(x).toContain('Handlung merge über die Brücke: Epic gehört nicht zu diesem Einsatz');
+      expect(x).toContain('Handlung merge über die Brücke: Mission gehört nicht zu diesem Einsatz');
       expect(z.epics['3'].merge).toBeNull();
       expect(b.berichte.at(-1)!.epics.find((e) => e.nr === 3)!.merge).toEqual({ stellung: 'mensch', herkunft: 'vorschlag', grund: 'Geld: „Preis“ in #3' });
       expect(b.hQuittungen.filter((n) => n > 0)).toHaveLength(5);
@@ -1225,7 +1281,7 @@ describe('Andocken je Projekt und Epic (#112)', () => {
       expect(t.p.merges).toEqual([13]);
       expect(z.epics['3'].stufe).toBe('fertig');
       expect(z.epics['4']).toMatchObject({ stufe: 'pr', merge: 'mensch' });
-      expect(t.p.kommentare.filter((k) => k.nr === 4 && k.text.startsWith('**PR bereit') && k.text.includes('Andocken: Mensch prüft, Schalter am Epic'))).toHaveLength(1);
+      expect(t.p.kommentare.filter((k) => k.nr === 4 && k.text.startsWith('**PR bereit') && k.text.includes('Andocken: Mensch prüft, Schalter an der Mission'))).toHaveLength(1);
     } finally {
       await b.zu();
     }
@@ -1246,6 +1302,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     // the final check of a clean run; the driver reads it like a missing one (#163: the type wants it)
     abschluss: { geprueft: 0, sauber: 0, abweichungen: [] },
     zustand: 'beendet',
+    messung: { aufrufe: 0, dauerMs: 0, zugriffe: 0 },
   });
   const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
 
@@ -1312,6 +1369,41 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // they outlive a restart in the state
       expect(z.triage!.entscheidungen.map((d) => d.nr)).toEqual([7, 8]);
       expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#166: the triage runs with triageModell, opus without a setting; a change holds from the next run, the running one keeps its model', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(zwei(), 1200);
+    let schritt = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (schritt === 0) return (schritt++, { epic: 0, art: 'triage' });
+        if (schritt === 1 && x.triage.laeuft) return (schritt++, { epic: 0, art: 'einstellen', text: JSON.stringify({ name: 'triageModell', wert: 'sonnet' }) });
+        if (schritt === 2 && !x.triage.laeuft && x.einstellungen.find((e) => e.name === 'triageModell')?.wert === 'sonnet') return (schritt++, { epic: 0, art: 'triage', text: 'zweiter Lauf' }); // the stand-in offers an equal action once
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 6000 }), { ...t.welt, triagiere: tr.f });
+      expect(tr.aufrufe.map((a) => a.modell)).toEqual(['opus', 'sonnet']);
+      expect(texte(z)).toContain('Einstellung Modell der Triage von opus → auf sonnet, Mensch über die Brücke');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#167: the triage gets triageLesenMax (15 without a setting); the logbook line names duration and file accesses', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe({ ...ergebnis([{ nummer: 30, ergebnis: 'klar', geschrieben: true }]), messung: { aufrufe: 2, dauerMs: 95_000, zugriffe: 7 } });
+    const b = await attrappe(() => null, { handlung: (x) => (x.triage.beendet ? null : { epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(tr.aufrufe[0].lesenMax).toBe(15);
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei, 0 geschlossen, 0 Fragen an den Menschen; Dauer 95 s in 2 Aufrufen, 7 Dateizugriffe');
+      expect(b.berichte.at(-1)!.einstellungen.find((e) => e.name === 'triageLesenMax')).toMatchObject({ wert: 15, min: 0, max: 100 });
     } finally {
       await b.zu();
     }
@@ -1567,7 +1659,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       const am3 = t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Widerruf'));
       expect(am3).toHaveLength(1);
-      expect(am3[0].text).toBe('**Widerruf des Menschen (Mensch über die Brücke)** — Mission #3 „Portprüfung“ aus dem Schnittplan zurückgenommen\nEinwand: Port gehört in die Tafel-Mission.\nDanach: `ready-for-agent` ab, ein laufender Außeneinsatz angehalten (pausiert, gemergt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele #30, #31 gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).\nHerkunft: Mensch über die Brücke');
+      expect(am3[0].text).toBe('**Widerruf des Menschen (Mensch über die Brücke)** — Mission #3 „Portprüfung“ aus dem Schnittplan zurückgenommen\nEinwand: Port gehört in die Tafel-Mission.\nDanach: `ready-for-agent` ab, ein laufender Außeneinsatz angehalten (pausiert, angedockt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele #30, #31 gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).\nHerkunft: Mensch über die Brücke');
       // the comment before every change
       const an3 = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'comment' && a[3] === '3');
       const kommentar3 = t.p.aufrufe.indexOf(an3[t.p.kommentare.filter((k) => k.nr === 3).indexOf(am3[0])]);
@@ -1575,7 +1667,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(kommentar3).toBeLessThan(stelle('gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label'));
       expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label')]).toEqual(['gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label', 'ready-for-agent']);
       // the run on it is paused, never aborted
-      expect(t.p.meldungen.some((m) => /^#3 Epic #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/.test(m))).toBe(true);
+      expect(t.p.meldungen.some((m) => /^#3 Mission #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/.test(m))).toBe(true);
       expect(z.epics['3'].pausiert).toBeTruthy();
       expect(z.ereignisse.some((x) => /abgebrochen|aufgegeben/.test(x.text))).toBe(false);
       // the PR the turn ended with waits for a person: the switch of the epic says mensch, merge.ps1 never ran
@@ -1678,7 +1770,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(texte(z)).toContain('Mission #4 aus dem Einsatz genommen (widerrufen, nicht gestartet), Mensch über die Brücke');
       expect(z.epics['4']).toBeUndefined();
       expect(z.aufgenommen ?? []).not.toContain(4);
-      expect(texte(z).some((x) => /Epic #4 pausiert|#4 Lauf gestartet|Andocken von #4/.test(x))).toBe(false);
+      expect(texte(z).some((x) => /Mission #4 pausiert|#4 Lauf gestartet|Andocken von #4/.test(x))).toBe(false);
       expect(t.p.meldungen.some((m) => /^#4 Lauf gestartet/.test(m))).toBe(false);
       expect(b.berichte.at(-1)!.epics.map((e) => e.nr)).toEqual([3]);
       expect(z.epics['3'].stufe).toBe('fertig');
@@ -1733,7 +1825,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     const b3 = await attrappe(() => null, { handlung: (x) => vorab.shift() ?? (x.freigegeben?.some((f) => f.nr === 4) ? { epic: 4, art: 'aufnehmen' } : null) });
     try {
       const z3 = await fahre(t3.einstellung(drehbuch([lauf(4, [{ text: ende(4, 14) }])]), [], { auto: true, bruecke: b3.url, dauerhaft: true, maxDauerMs: 2500 }), t3.welt);
-      expect(texte(z3)).toContain('Epic #4 in den Einsatz aufgenommen (sein Widerruf über die Brücke ist damit aufgehoben), Mensch über die Brücke');
+      expect(texte(z3)).toContain('Mission #4 in den Einsatz aufgenommen (sein Widerruf über die Brücke ist damit aufgehoben), Mensch über die Brücke');
       expect(z3.epics['4'].stufe).toBe('fertig');
       expect(z3.widerrufen).toEqual([]);
     } finally {
@@ -2026,6 +2118,25 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       await b.zu();
     }
   }, T);
+
+  it('#170: a clear proposal whose note stands in the cut plan of the same run counts once, as that note', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const tr = triageAttrappe(
+      ergebnis([
+        { nummer: 50, titel: 'Typprüfung', url: LERN_URL, herkunft: 'h', grund: 'g', lernvorschlag: 'Lernvorschlag 555/1', ergebnis: 'klar', missionsziel: 200 },
+        { nummer: 200, titel: 'Typprüfung', url: 'https://github.com/o/r/issues/200', herkunft: 'h2', grund: 'g2', ergebnis: 'klar', mission: 40, zuordnung: 'mission' },
+      ]),
+      50,
+    );
+    const b = await attrappe(() => null, { handlung: (x) => (x.triage.entscheidungen.length ? null : { epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(z.triage!.entscheidungen.map((d) => [d.nr, d.titel, d.lernvorschlag, d.mission])).toEqual([[200, 'Typprüfung', undefined, 40]]);
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei (1 an Missionen angehängt), 0 geschlossen, 0 Fragen an den Menschen');
+    } finally {
+      await b.zu();
+    }
+  }, T);
 });
 
 describe('Stand und Einspielen über die Brücke (#154)', () => {
@@ -2087,7 +2198,7 @@ describe('Stand und Einspielen über die Brücke (#154)', () => {
       expect(z.epics['3'].stufe).toBe('laeuft');
       const n = t.p.meldungen.findIndex((m) => m.startsWith('Einspielen und Neustart angefordert: nichts Neues mehr; laufende Läufe arbeiten weiter'));
       expect(n).toBeGreaterThanOrEqual(0);
-      expect(t.p.meldungen.findIndex((m) => /^Angehalten auf Wunsch: kein Merge offen, 1 Lauf/.test(m))).toBeGreaterThan(n);
+      expect(t.p.meldungen.findIndex((m) => /^Angehalten auf Wunsch: kein Andocken offen, 1 Lauf/.test(m))).toBeGreaterThan(n);
       expect(b.hQuittungen).toHaveLength(1);
       expect(b.berichte.some((x) => x.version.einspielen !== null)).toBe(true);
       // the steps after the halt, as an attrappe records them: einspielen, then the same command line

@@ -56,6 +56,9 @@ export function schrittAus(d: any): string | null {
   return s;
 }
 
+/** #167: the tools that count as a file access; StructuredOutput and the like do not */
+const DATEI_WERKZEUGE = ['Read', 'Grep', 'Glob'];
+
 export interface LaufErgebnis {
   sitzung: string | null;
   code: number | null;
@@ -74,6 +77,8 @@ export interface LaufErgebnis {
   fehler: Fehlerart;
   dauerMs: number;
   stderr: string;
+  /** #167: the tool calls of the run; the triage reads only files, so these are its file accesses */
+  zugriffe?: number;
 }
 
 /** Evaluates stream-json lines, live or from a log. */
@@ -88,6 +93,8 @@ export class Auswertung {
   sperren: HookSperre[] = [];
   /** the last step of the run (schrittAus) */
   schritt: string | null = null;
+  /** #167: the file accesses of the run (each Read, Grep, Glob of an assistant message, a subagent's too) */
+  zugriffe = 0;
   zeile(roh: string, jetzt = Date.now()): void {
     let d: any;
     try {
@@ -100,6 +107,7 @@ export class Auswertung {
     if (d?.type === 'system' && d.subtype === 'init' && Array.isArray(d.tools)) this.werkzeuge = d.tools.map(String);
     if (d?.type === 'system' && d.subtype === 'init' && typeof d.model === 'string') this.modell = d.model;
     if (d?.type === 'rate_limit_event' && d.rate_limit_info) this.verbrauch = ausEreignis(d.rate_limit_info, jetzt);
+    if (d?.type === 'assistant' && Array.isArray(d.message?.content)) this.zugriffe += d.message.content.filter((c: any) => c?.type === 'tool_use' && DATEI_WERKZEUGE.includes(c.name)).length;
     if (d?.type === 'user' && Array.isArray(d.message?.content)) {
       for (const c of d.message.content) {
         if (c?.type !== 'tool_result' || !c.is_error) continue;
@@ -120,7 +128,7 @@ export class Auswertung {
   ergebnis(code: number | null, leerlauf: boolean, dauerMs: number, stderr: string): LaufErgebnis {
     const text = [...this.ergebnisse].reverse().find((e) => e.text.trim())?.text ?? '';
     const verweigert = this.ergebnisse.flatMap((e) => e.verweigert);
-    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, sperren: this.sperren, verbrauch: this.verbrauch, strukturiert: this.strukturiert, modell: this.modell, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000) };
+    return { sitzung: this.sitzung, code, leerlauf, ergebnisse: this.ergebnisse, text, verweigert, sperren: this.sperren, verbrauch: this.verbrauch, strukturiert: this.strukturiert, modell: this.modell, fehler: fehlerart(this.ergebnisse, code, leerlauf, stderr), dauerMs, stderr: stderr.slice(-2000), zugriffe: this.zugriffe };
   }
 }
 

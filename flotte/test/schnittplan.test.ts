@@ -82,7 +82,7 @@ describe('#146 Schnittplan: 12 Notizen zu 3 Themen', () => {
     const r = await triagiere(auftrag(true), t.w);
     expect(t.geplant).toHaveLength(1);
     expect(nummernIn(t.geplant[0].auftrag)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    expect(t.geplant[0].extraArgs).toEqual(['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob']);
+    expect(t.geplant[0].extraArgs).toEqual(['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob', '--max-turns', '18']);
     const [p] = r.schnittplan;
     expect(p.fehler).toBeUndefined();
     expect(p.neue_missionen.map((m) => [m.titel, m.kinder])).toEqual([['Portprüfung', [1, 2, 3, 4]], ['Tafel', [5, 6, 7, 8]], ['Logbuch', [9, 10, 11, 12]]]);
@@ -226,7 +226,7 @@ describe('#146 Schnittplan: offene Mission, verworfen, Duplikate', () => {
     const plan = { neue_missionen: [], zuordnungen: [{ notiz: 21, art: 'mission', mission: 40, grund: 'gleiches Thema wie #40', herkunft: 'Eigenes Urteil: Thema', ...KLAR }] };
     const t = welt([NOTIZ], plan, { missionen });
     const r = await triagiere(auftrag(), t.w);
-    expect(t.geplant[0].auftrag).toContain('## Mission #40: Portprüfung (3 Kinder, noch 5 frei)');
+    expect(t.geplant[0].auftrag).toContain('## Mission #40: Portprüfung (3 Missionsziele, noch 5 frei)');
     expect(t.geplant[0].auftrag).not.toContain('#41');
     expect(t.geplant[0].auftrag).not.toContain('#42');
     expect(r.schnittplan[0].neue_missionen).toEqual([]);
@@ -241,7 +241,7 @@ describe('#146 Schnittplan: offene Mission, verworfen, Duplikate', () => {
     const offen = [{ nummer: 40, titel: 'Portprüfung', body: '', kinder: 8 }];
     const mit = (mission: number) => ({ ...plan, zuordnungen: [{ ...plan.zuordnungen[0], mission }] });
     expect(schnittplanAus(mit(41), n, offen, REGELN)).toMatchObject({ art: 'ungueltig' });
-    expect(schnittplanAus(mit(40), n, offen, REGELN)).toEqual({ art: 'ungueltig', fehler: 'Mission #40 hätte mehr als 8 Kinder (8 + 1)' });
+    expect(schnittplanAus(mit(40), n, offen, REGELN)).toEqual({ art: 'ungueltig', fehler: 'Mission #40 hätte mehr als 8 Missionsziele (8 + 1)' });
     expect(schnittplanAus(mit(40), n, [{ ...offen[0], kinder: 7 }], REGELN).art).toBe('plan');
   });
 

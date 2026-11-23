@@ -30,7 +30,8 @@ Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brüc
 mit PIN) lassen sich ändern: Missionen gleichzeitig (1–4), Pakete je Mission gleichzeitig (1–3), die Konten
 der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
 100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
-Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#37) die Windows-Meldung
+Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#166) das Modell der Triage
+(Standard `opus`) und des Admirals (Startwert `--admiral-modell`), ab dem nächsten Aufruf, und (#37) die Windows-Meldung
 bei „Braucht dich“. Der Treiber prüft die
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
@@ -238,7 +239,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/
 `Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) liest alle Notizen, die ins Modell gehen
 (Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
 (Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Missionsziele aus
-`sub_issues_summary`, im Auftrag als `(<n> Kinder, noch <m> frei)` bzw. `(8 Kinder, voll, keine neuen Kinder)`;
+`sub_issues_summary`, im Auftrag als `(<n> Missionsziele, noch <m> frei)` bzw. `(8 Missionsziele, voll, keine neuen Missionsziele)`;
 eine, deren Missionsziele nicht lesbar sind, kommt nicht in Frage). Passende offene Missionen haben
 ausdrücklich Vorrang vor neuen, so gehen Notizen eines späteren Laufs in die Missionen früherer. Er liefert in
 einer strukturierten Antwort den Schnittplan und die Klärung jeder Notiz; eine Einzelklärung je Notiz gibt es
@@ -337,6 +338,9 @@ Mission für Mission geschrieben, je Notiz in dieser Reihenfolge:
    (Einwand, Widerruf), die nie `ready_label` trug (Ereignis `labeled`; wer es abnahm, hat widerrufen) und
    mindestens ein offenes Sub-Issue mit `ready_label` hat. Erst der Kommentar `**Triage: Warp frei der
    Mission nachgeholt**` mit Herkunft, dann das Label; Missionen eines Menschen tragen den Kommentar nie.
+   Trägt eine **offene** Mission noch `needs-triage`/`needs-info`, nennt ihr Kommentar das, und mit ihrem
+   ersten so freigegebenen Missionsziel nimmt die Triage das Label an ihr ab (#170); sonst stünde sie im
+   Frachtraum weiter als offene Notiz.
 
 Scheitert ein Schritt, bleibt die Notiz bei diesem Schritt stehen und ihr letzter Kommentar ist der der
 Triage: Der nächste Lauf überspringt sie (`wartet`), statt etwas doppelt anzulegen oder zu kommentieren,
@@ -361,25 +365,27 @@ nur ein Kommentar der Rollen `OWNER`, `MEMBER` oder `COLLABORATOR` (`authorAssoc
 Dritter gehen gar nicht ins Modell, das Repository kann öffentlich sein. Steht unter dem letzten
 Kommentar der Triage (Frage, oder Entscheidung, deren Freigabe gescheitert ist) kein solcher
 Kommentar, wird das Ticket übersprungen (`wartet`), ohne Modellaufruf. Triage legt keine Tickets an
-(agent-skills/ADR-0002), außer aus einem Lernvorschlag über den Auftragsschreiber (ein Missionsziel)
+(agent-skills/ADR-0002), außer aus einem Lernvorschlag über den Auftragsschreiber (eine Sternzeit-Notiz)
 und ebenso eine Mission aus dem Schnittplan, und spricht bisher
 nur GitHub; ein Gitea-Repository steht in `fehler`.
 
-**Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl danach jeden
-Vorschlag der Lernschleife an diesem Issue einzeln, einen `claude -p` je Vorschlag (Schema
-`triageSchema()`, dieselbe Fragerunde und Liste „beim Menschen“). Sie sind keine Sternzeit-Notizen,
-sondern Kommentare am Sammel-Issue, und gehen deshalb nicht in den Aufruf des Schnittplans.
+**Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl vor dem Schnittplan
+jeden Vorschlag der Lernschleife an diesem Issue einzeln, einen `claude -p` je Vorschlag (Schema
+`triageSchema()`, dieselbe Fragerunde und Liste „beim Menschen“). Sie sind Kommentare am Sammel-Issue;
+ein klarer wird eine Sternzeit-Notiz und geht in denselben Schnittplan wie die Tickets (#170).
 Als Vorschlag zählt nur ein Kommentar mit `<!-- lernschleife -->` der Rollen oben. Jeder
 Vorschlag hat die Kennung `Lernvorschlag <id>/<n>` (Id des Kommentars der Lernschleife, Nummer
 darin); alle Kommentare der Triage dazu stehen am `lern_issue` und nennen sie im Kopf, und als Antwort
 zählt dort nur ein Kommentar, der sie in der ersten Zeile nennt (eine weiter unten zitierte Kennung,
 etwa im „Vorher“ eines Widerrufs, zählt nicht).
 
-- **klar:** zuerst der Kommentar `**Triage: Lernvorschlag <id>/<n> wird Missionsziel, Warp frei**`
-  mit Herkunft, dann legt der Auftragsschreiber das Missionsziel an (Abschnitte wie oben nachgetragen
-  und geprüft, gleich mit `ready_label`, im Text der Vorschlag und `Herkunft: <Link des Kommentars>`),
+- **klar:** zuerst der Kommentar `**Triage: Lernvorschlag <id>/<n> wird Sternzeit-Notiz für den Schnittplan**`
+  mit Herkunft, dann legt der Auftragsschreiber die Notiz an (Abschnitte wie oben nachgetragen
+  und geprüft, mit `needs-triage`, im Text der Vorschlag und `Herkunft: <Link des Kommentars>`),
   dann der Kommentar `Vorschlag <n> aus <Kommentar> → #<neu>, widerrufbar (Lernvorschlag <id>/<n>)`.
-  Widerruf am Missionsziel: `ready_label` ab, `needs-triage` an.
+  Die Notiz geht in den Schnittplan desselben Laufs: Sie wird Missionsziel einer Mission (erst dann
+  `ready_label`), zusammengeführt, geschlossen oder gefragt wie jede Notiz, nie ein loses Missionsziel
+  (#170). Widerruf an der Notiz; hängt sie schon an einer Mission, dort `ready_label` ab, `needs-triage` an.
 - **überflüssig:** nur der Kommentar mit Grund; nichts wird angelegt.
 - **kritisch:** genau ein Kommentar mit `<!-- flotte:triage-frage -->` und
   `**FRAGE AN DEN MENSCHEN (Triage)** — Lernvorschlag <id>/<n> („<Titel>“, Vorschlag <n> aus <Kommentar>): …`.
@@ -398,6 +404,17 @@ Vorschlags über mehrere Zeilen gehört ganz zum Vorschlag, eine Leerzeile beend
 stehen offene Vorschläge als Tickets des `lern_issue` unter dem Thema `Lernschleife`, Titel mit der
 Kennung davor.
 
+**Fakten vom Programm** (#167): Vor dem ersten Aufruf eines Laufs liest das Programm je Projekt einmal,
+was fast jede Entscheidung braucht, und hängt es an jeden Auftrag (Schnittplan und Lernvorschläge): die
+ADRs unter `docs/adr` (Titel und Status), den Adapter `.claude/epic.md` (gekürzt), die letzten 15 angedockten PRs
+(`gh pr list --state merged`, Titel) und die Dateien, die die Notizen nennen (Pfade mit Ordner und Endung,
+die es gibt; je Datei und insgesamt gekürzt). Die offenen Missionen mit ihren Missionszielen stehen schon im
+Auftrag des Schnittplans. Das Modell liest nur, wenn ein Fakt fehlt, höchstens `triageLesenMax`
+Dateizugriffe je Aufruf (Einstellung im Maschinenraum, Standard 15); der Aufruf bekommt `--max-turns` =
+Grenze + 3. Die Grenze ist ungefähr: Ruft das Modell in einem Zug mehrere Werkzeuge auf, kann es sie
+überschreiten. Die Ausgabe nennt `messung` = `{aufrufe, dauerMs, zugriffe}` (`Read`, `Grep`, `Glob` aller
+Admiral-Aufrufe, nicht die Antwort über das Schema), die Zeile im Flottenlogbuch endet mit `; Dauer <s> s in <n> Aufrufen, <z> Dateizugriffe`.
+
 **Zum Menschen** kommt eine Frage der Triage nur auf zwei Wegen: als Fragekommentar am Ticket (bei
 einem Lernvorschlag am `lern_issue`) und im Frachtraum der Brücke. Einen Chat, der sie sammelt, gibt
 es nicht; das Entscheidungsrecht steht in `references/entscheidungsrecht.md`.
@@ -411,7 +428,10 @@ eine in diesem Lauf angelegte Mission trägt `ready_label` ebenfalls); **in der 
 (`needs-triage`/`needs-info`, der letzte Triage-Kommentar ist eine Frage ohne Antwort darunter). Alles
 andere ist eine Abweichung, auch eine klare Notiz, die der Plan auf `triage` ließ, und eine wartende
 Notiz, deren letzter Triage-Kommentar keine Frage ist (gescheiterte Freigabe): Der Lauf ist dann
-`unvollstaendig`, nicht beendet. Ausgabe `abschluss` = `{geprueft, sauber, abweichungen[] {forge, nr,
+`unvollstaendig`, nicht beendet. Die Notizen aus Lernvorschlägen dieses Laufs gehören zur Eingabe; dazu
+nennt `abweichungen` jedes andere offene Ticket mit `ready_label`, das an keiner offenen Mission hängt
+(freigegeben, aber ohne Mission: kein Außeneinsatz startet es; #170), ohne es in `geprueft` zu zählen. Solange ein solches Ticket steht, endet jeder Lauf `unvollstaendig`, bis
+ein Mensch es einer Mission zuordnet oder das Label abnimmt. Ausgabe `abschluss` = `{geprueft, sauber, abweichungen[] {forge, nr,
 titel, zustand, grund}}` und `zustand` = `beendet` | `unvollstaendig` | `abgebrochen`; bei `--trocken`
 und nach einem Abbruch entfällt die Prüfung (`entfaellt` nennt warum). Über die Brücke steht die Zeile dann als
 `Triage-Lauf unvollständig: …; N Notizen nicht sauber abgearbeitet: #a (<grund>), …` im Flottenlogbuch und
@@ -441,7 +461,7 @@ eine Antwort des Menschen als Kommentar ans Ticket (ohne Triage-Marke; die näch
 Tatsache) und widerruft eine Entscheidung: erst der Kommentar, dann (#148) bei einer an eine Mission
 gehängten Notiz das Lösen aus ihr (Sub-Issue und Zeile der Liste `## Missionsziele`), `ready_label` ab
 und `needs-triage` an, oder das Ticket wieder offen. Bei einem Lernvorschlag nennt die Antwort seine Kennung, der Widerruf
-von „klar“ wirkt am Missionsziel, der von „überflüssig“ ist nur der Kommentar am `lern_issue`.
+von „klar“ wirkt an ihrer Sternzeit-Notiz (#170), der von „überflüssig“ ist nur der Kommentar am `lern_issue`.
 
 **Schnittplan über die Brücke** (#148): Der Treiber meldet den Schnittplan seines letzten Triage-Laufs
 (`triage.schnittplan`): die angelegten Missionen (Nummer, Titel, Begründung, verknüpfte Missionsziele,
@@ -480,7 +500,8 @@ erste Kommentar an der Mission, ändert sich nichts. Felder und Handlungen: `flo
 `--trocken` und `klar` der ergänzte `body`; bei einer Notiz aus dem Schnittplan `zuordnung` = ihre Art
 im Plan, bei `klar` und angehängt `mission` = die Nummer ihrer Mission; bei einem Lernvorschlag
 `lernvorschlag` = Kennung, `nummer`
-das `lern_issue`, `url` der Kommentar der Lernschleife, bei `klar` `missionsziel`) und `fragen` (je
+das `lern_issue`, `url` der Kommentar der Lernschleife, bei `klar` `missionsziel` = die Nummer ihrer
+Sternzeit-Notiz, die als eigenes Ticket im Schnittplan desselben Laufs steht) und `fragen` (je
 `forge`, `ticket`, `url`, `frage`, `optionen`, `empfehlung`, `grund`, `herkunft`, `marke` = Punkt der
 Liste: `nach außen`, `Geld`, `Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`;
 bei einem Lernvorschlag `lernvorschlag`) mit den in diesem Lauf neu gestellten Fragen, dazu `offen`
@@ -571,8 +592,11 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
 
 - **Messen:** Je fertiger Mission schreibt der Treiber eine Zeile in
   `<git common dir>/flotte/messungen.jsonl`. Sie überdauert Einsätze. In der Zeile stehen:
-  - die Arbeitszeit vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der der ganze
-    Lauf auf dich wartete;
+  - die Arbeitszeit (`arbeitS`) vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der
+    der ganze Lauf auf dich wartete (`menschWartenS`), pausiert war (`pauseS`) oder sein nächster Zug
+    an einer Bremse hing, am Limit des Kontos oder am RAM (`limitS`, #202); die drei stehen als eigene
+    Felder daneben, ältere Zeilen haben `pauseS` und `limitS` nicht. Hält ein schon laufender Zug selbst
+    an (Pause oder RAM-Halt in `ram.ps1` vor dem nächsten Paket), zählt diese Zeit weiter als Arbeit;
   - die Andockprüfungs-Zeit des Treibers und das Konto;
   - je Paket die Klasse (mechanisch, Standard, Urteil, Urteil-hoch) und die Eskalationen, gelesen
     aus den Ingenieur-Aufrufen im Log des Laufs.

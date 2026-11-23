@@ -87,7 +87,7 @@ describe('#169: an open prerequisite parks the mission, in step with the driver 
   const vorbedingung = abschnitt('- **Vorbedingung prüfen:**', '- **Basis bestimmen**');
   it('the other two branches stay as they were', () => {
     expect(vorbedingung).toContain('werden diese Tickets im selben Lauf mitbearbeitet — ein Missions-Branch, ein Pull Request.');
-    expect(vorbedingung).toContain('Hängen nur **einzelne** Kinder daran, werden diese übersprungen (Phase 2d).');
+    expect(vorbedingung).toContain('Hängen nur **einzelne** Missionsziele daran, werden diese übersprungen (Phase 2d).');
   });
   it('otherwise: no work surfaces, no pull request, a comment with reason and resumption', () => {
     expect(vorbedingung).toContain('Sonst **parkt die Mission**');

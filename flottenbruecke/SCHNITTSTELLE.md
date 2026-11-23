@@ -116,7 +116,8 @@ Eingabe in einem erlaubten Endzustand), `unvollstaendig` (die Abschlussprüfung 
 Notizen ohne erlaubten Endzustand) oder `abgebrochen` (`grund`: `Treiber angehalten`, `Treiber mit Ctrl+C
 beendet` oder `Neustart des Treibers`, wenn der Lauf beim Start noch als laufend galt). `abweichungen[]`
 (höchstens 200) je `{nr, titel, zustand, grund}`: `zustand` was die Forge zeigt (`offen, needs-triage`,
-`geschlossen`, …), `grund` welcher Endzustand fehlt. Die Endzustände: README von flotte, „Triage“.
+`geschlossen`, …), `grund` welcher Endzustand fehlt. Die Endzustände: README von flotte, „Triage“. #170:
+`abweichungen[]` nennt auch jedes andere offene Ticket mit `ready_label`, das an keiner offenen Mission hängt.
 
 **Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, liest der Treiber dazu die Kommentare dieses
 Issues (`gh issue view`, ein Aufruf) und meldet jeden noch offenen Vorschlag der Lernschleife (keine
@@ -129,7 +130,7 @@ Kommentar `→ #<neu>` ist entschieden und erscheint nie wieder, auch nach einem
 seiner Kennung. Scheitert das Lesen des `lern_issue`, meldet der Treiber die Sternzeit-Notizen ohne
 Vorschläge. Eine Frage zu einem Vorschlag hat `ticket` = `lern_issue`,
 denselben Titel und zusätzlich `lernvorschlag` (die Kennung); eine Entscheidung ebenso `lernvorschlag`,
-bei `klar` ist `nr` das angelegte Missionsziel, bei `ueberfluessig` das `lern_issue`, und `zeit` ist je
+bei `klar` ist `nr` die angelegte Sternzeit-Notiz (#170: sie geht in den Schnittplan desselben Laufs), bei `ueberfluessig` das `lern_issue`, und `zeit` ist je
 Eintrag eigen (Millisekunden), damit (`nr`, `zeit`) Schlüssel bleibt. Die Brücke verwirft
 `lernvorschlag` wie jedes unbekannte Feld; der Treiber hält es selbst. Sie markiert im Frachtraum alle
 Vorschläge eines `lern_issue` mit „Frage“, sobald einer eine offene Frage hat (`frage` hängt an `nr`).
@@ -155,8 +156,8 @@ Thema sind die Labels ohne `needs-triage`, `needs-info`, `ready-for-agent`, `sta
 Thema“ unten, sonst nach Namen; darin Tickets mit Frage zuerst, dann nach Nummer.
 
 **Einstellungen** (#58): je Einstellung `{name, titel, wert, herkunft, seit, standard, leer, min?, max?,
-auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (zwölf; ein älterer Treiber meldet die
-ersten zehn ohne `merge` oder die ersten elf ohne `meldung`). `herkunft` ist `start` (Startparameter oder ein
+auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (fünfzehn; ein älterer Treiber meldet die
+ersten zehn ohne `merge` oder elf bis vierzehn ohne die späteren). `herkunft` ist `start` (Startparameter oder ein
 vom Standard abweichender Startwert), `bruecke` (zuletzt über die Brücke geändert) oder `standard`;
 `seit` ist bei `bruecke` der Zeitpunkt der Änderung, sonst der Beginn des Einsatzes. `standard` ist
 der Wert ohne Startparameter und Brücke. `leer: true` heißt, `wert` darf `null` sein (zurück auf
@@ -180,6 +181,9 @@ Hinweis ab.
 | `platteMinGb` | Plattenminimum (GB) | Zahl | 1–1000, Standard 20; Startparameter `--platte-min-gb` | darunter startet nichts Neues |
 | `leerlaufMin` | Leerlauf (Minuten bis Nachfassen/Abbruch) | Zahl | 5–480, Standard 60; Startparameter `--leerlauf-min` | gilt für jeden Zug, der danach beginnt; ein laufender Zug behält seine Grenze. `leerlaufS` folgt |
 | `merge` | Andocken | `automatisch` oder `mensch` | `werte`; Standard = Adapterschlüssel `merge` (`nach_gate` → `automatisch`, sonst `mensch`) | wie das Projekt andockt, ab dem nächsten Takt: `automatisch` = Andock-Schlange und `merge.ps1` nach grüner Andockprüfung, `mensch` = wie `merge: mensch` (PR bereit, ein Mensch dockt an). Je Mission gilt die wirksame Stellung (Missions-Feld `merge`); ein PR, der nur wegen ihr wartet, kommt bei `automatisch` in die Schlange |
+| `triageModell` | Modell der Triage | `opus`, `fable` oder `sonnet` | `werte`; Standard `opus` | das Modell des nächsten Triage-Laufs (mit Schnittplan); ein laufender behält seines |
+| `admiralModell` | Modell des Admirals | `opus`, `fable` oder `sonnet` | `werte`; Standard `fable`; Startparameter `--admiral-modell` | das Modell des nächsten Frageblocks des Admirals |
+| `triageLesenMax` | Dateizugriffe der Triage je Aufruf | Zahl | 0–100, Standard 15 | #167: so viele Dateien darf das Modell eines Triage-Aufrufs selbst lesen (`--max-turns` danach); die üblichen Fakten legt das Programm vor. Ab dem nächsten Aufruf |
 | `meldung` | Windows-Meldung bei „Braucht dich“ | `an` oder `aus` | `werte`; Standard `aus`; Startparameter `--meldung` | #37: bei `an` zeigt der Rechner des Treibers je neuer offener Frage und je neu blockierter oder abgebrochener Mission eine Windows-Meldung (Windows PowerShell, ohne Modul), mehrere aus demselben Takt als eine mit der Zahl. Inhalt nur Projektkürzel, Missionsnummer, Art (Frage/Blockade) und Titel (höchstens 60 Zeichen). Gemeldete Ereignisse stehen in `zustand.json` (`gemeldet`), auch bei `aus`: Nach einem Neustart oder beim Einschalten klingelt nichts Altes |
 
 **Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
@@ -346,7 +350,7 @@ Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`
 | `einspielen` | #154: `epic` `0`, `nr`, `seit` `null`, mit PIN; `text` setzt die Brücke selbst auf `{"bruecke": <commit ihres Images oder null>}`; `forge` ein Projekt mit `version` im Bericht (`404` unbekannt, `409` ohne `version` oder wenn `version.einspielen` schon steht) oder `alle`: eine Handlung je solchem Projekt (Antwort `{ok, id, ids}`) | ohne `stand.json` ein Ereignis `Einspielen über die Brücke abgelehnt: …`. Sonst hält er an wie `flotte anhalten` (nichts Neues, ein offenes Andocken läuft zu Ende, `version.einspielen.wartetAuf` nennt es; Läufe arbeiten weiter), Ereignis und Flottenlogbuch `Einspielen und Neustart angefordert: …`. Danach in der Quelle: sauber und auf `main`, `git pull --ff-only origin main`, `install.ps1`, `docker compose up -d --build` in `flottenbruecke/` nur, wenn sich der Ordner seit `bruecke` geändert hat (mit `BRUECKE_COMMIT`/`BRUECKE_DATUM`), dann derselbe Aufruf neu. Der neue Treiber übernimmt die Läufe und schreibt `Neuer Stand eingespielt: <alt> → <neu> (<datum>), Brücke neu gebaut` (oder `unverändert`) bzw. `Einspielen gescheitert: <grund>` ins Logbuch |
 | `konto_anlegen`, `konto_deaktivieren`, `konto_aktivieren`, `konto_anmelden` | #95: mit PIN; `konto_anlegen`: `epic` `0`, `text` ein Name (höchstens 60 Zeichen) oder `null`; die anderen: `epic` die Nummer eines Kontos aus `kontenListe[]` (sonst `404`), `text` `null`; ohne `kontenListe` im Bericht `409`. `deaktivieren` und `aktivieren` schließen sich je Konto aus | wie `flotte konten`: `anlegen` trägt das nächste Konto in `konten.json` ein und legt nur seinen Ordner `~/.claude-arbeitspferd-<n>` an (nie einen vorhandenen); `deaktivieren` löscht nichts, das Konto bekommt keine neue Mission, laufende laufen dort zu Ende; `anmelden` öffnet am Rechner ein Terminal mit `claude` auf dem Konto, die Anmeldung (`/login`) macht der Mensch dort. Kein Login-Link, Code oder Token geht durch die Brücke. Ereignis und Flottenlogbuch; was nicht passt, wird ein Ereignis `Konto-Handlung <art> über die Brücke abgelehnt: <Grund>` |
 | `forge_verknuepfen` | #125: `epic` `0`, `nr`, `seit`, `text` `null`, mit PIN; der Bericht trägt `forgeStatus` (sonst `409`) | öffnet am Rechner ein Terminal: bei GitHub `gh auth login --hostname github.com`, bei Gitea eine verdeckte Abfrage von Benutzer und Token, die in den Git-Credential-Speicher des Rechners geht. Kein Token durch die Brücke. Danach prüft der Treiber die Forge eine halbe Stunde lang jede Minute. Ereignis und Flottenlogbuch |
-| `triage-widerruf` | #116: `epic` = Ticket, `seit` = `zeit` der Entscheidung aus `triage.entscheidungen` (sonst `404`), `text` der Einwand (`422` ohne), noch nicht widerrufen (`409`); mit PIN | zuerst der Kommentar `**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „Warp frei“ (oder „geschlossen“) zu Sternzeit-Notiz #<nr> zurückgenommen` mit `Einwand`, `Vorher` und `Herkunft`; scheitert er, ändert sich nichts. Dann `klar`: hing die Notiz an einer Mission (#148; der Kommentar nennt dann das Lösen und `Nicht wieder in Mission #<nr>`), erst gelöst wie bei `schnitt-widerruf` (scheitert das, bleiben die Labels), dann `ready_label` ab, `needs-triage` an; `ueberfluessig`: wieder geöffnet. #117: Bei einem Lernvorschlag ist `klar` dasselbe am Missionsziel (`epic` = dessen Nummer); `ueberfluessig` ist nur der Kommentar `… Triage-Entscheidung „überflüssig“ zu Lernvorschlag <id>/<n> zurückgenommen` am `lern_issue`, der nächste Triage-Lauf entscheidet den Vorschlag neu. Ereignis und Flottenlogbuch |
+| `triage-widerruf` | #116: `epic` = Ticket, `seit` = `zeit` der Entscheidung aus `triage.entscheidungen` (sonst `404`), `text` der Einwand (`422` ohne), noch nicht widerrufen (`409`); mit PIN | zuerst der Kommentar `**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „Warp frei“ (oder „geschlossen“) zu Sternzeit-Notiz #<nr> zurückgenommen` mit `Einwand`, `Vorher` und `Herkunft`; scheitert er, ändert sich nichts. Dann `klar`: hing die Notiz an einer Mission (#148; der Kommentar nennt dann das Lösen und `Nicht wieder in Mission #<nr>`), erst gelöst wie bei `schnitt-widerruf` (scheitert das, bleiben die Labels), dann `ready_label` ab, `needs-triage` an; `ueberfluessig`: wieder geöffnet. #117: Bei einem Lernvorschlag ist `klar` dasselbe an seiner Sternzeit-Notiz (#170; `epic` = deren Nummer); `ueberfluessig` ist nur der Kommentar `… Triage-Entscheidung „überflüssig“ zu Lernvorschlag <id>/<n> zurückgenommen` am `lern_issue`, der nächste Triage-Lauf entscheidet den Vorschlag neu. Ereignis und Flottenlogbuch |
 
 `einreihen` und `aufgeben` schließen sich aus: Bis zum Abholen gilt die letzte. Danach antwortet die
 Brücke `409`. Endet der Einsatz, weil alles blockiert ist, wirkt die Handlung beim nächsten Start.
@@ -367,9 +371,9 @@ wird ein Ereignis `<Handlung> über die Brücke abgelehnt: <Grund>` (`Aufnehmen`
 `Fortsetzen`, `Priorität`, `Andocken`); quittiert wird beides. Wirkung ab dem Takt, in dem der Treiber sie abholt;
 nichts Laufendes wird abgebrochen. `aufnehmen` umgeht weder `ready_label` noch die Andock-Regel noch
 ein Tor. Ereignis und Kommentar im Flottenlogbuch:
-`Epic #<nr> in den Einsatz aufgenommen, Mensch über die Brücke`,
-`Epic #<nr> pausiert, <Lage>; Mensch über die Brücke`,
-`Epic #<nr> fortgesetzt[, der zurückgehaltene Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt> → auf <neu>, Mensch
+`Mission #<nr> in den Einsatz aufgenommen, Mensch über die Brücke`,
+`Mission #<nr> pausiert, <Lage>; Mensch über die Brücke`,
+`Mission #<nr> fortgesetzt[, der zurückgehaltene Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt> → auf <neu>, Mensch
 über die Brücke`, `Andocken von #<nr> von <alt> → auf <neu>, Mensch über die Brücke` (`null`: `auf den
 Vorschlag (<Stellung>)` oder `auf die Einstellung des Projekts (<Stellung>)`). Beispiel beim Abholen:
 

@@ -2,11 +2,11 @@
 > **Reihenfolge:** Kinder: {{kinder}}
 
 ## Was
-Zu dem hellen Thema in `thema/` kommen zwei weitere. Die beiden Kinder sind voneinander
+Zu dem hellen Thema in `thema/` kommen zwei weitere. Die beiden Missionsziele sind voneinander
 unabhängig.
 
 ## Abnahmekriterien
-- Alle Kinder sind angedockt.
+- Alle Missionsziele sind angedockt.
 - `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` ist grün.
 
 ## Verifikationsweg

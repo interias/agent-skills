@@ -252,7 +252,7 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(getan(w, /^merge abgeschlossen agent\/90/)).toHaveLength(1);
     const abgeschlossen = w.protokoll.findIndex((p) => /^merge abgeschlossen/.test(p.was));
     expect(w.protokoll.findIndex((p, i) => i > abgeschlossen && p.was === 'volllauf /wt/epic-69')).toBeGreaterThan(abgeschlossen);
-    expect(z.kanten).toEqual([{ a: '91', b: '90', art: 'kollision', grund: 'Merge-Konflikt in src/gemeinsam.ts' }]);
+    expect(z.kanten).toEqual([{ a: '91', b: '90', art: 'kollision', grund: 'Andock-Konflikt in src/gemeinsam.ts' }]);
     expect(z.pakete['90']).toMatchObject({ stufe: 'fertig', konflikt: { dateien: ['src/gemeinsam.ts'], ergebnis: 'geloest' } });
     expect((letzterBlock(w) as { offen: string }).offen).toMatch(/Kante nachgetragen: 91 – 90/);
   }, T);
@@ -261,10 +261,10 @@ describe('flotte mission, Drehbücher (#65)', () => {
     const { z, w } = await fahre(buch([paket('92'), paket('93')], { konflikt: { '92': ['src/logik.ts'] }, aufrufe: { 'implementer:92': [{ takte: 3 }], 'konflikt:92': [{ ausgabe: { ergebnis: 'inhaltlich', begruendung: 'beide ändern die Regel' } }] } }));
     expect(getan(w, /^merge --abort agent\/92/)).toHaveLength(1);
     expect(z.pakete['92']).toMatchObject({ stufe: 'zurueckgelassen' });
-    expect(z.pakete['92'].grund).toMatch(/Merge-Konflikt, inhaltlich: beide ändern die Regel/);
+    expect(z.pakete['92'].grund).toMatch(/Andock-Konflikt, inhaltlich: beide ändern die Regel/);
     expect(getan(w, /branch -d agent\/92/)).toHaveLength(0);
     expect(w.gemergt).toEqual(['agent/93-paket-93']);
-    expect(z.kanten).toEqual([{ a: '93', b: '92', art: 'kollision', grund: 'Merge-Konflikt in src/logik.ts' }]);
+    expect(z.kanten).toEqual([{ a: '93', b: '92', art: 'kollision', grund: 'Andock-Konflikt in src/logik.ts' }]);
     expect(w.status[92]).toBe('status/haengt');
   }, T);
 
@@ -320,7 +320,7 @@ describe('flotte mission, Drehbücher (#65)', () => {
     const repo = neuesRepo();
     const welt = neueWelt();
     const b = (o: Partial<EpicDrehbuch>) => buch([paket('112'), paket('113')], { epicRot: ['112'], aufrufe: { 'implementer:112': [{ takte: 3 }] }, ...o });
-    await expect(fahre(b({ abbruchNachMerge: '112' }), { repo, welt })).rejects.toThrow(/nach dem Merge von agent\/112/);
+    await expect(fahre(b({ abbruchNachMerge: '112' }), { repo, welt })).rejects.toThrow(/nach dem Andocken von agent\/112/);
     expect(liesLauf(epicDir(repo, 69), 69).pakete['112']).toMatchObject({ stufe: 'merge', mergeCommit: null });
     expect(welt.gemergt).toEqual(['agent/113-paket-113', 'agent/112-paket-112']);
     const { z, w } = await fahre(b({}), { repo, welt });

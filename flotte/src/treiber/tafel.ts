@@ -26,10 +26,10 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--li
 .gruen{color:var(--gruen)}.gelb{color:var(--gelb)}.rot{color:var(--rot)}h2{margin-top:24px;font-size:16px}code{font-size:12px}</style></head><body>
 <h1>Flotte ${esc(basename(z.repo))}</h1>
 <p>${z.aktiv ? 'läuft' : 'beendet'} · Stand ${esc(z.stand ?? '')} · Verbrauch: ${(b?.konten ?? []).map((k) => `<span class="${esc(k.stufe)}">${esc(basename(k.konto))} ${esc(k.stufe)}</span>`).join(', ')} · RAM: ${esc(b?.ram ?? '')}${b?.ramHalt ? ' (hält)' : ''} · Platte: ${b?.platteGenug === false ? '<span class="rot">zu wenig</span>' : 'genug'} · Obergrenze ${esc(b?.obergrenze ?? '')}</p>
-<table><tr><th>Epic</th><th>Stufe</th><th>Konto</th><th>PR</th><th>geparkt</th><th>Notiz</th><th>letzter Schritt</th></tr>
+<table><tr><th>Mission</th><th>Stufe</th><th>Konto</th><th>PR</th><th>geparkt</th><th>Notiz</th><th>letzter Schritt</th></tr>
 ${zeilen}</table>
-${z.schlange?.length ? `<p>Merge-Schlange: ${z.schlange.map((n, i) => `${i ? '' : '<b>'}#${n}${i ? '' : '</b>'}`).join(' → ')}</p>` : ''}
-<p><code>flotte zuschauen ${esc(z.repo)} &lt;epic&gt;</code> folgt dem Log eines Laufs.</p>
+${z.schlange?.length ? `<p>Andock-Schlange: ${z.schlange.map((n, i) => `${i ? '' : '<b>'}#${n}${i ? '' : '</b>'}`).join(' → ')}</p>` : ''}
+<p><code>flotte zuschauen ${esc(z.repo)} &lt;mission&gt;</code> folgt dem Log eines Laufs.</p>
 <h2>Liegt beim Menschen</h2><ul>${fragen || '<li>nichts</li>'}</ul>
 <h2>Entscheidungen</h2><ul>${entscheidungen || '<li>keine</li>'}</ul>
 <h2>Ereignisse</h2><ul>${ereignisse}</ul>

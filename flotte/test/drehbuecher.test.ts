@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { antworten, fahre } from '../src/treiber/treiber.ts';
 import { flotteDir, lebt, neuesEpic, schreibe as schreibeZustand, leer } from '../src/werkzeuge/zustand.ts';
+import { liesMessungen } from '../src/werkzeuge/prognose.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, ping, skriptVon } from './flotte-welt.ts';
 
 const T = 30_000;
@@ -45,6 +46,10 @@ describe('Drehbücher (#14)', () => {
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', neustarts: 0 });
     expect(z.ereignisse.some((e) => /Limit erreicht/.test(e.text) && /kein Fehlstart/.test(e.text))).toBe(true);
     expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(false);
+    // #202: the time the account was used up is no work
+    const [m] = liesMessungen(flotteDir(t.repo)).filter((x) => x.epic === 3);
+    expect(m.limitS).toBeGreaterThanOrEqual(0);
+    expect(m.arbeitS + m.limitS! + (m.pauseS ?? 0) + m.menschWartenS).toBe(Math.round((Date.parse(m.ende) - Date.parse(m.start)) / 1000));
   }, T);
 
   it('D2: the admiral decides a gate question; answer by --resume, comment at the issue, the run goes on', async () => {
@@ -401,7 +406,7 @@ describe('Drehbücher (#14)', () => {
     };
     const ohnePr = (offen: string) => `Nicht weiter.\n\nFLOTTE-ENDE 3\n\n### Was das Epic offen lässt\n${offen}`;
     // #4 ends once #3 waits for it; #3 starts again only after #4 is merged
-    const wartet3 = { signale: { 'wartet-3': /^#3 .*Vorgänger #4 noch nicht gemergt, wartet/ } };
+    const wartet3 = { signale: { 'wartet-3': /^#3 .*Vorgänger #4 noch nicht angedockt, wartet/ } };
 
     for (const [fall, offen] of [
       ['naming the predecessor', 'Die Reihenfolge verlangt erst #4, das ist noch offen.'],
@@ -411,7 +416,7 @@ describe('Drehbücher (#14)', () => {
         const t = aufbau({ bodies: spaeteKante(), ...wartet3 });
         const buch = drehbuch([lauf(3, [{ text: ohnePr(offen) }]), lauf(4, [{ signal: 'wartet-3' }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
         const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
-        expect(z.ereignisse.some((e) => e.epic === 3 && /FLOTTE-ENDE ohne Pull Request, Vorgänger #4 noch nicht gemergt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
+        expect(z.ereignisse.some((e) => e.epic === 3 && /FLOTTE-ENDE ohne Pull Request, Vorgänger #4 noch nicht angedockt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
         expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(false);
         const starts = fuer(buch.gesehen(), 3);
         expect(starts).toHaveLength(2);
@@ -431,7 +436,7 @@ describe('Drehbücher (#14)', () => {
     }, T);
 
     it('before a resume (an answer of the admiral): waiting, no resumed turn; after the merge of #4 a new start', async () => {
-      const t = aufbau({ bodies: spaeteKante(), signale: { 'wartet-3': /^#3 vor dem Fortsetzen, Vorgänger #4 noch nicht gemergt, wartet/ } });
+      const t = aufbau({ bodies: spaeteKante(), signale: { 'wartet-3': /^#3 vor dem Fortsetzen, Vorgänger #4 noch nicht angedockt, wartet/ } });
       const buch = drehbuch([
         lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]),
         admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
@@ -450,7 +455,7 @@ describe('Drehbücher (#14)', () => {
     it('with a PR in the merge queue: it stays in the queue, lets nothing dock before #4 and docks after it', async () => {
       // a PR is merged only by merge.ps1, never from outside while it is held
       let gemergt: number[] = [];
-      const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: spaeteKante(), pr: (nr) => ({ state: gemergt.includes(nr) ? 'MERGED' : 'OPEN' }), signale: { 'haelt-3': /^#3 bleibt in der Schlange: Vorgänger #4 noch nicht gemergt/ } });
+      const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: spaeteKante(), pr: (nr) => ({ state: gemergt.includes(nr) ? 'MERGED' : 'OPEN' }), signale: { 'haelt-3': /^#3 bleibt in der Schlange: Vorgänger #4 noch nicht angedockt/ } });
       gemergt = t.p.merges;
       const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [{ signal: 'haelt-3' }, ...gateGefahren(), { text: ende(4, 14) }])]);
       const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);

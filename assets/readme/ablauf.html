@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- Source of ablauf.png (880 px wide) and ablauf-schmal.png (400 px wide), both at twice the resolution in the README. Render: see README.md in this folder. -->
 <meta charset="utf-8">
-<title>Ablauf: wer startet, wer mergt</title>
+<title>Ablauf: wer startet, wer andockt</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@500;700&family=Figtree:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
   :root {
@@ -17,7 +17,7 @@
   .titel .leiste { flex: 1; height: 26px; background: var(--lila); border-radius: 0 13px 13px 0; }
   .band { display: grid; grid-template-columns: 90px 1fr; gap: 8px; margin-bottom: 10px; }
   .seite { border-radius: 0; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px 10px; font: 700 18px Antonio, sans-serif; letter-spacing: .08em; color: #000; text-transform: uppercase; }
-  .s1 { background: var(--blau); } .s2 { background: var(--orange); } .s3 { background: var(--lila); }
+  .s1 { background: var(--blau); } .s2 { background: var(--orange); } .s3 { background: var(--lila); letter-spacing: 0; padding-right: 6px; }
   .inhalt { background: var(--flaeche); border-radius: 0 18px 18px 0; padding: 14px 18px 16px; }
   .frage { font: 700 21px Antonio, sans-serif; letter-spacing: .05em; text-transform: uppercase; margin: 0 0 10px; }
   .s1 + .inhalt .frage { color: var(--himmel); } .s2 + .inhalt .frage { color: var(--orange); } .s3 + .inhalt .frage { color: var(--lila); }
@@ -56,18 +56,18 @@
   .schmal .bruecke .linie { width: 6px; height: 22px; align-self: center; }
 </style>
 <body>
-<div class="kopf"><div class="ecke"></div><div class="titel"><h1>Vom Epic zum Merge</h1><div class="leiste"></div></div></div>
+<div class="kopf"><div class="ecke"></div><div class="titel"><h1>Von der Mission zum Andocken</h1><div class="leiste"></div></div></div>
 
 <div class="band">
   <div class="seite s1">Start</div>
   <div class="inhalt">
     <p class="frage">Frage 1 · Wer startet den Lauf?</p>
     <div class="reihe">
-      <div class="karte k-pfirsich"><b>Epic oder Spec</b><span>mit dem Label <code>ready-for-agent</code></span></div>
+      <div class="karte k-pfirsich"><b>Mission oder Spec</b><span>mit dem Label <code>ready-for-agent</code></span></div>
       <div class="pfeil"></div>
-      <div class="karte k-blau"><b>Treiber · Regelweg</b><span><code>flotte fahren</code>: ein <code>claude -p</code> je Epic, verteilt auf Konto 1 · 2 · 3</span></div>
+      <div class="karte k-blau"><b>Treiber · Regelweg</b><span><code>flotte fahren</code>: ein <code>claude -p</code> je Mission, verteilt auf Konto 1 · 2 · 3</span></div>
       <div class="oder">oder</div>
-      <div class="karte k-blau"><b>Du im Chat</b><span><code>/epic #nr</code>, wenn du ein Epic begleiten willst</span></div>
+      <div class="karte k-blau"><b>Du im Chat</b><span><code>/mission #nr</code>, wenn du eine Mission begleiten willst</span></div>
     </div>
     <div class="bruecke">
       <div class="karte k-lila"><b>Flottenbrücke</b><span>zeigt den Stand, nimmt deine Antworten und Handlungen an; nur der Treiber spricht mit ihr</span></div>
@@ -80,9 +80,9 @@
 <div class="band">
   <div class="seite s2">Lauf</div>
   <div class="inhalt">
-    <p class="frage">/epic · der Orchestrator</p>
+    <p class="frage">/mission · der Orchestrator</p>
     <div class="reihe">
-      <div class="karte"><b>Vorab-Tor</b><span>schneidet das Epic in Pakete, fragt einmal</span></div>
+      <div class="karte"><b>Vorab-Tor</b><span>schneidet die Mission in Pakete, fragt einmal</span></div>
       <div class="pfeil"></div>
       <div class="pakete">
         <div class="karte"><b>Paket</b><span>eigener Worktree</span></div>
@@ -90,25 +90,25 @@
         <div class="karte"><b>Paket</b><span>bis zu drei gleichzeitig</span></div>
       </div>
       <div class="pfeil"></div>
-      <div class="karte"><b>Epic-Branch</b><span>Review, Verifikation, Sofortmerge je Paket</span></div>
+      <div class="karte"><b>Missions-Branch</b><span>Review, Verifikation, sofort angedockt je Paket</span></div>
       <div class="pfeil"></div>
-      <div class="karte"><b>Pull Request</b><span>mit Gate-Block; der Lauf mergt nie</span></div>
+      <div class="karte"><b>Pull Request</b><span>mit Andockblock; der Lauf dockt nie an</span></div>
     </div>
   </div>
 </div>
 
 <div class="band">
-  <div class="seite s3">Merge</div>
+  <div class="seite s3">Andocken</div>
   <div class="inhalt">
-    <p class="frage">Frage 2 · Wer mergt? Allein der Adapterschlüssel <code>merge</code></p>
+    <p class="frage">Frage 2 · Wer dockt an? Allein der Adapterschlüssel <code>merge</code></p>
     <div class="reihe">
-      <div class="karte k-lila"><b><code>merge: mensch</code></b><span>du mergst</span></div>
+      <div class="karte k-lila"><b><code>merge: mensch</code></b><span>du dockst an</span></div>
       <div class="oder">oder</div>
-      <div class="karte k-lila" style="flex:1.6"><b><code>merge: nach_gate</code></b><span>ein Akteur außerhalb des Laufs: die Merge-Schlange des Treibers mit <code>merge.ps1</code>, nur mit gültigem Gate-Nachweis</span></div>
+      <div class="karte k-lila" style="flex:1.6"><b><code>merge: nach_gate</code></b><span>ein Akteur außerhalb des Laufs: die Andock-Schlange des Treibers mit <code>merge.ps1</code>, nur mit gültigem Nachweis der Andockprüfung</span></div>
       <div class="pfeil"></div>
-      <div class="karte k-gruen"><b>/epic-aufraeumen</b><span>Worktrees und Branches weg, die nachweislich in der Basis liegen</span></div>
+      <div class="karte k-gruen"><b>/mission-aufraeumen</b><span>Worktrees und Branches weg, die nachweislich in der Basis liegen</span></div>
     </div>
-    <p class="hinweis"><b>Die beiden Fragen hängen nicht zusammen:</b> Wer startet, ändert nichts daran, wer mergt.</p>
+    <p class="hinweis"><b>Die beiden Fragen hängen nicht zusammen:</b> Wer startet, ändert nichts daran, wer andockt.</p>
   </div>
 </div>
 <script>

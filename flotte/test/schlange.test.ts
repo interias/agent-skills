@@ -126,8 +126,8 @@ describe('A: die Merge-Schlange', () => {
     ]);
     const e = texte(z);
     expect(e.filter((x) => /Kopf der Schlange/.test(x)).map((x) => x.slice(0, 2))).toEqual(['#3', '#4', '#5']);
-    expect(e.some((x) => /^#4 Gate des Treibers \(Immer-Teil, Basis bewegte sich nur in fremden Bereichen\)/.test(x))).toBe(true);
-    expect(e.some((x) => /^#5 Gate des Treibers \(voll, Basis bewegte sich in Bereichen des Epics: A\)/.test(x))).toBe(true);
+    expect(e.some((x) => /^#4 Andockprüfung des Treibers \(Immer-Teil, Basis bewegte sich nur in fremden Bereichen\)/.test(x))).toBe(true);
+    expect(e.some((x) => /^#5 Andockprüfung des Treibers \(voll, Basis bewegte sich in Bereichen der Mission: A\)/.test(x))).toBe(true);
     // the driver pushed its merge of the base and wrote the block below the run's block
     const body4 = t.p.prEdits.find((x) => x.pr === 14)!.body;
     expect(gateLaeufe(body4, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [true, true]]);
@@ -147,7 +147,7 @@ describe('A: die Merge-Schlange', () => {
     expect(t.p.gates).toEqual([]);
     expect(z.statistik.gateWiederholungen ?? 0).toBe(0);
     const e = texte(z);
-    const an = index(e, /^#3 Gate-Block des Laufs angerechnet \(Basis [0-9a-f]{7} = merge-base, HEAD [0-9a-f]{8} = Head des PR\)$/);
+    const an = index(e, /^#3 Andockblock des Laufs angerechnet \(Basis [0-9a-f]{7} = merge-base, HEAD [0-9a-f]{8} = Head des PR\)$/);
     expect(an).toBeGreaterThanOrEqual(0);
     expect(an).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
   }, T);
@@ -164,7 +164,7 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', t.epics[0].wt]]);
     const e = texte(z);
-    const ohne = index(e, /^#3 Gate-Block auf HEAD [0-9a-f]{8}, der PR steht auf [0-9a-f]{8}: der Treiber fährt das Gate selbst$/);
+    const ohne = index(e, /^#3 Andockblock auf HEAD [0-9a-f]{8}, der PR steht auf [0-9a-f]{8}: der Treiber fährt die Andockprüfung selbst$/);
     expect(ohne).toBeGreaterThanOrEqual(0);
     expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
     // the driver's block is the last run of the PR, and merge.ps1 merged on it
@@ -180,7 +180,7 @@ describe('A: die Merge-Schlange', () => {
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
-    expect(texte(z).some((x) => /^#3 Gate-Block gegen Basis abcdef1, die merge-base ist [0-9a-f]{7}: der Treiber fährt das Gate selbst$/.test(x))).toBe(true);
+    expect(texte(z).some((x) => /^#3 Andockblock gegen Basis abcdef1, die merge-base ist [0-9a-f]{7}: der Treiber fährt die Andockprüfung selbst$/.test(x))).toBe(true);
   }, T);
 
   it('a red gate goes back to its run with the output, the queue goes on, the epic queues up again at the end', async () => {
@@ -206,7 +206,7 @@ describe('A: die Merge-Schlange', () => {
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
     expect(z.epics['4'].mergeVersuche ?? 0).toBe(0);
     expect(t.p.gates).toHaveLength(2);
-    expect(texte(z).some((x) => /^#4 Gate des Treibers rot, die Ursache liegt außerhalb des Diffs \(Testsperre\): einmal wiederholt$/.test(x))).toBe(true);
+    expect(texte(z).some((x) => /^#4 Andockprüfung des Treibers rot, die Ursache liegt außerhalb des Diffs \(Testsperre\): einmal wiederholt$/.test(x))).toBe(true);
     expect(buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe))).toHaveLength(1);
     // the green gate after it resets the repeat for a later red
     expect(z.epics['4'].gateAussenWiederholt).toBe(false);
@@ -226,7 +226,7 @@ describe('A: die Merge-Schlange', () => {
       // the gate runs before the first return: one, or two with the repeat
       const zurueck = texte(z).findIndex((x) => /^#4 zurück an den Lauf \(1 von 2\)/.test(x));
       expect(zurueck).toBeGreaterThanOrEqual(0);
-      expect(texte(z).slice(0, zurueck).filter((x) => /^#4 Gate des Treibers rot nach/.test(x))).toHaveLength(gates);
+      expect(texte(z).slice(0, zurueck).filter((x) => /^#4 Andockprüfung des Treibers rot nach/.test(x))).toHaveLength(gates);
       expect(texte(z).slice(0, zurueck).filter((x) => /einmal wiederholt/.test(x))).toHaveLength(gates - 1);
     }, T);
   }
@@ -275,8 +275,8 @@ describe('A: die Merge-Schlange', () => {
     const koepfe = git(t.repo, 'ls-remote', '--heads', 'origin').split('\n').map((z) => z.split('refs/heads/')[1]).sort();
     expect(koepfe).toEqual(['agent/3-p2-eigen', 'agent/3-p3-offen', 'agent/4-p1-fremd', 'main']);
     const e = texte(z);
-    expect(e).toContain('#3 Branch epic/3-x auf der Forge gelöscht (in origin/main, PR #13 merged)');
-    expect(e).toContain('#3 Branch agent/3-p4-gemergt auf der Forge gelöscht (in origin/main, PR #41 merged)');
+    expect(e).toContain('#3 Branch epic/3-x auf der Forge gelöscht (in origin/main, PR #13 angedockt)');
+    expect(e).toContain('#3 Branch agent/3-p4-gemergt auf der Forge gelöscht (in origin/main, PR #41 angedockt)');
     expect(e).toContain('#3 Branch agent/3-p2-eigen auf der Forge bleibt: Commits nicht in origin/main');
     expect(e).toContain('#3 Branch agent/3-p3-offen auf der Forge bleibt: PR #40 ist OPEN');
   }, T);
@@ -288,7 +288,7 @@ describe('A: die Merge-Schlange', () => {
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 8000 }), t.welt);
     const koepfe = git(t.repo, 'ls-remote', '--heads', 'origin').split('\n').map((z) => z.split('refs/heads/')[1]).sort();
     expect(koepfe).toEqual(['agent/3-p1-eins', 'epic/3-x', 'main']);
-    expect(texte(z)).toContain('#3 Branches auf der Forge bleiben: PR #13 ist dort OPEN, nicht merged');
+    expect(texte(z)).toContain('#3 Branches auf der Forge bleiben: PR #13 ist dort OPEN, nicht angedockt');
   }, T);
 
   it('--konto-max keeps an account to its share of the epics', async () => {
@@ -331,7 +331,7 @@ describe('A: die Merge-Schlange', () => {
     expect(aufrufe.map((a) => a.aktion)).toEqual(['Up', 'Down']);
     expect(aufrufe[0].holder).toMatch(/halten[\\/]4\.json$/);
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate teil', resolve(neu)]]);
-    expect(texte(z).some((x) => /#4 Epic-Worktree neu angelegt/.test(x))).toBe(true);
+    expect(texte(z).some((x) => /#4 Missions-Worktree neu angelegt/.test(x))).toBe(true);
     expect(git(t.repo, 'worktree', 'list')).not.toContain('epic-4');
   }, T);
 
@@ -340,7 +340,7 @@ describe('A: die Merge-Schlange', () => {
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
     expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', gateWiederholungen: 3 });
-    expect(z.epics['3'].notiz).toMatch(/3 Gate-Läufe des Treibers, die Basis zog jedes Mal davon/);
+    expect(z.epics['3'].notiz).toMatch(/3 Andockprüfungen des Treibers, die Basis zog jedes Mal davon/);
   }, T);
 });
 
@@ -432,7 +432,7 @@ describe('C3: Adapter ohne merge', () => {
     const r = adapter([wurzel]) as { adapter: { repo: string; merge: string | null; quelle: string }[]; ohneMerge: string[]; folge: string };
     expect(r.adapter.map((a) => [a.repo.endsWith('mit') ? 'mit' : 'ohne', a.merge, a.quelle]).sort()).toEqual([['mit', 'nach_gate', 'Arbeitskopie'], ['ohne', null, 'Arbeitskopie']]);
     expect(r.ohneMerge).toEqual([join(wurzel, 'ohne')]);
-    expect(r.folge).toMatch(/mergt nur ein Mensch in 1 Projekt\(en\)/);
+    expect(r.folge).toMatch(/Nur ein Mensch dockt an in 1 Projekt\(en\)/);
     expect(schluessel('---\nmerge: "mensch"\n---', 'merge')).toBe('mensch');
     expect(schluessel('kein Frontmatter\nmerge: x', 'merge')).toBeNull();
   });

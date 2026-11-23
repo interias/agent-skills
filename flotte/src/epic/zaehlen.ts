@@ -118,7 +118,7 @@ function gate(text: string): Gezaehlt | null {
 export function zaehle(ausgabe: string, befehl: string, worktree: string): Gezaehlt {
   const ort = (p: string) => pfadIm(worktree, verzeichnisAus(befehl), p);
   const r = bun(ausgabe, ort) ?? pester(ausgabe, befehl, ort) ?? pytest(ausgabe, ort) ?? gate(ausgabe);
-  if (!r) throw new Error(`Ausgabe von "${befehl}" in keinem bekannten Format (bun test, Pester, pytest, Gate); keine Zählung. Ende der Ausgabe: ${ausgabe.trim().slice(-300)}`);
+  if (!r) throw new Error(`Ausgabe von "${befehl}" in keinem bekannten Format (bun test, Pester, pytest, Andockprüfung); keine Zählung. Ende der Ausgabe: ${ausgabe.trim().slice(-300)}`);
   return r;
 }
 

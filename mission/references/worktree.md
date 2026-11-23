@@ -47,7 +47,7 @@ Repositorys bleibt `git status` im Hauptverzeichnis sauber, und es braucht keine
 Der Pfad enthält **kein Punktverzeichnis** (`.worktrees/`, `.claude/…`); `Up` weist ihn sonst ab.
 Nennt der Adapter eines, ist das ein Punkt fürs Vorab-Tor.
 
-`<Package>` ist `<nr>` (Kindnummer, im Modus `spec` ohne Kinder `<spec>-p<k>`) oder `epic-<nr>`;
+`<Package>` ist `<nr>` (Nummer des Missionsziels, im Modus `spec` ohne Missionsziele `<spec>-p<k>`) oder `epic-<nr>`;
 Namensschema der Branches: `mission/SKILL.md`, Phase 3. Existiert `-Branch` schon, nimmt `Up` ihn,
 sonst legt es ihn von `-From` an. Existiert der Pfad schon oder gibt es ein Lock für das Paket,
 bricht es ab.

@@ -234,7 +234,7 @@ Phase (Ingenieur, Review, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer
 (eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
 (ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
-(älterer Treiber, Paket ohne Aufruf), bleibt es weg; spec-Pakete haben sie wie Kind-Tickets (#151).
+(älterer Treiber, Paket ohne Aufruf), bleibt es weg; spec-Pakete haben sie wie Missionsziele (#151).
 Felder: `SCHNITTSTELLE.md`.
 
 Unter den Paketen stehen die **Entscheidungen bis zum Andocken** (#52), neueste zuerst, von jedem Tag:
@@ -330,9 +330,9 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   Gitea der Hinweis, dass der Treiber es noch nicht fährt (#127), und **Am Rechner verknüpfen** (PIN): Der
   Rechner öffnet ein Terminal mit `gh auth login` bzw. fragt dort Benutzer und Token für den
   Git-Credential-Speicher ab; kein Token geht durch die Brücke. Bilder: `doku/v3-maschinenraum-forge-1440.png`, `-390.png`.
-  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die zwölf wirksamen Werte
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die fünfzehn wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
-  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken) und ein Satz, was
+  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was
   er bremst. Eine Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
   dem Bericht, `422` darüber hinaus); bis zur Quittung steht dort „wartet auf den Treiber“. Sie gilt
   ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne

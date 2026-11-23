@@ -274,10 +274,10 @@
   <main class="body">
     <!-- ===== 1 · Kopfzeile ========================================== -->
     <section class="meta" aria-label="Lauf">
-      <span class="no">Epic #942</span>
+      <span class="no">Mission #942</span>
       <h1>Auftragsliste als CSV exportieren</h1>
       <span class="kv"><span class="lbl">Basis</span><span class="mono">release/9.4</span></span>
-      <span class="kv"><span class="lbl">Epic</span><span class="mono">epic/942-auftragsliste-als-csv</span></span>
+      <span class="kv"><span class="lbl">Branch</span><span class="mono">epic/942-auftragsliste-als-csv</span></span>
       <span class="kv"><span class="lbl">Pull Request</span><span class="mono">—</span></span>
     </section>
     <div class="pipline">
@@ -291,7 +291,7 @@
     <section class="blk" style="--rc: var(--violet)"><div class="rail"></div><div>
       <h2>Stand der Pakete <small>Reihenfolge nach Abhängigkeiten</small></h2>
       <div class="tblw"><table>
-        <thead><tr><th scope="col">Nr.</th><th scope="col">Ziel</th><th scope="col">Module</th><th scope="col">Zustand</th><th scope="col">Runden</th><th scope="col">Merge</th></tr></thead>
+        <thead><tr><th scope="col">Nr.</th><th scope="col">Ziel</th><th scope="col">Module</th><th scope="col">Zustand</th><th scope="col">Runden</th><th scope="col">Angedockt</th></tr></thead>
         <tbody>
           <tr>
             <td class="c-no">#943</td>
@@ -303,7 +303,7 @@
           </tr>
           <tr>
             <td class="c-no">#944</td>
-            <td class="c-goal">Die Spalten folgen der Sortierung der Ansicht.<span class="sub">Runde 2 nach Reviewer-Befund: leere Felder verschoben die Spalten</span></td>
+            <td class="c-goal">Die Spalten folgen der Sortierung der Ansicht.<span class="sub">Runde 2 nach Befund des Ersten Offiziers: leere Felder verschoben die Spalten</span></td>
             <td class="c-mod">server/list <span class="cls">· standard</span></td>
             <td><span class="state done">abgenommen</span></td>
             <td class="c-num">2</td>
@@ -383,7 +383,7 @@
           <span class="bar done" style="grid-column: 2 / 5"><b>#945</b>Hilfetext</span>
         </div>
       </div></div>
-      <p class="dev"><b>Abweichung vom Plan:</b> #949 lief vorgezogen auf Platz 1, weil #946 erst nach dem Merge von #944 startbereit wurde. Platz 3 bleibt seit 11:30 leer — #950 ist durch #949 blockiert, und das exklusive #948 wartet, bis nichts anderes läuft. #947 startete erst um 13:35, weil die RAM-Bremse seit 13:20 auf hold stand (87 % belegt).</p>
+      <p class="dev"><b>Abweichung vom Plan:</b> #949 lief vorgezogen auf Platz 1, weil #946 erst nach dem Andocken von #944 startbereit wurde. Platz 3 bleibt seit 11:30 leer — #950 ist durch #949 blockiert, und das exklusive #948 wartet, bis nichts anderes läuft. #947 startete erst um 13:35, weil die RAM-Bremse seit 13:20 auf hold stand (87 % belegt).</p>
     </div></section>
 
     <!-- ===== 4 · Offene Punkte ====================================== -->
@@ -396,7 +396,7 @@
         -->
         <article class="item you">
           <div class="top"><h3>#949 nicht abgenommen</h3><span class="owner blink-dot">Entscheidung</span></div>
-          <p>Der Verifikationsweg bricht vor dem ersten Test ab, nicht am Code — der Reviewer konnte die Abnahme dreimal nicht fahren. Der Branch bleibt liegen, der Worktree ist sauber entfernt.</p>
+          <p>Der Verifikationsweg bricht vor dem ersten Test ab, nicht am Code — der Erste Offizier konnte die Abnahme dreimal nicht fahren. Der Branch bleibt liegen, der Worktree ist sauber entfernt.</p>
           <div class="meta2"><span>seit <b>12:40</b></span><span>Branch <b>agent/949-alter-endpunkt</b></span><span>blockiert <b>#950</b></span></div>
         </article>
         <article class="item you">

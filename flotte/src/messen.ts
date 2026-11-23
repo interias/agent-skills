@@ -661,6 +661,6 @@ export function epicVerlauf(z: TreiberZustand, fenster: Fenster) {
     epics,
     durchlauf_min: verteilung(epics.map((e) => e.durchlauf_min).filter((x): x is number => x !== null)),
     fehlerquote: bewertet.length ? runde(fehler / bewertet.length) : null,
-    methode: 'Treiber: erstes „Lauf gestartet" bis erstes „FLOTTE-ENDE, PR", ohne Warten auf den Menschen; Fehler = Rückgabe an den Lauf, blockiert oder abgebrochen; ein Epic ohne FLOTTE-ENDE und ohne Halt zählt als offen, nicht in der Quote',
+    methode: 'Treiber: erstes „Lauf gestartet" bis erstes „FLOTTE-ENDE, PR", ohne Warten auf den Menschen; Fehler = Rückgabe an den Lauf, blockiert oder abgebrochen; eine Mission ohne FLOTTE-ENDE und ohne Halt zählt als offen, nicht in der Quote',
   };
 }
