@@ -967,11 +967,14 @@ class Treiber {
         return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
       })
       .map((b) => ({ ...b, prio: this.prio(b.nr) }));
-    const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze() });
+    const pausiert = Object.values(this.z.epics).filter((ep) => ep.pausiert).map((ep) => ep.nr);
+    const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze(), pausiert });
     for (const w of plan.wartend) {
       const notiz = `wartet auf den Merge von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
       if (this.epic(w.nr).notiz !== notiz) this.epic(w.nr).notiz = notiz;
     }
+    // #144: why a startable one is left out (a collision or no free place) stands on the board and the bridge
+    for (const w of plan.zurueck) this.epic(w.nr).notiz = w.grund;
     // the priority label: why a startable one waits stands on the board and the bridge
     for (const v of plan.vorrang) {
       if (v.startet) continue;

@@ -344,6 +344,13 @@ describe('Drehbücher (#14)', () => {
     }, T);
   });
 
+  it('#144: an epic left out because of a collision carries the reason as its note', async () => {
+    const t = aufbau({ bodies: { 3: 'Ändert `core/a.ts`.', 4: 'Ändert `core/a.ts`.' } });
+    const buch = drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 500 }), t.welt);
+    expect(z.epics['4']).toMatchObject({ stufe: 'wartend', notiz: 'wartet auf #3: Kollision gross (dieselben Dateien: core/a.ts)' });
+  }, T);
+
   it('D15: a large collision and five startable epics run one after another; never more than four at once', async () => {
     const nrs = [3, 4, 5, 6, 7];
     const gross = aufbau({ bodies: Object.fromEntries(nrs.map((n) => [n, 'Ändert `core/a.ts`.'])) });

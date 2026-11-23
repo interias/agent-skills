@@ -76,6 +76,27 @@ describe('belege', () => {
   });
 });
 
+describe('#144: why a startable epic waits', () => {
+  it('left out because of a collision: names the epic it waits for, level and evidence', () => {
+    const bilder = [bild(1, { migration: true }), bild(2, { migration: true }), bild(3, { module: ['web'] })];
+    const plan = belege(bilder, adapter, { laufend: [1], gemergt: [] });
+    expect(plan.neu).toEqual([3]);
+    expect(plan.zurueck).toEqual([{ nr: 2, grund: 'wartet auf #1: Kollision gross (Schema-Migration in beiden)' }]);
+  });
+
+  it('left out because every place is taken: says so, with the paused ones', () => {
+    const frei = [1, 2, 3, 4].map((n) => bild(n, { module: [`m${n}`] }));
+    const plan = belege(frei, adapter, { laufend: [1, 2, 3], gemergt: [], obergrenze: 3, pausiert: [2, 3] });
+    expect(plan.zurueck).toEqual([{ nr: 4, grund: 'wartet auf einen freien Platz (3 von 3 belegt, davon 2 pausiert)' }]);
+    expect(belege(frei, adapter, { laufend: [1, 2, 3], gemergt: [], obergrenze: 3 }).zurueck[0].grund).toBe('wartet auf einen freien Platz (3 von 3 belegt)');
+  });
+
+  it('a pair of the running ones caps the set: the free place counts by that limit', () => {
+    const bilder = [bild(1, { module: ['api'] }), bild(2, { module: ['api'] }), bild(3, { module: ['web'] })];
+    expect(belege(bilder, adapter, { laufend: [1, 2], gemergt: [] }).zurueck).toEqual([{ nr: 3, grund: 'wartet auf einen freien Platz (2 von 2 belegt)' }]);
+  });
+});
+
 describe('prio/hoch', () => {
   it('a startable priority epic goes into the next occupancy first; the old tie rules come after', () => {
     // #1 and #3 collide (gross); without priority {1, 2} wins on the smaller numbers

@@ -207,6 +207,8 @@ export interface Plan {
   neu: number[];
   /** startable epics with the priority label: started now, or why they wait */
   vorrang: { nr: number; startet: boolean; grund: string }[];
+  /** #144: startable epics without the priority label left out of this occupancy, and why */
+  zurueck: { nr: number; grund: string }[];
 }
 
 /**
@@ -217,7 +219,7 @@ export interface Plan {
  * because of a collision is not overtaken: nothing new starts that collides with it. Order edges and
  * levels stay as they are, running epics are never stopped.
  */
-export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: number[]; gemergt: number[]; obergrenze?: number }): Plan {
+export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: number[]; gemergt: number[]; obergrenze?: number; pausiert?: number[] }): Plan {
   const kappe = Math.min(4, opts.obergrenze ?? 4);
   const paare: Paar[] = [];
   for (let i = 0; i < bilder.length; i++) for (let j = i + 1; j < bilder.length; j++) paare.push(kollision(bilder[i], bilder[j], adapter));
@@ -277,7 +279,19 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
         : `${adapter.prio_label}, wartet: die Plätze sind belegt (Obergrenze ${kappe})`;
       return { nr, startet: false, grund };
     });
-  return { paare, startbereit, wartend, belegung: [...beste].sort((a, b) => a - b), neu: beste.filter((n) => !opts.laufend.includes(n)).sort((a, b) => a - b), vorrang };
+  // #144: a collision that the set cannot take one more of names the epic it waits for; else the places are taken
+  const paar = (a: number, b: number) => paare.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a))!;
+  const grenze = (m: number[]) => (m.length > 1 ? Math.min(...m.flatMap((a, i) => m.slice(i + 1).map((b) => GRENZE[stufe(a, b)]))) : 4);
+  const zurueck = startbereit
+    .filter((n) => !prio.has(n) && !beste.includes(n))
+    .sort((a, b) => a - b)
+    .map((nr) => {
+      const mit = beste.filter((n) => kollidiert(n, nr) && GRENZE[stufe(n, nr)] <= beste.length).map((n) => paar(n, nr));
+      if (mit.length) return { nr, grund: `wartet auf ${mit.map((p) => `#${p.a === nr ? p.b : p.a}: Kollision ${p.stufe} (${p.beleg})`).join('; ')}` };
+      const pausiert = beste.filter((n) => opts.pausiert?.includes(n)).length;
+      return { nr, grund: `wartet auf einen freien Platz (${beste.length} von ${Math.min(kappe, grenze(beste))} belegt${pausiert ? `, davon ${pausiert} pausiert` : ''})` };
+    });
+  return { paare, startbereit, wartend, belegung: [...beste].sort((a, b) => a - b), neu: beste.filter((n) => !opts.laufend.includes(n)).sort((a, b) => a - b), vorrang, zurueck };
 }
 
 function liste(argv: string[], name: string): number[] {
