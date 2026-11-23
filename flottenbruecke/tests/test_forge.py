@@ -21,17 +21,18 @@ def schritt(c):
     return next(s['stand'] for s in c.get('/api/tafel').json()['einrichten']['schritte'] if s['schritt'] == 'forge')
 
 
-def test_status_je_projekt_ohne_token(client, bericht):
+def test_status_je_projekt_ohne_token(client, bericht, tmp_path):
     b = mit_forge(bericht)
     b['forgeStatus']['token'] = 'gho_geheim'
     assert client.post('/api/bericht', json=b).status_code == 200
     p = client.get('/api/tafel').json()['projekte'][0]
     assert p['forgeStatus'] == {'art': 'github', 'forge': FORGE, 'angemeldet': True, 'konto': 'octo', 'rechte': 'ok', 'treiber': True}
     assert 'gho_geheim' not in client.get('/api/tafel').text
+    assert b'gho_geheim' not in (tmp_path / 'b.db').read_bytes()
     assert schritt(client) == 'fertig'
 
 
-def test_handlung_nur_mit_pin_und_ohne_token_in_der_datenbank(client, bericht, tmp_path):
+def test_handlung_nur_mit_pin(client, bericht):
     client.post('/api/bericht', json=mit_forge(bericht, angemeldet=False, konto=None, rechte=None))
     assert schritt(client) == 'offen'
     assert verknuepfen(client, pin=None).status_code == 401
@@ -39,7 +40,6 @@ def test_handlung_nur_mit_pin_und_ohne_token_in_der_datenbank(client, bericht, t
     assert schritt(client) == 'wartet'
     geholt = client.get('/api/handlungen', params={'forge': FORGE}).json()
     assert [(h['epic'], h['art'], h['text']) for h in geholt] == [(0, 'forge_verknuepfen', None)]
-    assert b'gho_' not in (tmp_path / 'b.db').read_bytes()
 
 
 def test_fehlende_rechte_sind_nicht_fertig_und_aelterer_treiber_ohne_status(client, bericht):

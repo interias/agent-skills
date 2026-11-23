@@ -2241,4 +2241,19 @@ describe('Forge über die Brücke (#125)', () => {
       await b.zu();
     }
   }, T);
+
+  it('a terminal that cannot open is refused, nothing says it opened', async () => {
+    const t = aufbau();
+    t.welt.forge = { terminal: () => { throw new Error('kein Fenster'); } };
+    const liste: Wunsch[] = [{ epic: 0, art: 'forge_verknuepfen' }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 1500 }), t.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte).toContain('Forge verknüpfen über die Brücke abgelehnt: kein Fenster');
+      expect(texte.some((x) => x.startsWith('Forge: Terminal zum Verknüpfen'))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
 });

@@ -10,7 +10,7 @@ import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../a
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
 import { aktiveAuswahl, KONTEN_DATEI, kontenTafel, kontoAus, kurzname, liesKonten } from '../werkzeuge/konten.ts';
 import { anmeldung, konten as kontenBefehl, type KontenWelt } from '../befehle/konten.ts';
-import { forge as forgeBefehl, forgeStatus, type ForgeStatus, type ForgeWelt } from '../befehle/forge.ts';
+import { forgeStatus, type ForgeStatus, type ForgeWelt, verknuepfen } from '../befehle/forge.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -1835,7 +1835,7 @@ class Treiber {
   /** forge_verknuepfen over the bridge, with the PIN: a terminal at the machine; the person signs in there */
   forgeVerknuepfen(): void {
     try {
-      forgeBefehl(['verknuepfen', this.e.repo], this.forgeWelt).catch((e) => this.ereignis(null, `Forge verknüpfen über die Brücke abgelehnt: ${(e as Error).message.slice(0, 200)}`));
+      verknuepfen(this.e.repo, this.forgeWelt);
       this.forgeSchnellBis = this.w.jetzt() + 30 * 60_000;
       this.forgeGeprueft = 0;
       this.imLogbuch(null, `Forge: Terminal zum Verknüpfen am Rechner geöffnet; ${HERKUNFT_BRUECKE}`);

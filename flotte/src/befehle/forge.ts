@@ -86,6 +86,13 @@ export function verknuepfenBefehl(repo: string): string {
   ].join('; ');
 }
 
+/** Opens the terminal for linking at the machine; synchronous, so a caller sees a failure at once. */
+export function verknuepfen(repo: string, w: ForgeWelt): string {
+  const b = verknuepfenBefehl(repo);
+  (w.terminal ?? ((x: string) => oeffneTerminal(x)))(b);
+  return b;
+}
+
 export async function forge(argv: string[], w: ForgeWelt = { aufrufer: aufrufen }): Promise<unknown> {
   const [befehl, ordner] = argv;
   const repo = resolve(ordner ?? '.');
@@ -93,8 +100,7 @@ export async function forge(argv: string[], w: ForgeWelt = { aufrufer: aufrufen 
     case 'pruefen':
       return await forgeStatus(repo, w);
     case 'verknuepfen': {
-      const b = verknuepfenBefehl(repo);
-      (w.terminal ?? ((x: string) => oeffneTerminal(x)))(b);
+      const b = verknuepfen(repo, w);
       return { geoeffnet: b.startsWith('gh ') ? b : 'Gitea-Abfrage', weiter: 'Im neuen Fenster anmelden; danach zeigt flotte forge pruefen den Stand.' };
     }
     default:
