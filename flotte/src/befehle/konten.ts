@@ -1,8 +1,9 @@
-// flotte konten liste|anlegen|deaktivieren|aktivieren|pruefen (#94). Works on konten.json only:
+// flotte konten liste|anlegen|deaktivieren|aktivieren|anmelden|pruefen (#94, #95). Works on konten.json only:
 // anlegen creates the folder ~/.claude-arbeitspferd-<n> and never one that exists, deaktivieren never
 // deletes a folder. The sign-in stays with the person at the machine (`claude`, `/login`); pruefen only
 // looks whether .credentials.json exists, never reads it, and asks Haiku once with CLAUDE_CONFIG_DIR.
 
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -16,9 +17,11 @@ export interface KontenWelt {
   heim: string;
   aufrufer: Aufrufer;
   claude?: string;
+  /** konto_anmelden / `anmelden`: a terminal at the machine with `claude` on this account; default the real one */
+  terminal?: (dir: string) => void;
 }
 
-const UNTERBEFEHLE = 'liste|anlegen|deaktivieren|aktivieren|pruefen';
+const UNTERBEFEHLE = 'liste|anlegen|deaktivieren|aktivieren|anmelden|pruefen';
 // the same narrow evidence the driver uses for a run that stopped at the sign-in (lauf.ts)
 const ABGELEHNT = /Failed to authenticate|OAuth (token|session) (has )?expired|not logged in|Please run \/login|Invalid API key|authentication_error/i;
 
@@ -27,14 +30,21 @@ const wert = (argv: string[], name: string) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 
-/** The sign-in of one account: the credentials file only by its existence, then one short Haiku call. */
-export function anmeldung(k: Konto, w: KontenWelt): Anmeldung {
+/** The sign-in of one account: the credentials file only by its existence, then one short Haiku call (`aufruf`; the driver goes without, #94 decision 3). */
+export function anmeldung(k: Konto, w: KontenWelt, aufruf = true): Anmeldung {
   const dir = kontoAus(k.nr, kontenTafel(w.datei), w.heim);
   if (!existsSync(dir)) return 'ordner fehlt';
   if (!existsSync(join(dir, '.credentials.json'))) return 'nicht angemeldet';
+  if (!aufruf) return 'angemeldet';
   const r = w.aufrufer(w.claude ?? process.env.FLOTTE_CLAUDE ?? 'claude', ['-p', '--model', 'haiku', 'Antworte nur mit ok.'], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir } });
   if (r.code === 0) return 'angemeldet';
   return ABGELEHNT.test(`${r.stdout} ${r.stderr}`) ? 'nicht angemeldet' : 'unklar';
+}
+
+/** A new window at the machine with `claude` on the account, for its /login; nothing of it goes through the bridge (#95). */
+export function terminalMitClaude(dir: string): void {
+  if (process.platform !== 'win32') throw new Error('Ein Terminal öffnen kann flotte nur unter Windows; am Rechner: CLAUDE_CONFIG_DIR setzen, claude starten, /login.');
+  spawn('pwsh', ['-NoProfile', '-Command', "Start-Process pwsh -ArgumentList '-NoExit', '-Command', 'claude'"], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, detached: true, stdio: 'ignore', windowsHide: true }).unref();
 }
 
 function finde(liste: Konto[], nr: string | undefined): Konto {
@@ -65,6 +75,11 @@ export function konten(argv: string[], w: KontenWelt = { datei: KONTEN_DATEI, he
       k.aktiv = befehl === 'aktivieren';
       schreibeKonten(liste, w.datei);
       return { konto: k };
+    }
+    case 'anmelden': {
+      const k = finde(liste, rest[0]);
+      (w.terminal ?? terminalMitClaude)(kontoAus(k.nr, kontenTafel(w.datei), w.heim));
+      return { konto: k, weiter: 'Im neuen Fenster /login eingeben und der Anleitung folgen.' };
     }
     case 'pruefen': {
       const auswahl = rest.length ? rest.map((nr) => finde(liste, nr)) : liste;

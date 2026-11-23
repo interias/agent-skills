@@ -92,8 +92,16 @@ describe('#94 konten.json', () => {
     expect(r.konten.map((k) => k.anmeldung)).toEqual(['nicht angemeldet', 'unklar']);
   });
 
+  it('anmelden opens a terminal at the machine for the account, nothing else (#95)', () => {
+    const w = welt();
+    const geoeffnet: string[] = [];
+    konten(['anmelden', '2'], { ...w, terminal: (d) => geoeffnet.push(d) });
+    expect(geoeffnet).toEqual([join(w.heim, '.claude-arbeitspferd')]);
+    expect(w.aufrufe).toHaveLength(0);
+  });
+
   it('a wrong call names the subcommands', () => {
-    expect(() => konten(['weg'], welt())).toThrow(/liste\|anlegen\|deaktivieren\|aktivieren\|pruefen/);
+    expect(() => konten(['weg'], welt())).toThrow(/liste\|anlegen\|deaktivieren\|aktivieren\|anmelden\|pruefen/);
   });
 
   it('keeps what the file says over the standard', () => {
