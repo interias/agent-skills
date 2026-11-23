@@ -174,6 +174,7 @@ Hinweis ab.
 | `merge` | Andocken | `automatisch` oder `mensch` | `werte`; Standard = Adapterschlüssel `merge` (`nach_gate` → `automatisch`, sonst `mensch`) | wie das Projekt andockt, ab dem nächsten Takt: `automatisch` = Andock-Schlange und `merge.ps1` nach grüner Andockprüfung, `mensch` = wie `merge: mensch` (PR bereit, ein Mensch dockt an). Je Mission gilt die wirksame Stellung (Missions-Feld `merge`); ein PR, der nur wegen ihr wartet, kommt bei `automatisch` in die Schlange |
 | `triageModell` | Modell der Triage | `opus`, `fable` oder `sonnet` | `werte`; Standard `opus` | das Modell des nächsten Triage-Laufs (mit Schnittplan); ein laufender behält seines |
 | `admiralModell` | Modell des Admirals | `opus`, `fable` oder `sonnet` | `werte`; Standard `fable`; Startparameter `--admiral-modell` | das Modell des nächsten Frageblocks des Admirals |
+| `triageLesenMax` | Dateizugriffe der Triage je Aufruf | Zahl | 0–100, Standard 15 | #167: so viele Dateien darf das Modell eines Triage-Aufrufs selbst lesen (`--max-turns` danach); die üblichen Fakten legt das Programm vor. Ab dem nächsten Aufruf |
 
 **Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
 sagt. Sonst fehlt es in `werte`, `hinweis` sagt warum, und der Treiber lehnt es ab (Ereignis

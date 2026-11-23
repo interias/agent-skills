@@ -346,6 +346,16 @@ Vorschlags über mehrere Zeilen gehört ganz zum Vorschlag, eine Leerzeile beend
 stehen offene Vorschläge als Tickets des `lern_issue` unter dem Thema `Lernschleife`, Titel mit der
 Kennung davor.
 
+**Fakten vom Programm** (#167): Vor dem ersten Aufruf eines Laufs liest das Programm je Projekt einmal,
+was fast jede Entscheidung braucht, und hängt es an jeden Auftrag (Schnittplan und Lernvorschläge): die
+ADRs unter `docs/adr` (Titel und Status), den Adapter `.claude/epic.md` (gekürzt), die letzten 15 angedockten PRs
+(`gh pr list --state merged`, Titel) und die Dateien, die die Notizen nennen (Pfade mit Ordner und Endung,
+die es gibt; je Datei und insgesamt gekürzt). Die offenen Missionen mit ihren Missionszielen stehen schon im
+Auftrag des Schnittplans. Das Modell liest nur, wenn ein Fakt fehlt, höchstens `triageLesenMax`
+Dateizugriffe je Aufruf (Einstellung im Maschinenraum, Standard 15); der Aufruf bekommt `--max-turns` =
+Grenze + 3. Die Ausgabe nennt `messung` = `{aufrufe, dauerMs, zugriffe}` (Werkzeugaufrufe aller
+Admiral-Aufrufe), die Zeile im Flottenlogbuch endet mit `; Dauer <s> s in <n> Aufrufen, <z> Dateizugriffe`.
+
 **Zum Menschen** kommt eine Frage der Triage nur auf zwei Wegen: als Fragekommentar am Ticket (bei
 einem Lernvorschlag am `lern_issue`) und im Frachtraum der Brücke. Einen Chat, der sie sammelt, gibt
 es nicht; das Entscheidungsrecht steht in `references/entscheidungsrecht.md`.

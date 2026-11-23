@@ -679,7 +679,8 @@
     { "name": "leerlaufMin", "titel": "Leerlauf (Minuten bis Nachfassen/Abbruch)", "wert": 60, "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": 60, "leer": false, "min": 5, "max": 480 },
     { "name": "merge", "titel": "Andocken", "wert": "automatisch", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "automatisch", "leer": false, "werte": ["automatisch", "mensch"], "hinweis": null },
     { "name": "triageModell", "titel": "Modell der Triage", "wert": "opus", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "opus", "leer": false, "werte": ["opus", "fable", "sonnet"], "hinweis": null },
-    { "name": "admiralModell", "titel": "Modell des Admirals", "wert": "fable", "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": "fable", "leer": false, "werte": ["opus", "fable", "sonnet"], "hinweis": null }
+    { "name": "admiralModell", "titel": "Modell des Admirals", "wert": "fable", "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": "fable", "leer": false, "werte": ["opus", "fable", "sonnet"], "hinweis": null },
+    { "name": "triageLesenMax", "titel": "Dateizugriffe der Triage je Aufruf", "wert": 15, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 15, "leer": false, "min": 0, "max": 100 }
   ],
   "freigegeben": [
     { "nr": 43, "titel": "Mini-Epic: Statusseite" },

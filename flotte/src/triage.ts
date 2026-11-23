@@ -14,6 +14,7 @@
 
 import { abschnittInhalt, pruefen, TRIAGE_LABEL, type AuftragsRegeln } from './auftrag/auftrag.ts';
 import { LERN_MARKE } from './lernen.ts';
+import { lesenRegel } from './triage-fakten.ts';
 import { BEIM_MENSCHEN, HERKUNFT_REGEL, MERKMALE } from './treiber/admiral.ts';
 
 export const INFO_LABEL = 'needs-info';
@@ -265,10 +266,10 @@ const abschnitte = (r: AuftragsRegeln) =>
   `Fehlt ${r.acceptance_section.map((k) => `„${k}“`).join(' oder ')} oder ist leer, schreibst du abnahmekriterien (prüfbare Markdown-Liste); fehlt „${r.verification_section}“ oder ist leer, schreibst du verifikationsweg (ein fahrbarer Befehl oder Ablauf). Was schon dasteht, lässt du leer.`;
 
 /** #117: the order for the clearing of one proposal of the learning loop. */
-export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern: Lernvorschlag): string {
+export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern: Lernvorschlag, k?: Kontext): string {
   const fakten = faktenAus(t, TEXT_MAX);
   return `FLOTTE-TRIAGE
-Du bist der Admiral der Flotte und klärst einen Vorschlag der Lernschleife ohne Rückfrage. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm schreibt; aus einem klaren Vorschlag legt es über den Auftragsschreiber eine Sternzeit-Notiz an (agent-skills/ADR-0002), die der Schnittplan desselben Laufs einer Mission zuordnet.
+Du bist der Admiral der Flotte und klärst einen Vorschlag der Lernschleife ohne Rückfrage. ${lesen(k)} Das Programm schreibt; aus einem klaren Vorschlag legt es über den Auftragsschreiber eine Sternzeit-Notiz an (agent-skills/ADR-0002), die der Schnittplan desselben Laufs einer Mission zuordnet.
 
 ${FRAGERUNDE}
 
@@ -283,8 +284,16 @@ Antworte nur über das Schema.
 
 # ${lern.kennung} (Sammel-Issue #${t.nummer}): ${t.titel}
 
-${fakten}`;
+${fakten}${k ? `\n\n${k.fakten}` : ''}`;
 }
+
+/** #167: the facts the program read for the orders of a run, and the file accesses left to the model per call. */
+export interface Kontext {
+  fakten: string;
+  lesenMax: number;
+}
+
+const lesen = (k?: Kontext) => (k ? `Du änderst nichts. ${lesenRegel(k.lesenMax)}` : 'Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen.');
 
 const kopf = (titel: string) => `${TRIAGE_MARKE}\n**Triage: ${titel}** — entschieden vom Admiral (\`flotte triage\`)`;
 
@@ -577,7 +586,7 @@ export function pakete(notizen: Ticket[], budget = NOTIZEN_GESAMT): Ticket[][] {
   return out.map((p) => p.sort((a, b) => a.nummer - b.nummer));
 }
 
-export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX): string {
+export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX, k?: Kontext): string {
   const jeNotiz = Math.min(NOTIZ_MAX, Math.floor(NOTIZEN_GESAMT / Math.max(1, notizen.length)));
   const jeMission = Math.min(MISSION_MAX, Math.floor(MISSIONEN_GESAMT / Math.max(1, missionen.length)));
   // #147: the free places spelled out; the limit alone in the text did not keep the model from overfilling
@@ -586,7 +595,7 @@ export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]
     ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${plaetze(m)})\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
     : '(keine)';
   return `FLOTTE-SCHNITTPLAN
-Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen und klärst sie dabei ohne Rückfrage, alle in diesem einen Aufruf; eine Einzelklärung danach gibt es nicht. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002).
+Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen und klärst sie dabei ohne Rückfrage, alle in diesem einen Aufruf; eine Einzelklärung danach gibt es nicht. ${lesen(k)} Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002).
 
 Ordne jede Notiz unten genau einmal zu (art):
 - mission: Kind einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
@@ -614,7 +623,7 @@ ${offen}
 
 # Sternzeit-Notizen
 
-${notizen.map((t) => `## Sternzeit-Notiz #${t.nummer}: ${t.titel}\n${faktenAus(t, jeNotiz, '###')}`).join('\n\n')}`;
+${notizen.map((t) => `## Sternzeit-Notiz #${t.nummer}: ${t.titel}\n${faktenAus(t, jeNotiz, '###')}`).join('\n\n')}${k ? `\n\n${k.fakten}` : ''}`;
 }
 
 /** The comment that stands at a note before the triage closes it after the cut plan. */

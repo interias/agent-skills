@@ -47,6 +47,8 @@ export interface Einstellung {
   admiralModell: string | null;
   /** #166: model of a triage run (and its cut plan); set on the bridge, opus by default */
   triageModell: string;
+  /** #167: file accesses of the triage's model per call */
+  triageLesenMax: number;
   /** --admiral: CLAUDE_CONFIG_DIR of the admiral calls; null: the account of the epic (acceptance 3, decision D) */
   admiralKonto: string | null;
   admiralEffort: string | null;
@@ -110,6 +112,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     modell: null,
     admiralModell: 'fable',
     triageModell: 'opus',
+    triageLesenMax: 15,
     admiralKonto: null,
     admiralEffort: 'high',
     pingModell: 'haiku',
@@ -1687,7 +1690,7 @@ class Treiber {
       const datei = join(this.e.repo, '.claude', 'epic.md');
       const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
       const r = await (this.w.triagiere ?? triagiere)(
-        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.triageModell, trocken: false, programm: this.programm() },
+        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.triageModell, lesenMax: this.e.triageLesenMax, trocken: false, programm: this.programm() },
         { aufrufer: this.w.aufrufer, starte: starteTriage, abgebrochen: () => abbruch.signal.aborted },
       );
       // #147: aborted, what the run wrote until then still counts (decisions, cut plan), only its end differs
@@ -1749,7 +1752,9 @@ class Treiber {
       const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}${nach.length ? `, Warp frei nachgeholt für ${nach.map((m) => `Mission #${m.nummer}`).join(', ')}` : ''}`;
       // #147: a note without an allowed end state makes the run incomplete, not finished; each one stands in the line
       const unsauber = abweichungen.length ? `; ${abweichungen.length} ${abweichungen.length === 1 ? 'Notiz' : 'Notizen'} nicht sauber abgearbeitet: ${abweichungen.map((x) => `#${x.nr} (${x.grund})`).join(', ')}` : '';
-      this.imLogbuch(null, `Triage-Lauf ${abgebrochen ? `abgebrochen: ${abgebrochen}; bis dahin` : abweichungen.length ? 'unvollständig:' : 'beendet:'} ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}${unsauber}`);
+      // #167: how long the admiral calls took and how often the model read itself
+      const gemessen = r.messung ? `; Dauer ${Math.round(r.messung.dauerMs / 1000)} s in ${r.messung.aufrufe} ${r.messung.aufrufe === 1 ? 'Aufruf' : 'Aufrufen'}, ${r.messung.zugriffe} ${r.messung.zugriffe === 1 ? 'Dateizugriff' : 'Dateizugriffe'}` : '';
+      this.imLogbuch(null, `Triage-Lauf ${abgebrochen ? `abgebrochen: ${abgebrochen}; bis dahin` : abweichungen.length ? 'unvollständig:' : 'beendet:'} ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}${unsauber}${gemessen}`);
       this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length, ...(this.z.triage?.schnittplan?.fehler ? { fehler: this.z.triage.schnittplan.fehler } : {}) };
     } catch (err) {
       if (abbruch.signal.aborted) this.triageAbgebrochen(String(abbruch.signal.reason), String(abbruch.signal.reason));

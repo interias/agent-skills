@@ -41,6 +41,8 @@ export const EINSTELLUNGEN = {
   // #166: from the next triage run or question block on; a running one keeps its model
   triageModell: { titel: 'Modell der Triage', werte: MODELLE, leer: false, standard: 'opus' },
   admiralModell: { titel: 'Modell des Admirals', werte: MODELLE, leer: false, standard: 'fable' },
+  // #167: file accesses the model of the triage may make per call; the program reads the common facts itself
+  triageLesenMax: { titel: 'Dateizugriffe der Triage je Aufruf', min: 0, max: 100, leer: false, standard: 15 },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -130,6 +132,8 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return e.triageModell;
     case 'admiralModell':
       return e.admiralModell;
+    case 'triageLesenMax':
+      return e.triageLesenMax;
   }
 }
 
@@ -194,6 +198,9 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'admiralModell':
       e.admiralModell = wert as string;
+      break;
+    case 'triageLesenMax':
+      e.triageLesenMax = wert as number;
       break;
   }
   return null;

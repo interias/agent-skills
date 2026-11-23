@@ -257,7 +257,7 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   nur als Halt einer Mission, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
   Seite sie.
-  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die dreizehn wirksamen Werte
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die vierzehn wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was
   er bremst. Eine Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus

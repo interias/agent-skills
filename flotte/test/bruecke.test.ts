@@ -1264,6 +1264,20 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   }, T);
 
+  it('#167: the triage gets triageLesenMax (15 without a setting); the logbook line names duration and file accesses', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe({ ...ergebnis([{ nummer: 30, ergebnis: 'klar', geschrieben: true }]), messung: { aufrufe: 2, dauerMs: 95_000, zugriffe: 7 } });
+    const b = await attrappe(() => null, { handlung: (x) => (x.triage.beendet ? null : { epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(tr.aufrufe[0].lesenMax).toBe(15);
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei, 0 geschlossen, 0 Fragen an den Menschen; Dauer 95 s in 2 Aufrufen, 7 Dateizugriffe');
+      expect(b.berichte.at(-1)!.einstellungen.find((e) => e.name === 'triageLesenMax')).toMatchObject({ wert: 15, min: 0, max: 100 });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#148: a failed triage run ends in the report as beendet with the error', async () => {
     const t = aufbau();
     const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });

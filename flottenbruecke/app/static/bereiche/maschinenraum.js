@@ -118,6 +118,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
     merge: 'Automatisch dockt der Treiber nach grüner Andockprüfung an, sonst prüft ein Mensch jedes Andocken. Berührt eine Mission einen Punkt der Liste „beim Menschen“, schlägt der Treiber dort „Mensch prüft“ vor; den Schalter je Mission gibt es auf der Sternenkarte.',
     triageModell: 'Mit diesem Modell läuft der nächste Triage-Lauf samt Schnittplan; ein laufender behält seines.',
     admiralModell: 'Mit diesem Modell beantwortet der Admiral den nächsten Frageblock; Startwert ist --admiral-modell.',
+    triageLesenMax: 'So viele Dateien darf das Modell der Triage je Aufruf selbst lesen; die üblichen Fakten legt das Programm vor. Gilt ab dem nächsten Aufruf.',
     // #90: the settings of the Werft of a repository
     an: 'Aus: die Werft holt nichts, zieht nichts nach und fährt keine Migration; eine Freigabe lehnt sie ab. Wieder an, zieht sie nach, was inzwischen kam.',
     stacks: 'Nur diese Stacks zieht die Werft nach. Ein abgeschalteter Stack wird nicht gezogen, auch nicht auf Knopfdruck, und keine Migration läuft; wieder an, holt er nach, was ihn inzwischen berührt hat.',

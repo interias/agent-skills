@@ -82,7 +82,7 @@ describe('#146 Schnittplan: 12 Notizen zu 3 Themen', () => {
     const r = await triagiere(auftrag(true), t.w);
     expect(t.geplant).toHaveLength(1);
     expect(nummernIn(t.geplant[0].auftrag)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    expect(t.geplant[0].extraArgs).toEqual(['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob']);
+    expect(t.geplant[0].extraArgs).toEqual(['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob', '--max-turns', '18']);
     const [p] = r.schnittplan;
     expect(p.fehler).toBeUndefined();
     expect(p.neue_missionen.map((m) => [m.titel, m.kinder])).toEqual([['Portprüfung', [1, 2, 3, 4]], ['Tafel', [5, 6, 7, 8]], ['Logbuch', [9, 10, 11, 12]]]);

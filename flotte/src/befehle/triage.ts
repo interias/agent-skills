@@ -15,8 +15,9 @@ import { auftragAusfuehren, entwurfLesen, missionAnlegen, missionszielAnhaengen,
 import { githubForge } from '../auftrag/github.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
 import { abschlusspruefung, loseFreigaben, type Abschluss } from '../triage-abschluss.ts';
+import { faktenpaket, LESEN_MAX, maxTurns } from '../triage-fakten.ts';
 import { kommentar } from '../treiber/forge.ts';
-import { BERECHTIGT, entscheidungAus, ergaenzt, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, NEUE_MISSIONEN_MAX, neueMissionKommentar, offeneFragen, pakete, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
+import { BERECHTIGT, entscheidungAus, ergaenzt, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, NEUE_MISSIONEN_MAX, neueMissionKommentar, offeneFragen, pakete, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Kontext, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
 import { kontoAus } from '../werkzeuge/konten.ts';
 import { starte, type LaufErgebnis, type Start } from '../werkzeuge/lauf.ts';
@@ -42,6 +43,8 @@ export interface TriageAuftrag {
   trocken: boolean;
   log?: string | null;
   programm?: Pick<Start, 'programm' | 'programmArgs'>;
+  /** #167: file accesses of the model per call (setting triageLesenMax), LESEN_MAX without */
+  lesenMax?: number;
 }
 
 export interface TriageWelt {
@@ -184,7 +187,19 @@ export interface Nachgeholt {
  * abschluss (#147): the final check of every note of the input (the notes for the model and the waiting ones)
  * against the forge after writing; zustand: unvollstaendig when a note misses its end state.
  */
-export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
+export async function triagiere(o: TriageAuftrag, welt: TriageWelt) {
+  // #167: duration and tool calls (the file accesses) of every admiral call of the run, for the logbook
+  const messung = { aufrufe: 0, dauerMs: 0, zugriffe: 0 };
+  const w: TriageWelt = {
+    ...welt,
+    starte: async (s) => {
+      const r = await welt.starte(s);
+      messung.aufrufe++;
+      messung.dauerMs += r.dauerMs ?? 0;
+      messung.zugriffe += r.zugriffe ?? 0;
+      return r;
+    },
+  };
   const tickets: TicketErgebnis[] = [];
   const fragen: KritischeFrage[] = [];
   const offen: KritischeFrage[] = [];
@@ -228,9 +243,12 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
       }
       notizen.push(t);
     }
+    // #167: the facts of the project, read once before the first admiral call of the run
+    let gelesen: Kontext | undefined;
+    const kontext = () => (gelesen ??= { fakten: faktenpaket(z.repo, z.forge, w.aufrufer, notizen), lesenMax: o.lesenMax ?? LESEN_MAX });
     // #170: before the plan, so a clear proposal joins it as a note and never stands loose with ready_label
-    if (z.lernIssue && !ab()) notizen.push(...(await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler })));
-    const plan = notizen.length && !ab() ? await schneide(o, w, z, notizen, schnittplan) : null;
+    if (z.lernIssue && !ab()) notizen.push(...(await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler }, kontext)));
+    const plan = notizen.length && !ab() ? await schneide(o, w, z, notizen, schnittplan, kontext) : null;
     // #146: the plan has cleared every note that stays (no call per note); #147: the clear ones per mission of the
     // plan, written mission by mission below
     const klare = new Map<string, Klar[]>();
@@ -281,7 +299,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   }
   if (ab()) Object.assign(abschluss, { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'abgebrochen: nach dem Abbruch nichts mehr geschrieben, keine Abschlussprüfung' });
   const zustand: 'beendet' | 'unvollstaendig' | 'abgebrochen' = ab() ? 'abgebrochen' : abschluss.abweichungen.length ? 'unvollstaendig' : 'beendet';
-  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand };
+  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand, messung };
 }
 
 /**
@@ -292,7 +310,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
  * merged, superfluous and rejected notes (the comment with origin first, then `not planned`, never deleted) and
  * returns the notes that stay.
  */
-async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen: Ticket[], out: SchnittplanErgebnis[]): Promise<Geplant | null> {
+async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen: Ticket[], out: SchnittplanErgebnis[], kontext: () => Kontext): Promise<Geplant | null> {
   let missionen: OffeneMission[];
   try {
     missionen = offeneMissionen(w.aufrufer, z.forge, z.regeln);
@@ -307,8 +325,8 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
       konto: o.konto,
       auftrag,
       modell: o.modell,
-      // read only, like the admiral: ADRs and code are facts
-      extraArgs: ['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob'],
+      // read only, like the admiral: ADRs and code are facts; #167: most of them come with the order, the rest is capped
+      extraArgs: ['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob', '--max-turns', maxTurns(kontext().lesenMax)],
       werkzeuge: admiralWerkzeuge,
       leerlaufMs: 10 * 60_000,
       log: o.log ?? null,
@@ -320,7 +338,7 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
   const frei = missionen.map((m) => ({ ...m }));
   let neuMax = NEUE_MISSIONEN_MAX;
   for (const [i, teil] of teile.entries()) {
-    const auftrag = schnittplanAuftrag(teil, frei, z.regeln, neuMax);
+    const auftrag = schnittplanAuftrag(teil, frei, z.regeln, neuMax, kontext());
     let r = await fahre(auftrag);
     ergebnis.aufrufe++;
     let p = schnittplanAus(r.strukturiert, teil, frei, z.regeln, neuMax);
@@ -591,7 +609,7 @@ function nachfreigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel): Nachgeho
  * proposal never becomes a loose Missionsziel. Decided proposals and open questions wait for an answer
  * naming the kennung in its first line.
  */
-async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue: number, out: { tickets: TicketErgebnis[]; fragen: KritischeFrage[]; offen: KritischeFrage[]; fehler: { forge: string; fehler: string }[] }): Promise<Ticket[]> {
+async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue: number, out: { tickets: TicketErgebnis[]; fragen: KritischeFrage[]; offen: KritischeFrage[]; fehler: { forge: string; fehler: string }[] }, kontext: () => Kontext): Promise<Ticket[]> {
   let liste: Lernvorschlag[];
   try {
     liste = lernTickets(w.aufrufer, z.forge, issue);
@@ -618,9 +636,9 @@ async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue:
       ...(o.programm ?? {}),
       repo: z.repo,
       konto: o.konto,
-      auftrag: triageAuftrag(t, z.regeln, v),
+      auftrag: triageAuftrag(t, z.regeln, v, kontext()),
       modell: o.modell,
-      extraArgs: ['--json-schema', JSON.stringify(triageSchema()), '--tools', 'Read,Grep,Glob'],
+      extraArgs: ['--json-schema', JSON.stringify(triageSchema()), '--tools', 'Read,Grep,Glob', '--max-turns', maxTurns(kontext().lesenMax)],
       werkzeuge: admiralWerkzeuge,
       leerlaufMs: 10 * 60_000,
       log: o.log ?? null,
