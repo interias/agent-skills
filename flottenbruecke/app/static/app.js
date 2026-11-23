@@ -509,7 +509,7 @@ function zeileHtml(x) {
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
   // #116: an action of the Frachtraum belongs to a ticket or the project, not to an epic
-  if (x.art === 'handlung' && x.handlung.startsWith('triage')) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
+  if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.handlung === 'einspielen')) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
   if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${handlungWort(x)}</b></span>`;
   // admiral
   return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
@@ -522,6 +522,7 @@ function handlungWort(x) {
   if (x.handlung === 'prioritaet') return `Priorität ${esc(x.text)}`;
   if (x.handlung === 'merge') return `Andocken: ${esc(andockenWort(x.text))}`;
   if (x.handlung === 'triage') return 'Triage-Lauf gestartet';
+  if (x.handlung === 'einspielen') return 'Einspielen und Treiber neu starten';
   if (x.handlung === 'triage-widerruf') return `#${x.ticket} Triage-Entscheidung widerrufen → ${esc(x.text)}`;
   // #148: the epic is the mission
   if (x.handlung === 'schnitt-widerruf') return `Mission aus dem Schnittplan widerrufen → ${esc(x.text)}`;
@@ -733,6 +734,19 @@ function schleife() {
   else requestAnimationFrame(schleife);
 }
 
+// ---- #154: the stand of bridge and driver in the foot of every page, details in the Maschinenraum
+
+function fussStand(t) {
+  const k = (c) => (c ? c.slice(0, 7) : '?');
+  const treiber = [...new Set(t.projekte.filter((p) => p.version?.commit).map((p) => p.version.commit))];
+  const neu = t.projekte.some((p) => p.version?.neu);
+  const el = $('fuss-stand');
+  el.textContent = `B ${k(t.bruecke?.commit)} · T ${treiber.length > 1 ? `${treiber.length} Stände` : k(treiber[0])}${neu ? ' · neu' : ''}`;
+  el.classList.toggle('neu', neu);
+  const lang = t.projekte.filter((p) => p.version).map((p) => `Treiber ${p.kurz}: ${k(p.version.commit)}${p.version.datum ? ` vom ${datum(p.version.datum)?.toLocaleString('de-DE') ?? ''}` : ''}, gestartet ${datum(p.version.gestartet)?.toLocaleString('de-DE') ?? ''}${p.version.neu ? `; neuer Stand ${k(p.version.neu.commit)}` : ''}`);
+  el.title = [`Brücke: ${k(t.bruecke?.commit)}${t.bruecke?.datum ? ` vom ${datum(t.bruecke.datum)?.toLocaleString('de-DE') ?? ''}` : ''}`, ...lang].join('\n');
+}
+
 // ---- the ticker of the logbook in the lower bar
 
 function laufband(t) {
@@ -819,6 +833,7 @@ async function laden() {
     ebene2(t);
     ebene3(t, vorherErledigt);
     laufband(t);
+    fussStand(t);
     tabAlarm(t.braucht.length);
     huelle.tafel(t);
     lebenszeichen();

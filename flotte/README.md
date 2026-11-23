@@ -48,7 +48,8 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
   schlägt der Treiber „Mensch prüft“ vor, wenn Body des Epics oder Titel/Body eines Kindes ein
   Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`), und
   zeigt den Grund; ein Schalter am Epic (Sternenkarte) überstimmt Vorschlag und Projekt.
-- **Nicht einstellbar:** die Merge-Regel des Adapters, Rechte, Geheimnisse, Updates.
+- **Nicht einstellbar:** die Merge-Regel des Adapters, Rechte, Geheimnisse. Ein Update ist keine
+  Einstellung, sondern die Handlung „Einspielen“ (unten, „Anhalten und neu starten“).
 
 Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
 
@@ -70,6 +71,39 @@ Der Treiber startet dann nichts Neues mehr, lässt einen begonnenen Merge zu End
 mit dem Ereignis „Angehalten auf Wunsch“. Danach aktualisieren und mit demselben Aufruf neu
 starten. Läuft kein Treiber, wirkt die Datei `anhalten` beim nächsten Start sofort; löschen, wenn
 das nicht gewollt ist.
+
+**Stand und Einspielen über die Brücke (#154).** `install.ps1` schreibt in jeden installierten
+Skill-Ordner `stand.json`: Commit und Datum der Quelle, Zeitpunkt der Installation und den Ordner der
+Quelle. Der Treiber meldet diesen Stand und seine Startzeit an die Brücke (`version` im Bericht) und
+vergleicht ihn, wenn er mit Brücke fährt, beim Start und danach höchstens alle 15 Minuten (`STAND_MS`) mit `main` von
+`origin` der Quelle (`git fetch`, kein Forge-Aufruf, also GitHub wie Gitea). Liegt dort ein neuerer
+Commit, zeigt die Brücke „Neuer Stand verfügbar: <commit>, <datum>, <PR-Titel>“. Ohne `stand.json`
+(ein Treiber aus dem Repository statt aus der Installation) meldet er keinen Stand und lehnt das
+Einspielen ab.
+
+Der Knopf „Einspielen und Treiber neu starten“ im Maschinenraum (PIN, je Treiber oder für alle) legt
+die Handlung `einspielen` ab. Der Treiber holt sie ab und geht den Weg von Hand
+(`src/treiber/stand.ts`):
+
+1. **Anhalten** wie `flotte anhalten`: nichts Neues mehr; ein offenes Andocken (Merge-Schlange mit
+   Gate, `merge.ps1` und `nach_merge`) läuft zu Ende, bis dahin meldet die Brücke „Wartet auf das
+   Andocken von #…“. Laufende Läufe arbeiten weiter.
+2. **Einspielen** in der Quelle: nur sauber und auf `main`, dann `git pull --ff-only origin main` und
+   `install.ps1`. Ist die Quelle nicht sauber, steht sie nicht auf `main` oder scheitert ein Schritt,
+   wird nichts weiter getan. Auf einem Rechner spielt nur ein Treiber zur Zeit ein (Sperrdatei
+   `flotte-einspielen.lock` im Temp-Ordner, „für alle“); hat ein anderer denselben Stand schon
+   eingespielt, folgt nur der Neustart.
+3. **Brücke bauen** nur, wenn sich `flottenbruecke/` seit dem Commit ihres Images geändert hat (die
+   Brücke legt ihn in die Handlung; unbekannt: gebaut): `docker compose up -d --build` in
+   `flottenbruecke/` mit `BRUECKE_COMMIT` und `BRUECKE_DATUM` als Build-Argumente.
+4. **Neu starten** mit derselben Kommandozeile (Programm, Skript, Argumente, Ordner, Umgebung) im
+   selben Terminal; der zuerst gestartete Prozess bleibt als einzige Hülle und wartet darauf. Ein so
+   gestarteter Treiber (`FLOTTE_HUELLE`) startet beim nächsten Einspielen nichts selbst, sondern endet
+   mit Exit-Code 75 (`NEUSTART`), und die Hülle startet denselben Aufruf neu; jeden anderen Exit-Code
+   gibt sie weiter. So wartet nach beliebig vielen Updates höchstens ein Prozess. Der neue Treiber
+   übernimmt die laufenden Läufe (D16), meldet den neuen Stand und schreibt ins Logbuch
+   „Neuer Stand eingespielt: <alt> → <neu> (<datum>), Brücke neu gebaut | unverändert; …“ oder
+   „Einspielen gescheitert: <grund>; …“.
 
 Ein weiteres Konto zuschalten: [`SKILL.md`](SKILL.md), „Weiteres Konto
 zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/README.md).

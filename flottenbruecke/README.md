@@ -2,7 +2,7 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen).
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen) und (#154) das Einspielen eines neuen Stands (Maschinenraum).
 Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
@@ -285,7 +285,18 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne
   `einstellungen` im Bericht: nur lesend mit Hinweis. Andocken (#112) verschärft nur: „automatisch“
   steht nur zur Wahl, wenn der Adapter `merge: nach_gate` sagt, sonst nennt die Zeile den Grund. Die
-  Merge-Regel des Adapters, Rechte, Geheimnisse und Updates gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
+  Merge-Regel des Adapters, Rechte und Geheimnisse gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
+  Darüber der Abschnitt **Stand** (#154): die Brücke mit Commit und Datum ihres Images, je Treiber
+  Commit und Datum des installierten Skill-Satzes, wann er eingespielt wurde und wann der Treiber
+  startete; kurz steht das auch im Fuß jeder Seite (`B <commit> · T <commit>`, gold mit „neu“, ein
+  Tipp führt hierher). Meldet ein Treiber einen neueren Commit auf `main` seiner Quelle (er fragt
+  höchstens alle 15 Minuten), steht dort „Neuer Stand verfügbar: <commit>, <datum>, <PR-Titel>“.
+  **Einspielen und Treiber neu starten** (je Treiber, bei mehreren auch für alle) nach einer Rückfrage,
+  mit PIN; ohne PIN nur die Anzeige. Die Brücke legt nur die Handlung ab (agent-skills/ADR-0005): Der
+  Treiber hält an, wartet ein offenes Andocken ab („Wartet auf das Andocken von #…“), spielt `main`
+  ein, baut die Brücke neu, wenn sich `flottenbruecke/` geändert hat, und startet mit derselben
+  Kommandozeile neu; laufende Läufe übernimmt er. Ablauf: `flotte/README.md`, „Anhalten und neu
+  starten“. Ein älterer Treiber ohne Stand: „einspielen von Hand“.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das
@@ -293,7 +304,10 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 
 ## Aktualisieren
 
-`git pull`, dann `docker compose up -d --build` im Ordner. Das Volume bleibt; v2 legt auf einem
+Am einfachsten über den Knopf im Maschinenraum (#154, oben). Von Hand: `git pull`, dann
+`docker compose up -d --build` im Ordner; mit Stand im Maschinenraum (PowerShell):
+`$env:BRUECKE_COMMIT = git rev-parse HEAD; $env:BRUECKE_DATUM = git log -1 --format=%cI; docker compose up -d --build`.
+Ohne die beiden Werte zeigt die Brücke ihren Stand nicht und das nächste Einspielen baut sie neu. Das Volume bleibt; v2 legt auf einem
 v1-Volume nur die Tabelle `handlungen` an und nimmt weiter Berichte eines älteren Treibers an, v3
 ebenso die Tabelle `prototypen`, die Meldungen (#37) die Tabellen `push_abos` und `gemeldet`.
 

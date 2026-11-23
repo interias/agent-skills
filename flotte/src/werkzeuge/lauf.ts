@@ -146,6 +146,8 @@ export function laufUmgebung(basis: NodeJS.ProcessEnv, konto: string): NodeJS.Pr
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(basis)) {
     if (/^(CLAUDE|ANTHROPIC_|USE_LOCAL_OAUTH|USE_STAGING_OAUTH)/.test(k) && k !== 'CLAUDE_CONFIG_DIR') continue;
+    // the restart hull of the driver (stand.ts) belongs to the driver, not to a run it starts
+    if (k === 'FLOTTE_HUELLE') continue;
     env[k] = v;
   }
   const standard = resolve(homedir(), '.claude');

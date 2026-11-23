@@ -684,6 +684,15 @@
     { "nr": 43, "titel": "Mini-Epic: Statusseite" },
     { "nr": 44, "titel": "Spec: Exportskript" }
   ],
+  "version": {
+    "commit": "698cb10f3a2e4d5c6b7a8f9e0d1c2b3a4f5e6d7c",
+    "datum": "2026-11-22T21:14:00+01:00",
+    "installiert": "2026-11-22T21:20:31.0000000+01:00",
+    "gestartet": "2026-11-20T08:00:00Z",
+    "neu": { "commit": "a02dc4f1b2c3d4e5f60718293a4b5c6d7e8f9012", "datum": "2026-11-23T09:12:00+01:00", "titel": "Flottenbrücke: Meldungen bei „Braucht dich“ am Rechner und auf dem Handy" },
+    "geprueft": "2026-11-20T14:20:00Z",
+    "einspielen": null
+  },
   "triage": {
     "gelesen": "2026-11-20T14:30:00Z",
     "laeuft": false,

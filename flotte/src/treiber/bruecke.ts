@@ -13,6 +13,7 @@ import type { BerichtSitzung } from './sitzungen.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { PaketDetail } from '../werkzeuge/detail.ts';
 import type { BerichtEinstellung, WirksameStellung } from './einstellungen.ts';
+import type { MainStand } from './stand.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
@@ -46,11 +47,13 @@ export interface BrueckenAntwort {
  * question of the triage (epic the ticket, nr and seit the question, text the JSON `{"option", "text"}`);
  * triage-widerruf revokes a decision of a triage run (epic the ticket, seit its zeit, text the objection).
  * #148: schnitt-widerruf revokes a mission of the last cut plan (epic the mission, text the objection).
+ * #154: einspielen (epic 0) halts the driver, installs the newest main of its source and starts it again; text the
+ * JSON `{"bruecke": <commit of the bridge image or null>}`, set by the bridge.
  */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf' | 'einspielen';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -199,6 +202,23 @@ export interface Bericht {
   freigegeben: { nr: number; titel: string }[];
   /** #116: the triage state (Frachtraum) */
   triage: BerichtTriage;
+  /** #154: the stand the driver runs and a newer one on main of its source */
+  version: BerichtVersion;
+}
+
+/**
+ * #154: commit and date of the installed skill set (null without stand.json), when it was installed, when the
+ * driver started; neu the newer commit on main of the source (checked at most every 15 minutes, geprueft: when);
+ * einspielen an update the person asked for, waiting for the merges in wartetAuf before the driver halts.
+ */
+export interface BerichtVersion {
+  commit: string | null;
+  datum: string | null;
+  installiert: string | null;
+  gestartet: string;
+  neu: MainStand | null;
+  geprueft: string | null;
+  einspielen: { seit: string; wartetAuf: number[] } | null;
 }
 
 /** #116: a decision of a triage run of this driver, revocable on the bridge; (nr, zeit) is the key */
@@ -298,7 +318,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim()))),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim())) || (h.art === 'einspielen' && h.epic === 0)),
   );
 }
 
