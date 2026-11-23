@@ -39,6 +39,66 @@ if (existsSync(join(import.meta.dir, \`kaputt-\${stack}\`))) { console.error(\`\
 console.log(\`\${stack} nachgezogen\`);
 `;
 
+// the stand-in for a working database: a SQLite file next to the fixture (bun:sqlite, no server).
+// sichern writes a backup with VACUUM INTO and names it in its last line; migrieren adds a row with
+// the commit and notes the state of its migration in werft.json as it starts; lesen prints the rows of
+// a file. Marker files make the backup fail (after writing and naming a file), stale or empty.
+const DB = `import { Database } from 'bun:sqlite';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+const dir = import.meta.dir;
+const was = process.argv[2];
+const arbeit = join(dir, 'arbeit.sqlite');
+if (was === 'lesen') {
+  const d = new Database(process.argv[3], { readonly: true });
+  console.log(JSON.stringify(d.query('SELECT commit_sha FROM migrationen').all().map((x) => x.commit_sha)));
+  d.close();
+  process.exit(0);
+}
+if (was === 'anlegen') {
+  const d = new Database(arbeit);
+  d.run('CREATE TABLE migrationen (commit_sha TEXT)');
+  d.close();
+  process.exit(0);
+}
+appendFileSync(join(dir, 'aufrufe.txt'), \`\${was} \${process.env.WERFT_COMMIT}\\n\`);
+const kaputt = () => existsSync(join(dir, \`kaputt-\${was}\`)) && (console.error(\`\${was}: gescheitert\`), process.exit(1));
+if (was !== 'sichern') kaputt();
+if (was === 'sichern') {
+  mkdirSync(join(dir, 'sicherungen'), { recursive: true });
+  const ziel = join(dir, 'sicherungen', \`\${Date.now()}-\${Math.random().toString(36).slice(2)}.sqlite\`);
+  if (existsSync(join(dir, 'alt-sichern'))) {
+    writeFileSync(ziel, 'alt');
+    utimesSync(ziel, new Date('2020-01-01'), new Date('2020-01-01'));
+  } else if (existsSync(join(dir, 'leer-sichern'))) writeFileSync(ziel, '');
+  else {
+    const d = new Database(arbeit);
+    d.run(\`VACUUM INTO '\${ziel.replaceAll("'", "''")}'\`);
+    d.close();
+  }
+  console.log('Sicherung geschrieben:');
+  console.log(ziel);
+  kaputt();
+} else {
+  const stand = JSON.parse(readFileSync(join(process.cwd(), '.git', 'flotte', 'werft.json'), 'utf8'));
+  appendFileSync(join(dir, 'zustand-beim-start.txt'), \`\${stand.stacks[process.env.WERFT_STACK].arbeit.zustand}\\n\`);
+  const d = new Database(arbeit);
+  d.query('INSERT INTO migrationen (commit_sha) VALUES (?)').run(process.env.WERFT_COMMIT);
+  d.close();
+  console.log('migriert');
+}
+`;
+
+const MIGRATION = `---
+main_branch: main
+deploy:
+  d.pfade: [apps/d/]
+  d.nachziehen: bun ../../nachziehen.ts d
+  d.sicherung: bun ../../db.ts sichern
+  d.migration_arbeit: bun ../../db.ts migrieren
+---
+`;
+
 const wurzeln: string[] = [];
 afterAll(() => {
   for (const w of wurzeln) rmSync(w, { recursive: true, force: true });
@@ -51,7 +111,7 @@ const git = (cwd: string, ...args: string[]) => {
 };
 
 /** wurzel/origin.git (bare), wurzel/arbeit (where merges land on main), wurzel/rechner/repo (the Werft's checkout) */
-function fixture() {
+function fixture(adapter = ADAPTER) {
   const wurzel = mkdtempSync(join(tmpdir(), 'flotte-werft-'));
   wurzeln.push(wurzel);
   const origin = join(wurzel, 'origin.git');
@@ -59,12 +119,13 @@ function fixture() {
   const rechner = join(wurzel, 'rechner');
   mkdirSync(rechner);
   writeFileSync(join(wurzel, 'nachziehen.ts'), NACHZIEHEN);
+  writeFileSync(join(wurzel, 'db.ts'), DB);
   aufrufen('git', ['init', '-q', '--bare', '-b', 'main', origin]);
   aufrufen('git', ['init', '-q', '-b', 'main', arbeit]);
   git(arbeit, 'config', 'user.email', 'werft@example.invalid');
   git(arbeit, 'config', 'user.name', 'Werft');
   mkdirSync(join(arbeit, '.claude'));
-  writeFileSync(join(arbeit, '.claude', 'epic.md'), ADAPTER);
+  writeFileSync(join(arbeit, '.claude', 'epic.md'), adapter);
   git(arbeit, 'add', '.');
   git(arbeit, 'commit', '-q', '-m', 'adapter');
   git(arbeit, 'remote', 'add', 'origin', origin);
@@ -86,7 +147,20 @@ function fixture() {
   let uhr = Date.parse('2026-11-23T10:00:00Z');
   // every takt is a quarter of an hour later: each repository is due
   const jetzt = () => new Date((uhr += 15 * 60_000));
-  return { wurzel, rechner, repo, merge, aufrufe, leere, jetzt, kaputt: (s: string, an = true) => (an ? writeFileSync(join(wurzel, `kaputt-${s}`), '') : rmSync(join(wurzel, `kaputt-${s}`), { force: true })) };
+  /** the rows of the working database or of a backup of it */
+  const zeilen = (datei = join(wurzel, 'arbeit.sqlite')): string[] => {
+    const r = aufrufen('bun', [join(wurzel, 'db.ts'), 'lesen', datei]);
+    if (r.code) throw new Error(r.stderr);
+    return JSON.parse(r.stdout) as string[];
+  };
+  /** a merge that only changes the adapter */
+  const neuerAdapter = (text: string) => {
+    writeFileSync(join(arbeit, '.claude', 'epic.md'), text);
+    git(arbeit, 'commit', '-q', '-am', 'adapter');
+    git(arbeit, 'push', '-q', 'origin', 'main');
+    return git(arbeit, 'rev-parse', 'HEAD');
+  };
+  return { wurzel, rechner, repo, merge, neuerAdapter, aufrufe, leere, jetzt, zeilen, kaputt: (s: string, an = true) => (an ? writeFileSync(join(wurzel, `kaputt-${s}`), '') : rmSync(join(wurzel, `kaputt-${s}`), { force: true })) };
 }
 
 /** A stand-in bridge: keeps the reports of the Werft, offers the actions once, records acknowledgements. */
@@ -135,6 +209,8 @@ describe('Werft (#88)', () => {
     expect(deployAus('---\nmain_branch: main\n---\n')).toBeNull();
     expect(deployAus('---\ndeploy:\n  x.pfade: [a/]\n  x.nachziehen: up\n  x.migration_arbeit: m\n  x.sicherung: s\n---\n')!.stacks[0]).toMatchObject({ migrationArbeit: 'm', sicherung: 's' });
     expect(deployAus('---\ndeploy:\n  x.pfade: [a/]\n  x.nachziehen: up\n---\n')!.abfrageS).toBe(120);
+    // a working migration without a backup could never be released: an error, not a stack that waits forever
+    expect(() => deployAus('---\ndeploy:\n  x.pfade: [a/]\n  x.nachziehen: up\n  x.migration_arbeit: m\n---\n')).toThrow(/x\.sicherung/);
     expect(() => deployAus('---\ndeploy:\n  x.pfade: [a/]\n  x.nachzihen: up\n---\n')).toThrow(/x\.nachzihen/);
     expect(() => deployAus('---\ndeploy:\n  x.pfade: [a/]\n---\n')).toThrow(/nachziehen/);
     expect(() => deployAus('---\ndeploy:\n  abfrage_s: 0\n  x.pfade: [a/]\n  x.nachziehen: up\n---\n')).toThrow(/abfrage_s/);
@@ -162,7 +238,8 @@ describe('Werft (#88)', () => {
 
       const neu = f.merge('apps/a/main.ts', 'apps/b/x/y.ts', 'README.md');
       const b = await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
-      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`]);
+      // b's test migration runs by itself right after b is pulled
+      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`, `b-migration ${neu}`]);
       const s = ladeStand(f.repo);
       expect(s.stand).toBe(neu);
       expect(s.stacks.a).toMatchObject({ status: 'gruen', commit: neu });
@@ -197,7 +274,7 @@ describe('Werft (#88)', () => {
       f.kaputt('a');
       const neu = f.merge('geteilt/lib.ts', 'apps/b/index.ts');
       await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
-      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`]);
+      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`, `b-migration ${neu}`]);
       const s = ladeStand(f.repo);
       expect(s.stand).toBe(neu);
       expect(s.stacks.b).toMatchObject({ status: 'gruen', commit: neu });
@@ -236,7 +313,7 @@ describe('Werft (#88)', () => {
       writeFileSync(datei, JSON.stringify(s));
       expect(s.stand).toBe(neu);
       await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
-      expect(f.aufrufe()).toEqual([`b ${danach}`]);
+      expect(f.aufrufe()).toEqual([`b ${danach}`, `b-migration ${danach}`]);
       expect(ladeStand(f.repo).stand).toBe(danach);
 
       // died after a again, and a commit touching only b came before the restart: a is not pulled again
@@ -247,7 +324,7 @@ describe('Werft (#88)', () => {
       writeFileSync(datei, JSON.stringify(s2));
       const y = f.merge('apps/b/w.ts');
       await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
-      expect(f.aufrufe()).toEqual([`b ${y}`]);
+      expect(f.aufrufe()).toEqual([`b ${y}`, `b-migration ${y}`]);
       expect(ladeStand(f.repo).stand).toBe(y);
     },
     T,
@@ -262,7 +339,7 @@ describe('Werft (#88)', () => {
       writeFileSync(datei, JSON.stringify({ ...ladeStand(f.repo), stand: 'deadbeef'.repeat(5) }));
       const neu = f.merge('apps/c/x.ts');
       const b = await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
-      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`, `c ${neu}`]);
+      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`, `b-migration ${neu}`, `c ${neu}`]);
       expect(b.meldungen.join('\n')).toMatch(/deadbee fehlt lokal/);
       expect(b.repos[0]).toMatchObject({ stand: neu, fehler: null });
     },
@@ -328,21 +405,24 @@ describe('Werft (#88)', () => {
       f.kaputt('a', false);
       f.leere();
       const h = (x: Partial<WerftHandlung> & Pick<WerftHandlung, 'id' | 'art'>): WerftHandlung => ({ forge: 'repo', stack: null, text: null, zeit: '2026-11-23T10:00:00Z', herkunft: 'Mensch über die Brücke', ...x });
-      const br = await brueckenAttrappe([h({ id: 1, art: 'nachziehen', stack: 'a' }), h({ id: 2, art: 'einstellen', text: JSON.stringify({ name: 'abfrage_s', wert: 600 }) }), h({ id: 3, art: 'nachziehen', stack: 'gibtsnicht' }), h({ id: 4, art: 'migration_freigeben' as never, stack: 'b' })]);
+      const br = await brueckenAttrappe([h({ id: 1, art: 'nachziehen', stack: 'a' }), h({ id: 2, art: 'einstellen', text: JSON.stringify({ name: 'abfrage_s', wert: 600 }) }), h({ id: 3, art: 'nachziehen', stack: 'gibtsnicht' }), h({ id: 4, art: 'migration_freigeben', stack: 'b', text: '{}' }), h({ id: 5, art: 'spaeter' as never, stack: 'b' })]);
       try {
         const b = await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: new Bruecke(br.url, null), rechner: 'werft-test' });
         expect(f.aufrufe()).toEqual([`a ${neu}`]);
         expect(ladeStand(f.repo).stacks.a).toMatchObject({ status: 'gruen', commit: neu, protokoll: null });
         expect(ladeStand(f.repo).abfrageS).toBe(600);
         expect(br.abgeholt).toEqual(['/api/werft/handlungen?rechner=werft-test']);
-        // an unknown stack is turned down and acknowledged; an art of a later Werft stays at the bridge
-        expect(br.quittungen.sort()).toEqual([1, 2, 3]);
+        // an unknown stack and a release for a stack without a working migration are turned down and acknowledged;
+        // an art of a later Werft stays at the bridge
+        expect(br.quittungen.sort()).toEqual([1, 2, 3, 4]);
+        expect([...br.offen.keys()]).toEqual([5]);
         expect(br.berichte).toHaveLength(1);
         expect(br.berichte[0]).toEqual(b);
         expect(b).toMatchObject({ rechner: 'werft-test', repos: [{ forge: 'repo', branch: 'main', stand: neu, abfrageS: 600, fehler: null }] });
         expect(b.repos[0].stacks[0]).toMatchObject({ name: 'a', status: 'gruen', commit: neu, migration: { test: false, arbeit: false, sicherung: false } });
         expect(b.repos[0].stacks[1].migration).toEqual({ test: true, arbeit: false, sicherung: false });
         expect(b.meldungen.join('\n')).toMatch(/gibtsnicht/);
+        expect(b.meldungen.join('\n')).toMatch(/Freigabe der Migration über die Brücke abgelehnt: kein b\.migration_arbeit/);
       } finally {
         await br.zu();
       }
@@ -352,6 +432,299 @@ describe('Werft (#88)', () => {
       const tot = await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: new Bruecke(br.url, null, 500) });
       expect(f.aufrufe()).toEqual([`c ${weiter}`]);
       expect(tot.repos[0].stand).toBe(weiter);
+    },
+    T,
+  );
+});
+
+describe('Werft: Migrationen (#89)', () => {
+  /** what a release names, as the bridge reads it from the report */
+  const bindung = (m: { commit: string; sicherung: string | null; pruefsumme: string | null }) => ({ commit: m.commit, sicherung: m.sicherung, pruefsumme: m.pruefsumme });
+
+  /** the fixture with stack d (backup and working migration) and its SQLite database, a bridge, a takt against both */
+  async function mitMigration() {
+    const f = fixture(MIGRATION);
+    aufrufen('bun', [join(f.wurzel, 'db.ts'), 'anlegen']);
+    const br = await brueckenAttrappe();
+    const lauf = () => takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: new Bruecke(br.url, null), rechner: 'werft-test' });
+    const freigabe = (id: number, felder: unknown, stack = 'd') => br.offen.set(id, { id, forge: 'repo', stack, art: 'migration_freigeben', text: JSON.stringify(felder), zeit: '2026-11-23T10:00:00Z', herkunft: 'Mensch über die Brücke' });
+    const nachziehen = (id: number) => br.offen.set(id, { id, forge: 'repo', stack: 'd', art: 'nachziehen', text: null, zeit: '2026-11-23T10:00:00Z', herkunft: 'Mensch über die Brücke' });
+    await lauf();
+    return { f, br, lauf, freigabe, nachziehen };
+  }
+
+  it(
+    'a test migration runs by itself after nachziehen; when it fails the stack is red with its log',
+    async () => {
+      const f = fixture();
+      await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
+      f.kaputt('b-migration');
+      const neu = f.merge('apps/a/x.ts', 'apps/b/x.ts');
+      const b = await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: null });
+      expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`, `b-migration ${neu}`]);
+      expect(ladeStand(f.repo).stacks.b).toMatchObject({ status: 'rot', commit: neu });
+      expect(ladeStand(f.repo).stacks.b.protokoll).toContain('b-migration: Compose-Fehler');
+      expect(b.meldungen.join('\n')).toMatch(/b rot .*migration_test/);
+      // only b is held
+      expect(ladeStand(f.repo).stacks.a).toMatchObject({ status: 'gruen', commit: neu });
+
+      // a red nachziehen: the test migration does not run
+      f.kaputt('b-migration', false);
+      f.kaputt('b');
+      f.leere();
+      const br = await brueckenAttrappe([{ id: 1, forge: 'repo', stack: 'b', art: 'nachziehen', text: null, zeit: '2026-11-23T10:00:00Z', herkunft: 'Mensch über die Brücke' }]);
+      try {
+        await takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: new Bruecke(br.url, null), rechner: 'werft-test' });
+        expect(f.aufrufe()).toEqual([`b ${neu}`]);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'a working migration: backup first, never without a release, exactly once with it, not again after a restart',
+    async () => {
+      const { f, br, lauf, freigabe } = await mitMigration();
+      try {
+        const neu = f.merge('apps/d/x.ts');
+        const b = await lauf();
+        expect(f.aufrufe()).toEqual([`d ${neu}`, `sichern ${neu}`]);
+        const m = b.repos[0].stacks[0].arbeit!;
+        expect(m).toMatchObject({ zustand: 'wartet', commit: neu });
+        expect(m.pruefsumme).toMatch(/^[0-9a-f]{64}$/);
+        // the report names the file, never its path
+        expect(m.sicherung).toMatch(/^[^/\\]+\.sqlite$/);
+        expect(b.repos[0].stacks[0].status).toBe('gruen');
+
+        // no release: the migration never runs, however many takts pass
+        for (let i = 0; i < 3; i++) await lauf();
+        expect(f.zeilen()).toEqual([]);
+        expect(f.aufrufe()).not.toContain(`migrieren ${neu}`);
+
+        // a release bound to another commit, another backup or to nothing is turned down and acknowledged
+        freigabe(10, { ...bindung(m), commit: 'f'.repeat(40) });
+        freigabe(11, { ...bindung(m), pruefsumme: '0'.repeat(64) });
+        freigabe(12, { ...bindung(m), sicherung: 'andere.sqlite' });
+        freigabe(15, { commit: neu });
+        const abgelehnt = await lauf();
+        expect(f.zeilen()).toEqual([]);
+        expect(br.quittungen.sort()).toEqual([10, 11, 12, 15]);
+        expect(abgelehnt.meldungen.filter((x) => /Freigabe der Migration über die Brücke abgelehnt/.test(x))).toHaveLength(4);
+        expect(abgelehnt.repos[0].stacks[0].arbeit?.zustand).toBe('wartet');
+
+        // the release of the waiting migration: it works on the database exactly once
+        freigabe(13, bindung(m));
+        const frei = await lauf();
+        expect(f.zeilen()).toEqual([neu]);
+        expect(f.aufrufe().filter((x) => x.startsWith('migrieren'))).toEqual([`migrieren ${neu}`]);
+        expect(frei.repos[0].stacks[0].arbeit).toMatchObject({ zustand: 'migriert', commit: neu });
+        expect(br.quittungen).toContain(13);
+        // the stand said laeuft before the command started: a Werft that dies during it never starts it again
+        expect(readFileSync(join(f.wurzel, 'zustand-beim-start.txt'), 'utf8').split(/\r?\n/).filter(Boolean)).toEqual(['laeuft']);
+        // the backup was taken before: it holds the database without the migration
+        const sicherung = ladeStand(f.repo).stacks.d.arbeit!.sicherung!;
+        expect(f.zeilen(sicherung)).toEqual([]);
+
+        // the same release again (its acknowledgement got lost), a second release, and each takt a new
+        // process that knows only werft.json: the migration does not run again
+        freigabe(13, bindung(m));
+        freigabe(14, bindung(m));
+        await lauf();
+        await lauf();
+        expect(f.zeilen()).toEqual([neu]);
+        expect(br.quittungen.filter((x) => x === 13)).toHaveLength(2);
+        expect(br.quittungen).toContain(14);
+        expect(br.offen.size).toBe(0);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'an old release never moves a later migration: a new commit takes a new backup and needs its own release',
+    async () => {
+      const { f, br, lauf, freigabe } = await mitMigration();
+      try {
+        const x = f.merge('apps/d/x.ts');
+        const alt = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(alt).toMatchObject({ zustand: 'wartet', commit: x });
+        const y = f.merge('apps/d/y.ts');
+        const neu = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(neu).toMatchObject({ zustand: 'wartet', commit: y });
+        // two backups of an unchanged database may be byte for byte the same: the file tells them apart
+        expect(neu.sicherung).not.toBe(alt.sicherung);
+
+        freigabe(20, bindung(alt));
+        freigabe(21, { ...bindung(alt), commit: y });
+        await lauf();
+        expect(f.zeilen()).toEqual([]);
+        expect(br.quittungen.sort()).toEqual([20, 21]);
+
+        freigabe(22, bindung(neu));
+        await lauf();
+        expect(f.zeilen()).toEqual([y]);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'a failed, stale or empty backup locks the release; nachziehen on the bridge takes a new one',
+    async () => {
+      const { f, br, lauf, freigabe, nachziehen } = await mitMigration();
+      try {
+        f.kaputt('sichern');
+        const neu = f.merge('apps/d/x.ts');
+        const b = await lauf();
+        expect(f.aufrufe()).toEqual([`d ${neu}`, `sichern ${neu}`]);
+        expect(b.repos[0].stacks[0]).toMatchObject({ status: 'rot', arbeit: { zustand: 'gesperrt', commit: neu, sicherung: null, pruefsumme: null } });
+        expect(b.repos[0].stacks[0].protokoll).toContain('sichern: gescheitert');
+        freigabe(30, { commit: neu, pruefsumme: null });
+        const abgelehnt = await lauf();
+        expect(abgelehnt.meldungen.join('\n')).toMatch(/Freigabe der Migration über die Brücke abgelehnt: .*keine geprüfte Sicherung/);
+        expect(br.quittungen).toEqual([30]);
+        expect(f.zeilen()).toEqual([]);
+        expect(f.aufrufe().some((x) => x.startsWith('migrieren'))).toBe(false);
+
+        // exit 0, but the file it names is older than the command
+        f.kaputt('sichern', false);
+        writeFileSync(join(f.wurzel, 'alt-sichern'), '');
+        nachziehen(31);
+        const alt = await lauf();
+        expect(alt.repos[0].stacks[0]).toMatchObject({ status: 'rot', arbeit: { zustand: 'gesperrt' } });
+        expect(alt.repos[0].stacks[0].protokoll).toMatch(/älter als der Sicherungsbefehl/);
+
+        // exit 0, but the file is empty
+        rmSync(join(f.wurzel, 'alt-sichern'));
+        writeFileSync(join(f.wurzel, 'leer-sichern'), '');
+        nachziehen(32);
+        const leer = await lauf();
+        expect(leer.repos[0].stacks[0]).toMatchObject({ status: 'rot', arbeit: { zustand: 'gesperrt' } });
+        expect(leer.repos[0].stacks[0].protokoll).toMatch(/leer/);
+        expect(f.zeilen()).toEqual([]);
+
+        // a good backup: waits, and its release works
+        rmSync(join(f.wurzel, 'leer-sichern'));
+        nachziehen(33);
+        const gut = (await lauf()).repos[0].stacks[0];
+        expect(gut).toMatchObject({ status: 'gruen', arbeit: { zustand: 'wartet', commit: neu } });
+        freigabe(34, bindung(gut.arbeit!));
+        await lauf();
+        expect(f.zeilen()).toEqual([neu]);
+
+        // a red nachziehen takes no backup and drops the waiting migration: its release is turned down
+        const y = f.merge('apps/d/y.ts');
+        const w = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(w).toMatchObject({ zustand: 'wartet', commit: y });
+        f.kaputt('d');
+        f.leere();
+        nachziehen(35);
+        const rot = (await lauf()).repos[0].stacks[0];
+        expect(f.aufrufe()).toEqual([`d ${y}`]);
+        expect(rot).toMatchObject({ status: 'rot', arbeit: null });
+        freigabe(36, bindung(w));
+        await lauf();
+        expect(f.zeilen()).toEqual([neu]);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'a failed or interrupted migration is never run again by the same release; a backup that changed locks it',
+    async () => {
+      const { f, br, lauf, freigabe, nachziehen } = await mitMigration();
+      try {
+        f.kaputt('migrieren');
+        const neu = f.merge('apps/d/x.ts');
+        const m = (await lauf()).repos[0].stacks[0].arbeit!;
+        freigabe(40, bindung(m));
+        const rot = await lauf();
+        expect(rot.repos[0].stacks[0]).toMatchObject({ status: 'rot', arbeit: { zustand: 'rot' } });
+        expect(rot.repos[0].stacks[0].protokoll).toContain('migrieren: gescheitert');
+        f.kaputt('migrieren', false);
+        freigabe(40, bindung(m));
+        freigabe(41, bindung(m));
+        await lauf();
+        expect(f.aufrufe().filter((x) => x.startsWith('migrieren'))).toEqual([`migrieren ${neu}`]);
+        expect(f.zeilen()).toEqual([]);
+
+        // the Werft died during a migration (the stand says it runs): a release never starts it again
+        // d is red: the person pulls it again, which takes a new backup
+        const y = f.merge('apps/d/y.ts');
+        nachziehen(44);
+        const w = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(w).toMatchObject({ zustand: 'wartet', commit: y });
+        const datei = join(git(f.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'), 'flotte', 'werft.json');
+        const s = ladeStand(f.repo);
+        s.stacks.d.arbeit = { ...s.stacks.d.arbeit!, zustand: 'laeuft' };
+        writeFileSync(datei, JSON.stringify(s));
+        freigabe(42, bindung(w));
+        const b = await lauf();
+        expect(b.meldungen.join('\n')).toMatch(/abgelehnt: .*laeuft/);
+        expect(f.zeilen()).toEqual([]);
+
+        // the backup file changed after the check: the release is turned down and the migration locked
+        const z = f.merge('apps/d/z.ts');
+        const v = (await lauf()).repos[0].stacks[0].arbeit!;
+        writeFileSync(ladeStand(f.repo).stacks.d.arbeit!.sicherung!, 'überschrieben');
+        freigabe(43, bindung(v));
+        const g = await lauf();
+        expect(g.meldungen.join('\n')).toMatch(/abgelehnt: .*Sicherung .*geändert/);
+        expect(g.repos[0].stacks[0].arbeit?.zustand).toBe('gesperrt');
+        expect(f.zeilen()).toEqual([]);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'a release is bound to the command the backup was taken for: a later adapter with another command locks it',
+    async () => {
+      const { f, br, lauf, freigabe } = await mitMigration();
+      try {
+        const x = f.merge('apps/d/x.ts');
+        const m = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(m).toMatchObject({ zustand: 'wartet', commit: x });
+        // the report never carries the command
+        expect(m).not.toHaveProperty('befehl');
+        // only .claude/epic.md changes, outside d.pfade: d is not pulled again, its migration is another command
+        const y = f.neuerAdapter(MIGRATION.replace('bun ../../db.ts migrieren', 'bun ../../db.ts boese'));
+        freigabe(50, bindung(m));
+        const b = await lauf();
+        expect(ladeStand(f.repo).stand).toBe(y);
+        expect(f.aufrufe().some((z) => z.startsWith('boese') || z.startsWith('migrieren'))).toBe(false);
+        expect(b.meldungen.join('\n')).toMatch(/Freigabe der Migration über die Brücke abgelehnt: der Befehl von d hat sich seit der Sicherung geändert/);
+        expect(b.repos[0].stacks[0].arbeit?.zustand).toBe('gesperrt');
+        expect(br.quittungen).toEqual([50]);
+        expect(f.zeilen()).toEqual([]);
+
+        // a stand from before the command was kept (an older werft.json) is never released either
+        const z = f.merge('apps/d/z.ts');
+        const w = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(w).toMatchObject({ zustand: 'wartet', commit: z });
+        const datei = join(git(f.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'), 'flotte', 'werft.json');
+        const s = ladeStand(f.repo);
+        delete (s.stacks.d.arbeit as { befehl?: string }).befehl;
+        writeFileSync(datei, JSON.stringify(s));
+        freigabe(51, bindung(w));
+        const alt = await lauf();
+        expect(alt.meldungen.join('\n')).toMatch(/abgelehnt: der Befehl von d hat sich seit der Sicherung geändert/);
+        expect(f.aufrufe().some((z) => z.startsWith('boese') || z.startsWith('migrieren'))).toBe(false);
+        expect(f.zeilen()).toEqual([]);
+      } finally {
+        await br.zu();
+      }
     },
     T,
   );

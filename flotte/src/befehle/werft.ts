@@ -3,12 +3,14 @@
 // the key deploy. It watches origin/<main_branch>, pulls the stacks the diff since its last stand
 // touches, keeps that stand per repository in .git/flotte/werft.json and holds a stack that failed
 // (red, with its log) until the person pulls it again over the bridge. It only calls the bridge
-// (report, fetch actions, acknowledge); the bridge commands nothing. Migrations, backup and
-// releases are #89: their commands are read here, never run.
+// (report, fetch actions, acknowledge); the bridge commands nothing. After nachziehen it runs the
+// test migration by itself; a working migration (#89) only after a checked backup and a release the
+// person gives on the bridge, bound to that commit and that backup, at most once.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { aufrufenAsync, type AsyncAufrufer } from '../aufruf.ts';
 import { karte } from '../epic/mechanik.ts';
 import { Bruecke, rechnerName } from '../treiber/bruecke.ts';
@@ -69,7 +71,10 @@ export function deployAus(text: string): Deploy | null {
     else s[feld] = wert;
     stacks.set(m[1], s);
   }
-  for (const s of stacks.values()) if (!s.pfade.length || !s.nachziehen) throw new Error(`deploy: Stack ${s.name} braucht ${s.name}.pfade und ${s.name}.nachziehen`);
+  for (const s of stacks.values()) {
+    if (!s.pfade.length || !s.nachziehen) throw new Error(`deploy: Stack ${s.name} braucht ${s.name}.pfade und ${s.name}.nachziehen`);
+    if (s.migrationArbeit && !s.sicherung) throw new Error(`deploy: ${s.name}.migration_arbeit braucht ${s.name}.sicherung (ohne geprüfte Sicherung keine Freigabe)`);
+  }
   return stacks.size ? { abfrageS, stacks: [...stacks.values()] } : null;
 }
 
@@ -87,6 +92,25 @@ export function musterRegex(muster: string): RegExp {
   return new RegExp(`^${r}$`);
 }
 
+/**
+ * The working migration of a stack (#89), taken with every nachziehen of a stack that has one.
+ * wartet: the backup is checked, the migration waits for its release. gesperrt: no checked backup, a
+ * release is turned down. laeuft: released and started; written before the command, so a Werft that
+ * died during it never starts it again. migriert, rot: the migration ended with exit 0, or not.
+ */
+export interface ArbeitsMigration {
+  zustand: 'wartet' | 'gesperrt' | 'laeuft' | 'migriert' | 'rot';
+  /** the commit pulled before the backup; the release has to name it */
+  commit: string;
+  /** the checked backup file, null when there is none */
+  sicherung: string | null;
+  /** sha256 of the backup file at its check; the release has to name it */
+  pruefsumme: string | null;
+  zeit: string;
+  /** migration_arbeit as the adapter named it when the backup was taken: the one command a release runs. Missing in a stand before it was kept: never released */
+  befehl?: string;
+}
+
 export interface StackStand {
   status: 'gruen' | 'rot';
   /** the commit of origin/<main_branch> this stack was last pulled at */
@@ -94,6 +118,8 @@ export interface StackStand {
   zeit: string;
   /** the tail of the output when red, else null */
   protokoll: string | null;
+  /** #89, only for a stack with migration_arbeit; missing in a stand written before #89 */
+  arbeit?: ArbeitsMigration | null;
 }
 
 export interface WerftStand {
@@ -129,14 +155,16 @@ function schreibeStand(repo: string, s: WerftStand): void {
 /**
  * One action as GET /api/werft/handlungen delivers it (flottenbruecke/SCHNITTSTELLE.md, "Werft").
  * nachziehen: stack now, at the current stand, red or not. einstellen: stack null, text the JSON
- * `{"name": "abfrage_s", "wert": <seconds or null>}`. Other arts (#89: migration_freigeben) are left
- * at the bridge for a Werft that knows them.
+ * `{"name": "abfrage_s", "wert": <seconds or null>}`. migration_freigeben: stack, text the JSON
+ * `{"commit": <sha>, "sicherung": <file name>, "pruefsumme": <sha256>}` of the waiting migration as
+ * the report shows it. Other
+ * arts are left at the bridge for a Werft that knows them.
  */
 export interface WerftHandlung {
   id: number;
   forge: string;
   stack: string | null;
-  art: 'nachziehen' | 'einstellen';
+  art: 'nachziehen' | 'einstellen' | 'migration_freigeben';
   text: string | null;
   zeit: string;
   herkunft: string;
@@ -150,7 +178,7 @@ export function werftHandlungenAusJson(roh: unknown): WerftHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       typeof h.forge === 'string' &&
-      ((h.art === 'nachziehen' && typeof h.stack === 'string') || (h.art === 'einstellen' && typeof h.text === 'string')),
+      (((h.art === 'nachziehen' || h.art === 'migration_freigeben') && typeof h.stack === 'string') || (h.art === 'einstellen' && typeof h.text === 'string')),
   );
 }
 
@@ -163,6 +191,8 @@ export interface BerichtStack {
   protokoll: string | null;
   /** which commands of #89 the adapter names */
   migration: { test: boolean; arbeit: boolean; sicherung: boolean };
+  /** the working migration as ArbeitsMigration, the backup by its file name only (never a path); null without one */
+  arbeit: (Omit<ArbeitsMigration, 'sicherung' | 'befehl'> & { sicherung: string | null }) | null;
 }
 
 export interface BerichtRepo {
@@ -207,6 +237,34 @@ async function forgeVon(repo: string, a: AsyncAufrufer): Promise<string> {
 
 const kurz = (sha: string) => sha.slice(0, 7);
 const ende = (text: string) => (text.length > PROTOKOLL_MAX ? text.slice(-PROTOKOLL_MAX) : text);
+
+/** sha256 of a file, read as a stream: a backup can be large */
+async function pruefsumme(datei: string): Promise<string> {
+  const h = createHash('sha256');
+  for await (const teil of createReadStream(datei)) h.update(teil as Buffer);
+  return h.digest('hex');
+}
+
+/**
+ * Runs the backup command and checks what it left. Checked is a backup whose command ends with exit 0
+ * and names in the last line of its output a file (absolute or from the repository root) that exists,
+ * is not empty and was written after the command started. Returns the file and its checksum, or why not.
+ */
+async function sichere(repo: string, befehl: string, env: Record<string, string>, a: AsyncAufrufer): Promise<{ datei: string; pruefsumme: string } | { grund: string; protokoll: string }> {
+  const start = Date.now();
+  const r = await a(befehl, [], { cwd: repo, shell: true, timeoutMs: BEFEHL_MS, env });
+  const nicht = (grund: string) => ({ grund, protokoll: ende(`${grund}\n${r.stdout}${r.stderr}`.trim()) });
+  if (r.code) return nicht(`Sicherung gescheitert (Exit ${r.code})`);
+  const zeile = r.stdout.trim().split(/\r?\n/).pop()?.trim();
+  if (!zeile) return nicht('die Sicherung nennt in der letzten Zeile ihrer Ausgabe keine Datei');
+  const datei = resolve(repo, zeile);
+  const st = existsSync(datei) ? statSync(datei) : null;
+  if (!st?.isFile()) return nicht(`die Sicherung ${basename(datei)} fehlt`);
+  if (!st.size) return nicht(`die Sicherung ${basename(datei)} ist leer`);
+  // a second of slack for file systems that keep whole seconds
+  if (st.mtimeMs + 1000 < start) return nicht(`die Sicherung ${basename(datei)} ist älter als der Sicherungsbefehl`);
+  return { datei, pruefsumme: await pruefsumme(datei) };
+}
 
 /**
  * Fetches origin/<branch>, pulls the touched stacks and the ones the person asked for, writes the
@@ -261,11 +319,35 @@ async function ziehe(repo: string, forge: string, branch: string, s: WerftStand,
         continue;
       }
     }
-    const r = await a(st.nachziehen, [], { cwd: repo, shell: true, timeoutMs: BEFEHL_MS, env: { WERFT_COMMIT: neu, WERFT_STACK: st.name } });
-    const gruen = r.code === 0;
-    s.stacks[st.name] = { status: gruen ? 'gruen' : 'rot', commit: neu, zeit: new Date().toISOString(), protokoll: gruen ? null : ende(`${r.stdout}${r.stderr}`.trim() || `Exit ${r.code}`) };
+    const env = { WERFT_COMMIT: neu, WERFT_STACK: st.name };
+    const lauf = (befehl: string) => a(befehl, [], { cwd: repo, shell: true, timeoutMs: BEFEHL_MS, env });
+    // the test migration belongs to nachziehen: it runs by itself, and its failure holds the stack
+    let schritt = 'nachziehen';
+    let r = await lauf(st.nachziehen);
+    if (!r.code && st.migrationTest) {
+      schritt = 'migration_test';
+      r = await lauf(st.migrationTest);
+    }
+    let protokoll = r.code ? ende(`${r.stdout}${r.stderr}`.trim() || `Exit ${r.code}`) : null;
+    // every nachziehen replaces the waiting working migration: a release only ever fits the latest backup
+    let arbeit: ArbeitsMigration | null = null;
+    let sicherung = '';
+    if (!r.code && st.migrationArbeit) {
+      const g = await sichere(repo, st.sicherung!, env, a);
+      arbeit = { zustand: 'gesperrt', commit: neu, sicherung: null, pruefsumme: null, zeit: new Date().toISOString(), befehl: st.migrationArbeit };
+      if ('grund' in g) {
+        protokoll = g.protokoll;
+        sicherung = g.grund;
+      } else {
+        Object.assign(arbeit, { zustand: 'wartet', sicherung: g.datei, pruefsumme: g.pruefsumme });
+        sicherung = `Sicherung ${basename(g.datei)} geprüft, die Migration wartet auf die Freigabe`;
+      }
+    }
+    s.stacks[st.name] = { status: protokoll ? 'rot' : 'gruen', commit: neu, zeit: new Date().toISOString(), protokoll, arbeit };
     schreibeStand(repo, s);
-    melde(gruen ? `${forge}: ${st.name} nachgezogen (${kurz(neu)})` : `${forge}: ${st.name} rot (${kurz(neu)}, Exit ${r.code}), angehalten`);
+    if (r.code) melde(`${forge}: ${st.name} rot (${kurz(neu)}, ${schritt} Exit ${r.code}), angehalten`);
+    else if (arbeit?.zustand === 'gesperrt') melde(`${forge}: ${st.name} nachgezogen (${kurz(neu)}), aber ${sicherung}: keine Freigabe der Migration möglich, angehalten`);
+    else melde(`${forge}: ${st.name} nachgezogen (${kurz(neu)})${sicherung ? `, ${sicherung}` : ''}`);
   }
   s.stand = neu;
   schreibeStand(repo, s);
@@ -297,6 +379,7 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
     const erzwungen = new Set<string>();
     // nachziehen counts as done only once ziehe got through (fetch, adapter, diff); until then it stays at the bridge
     const nachziehen: number[] = [];
+    const freigaben: WerftHandlung[] = [];
     const erledigt = (id: number) => (s.handlungenErledigt = [...s.handlungenErledigt, id].slice(-200));
     for (const h of handlungen.filter((x) => x.forge === forge)) {
       if (s.handlungenErledigt.includes(h.id)) {
@@ -306,7 +389,8 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
       if (h.art === 'nachziehen') {
         erzwungen.add(h.stack!);
         nachziehen.push(h.id);
-      } else {
+      } else if (h.art === 'migration_freigeben') freigaben.push(h);
+      else {
         quittieren.push(h.id);
         erledigt(h.id);
         let e: { name?: unknown; wert?: unknown } = {};
@@ -339,6 +423,48 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
       }
       deploy = gelesen ?? deploy;
     }
+    // after ziehe: a release for a stack it just pulled again names the old backup and is turned down.
+    // A release counts once, worked or turned down, and is written before the migration starts: neither
+    // a lost acknowledgement nor a restart runs a migration twice.
+    for (const h of freigaben) {
+      quittieren.push(h.id);
+      erledigt(h.id);
+      const st = deploy?.stacks.find((x) => x.name === h.stack);
+      const m = s.stacks[h.stack!]?.arbeit;
+      let f: { commit?: unknown; sicherung?: unknown; pruefsumme?: unknown } = {};
+      try {
+        f = JSON.parse(h.text ?? '') ?? {};
+      } catch {
+        /* binds to nothing: turned down below */
+      }
+      let grund: string | null = null;
+      if (!st?.migrationArbeit) grund = `kein ${h.stack}.migration_arbeit in deploy`;
+      else if (!m || m.zustand === 'gesperrt') grund = `${h.stack} hat keine geprüfte Sicherung`;
+      else if (m.zustand !== 'wartet') grund = `die Migration von ${h.stack} wartet nicht auf eine Freigabe (${m.zustand}, ${kurz(m.commit)})`;
+      else if (f.commit !== m.commit || f.sicherung !== basename(m.sicherung!) || f.pruefsumme !== m.pruefsumme) grund = `sie gilt nicht der wartenden Migration von ${h.stack} (${kurz(m.commit)}, Sicherung ${basename(m.sicherung!)})`;
+      else if (st.migrationArbeit !== m.befehl) {
+        // the adapter changed without touching the stack's pfade (or the stand is older than befehl): the backup was not taken for this command
+        grund = `der Befehl von ${h.stack} hat sich seit der Sicherung geändert; nachziehen nimmt eine neue Sicherung`;
+        m.zustand = 'gesperrt';
+      } else if (!existsSync(m.sicherung!) || (await pruefsumme(m.sicherung!)) !== m.pruefsumme) {
+        grund = `die Sicherung ${basename(m.sicherung!)} fehlt oder hat sich seit ihrer Prüfung geändert; nachziehen nimmt eine neue`;
+        m.zustand = 'gesperrt';
+      }
+      if (grund || !st || !m?.befehl) {
+        schreibeStand(repo, s);
+        melde(`${forge}: Freigabe der Migration über die Brücke abgelehnt: ${grund}`);
+        continue;
+      }
+      m.zustand = 'laeuft';
+      m.zeit = new Date().toISOString();
+      schreibeStand(repo, s);
+      const r = await a(m.befehl, [], { cwd: repo, shell: true, timeoutMs: BEFEHL_MS, env: { WERFT_COMMIT: m.commit, WERFT_STACK: st.name } });
+      m.zustand = r.code ? 'rot' : 'migriert';
+      m.zeit = new Date().toISOString();
+      if (r.code) Object.assign(s.stacks[st.name], { status: 'rot', protokoll: ende(`${r.stdout}${r.stderr}`.trim() || `Exit ${r.code}`) });
+      schreibeStand(repo, s);
+      melde(r.code ? `${forge}: ${st.name} rot (${kurz(m.commit)}, migration_arbeit Exit ${r.code}), angehalten` : `${forge}: ${st.name} migriert (${kurz(m.commit)}), freigegeben: ${h.herkunft}`);
+    }
     repos.push({
       forge,
       branch,
@@ -348,7 +474,13 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
       fehler: s.fehler,
       stacks: (deploy?.stacks ?? []).map((st) => {
         const x = s.stacks[st.name];
-        return { name: st.name, status: x?.status ?? null, commit: x?.commit ?? null, zeit: x?.zeit ?? null, protokoll: x?.protokoll ?? null, migration: { test: Boolean(st.migrationTest), arbeit: Boolean(st.migrationArbeit), sicherung: Boolean(st.sicherung) } };
+        // the command stays on the machine: the report carries what a release names, nothing to run
+        let arbeit: BerichtStack['arbeit'] = null;
+        if (x?.arbeit) {
+          const { befehl: _, ...ohne } = x.arbeit;
+          arbeit = { ...ohne, sicherung: ohne.sicherung && basename(ohne.sicherung) };
+        }
+        return { name: st.name, status: x?.status ?? null, commit: x?.commit ?? null, zeit: x?.zeit ?? null, protokoll: x?.protokoll ?? null, migration: { test: Boolean(st.migrationTest), arbeit: Boolean(st.migrationArbeit), sicherung: Boolean(st.sicherung) }, arbeit };
       }),
     });
   }

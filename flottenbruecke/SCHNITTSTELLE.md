@@ -445,7 +445,8 @@ vorigen.
 | `rechner` | `os.hostname()`; je Rechner eine Werft |
 | `zeit` | ISO-Zeit des Takts |
 | `repos[]` | je Repository mit `deploy`: `{forge, branch, stand, geprueft, abfrageS, fehler, stacks[]}`. `forge` ist `owner/name` von `origin` auf GitHub, sonst der Ordnername (nie ein Pfad), und mit `rechner` der Schlüssel des Repositorys; `branch` der `main_branch`; `stand` der zuletzt abgearbeitete Commit von `origin/<branch>` (`null` vor dem ersten Blick); `geprueft` ISO; `abfrageS` der wirksame Abstand; `fehler` Text, wenn das Repository nicht geprüft werden konnte (Fetch, Adapter, Diff), sonst `null` |
-| `repos[].stacks[]` | `{name, status, commit, zeit, protokoll, migration}`, in der Reihenfolge des Adapters. `status` `gruen`, `rot` oder `null` (noch nie von der Werft gezogen); `commit` der Stand, bei dem der Stack zuletzt gezogen wurde; `protokoll` bei `rot` das Ende der Ausgabe (höchstens 4000 Zeichen), sonst `null`; `migration` `{test, arbeit, sicherung}`: welche Befehle von #89 der Adapter nennt |
+| `repos[].stacks[]` | `{name, status, commit, zeit, protokoll, migration, arbeit}`, in der Reihenfolge des Adapters. `status` `gruen`, `rot` oder `null` (noch nie von der Werft gezogen); `commit` der Stand, bei dem der Stack zuletzt gezogen wurde; `protokoll` bei `rot` das Ende der Ausgabe (höchstens 4000 Zeichen), sonst `null`; `migration` `{test, arbeit, sicherung}`: welche Befehle von #89 der Adapter nennt; `arbeit` die Arbeitsmigration (unten) oder `null` |
+| `repos[].stacks[].arbeit` | `{zustand, commit, sicherung, pruefsumme, zeit}` oder `null` (kein `migration_arbeit` oder noch nie nachgezogen). `zustand`: `wartet` (Sicherung geprüft, wartet auf `migration_freigeben`; nur hier zeigt die Brücke den Knopf), `gesperrt` (keine geprüfte Sicherung: scheiterte die Sicherung beim Nachziehen, steht der Stack `rot` mit Protokoll; sperrt eine abgelehnte Freigabe, weil Sicherungsdatei oder Befehl sich geändert haben, bleibt der Stack, wie er war, und der Grund steht in `meldungen[]`; `nachziehen` nimmt eine neue), `laeuft` (freigegeben und gestartet; bleibt nach einem Absturz stehen und wird nie wiederholt), `migriert`, `rot` (Exit ≠ 0, Protokoll am Stack). `commit` der nachgezogene Commit, `sicherung` der Dateiname der Sicherung (nie ein Pfad) oder `null`, `pruefsumme` ihr SHA-256 (hex) oder `null`, `zeit` ISO des letzten Wechsels |
 | `meldungen[]` | was dieser Takt getan oder abgelehnt hat, als Text (Laufband) |
 
 **Handlungen** `GET /api/werft/handlungen?rechner=<name>` liefert die noch nicht quittierten
@@ -455,10 +456,11 @@ Handlungen des Rechners: `{id, forge, stack, art, text, zeit, herkunft}`.
 |---|---|---|
 | `nachziehen` | `stack` ein Stack aus `stacks[]` | holt `origin/<branch>` sofort und zieht den Stack beim aktuellen Stand nach, auch wenn er `rot` steht; grün hebt den Halt auf. Ein unbekannter Stack wird eine Meldung `Nachziehen über die Brücke abgelehnt` |
 | `einstellen` | `stack` `null`, `text` = `{"name": "abfrage_s", "wert": <Sekunden > 0 oder null>}` | setzt den Abfrageabstand des Repositorys (gespeichert im Stand, überdauert einen Neustart); `null` zurück auf `deploy.abfrage_s`. Ein anderer Name oder Wert wird eine Meldung `Einstellung über die Brücke abgelehnt` |
+| `migration_freigeben` | `stack` ein Stack aus `stacks[]`, `text` = `{"commit": <sha>, "sicherung": <Dateiname>, "pruefsumme": <sha256>}`, abgeschrieben aus `arbeit` des Berichts | die PIN prüft die Brücke vor dem Anlegen. Die Werft fährt `migration_arbeit` nur, wenn `arbeit.zustand` `wartet` ist, alle drei Felder genau passen, die Sicherungsdatei noch dieselbe Prüfsumme hat und der Adapter noch denselben Befehl nennt wie bei der Sicherung (gefahren wird dieser gespeicherte Befehl; Prüfsumme oder Befehl geändert → `gesperrt`); sonst eine Meldung `Freigabe der Migration über die Brücke abgelehnt: <Grund>` und nichts läuft. Wirkt höchstens einmal, auch nach Neustart; eine Freigabe einer älteren Sicherung oder eines älteren Commits wirkt nie |
 
 Eine Handlung für ein Repository, das auf diesem Rechner keine Werft führt, wird abgelehnt und
-quittiert. Eine `art`, die die Werft nicht kennt (etwa `migration_freigeben` aus #89 bei einer älteren
-Werft), bleibt unquittiert liegen. Kommt eine Handlung ein zweites Mal (die Quittung ging verloren),
+quittiert. Eine `art`, die die Werft nicht kennt (bei einer älteren Werft), bleibt unquittiert
+liegen. Kommt eine Handlung ein zweites Mal (die Quittung ging verloren),
 erkennt die Werft sie an `handlungenErledigt` im Stand und quittiert nur. Jede wirkt genau einmal.
 
 ## Was die Seite selbst nutzt
