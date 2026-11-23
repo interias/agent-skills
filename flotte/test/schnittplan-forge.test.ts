@@ -625,6 +625,12 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     expect(wartetAufAntwort(tick(1))).toBe(true);
     expect(offeneFragen(tick(1))).toEqual([expect.objectContaining({ nr: 1, marke: 'zu dünn', optionen: [expect.stringContaining('Notiz ergänzen'), 'verwerfen'] })]);
     expect(r.tickets.find((t) => t.nummer === 1)).toMatchObject({ ergebnis: 'kritisch', zuordnung: 'triage', fragenErgaenzt: true });
+    // a dash and a paragraph in the reason leave the recommendation intact
+    const h = mk();
+    await lauf(h, () => ({ neue_missionen: [], zuordnungen: [{ notiz: 1, art: 'triage', grund: 'Zu dünn — Ziel fehlt\n\nauch der Rest', herkunft: 'h', fragen: [] }, { notiz: 2, art: 'verworfen', grund: 'g', herkunft: 'h', fragen: [] }] }), {});
+    const [q] = offeneFragen({ nummer: 1, titel: '', body: '', url: '', labels: h.finde(1).labels, kommentare: h.finde(1).comments.map((c) => ({ body: c.body, autor: c.login, zeit: '2026-11-23T10:00:00Z', rolle: c.rolle })) });
+    expect(q.empfehlung).toBe('Notiz ergänzen, dann neu triagieren');
+    expect(q.frage).toContain('Zu dünn — Ziel fehlt auch der Rest');
     // the model's own question: unchanged, nothing added
     expect(r.tickets.find((t) => t.nummer === 2)?.fragenErgaenzt).toBeUndefined();
     expect(offeneFragen(tick(2))).toEqual([expect.objectContaining({ frage: 'Welche Farbe?' })]);

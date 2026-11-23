@@ -492,12 +492,13 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
     }
     // a note left on `triage` waits with a question to the person; the model gave none, so the program asks
     if (z.art === 'triage' && !z.fragen.some((f) => f.beim_menschen)) {
-      const was = z.grund || 'ohne Angabe';
+      const was = (z.grund || 'ohne Angabe').replace(/\s+/g, ' ');
       z.fragenErgaenzt = true;
       z.fragen.push({
-        frage: `${nr} bleibt in der Triage, der Admiral hat dazu aber keine Frage gestellt (${was.replace(/\s+/g, ' ')}). Wie weiter?`,
-        optionen: [`Notiz ergänzen (was fehlt: ${was.replace(/\s+/g, ' ')}), dann neu triagieren`, 'verwerfen'],
-        antwort: `Notiz ergänzen (was fehlt: ${was.replace(/\s+/g, ' ')}), dann neu triagieren`,
+        frage: `${nr} bleibt in der Triage, der Admiral hat dazu aber keine Frage gestellt (${was}). Wie weiter?`,
+        optionen: [`Notiz ergänzen (was fehlt: ${was}), dann neu triagieren`, 'verwerfen'],
+        // no reason text: offeneFragen splits the recommendation at the first ` — `
+        antwort: 'Notiz ergänzen, dann neu triagieren',
         herkunft: 'Programm: Notiz in der Triage ohne Frage an den Menschen',
         grund: was,
         beim_menschen: true,

@@ -440,7 +440,8 @@ neue `body`, gegebenenfalls `fehler`), `zuordnungen` (je `notiz`,
 `titel`, `url`, `art`, `grund`, `herkunft`, bei `mission` die Nummer `mission`, bei `neue_mission`
 deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessig` die `fundstelle`;
 `fragen` der Fragerunde und, wo geschrieben, `abnahmekriterien` und `verifikationsweg`; bei einer vom
-Programm auf `triage` herabgestuften Notiz `herabgestuft` (auch an ihrem Eintrag in `tickets`);
+Programm auf `triage` herabgestuften Notiz `herabgestuft`, bei einer vom Programm gefragten Notiz
+`fragenErgaenzt: true` (beides auch an ihrem Eintrag in `tickets`);
 bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
 ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
 nur hier, nicht in `tickets`. `nachgeholt` (#149): je Mission der Triage, deren `ready_label` der Lauf
