@@ -68,7 +68,7 @@ async function starteProgramm(extra: string[]) {
   temp.push(dir, konto);
   const d = drehbuch([{ sitzung: 's-schnitt', schritte: [{ kind: 120_000 }] }]);
   kinder = `${d.datei}.kinder`;
-  const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}`, FLOTTE_CLAUDE: join(bin, `claude${EXE}`), FLOTTE_DREHBUCH: d.datei, FLOTTE_TEST_BUN: process.execPath, FLOTTE_TEST_CLAUDE: ATTRAPPE, FLOTTE_TEST_GH: GH };
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}`, FLOTTE_CLAUDE: join(bin, `claude${EXE}`), FLOTTE_DREHBUCH: d.datei, FLOTTE_TEST_BUN: process.execPath, FLOTTE_TEST_CLAUDE: ATTRAPPE, FLOTTE_TEST_GH: GH };
   delete env.EPIC_LOCK_HOLDER;
   const kind = spawn(process.execPath, [CLI, 'mission', '69', fix.repo, '--mechanik', 'echt', '--aufrufe', 'echt', '--forge', 'o/r', '--branch', 'epic/69-x', '--konto', konto, '--antworten', join(dir, 'antworten.txt'), ...extra], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   programm = kind;
