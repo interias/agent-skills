@@ -33,7 +33,10 @@
     processes whose command line, executable or working directory lies in the worktree. Paths are
     compared case-insensitively and only at a separator, so ...\35 never matches ...\350. The
     calling process and its ancestors are never stopped. Unless the path is a linked worktree of
-    -RepoRoot with a manifest, Down stops nothing and ends with exit 1. Down reports every stopped
+    -RepoRoot with a manifest, Down stops nothing and ends with exit 1 - except for its own lock
+    whose worktree git no longer knows (#106): then it stops compose and processes of the path, prunes a
+    stale entry, deletes the folder only when it is missing or empty and no link (never recursively),
+    and removes the lock; a folder with content or a link stays with its lock (exit 1). Down reports every stopped
     project and process on stdout. Then it refuses a dirty worktree (its processes are stopped by
     then; worktree and lock stay), removes the links from the manifest one by one without
     recursion, refuses to go on while any reparse point is left, runs `git worktree remove`
@@ -824,11 +827,30 @@ if ($Action -eq 'Up') {
 }
 
 if ($Action -eq 'Down') {
+    $linked = @(Invoke-Git @('-C', $RepoRoot, 'worktree', 'list', '--porcelain') | Where-Object { $_ -like 'worktree *' } |
+        ForEach-Object { Get-FullPath $_.Substring(9) } | Select-Object -Skip 1)
+    # #106: git already removed the worktree (a Down from a shell that stood in it), but the lock
+    # and maybe an empty folder are left. Only a missing or empty folder that is no link goes, never
+    # recursively; anything else stays with its lock and is named.
+    $known = ($linked -contains $WorktreePath) -and (Test-Path -LiteralPath $WorktreePath)
+    if (-not $known -and (Test-Path -LiteralPath $lockPath)) {
+        if (Test-UnderPath $RepoRoot $WorktreePath) { Fail "$WorktreePath holds the main checkout. Nothing stopped, lock $lockPath left in place." }
+        if (Test-Path -LiteralPath $WorktreePath) {
+            if (Test-ReparsePoint $WorktreePath) { Fail "$WorktreePath is a link and no worktree git knows. Lock $lockPath and the link left in place." }
+            if (@(Get-ChildItem -LiteralPath $WorktreePath -Force).Count) { Fail "$WorktreePath is no worktree git knows and not empty. Lock $lockPath and the folder left in place; look at it by hand." }
+        }
+        Stop-WorktreeCompose $WorktreePath $project (Get-WorktreeRoot $adapter $RepoRoot)
+        Stop-FoundProcesses @(Get-WorktreeProcesses $WorktreePath)
+        if ($linked -contains $WorktreePath) { Invoke-Git @('-C', $RepoRoot, 'worktree', 'prune') | Out-Null }
+        if (Test-Path -LiteralPath $WorktreePath) { [IO.Directory]::Delete($WorktreePath, $false) }
+        Write-Host "Worktree was gone from git: $WorktreePath"
+        Remove-Item -LiteralPath $lockPath -Force
+        Write-Host "Lock removed: $lockPath"
+        exit 0
+    }
     if (-not (Test-Path -LiteralPath $WorktreePath)) { Fail "$WorktreePath does not exist." }
     # A wrong -Package or worktree_root must not point the path boundary at the main checkout or a
     # foreign folder: stop nothing unless the path is a linked worktree this script created.
-    $linked = @(Invoke-Git @('-C', $RepoRoot, 'worktree', 'list', '--porcelain') | Where-Object { $_ -like 'worktree *' } |
-        ForEach-Object { Get-FullPath $_.Substring(9) } | Select-Object -Skip 1)
     if ($linked -notcontains $WorktreePath) { Fail "$WorktreePath is not a linked worktree of $RepoRoot. Nothing stopped, nothing removed." }
     if (-not (Test-Path -LiteralPath (Get-ManifestPath $WorktreePath))) { Fail "No manifest for $WorktreePath - this worktree was not created by worktree.ps1. Nothing stopped, nothing removed." }
     # Stop what clearly belongs to the worktree before anything is removed.
