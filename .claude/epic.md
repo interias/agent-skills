@@ -12,7 +12,7 @@ ready_label: ready-for-agent
 skip_labels: [needs-triage, needs-info, wontfix, ready-for-human]
 epic_label: epic
 glossary: CONTEXT.md
-must_read: [CONTEXT.md, README.md]
+must_read: [CONTEXT.md, AGENTS.md]
 test_commands:
   worktree: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\worktree.Tests.ps1"
   guard: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\guard.Tests.ps1"
