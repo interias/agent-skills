@@ -39,11 +39,15 @@ describe('flotte mission, Regeln', () => {
     expect(nachpruefung({ basis, lauf: [], beruehrt: [], einzeln: {}, basisLint: {}, lint: {} }).befunde).toEqual(['Suite s fehlt im Volllauf']);
   });
 
-  it('a call: denials before everything, an account limit waits, a crash is no invalid output', () => {
+  it('a call: denials without a finished result before everything, an account limit waits, a crash is no invalid output', () => {
     expect(bewerteAufruf('implementer', ergebnis({ verweigert: [{ tool_name: 'Bash' }], fehler: 'exit', code: 1 })).art).toBe('verweigert');
     expect(bewerteAufruf('implementer', ergebnis({ ergebnisse: [{ text: "You've hit your limit · resets 3pm", istFehler: true, grund: null, verweigert: [] }], code: 1, fehler: 'exit' })).art).toBe('konto');
     expect(bewerteAufruf('implementer', ergebnis({ fehler: 'kein_ergebnis', ergebnisse: [] })).art).toBe('abgebrochen');
     expect(bewerteAufruf('reviewer', ergebnis({ strukturiert: { version: 1, befunde: [{ gruppe: 'blocker' }], strukturell: false, schnittstelle: '', selbstkorrekturen: [] } }))).toEqual({ art: 'ungueltig', fehler: 'befunde fehlt oder hat eine Gruppe außer muss, sollte, kann' });
+    // P8 (#108): a denial with a finished result is no failure of the call; the program counts it
+    const fertig = { version: 1, befunde: [], strukturell: false, schnittstelle: '', selbstkorrekturen: [] };
+    expect(bewerteAufruf('reviewer', ergebnis({ verweigert: [{ tool_name: 'Bash' }], strukturiert: fertig })).art).toBe('ok');
+    expect(bewerteAufruf('reviewer', ergebnis({ verweigert: [{ tool_name: 'Bash' }], strukturiert: { version: 1 } })).art).toBe('verweigert');
   });
 
   it('the cut: a package without acceptance list is invalid', () => {

@@ -6,10 +6,11 @@
 // stdin, so its length is no command-line problem. A run is finished when its process ends: it
 // stays alive after its first result while background agents report (stage 0, probe 2).
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { beende } from '../aufruf.ts';
 import { ausEreignis, schreibe as schreibeVerbrauch, type Verbrauch } from './verbrauch.ts';
 import { lebt } from './zustand.ts';
 
@@ -226,16 +227,7 @@ export function claudeArgs(s: Start): string[] {
   return a;
 }
 
-export function beende(pid: number): void {
-  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-  else {
-    try {
-      process.kill(-pid, 'SIGKILL');
-    } catch {
-      process.kill(pid, 'SIGKILL');
-    }
-  }
-}
+export { beende };
 
 /**
  * Starts or resumes a run and resolves when its process has ended or idled too long (D5). The run

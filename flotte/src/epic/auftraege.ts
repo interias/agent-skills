@@ -21,6 +21,8 @@ export interface Kontext {
   /** Ausgangszahlen and lint findings per file of phase 0 */
   basis: Testlauf;
   basisLint: Record<string, number>;
+  /** pre_commit_checks without a program at their start: the program does not run them, the Ingenieur keeps them (#108) */
+  vorCommitProsa?: string[];
 }
 
 const liste = (titel: string, punkte: string[], leer = 'keine') => `${titel}\n${punkte.length ? punkte.map((x) => `- ${x}`).join('\n') : `- ${leer}`}`;
@@ -148,7 +150,7 @@ export function implementerAuftrag(k: Kontext, p: Paket, s: PaketZustand, x: { v
     liste('Implementation Decisions samt Begründung — ohne sie wählst du die naheliegende Lösung, gegen die die Decision geschrieben wurde:', p.decisions),
     liste('Out of Scope (geprüft und verworfen, auch wenn es beim Lesen des Codes nötig erscheint):', [...p.outOfScope, ...(a.outOfScopeDir ? [`dokumentiert unter \`${a.outOfScopeDir}\` (Adapter)`] : [])]),
     liste('Testing Decisions (mit benanntem Vorbild):', p.testing),
-    `Verifikationsweg: ${p.verifikation || 'die Abnahmeliste und die Testbefehle des Adapters'}. Fahre ihn im eigenen Worktree${a.isolationEnv ? ` mit gesetzter \`${a.isolationEnv}\`` : ''}, soweit er ohne vollen Stack geht (\`test_commands\`: ${testBefehle(k)}); den Rest fährt der Host in 4c.`,
+    `Verifikationsweg: ${p.verifikation || 'die Abnahmeliste und die Testbefehle des Adapters'}. Fahre ihn im eigenen Worktree${a.isolationEnv ? ` mit gesetzter \`${a.isolationEnv}\`` : ''}, soweit er ohne vollen Stack geht (\`test_commands\`: ${testBefehle(k)}); den Rest fährt der Host: die \`test_commands\` in 4c, die \`acceptance_commands\` des Adapters einmal in Phase 6 nach dem letzten Andocken. Einen vollen Stack je Paket fährt \`flotte mission\` nicht: Was dein Verifikationsweg nur mit ihm prüfen kann, nenne im Bericht als „per Test belegt, nicht gesichtet“.`,
     `Ausgangszahlen (Phase 0, Missions-Worktree): ${zahlen(k.basis)}.`,
     ...x.vorgaenger.map((t) => `Schnittstelle des Vorgängers (vom Ersten Offizier festgehalten, wörtlich — was tatsächlich dasteht):\n${t}`),
     ...x.torAntworten.map((t) => `Am Vorab-Tor entschieden: ${t}`),
@@ -167,6 +169,7 @@ export function implementerAuftrag(k: Kontext, p: Paket, s: PaketZustand, x: { v
       `**Kein voller Stack** (Skill mission, Regel 12, #38) und keine eigenen DB-Server; ein Worktree darf starten: ${a.darfStarten.join(', ')} (Adapter \`worktree_may_start\`, Standard \`dev_server\`).`,
       'Wer außerhalb von `Up` einen Dev-Server startet, beendet ihn am Ende des Pakets (Skill mission, Regel 13, #38).',
       'Nichts in der Forge: keine Issues, Kommentare oder Labels. Verlangt das Paket, dass etwas „im Issue vermerkt“ wird, schreibst du den Text in den Bericht (Skill mission, 4a).',
+      ...(k.vorCommitProsa?.length ? [`Prüfungen vor dem Commit, die kein Befehl sind — das Programm fährt sie nicht, du hältst sie selbst ein und nennst sie im Bericht: ${k.vorCommitProsa.join('; ')} (Adapter \`pre_commit_checks\`, Skill mission, 0b).`] : []),
     ]),
     `**Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests (\`jest <dateien>\`, \`--findRelatedTests\` oder das Gegenstück der Suite). Am Ende genau **ein** Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Testbefehle des Adapters: ${testBefehle(k)}.`,
     [

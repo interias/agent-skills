@@ -27,8 +27,18 @@
   .sonst { display: grid; grid-template-columns: 34px 1fr 150px; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 0 2px; border-top: 4px solid var(--gruen); }
   .sonst .nr { color: var(--gruen); }
   .klein { color: var(--matt); font-size: 16px; }
-  .nie { display: flex; gap: 10px; flex-wrap: wrap; }
+  .nie { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
   .nie span { flex: 1 1 0; min-width: 0; background: var(--flaeche); border-left: 8px solid var(--rot); border-radius: 0 12px 12px 0; padding: 8px 12px; }
+
+  .karten { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+  .karte { background: var(--flaeche); border-top: 8px solid var(--k); border-radius: 0 0 14px 14px; padding: 10px 12px; }
+  .karte h2 { margin: 0 0 4px; font: 700 20px Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--k); }
+  .marken { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .marke { padding: 5px 14px; border-radius: 18px; background: var(--flaeche); border: 2px solid var(--violett); }
+  .marke b { color: var(--lila); }
+  .ampel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .ampel span { background: var(--flaeche); border-left: 8px solid var(--pfirsich); border-radius: 0 12px 12px 0; padding: 8px 12px; }
+  .schmal .karten, .schmal .ampel { grid-template-columns: 1fr; }
 
   /* narrow version for phones */
   body.schmal { width: 400px; padding: 12px; font-size: 18px; }
@@ -53,6 +63,21 @@
   <span><b>Keine Antwort lockert eine Regel</b> der Skills.</span>
   <span>Jede Entscheidung <b>steht am Issue</b> und ist bis zum Andocken widerrufbar.</span>
 </div>
+<div class="kopf" style="--f: var(--himmel)"><div class="ecke"></div><div class="titel"><h1>Wo du es siehst</h1><div class="leiste"></div></div></div>
+<div class="karten">
+  <div class="karte" style="--k: var(--orange)"><h2>Braucht dich</h2>Fragen an dich stehen auf der Brücke, mit Optionen und der <b>Empfehlung</b> des Admirals.</div>
+  <div class="karte" style="--k: var(--himmel)"><h2>Am Issue</h2>Jede Entscheidung steht als <b>Kommentar</b> am Issue, mit Grund und Herkunft.</div>
+  <div class="karte" style="--k: var(--gruen)"><h2>Zurücknehmen</h2>Bis zum Andocken nimmst du jede in der <b>Detailansicht</b> der Mission zurück.</div>
+</div>
+<div class="marken"><span class="klein">Herkunft:</span><span class="marke"><b>Projektregel</b></span><span class="marke"><b>Skill-Empfehlung</b></span><span class="marke"><b>Präzedenz</b> mit Fundstelle</span><span class="marke"><b>Eigenes Urteil</b> mit Grund</span></div>
+
+<div class="kopf" style="--f: var(--pfirsich)"><div class="ecke"></div><div class="titel"><h1>Regelt die Mechanik</h1><div class="leiste"></div></div></div>
+<div class="ampel">
+  <span><b>Limit</b> je Konto: gelb startet nichts Neues, rot hält auch Fortsetzungen an.</span>
+  <span><b>Speicher</b> über der Schwelle: kein neues Paket.</span>
+  <span><b>Platte</b> unter dem Minimum: gelb und rot wie beim Limit.</span>
+</div>
+<p class="klein" style="margin:8px 4px 0">Die Bremsen sind keine Frage an den Admiral und keine an dich: Der Treiber misst in jedem Takt und hält an.</p>
 <script>
   const FRAGEN = [
     'Geht etwas <b>nach außen</b>, das sich nicht zurückholen lässt? Mails, Nachrichten an Dritte, Daten nach außerhalb.',

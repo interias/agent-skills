@@ -6,11 +6,11 @@ hart: Es bleiben keine alten Namen als Weiterleitung stehen.
 
 ## Was sich ändert und warum
 
-Skills, Befehle, Oberfläche und Texte sprechen den Wortschatz aus [`CONTEXT.md`](CONTEXT.md)
+Skills, Befehle, Oberfläche und Texte sprechen den Wortschatz aus [`CONTEXT.md`](../CONTEXT.md)
 („Sprachraum“): Aus dem Epic wird die **Mission**, aus dem Kind das **Missionsziel**, aus dem Lauf
 der **Außeneinsatz**, aus Implementer und Reviewer **Ingenieur** und **Erster Offizier**, aus Gate
 und Merge **Andockprüfung** und **Andocken**. Entschieden ist das in
-[ADR-0003](docs/adr/0003-sprachraum-star-trek-harter-wechsel.md). Labels, Adapter-Schlüssel,
+[ADR-0003](adr/0003-sprachraum-star-trek-harter-wechsel.md). Labels, Adapter-Schlüssel,
 Branch-Präfixe und Skriptnamen bleiben technisch (siehe [unten](#was-technisch-bleibt)), damit kein
 Projekt und kein Adapter angefasst werden muss.
 
@@ -90,7 +90,7 @@ die Brücke nicht, sie zeigt keinen Kontext.
 ## Was technisch bleibt
 
 Diese Namen ändern sich nicht. Der Wächter-Test
-([`flotte/test/waechter.test.ts`](flotte/test/waechter.test.ts), `AUSNAHMEN`) nimmt sie als Wort aus
+([`flotte/test/waechter.test.ts`](../flotte/test/waechter.test.ts), `AUSNAHMEN`) nimmt sie als Wort aus
 oder prüft sie nicht, weil sie in Code (Backticks) stehen:
 
 - die Adapterdatei `.claude/epic.md`, das Label `epic` und alle Adapter-Schlüssel (`epic_label`,
@@ -115,7 +115,7 @@ neu starten.
    endet; die Läufe selbst arbeiten weiter (siehe [unten](#was-mit-laufenden-einsätzen-geschieht)).
 2. **Stand holen:** den Stand dieser Umstellung in die eigene Kopie des Repositorys mergen oder
    pullen (`git pull` auf `main`), dann
-3. **Installieren,** wie in [`INSTALL.md`](INSTALL.md): erst `powershell -File install.ps1 -DryRun`,
+3. **Installieren,** wie in [`INSTALL.md`](../INSTALL.md): erst `powershell -File install.ps1 -DryRun`,
    Ausgabe lesen, dann `powershell -File install.ps1` (voller Lauf, ohne `-Skill`). Das Skript
    - installiert `mission`, `mission-nacharbeit`, `mission-aufraeumen` und die neuen Agenten
      (`ingenieur-*`, `erster-offizier-*`, `kundschafter`);
