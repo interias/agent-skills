@@ -470,7 +470,9 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" werft [<ordner>...] [--bruecke http
 - Sie nimmt jedes Repository in den Ordnern (Standard `~/git`, nur Hauptverzeichnisse) mit dem
   Adapterschlüssel `deploy` (`mission/references/adapter.md`, „Werft“). Alle 15 s schaut sie, welches
   fällig ist (`deploy.abfrage_s`, Standard 120 s), holt `origin/<main_branch>` und liest den Adapter
-  von dort.
+  von dort. Ob ein Repository `deploy` hat, sieht sie dagegen an `origin/HEAD`, ohne zu holen: Kommt
+  `deploy` erst mit einem Andocken in ein Repository, nimmt sie es erst im Takt nach dem
+  nächsten `git fetch` dort auf, das ein anderer macht (der Treiber, ein Lauf, der Mensch).
 - Gezogen wird jeder Stack, dessen `pfade` eine Datei im Diff seit dem letzten Stand trifft, in der
   Reihenfolge des Adapters: `<stack>.nachziehen` in der Wurzel des Repositorys, mit `WERFT_COMMIT`
   und `WERFT_STACK` in der Umgebung, höchstens 30 min. Die Arbeitskopie fasst die Werft nicht an; wer
