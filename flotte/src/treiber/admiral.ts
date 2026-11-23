@@ -114,7 +114,7 @@ export function mergeVorschlag(texte: { nr: number; text: string }[]): string | 
  * mission-nacharbeit/SKILL.md. The admiral decides a ticket question; it never goes to the person.
  */
 export const TICKET_REGEL =
-  'Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht in die laufende Mission passt. Was mit bescheidenem Aufwand passt, wird in der Mission erledigt. Jedes neue Ticket trägt `needs-triage` und einen Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.';
+  'Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entscheidung von der Liste „Beim Menschen“ verlangt (Sicherheit und Zugänge, ein Bruch mit einer Architekturentscheidung, was nach außen geht) oder den Ablauf des Projekts ändert. Arbeit, die klar ist und nach Zeit und Umfang angemessen ist, wird in der Mission erledigt, bevor sie andockt: zuerst gefundene Fehler und was zum Missionsziel gehört. Klare Arbeit, die dafür zu groß ist, wird ein Issue mit `epic` und dem Freigabelabel, nicht `needs-triage`. Ein Wunsch ohne beobachteten Schaden wird verworfen: eine Zeile unter „Verworfen“ im Missions-PR, kein Ticket. Jedes Ticket für den Menschen trägt `needs-triage` und einen Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.';
 
 /** How a decision names its origin; the admiral and the triage run (#115) use the same order. */
 export const HERKUNFT_REGEL =
