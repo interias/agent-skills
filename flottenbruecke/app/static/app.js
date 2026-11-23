@@ -812,6 +812,8 @@ async function laden() {
     stand = t;
     // on the phone only level 1 is open, unless nothing waits there
     if (erstes) $('e2').open = BREIT.matches || !t.braucht.length;
+    // #37: with Web-Push on (HTTPS, VAPID key) the service worker belongs to the installed app
+    if (erstes && t.push && isSecureContext && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     kopf(t);
     ebene1(t);
     ebene2(t);

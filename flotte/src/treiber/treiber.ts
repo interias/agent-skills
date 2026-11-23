@@ -28,6 +28,7 @@ import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
+import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as meldungsInhalt } from './meldung.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -67,6 +68,8 @@ export interface Einstellung {
   leerfahren: string[];
   /** #112: how the project merges; the adapter's merge at the start, automatisch only with merge: nach_gate */
   merge: Stellung;
+  /** #37 --meldung: a Windows notification for each new event of "Braucht dich" */
+  meldung: 'an' | 'aus';
   /** #58: the settings given explicitly as start parameters; they win over the bridge's at the start */
   gesetzt?: EinstellungName[];
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
@@ -121,6 +124,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     verbrauchRot: 85,
     leerfahren: [],
     merge: 'mensch',
+    meldung: 'aus',
     kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
@@ -310,6 +314,8 @@ export interface FlottenZustand extends Zustand {
   /** #149: missions revoked on the bridge before they started (austragen); never collected again, even when the
    * forge still shows them released (removing ready_label and closing failed). aufnehmen takes one back on purpose. */
   widerrufen?: number[];
+  /** #37: the events of "Braucht dich" open and already reported (Windows notification); a restart rings none of them again */
+  gemeldet?: string[];
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -521,6 +527,7 @@ class Treiber {
       this.paketeLesen();
       this.freigegebenLesen();
       this.triageLesen();
+      this.brauchtDichMelden();
       this.speichern();
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
@@ -2119,6 +2126,29 @@ class Treiber {
     });
   }
 
+  /**
+   * #37: each new event of "Braucht dich" (a question for the person, an epic blocked or aborted) once; with
+   * meldung an as a Windows notification, the new ones of this turn as one with their number. The state keeps
+   * the events reported, with the switch off too: switching it on later rings nothing old.
+   */
+  brauchtDichMelden(): void {
+    const alle = meldungsEreignisse(
+      this.e.forge,
+      this.z.fragen.filter((f) => !f.beantwortet),
+      Object.values(this.z.epics).map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, haltZeit: ep.haltZeit, aufgegebenAm: ep.aufgegebenAm })),
+    );
+    const gemeldet = new Set(this.z.gemeldet ?? []);
+    this.z.gemeldet = alle.map((x) => x.schluessel);
+    const neu = alle.filter((x) => !gemeldet.has(x.schluessel));
+    if (!neu.length || this.e.meldung !== 'an') return;
+    const a = meldungsAufruf(meldungsInhalt(neu));
+    this.nebenbei(
+      this.w.langsam(a.programm, a.args, { env: a.env, timeoutMs: 30_000 }).then((r) => {
+        if (r.code) this.ereignis(null, `Windows-Meldung ging nicht: ${(r.stderr || r.stdout).trim().slice(0, 200) || `Exit ${r.code}`}`);
+      }),
+    );
+  }
+
   /** The report of this turn; acknowledgements only after the state with the answers is written. */
   async brueckeMelden(): Promise<void> {
     if (!this.bruecke) return;
@@ -2923,7 +2953,7 @@ export function forgeAus(url: string): string | null {
   return /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(url.trim())?.[1] ?? null;
 }
 
-const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
+const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>] [--meldung an|aus]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
 
 /**
  * The settings of `flotte fahren` (acceptance 3, decisions A, B, D): without <repo> the repository of
@@ -2964,6 +2994,9 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
+  const meldung = wert(argv, '--meldung');
+  if (meldung === 'an' || meldung === 'aus') e.meldung = meldung;
+  else if (meldung) throw new Error(`--meldung ${meldung}: an oder aus. ${AUFRUF}`);
   e.gesetzt = (Object.keys(START_PARAMETER) as EinstellungName[]).filter((n) => argv.includes(START_PARAMETER[n]!));
   const ramWarn = wert(argv, '--ram-warn');
   e.ramWarn = ramWarn ? Number(ramWarn) : null;

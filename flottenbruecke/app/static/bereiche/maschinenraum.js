@@ -1,5 +1,6 @@
 // Maschinenraum (#42): accounts as tanks, the machines (RAM, disk, fleet limit) and the beat of each
-// driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN.
+// driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN,
+// and (#37) the Web-Push of this device, when the bridge has a VAPID key.
 // With several drivers, every setting stands once for all of them.
 // A field the report lacks gets an honest empty line, never a made-up value.
 // The shell (huelle.js) calls zeichne(t, el) on every load while the area is visible; t is null
@@ -53,6 +54,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     ramWarn: 'Ab dieser RAM-Auslastung warnt der Treiber; automatisch gilt die Vorgabe des Projekts.',
     platteMinGb: 'Unter so viel freiem Plattenplatz startet nichts Neues.',
     leerlaufMin: 'Nach so vielen Minuten ohne Lebenszeichen fasst der Treiber nach oder bricht den Zug ab.',
+    meldung: 'An: Bei einer neuen Frage oder Blockade zeigt der Rechner des Treibers eine Windows-Meldung, mehrere im selben Takt als eine mit der Zahl.',
     merge: 'Automatisch dockt der Treiber nach grüner Andockprüfung an, sonst prüft ein Mensch jedes Andocken. Berührt eine Mission einen Punkt der Liste „beim Menschen“, schlägt der Treiber dort „Mensch prüft“ vor; den Schalter je Mission gibt es auf der Sternenkarte.',
   };
   // drafts: "forge|name" -> the value the person picked and has not sent yet
@@ -196,6 +198,45 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
     }
   }
 
+  // ---- Web-Push (#37): this device subscribes with the PIN; the bridge pushes each new event of "Braucht dich"
+  const kannPush = () => isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+  const pushHtml = (t) => {
+    if (!t.push) return '';
+    const text = kannPush()
+      ? 'Bei einer neuen Frage oder Blockade meldet sich dieses Gerät, auch bei geschlossener App: Projekt, Nummer, Art und Titel, nie die Frage selbst. Einschalten und Abschalten brauchen die PIN.'
+      : 'Dieses Gerät kann hier keine Meldungen empfangen: nur über HTTPS (Zertifikat der Brücke) in einem Browser mit Web-Push.';
+    const zu = kannPush() && t.pin ? '' : ' disabled';
+    return `<h3 class="mr-titel">Meldungen auf diesem Gerät</h3><div class="mr-reihe"><div class="mr-karte mr-push" role="group" aria-label="Meldungen auf diesem Gerät"><p class="mr-hilfe">${esc(text)}</p>
+<div class="knoepfe"><button type="button" class="knopf haupt" data-push="an"${zu}>Einschalten</button><button type="button" class="knopf zweit" data-push="aus"${zu}>Abschalten</button><span class="status" role="status"></span></div></div></div>`;
+  };
+
+  // the applicationServerKey as bytes (base64url from the board)
+  const bytes = (b64) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (b64.length % 4)) % 4)), (c) => c.charCodeAt(0));
+
+  async function push(ev) {
+    const karte = ev.target.closest('.mr-push');
+    const status = karte.querySelector('.status');
+    const melde = (text, schlecht) => { status.className = schlecht ? 'status schlecht' : 'status'; status.textContent = text; };
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      if (ev.target.closest('[data-push]').dataset.push === 'aus') {
+        const abo = await reg.pushManager.getSubscription();
+        if (!abo) return melde('Dieses Gerät hat kein Abo.');
+        if (await senden('/api/push/abmelden', { endpoint: abo.endpoint }, karte, status)) {
+          await abo.unsubscribe();
+          melde('Abgeschaltet.');
+        }
+        return;
+      }
+      if ((await Notification.requestPermission()) !== 'granted') return melde('Meldungen sind für die Brücke nicht erlaubt (Einstellungen des Browsers).', true);
+      const abo = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(letzte.push) }));
+      if (await senden('/api/push', abo.toJSON(), karte, status)) melde('Eingeschaltet.');
+    } catch (err) {
+      melde(`Ging nicht: ${err.message || err}`, true);
+    }
+  }
+
   huelle.bereich({
     name: 'maschinenraum',
     titel: 'Maschinenraum',
@@ -206,12 +247,15 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${einstellungenHtml(t)}`;
+      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
         el.addEventListener('input', geaendert);
-        el.addEventListener('click', (ev) => { if (ev.target.closest('[data-uebernehmen]')) uebernehmen(ev); });
+        el.addEventListener('click', (ev) => {
+          if (ev.target.closest('[data-uebernehmen]')) uebernehmen(ev);
+          if (ev.target.closest('[data-push]')) push(ev);
+        });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
       if (el.contains(document.activeElement) && document.activeElement.closest('.mr-einst-zeile')) return;

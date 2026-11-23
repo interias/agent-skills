@@ -72,6 +72,7 @@ Mögliche Schalter:
 | `--merge-skript` | `epic/scripts/merge.ps1` |
 | `--max-min` | ohne Grenze |
 | `--bruecke <url>` | Umgebung `FLOTTE_BRUECKE`, sonst keine Brücke; etwa `http://127.0.0.1:4747`. Den Token einer Brücke mit `BRUECKE_TOKEN` liest der Treiber aus `FLOTTE_BRUECKE_TOKEN` |
+| `--meldung an\|aus` | `aus`; `an`: je neuer Frage an den Menschen und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), auch im Maschinenraum schaltbar |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Epics gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Epics, die dort laufen, fragen oder an ihrem PR stehen; ein gemergtes, blockiertes oder abgebrochenes Epic gibt den Platz frei |
 
 ### Weiteres Konto zuschalten

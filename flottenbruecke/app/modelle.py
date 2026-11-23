@@ -546,3 +546,19 @@ class Handlung(BaseModel):
         elif self.art not in BEZUG:
             self.nr, self.seit, self.text = None, None, None
         return self
+
+
+class PushSchluessel(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+class PushAbo(BaseModel):
+    """#37: a device's push subscription as PushSubscription.toJSON() gives it; the service only over HTTPS."""
+
+    endpoint: str = Field(pattern=r'^https://', max_length=2000)
+    keys: PushSchluessel
+
+
+class PushAbmeldung(BaseModel):
+    endpoint: str = Field(max_length=2000)

@@ -35,6 +35,8 @@ export const EINSTELLUNGEN = {
   leerlaufMin: { titel: 'Leerlauf (Minuten bis Nachfassen/Abbruch)', min: 5, max: 480, leer: false, standard: 60 },
   // #112: the standard is the adapter's (treiber.ts, standardWert); automatisch only with merge: nach_gate
   merge: { titel: 'Andocken', werte: ['automatisch', 'mensch'], leer: false, standard: 'mensch' },
+  // #37: the Windows notification of "Braucht dich" on the driver's machine
+  meldung: { titel: 'Windows-Meldung bei „Braucht dich“', werte: ['an', 'aus'], leer: false, standard: 'aus' },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -49,6 +51,7 @@ export const START_PARAMETER: Partial<Record<EinstellungName, string>> = {
   ramWarn: '--ram-warn',
   platteMinGb: '--platte-min-gb',
   leerlaufMin: '--leerlauf-min',
+  meldung: '--meldung',
 };
 
 /** One setting in the report: value, where it comes from and since when, and what the bridge may offer. */
@@ -119,6 +122,8 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return Math.round(e.leerlaufMs / 60_000);
     case 'merge':
       return e.merge;
+    case 'meldung':
+      return e.meldung;
   }
 }
 
@@ -177,6 +182,9 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'merge':
       e.merge = wert as Stellung;
+      break;
+    case 'meldung':
+      e.meldung = wert as 'an' | 'aus';
       break;
   }
   return null;

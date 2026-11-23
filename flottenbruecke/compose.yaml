@@ -13,5 +13,7 @@ services:
       - "${BRUECKE_BIND:-0.0.0.0}:${BRUECKE_PORT:-4747}:8000"
     volumes:
       - daten:/data
+      # #37, optional: the mkcert certificate for HTTPS in the LAN (BRUECKE_ZERT in .env); empty: HTTP
+      - ./zert:/zert:ro
 volumes:
   daten:
