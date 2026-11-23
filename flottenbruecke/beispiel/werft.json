@@ -1,0 +1,70 @@
+{
+  "rechner": "werkstatt",
+  "zeit": "2026-11-20T14:30:45Z",
+  "repos": [
+    {
+      "forge": "interias/flotte-probe",
+      "branch": "main",
+      "stand": "4e1c9a27b03d5f8e6a1b2c3d4e5f60718293a4b5",
+      "geprueft": "2026-11-20T14:30:30Z",
+      "abfrageS": 120,
+      "abfrageGesetzt": null,
+      "an": true,
+      "migrationTest": true,
+      "fehler": null,
+      "stacks": [
+        {
+          "name": "web",
+          "status": "gruen",
+          "commit": "4e1c9a27b03d5f8e6a1b2c3d4e5f60718293a4b5",
+          "zeit": "2026-11-20T14:12:08Z",
+          "protokoll": null,
+          "migration": { "test": false, "arbeit": false, "sicherung": false },
+          "arbeit": null,
+          "an": true
+        },
+        {
+          "name": "api",
+          "status": "gruen",
+          "commit": "4e1c9a27b03d5f8e6a1b2c3d4e5f60718293a4b5",
+          "zeit": "2026-11-20T14:13:40Z",
+          "protokoll": null,
+          "migration": { "test": true, "arbeit": true, "sicherung": true },
+          "arbeit": {
+            "zustand": "wartet",
+            "commit": "4e1c9a27b03d5f8e6a1b2c3d4e5f60718293a4b5",
+            "sicherung": "2026-11-20-141351-api.sql.gz",
+            "pruefsumme": "9f2b6c1d0e3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4",
+            "zeit": "2026-11-20T14:13:52Z"
+          },
+          "an": true
+        },
+        {
+          "name": "worker",
+          "status": "rot",
+          "commit": "4e1c9a27b03d5f8e6a1b2c3d4e5f60718293a4b5",
+          "zeit": "2026-11-20T14:14:20Z",
+          "protokoll": "#12 [worker 4/6] RUN bun install --frozen-lockfile\nerror: lockfile had changes, but lockfile is frozen\n#12 ERROR: process \"/bin/sh -c bun install --frozen-lockfile\" did not complete successfully: exit code: 1\nfailed to solve: process \"/bin/sh -c bun install --frozen-lockfile\" did not complete successfully: exit code: 1",
+          "migration": { "test": false, "arbeit": false, "sicherung": false },
+          "arbeit": null,
+          "an": true
+        },
+        {
+          "name": "doku",
+          "status": "gruen",
+          "commit": "b7d20e4f1a9c8b6d5e4f3a2b1c0d9e8f7a6b5c4d",
+          "zeit": "2026-11-19T17:02:11Z",
+          "protokoll": null,
+          "migration": { "test": false, "arbeit": false, "sicherung": false },
+          "arbeit": null,
+          "an": false
+        }
+      ]
+    }
+  ],
+  "meldungen": [
+    "interias/flotte-probe: web nachgezogen (4e1c9a2)",
+    "interias/flotte-probe: api nachgezogen (4e1c9a2), Sicherung 2026-11-20-141351-api.sql.gz geprüft, die Migration wartet auf die Freigabe",
+    "interias/flotte-probe: worker rot (4e1c9a2, nachziehen Exit 1), angehalten"
+  ]
+}
