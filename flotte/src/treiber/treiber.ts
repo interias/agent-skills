@@ -437,6 +437,9 @@ class Treiber {
   /** #147: the triage run under way and its abort */
   triageFahrt: Promise<void> | null = null;
   triageAbbruch: AbortController | null = null;
+  /** #148: when the run under way started, how the last one ended (in memory only: a short info of the Frachtraum) */
+  triageSeit = '';
+  triageBeendet: BerichtTriage['beendet'];
 
   constructor(
     readonly e: Einstellung,
@@ -1620,8 +1623,10 @@ class Treiber {
     const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
     if (!konto) return nein('kein Konto mit Luft');
     this.triageLaeuft = true;
+    this.triageSeit = new Date(this.w.jetzt()).toISOString();
+    this.triageBeendet = undefined;
     // #147: in the state, so a restart after a driver that died meanwhile reports it as aborted
-    this.z.triageLauf = { seit: new Date(this.w.jetzt()).toISOString(), pids: [] };
+    this.z.triageLauf = { seit: this.triageSeit, pids: [] };
     this.imLogbuch(null, `Triage-Lauf gestartet, ${HERKUNFT_BRUECKE}`);
     this.triageFahrt = this.triageFahren(konto);
     this.nebenbei(this.triageFahrt);
@@ -1714,9 +1719,11 @@ class Treiber {
       // #147: a note without an allowed end state makes the run incomplete, not finished; each one stands in the line
       const unsauber = abweichungen.length ? `; ${abweichungen.length} ${abweichungen.length === 1 ? 'Notiz' : 'Notizen'} nicht sauber abgearbeitet: ${abweichungen.map((x) => `#${x.nr} (${x.grund})`).join(', ')}` : '';
       this.imLogbuch(null, `Triage-Lauf ${abgebrochen ? `abgebrochen: ${abgebrochen}; bis dahin` : abweichungen.length ? 'unvollständig:' : 'beendet:'} ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}${unsauber}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length, ...(this.z.triage?.schnittplan?.fehler ? { fehler: this.z.triage.schnittplan.fehler } : {}) };
     } catch (err) {
       if (abbruch.signal.aborted) this.triageAbgebrochen(String(abbruch.signal.reason), String(abbruch.signal.reason));
       else this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: 0, fragen: 0, gescheitert: true, fehler: String(err).slice(0, 300) };
     } finally {
       mitTriage.delete(this);
       this.triageAbbruch = null;
@@ -2436,7 +2443,7 @@ class Treiber {
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
       freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
-      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, abschluss: this.z.triage?.abschluss ?? null, fragen: this.triageStand?.fragen ?? [] },
+      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, ...(this.triageLaeuft ? { seit: this.triageSeit } : {}), ...(this.triageBeendet ? { beendet: this.triageBeendet } : {}), tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, abschluss: this.z.triage?.abschluss ?? null, fragen: this.triageStand?.fragen ?? [] },
     };
   }
 

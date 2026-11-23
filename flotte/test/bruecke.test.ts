@@ -1139,7 +1139,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       ticket.body,
       regelnAus(''),
     ) as Exclude<Entscheidung, { art: 'ungueltig' }>;
-    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage'], 'ready-for-agent'), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
+    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage']), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
     const aufrufer: Aufrufer = (p, a, o) => {
       if (p === 'gh' && a[0] === 'issue' && a[1] === 'list' && a.includes('needs-triage')) {
         const mensch = t.p.kommentare.filter((k) => k.nr === 61).map((k) => ({ body: k.text, author: { login: 'mensch' }, createdAt: '2026-11-20T15:00:00Z', authorAssociation: 'OWNER' }));
@@ -1166,8 +1166,15 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(b.berichte[0].triage).toMatchObject({ laeuft: false, tickets: [], fragen: [], entscheidungen: [] });
       expect(Date.parse(b.berichte[0].triage.gelesen!)).toBeGreaterThan(0);
       expect(b.berichte.some((x) => x.triage.laeuft)).toBe(true);
+      // #148: the running report names its start, no progress (the driver does not know it); the last one the end with the counters
+      const laufend = b.berichte.find((x) => x.triage.laeuft)!.triage;
+      expect(Date.parse(laufend.seit!)).toBeGreaterThan(0);
+      expect(laufend.fortschritt).toBeUndefined();
+      expect(b.berichte[0].triage.beendet).toBeUndefined();
       const letzter = b.berichte.at(-1)!.triage;
       expect(letzter.laeuft).toBe(false);
+      expect(letzter.seit).toBeUndefined();
+      expect(letzter.beendet).toEqual({ zeit: expect.any(String), epics: 0, fragen: 1 });
       expect(letzter.entscheidungen.map((d) => [d.nr, d.ergebnis, d.herkunft, d.grund, d.widerrufen])).toEqual([
         [7, 'klar', 'Skill-Empfehlung', 'Abschnitte nachgetragen', null],
         [8, 'ueberfluessig', 'Präzedenz: #3', 'schon erledigt', null],
@@ -1180,6 +1187,23 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   }, T);
 
+  it('#148: a failed triage run ends in the report as beendet with the error', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    const kaputt: typeof triagiere = async () => {
+      await new Promise((x) => setTimeout(x, 50));
+      throw new Error('kein Konto antwortet');
+    };
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: kaputt });
+      const letzter = b.berichte.at(-1)!.triage;
+      expect(letzter.laeuft).toBe(false);
+      expect(letzter.beendet).toEqual({ zeit: expect.any(String), epics: 0, fragen: 0, gescheitert: true, fehler: expect.stringContaining('kein Konto antwortet') });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#146: notes closed by the cut plan count as closed, show as decisions and are revoked by reopening; an invalid plan counts as without result; #147: created missions and attached notes are counted', async () => {
     const t = aufbau();
     const zu = (notiz: number, art: string, mehr: object = {}) => ({ notiz, titel: `Notiz ${notiz}`, url: `https://github.com/o/r/issues/${notiz}`, art, grund: 'kein Nutzen', herkunft: 'Eigenes Urteil: x', geschrieben: true, kommentar: 'k', ...mehr });
@@ -1187,8 +1211,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // 31 and 32 failed at their mission: each counts once as without result, the mission not again
       ...ergebnis([{ nummer: 30, ergebnis: 'klar', mission: 100, zuordnung: 'neue_mission' }, { nummer: 31, ergebnis: 'klar', zuordnung: 'neue_mission', fehler: 'Kommentar steht, Mission „Q“ nicht angelegt' }, { nummer: 32, ergebnis: 'klar', zuordnung: 'mission', fehler: 'Kommentar steht, Kommentar an Mission #40 gescheitert: nicht angehängt' }]),
       schnittplan: [
-        { forge: 'o/r', neue_missionen: [{ schluessel: 'p', titel: 'Port', begruendung: 'b', kinder: [30], nummer: 100, url: 'https://github.com/o/r/issues/100', angehaengt: [30], geschrieben: true }, { schluessel: 'q', titel: 'Q', begruendung: 'b', kinder: [31], fehler: 'HTTP 502' }], missionen: [{ nummer: 40, titel: 'T', kinder: [32], angehaengt: [], kommentar: 'k', geschrieben: false, fehler: 'Kommentar gescheitert, nichts angehängt' }], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
-        { forge: 'o/r', neue_missionen: [], zuordnungen: [], fehler: 'Sternzeit-Notiz #1 ohne Zuordnung' },
+        { forge: 'o/r', aufrufe: 1, neue_missionen: [{ schluessel: 'p', titel: 'Port', begruendung: 'b', kinder: [30], nummer: 100, url: 'https://github.com/o/r/issues/100', angehaengt: [30], geschrieben: true }, { schluessel: 'q', titel: 'Q', begruendung: 'b', kinder: [31], fehler: 'HTTP 502' }], missionen: [{ nummer: 40, titel: 'T', kinder: [32], angehaengt: [], kommentar: 'k', geschrieben: false, fehler: 'Kommentar gescheitert, nichts angehängt' }], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
+        { forge: 'o/r', aufrufe: 2, neue_missionen: [], zuordnungen: [], fehler: 'Sternzeit-Notiz #1 ohne Zuordnung' },
       ],
     } as Awaited<ReturnType<typeof triagiere>>;
     const tr = triageAttrappe(r, 50);
@@ -1332,6 +1356,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       schnittplan: [
         {
           forge: 'o/r',
+          aufrufe: 1,
           neue_missionen: [
             { schluessel: 'p', titel: 'Portprüfung', begruendung: 'Drei Notizen zum selben Port', kinder: [30, 31, 34], nummer: missionNeu, url: `https://github.com/o/r/issues/${missionNeu}`, labels: ['epic', 'ready-for-agent'], angehaengt: [30, 31], geschrieben: true },
             // not created: no clear child, no number
@@ -1385,6 +1410,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // the mission number of an attached note stands at its decision, and the plan outlives a restart in the state
       expect(z.triage!.entscheidungen.filter((d) => d.ergebnis === 'klar').map((d) => [d.nr, d.mission])).toEqual([[30, 100], [31, 100], [32, 40], [33, 40]]);
       expect(z.triage!.schnittplan!.missionen.map((m) => m.nr)).toEqual([100, 40]);
+      // the short info counts the missions of the plan, the created and the existing one
+      expect(b.berichte.at(-1)!.triage.beendet).toMatchObject({ epics: 2 });
     } finally {
       await b.zu();
     }

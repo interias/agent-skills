@@ -176,60 +176,83 @@ Sternzeit-Notizen (`needs-triage`, `needs-info`) klärt der Admiral selbst:
 bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/name>] [--konto <k>] [--modell fable] [--trocken]
 ```
 
-**Schnittplan** (#146): Vor der Einzelklärung liest ein einziger `claude -p` je Projekt (Werkzeuge nur
-`Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) alle Notizen, die ins Modell gehen
+**Ein Aufruf je Projekt** (#146): Ein einziger `claude -p` je Projekt (Werkzeuge nur
+`Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) liest alle Notizen, die ins Modell gehen
 (Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
 (Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Kinder aus
 `sub_issues_summary`, im Auftrag als `(<n> Kinder, noch <m> frei)` bzw. `(8 Kinder, voll, keine neuen
 Kinder)`; eine, deren Kinder nicht lesbar sind, kommt nicht in Frage). Passende offene Missionen haben
-ausdrücklich Vorrang vor neuen, so gehen Notizen eines späteren Laufs in die Missionen früherer. Er ordnet jede
-Notiz genau einmal zu: `mission` (Kind einer offenen Mission), `neue_mission` (Kind einer neuen
+ausdrücklich Vorrang vor neuen, so gehen Notizen eines späteren Laufs in die Missionen früherer. Er liefert in
+einer strukturierten Antwort den Schnittplan und die Klärung jeder Notiz; eine Einzelklärung je Notiz gibt es
+nicht. Er ordnet jede Notiz genau einmal zu: `mission` (Kind einer offenen Mission), `neue_mission` (Kind einer neuen
 Mission für ein Thema), `zusammengefuehrt` (Duplikat oder Teilstück; `in` = die Notiz, die bleibt),
 `ueberfluessig` (mit Grund und Fundstelle), `verworfen` (mit Grund) oder `triage` (bleibt in der
 Triage). Grenzen: höchstens 4 neue Missionen je Lauf, eine Mission höchstens 8 Kinder, vorhandene
-zählen mit. Aus einer Notiz entsteht nie ein neues Ticket. Das Programm prüft den Plan; fehlt eine
+zählen mit. Aus einer Notiz entsteht nie ein neues Ticket. Je Zuordnung klärt er die Notiz wie in einer
+Fragerunde: Er stellt sich die Fragen, beantwortet sie aus Text, Kommentaren, ADRs und Code (`fragen`,
+je mit Antwort, Herkunft und Grund) und entscheidet nach der Liste „beim Menschen“
+(`src/treiber/admiral.ts`); nur was dort steht, bekommt `beim_menschen: true` und den Punkt als `marke`.
+Für eine Notiz mit `mission` oder `neue_mission` ohne solche Frage schreibt er die fehlenden oder leeren
+Abschnitte `acceptance_section`/`verification_section` des Adapters (`abnahmekriterien`,
+`verifikationsweg`). Das Programm prüft den Plan; fehlt eine
 Notiz, steht eine doppelt, ist eine Nummer unbekannt, eine Grenze überschritten, fehlt bei `verworfen`
-ein Grund oder bei `ueberfluessig` Grund oder Fundstelle, oder verweist `zusammengefuehrt` auf keine
-Notiz, die bleibt,
+ein Grund oder bei `ueberfluessig` Grund oder Fundstelle, verweist `zusammengefuehrt` auf keine
+Notiz, die bleibt, fragt eine geschlossene Notiz den Menschen, oder besteht eine Notiz, die in eine
+Mission kommt, mit ihren ergänzten Abschnitten die Prüfung des Auftragsschreibers nicht,
 gilt er nicht. Hat das Modell geantwortet, folgt genau eine **Reparaturrunde** (#147): derselbe Auftrag
-mit dem Fehler und der ungültigen Antwort darunter, „korrigiere nur das“. Ist auch der zweite Plan
-ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte; derselbe Auftrag noch
-einmal scheiterte meist genauso), gilt er als Ganzes nicht: nichts wird geschrieben, und für die
-Notizen dieses Projekts läuft in diesem Lauf keine Einzelklärung (der nächste Lauf versucht es neu).
+mit dem Fehler und der ungültigen Antwort darunter, „korrigiere nur das“. Sie ist der einzige zweite
+Aufruf: Der Normalfall ist genau ein Aufruf je Projekt, die Zahl steht in der Ausgabe (`aufrufe`). Fallen
+im Plan nach der Reparaturrunde nur noch einzelne Notizen mit `mission` oder `neue_mission` durch die
+Prüfung ihrer Abschnitte, hält das den Plan nicht auf: Das Programm stuft jede solche Notiz auf `triage`
+herab (`herabgestuft` nennt Fehler und vorgesehene Mission), der Rest gilt; eine neue Mission, der so alle
+Kinder fehlen, wird nicht angelegt. Text und Label der Notiz bleiben; sie bekommt eine Frage an den Menschen
+in der Form der Triage (Punkt `Prüfung nicht bestanden`, Optionen „Abschnitte ergänzen, dann <Mission>
+zuordnen“ als Empfehlung oder „verwerfen“) und wartet auf seine Antwort, wie jede gefragte Notiz. Ist
+auch der zweite Plan sonst ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte;
+derselbe Auftrag noch einmal scheiterte meist genauso), gilt er als Ganzes nicht: Für die Notizen dieses
+Projekts wird in diesem Lauf nichts geschrieben (der nächste Lauf versucht es neu).
 Aus einem gültigen Plan werden
 `zusammengefuehrt`, `ueberfluessig` und `verworfen` geschlossen: erst der Kommentar
 `**Triage: zusammengeführt in #<nr>**` bzw. `geschlossen, überflüssig` / `geschlossen, verworfen (not planned)`
 mit Grund und Herkunft, dann `gh issue close --reason "not planned"`; scheitert der Kommentar, ändert
 sich nichts, gelöscht wird nie. Widerruf: das Ticket wieder öffnen und den Einwand als Kommentar
-schreiben. Die übrigen Notizen gehen in die Einzelklärung unten; was danach mit einer klaren geschieht,
-bestimmt ihre Zuordnung im Plan (**Missionen in der Forge**, unten). Der Auftrag hat ein Gesamtbudget (Notizen zusammen 120 000,
-Missionen 30 000 Zeichen, je Notiz höchstens 6 000, je Mission 2 000); viele Notizen werden kürzer
+schreiben. Was mit einer übrigen Notiz geschieht, bestimmen ihre Klärung und ihre Zuordnung im Plan (die
+Liste unten, **Missionen in der Forge**). Der Auftrag hat ein Gesamtbudget (Notizen zusammen 120 000,
+Missionen 30 000 Zeichen, je Notiz höchstens 6 000, je Mission 2 000). **Geteilt wird nur über dieser
+Größengrenze** (`pakete` in `src/triage.ts`): Passen die Notizen mit je bis zu 6 000 Zeichen nicht in die
+120 000, teilt das Programm sie ohne Modell nach Thema in wenige Pakete, einen Aufruf je Paket mit denselben
+Regeln. Thema einer Notiz ist das Wort ihres Titels (oder ein Label außer den Triage-Labels), das die meisten
+anderen Notizen teilen, aber höchstens die Hälfte aller; ganze Themen kommen zusammen in so wenige Pakete wie
+passen, ein Thema größer als ein Paket wird in der Reihenfolge seiner Notizen geschnitten. Ein Paket je Notiz
+gibt es nie. Die Grenzen gelten über alle Pakete zusammen: Jedes nächste Paket sieht die freien Plätze, die
+die früheren den offenen Missionen ließen, und die übrigen neuen Missionen; ein Schlüssel einer neuen Mission,
+den ein früheres Paket schon trägt, bekommt `-<Paket>` angehängt, so oft, bis er weder in einem früheren
+noch im selben Paket vorkommt. Ist ein Paket ungültig, wird für das ganze
+Projekt nichts geschrieben. Innerhalb eines Auftrags werden viele Notizen kürzer
 gekürzt, keine fällt weg. Gekürzt wird eine Notiz (#148) zuerst um ihre ältesten Kommentare (mit dem
 Vermerk `(N ältere Kommentare ausgelassen)`), dann am Text; der neueste Kommentar, etwa ein Widerruf
 oder eine Antwort des Menschen, bleibt stehen. Über die Brücke erscheint eine vom Plan geschlossene Notiz im Frachtraum als
 Entscheidung „überflüssig“ (Grund mit `verworfen:` bzw. `zusammengeführt in #<nr>`), ihr Widerruf
 öffnet sie wieder; ein ungültiger Plan zählt im Logbuch als „ohne Ergebnis“.
 
-Je verbliebener Notiz ein `claude -p` (Werkzeuge nur `Read,Grep,Glob`): Er stellt sich die Fragen einer
-Fragerunde, beantwortet sie aus Text, Kommentaren, ADRs und Code und entscheidet nach der Liste
-„beim Menschen“ (`src/treiber/admiral.ts`):
+Je Notiz, die bleibt, aus derselben Antwort:
 
-- **klar:** fehlende oder leere Abschnitte `acceptance_section`/`verification_section` des Adapters
-  werden ergänzt (geprüft wie im Auftragsschreiber); die Notiz wird nie mehr einzeln freigegeben,
-  sondern geht an ihre Mission (unten). Hat der Plan sie auf `triage` gelassen, bleibt sie ohne jede
-  Änderung in der Triage (`klar`, `geschrieben: false`, `zuordnung: triage`); ein späterer Plan kann
-  sie einer Mission zuordnen. Sie geht trotzdem ins Modell: Nur die Einzelklärung stellt die Frage an
-  den Menschen oder schließt eine überflüssige.
-- **überflüssig:** geschlossen (`not planned`) mit Grund; die Labels bleiben, Wiederöffnen mit einem
-  Kommentar bringt es zurück in die Triage.
-- **kritisch:** genau ein Kommentar mit allen Fragen, die nach der Liste beim Menschen liegen; das
-  Label bleibt, die Notiz kommt erst nach der Antwort (in einem späteren Lauf) in eine Mission.
+- **klar** (keine Frage beim Menschen): die fehlenden oder leeren Abschnitte werden ergänzt (geprüft wie
+  im Auftragsschreiber); die Notiz wird nie einzeln freigegeben, sondern geht an ihre Mission (unten).
+  Hat der Plan sie auf `triage` gelassen, bleibt sie ohne jede Änderung in der Triage (`klar`,
+  `geschrieben: false`, `zuordnung: triage`); ein späterer Plan kann sie einer Mission zuordnen.
+- **kritisch** (mindestens eine Frage beim Menschen, gleich welche Zuordnung): genau ein Kommentar mit
+  allen Fragen, die nach der Liste beim Menschen liegen; das Label bleibt, die Notiz kommt erst nach der
+  Antwort (in einem späteren Lauf) in eine Mission.
+
+Überflüssig ist eine Notiz im Plan selbst (`ueberfluessig`, oben): geschlossen (`not planned`) mit Grund
+und Fundstelle; die Labels bleiben, Wiederöffnen mit einem Kommentar bringt sie zurück in die Triage.
 
 **Missionen in der Forge** (#147): Die klaren Notizen mit `mission` oder `neue_mission` im Plan werden
 Mission für Mission geschrieben, je Notiz in dieser Reihenfolge:
 
 1. der Kommentar `**Triage: Missionsziel von Mission #<nr> „<Titel>“, Warp frei**` (bzw. `von neuer
-   Mission „<Titel>“`) mit Herkunft der Entscheidung und der Zuordnung, den Entscheidungen und den
+   Mission „<Titel>“`) mit Grund und Herkunft der Zuordnung, den Entscheidungen der Fragerunde und den
    ergänzten Abschnitten im Wortlaut;
 2. der Text der Notiz wird **ergänzt, nicht ersetzt**: ein fehlender Abschnitt kommt ans Ende, ein
    leerer bekommt seinen Inhalt unter die Überschrift; der bisherige Text bleibt Zeichen für Zeichen
@@ -283,8 +306,10 @@ und ebenso eine Mission aus dem Schnittplan, und spricht bisher
 nur GitHub; ein Gitea-Repository steht in `fehler`.
 
 **Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl danach jeden
-Vorschlag der Lernschleife an diesem Issue einzeln wie ein Ticket, mit demselben Auftrag an den
-Admiral. Als Vorschlag zählt nur ein Kommentar mit `<!-- lernschleife -->` der Rollen oben. Jeder
+Vorschlag der Lernschleife an diesem Issue einzeln, einen `claude -p` je Vorschlag (Schema
+`triageSchema()`, dieselbe Fragerunde und Liste „beim Menschen“). Sie sind keine Sternzeit-Notizen,
+sondern Kommentare am Sammel-Issue, und gehen deshalb nicht in den Aufruf des Schnittplans.
+Als Vorschlag zählt nur ein Kommentar mit `<!-- lernschleife -->` der Rollen oben. Jeder
 Vorschlag hat die Kennung `Lernvorschlag <id>/<n>` (Id des Kommentars der Lernschleife, Nummer
 darin); alle Kommentare der Triage dazu stehen am `lern_issue` und nennen sie im Kopf, und als Antwort
 zählt dort nur ein Kommentar, der sie in der ersten Zeile nennt (eine weiter unten zitierte Kennung,
@@ -400,8 +425,10 @@ das `lern_issue`, `url` der Kommentar der Lernschleife, bei `klar` `missionsziel
 Liste: `nach außen`, `Geld`, `Produktivdaten`, `Sicherheit und Zugänge`, `Kundentext`, `Architektur`;
 bei einem Lernvorschlag `lernvorschlag`) mit den in diesem Lauf neu gestellten Fragen, dazu `offen`
 in derselben Form mit den Fragen früherer Läufe, die unter einem `wartet` noch ohne Antwort stehen.
-`schnittplan` (#146) je Projekt mit Notizen fürs Modell: `forge`, `sitzung` (die des geltenden Plans),
-nach einer Reparaturrunde `reparatur` (`sitzung` und `fehler` des ersten Plans), `neue_missionen` (je
+`schnittplan` (#146) je Projekt mit Notizen fürs Modell: `forge`, `sitzung` (die des geltenden Plans,
+bei Paketen die des letzten), nach einer Reparaturrunde `reparatur` (`sitzung` und `fehler` des ersten
+Plans), `aufrufe` (die Admiral-Aufrufe für die Notizen dieses Projekts: 1, je Reparatur und je weiterem
+Paket einer mehr), nur bei einer Teilung `pakete` (je `notizen`, `sitzung`, gegebenenfalls `reparatur`), `neue_missionen` (je
 `schluessel`, `titel`, `begruendung`, `kinder` = Nummern der Notizen; #147, wenn ein Kind klar war,
 dazu `labels` (mit `ready_label` erst nach der ersten Freigabe), `body`, `kommentar`, `angehaengt` =
 die Notizen in ihr, `geschrieben`, angelegt `nummer` und `url` (auch wenn danach ein Schritt
@@ -410,6 +437,8 @@ Notizen kommen sollten: je `nummer`, `titel`, `kinder` = die vorgesehenen Notize
 neue `body`, gegebenenfalls `fehler`), `zuordnungen` (je `notiz`,
 `titel`, `url`, `art`, `grund`, `herkunft`, bei `mission` die Nummer `mission`, bei `neue_mission`
 deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessig` die `fundstelle`;
+`fragen` der Fragerunde und, wo geschrieben, `abnahmekriterien` und `verifikationsweg`; bei einer vom
+Programm auf `triage` herabgestuften Notiz `herabgestuft` (auch an ihrem Eintrag in `tickets`);
 bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
 ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
 nur hier, nicht in `tickets`. `nachgeholt` (#149): je Mission der Triage, deren `ready_label` der Lauf
