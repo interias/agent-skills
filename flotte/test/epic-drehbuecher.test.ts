@@ -471,6 +471,42 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(tickets.w.pr?.body).not.toContain('Closes #69');
   }, T);
 
+  it('P0a: an unknown test format in phase 0 ends the run in order: an end block, the epic worktree down, no cut', async () => {
+    const repo = neuesRepo();
+    const u = attrappe(buch([paket('155')]));
+    const m = { ...u.mechanik, volllauf: async () => Promise.reject(new Error('Suite fix (Exit 0): Ausgabe von "echo hallo" in keinem bekannten Format (bun test, Pester, pytest, Gate); keine Zählung.')) };
+    const z = await fahreEpic(einstellung(repo), { ...u, mechanik: m });
+    expect(z.phase).toBe('abgebrochen');
+    expect(u.welt.aufrufe).toHaveLength(0);
+    expect(getan(u.welt, /^down epic-69$/)).toHaveLength(1);
+    const ende = letzterBlock(u.welt);
+    expect(ende?.art).toBe('ende');
+    expect(u.welt.bloecke.at(-1)).toMatch(/Ausgangszahlen nicht messbar: Suite fix .*keinem bekannten Format/);
+    // a restart does not measure again
+    expect((await fahreEpic(einstellung(repo), { ...u, mechanik: m })).phase).toBe('abgebrochen');
+  }, T);
+
+  it('P0b: pre_commit_checks as prose: one open point in the pull request, the implementer gets them as a rule, the package merges', async () => {
+    const { z, w } = await fahre(buch([paket('155')], { vorCommitProsa: ['Patch-Notes-Check'] }));
+    expect(z.pakete['155'].stufe).toBe('fertig');
+    expect(w.pr?.body).toMatch(/pre_commit_checks ohne ausführbares Programm, vom Programm nicht gefahren: Patch-Notes-Check/);
+    expect(w.pr?.body.match(/Patch-Notes-Check/g)).toHaveLength(1);
+    expect(w.pr?.wip).toBe(false);
+    expect(aufrufeVon(w, 'implementer', '155')[0].auftrag).toMatch(/Patch-Notes-Check/);
+  }, T);
+
+  it('P0c: status labels an earlier run left at packages and skipped children come off at the opening; a skipped child with a blocker keeps blockiert', async () => {
+    const welt = neueWelt();
+    welt.status = { 155: 'status/haengt', 157: 'status/in-arbeit', 158: 'status/haengt' };
+    const { w } = await fahre(buch([paket('155')], { schnitt: { version: 1, pakete: [paket('155')], tor: [], uebersprungen: [{ nr: '157', grund: 'erledigt', blocker: [] }, { nr: '#158', grund: 'wartet', blocker: ['#20'] }] } }), { welt });
+    const p = w.protokoll.map((x) => x.was);
+    expect(p.indexOf('status ab 155')).toBeGreaterThanOrEqual(0);
+    expect(p.indexOf('status ab 155')).toBeLessThan(p.indexOf('status 155 status/in-arbeit'));
+    expect(w.status[157]).toBeUndefined();
+    expect(w.status[158]).toBe('status/blockiert');
+    expect(p).not.toContain('status ab 69');
+  }, T);
+
   it('P19i: the program ends after the Abnahmestufe, before the pull request: the restart does not run it again', async () => {
     const repo = neuesRepo();
     const welt = neueWelt();

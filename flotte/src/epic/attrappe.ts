@@ -59,6 +59,8 @@ export interface EpicDrehbuch {
   slot?: boolean[];
   /** acceptance_commands of the adapter by name → green, red or not runnable (Phase 6); default none */
   abnahme?: Record<string, boolean | 'nicht fahrbar'>;
+  /** pre_commit_checks the Mechanik reads as prose (#108); default none */
+  vorCommitProsa?: string[];
   /** answers of the driver, `nachTakten` after the question was asked (default 1) */
   antworten?: { frage: number; antwort: string; nachTakten?: number }[];
   /** takts after an account limit until the account is free (default 2) */
@@ -180,6 +182,9 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       if (nicht) throw new Error(`${nicht[0]}: docker nicht erreichbar`);
       return r.map(([name, gruen]) => ({ name, ok: gruen === true, text: gruen === true ? `${name}: grün` : `${name}: Exit 1: 2 E2E-Tests rot` }));
     },
+    vorCommitProsa() {
+      return buch.vorCommitProsa ?? [];
+    },
     async volllauf(worktree) {
       welt.vollaeufe.jetzt++;
       welt.vollaeufe.max = Math.max(welt.vollaeufe.max, welt.vollaeufe.jetzt);
@@ -268,6 +273,12 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     async status(ticket, label) {
       log(`status ${ticket} ${label}`);
       welt.status[ticket] = label;
+      return null;
+    },
+    async statusAbnehmen(ticket) {
+      if (!welt.status[ticket]) return null;
+      log(`status ab ${ticket}`);
+      delete welt.status[ticket];
       return null;
     },
     async eroeffnung() {

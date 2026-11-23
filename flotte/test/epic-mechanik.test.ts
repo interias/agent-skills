@@ -136,6 +136,117 @@ describe('die Abnahmestufe (#108)', () => {
   });
 });
 
+describe('Lesen gegen gh und pre_commit_checks (#108)', () => {
+  const mitGh = (adapter: string, gh: (args: string[], n: number) => { code: number; stdout: string; stderr: string }) => {
+    const repo = mkdtempSync(join(tmpdir(), 'flotte-gh-'));
+    aufrufen('git', ['init', '-q', repo]);
+    mkdirSync(join(repo, '.claude'));
+    writeFileSync(join(repo, '.claude', 'epic.md'), adapter);
+    const aufrufe: string[][] = [];
+    const shell: string[] = [];
+    const m = echteMechanik({
+      repo,
+      epic: 69,
+      epicBranch: 'epic/69-programm',
+      basis: 'origin/main',
+      forge: 'o/r',
+      halter: join(repo, 'halter'),
+      aufrufer: async (p, args, o) => {
+        if (o?.shell) {
+          shell.push(p);
+          return { code: 0, stdout: '', stderr: '' };
+        }
+        if (p !== 'gh') return aufrufenAsync(p, args, o);
+        aufrufe.push(args);
+        return gh(args, aufrufe.length);
+      },
+    });
+    return { m, aufrufe, shell, repo, weg: () => rmSync(repo, { recursive: true, force: true }) };
+  };
+  const ok = (stdout: string) => ({ code: 0, stdout, stderr: '' });
+
+  it('a read of the forge goes again after HTTP 5xx or an unreadable answer; a 404 stops at once, a lasting 5xx after the last try', async () => {
+    const wackel = mitGh(ADAPTER, (_a, n) => (n === 1 ? { code: 1, stdout: '', stderr: 'HTTP 502: Bad Gateway (https://api.github.com/graphql)' } : n === 2 ? ok('{"body": "Kinder: #1') : ok(JSON.stringify({ body: 'Kinder: #1' }))));
+    try {
+      expect(await wackel.m.body(69)).toBe('Kinder: #1');
+      expect(wackel.aufrufe).toHaveLength(3);
+    } finally {
+      wackel.weg();
+    }
+    const fehlt = mitGh(ADAPTER, () => ({ code: 1, stdout: '', stderr: 'GraphQL: Could not resolve to an Issue with the number of 69. (repository.issue)' }));
+    try {
+      await expect(fehlt.m.body(69)).rejects.toThrow(/Could not resolve/);
+      expect(fehlt.aufrufe).toHaveLength(1);
+    } finally {
+      fehlt.weg();
+    }
+    const kaputt = mitGh(ADAPTER, () => ({ code: 1, stdout: '', stderr: 'gh: Server Error (HTTP 503)' }));
+    try {
+      await expect(kaputt.m.kommentare(69)).rejects.toThrow(/HTTP 503/);
+      expect(kaputt.aufrufe).toHaveLength(4);
+    } finally {
+      kaputt.weg();
+    }
+  }, T);
+
+  it('a comment after HTTP 5xx is written again only when it is not there yet', async () => {
+    const da: string[] = [];
+    const g = mitGh(ADAPTER, (args, n) => {
+      if (args[1] === 'comment') {
+        da.push('Text');
+        // the forge took the first comment and still answered 502
+        return n === 1 ? { code: 1, stdout: '', stderr: 'HTTP 502: Bad Gateway' } : ok('');
+      }
+      return ok(JSON.stringify({ comments: da.map((body) => ({ body })) }));
+    });
+    try {
+      await g.m.kommentar(69, 'Text');
+      expect(da).toEqual(['Text']);
+      const leer: string[] = [];
+      const h = mitGh(ADAPTER, (args, n) => (args[1] === 'comment' ? (n === 1 ? { code: 1, stdout: '', stderr: 'HTTP 500' } : (leer.push('Text'), ok(''))) : ok(JSON.stringify({ comments: leer.map((body) => ({ body })) }))));
+      try {
+        await h.m.kommentar(69, 'Text');
+        expect(leer).toEqual(['Text']);
+      } finally {
+        h.weg();
+      }
+    } finally {
+      g.weg();
+    }
+  }, T);
+
+  it('pre_commit_checks: an entry without a program at its start is prose, never run as a shell command; the commands run', async () => {
+    const g = mitGh(`---\npre_commit_checks:\n  - git --version\n  - core.hooksPath gesetzt und Patch-Notes-Check\n---\n`, () => ok(''));
+    try {
+      expect(g.m.vorCommitProsa()).toEqual(['core.hooksPath gesetzt und Patch-Notes-Check']);
+      writeFileSync(join(g.repo, 'neu.txt'), 'x\n');
+      aufrufen('git', ['-C', g.repo, 'config', 'user.name', 'T']);
+      aufrufen('git', ['-C', g.repo, 'config', 'user.email', 't@example.invalid']);
+      expect(await g.m.sichern(g.repo, 'neu (#1)\n')).toMatch(/^[0-9a-f]{40}$/);
+      expect(g.shell).toEqual(['git --version']);
+    } finally {
+      g.weg();
+    }
+    const ohne = mitGh(ADAPTER, () => ok(''));
+    try {
+      expect(ohne.m.vorCommitProsa()).toEqual([]);
+    } finally {
+      ohne.weg();
+    }
+  }, T);
+
+  it('statusAbnehmen: takes off every status label an earlier run left, keeps the others; nothing to do is no edit', async () => {
+    const g = forge();
+    g.labels[12] = ['status/in-arbeit', 'bug'];
+    const m = echteMechanik({ repo: leeresRepo(), epic: 69, epicBranch: 'epic/69-programm', basis: 'origin/main', forge: 'o/r', halter: join(tmpdir(), `halter-${process.pid}`), aufrufer: g.aufrufer });
+    expect(await m.statusAbnehmen(12)).toBeNull();
+    expect(g.labels[12]).toEqual(['bug']);
+    const edits = g.aufrufe.filter((a) => a[1] === 'edit').length;
+    expect(await m.statusAbnehmen(13)).toBeNull();
+    expect(g.aufrufe.filter((a) => a[1] === 'edit')).toHaveLength(edits);
+  }, T);
+});
+
 describe('echte Mechanik gegen die Fixture (#66)', () => {
   let f: Fixture;
   const halter = () => join(f.wurzel, 'halter.json');

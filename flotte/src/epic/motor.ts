@@ -79,6 +79,8 @@ export interface Mechanik {
   abnahmeBefehle(): string[];
   /** Phase 6: every acceptance command once in the worktree, red on an exit code ≠ 0; the caller holds the slot */
   abnahme(worktree: string): Promise<{ name: string; ok: boolean; text: string }[]>;
+  /** pre_commit_checks without a program at their start (prose): never run, an open point and a rule in the order (#108) */
+  vorCommitProsa(): string[];
   /** test_commands of the adapter, all suites */
   volllauf(worktree: string): Promise<Testlauf>;
   /** one red file alone, with the adapter's worker limit: true when green */
@@ -111,6 +113,8 @@ export interface Mechanik {
   kommentar(ticket: number, text: string): Promise<void>;
   /** sets one status label and takes the other two off, then reads it back (mission/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
   status(ticket: number, label: StatusLabel): Promise<string | null>;
+  /** 0a: takes off the status labels an earlier run left at a ticket (mission/SKILL.md, "Die Statuslabels"); a text as with status */
+  statusAbnehmen(ticket: number): Promise<string | null>;
   /** 2d: the target issue gets status/in-arbeit and epic_label; a text as with status */
   eroeffnung(): Promise<string | null>;
   /** Phase 6: push, pull request (title of the issue, WIP: while something lies with the person), the target issue loses status/in-arbeit (fehler: as with status); never a merge */
@@ -255,8 +259,15 @@ class EpicLauf {
       this.speichere();
     }
     if (!z.basis) {
-      z.basis = await this.m.volllauf(z.epicWorktree);
-      z.basisLint = await this.m.lint(z.epicWorktree);
+      try {
+        z.basis = await this.m.volllauf(z.epicWorktree);
+        z.basisLint = await this.m.lint(z.epicWorktree);
+      } catch (f) {
+        // an unknown test format or a suite that does not run: no Ausgangszahlen, no run (mission/SKILL.md, 0b)
+        await this.abbrechen(`Ausgangszahlen nicht messbar: ${flach(f instanceof Error ? f.message : String(f))}`);
+        return z;
+      }
+      for (const x of this.m.vorCommitProsa()) this.glut(`pre_commit_checks ohne ausführbares Programm, vom Programm nicht gefahren: ${x} (dem Ingenieur als Regel mitgegeben)`, null);
       this.speichere();
     }
     // Phase 0b: the code graph goes into every order (4a, 4b); not available is no error
@@ -914,6 +925,9 @@ class EpicLauf {
     this.eroeffnet = true;
     this.glut(await this.m.eroeffnung(), null);
     const pakete = this.z.schnitt.ergebnis!.pakete;
+    // 0a: status labels an earlier run left at tickets of this mission come off; a package gets its label again at its start
+    const alt = [...Object.values(this.z.pakete).filter((p) => p.stufe === 'wartend' || p.stufe === 'startbereit').map((p) => p.nr), ...(this.z.schnitt.ergebnis!.uebersprungen ?? []).filter((u) => !u.blocker.length).map((u) => u.nr.replace(/^#/, ''))];
+    for (const nr of alt) if (/^\d+$/.test(nr) && Number(nr) !== this.e.epic) this.glut(await this.m.statusAbnehmen(Number(nr)), nr);
     // 2d: skipped children get their reason now, before the first package; a blocking ticket: status/blockiert
     for (const u of this.z.schnitt.ergebnis!.uebersprungen ?? []) {
       const nr = u.nr.replace(/^#/, '');
@@ -993,7 +1007,7 @@ class EpicLauf {
   // ---- orders (auftraege.ts writes them from the fields of the cut and the state)
 
   private kontext(): Kontext {
-    return { epic: this.e.epic, epicBranch: this.e.epicBranch, epicWorktree: this.z.epicWorktree ?? '', adapter: this.e.adapter ?? '', graph: this.z.graph ?? null, basis: this.z.basis ?? [], basisLint: this.z.basisLint ?? {} };
+    return { epic: this.e.epic, epicBranch: this.e.epicBranch, epicWorktree: this.z.epicWorktree ?? '', adapter: this.e.adapter ?? '', graph: this.z.graph ?? null, basis: this.z.basis ?? [], basisLint: this.z.basisLint ?? {}, vorCommitProsa: this.m.vorCommitProsa() };
   }
 
   private torAntworten(nr: string): string[] {
