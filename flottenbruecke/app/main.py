@@ -265,6 +265,14 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(409, 'Diese Mission ist schon widerrufen.')
             if not m.get('neu') and not m.get('kinder'):
                 raise HTTPException(409, 'An dieser Mission hat der Triage-Lauf nichts angehängt.')
+        elif h.art in ('projekt_hinzufuegen', 'projekt_entfernen'):
+            # #126: a running driver of a reported project fetches it; for a new folder none runs yet
+            if p is None:
+                raise HTTPException(404, 'Dieses Projekt kennt die Brücke nicht.')
+            if not b.get('projektHandlungen'):
+                raise HTTPException(409, 'Dieser Treiber kennt die Projekt-Handlungen nicht (älterer Stand).')
+            if h.art == 'projekt_entfernen' and p.get('entfernt'):
+                raise HTTPException(409, 'Das Projekt ist schon entfernt.')
         elif h.art == 'forge_verknuepfen':
             # #125: only a driver that reports its forge fetches it
             if b.get('forgeStatus') is None:
@@ -321,6 +329,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         gespeichert = speicher.handlung_setzen(h.forge, h.epic, h.art, h.nr, h.seit, h.text, stempel())
         if gespeichert is None:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
+        if h.art == 'projekt_entfernen':
+            # #126: out of the list at once, with the start of the driver that halts now; nothing is deleted
+            speicher.entfernt_merken(h.forge, (b.get('version') or {}).get('gestartet'), stempel())
         return {'ok': True, 'id': gespeichert['id']}
 
     def triage_starten(h: Handlung) -> dict:

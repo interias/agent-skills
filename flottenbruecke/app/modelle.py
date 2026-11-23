@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden', 'forge_verknuepfen': 'forge_verknuepfen'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden', 'forge_verknuepfen': 'forge_verknuepfen', 'projekt_hinzufuegen': 'projekt_hinzufuegen', 'projekt_entfernen': 'projekt_entfernen'}
+# #126: the longest folder path of projekt_hinzufuegen (the classic Windows limit)
+PROJEKT_ORDNER_MAX = 260
 # #95: the account actions; epic is the account's number (konto_anlegen: 0)
 KONTO_HANDLUNGEN = ('konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden')
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
@@ -496,6 +498,8 @@ class Bericht(BaseModel):
     kontenListe: list[KontoEintrag] | None = Field(None, max_length=50)
     # #125: the forge linked at the machine; None: an older driver or not checked yet
     forgeStatus: ForgeStatus | None = None
+    # #126: the driver fetches projekt_hinzufuegen and projekt_entfernen; an older one does not
+    projektHandlungen: bool = False
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
@@ -670,7 +674,7 @@ class Handlung(BaseModel):
     forge: str = Field(max_length=200)
     # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen, triage and einspielen: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden', 'forge_verknuepfen']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden', 'forge_verknuepfen', 'projekt_hinzufuegen', 'projekt_entfernen']
     # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
@@ -709,11 +713,21 @@ class Handlung(BaseModel):
             if self.epic < 1 or not self.text:
                 raise ValueError('Widerruf einer Mission des Schnittplans: die Mission und der Einwand')
             self.nr, self.seit = None, None
-        elif self.art == 'forge_verknuepfen':
-            # #125: belongs to the project; the machine opens a terminal, no token comes here
+        elif self.art in ('forge_verknuepfen', 'projekt_entfernen'):
+            # #125: belongs to the project; the machine opens a terminal, no token comes here; #126: the driver halts
             if self.epic != 0:
-                raise ValueError('Forge verknüpfen: epic 0')
+                raise ValueError('Forge verknüpfen und Projekt entfernen: epic 0')
             self.nr, self.seit, self.text = None, None, None
+        elif self.art == 'projekt_hinzufuegen':
+            # #126: {"ordner", "autostart"}; a running driver of a reported project writes adapter and start script there
+            try:
+                d = json.loads(self.text or '')
+            except ValueError:
+                d = None
+            ordner = d.get('ordner').strip() if isinstance(d, dict) and isinstance(d.get('ordner'), str) else ''
+            if self.epic != 0 or not ordner or len(ordner) > PROJEKT_ORDNER_MAX or not isinstance(d.get('autostart', False), bool):
+                raise ValueError(f'Projekt hinzufügen: epic 0 und text {{"ordner" (1–{PROJEKT_ORDNER_MAX} Zeichen), "autostart" (ja/nein)}}')
+            self.nr, self.seit, self.text = None, None, json.dumps({'ordner': ordner, 'autostart': d.get('autostart', False)}, ensure_ascii=False)
         elif self.art in KONTO_HANDLUNGEN:
             # #95: konto_anlegen: epic 0, text the name or nothing; the others: epic the account's number, no text
             if self.art == 'konto_anlegen' and (self.epic != 0 or len(self.text or '') > 60):

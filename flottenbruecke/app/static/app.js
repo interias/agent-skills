@@ -515,7 +515,7 @@ function zeileHtml(x) {
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
   // #116: an action of the Frachtraum belongs to a ticket or the project, not to an epic
-  if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.handlung.startsWith('konto_') || x.handlung === 'forge_verknuepfen' || x.handlung === 'einspielen' || x.werft)) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
+  if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.handlung.startsWith('konto_') || x.handlung === 'forge_verknuepfen' || x.handlung.startsWith('projekt_') || x.handlung === 'einspielen' || x.werft)) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
   if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${handlungWort(x)}</b></span>`;
   // admiral
   return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
@@ -530,6 +530,9 @@ function handlungWort(x) {
   if (x.handlung === 'triage') return 'Triage-Lauf gestartet';
   if (x.handlung === 'einspielen') return 'Einspielen und Treiber neu starten';
   if (x.handlung === 'forge_verknuepfen') return 'Forge am Rechner verknüpfen';
+  // #126: the folder by its name only
+  if (x.handlung === 'projekt_hinzufuegen') return `Projekt ${esc(x.ordner)} hinzufügen${x.autostart ? ' (mit Autostart)' : ''}`;
+  if (x.handlung === 'projekt_entfernen') return 'Projekt entfernen, Treiber hält an';
   // #95: an account of the machine
   if (x.handlung === 'konto_anlegen') return `Konto anlegen${x.text ? ` (${esc(x.text)})` : ''}`;
   if (x.handlung === 'konto_anmelden') return `Konto ${esc(x.konto)}: am Rechner anmelden`;

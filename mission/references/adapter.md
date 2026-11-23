@@ -49,6 +49,44 @@ Frontmatter (Abschnitt „Form").
 `prd`. Fehlt `.claude/epic.md`, liest der Lauf `.claude/prd.md`; `issue_form: prd` gilt als
 `tickets`. Beides nennt das Vorab-Tor als Hinweis „Adapter umbenennen“ — ein Hinweis, kein Halt.
 
+## Vorlage
+
+Ein neuer Adapter beginnt mit diesem Block; `flotte projekt hinzufuegen` legt ihn wortgleich an, wenn
+`.claude/epic.md` fehlt, und meldet die Schlüssel, deren Wert (oder Eintrag) noch in `<…>` steht. Die
+übrigen Werte sind die Standards unten; was fehlt, gilt wie in „Schlüssel“ beschrieben.
+
+```markdown
+---
+forge: <github oder gitea>
+api: <API-Basis des Repositorys, etwa https://api.github.com/repos/owner/name>
+push_remote: origin
+issue_form: tickets
+main_branch: main
+base_branch: main
+merge: mensch
+gate_command: <PowerShell-Befehl der ganzen Andockprüfung, etwa pwsh -NoProfile -File ./gate.ps1>
+ready_label: ready-for-agent
+skip_labels: [needs-triage, needs-info, wontfix]
+epic_label: epic
+glossary: CONTEXT.md
+test_commands:
+  <suite>: <Befehl je Paket, ohne vollen Stack>
+commit_style: <conventional-with-scope oder conventional>
+commit_language: <de oder en>
+plan_artifact: publish
+---
+
+# Projektadapter für `/mission`
+
+## Zugang
+
+<Wo der Zugang zur Forge liegt; nie ein Token im Repository.>
+
+## Was hier anders ist
+
+<Projektregeln, die die Skills verschärfen.>
+```
+
 ## Schlüssel
 
 ### Forge

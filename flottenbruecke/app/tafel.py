@@ -297,6 +297,10 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         liste[-1]['einspielen'] = _handlung(offen_h.get((0, 'einspielen', None, None)))
         # #125: linking the forge on its way to the machine
         liste[-1]['verknuepfen'] = _handlung(offen_h.get((0, 'forge_verknuepfen', None, None)))
+        # #126: adding a project or removing this one on its way to the driver
+        liste[-1]['meldetProjekte'] = bool(b.get('projektHandlungen'))
+        liste[-1]['hinzufuegen'] = _handlung(offen_h.get((0, 'projekt_hinzufuegen', None, None)))
+        liste[-1]['entfernen'] = _handlung(offen_h.get((0, 'projekt_entfernen', None, None)))
         # #96: the accounts of the machine, the newest report wins; an action goes to the project that reported it
         if b.get('kontenListe') is not None:
             kontenliste_gemeldet = True
@@ -484,8 +488,12 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 z = json.loads(h['text'])
                 titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
                 x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
-            elif h['art'] == 'forge_verknuepfen':
+            elif h['art'] in ('forge_verknuepfen', 'projekt_entfernen'):
                 x = {**x, 'epic': None}
+            elif h['art'] == 'projekt_hinzufuegen':
+                # #126: the folder by its name only, as in the logbook
+                z = json.loads(h['text'])
+                x = {**x, 'epic': None, 'text': None, 'ordner': re.split(r'[\\/]', z['ordner'].rstrip('\\/'))[-1], 'autostart': z['autostart']}
             elif h['art'].startswith('konto_'):
                 # #95: an account of the machine, no epic
                 x = {**x, 'epic': None, 'konto': h['epic'] or None}
@@ -570,7 +578,8 @@ def einrichten(konten_liste: list[dict], anlegen: list[dict], tanks: bool, gemel
         {'schritt': 'anmeldung', 'stand': stand(any(k['anmeldung'] == 'angemeldet' for k in konten_liste) or (tanks and not gemeldet), any((k['handlung'] or {}).get('art') == 'konto_anmelden' for k in konten_liste))},
         # #125: a project whose driver reports its forge signed in with push rights; an older driver without forgeStatus (or one before its first check) works, so it counts
         {'schritt': 'forge', 'stand': stand(any(not p['meldetForge'] or (p['forgeStatus'] and p['forgeStatus']['angemeldet'] and p['forgeStatus']['rechte'] == 'ok') for p in projekte), any(p['verknuepfen'] for p in projekte))},
-        {'schritt': 'projekt', 'stand': stand(bool(projekte), False)},
+        # #126: a project added over the bridge waits for the machine of a running driver, also when others are there
+        {'schritt': 'projekt', 'stand': 'wartet' if any(p['hinzufuegen'] for p in projekte) else stand(bool(projekte), False)},
     ]
     return {'schritte': schritte, 'fertig': all(s['stand'] == 'fertig' for s in schritte)}
 

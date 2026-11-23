@@ -89,12 +89,59 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     if (await senden('/api/handlung', { forge: b.dataset.forgeVerknuepfen, epic: 0, art: 'forge_verknuepfen', nr: null, seit: null, text: null }, zeile, zeile.querySelector('.status'))) await laden();
   }
 
+  // ---- projects (#126): "Projekt hinzufügen" goes to a running driver of a reported project, which writes adapter
+  // and start script in the folder at its machine; "Entfernen" halts a project's driver and takes it from the list,
+  // nothing is deleted. Both with the PIN. The typed folder survives the reload of the page.
+  let ordnerEntwurf = '';
+  const holtProjekte = (t) => t.projekte.filter((p) => p.meldetProjekte && !p.veraltet);
+  const projektWartet = (h, was) => (h ? `<span class="mr-wartet">${was} wartet auf den Rechner${h.abgeholt ? ' · abgeholt' : ''}</span>` : '');
+
+  function projekteHtml(t) {
+    if (!t.projekte.length) return '';
+    const zu = !t.pin ? ' disabled' : '';
+    const karten = t.projekte.map((p) => `<article class="mr-karte${p.veraltet ? ' veraltet' : ''}"><h3>${esc(p.kurz)}</h3>
+<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
+    const treiber = holtProjekte(t);
+    const wartet = t.projekte.find((p) => p.hinzufuegen);
+    const wahl = treiber.length > 1 ? `<label class="mr-feld">über den Treiber von<select class="mr-ordner" name="projekt-ueber"${zu}>${treiber.map((p) => `<option value="${esc(p.forge)}">${esc(p.kurz)}${p.rechner ? ` · ${esc(p.rechner)}` : ''}</option>`).join('')}</select></label>` : '';
+    const neu = treiber.length
+      ? `<div class="mr-projekt-neu knoepfe" data-ueber="${esc(treiber[0].forge)}">${wahl}<label class="mr-feld">Ordner am Rechner<input type="text" class="mr-ordner" name="projekt-ordner" maxlength="260" autocomplete="off" spellcheck="false" placeholder="C:\\pfad\\zum\\repository" value="${esc(ordnerEntwurf)}"${zu}></label><label class="mr-chip"><input type="checkbox" name="projekt-autostart"${zu}><span>Autostart beim Anmelden</span></label><button type="button" class="knopf haupt" data-projekt-hinzufuegen${zu || (wartet ? ' disabled' : '')}>Projekt hinzufügen</button><span class="status" role="status">${projektWartet(wartet?.hinzufuegen, 'Hinzufügen')}</span></div><p class="mr-hilfe">Der Rechner prüft den Ordner (vorhanden, ein Git-Repository) und schreibt nur zwei Dateien: den Adapter <code>.claude/epic.md</code> aus der Vorlage, wenn er fehlt, und das Startskript <code>~/.claude/flotte/start/&lt;name&gt;.ps1</code>. Was angelegt wurde und was im Adapter noch auszufüllen ist, steht danach als Ereignis.</p>`
+      : '<p class="mr-hilfe">Hinzufügen holt ein laufender Treiber ab; gerade meldet sich keiner. Am Rechner: <code>flotte projekt hinzufuegen &lt;ordner&gt; [--autostart]</code>.</p>';
+    return `<h3 class="mr-titel">Projekte</h3><div class="mr-reihe">${karten}</div>${neu}`;
+  }
+
+  async function projektKnopf(ev) {
+    const entfernen = ev.target.closest('[data-projekt-entfernen]');
+    if (entfernen) {
+      const p = (letzte?.projekte ?? []).find((x) => x.forge === entfernen.dataset.projektEntfernen);
+      if (!(await bestaetigen(`${p?.kurz ?? 'Das Projekt'} entfernen? Sein Treiber hält an (ein offenes Andocken läuft zu Ende), das Projekt verschwindet aus der Liste. Nichts wird gelöscht; ein neuer Start des Treibers bringt es zurück.`, 'Entfernen'))) return;
+      const zeile = entfernen.closest('.knoepfe');
+      if (await senden('/api/handlung', { forge: entfernen.dataset.projektEntfernen, epic: 0, art: 'projekt_entfernen', nr: null, seit: null, text: null }, zeile, zeile.querySelector('.status'))) await laden();
+      return;
+    }
+    const zeile = ev.target.closest('.mr-projekt-neu');
+    const status = zeile.querySelector('.status');
+    const ordner = zeile.querySelector('[name="projekt-ordner"]').value.trim();
+    if (!ordner) {
+      status.className = 'status schlecht';
+      status.textContent = 'Erst den Ordner angeben.';
+      return;
+    }
+    const autostart = zeile.querySelector('[name="projekt-autostart"]').checked;
+    const ueber = zeile.querySelector('[name="projekt-ueber"]')?.value ?? zeile.dataset.ueber;
+    if (!(await bestaetigen(`Den Ordner ${ordner} als Projekt hinzufügen${autostart ? ', mit Autostart beim Anmelden' : ''}? Der Rechner schreibt nur Adapter (wenn er fehlt) und Startskript.`, 'Hinzufügen'))) return;
+    if (await senden('/api/handlung', { forge: ueber, epic: 0, art: 'projekt_hinzufuegen', nr: null, seit: null, text: JSON.stringify({ ordner, autostart }) }, zeile, status)) {
+      ordnerEntwurf = '';
+      await laden();
+    }
+  }
+
   // the guided start (#96): what is still missing, in this order; finished steps fold away
   const SCHRITT = {
     konto: { titel: 'Konto anlegen', text: 'Ein Konto ist ein Claude-Konfigordner auf dem Rechner. Mit laufendem Treiber legt „Konto anlegen“ unten das nächste an; ohne Treiber am Rechner: <code>flotte konten anlegen</code>.' },
     anmeldung: { titel: 'Am Rechner anmelden', text: '„Am Rechner anmelden“ öffnet dort ein Terminal mit <code>claude</code>; die Anmeldung (<code>/login</code>) machst du am Rechner, nichts davon geht durch die Brücke. Ohne Treiber: <code>flotte konten anmelden &lt;nr&gt;</code>.' },
     forge: { titel: 'Forge verknüpfen', text: '„Am Rechner verknüpfen“ unter „Forge“ öffnet dort <code>gh auth login</code> (Gitea: Benutzer und Token in den Git-Credential-Speicher des Rechners); ohne Treiber: <code>flotte forge verknuepfen &lt;repo&gt;</code>. Fertig, wenn ein Treiber die Forge angemeldet und mit Schreibrecht meldet.' },
-    projekt: { titel: 'Projekt hinzufügen', text: 'Im Repository-Ordner den Treiber starten (<code>flotte fahren</code>, siehe Skill <code>flotte</code>); sein erster Bericht legt das Projekt hier an.' },
+    projekt: { titel: 'Projekt hinzufügen', text: '„Projekt hinzufügen“ unter „Projekte“ nimmt den Ordner eines Repositorys am Rechner: Ein laufender Treiber legt dort den Adapter an (wenn er fehlt) und das Startskript, auf Wunsch mit Autostart. Ohne laufenden Treiber am Rechner: <code>flotte projekt hinzufuegen &lt;ordner&gt; [--autostart]</code>, dann das Startskript starten; sein erster Bericht legt das Projekt hier an.' },
   };
   const STAND_SCHRITT = { offen: 'offen', wartet: 'wartet auf den Rechner', fertig: 'fertig' };
 
@@ -469,11 +516,14 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
-        el.addEventListener('input', geaendert);
+        el.addEventListener('input', (ev) => {
+          if (ev.target.name === 'projekt-ordner') ordnerEntwurf = ev.target.value;
+          else geaendert(ev);
+        });
         el.addEventListener('click', (ev) => {
           if (ev.target.closest('[data-uebernehmen]')) uebernehmen(ev);
           else if (ev.target.closest('[data-nachziehen]')) werftKnopf(ev, 'nachziehen');
@@ -482,10 +532,11 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
           else if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
           else if (ev.target.closest('[data-konto]')) kontoKnopf(ev);
           else if (ev.target.closest('[data-forge-verknuepfen]')) forgeKnopf(ev);
+          else if (ev.target.closest('[data-projekt-entfernen], [data-projekt-hinzufuegen]')) projektKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
-      if (el.contains(document.activeElement) && document.activeElement.closest('.mr-einst-zeile')) return;
+      if (el.contains(document.activeElement) && document.activeElement.closest('.mr-einst-zeile, .mr-projekt-neu')) return;
       // same html: leave the DOM alone (the 10 s load, text selection, scroll)
       if (el.dataset.sig !== html) {
         el.innerHTML = html;

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -2363,6 +2363,85 @@ describe('Forge über die Brücke (#125)', () => {
       const texte = z.ereignisse.map((x) => x.text);
       expect(texte).toContain('Forge verknüpfen über die Brücke abgelehnt: kein Fenster');
       expect(texte.some((x) => x.startsWith('Forge: Terminal zum Verknüpfen'))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
+
+describe('Projekte über die Brücke (#126)', () => {
+  it('projekt_hinzufuegen: a running driver writes adapter and start script for the other folder once; the logbook names only the folder', async () => {
+    const t = aufbau();
+    const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));
+    const aufgaben: string[] = [];
+    t.welt.projekt = { heim, kontenDatei: join(heim, 'konten.json'), autostart: (name) => (aufgaben.push(name), 'angelegt') };
+    const neu = join(mkdtempSync(join(tmpdir(), 'flotte-neu-')), 'neues-projekt');
+    mkdirSync(neu);
+    aufrufen('git', ['-C', neu, 'init', '-q']);
+    const liste: Wunsch[] = [{ epic: 0, art: 'projekt_hinzufuegen', text: JSON.stringify({ ordner: neu, autostart: true }) }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null, handlungDoppelt: true });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 2500 }), t.welt);
+      expect(existsSync(join(neu, '.claude', 'epic.md'))).toBe(true);
+      expect(readFileSync(join(heim, '.claude', 'flotte', 'start', 'neues-projekt.ps1'), 'utf8')).toContain(`--dauerhaft --bruecke ${b.url}`);
+      expect(aufgaben).toEqual(['Flotte neues-projekt']);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte.filter((x) => x.startsWith('Projekt neues-projekt: Adapter angelegt, noch auszufüllen: forge, api'))).toHaveLength(1);
+      expect(texte.some((x) => x.includes('Forge: kein origin'))).toBe(true);
+      const logbuch = t.p.kommentare.filter((k) => k.text.includes('Projekt neues-projekt hinzugefügt'));
+      expect(logbuch).toHaveLength(1);
+      expect(logbuch[0].text).toContain('Startskript neues-projekt.ps1 angelegt; Autostart angelegt');
+      // never a local path in the public logbook: neither the temp folder of the project nor the home folder
+      expect(JSON.stringify(t.p.kommentare)).not.toContain(basename(join(neu, '..')));
+      expect(JSON.stringify(t.p.kommentare)).not.toContain(basename(heim));
+      expect(b.berichte.at(-1)!.projektHandlungen).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('projekt_hinzufuegen for a folder that is no Git repository: refused as an event, nothing written', async () => {
+    const t = aufbau();
+    const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));
+    t.welt.projekt = { heim, kontenDatei: join(heim, 'konten.json'), autostart: () => 'angelegt' };
+    const kein = join(mkdtempSync(join(tmpdir(), 'flotte-neu-')), 'nur-ordner');
+    mkdirSync(kein);
+    const liste: Wunsch[] = [{ epic: 0, art: 'projekt_hinzufuegen', text: JSON.stringify({ ordner: kein, autostart: false }) }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 1500 }), t.welt);
+      expect(z.ereignisse.map((x) => x.text)).toContain('Projekt hinzufügen über die Brücke abgelehnt: nur-ordner ist kein Git-Repository (dort git init oder einen Klon nehmen); nichts geschrieben.');
+      expect(existsSync(join(kein, '.claude'))).toBe(false);
+      expect(existsSync(join(heim, '.claude'))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('projekt_entfernen: the driver halts like flotte anhalten while the run works on, and deletes nothing', async () => {
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || !x.epics[0]?.prozess) return null;
+        gesendet = true;
+        return { epic: 0, art: 'projekt_entfernen' };
+      },
+    });
+    try {
+      const t = aufbau();
+      const vorher = readdirSync(t.repo);
+      const buch = drehbuch([lauf(3, [{ warte: 2500 }, { text: ende(3, 13) }])]);
+      const anfang = Date.now();
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(Date.now() - anfang).toBeLessThan(2400);
+      expect(z.epics['3'].stufe).toBe('laeuft');
+      const n = t.p.meldungen.findIndex((m) => m.startsWith('Projekt wird entfernt: nichts Neues mehr; laufende Läufe arbeiten weiter'));
+      expect(n).toBeGreaterThanOrEqual(0);
+      expect(t.p.meldungen.findIndex((m) => /^Angehalten auf Wunsch: kein Andocken offen, 1 Lauf/.test(m))).toBeGreaterThan(n);
+      expect(t.p.kommentare.filter((k) => k.text.includes('Projekt wird entfernt'))).toHaveLength(1);
+      expect(z.einspielen).toBeUndefined();
+      expect(readdirSync(t.repo)).toEqual(vorher);
+      expect(existsSync(join(flotteDir(t.repo), 'zustand.json'))).toBe(true);
     } finally {
       await b.zu();
     }

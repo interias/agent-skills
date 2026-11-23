@@ -11,6 +11,7 @@ import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle }
 import { aktiveAuswahl, KONTEN_DATEI, kontenTafel, kontoAus, kurzname, liesKonten } from '../werkzeuge/konten.ts';
 import { anmeldung, konten as kontenBefehl, type KontenWelt } from '../befehle/konten.ts';
 import { forgeStatus, type ForgeStatus, type ForgeWelt, verknuepfen } from '../befehle/forge.ts';
+import { hinzufuegen as projektHinzufuegen, type ProjektWelt } from '../befehle/projekt.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -171,6 +172,8 @@ export interface Welt {
   konten?: Partial<Pick<KontenWelt, 'datei' | 'heim' | 'terminal'>>;
   /** #125: the Gitea API and the terminal for linking the forge; default the real ones */
   forge?: Partial<Pick<ForgeWelt, 'abruf' | 'terminal'>>;
+  /** #126: home folder, konten.json, adapter template and the scheduled task of a new project; default the real ones */
+  projekt?: Partial<Pick<ProjektWelt, 'heim' | 'kontenDatei' | 'vorlage' | 'autostart'>>;
 }
 
 export const echteWelt: Welt = {
@@ -532,6 +535,8 @@ class Treiber {
   standZeit = 0;
   standLaeuft = false;
   einspielenWunsch: { seit: string; bruecke: string | null } | null = null;
+  /** #126: projekt_entfernen over the bridge: the driver halts like `flotte anhalten`, nothing is deleted */
+  entfernenWunsch = false;
 
   constructor(
     readonly e: Einstellung,
@@ -665,7 +670,7 @@ class Treiber {
 
   /** `flotte anhalten` left a file next to the state, or (#154) the person asked for an update; reported once */
   anhaltenGewuenscht(): boolean {
-    if (!existsSync(join(this.dir, 'anhalten')) && !this.einspielenWunsch) return false;
+    if (!existsSync(join(this.dir, 'anhalten')) && !this.einspielenWunsch && !this.entfernenWunsch) return false;
     if (!this.haltGemeldet) {
       this.haltGemeldet = true;
       this.ereignis(null, `Anhalten angefordert: nichts Neues mehr${this.mergesOffen.size ? `, warte auf das Andocken von ${[...this.mergesOffen].map((n) => `#${n}`).join(', ')}` : ''}`);
@@ -1684,6 +1689,8 @@ class Treiber {
     if (h.art === 'einspielen') return this.einspielenAnfordern(h);
     if (h.art.startsWith('konto_')) return this.kontoHandlung(h);
     if (h.art === 'forge_verknuepfen') return this.forgeVerknuepfen();
+    if (h.art === 'projekt_hinzufuegen') return this.projektHinzufuegen(h);
+    if (h.art === 'projekt_entfernen') return this.projektEntfernen();
     if (h.art === 'triage-antwort') return this.triageAntworten(h);
     if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
     if (h.art === 'schnitt-widerruf') return this.schnittWiderrufen(h);
@@ -1871,6 +1878,38 @@ class Treiber {
     } catch (e) {
       this.ereignis(null, `Forge verknüpfen über die Brücke abgelehnt: ${(e as Error).message.slice(0, 200)}`);
     }
+  }
+
+  // ---- projects (#126): the machine writes adapter and start script of another folder; the logbook names only its folder
+
+  get projektWelt(): ProjektWelt {
+    return { aufrufer: this.w.aufrufer, heim: homedir(), kontenDatei: this.kontenWelt.datei, abruf: this.w.forge?.abruf, ...this.w.projekt };
+  }
+
+  /** projekt_hinzufuegen over the bridge, with the PIN: like `flotte projekt hinzufuegen`, the start script reports to this bridge */
+  projektHinzufuegen(h: BrueckenHandlung): void {
+    const nein = (grund: string) => this.ereignis(null, `Projekt hinzufügen über die Brücke abgelehnt: ${grund.slice(0, 300)}`);
+    let wunsch: { ordner?: unknown; autostart?: unknown } | null;
+    try {
+      wunsch = JSON.parse(h.text ?? 'null');
+    } catch {
+      wunsch = null;
+    }
+    if (typeof wunsch?.ordner !== 'string' || !wunsch.ordner.trim()) return nein('kein Ordner');
+    projektHinzufuegen(wunsch.ordner.trim(), { autostart: wunsch.autostart === true, bruecke: this.e.bruecke ?? undefined }, this.projektWelt)
+      .then((r) => {
+        this.ereignis(null, r.meldung);
+        this.imLogbuch(null, `${r.logbuch}; ${HERKUNFT_BRUECKE}`);
+      })
+      .catch((e) => nein((e as Error).message));
+  }
+
+  /** projekt_entfernen over the bridge, with the PIN: halts like `flotte anhalten`; adapter, start script, state and repository stay */
+  projektEntfernen(): void {
+    if (this.entfernenWunsch) return;
+    this.entfernenWunsch = true;
+    const warten = this.mergesOffen.size ? `, wartet auf das Andocken von ${[...this.mergesOffen].map((n) => `#${n}`).join(', ')}` : '';
+    this.imLogbuch(null, `Projekt wird entfernt: nichts Neues mehr${warten}; laufende Läufe arbeiten weiter, nichts gelöscht (Adapter, Startskript, Zustand bleiben), ${HERKUNFT_BRUECKE}`);
   }
 
   // ---- accounts (#95)
@@ -2091,7 +2130,7 @@ class Treiber {
   triageStarten(): void {
     const nein = (grund: string) => this.ereignis(null, `Triage-Lauf über die Brücke abgelehnt: ${grund}`);
     if (this.triageLaeuft) return nein('ein Triage-Lauf läuft schon');
-    if (existsSync(join(this.dir, 'anhalten')) || this.einspielenWunsch) return nein('der Treiber hält an');
+    if (existsSync(join(this.dir, 'anhalten')) || this.einspielenWunsch || this.entfernenWunsch) return nein('der Treiber hält an');
     // the account like a question block of the admiral: his own, else one with room (#111)
     const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
     if (!konto) return nein('kein Konto mit Luft');
@@ -2960,6 +2999,7 @@ class Treiber {
       // usage per account (#28, v2): stage, both windows with reset; the logbook keeps the stage only
       kontenListe: this.kontenListe(),
       forgeStatus: this.forgeStand,
+      projektHandlungen: true,
       konten: this.alleKonten()
         .filter((k) => this.bewertung.has(k))
         .map((k) => {
