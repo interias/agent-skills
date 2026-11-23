@@ -599,10 +599,13 @@ alles **ausgeschrieben**:
   Dev-Server startet, beendet ihn am Ende des Pakets (Regel 13, Skill, #38).
 - Den Verifikationsweg im eigenen Worktree fahren, mit gesetzter Isolationsvariable, soweit er
   ohne vollen Stack geht (`test_commands`); den Rest fährst du in 4c im Slot.
-- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests
-  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende genau **ein**
-  Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Die Agent-Dateien der
-  Ingenieure verweisen auf diesen Punkt — schreib ihn deshalb ausgeschrieben in den Auftrag.
+- **Gezielt iterieren, einmal voll:** Während der Arbeit nur die Tests der berührten Dateien
+  (`jest <dateien>`, `--findRelatedTests` oder das Gegenstück der Suite). Am Ende **genau ein**
+  Volllauf je betroffener Suite, **als Hintergrundbefehl mit Logdatei**, deren Ende er liest, wenn
+  die Meldung über das Ende kommt — kein `sleep`, keine Schleife, kein Neustart, kein Zerlegen.
+  **Ein Aufruf über 10 Minuten im Vordergrund ist verboten**: Das Werkzeug schiebt ihn weg, sein
+  Ergebnis kommt nie an (#190, Messung vom 23.11.2026: Vollläufe 3–5× je Paket). Das Protokoll geht
+  in den Bericht. Die Agent-Dateien der Ingenieure verweisen hierher — schreib den Punkt aus.
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt ein Satz, wie er erfüllt ist;
   Verifikation mit echter Ausgabe; das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,
   grün/rot; schreibt der Testbefehl eine Aufzeichnung, etwa `--json --outputFile`, deren Pfad);
