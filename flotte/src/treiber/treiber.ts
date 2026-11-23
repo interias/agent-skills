@@ -970,7 +970,7 @@ class Treiber {
     for (const ep of Object.values(this.z.epics)) {
       // #61: a paused epic keeps its next turn until the person continues it
       if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
-      // #133: an order edge added meanwhile (forge read once per tick); a run with a PR is past its start
+      // #133: an order edge added meanwhile (forge read once per tick); a run with a PR is held in the merge queue instead (schlangeWeiter)
       if (ep.auftrag.resume && ep.sitzung && !ep.pr) {
         const vor = this.offeneVorgaenger(ep.nr);
         if (vor.length) {
@@ -2694,13 +2694,27 @@ class Treiber {
       if (ep?.stufe === 'pr' && ep.pr && !ep.auftrag && !this.laufend.has(ep.nr)) break;
       this.z.schlange.shift();
     }
-    const nr = this.z.schlange[0];
+    // #133: a PR whose predecessor (an order edge, maybe added later) is not merged yet stays in the
+    // queue and lets the next one by; it docks only after its predecessors
+    const nr = this.z.schlange.find((n) => {
+      const kandidat = this.epic(n);
+      if (kandidat?.stufe !== 'pr' || !kandidat.pr || kandidat.auftrag || this.laufend.has(n)) return false;
+      const vor = this.offeneVorgaenger(n);
+      if (!vor.length) return true;
+      const notiz = `PR #${kandidat.pr}: Merge-Schlange, wartet auf den Merge von ${vor.map((v) => `#${v}`).join(', ')}`;
+      if (kandidat.notiz !== notiz) {
+        kandidat.notiz = notiz;
+        this.ereignis(n, `bleibt in der Schlange: Vorgänger ${vor.map((v) => `#${v}`).join(', ')} noch nicht gemergt`);
+      }
+      return false;
+    });
     if (nr === undefined) return;
     const ep = this.epic(nr);
     this.kopfAktiv = nr;
     this.mergesOffen.add(nr);
     ep.notiz = `PR #${ep.pr}: Kopf der Merge-Schlange`;
-    this.ereignis(nr, `Kopf der Schlange${this.z.schlange.length > 1 ? `, dahinter ${this.z.schlange.slice(1).map((n) => `#${n}`).join(', ')}` : ''}`);
+    const dahinter = this.z.schlange.filter((n) => n !== nr);
+    this.ereignis(nr, `Kopf der Schlange${dahinter.length ? `, dahinter ${dahinter.map((n) => `#${n}`).join(', ')}` : ''}`);
     this.nebenbei(
       this.kopf(ep)
         .catch((e) => this.prBereit(ep, `Fehler in der Merge-Schlange: ${e}`))

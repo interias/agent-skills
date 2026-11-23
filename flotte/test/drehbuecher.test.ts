@@ -444,6 +444,18 @@ describe('Drehbücher (#14)', () => {
       expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
       expect(z.epics['3'].stufe).toBe('fertig');
     }, T);
+
+    it('with a PR in the merge queue: it stays in the queue, lets nothing dock before #4 and docks after it', async () => {
+      const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: spaeteKante(), signale: { 'haelt-3': /^#3 bleibt in der Schlange: Vorgänger #4 noch nicht gemergt/ } });
+      const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [{ signal: 'haelt-3' }, ...gateGefahren(), { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+      expect(t.p.merges).toEqual([14, 13]);
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+      expect(t.p.zeitleiste.filter((x) => /^#3 bleibt in der Schlange/.test(x))).toHaveLength(1);
+      expect(fuer(buch.gesehen(), 3)).toHaveLength(1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['4'].stufe).toBe('fertig');
+    }, T);
   });
 
   it('#144: an epic left out because of a collision carries the reason as its note', async () => {
