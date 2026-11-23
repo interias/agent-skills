@@ -276,7 +276,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       return null;
     },
     async statusAbnehmen(ticket) {
-      if (!welt.status[ticket]) return null;
+      if (welt.status[ticket] !== 'status/in-arbeit' && welt.status[ticket] !== 'status/blockiert') return null;
       log(`status ab ${ticket}`);
       delete welt.status[ticket];
       return null;

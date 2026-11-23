@@ -114,6 +114,7 @@ export interface Mechanik {
   /** sets one status label and takes the other two off, then reads it back (mission/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
   status(ticket: number, label: StatusLabel): Promise<string | null>;
   /** 0a: takes off the status labels an earlier run left at a ticket (mission/SKILL.md, "Die Statuslabels"); a text as with status */
+  /** 0a: takes status/in-arbeit and status/blockiert off a ticket; status/haengt stays */
   statusAbnehmen(ticket: number): Promise<string | null>;
   /** 2d: the target issue gets status/in-arbeit and epic_label; a text as with status */
   eroeffnung(): Promise<string | null>;
@@ -402,7 +403,7 @@ class EpicLauf {
       if (!p || p.stufe !== (x.rolle === 'konflikt' ? 'merge' : x.rolle)) return;
       p.sitzung = x.r.sitzung ?? p.sitzung;
       const dritte = this.ablehnungen(x.r, p, x.rolle);
-      if (dritte) return this.zuruecklassen(p, `${x.rolle}: dieselbe Ablehnung zum dritten Mal: ${dritte}`);
+      if (dritte) return this.zuruecklassen(p, `${{ implementer: 'Ingenieur', reviewer: 'Erster Offizier', konflikt: 'Konflikt-Aufruf' }[x.rolle as string] ?? x.rolle}: dieselbe Ablehnung zum dritten Mal: ${dritte}`);
       if (x.rolle === 'konflikt') return this.konfliktZurueck(p, x.r);
       return x.rolle === 'implementer' ? this.implementerZurueck(p, x.r) : this.reviewerZurueck(p, x.r);
     }
@@ -951,7 +952,7 @@ class EpicLauf {
     this.eroeffnet = true;
     this.glut(await this.m.eroeffnung(), null);
     const pakete = this.z.schnitt.ergebnis!.pakete;
-    // 0a: status labels an earlier run left at tickets of this mission come off; a package gets its label again at its start
+    // 0a: in-arbeit and blockiert an earlier run left at tickets of this mission come off (haengt stays until the package starts); a package gets its label again at its start
     const alt = [...Object.values(this.z.pakete).filter((p) => p.stufe === 'wartend' || p.stufe === 'startbereit').map((p) => p.nr), ...(this.z.schnitt.ergebnis!.uebersprungen ?? []).filter((u) => !u.blocker.length).map((u) => u.nr.replace(/^#/, ''))];
     for (const nr of alt) if (/^\d+$/.test(nr) && Number(nr) !== this.e.epic) this.glut(await this.m.statusAbnehmen(Number(nr)), nr);
     // 2d: skipped children get their reason now, before the first package; a blocking ticket: status/blockiert
@@ -997,7 +998,8 @@ class EpicLauf {
 
   private abnahmeZeile(): string {
     const a = this.z.abnahme;
-    if (!a) return 'Abnahmestufe entfällt: der Adapter nennt keine acceptance_commands.';
+    // no slot run per package in 4c (#108): without acceptance_commands the full stack never ran in this run
+    if (!a) return 'Abnahmestufe entfällt: der Adapter nennt keine acceptance_commands. Der volle Stack lief in diesem Lauf nie; was ein Verifikationsweg nur mit ihm prüft, ist per Test belegt, nicht gesichtet.';
     return `Abnahmestufe ${a.ok ? 'grün' : 'rot'} (acceptance_commands einmal im Missions-Worktree, im Slot): ${a.text}`;
   }
 

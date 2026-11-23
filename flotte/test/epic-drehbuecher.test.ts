@@ -449,7 +449,7 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(getan(w, /^slot /)).toHaveLength(1);
     expect(z.abnahme).toBeNull();
     expect(w.pr?.wip).toBe(false);
-    expect(w.pr?.body).toContain('## Abnahmestufe\nAbnahmestufe entfällt: der Adapter nennt keine acceptance_commands.');
+    expect(w.pr?.body).toContain('## Abnahmestufe\nAbnahmestufe entfällt: der Adapter nennt keine acceptance_commands. Der volle Stack lief in diesem Lauf nie; was ein Verifikationsweg nur mit ihm prüft, ist per Test belegt, nicht gesichtet.');
     expect(z.ende).toContain('Abnahmestufe entfällt');
     expect(w.kommentare[69].find((k) => k.includes('**Abschluss**'))).toContain('Abnahmestufe entfällt');
   }, T);
@@ -495,15 +495,19 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(aufrufeVon(w, 'implementer', '155')[0].auftrag).toMatch(/Patch-Notes-Check/);
   }, T);
 
-  it('P0c: status labels an earlier run left at packages and skipped children come off at the opening; a skipped child with a blocker keeps blockiert', async () => {
+  it('P0c: in-arbeit and blockiert an earlier run left come off at the opening, haengt stays until the package starts; a skipped child with a blocker keeps blockiert', async () => {
     const welt = neueWelt();
-    welt.status = { 155: 'status/haengt', 157: 'status/in-arbeit', 158: 'status/haengt' };
-    const { w } = await fahre(buch([paket('155')], { schnitt: { version: 1, pakete: [paket('155')], tor: [], uebersprungen: [{ nr: '157', grund: 'erledigt', blocker: [] }, { nr: '#158', grund: 'wartet', blocker: ['#20'] }] } }), { welt });
+    welt.status = { 155: 'status/in-arbeit', 156: 'status/haengt', 157: 'status/in-arbeit', 158: 'status/haengt', 159: 'status/haengt' };
+    const { w } = await fahre(buch([paket('155'), paket('156')], { schnitt: { version: 1, pakete: [paket('155'), paket('156')], tor: [], uebersprungen: [{ nr: '157', grund: 'erledigt', blocker: [] }, { nr: '#158', grund: 'wartet', blocker: ['#20'] }, { nr: '159', grund: 'erledigt', blocker: [] }] } }), { welt });
     const p = w.protokoll.map((x) => x.was);
     expect(p.indexOf('status ab 155')).toBeGreaterThanOrEqual(0);
     expect(p.indexOf('status ab 155')).toBeLessThan(p.indexOf('status 155 status/in-arbeit'));
     expect(w.status[157]).toBeUndefined();
     expect(w.status[158]).toBe('status/blockiert');
+    // haengt goes with the start of the package's Ingenieur, never in 0a; a skipped child keeps it
+    expect(p).not.toContain('status ab 156');
+    expect(p).toContain('status 156 status/in-arbeit');
+    expect(w.status[159]).toBe('status/haengt');
     expect(p).not.toContain('status ab 69');
   }, T);
 
@@ -539,7 +543,7 @@ describe('flotte mission, Drehbücher (#65)', () => {
     const muss = { befunde: [{ gruppe: 'muss', fundstelle: 'x', text: 'noch nicht' }], strukturell: false };
     const { z } = await fahre(buch([paket('145'), paket('146')], { aufrufe: { 'implementer:145': [{ verweigert: [push] }], 'reviewer:145': [{ ausgabe: muss }], 'implementer:146': [{ verweigert: [push, { ...push, tool_input: { command: 'git push -f' } }, { tool_name: 'Write', tool_input: {} }] }] } }));
     expect(z.pakete['145'].stufe).toBe('zurueckgelassen');
-    expect(z.pakete['145'].grund).toMatch(/dieselbe Ablehnung zum dritten Mal: Bash/);
+    expect(z.pakete['145'].grund).toMatch(/^(Ingenieur|Erster Offizier): dieselbe Ablehnung zum dritten Mal: Bash/);
     expect(z.pakete['145'].runde).toBe(3);
     expect(z.ereignisse.filter((e) => e.art === 'verweigert' && e.paket === '145')).toHaveLength(3);
     expect(z.pakete['146'].stufe).toBe('fertig');

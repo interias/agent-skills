@@ -115,12 +115,24 @@ const GH_VORUEBERGEHEND = /HTTP 5\d\d|Server Error|Something went wrong|error co
 const GH_VERSUCHE = 4;
 const ghPause = (versuch: number) => new Promise((weiter) => setTimeout(weiter, 500 * versuch));
 
-/** pre_commit_checks: an entry whose first word is no program on PATH and no path is prose (a rule for the Ingenieur), never a shell command (#108) */
+/** words a shell knows without PATH: an entry starting with one is a command */
+const SHELL_WOERTER = new Set(['cd', 'echo', 'set', 'export', 'source', '.', 'test', '[', 'exit', 'true', 'false', 'pushd', 'popd', 'call', 'if', 'for']);
+
+/**
+ * pre_commit_checks: an entry is a command when its first word is a shell builtin, a `VAR=value`
+ * prefix, a path (`./`, `../`, `/`, `~`, a drive, or a lowercase word with a slash) or a program on
+ * PATH. Anything else is prose (a rule for the Ingenieur), never a shell command (#108). A capital
+ * word is prose even when a program shares its name ("Format", "Sort", "Find" on Windows); a word
+ * with a slash but a capital start ("CI/Gate") is prose too.
+ */
 export function istBefehl(eintrag: string): boolean {
   const erstes = /^\s*("([^"]+)"|'([^']+)'|(\S+))/.exec(eintrag);
   const wort = erstes?.[2] ?? erstes?.[3] ?? erstes?.[4] ?? '';
   if (!wort) return false;
-  if (/[\\/]/.test(wort)) return true;
+  if (SHELL_WOERTER.has(wort) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(wort)) return true;
+  if (/^(\.{1,2}[\\/]|[\\/~]|[A-Za-z]:[\\/])/.test(wort)) return true;
+  if (/[\\/]/.test(wort)) return /^[a-z0-9_.@-]/.test(wort);
+  if (/^[A-Z]/.test(wort) && !/\.(exe|cmd|bat|com|ps1|sh)$/i.test(wort)) return false;
   const endungen = process.platform === 'win32' ? ['', ...(process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)] : [''];
   return (process.env.PATH ?? '').split(delimiter).some((dir) => dir && endungen.some((x) => existsSync(join(dir, wort + x))));
 }
@@ -429,7 +441,13 @@ ${r.stdout}`)) throw f;
       return ghWiederholt(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'body'], (aus) => String(JSON.parse(aus).body ?? ''));
     },
     async unterIssues(ticket) {
-      return ghWiederholt(['api', `repos/${e.forge}/issues/${ticket}/sub_issues`, '--paginate', '--jq', '.[].number'], (aus) => aus.split(/\s+/).filter(Boolean).map(Number));
+      try {
+        return await ghWiederholt(['api', `repos/${e.forge}/issues/${ticket}/sub_issues`, '--paginate', '--jq', '.[].number'], (aus) => aus.split(/\s+/).filter(Boolean).map(Number));
+      } catch (f) {
+        // a forge without sub-issues answers 404: no children linked there, the body still counts
+        if (/HTTP 404|Not Found/.test((f as Error).message)) return [];
+        throw f;
+      }
     },
     kommentare: kommentareVon,
     async kommentar(ticket, text) {
@@ -455,7 +473,8 @@ ${r.stdout}`)) throw f;
     },
     async statusAbnehmen(ticket) {
       await labelsSicher();
-      const weg = (await labelsVon(ticket)).filter((l) => l in LABELS);
+      // status/haengt stays: it goes only when a package's Ingenieur starts (mission/SKILL.md, "Die Statuslabels")
+      const weg = (await labelsVon(ticket)).filter((l) => l === 'status/in-arbeit' || l === 'status/blockiert');
       return weg.length ? labelsSetzen(ticket, [], weg) : null;
     },
     async eroeffnung() {

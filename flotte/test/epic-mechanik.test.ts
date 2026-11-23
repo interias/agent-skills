@@ -12,7 +12,7 @@ import { attrappe } from '../src/epic/attrappe.ts';
 import { fahreEpic, type EpicEinstellung } from '../src/epic/motor.ts';
 import type { Paket } from '../src/epic/schema.ts';
 import { forgeAus } from '../src/befehle/epic.ts';
-import { echteMechanik, karte, stackLaeuft, type MechanikEinstellung } from '../src/epic/mechanik.ts';
+import { echteMechanik, istBefehl, karte, stackLaeuft, type MechanikEinstellung } from '../src/epic/mechanik.ts';
 import { zaehle, zaehleLint } from '../src/epic/zaehlen.ts';
 import { fixture, forge, ADAPTER, type Fixture } from './epic-fixture.ts';
 
@@ -189,6 +189,22 @@ describe('Lesen gegen gh und pre_commit_checks (#108)', () => {
     }
   }, T);
 
+  it('sub-issues: the numbers from the API; a forge without sub-issues (HTTP 404) is none, never a stop of the cut (#108)', async () => {
+    const da = mitGh(ADAPTER, () => ok('70\n71\n'));
+    try {
+      expect(await da.m.unterIssues(69)).toEqual([70, 71]);
+    } finally {
+      da.weg();
+    }
+    const ohne = mitGh(ADAPTER, () => ({ code: 1, stdout: '', stderr: 'gh: Not Found (HTTP 404)' }));
+    try {
+      expect(await ohne.m.unterIssues(69)).toEqual([]);
+      expect(ohne.aufrufe).toHaveLength(1);
+    } finally {
+      ohne.weg();
+    }
+  }, T);
+
   it('a comment after HTTP 5xx is written again only when it is not there yet', async () => {
     const da: string[] = [];
     const g = mitGh(ADAPTER, (args, n) => {
@@ -215,6 +231,13 @@ describe('Lesen gegen gh und pre_commit_checks (#108)', () => {
     }
   }, T);
 
+  it('pre_commit_checks: builtins, VAR= and paths are commands; prose with a slash or a capital word that a program shares is prose (#108)', () => {
+    for (const b of ['git --version', 'cd flotte && bun test', 'echo ok', 'set -e; git status', 'FOO=1 git --version', './skript.sh', '../werkzeug/pruefe.ps1', '/usr/bin/env true', 'C:\\werkzeug\\pruefe.exe', '"C:/Program Files/Git/bin/git.exe" --version', 'node_modules/.bin/tsc --noEmit'])
+      expect(istBefehl(b), b).toBe(true);
+    for (const p of ['CI/Gate grün vor dem Commit', 'Format der Patch-Notes prüfen', 'Sort-Reihenfolge der Einträge beachten', 'Find heraus, ob die Doku nachgezogen ist', 'core.hooksPath gesetzt und Patch-Notes-Check', ''])
+      expect(istBefehl(p), p).toBe(false);
+  });
+
   it('pre_commit_checks: an entry without a program at its start is prose, never run as a shell command; the commands run', async () => {
     const g = mitGh(`---\npre_commit_checks:\n  - git --version\n  - core.hooksPath gesetzt und Patch-Notes-Check\n---\n`, () => ok(''));
     try {
@@ -235,12 +258,18 @@ describe('Lesen gegen gh und pre_commit_checks (#108)', () => {
     }
   }, T);
 
-  it('statusAbnehmen: takes off every status label an earlier run left, keeps the others; nothing to do is no edit', async () => {
+  it('statusAbnehmen: takes off in-arbeit and blockiert an earlier run left, keeps haengt and the others; nothing to do is no edit', async () => {
     const g = forge();
     g.labels[12] = ['status/in-arbeit', 'bug'];
+    g.labels[14] = ['status/blockiert'];
+    g.labels[15] = ['status/haengt'];
     const m = echteMechanik({ repo: leeresRepo(), epic: 69, epicBranch: 'epic/69-programm', basis: 'origin/main', forge: 'o/r', halter: join(tmpdir(), `halter-${process.pid}`), aufrufer: g.aufrufer });
     expect(await m.statusAbnehmen(12)).toBeNull();
     expect(g.labels[12]).toEqual(['bug']);
+    expect(await m.statusAbnehmen(14)).toBeNull();
+    expect(g.labels[14]).toEqual([]);
+    expect(await m.statusAbnehmen(15)).toBeNull();
+    expect(g.labels[15]).toEqual(['status/haengt']);
     const edits = g.aufrufe.filter((a) => a[1] === 'edit').length;
     expect(await m.statusAbnehmen(13)).toBeNull();
     expect(g.aufrufe.filter((a) => a[1] === 'edit')).toHaveLength(edits);
