@@ -43,6 +43,8 @@ export const EINSTELLUNGEN = {
   admiralModell: { titel: 'Modell des Admirals', werte: MODELLE, leer: false, standard: 'fable' },
   // #167: file accesses the model of the triage may make per call; the program reads the common facts itself
   triageLesenMax: { titel: 'Dateizugriffe der Triage je Aufruf', min: 0, max: 100, leer: false, standard: 15 },
+  // #37: the Windows notification of "Braucht dich" on the driver's machine
+  meldung: { titel: 'Windows-Meldung bei „Braucht dich“', werte: ['an', 'aus'], leer: false, standard: 'aus' },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -58,6 +60,7 @@ export const START_PARAMETER: Partial<Record<EinstellungName, string>> = {
   platteMinGb: '--platte-min-gb',
   leerlaufMin: '--leerlauf-min',
   admiralModell: '--admiral-modell',
+  meldung: '--meldung',
 };
 
 /** One setting in the report: value, where it comes from and since when, and what the bridge may offer. */
@@ -134,6 +137,8 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return e.admiralModell;
     case 'triageLesenMax':
       return e.triageLesenMax;
+    case 'meldung':
+      return e.meldung;
   }
 }
 
@@ -201,6 +206,9 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'triageLesenMax':
       e.triageLesenMax = wert as number;
+      break;
+    case 'meldung':
+      e.meldung = wert as 'an' | 'aus';
       break;
   }
   return null;

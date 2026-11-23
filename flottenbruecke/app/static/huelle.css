@@ -52,6 +52,14 @@
 .zaehler.ruhig { background: #2a2a38; color: var(--matt); }
 .zaehler.alarm { animation: alarm 2.4s ease-in-out infinite; }
 
+/* #48: over the remote entry (Tailscale) only viewing; blue like a pause, never red */
+.nur-ansicht {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 12px; flex: none; border-radius: var(--rund);
+  border: 2px dashed var(--blau); color: var(--blau); font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.nur-ansicht[hidden] { display: none; }
+
 /* ---- the areas as pills */
 .pillen { display: flex; gap: 4px; flex: none; }
 .pille {
@@ -95,7 +103,10 @@
   .fuss { bottom: var(--pillen); padding-bottom: 4px; background: #000; }
   .logbuch { bottom: calc(var(--pillen) + 40px); max-height: 40vh; }
 }
-/* six pills (#116): on a narrow phone the longest word must still fit its pill */
+/* seven pills (#116, #85): on a narrow phone the longest word must still fit its pill */
 @media (max-width: 420px) {
-  .pille { padding: 0 1px; font-size: 10px; letter-spacing: 0; }
+  .pillen { gap: 2px; }
+  .pille { position: relative; padding: 0 1px; font-size: 10px; letter-spacing: 0; }
+  /* the count of the bridge sits in the corner, the word keeps the width */
+  .pille-zahl:not([hidden]) { position: absolute; top: 2px; right: 2px; }
 }

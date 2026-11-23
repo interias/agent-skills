@@ -28,6 +28,8 @@ import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
+import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as meldungsInhalt } from './meldung.ts';
+import { EINGESPIELT, type Eingespielt, einspielen, liesStand, type MainStand, mainStand, mitSperre, HUELLE, NEUSTART, neustarten, type SkillStand, STAND_MS } from './stand.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
@@ -71,6 +73,8 @@ export interface Einstellung {
   leerfahren: string[];
   /** #112: how the project merges; the adapter's merge at the start, automatisch only with merge: nach_gate */
   merge: Stellung;
+  /** #37 --meldung: a Windows notification for each new event of "Braucht dich" */
+  meldung: 'an' | 'aus';
   /** #58: the settings given explicitly as start parameters; they win over the bridge's at the start */
   gesetzt?: EinstellungName[];
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
@@ -130,6 +134,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     verbrauchRot: 85,
     leerfahren: [],
     merge: 'mensch',
+    meldung: 'aus',
     kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
@@ -158,6 +163,8 @@ export interface Welt {
   melde: (zeile: string) => void;
   /** #116: the triage run of `flotte triage`; default the real one */
   triagiere?: typeof triagiere;
+  /** #154: stand.json of the installed skill set; default the one next to this driver */
+  stand?: () => SkillStand | null;
 }
 
 export const echteWelt: Welt = {
@@ -327,6 +334,10 @@ export interface FlottenZustand extends Zustand {
   /** #149: missions revoked on the bridge before they started (austragen); never collected again, even when the
    * forge still shows them released (removing ready_label and closing failed). aufnehmen takes one back on purpose. */
   widerrufen?: number[];
+  /** #37: the events of "Braucht dich" open and already reported (Windows notification); a restart rings none of them again */
+  gemeldet?: string[];
+  /** #154: only in the state fahre returns, never saved: the driver halted for an update the person asked for on the bridge */
+  einspielen?: { bruecke: string | null };
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -479,6 +490,14 @@ class Treiber {
   /** #148: when the run under way started, how the last one ended (in memory only: a short info of the Frachtraum) */
   triageSeit = '';
   triageBeendet: BerichtTriage['beendet'];
+  /** #154: when this driver started, the installed skill set, a newer main of its source (read at most every STAND_MS), an update asked for */
+  gestartet = '';
+  skillStand: SkillStand | null = null;
+  mainNeu: MainStand | null = null;
+  standGeprueft: string | null = null;
+  standZeit = 0;
+  standLaeuft = false;
+  einspielenWunsch: { seit: string; bruecke: string | null } | null = null;
 
   constructor(
     readonly e: Einstellung,
@@ -488,6 +507,8 @@ class Treiber {
 
   async fahre(): Promise<FlottenZustand> {
     const anfang = this.w.jetzt();
+    this.gestartet = new Date(anfang).toISOString();
+    this.skillStand = (this.w.stand ?? liesStand)();
     const alt = liesZustand(this.dir, this.e.repo) as Partial<FlottenZustand>;
     this.z = {
       fragen: [],
@@ -542,6 +563,7 @@ class Treiber {
       if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch dockt an`);
     }
     this.messungen = liesMessungen(this.dir);
+    this.eingespieltMelden();
     this.wiederaufnehmen();
     // #145: missions merged before whose issue was left open
     for (const ep of Object.values(this.z.epics)) if (ep.stufe === 'fertig') this.missionAbschliessen(ep, true);
@@ -554,9 +576,10 @@ class Treiber {
 
     for (;;) {
       this.kantenFrisch = false;
-      const halt = this.anhaltenGewuenscht();
       this.nachsammeln(false);
       await this.brueckeHolen();
+      // after the actions of the bridge: an update asked for there halts in this turn already (#154)
+      const halt = this.anhaltenGewuenscht();
       this.antwortenLesen();
       await this.messen();
       if (!halt) {
@@ -570,6 +593,8 @@ class Treiber {
       this.paketeLesen();
       this.freigegebenLesen();
       this.triageLesen();
+      this.standLesen();
+      this.brauchtDichMelden();
       this.speichern();
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
@@ -580,6 +605,8 @@ class Treiber {
         this.ereignis(null, `Angehalten auf Wunsch: kein Andocken offen${this.laufend.size ? `, ${this.laufend.size} Lauf/Läufe arbeiten weiter und werden beim Neustart übernommen` : ''}`);
         this.speichern();
         await this.brueckeMelden();
+        // #154: fahren installs and starts the driver again; the saved state does not carry it
+        if (this.einspielenWunsch) this.z.einspielen = { bruecke: this.einspielenWunsch.bruecke };
         return this.z;
       }
       // nothing left: one more look for released epics, then the end (acceptance 3, decision C)
@@ -602,9 +629,9 @@ class Treiber {
     return this.z;
   }
 
-  /** `flotte anhalten` left a file next to the state; reported once */
+  /** `flotte anhalten` left a file next to the state, or (#154) the person asked for an update; reported once */
   anhaltenGewuenscht(): boolean {
-    if (!existsSync(join(this.dir, 'anhalten'))) return false;
+    if (!existsSync(join(this.dir, 'anhalten')) && !this.einspielenWunsch) return false;
     if (!this.haltGemeldet) {
       this.haltGemeldet = true;
       this.ereignis(null, `Anhalten angefordert: nichts Neues mehr${this.mergesOffen.size ? `, warte auf das Andocken von ${[...this.mergesOffen].map((n) => `#${n}`).join(', ')}` : ''}`);
@@ -1491,6 +1518,7 @@ class Treiber {
     if (h.art === 'einstellen') return this.einstellen(h);
     if (h.art === 'aufnehmen') return this.aufnehmen(h);
     if (h.art === 'triage') return this.triageStarten();
+    if (h.art === 'einspielen') return this.einspielenAnfordern(h);
     if (h.art === 'triage-antwort') return this.triageAntworten(h);
     if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
     if (h.art === 'schnitt-widerruf') return this.schnittWiderrufen(h);
@@ -1585,6 +1613,67 @@ class Treiber {
   // ---- steering epics (#61)
 
   /** an event and a comment in the fleet logbook, like a setting */
+  // ---- #154: the stand of the driver and the update from the bridge
+
+  /** main of the source of the skill set, only with a bridge and a known stand, at most every STAND_MS, beside the loop */
+  standLesen(): void {
+    const s = this.skillStand;
+    if (!this.bruecke || !s || this.standLaeuft || (this.standZeit && this.w.jetzt() - this.standZeit < STAND_MS)) return;
+    this.standLaeuft = true;
+    this.standZeit = this.w.jetzt();
+    mainStand(this.w.langsam, s)
+      .then((r) => {
+        if (!r) return;
+        this.mainNeu = r.neu;
+        this.standGeprueft = new Date(this.w.jetzt()).toISOString();
+      })
+      .catch(() => {})
+      .finally(() => (this.standLaeuft = false));
+  }
+
+  /**
+   * einspielen: the driver halts like `flotte anhalten` (nothing new; a merge under way ends first, the runs work
+   * on and are taken over after the restart); fahren then installs and starts it again with the same command line.
+   */
+  einspielenAnfordern(h: BrueckenHandlung): void {
+    if (!this.skillStand) return this.ereignis(null, 'Einspielen über die Brücke abgelehnt: der Stand des Skill-Satzes ist unbekannt (kein stand.json; einmal install.ps1 von Hand)');
+    if (this.einspielenWunsch) return this.ereignis(null, 'Einspielen über die Brücke: schon angefordert');
+    let bruecke: string | null = null;
+    try {
+      const j = JSON.parse(h.text ?? 'null') as { bruecke?: unknown } | null;
+      if (typeof j?.bruecke === 'string' && /^[0-9a-f]{7,40}$/.test(j.bruecke)) bruecke = j.bruecke;
+    } catch {
+      bruecke = null;
+    }
+    this.einspielenWunsch = { seit: new Date(this.w.jetzt()).toISOString(), bruecke };
+    const warten = this.mergesOffen.size ? `, wartet auf das Andocken von ${[...this.mergesOffen].map((n) => `#${n}`).join(', ')}` : '';
+    this.imLogbuch(null, `Einspielen und Neustart angefordert: nichts Neues mehr${warten}; laufende Läufe arbeiten weiter und werden nach dem Neustart übernommen, ${HERKUNFT_BRUECKE}`);
+  }
+
+  /** What the update before this start did (eingespielt.json from fahren), once in the logbook. */
+  eingespieltMelden(): void {
+    const datei = join(this.dir, EINGESPIELT);
+    if (!existsSync(datei)) return;
+    let r: Eingespielt | null;
+    try {
+      r = JSON.parse(readFileSync(datei, 'utf8')) as Eingespielt;
+    } catch {
+      r = null;
+    }
+    rmSync(datei, { force: true });
+    if (!r) return;
+    const kurz = (c: string | null | undefined) => (c ?? '?').slice(0, 7);
+    const bruecke = r.bruecke === 'gebaut' ? 'Brücke neu gebaut' : r.bruecke === 'unveraendert' ? 'Brücke unverändert' : 'Brücke nicht gebaut';
+    this.imLogbuch(
+      null,
+      r.fehler
+        ? `Einspielen gescheitert: ${r.fehler}; Treiber mit derselben Kommandozeile neu gestartet, Stand ${kurz(this.skillStand?.commit)}, ${HERKUNFT_BRUECKE}`
+        : r.auf === r.von
+          ? `Stand ${kurz(r.auf)} war schon eingespielt; Treiber mit derselben Kommandozeile neu gestartet, ${HERKUNFT_BRUECKE}`
+          : `Neuer Stand eingespielt: ${kurz(r.von)} → ${kurz(r.auf)}${r.datum ? ` (${r.datum})` : ''}, ${bruecke}; Treiber mit derselben Kommandozeile neu gestartet, ${HERKUNFT_BRUECKE}`,
+    );
+  }
+
   imLogbuch(epic: number | null, text: string): void {
     this.ereignis(epic, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
@@ -1756,7 +1845,7 @@ class Treiber {
   triageStarten(): void {
     const nein = (grund: string) => this.ereignis(null, `Triage-Lauf über die Brücke abgelehnt: ${grund}`);
     if (this.triageLaeuft) return nein('ein Triage-Lauf läuft schon');
-    if (existsSync(join(this.dir, 'anhalten'))) return nein('der Treiber hält an');
+    if (existsSync(join(this.dir, 'anhalten')) || this.einspielenWunsch) return nein('der Treiber hält an');
     // the account like a question block of the admiral: his own, else one with room (#111)
     const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
     if (!konto) return nein('kein Konto mit Luft');
@@ -2261,6 +2350,29 @@ class Treiber {
     });
   }
 
+  /**
+   * #37: each new event of "Braucht dich" (a question for the person, an epic blocked or aborted) once; with
+   * meldung an as a Windows notification, the new ones of this turn as one with their number. The state keeps
+   * the events reported, with the switch off too: switching it on later rings nothing old.
+   */
+  brauchtDichMelden(): void {
+    const alle = meldungsEreignisse(
+      this.e.forge,
+      this.z.fragen.filter((f) => !f.beantwortet),
+      Object.values(this.z.epics).map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, haltZeit: ep.haltZeit, aufgegebenAm: ep.aufgegebenAm })),
+    );
+    const gemeldet = new Set(this.z.gemeldet ?? []);
+    this.z.gemeldet = alle.map((x) => x.schluessel);
+    const neu = alle.filter((x) => !gemeldet.has(x.schluessel));
+    if (!neu.length || this.e.meldung !== 'an') return;
+    const a = meldungsAufruf(meldungsInhalt(neu));
+    this.nebenbei(
+      this.w.langsam(a.programm, a.args, { env: a.env, timeoutMs: 30_000 }).then((r) => {
+        if (r.code) this.ereignis(null, `Windows-Meldung ging nicht: ${(r.stderr || r.stdout).trim().slice(0, 200) || `Exit ${r.code}`}`);
+      }),
+    );
+  }
+
   /** The report of this turn; acknowledgements only after the state with the answers is written. */
   async brueckeMelden(): Promise<void> {
     if (!this.bruecke) return;
@@ -2621,6 +2733,7 @@ class Treiber {
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
       freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
+      version: { commit: this.skillStand?.commit ?? null, datum: this.skillStand?.datum || null, installiert: this.skillStand?.installiert ?? null, gestartet: this.gestartet, neu: this.mainNeu, geprueft: this.standGeprueft, einspielen: this.einspielenWunsch ? { seit: this.einspielenWunsch.seit, wartetAuf: [...this.mergesOffen] } : null },
       triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, ...(this.triageLaeuft ? { seit: this.triageSeit } : {}), ...(this.triageBeendet ? { beendet: this.triageBeendet } : {}), tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, abschluss: this.z.triage?.abschluss ?? null, fragen: this.triageStand?.fragen ?? [] },
     };
   }
@@ -3174,7 +3287,7 @@ export function forgeAus(url: string): string | null {
   return /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(url.trim())?.[1] ?? null;
 }
 
-const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
+const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>] [--meldung an|aus]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
 
 /**
  * The settings of `flotte fahren` (acceptance 3, decisions A, B, D): without <repo> the repository of
@@ -3216,6 +3329,9 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   e.leerlaufMs = Number(wert(argv, '--leerlauf-min') ?? 60) * 60_000;
   e.taktMs = Number(wert(argv, '--takt-s') ?? 60) * 1000;
   e.plattMinGb = Number(wert(argv, '--platte-min-gb') ?? e.plattMinGb);
+  const meldung = wert(argv, '--meldung');
+  if (meldung === 'an' || meldung === 'aus') e.meldung = meldung;
+  else if (meldung) throw new Error(`--meldung ${meldung}: an oder aus. ${AUFRUF}`);
   e.gesetzt = (Object.keys(START_PARAMETER) as EinstellungName[]).filter((n) => argv.includes(START_PARAMETER[n]!));
   const ramWarn = wert(argv, '--ram-warn');
   e.ramWarn = ramWarn ? Number(ramWarn) : null;
@@ -3252,6 +3368,8 @@ export async function fahren(argv: string[]): Promise<unknown> {
     process.exit(130);
   });
   const z = await fahre(e);
+  // #154: halted for an update: install, rebuild the bridge if needed, the same command line again
+  if (z.einspielen) process.exit(einspielenUndNeustarten(flotteDir(e.repo), z.einspielen));
   return {
     aktiv: z.aktiv,
     epics: Object.values(z.epics).map((ep) => ({ nr: ep.nr, stufe: ep.stufe, pr: ep.pr, notiz: ep.notiz })),
@@ -3259,6 +3377,21 @@ export async function fahren(argv: string[]): Promise<unknown> {
     statistik: z.statistik,
     tafel: join(flotteDir(e.repo), 'tafel.html'),
   };
+}
+
+/**
+ * #154: after the driver halted for an update: einspielen (stand.ts), what it did as eingespielt.json for the
+ * next start, then the same command line again; the exit code is the new driver's. Started by a hull (FLOTTE_HUELLE),
+ * it only ends with NEUSTART and the hull starts the new driver: never a second waiting process.
+ */
+export function einspielenUndNeustarten(dir: string, wunsch: { bruecke: string | null }, a: Aufrufer = aufrufen, stand: () => SkillStand | null = liesStand, neustart: () => number = neustarten, inHuelle = process.env[HUELLE] === '1'): number {
+  // the stand read under the lock: another driver may have installed meanwhile
+  const r: Eingespielt = mitSperre(() => {
+    const s = stand();
+    return s ? einspielen(a, s, wunsch.bruecke) : { zeit: new Date().toISOString(), von: '', auf: null, datum: null, bruecke: null, fehler: 'der Stand des Skill-Satzes ist unbekannt' };
+  });
+  writeFileSync(join(dir, EINGESPIELT), JSON.stringify(r));
+  return inHuelle ? NEUSTART : neustart();
 }
 
 /**

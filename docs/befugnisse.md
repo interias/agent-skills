@@ -87,5 +87,5 @@ Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entsc
   startet der Treiber nichts Neues, bei rotem hält er auch Fortsetzungen an. Das ist Mechanik, keine
   Frage an den Admiral.
 - **Aufräumen löscht nur**, was nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`.
-- **Die Brücke steuert nichts** außer den Handlungen, die sie mit PIN an den Treiber reicht; sie läuft
-  nur im LAN.
+- **Die Brücke steuert nichts** außer den Handlungen, die sie mit PIN an den Treiber reicht; Antworten nur im LAN
+  mit PIN, unterwegs optional über Tailscale nur zur Ansicht (ADR-0006).

@@ -294,7 +294,7 @@ textarea {
 .widerrufen { color: var(--lila); }
 
 /* ---- footer: the ticker of the logbook */
-.fuss { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 70px 1fr auto; gap: 6px; align-items: end; padding: 0 max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); background: linear-gradient(transparent, #000 30%); z-index: 5; }
+.fuss { position: fixed; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: 70px 1fr auto auto; gap: 6px; align-items: end; padding: 0 max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); background: linear-gradient(transparent, #000 30%); z-index: 5; }
 .fuss-ecke { height: 34px; background: var(--violett); border-radius: 0 0 0 24px; }
 .laufband { height: 26px; overflow: hidden; background: var(--flaeche2); border: 0; border-radius: 4px; color: var(--matt); text-align: left; padding: 0; cursor: pointer; position: relative; font-size: 12.5px; letter-spacing: .04em; }
 .laufband-spur { display: inline-flex; gap: 36px; white-space: nowrap; padding-left: 100%; height: 100%; align-items: center; animation: laufband var(--dauer, 60s) linear infinite; }
@@ -302,6 +302,9 @@ textarea {
 .laufband-spur b { color: var(--pfirsich); font-weight: 600; }
 @keyframes laufband { to { transform: translateX(-100%); } }
 .fuss-stueck { height: 26px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 0 var(--rund) var(--rund) 0; background: var(--lila); color: #000; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+/* #154: the stand of bridge and driver, short; gold when main has a newer one */
+.fuss-stand { height: 26px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 4px; background: var(--flaeche2); color: var(--matt); font: 12px var(--disp); letter-spacing: .04em; white-space: nowrap; }
+.fuss-stand.neu { color: #000; background: var(--gold); font-weight: 700; }
 .logbuch { position: fixed; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); bottom: 48px; max-height: 45vh; overflow: auto; margin: 0; padding: 10px 12px; list-style: none; background: var(--flaeche); border-left: 8px solid var(--lila); border-radius: 0 14px 14px 0; z-index: 6; display: grid; gap: 4px; font: 12.5px/1.4 var(--lesen); color: var(--matt); box-shadow: 0 -10px 30px #000; }
 .logbuch[hidden] { display: none; }
 .logbuch li { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; }
@@ -350,8 +353,9 @@ dialog p { font: 14px/1.45 var(--lesen); }
   /* the bar in "Bereit" stands alone on the line: a thumb-sized target */
   .bereit .paketleiste { min-height: 40px; margin: -6px 0; }
   textarea { font-size: 16px; }
-  .fuss { grid-template-columns: 40px 1fr; }
+  .fuss { grid-template-columns: 40px 1fr auto; }
   .fuss-stueck { display: none; }
+  .fuss-stand { padding: 0 6px; font-size: 11px; }
   .logbuch li { grid-template-columns: 40px 1fr; }
   .logbuch .wo { display: none; }
 }

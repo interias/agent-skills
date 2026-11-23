@@ -11,13 +11,14 @@
 # The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`),
 # with (#148) the cut plan of its last triage run.
 # The Maschinenraum (#90) gets the Werft of every machine (`werft`); its messages join the ticker.
+# The Bereitschaftsraum (#85) gets its chats (`bereitschaftsraum`).
 
 import json
 import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from .modelle import ABFRAGE_MAX, ABFRAGE_MIN, HANDLUNG_GRUPPE
+from .modelle import ABFRAGE_MAX, ABFRAGE_MIN, CHAT_STANDARD_MODELL, HANDLUNG_GRUPPE
 
 HERKUNFT = 'Mensch über die Brücke'
 HALT = ('blockiert', 'abgebrochen')
@@ -268,7 +269,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         takt = b.get('taktS', 60)
         veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=max(3 * takt, 180))
         aktiv = b.get('aktiv', True) and not veraltet
-        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen)})
+        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen), 'version': b.get('version')})
         # the newest report of a machine speaks for its RAM and disk, of an account for its usage
         r = rechner.get(b.get('rechner', ''))
         if r is None or r['empfangen'] < p['empfangen']:
@@ -289,6 +290,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         for h in handlungen:
             if h['forge'] == forge and not h['quittiert'] and h['art'] != 'einstellen':
                 offen_h[(h['epic'], HANDLUNG_GRUPPE[h['art']], h['nr'], h['seit'])] = h
+        # #154: the update on its way to the driver (the button waits for it)
+        liste[-1]['einspielen'] = _handlung(offen_h.get((0, 'einspielen', None, None)))
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
         schwelle = schwelle_lang(b.get('epics', []))
         # #52: the decisions of each epic not merged, newest first; the rest stays in the logbook and at the issues
@@ -465,8 +468,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 z = json.loads(h['text'])
                 titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
                 x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
-            elif h['art'].startswith('triage'):
-                # #116: a ticket of the triage, no epic
+            elif h['art'].startswith('triage') or h['art'] == 'einspielen':
+                # #116: a ticket of the triage, no epic; #154: the update belongs to the project
                 x = {**x, 'epic': None, 'ticket': h['epic'] or None}
             erledigt.append(x)
     # #90: the person's actions for a Werft, once it acknowledged them; a setting by its title and its value in words
@@ -522,4 +525,56 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'frachtraum': lager,
         'werft': werft_liste(werft, werft_h or [], jetzt),
         'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
+    }
+
+
+def bereitschaftsraum(chats: list[dict], nachrichten: list[dict], rechner: list[dict], forges: list[str], pin_gesetzt: bool) -> dict:
+    """#85: the chats of the Bereitschaftsraum for the page, open ones first, the newest on top. Per chat
+    the course of messages and answers, the question cards of the last answer, the latest draft (the one
+    "anlegen" takes word for word) and the missions created. The accounts come from what the chat service
+    of each machine reports (short names only); a bound chat offers those of its machine."""
+    konten: dict[str, list[str]] = {}
+    for r in rechner:
+        for k in r['konten']:
+            konten.setdefault(k, []).append(r['name'])
+    je_rechner = {r['name']: r['konten'] for r in rechner}
+    je_chat: dict[int, list[dict]] = {}
+    for n in nachrichten:
+        je_chat.setdefault(n['chat'], []).append(n)
+    liste = []
+    for c in chats:
+        eigene = je_chat.get(c['id'], [])
+        verlauf = [{
+            'id': n['id'], 'art': n['art'], 'text': n['text'], 'starten': n['starten'], 'zeit': n['zeit'],
+            'quittiert': n['quittiert'] is not None, 'rechner': n['rechner'],
+            'antwort': None if n['antwort'] is None else {**n['antwort'], 'zeit': n['beantwortet']},
+        } for n in eigene]
+        # a discarded chat waits for nothing: its message no longer goes to the service
+        wartet = c['stand'] == 'offen' and any(n['antwort'] is None for n in eigene)
+        letzte = eigene[-1] if eigene else None
+        mit = [n for n in eigene if n['antwort'] and n['antwort'].get('entwurf')]
+        entwurf = {'von': mit[-1]['id'], 'text': mit[-1]['antwort']['entwurf']} if mit else None
+        missionen = [m for n in eigene if n['art'] == 'anlegen' and n['antwort'] and n['antwort']['fehler'] is None for m in n['antwort'].get('missionen') or []]
+        erste = next((n['text'] for n in eigene if n['art'] == 'text'), '') or ''
+        liste.append({
+            'id': c['id'], 'forge': c['forge'], 'kurz': c['forge'].split('/')[-1], 'konto': c['konto'], 'modell': c['modell'],
+            'stand': c['stand'], 'rechner': c['rechner'], 'angelegt': c['angelegt'], 'geaendert': c['geaendert'],
+            'titel': erste.splitlines()[0][:120] if erste.strip() else f"Chat {c['id']}",
+            'konten': je_rechner.get(c['rechner'], []) if c['rechner'] else sorted(konten, key=int),
+            'wartet': wartet,
+            'karten': letzte['antwort']['karten'] if letzte and letzte['antwort'] else [],
+            'entwurf': entwurf,
+            'anlegbar': bool(entwurf) and c['stand'] == 'offen' and not wartet,
+            'missionen': missionen,
+            'verlauf': verlauf,
+        })
+    liste.sort(key=lambda x: x['geaendert'], reverse=True)
+    liste.sort(key=lambda x: x['stand'] != 'offen')
+    return {
+        'pin': pin_gesetzt,
+        'modell': CHAT_STANDARD_MODELL,
+        'konten': [{'konto': k, 'rechner': konten[k]} for k in sorted(konten, key=int)],
+        'rechner': rechner,
+        'projekte': sorted(set(forges) | {c['forge'] for c in chats}),
+        'chats': liste,
     }

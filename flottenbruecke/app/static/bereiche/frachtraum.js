@@ -63,7 +63,7 @@
     const empf = !f.empfohlen.length && f.empfehlung ? `<p class="warum"><b>Empfehlung:</b> ${esc(f.empfehlung)}</p>` : '';
     return `${vorne}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
 <textarea placeholder="${f.optionen.length ? 'Eigener Text, steht unverändert am Ticket (optional)' : 'Deine Antwort, steht unverändert am Ticket'}" aria-label="Eigener Text zu Frage ${f.nr} an #${f.ticket}" data-text${zu}>${esc(e.text || '')}</textarea>
-<div class="knoepfe"><button type="button" class="knopf haupt" data-antworten${zu}>${esc(sendeText(f, e))}</button><span class="status" role="status">${pin ? '' : 'Antworten abgeschaltet: keine PIN gesetzt'}</span></div>`;
+<div class="knoepfe"><button type="button" class="knopf haupt" data-antworten${zu}>${esc(sendeText(f, e))}</button><span class="status" role="status">${pin ? '' : `Antworten abgeschaltet: ${huelle.ohnePin(letzte)}`}</span></div>`;
   }
 
   // ---- a decision of a triage run: what, why, from where, and "Widerrufen" with the objection
@@ -177,7 +177,7 @@ ${abschlussHtml(p.abschluss)}${fragen}${schnittHtml(p.schnittplan, pin)}${entsch
     if (!ps.length) return `${KOPF}<p class="bereich-leer">Noch kein Treiber meldet Sternzeit-Notizen.</p>`;
     const frei = ps.filter((p) => !p.laeuft && !p.handlung);
     const alle = t.pin && ps.length > 1 ? `<div class="knoepfe fr-alle"><button type="button" class="knopf zweit" data-start="alle"${frei.length ? '' : ' disabled'}>Triage-Lauf für alle</button><span class="status" role="status"></span></div>` : '';
-    const hinweis = `<p class="fr-hinweis">Der Triage-Lauf klärt jede Sternzeit-Notiz selbst; nur was nach der Liste „beim Menschen“ zu dir gehört, steht hier als Frage. Die Missionen seines Schnittplans gibt er selbst frei; du kannst jede widerrufen. Antworten und Widerrufe stehen als Kommentar am Ticket, nichts nur hier. ${t.pin ? 'Jede Handlung braucht die PIN und wirkt ab dem nächsten Takt des Treibers.' : 'Handeln abgeschaltet: keine PIN gesetzt.'}</p>`;
+    const hinweis = `<p class="fr-hinweis">Der Triage-Lauf klärt jede Sternzeit-Notiz selbst; nur was nach der Liste „beim Menschen“ zu dir gehört, steht hier als Frage. Die Missionen seines Schnittplans gibt er selbst frei; du kannst jede widerrufen. Antworten und Widerrufe stehen als Kommentar am Ticket, nichts nur hier. ${t.pin ? 'Jede Handlung braucht die PIN und wirkt ab dem nächsten Takt des Treibers.' : `Handeln abgeschaltet: ${huelle.ohnePin(t)}.`}</p>`;
     return `${KOPF}${hinweis}${alle}${ps.map((p) => projektHtml(p, t.pin)).join('')}`;
   }
 

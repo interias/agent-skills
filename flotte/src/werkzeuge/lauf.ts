@@ -155,6 +155,8 @@ export function laufUmgebung(basis: NodeJS.ProcessEnv, konto: string): NodeJS.Pr
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(basis)) {
     if (/^(CLAUDE|ANTHROPIC_|USE_LOCAL_OAUTH|USE_STAGING_OAUTH)/.test(k) && k !== 'CLAUDE_CONFIG_DIR') continue;
+    // the restart hull of the driver (stand.ts) belongs to the driver, not to a run it starts
+    if (k === 'FLOTTE_HUELLE') continue;
     env[k] = v;
   }
   const standard = resolve(homedir(), '.claude');
@@ -175,6 +177,8 @@ export interface Start {
   log?: string | null;
   /** further arguments for claude (--json-schema, --tools, ...) */
   extraArgs?: string[];
+  /** --permission-mode; default auto. The chat takes dontAsk: what would ask is refused (reads never ask; the chat's hook locks them) */
+  modus?: string;
   /** further environment variables for the run (EPIC_LOCK_HOLDER) */
   env?: Record<string, string>;
   /** checks the tool list of the init event; a text names what is wrong and the run is killed */
@@ -196,7 +200,7 @@ export interface Start {
 
 export function claudeArgs(s: Start): string[] {
   // --strict-mcp-config: no MCP server of the account, no claude.ai connector (acceptance finding 2)
-  const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none', '--strict-mcp-config'];
+  const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', s.modus ?? 'auto', '--permission-prompts', 'none', '--strict-mcp-config'];
   if (s.modell) a.push('--model', s.modell);
   if (s.resume) a.push('--resume', s.resume);
   if (s.extraArgs) a.push(...s.extraArgs);

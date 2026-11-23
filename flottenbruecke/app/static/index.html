@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="/static/huelle.css">
 <link rel="stylesheet" href="/static/bereiche/holodeck.css">
 <link rel="stylesheet" href="/static/bereiche/frachtraum.css">
+<link rel="stylesheet" href="/static/bereiche/bereitschaftsraum.css">
 <link rel="stylesheet" href="/static/bereiche/sternenkarte.css">
 <link rel="stylesheet" href="/static/bereiche/maschinenraum.css">
 <link rel="stylesheet" href="/static/bereiche/logbuch.css">
@@ -29,12 +30,14 @@
     <ul class="treffer" id="suche-treffer" role="listbox" aria-label="Treffer" hidden></ul>
   </div>
   <a class="zaehler ruhig" id="zaehler" href="#bruecke" aria-label="Braucht dich: 0"><span>Braucht dich</span><b id="zaehler-zahl">0</b></a>
+  <span class="nur-ansicht" id="nur-ansicht" title="Über den Fernweg: ansehen ja, Antworten und Handlungen nur im LAN" hidden>Nur Ansicht</span>
   <nav class="pillen" aria-label="Bereiche">
     <a class="pille" href="#bruecke" data-bereich="bruecke">Brücke<span class="pille-zahl" id="pille-zahl" hidden>0</span></a>
-    <a class="pille" href="#holodeck" data-bereich="holodeck">Holodeck</a>
+    <a class="pille" href="#holodeck" data-bereich="holodeck">Holo&shy;deck</a>
     <a class="pille" href="#frachtraum" data-bereich="frachtraum">Fracht&shy;raum</a>
+    <a class="pille" href="#bereitschaftsraum" data-bereich="bereitschaftsraum">Bereit&shy;schafts&shy;raum</a>
     <a class="pille" href="#sternenkarte" data-bereich="sternenkarte">Sternen&shy;karte</a>
-    <a class="pille" href="#maschinenraum" data-bereich="maschinenraum">Maschinen&shy;raum</a>
+    <a class="pille" href="#maschinenraum" data-bereich="maschinenraum">Maschi&shy;nen&shy;raum</a>
     <a class="pille" href="#logbuch" data-bereich="logbuch">Logbuch</a>
   </nav>
 </header>
@@ -92,6 +95,7 @@
 </section>
 <section class="bereich" data-bereich="holodeck" aria-label="Holodeck" hidden></section>
 <section class="bereich" data-bereich="frachtraum" aria-label="Frachtraum" hidden></section>
+<section class="bereich" data-bereich="bereitschaftsraum" aria-label="Bereitschaftsraum" hidden></section>
 <section class="bereich" data-bereich="sternenkarte" aria-label="Sternenkarte" hidden></section>
 <section class="bereich" data-bereich="maschinenraum" aria-label="Maschinenraum" hidden></section>
 <section class="bereich" data-bereich="logbuch" aria-label="Logbuch" hidden></section>
@@ -103,6 +107,7 @@
   <button type="button" class="laufband" id="laufband" aria-expanded="false" aria-controls="logbuch-liste" title="Logbuch des Treibers: antippen hält an und klappt die Liste auf">
     <span class="laufband-spur" id="laufband-spur"></span>
   </button>
+  <a class="fuss-stand" id="fuss-stand" href="#maschinenraum" title="Stand von Brücke und Treiber"></a>
   <a class="fuss-stueck" href="#logbuch" title="Zum Logbuch">Logbuch</a>
 </footer>
 <ol class="logbuch" id="logbuch-liste" hidden></ol>
@@ -133,6 +138,7 @@
 <script src="/static/huelle.js"></script>
 <script src="/static/bereiche/holodeck.js"></script>
 <script src="/static/bereiche/frachtraum.js"></script>
+<script src="/static/bereiche/bereitschaftsraum.js"></script>
 <script src="/static/bereiche/sternenkarte.js"></script>
 <script src="/static/bereiche/maschinenraum.js"></script>
 <script src="/static/bereiche/logbuch.js"></script>
