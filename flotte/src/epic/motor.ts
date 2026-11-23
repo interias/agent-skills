@@ -75,6 +75,12 @@ export interface Mechanik {
   ram(): Promise<Ram>;
   /** the slot (mission/SKILL.md, rule 12): busy while a full stack of the project runs */
   slot(): Promise<{ belegt: boolean }>;
+  /** acceptance_commands of the adapter by name (Phase 6, Abnahmestufe); empty: none set, the stage falls away */
+  abnahmeBefehle(): string[];
+  /** Phase 6: every acceptance command once in the worktree, red on an exit code ≠ 0; the caller holds the slot */
+  abnahme(worktree: string): Promise<{ name: string; ok: boolean; text: string }[]>;
+  /** pre_commit_checks without a program at their start (prose): never run, an open point and a rule in the order (#108) */
+  vorCommitProsa(): string[];
   /** test_commands of the adapter, all suites */
   volllauf(worktree: string): Promise<Testlauf>;
   /** one red file alone, with the adapter's worker limit: true when green */
@@ -101,10 +107,15 @@ export interface Mechanik {
   graph(): Promise<{ available: boolean; grund?: string; pfad?: string }>;
   /** the body of an issue (the target issue: children and user stories for the check of the cut) */
   body(ticket: number): Promise<string>;
+  /** the sub-issues of an issue from the API (dependency_source api): children linked only there stay in the cut's check; a read error throws like body */
+  unterIssues(ticket: number): Promise<number[]>;
   kommentare(ticket: number): Promise<string[]>;
   kommentar(ticket: number, text: string): Promise<void>;
   /** sets one status label and takes the other two off, then reads it back (mission/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
   status(ticket: number, label: StatusLabel): Promise<string | null>;
+  /** 0a: takes off the status labels an earlier run left at a ticket (mission/SKILL.md, "Die Statuslabels"); a text as with status */
+  /** 0a: takes status/in-arbeit and status/blockiert off a ticket; status/haengt stays */
+  statusAbnehmen(ticket: number): Promise<string | null>;
   /** 2d: the target issue gets status/in-arbeit and epic_label; a text as with status */
   eroeffnung(): Promise<string | null>;
   /** Phase 6: push, pull request (title of the issue, WIP: while something lies with the person), the target issue loses status/in-arbeit (fehler: as with status); never a merge */
@@ -152,6 +163,8 @@ const SCHNITT = 'schnitt';
 const LAUFTAFEL = 'Lauftafel aus (Flotten-Treiber)';
 const FUENF_MIN = 5 * 60_000;
 const flach = (s: string) => s.replace(/\s+/g, ' ').trim();
+/** the same permission_denials this often in one package leaves it behind (P8, decided at #108) */
+const ABLEHNUNGEN_BIS_ZURUECK = 3;
 const FORTSETZEN = 'Setze deine Arbeit an der Stelle fort, an der du warst, und gib dein Ergebnis im Schema aus.';
 
 /** Runs one epic until FLOTTE-ENDE. A second program for the same epic is refused (P21). */
@@ -249,8 +262,15 @@ class EpicLauf {
       this.speichere();
     }
     if (!z.basis) {
-      z.basis = await this.m.volllauf(z.epicWorktree);
-      z.basisLint = await this.m.lint(z.epicWorktree);
+      try {
+        z.basis = await this.m.volllauf(z.epicWorktree);
+        z.basisLint = await this.m.lint(z.epicWorktree);
+      } catch (f) {
+        // an unknown test format or a suite that does not run: no Ausgangszahlen, no run (mission/SKILL.md, 0b)
+        await this.abbrechen(`Ausgangszahlen nicht messbar: ${flach(f instanceof Error ? f.message : String(f))}`);
+        return z;
+      }
+      for (const x of this.m.vorCommitProsa()) this.glut(`pre_commit_checks ohne ausführbares Programm, vom Programm nicht gefahren: ${x} (dem Ingenieur als Regel mitgegeben)`, null);
       this.speichere();
     }
     // Phase 0b: the code graph goes into every order (4a, 4b); not available is no error
@@ -282,7 +302,7 @@ class EpicLauf {
         this.aufrufe();
         this.befehle();
         this.startbereitNachtragen();
-        if (Object.values(z.pakete).every(istEnde) && !this.laufend.size && !this.befehl) {
+        if (Object.values(z.pakete).every(istEnde) && !this.laufend.size && !this.befehl && (await this.abnahmestufe())) {
           await this.abschluss();
           return z;
         }
@@ -312,8 +332,9 @@ class EpicLauf {
   }
 
   /**
-   * A call without usable result: permission_denials block, an account limit waits, otherwise one
-   * --resume with the error (P8, P9); after that the call is used up and the caller starts anew.
+   * A call without usable result: permission_denials without a finished result block, an account
+   * limit waits, otherwise one --resume with the error (P8, P9); after that the call is used up and
+   * the caller starts anew.
    */
   private fehlschlag(stand: AufrufStand, b: { art: string; fehler: string }, paket: string | null, rolle: Rolle): 'fortsetzen' | 'verbraucht' | 'verweigert' | 'konto' {
     // every invalid output stands in the log (#68 counts them)
@@ -374,10 +395,15 @@ class EpicLauf {
   private async anwenden(x: Erledigt) {
     if (x.art === 'aufruf') {
       this.laufend.delete(x.schluessel);
-      if (x.schluessel === SCHNITT) return this.schnittZurueck(x.r);
+      if (x.schluessel === SCHNITT) {
+        this.ablehnungen(x.r, null, x.rolle);
+        return this.schnittZurueck(x.r);
+      }
       const p = this.z.pakete[x.schluessel];
       if (!p || p.stufe !== (x.rolle === 'konflikt' ? 'merge' : x.rolle)) return;
       p.sitzung = x.r.sitzung ?? p.sitzung;
+      const dritte = this.ablehnungen(x.r, p, x.rolle);
+      if (dritte) return this.zuruecklassen(p, `${{ implementer: 'Ingenieur', reviewer: 'Erster Offizier', konflikt: 'Konflikt-Aufruf' }[x.rolle as string] ?? x.rolle}: dieselbe Ablehnung zum dritten Mal: ${dritte}`);
       if (x.rolle === 'konflikt') return this.konfliktZurueck(p, x.r);
       return x.rolle === 'implementer' ? this.implementerZurueck(p, x.r) : this.reviewerZurueck(p, x.r);
     }
@@ -387,13 +413,31 @@ class EpicLauf {
     return this.mergeZurueck(p, x.m);
   }
 
+  /**
+   * P8 (#108): every permission_denials is an event; a single one does not leave a package behind.
+   * The same one (tool and input) a third time in a package does: the text of that denial.
+   */
+  private ablehnungen(r: LaufErgebnis, p: PaketZustand | null, rolle: Rolle): string | null {
+    let dritte: string | null = null;
+    for (const v of r.verweigert) {
+      const d = v as { tool_name?: string; tool_input?: unknown };
+      const text = `${d.tool_name ?? '?'} ${JSON.stringify(d.tool_input ?? {})}`.slice(0, 300);
+      this.ereignis('verweigert', p?.nr ?? null, `Erlaubnis verweigert: ${text}`, rolle);
+      if (!p) continue;
+      const n = ((p.ablehnungen ??= {})[text] = (p.ablehnungen[text] ?? 0) + 1);
+      if (n >= ABLEHNUNGEN_BIS_ZURUECK) dritte ??= text;
+    }
+    if (r.verweigert.length) this.speichere();
+    return dritte;
+  }
+
   private async schnittZurueck(r: LaufErgebnis) {
     const s = this.z.schnitt;
     s.sitzung = r.sitzung ?? s.sitzung;
     let b = bewerteAufruf('schnitt', r);
     // the form against the target issue: a story or a child left out of the model's own lists
     if (b.art === 'ok') {
-      const f = abdeckungFehler(b.daten, await this.m.body(this.e.epic));
+      const f = abdeckungFehler(b.daten, await this.m.body(this.e.epic), b.daten.modus === 'tickets' ? await this.m.unterIssues(this.e.epic) : []);
       if (f) b = { art: 'ungueltig', fehler: f };
     }
     if (b.art !== 'ok') {
@@ -663,13 +707,7 @@ class EpicLauf {
       return;
     }
     // the slot is busy (a full stack of the project runs): wait like hold, running packages go on (P19)
-    const slot = await this.m.slot();
-    if (slot.belegt !== this.z.slot.belegt) {
-      this.z.slot.belegt = slot.belegt;
-      this.ereignis('slot', null, slot.belegt ? 'belegt: ein voller Stack des Projekts läuft; kein neuer Start, laufende Pakete laufen weiter' : 'frei, Starts gehen weiter');
-      this.speichere();
-    }
-    if (slot.belegt) return;
+    if (await this.slotBelegt('kein neuer Start, laufende Pakete laufen weiter', 'Starts gehen weiter')) return;
     if (hold) {
       // a release counts for the next start
       starts = kandidaten.slice(0, 1);
@@ -684,6 +722,17 @@ class EpicLauf {
     // warn starts; the reading stands with the start (mission/SKILL.md, "Die RAM-Bremse")
     if (ram.level === 'warn') this.ereignis('ram', null, `warn bei ${ram.percent_used ?? '?'} %, Start: ${starts.join(', ')}`);
     for (const nr of starts) await this.starteEines(this.z.pakete[nr]);
+  }
+
+  /** reads the slot (mission/SKILL.md, rule 12); a change stands in the log with what waits or goes on */
+  private async slotBelegt(wartet: string, weiter: string): Promise<boolean> {
+    const slot = await this.m.slot();
+    if (slot.belegt !== this.z.slot.belegt) {
+      this.z.slot.belegt = slot.belegt;
+      this.ereignis('slot', null, slot.belegt ? `belegt: ein voller Stack des Projekts läuft; ${wartet}` : `frei, ${weiter}`);
+      this.speichere();
+    }
+    return slot.belegt;
   }
 
   private async starteEines(p: PaketZustand) {
@@ -903,6 +952,9 @@ class EpicLauf {
     this.eroeffnet = true;
     this.glut(await this.m.eroeffnung(), null);
     const pakete = this.z.schnitt.ergebnis!.pakete;
+    // 0a: in-arbeit and blockiert an earlier run left at tickets of this mission come off (haengt stays until the package starts); a package gets its label again at its start
+    const alt = [...Object.values(this.z.pakete).filter((p) => p.stufe === 'wartend' || p.stufe === 'startbereit').map((p) => p.nr), ...(this.z.schnitt.ergebnis!.uebersprungen ?? []).filter((u) => !u.blocker.length).map((u) => u.nr.replace(/^#/, ''))];
+    for (const nr of alt) if (/^\d+$/.test(nr) && Number(nr) !== this.e.epic) this.glut(await this.m.statusAbnehmen(Number(nr)), nr);
     // 2d: skipped children get their reason now, before the first package; a blocking ticket: status/blockiert
     for (const u of this.z.schnitt.ergebnis!.uebersprungen ?? []) {
       const nr = u.nr.replace(/^#/, '');
@@ -911,6 +963,44 @@ class EpicLauf {
       if (u.blocker.length) await this.status(nr, 'status/blockiert');
     }
     await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Epic #${this.e.epic} mit flotte mission: Basis ${this.e.basis}, Epic-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
+  }
+
+  /**
+   * Phase 6, Abnahmestufe (mission/SKILL.md, "Gestufte Verifikation und der Slot"): acceptance_commands
+   * once in the epic worktree, in the slot, after the last merge. A busy slot waits a takt like hold
+   * (false); red or not runnable is an open point and makes the pull request WIP, never a stop.
+   * The result stays in the state, so a restart after it does not run them again.
+   * No slot run per package in 4c (decided at #108): whether a diff touches the surface is a
+   * judgement no actor of the program makes; this stage is the one run of the full stack.
+   */
+  private async abnahmestufe(): Promise<boolean> {
+    const z = this.z;
+    if (z.abnahme !== undefined) return true;
+    if (!this.m.abnahmeBefehle().length) {
+      z.abnahme = null;
+      this.speichere();
+      return true;
+    }
+    if (await this.slotBelegt('die Abnahmestufe wartet, kein Paket bleibt zurück', 'die Abnahmestufe fährt')) return false;
+    this.ereignis('slot', null, 'Abnahmestufe: Slot genommen, acceptance_commands im Missions-Worktree');
+    this.speichere();
+    try {
+      const r = await this.m.abnahme(z.epicWorktree!);
+      z.abnahme = { ok: r.every((x) => x.ok), text: r.map((x) => x.text).join('; ') };
+    } catch (f) {
+      z.abnahme = { ok: false, text: `nicht fahrbar: ${flach(f instanceof Error ? f.message : String(f))}` };
+    }
+    this.ereignis('slot', null, `Abnahmestufe: Slot freigegeben, ${z.abnahme.ok ? 'grün' : 'rot'}`);
+    if (!z.abnahme.ok) this.glut(`Abnahmestufe rot oder nicht fahrbar: ${z.abnahme.text}`, null);
+    this.speichere();
+    return true;
+  }
+
+  private abnahmeZeile(): string {
+    const a = this.z.abnahme;
+    // no slot run per package in 4c (#108): without acceptance_commands the full stack never ran in this run
+    if (!a) return 'Abnahmestufe entfällt: der Adapter nennt keine acceptance_commands. Der volle Stack lief in diesem Lauf nie; was ein Verifikationsweg nur mit ihm prüft, ist per Test belegt, nicht gesichtet.';
+    return `Abnahmestufe ${a.ok ? 'grün' : 'rot'} (acceptance_commands einmal im Missions-Worktree, im Slot): ${a.text}`;
   }
 
   private async abschluss() {
@@ -924,20 +1014,21 @@ class EpicLauf {
       ...pakete.flatMap((p) => p.lastflakes.map((f) => `- Lastflake in Paket ${p.nr}: ${f}`)),
       ...(this.z.offenePunkte ?? []).map((x) => `- ${x}`),
     ];
-    // Phase 6: WIP while something lies with the person; Closes only a fully accepted child, never the target issue
-    const wip = anzahl('zurueckgelassen') + anzahl('blockiert') > 0;
+    // Phase 6: WIP while something lies with the person; Closes a fully accepted child, the target issue only in mode spec (no children) with every package done
+    const wip = anzahl('zurueckgelassen') + anzahl('blockiert') > 0 || this.z.abnahme?.ok === false;
     const zeile = (p: PaketZustand) => `- Paket ${p.nr}: ${p.stufe === 'fertig' ? `${p.nichtsZuMergen ? 'nichts zu mergen' : `gemergt (${p.mergeCommit})`}, Runde ${p.runde}, Klasse ${p.klasse}` : p.stufe === 'blockiert' ? `blockiert durch ${p.blockiertDurch}` : `zurückgelassen: ${p.grund} (Branch ${p.branch})`}`;
     const closes = pakete.filter((p) => p.stufe === 'fertig' && /^\d+$/.test(p.nr) && Number(p.nr) !== this.e.epic).map((p) => `Closes #${p.nr}`);
+    if (this.z.schnitt.ergebnis?.modus === 'spec' && pakete.length && pakete.every((p) => p.stufe === 'fertig')) closes.push(`Closes #${this.e.epic}`);
     const teststand = `Ausgangszahlen: ${this.zahlen(this.z.basis ?? [])}`;
-    const body = ['## Pakete', ...pakete.map(zeile), '', teststand, '', '## Offene Punkte', offen.join('\n') || 'keine', '', LAUFTAFEL, ...(closes.length ? ['', ...closes] : [])].join('\n');
+    const body = ['## Pakete', ...pakete.map(zeile), '', teststand, '', '## Abnahmestufe', this.abnahmeZeile(), '', '## Offene Punkte', offen.join('\n') || 'keine', '', LAUFTAFEL, ...(closes.length ? ['', ...closes] : [])].join('\n');
     const { pr, fehler } = await this.m.abschluss({ wip, body });
     if (fehler) {
       this.glut(fehler, null);
       offen.push(`- ${fehler}`);
     }
-    await this.kommentiere(String(this.e.epic), 'abschluss', [`**Abschluss** Epic #${this.e.epic}: Pull Request ${pr ?? 'keiner'}. ${LAUFTAFEL}.`, ...pakete.map(zeile), teststand, '', '### Was das Epic offen lässt', offen.join('\n') || 'nichts'].join('\n'));
+    await this.kommentiere(String(this.e.epic), 'abschluss', [`**Abschluss** Epic #${this.e.epic}: Pull Request ${pr ?? 'keiner'}. ${LAUFTAFEL}.`, ...pakete.map(zeile), teststand, this.abnahmeZeile(), '', '### Was das Epic offen lässt', offen.join('\n') || 'nichts'].join('\n'));
     this.z.phase = 'fertig';
-    this.z.ende = endeBlock(this.e.epic, pr, `Epic #${this.e.epic}: ${anzahl('fertig')} Pakete gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert.`, offen.join('\n'));
+    this.z.ende = endeBlock(this.e.epic, pr, `Epic #${this.e.epic}: ${anzahl('fertig')} Pakete gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert. ${this.abnahmeZeile()}`, offen.join('\n'));
     this.ereignis('ende', null, `${anzahl('fertig')} gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert`);
     this.speichere();
     this.u.leitung.melde(this.z.ende);
@@ -946,7 +1037,7 @@ class EpicLauf {
   // ---- orders (auftraege.ts writes them from the fields of the cut and the state)
 
   private kontext(): Kontext {
-    return { epic: this.e.epic, epicBranch: this.e.epicBranch, epicWorktree: this.z.epicWorktree ?? '', adapter: this.e.adapter ?? '', graph: this.z.graph ?? null, basis: this.z.basis ?? [], basisLint: this.z.basisLint ?? {} };
+    return { epic: this.e.epic, epicBranch: this.e.epicBranch, epicWorktree: this.z.epicWorktree ?? '', adapter: this.e.adapter ?? '', graph: this.z.graph ?? null, basis: this.z.basis ?? [], basisLint: this.z.basisLint ?? {}, vorCommitProsa: this.m.vorCommitProsa() };
   }
 
   private torAntworten(nr: string): string[] {

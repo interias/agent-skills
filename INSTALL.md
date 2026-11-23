@@ -50,7 +50,7 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   gesichert und erst geleert, wenn die Sicherung nachweislich vollständig ist. Ordner unter alten
   Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`, `epic`, `epic-nacharbeit`, `epic-aufraeumen`)
   werden gesichert und entfernt, sobald ihr neuer Name installiert wird. Wer von den alten Namen
-  umsteigt, liest [`UMSTELLUNG.md`](UMSTELLUNG.md).
+  umsteigt, liest [`docs/UMSTELLUNG.md`](docs/UMSTELLUNG.md).
 - **Stand (#154):** schreibt in jeden installierten Skill-Ordner `stand.json` mit Commit und Datum des
   ausgecheckten Stands, dem Zeitpunkt und dem Ordner der Quelle. Die Flottenbrücke zeigt ihn; der
   Treiber spielt über ihren Knopf „Einspielen und Treiber neu starten“ von dieser Quelle aus ein

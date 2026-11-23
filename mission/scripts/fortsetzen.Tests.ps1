@@ -39,6 +39,15 @@ exit 7
         Test-Path -LiteralPath $r.args[3] | Should Be $false
     }
 
+    # The documented call, as a process of its own: under Windows PowerShell 5.1 $PSScriptRoot is
+    # empty in a parameter default (#26); a call with & in this process does not see that.
+    It 'finds guard.ps1 next to it when started with powershell -File' {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Session 'abc-123' -Claude $stub 2>$null
+        $LASTEXITCODE | Should Be 7
+        $r = Get-Content -LiteralPath $out -Raw | ConvertFrom-Json
+        ($r.settings | ConvertFrom-Json).hooks.PreToolUse[0].hooks[0].command | Should Match ([regex]::Escape((Join-Path $PSScriptRoot 'guard.ps1')) + '" -Profile epic$')
+    }
+
     It 'refuses to continue without guard.ps1' {
         & $script -Session 'abc-123' -Guard (Join-Path $dir 'fehlt.ps1') -Claude $stub 2>$null
         $LASTEXITCODE | Should Be 1

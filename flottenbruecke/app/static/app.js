@@ -189,7 +189,7 @@ function frageHtml(x, t) {
   const wortlaut = x.frage && x.roh ? `<details class="wortlaut"><summary>Wortlaut des Laufs</summary><div class="roh">${esc(x.roh)}</div></details>` : '';
   const vorne = `${kopfz}<h3>${titel}</h3>${lage}${marken(x)}${warum}`;
   if (x.antwort && (x.antwort.abgeholt || !e.aendern)) {
-    const st = x.antwort.abgeholt ? 'Angekommen, Lauf setzt fort' : 'Angekommen · der Treiber holt sie im nächsten Takt ab';
+    const st = x.antwort.abgeholt ? 'Angekommen, Lauf setzt fort' : x.aktiv ? 'Angekommen · der Treiber holt sie im nächsten Takt ab' : 'Angekommen · kein Treiber läuft, er holt sie bei seinem nächsten Start ab';
     const aendern = x.antwort.abgeholt ? '' : '<button type="button" class="knopf zweit klein" data-aendern>ändern</button>';
     const text = [x.antwort.option, x.antwort.text].filter(Boolean).join(' — ');
     return `${vorne}<div class="angekommen"><span>Deine Antwort: <b>${esc(text)}</b></span><span class="status gut">${uhrzeit(x.antwort.zeit)} · ${st}</span>${aendern ? `<div>${aendern}</div>` : ''}</div>${wortlaut}`;
@@ -290,7 +290,7 @@ function blockadeHtml(x, t) {
   const log = auf.has(`log:${x.id}`) ? `<ol class="log">${(x.log.length ? x.log : ['(keine Ereignisse gemeldet)']).map((z) => `<li>${esc(z)}</li>`).join('')}</ol>` : '';
   let unten;
   if (x.handlung) {
-    const st = x.handlung.abgeholt ? 'Angekommen, der Treiber führt es aus' : 'Angekommen · der Treiber holt es im nächsten Takt ab';
+    const st = x.handlung.abgeholt ? 'Angekommen, der Treiber führt es aus' : x.aktiv ? 'Angekommen · der Treiber holt es im nächsten Takt ab' : 'Angekommen · kein Treiber läuft, er holt es bei seinem nächsten Start ab';
     unten = `<div class="angekommen"><span>${esc(HANDLUNG[x.handlung.art])}</span><span class="status gut">${uhrzeit(x.handlung.zeit)} · ${st}</span></div>`;
   } else {
     const zu = t.pin ? '' : ' disabled';

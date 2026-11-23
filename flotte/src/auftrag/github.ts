@@ -32,5 +32,9 @@ export function githubForge(a: Aufrufer, repo: string, regeln: AuftragsRegeln): 
       if (!/^\d+$/.test(id)) throw new Error(`gh api: keine Id für #${ziel} (${id})`);
       gh(['api', '--method', 'POST', `repos/${repo}/issues/${mission}/sub_issues`, '-F', `sub_issue_id=${id}`]);
     },
+    async verknuepft(mission, ziel) {
+      // a sub-issue has one parent: the child names it
+      return new RegExp(`/issues/${mission}$`).test(gh(['api', `repos/${repo}/issues/${ziel}`, '--jq', '.parent_issue_url']).trim());
+    },
   };
 }

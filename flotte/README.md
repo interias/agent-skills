@@ -17,7 +17,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 |---|---|
 | `--konten 1,2` | Konten, auf die neue Missionen verteilt werden; eine Mission bleibt bei ihrem Konto |
 | `--epics 15,21` | nur diese Missionen; ohne Angabe alle freigegebenen, alle 15 Minuten neu eingesammelt |
-| `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Missionen warten |
+| `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Missionen warten; mit `--epics` laufen die genannten und dazu die freigegebenen |
 | `--konto-max 3=1` | höchstens so viele Missionen gleichzeitig auf diesem Konto |
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
@@ -134,13 +134,18 @@ statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste St
 2. **Bremsen** in jedem Takt: RAM, Plattenplatz und Verbrauch je Konto. Gelb startet nichts Neues,
    Rot hält auch Fortsetzungen an.
 3. **Fragen** eines Laufs gehen an den Admiral. Er entscheidet, was sich bis zum Andocken widerrufen
-   lässt; der Rest geht an dich, auf Tafel, Issue und Brücke.
+   lässt; der Rest geht an dich, auf Tafel, Issue und Brücke. Auch ein Block, der sich nicht in
+   Fragen zerlegen lässt, geht erst an den Admiral. Ist eine Mission blockiert und die Brücke
+   erreichbar, bleibt der Treiber im Einsatz, bis du sie dort neu einreihst oder aufgibst.
 4. **Nacharbeit:** Nennt das Ende eines Laufs offene Punkte, setzt der Treiber ihn einmal mit
    `/mission-nacharbeit` fort, solange der PR offen ist.
 5. **Andocken** nur nach dem Adapterschlüssel `merge`: bei `mensch` meldet er „PR bereit“, bei
    `nach_gate` reiht er den PR in die Andock-Schlange und dockt mit `merge.ps1` an, nur mit
    Nachweis der Andockprüfung aus dem Log des Laufs (fehlt er, fährt er die Andockprüfung selbst).
-6. **Nach dem Andocken** die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
+   Konflikte mit der Basis zählen getrennt von Rückgaben an den Lauf; Rot von außen (Testsperre
+   belegt, Zeitgrenze der Andockprüfung abgelaufen) wiederholt er einmal selbst.
+6. **Nach dem Andocken** schließt er die Mission, wenn alle Missionsziele zu sind; sonst nimmt er
+   `ready_label` ab und sagt am Issue, was offen ist. Dann die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
    lokale Missions-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
    nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
    in dieses Issue. Umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet die
@@ -617,9 +622,10 @@ Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wur
 
 ## Prüfen
 
-`bun test` braucht keine Installation und läuft in der Andockprüfung (`gate.ps1`). Die Typprüfung
-(`bun run typecheck`, `tsc -p .`) braucht die `devDependencies` und damit vorher `bun install` in
-`flotte/`; ein Worktree von `Up` hat kein `node_modules`, und die Andockprüfung fährt sie nicht.
+`bun test` läuft in der Andockprüfung (`gate.ps1`) und fährt dabei auch die Typprüfung (`tsc -p .`,
+Test `test/typpruefung.test.ts`; einzeln `bun run typecheck`). Sie braucht die `devDependencies`:
+Vor `bun test` und `gate.ps1` steht deshalb `bun install` in `flotte/`. Ein Worktree von `Up` hat
+kein `node_modules`; ohne die Installation endet der Test rot mit „TypeScript nicht installiert“.
 
 ## Bei dir
 

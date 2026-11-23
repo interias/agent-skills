@@ -1,7 +1,7 @@
 # README-Grafiken
 
-`ablauf.png` und `rueckfrage.png` im README des Repositorys werden aus `ablauf.html` und
-`rueckfrage.html` gerendert, jeweils breit (880 px) und schmal für Handys (400 px, Anker `#schmal`),
+`ablauf.png`, `rueckfrage.png` und `befugnisse.png` im README des Repositorys werden aus
+`ablauf.html`, `rueckfrage.html` und `befugnisse.html` gerendert, jeweils breit (880 px) und schmal für Handys (400 px, Anker `#schmal`),
 beide mit Gerätefaktor 2. Das README zeigt die schmale Fassung über `<picture>` bis 600 px
 Fensterbreite. LCARS-Farben wie auf der Brücke, kleinste Schrift 16 px bei Originalgröße. Die
 Schriften kommen von Google Fonts (das Rendern braucht Netz).
@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 
 with sync_playwright() as pw:
     br = pw.chromium.launch()
-    for name in ('ablauf', 'rueckfrage'):
+    for name in ('ablauf', 'rueckfrage', 'befugnisse'):
         for art, breite in (('', 880), ('-schmal', 400)):
             pg = br.new_page(viewport={'width': breite, 'height': 400}, device_scale_factor=2)
             pg.goto(Path(f'{name}.html').resolve().as_uri() + ('#schmal' if art else ''))

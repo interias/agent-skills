@@ -16,6 +16,12 @@ FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 ```
 
+Eine Frage darf auch als Überschrift mit Folgezeilen kommen (`Q1 — <Frage>`, `**Q1** <Frage>` oder
+`❓ **Q1** — <Frage>`). Die Zeilen darunter gehören zu ihr: `Betrifft:`, `Lage:`, `Empfehlung:` usw.
+als Felder (auch fett, `**Lage:** …`), Optionen als Liste `- A) …` oder `- **A)** …`. Lässt sich ein
+Block gar nicht in Fragen zerlegen, geht sein Wortlaut als eine Frage an den Admiral, nicht gleich an
+den Menschen.
+
 Optionen sind Großbuchstaben ab `A`, beliebig viele. Darf die Antwort mehrere Optionen zugleich
 wählen, steht nach den Optionen `— Auswahl: mehrere`; die Empfehlung nennt dann alle Buchstaben,
 durch Komma getrennt (`— Empfehlung: A, C`), und so kommt auch die Antwort (`A, C`, mit eigenem

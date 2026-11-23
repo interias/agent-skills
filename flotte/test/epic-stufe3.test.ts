@@ -115,6 +115,24 @@ describe('Schnittprüfung durch das Programm (#67)', () => {
     expect(ganz.welt.status[312]).toBeUndefined();
   }, T);
 
+  it('children linked only as sub-issues (dependency_source api) count too, with the children of the body; a read error is no silent skip', async () => {
+    const pakete = [paket('331'), paket('332')];
+    // sub-issue #333 and #334 in neither list: error; the body names none
+    expect(abdeckungFehler(schnitt({ pakete }), '## Was\nx', [331, 332, 333])).toBe('Kind #333 des Epics steht weder in zuordnung noch in uebersprungen');
+    expect(abdeckungFehler(schnitt({ pakete, uebersprungen: [{ nr: '333', grund: 'g', blocker: [] }] }), '## Was\nx', [331, 332, 333])).toBeNull();
+    // union with the body: a child only in the body is checked as before
+    expect(abdeckungFehler(schnitt({ pakete }), 'Kinder: #331, #335', [332])).toBe('Kind #335 des Epics steht weder in zuordnung noch in uebersprungen');
+    const fehlt = attrappe({ schnitt: { version: 1, pakete, tor: [] }, unterIssues: { 69: [331, 332, 333] } });
+    expect((await fahreEpic(einstellung(neuesRepo()), fehlt)).phase).toBe('abgebrochen');
+    expect(fehlt.welt.aufrufe[1].auftrag).toMatch(/Kind #333 des Epics steht weder in zuordnung noch in uebersprungen/);
+    const ganz = attrappe({ schnitt: { version: 1, pakete, tor: [], uebersprungen: [{ nr: '333', grund: 'g', blocker: [] }] }, unterIssues: { 69: [331, 332, 333] } });
+    expect((await fahreEpic(einstellung(neuesRepo()), ganz)).phase).toBe('fertig');
+    // a read error of the API stops like a read error of the body
+    const kaputt = attrappe({ schnitt: { version: 1, pakete, tor: [] } });
+    const echt = { ...kaputt.mechanik, unterIssues: async () => { throw new Error('gh api sub_issues: Exit 1'); } };
+    await expect(fahreEpic(einstellung(neuesRepo()), { ...kaputt, mechanik: echt })).rejects.toThrow('sub_issues');
+  }, T);
+
   it('an invalid implementer output is an event too', async () => {
     const u = attrappe({ schnitt: { version: 1, pakete: [paket('320')], tor: [] }, aufrufe: { 'implementer:320': [{ ohneAusgabe: true }, {}] } });
     const z = await fahreEpic(einstellung(neuesRepo()), u);

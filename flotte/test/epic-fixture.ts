@@ -129,6 +129,7 @@ export function forge(titel: Record<number, string> = {}): Forge {
       if (json === 'title') return ok(JSON.stringify({ title: f.titel[nr] ?? `Ticket ${nr}` }));
       if (json === 'body') return ok(JSON.stringify({ body: '' }));
     }
+    if (a === 'api' && /\/sub_issues$/.test(b)) return ok();
     if (a === 'issue' && b === 'edit') {
       const dazu = nach(args, '--add-label')?.split(',') ?? [];
       const weg = nach(args, '--remove-label')?.split(',') ?? [];
