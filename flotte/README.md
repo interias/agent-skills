@@ -512,6 +512,12 @@ brauchten eine zweite Review-Runde. Ein Hook, der Testausgabe kürzt, ein enger 
 Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wurden deshalb nicht
 übernommen (Begründung im Pull Request des Sparpakets).
 
+## Prüfen
+
+`bun test` braucht keine Installation und läuft in der Andockprüfung (`gate.ps1`). Die Typprüfung
+(`bun run typecheck`, `tsc -p .`) braucht die `devDependencies` und damit vorher `bun install` in
+`flotte/`; ein Worktree von `Up` hat kein `node_modules`, und die Andockprüfung fährt sie nicht.
+
 ## Bei dir
 
 Fragen, die der Admiral nicht entscheiden darf; das Andocken bei `merge: mensch`; eine Anmeldung,

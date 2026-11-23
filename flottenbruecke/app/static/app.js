@@ -335,7 +335,7 @@ function ebene2(t) {
   liste(box, u.bereit.map((b) => ({ ...b, form: 'bereit' })), bereitHtml, paketeVerdrahten, 'div');
 }
 
-// a ready epic: one line, below it its child tickets as the bar of level 2 (none in spec mode)
+// a ready epic: one line, below it its child tickets as the bar of level 2 (in spec mode the run's packages, none before its start)
 function bereitHtml(b) {
   const nr = b.issueUrl ? `<a class="nr" href="${esc(b.issueUrl)}">#${b.nr}</a>` : `<span class="nr">#${b.nr}</span>`;
   return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Missionen dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
@@ -403,6 +403,12 @@ function paketeVerdrahten(el, x) {
   }
 }
 
+// #151: the gate under way (Andockprüfung), the run's or the driver's: which run of it and since when
+function gateLaufHtml(g) {
+  if (!g) return '';
+  return `<span class="gate-lauf">Andockprüfung ${esc(g.n)}${datum(g.seit) ? ` · Start ${esc(uhrzeit(g.seit))}, ${zeitHtml(g.seit, 'seit {}', null, 'rel gate')}` : ''}</span>`;
+}
+
 function laufHtml(x) {
   const nr = x.issueUrl ? `<a class="nr" href="${esc(x.issueUrl)}">#${x.nr}</a>` : `<span class="nr">#${x.nr}</span>`;
   // how long the epic runs (since its first run); a tap shows the start as clock time
@@ -410,11 +416,11 @@ function laufHtml(x) {
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
   const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
   // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
-  const meta = x.form === 'lauf' ? [x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
+  const meta = x.form === 'lauf' ? [gateLaufHtml(x.gateLauf), x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
   const kopfmeta = meta.length ? `<span class="epic-meta">${meta.join(' · ')}</span>` : '';
   if (x.form === 'schlange') {
     const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
-    const gate = x.gateSeit ? zeitHtml(x.gateSeit, 'Andockprüfung seit {}', null, 'rel gate') : '';
+    const gate = x.gateLauf ? gateLaufHtml(x.gateLauf) : x.gateSeit ? zeitHtml(x.gateSeit, 'Andockprüfung seit {}', null, 'rel gate') : '';
     return `${kopfz}${titel}<span class="schritt">${pr}${x.notiz ? ` · ${esc(x.notiz)}` : ''}</span>${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
   }
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';

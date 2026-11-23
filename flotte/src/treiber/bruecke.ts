@@ -135,6 +135,8 @@ export interface BerichtEpic {
   /** detail view (#51), optional: runs and continuations of the driver after the first start; places in use against the window */
   neustarts?: number;
   plaetze?: { belegt: number; von?: number };
+  /** #151, only while a gate runs: the gate run of the run (its n-th call of the gate command) or of the driver (its n-th), with its start */
+  gateLauf?: { n: number; seit: string | null };
 }
 
 /** A decision for the bridge; von (#52): mensch, admiral, or lauf (the admiral followed the run's recommendation). */
