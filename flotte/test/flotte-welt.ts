@@ -68,6 +68,8 @@ export interface Protokoll {
   /** bodies written with `gh pr edit` */
   prEdits: { pr: number; body: string }[];
   gates: { befehl: string; cwd: string }[];
+  /** #37: the Windows notifications the driver would show (powershell, never run) */
+  toasts: { args: string[]; env: Record<string, string> | undefined }[];
 }
 
 export function aufbau(o: Optionen = {}) {
@@ -90,7 +92,7 @@ export function aufbau(o: Optionen = {}) {
     }
     return k;
   });
-  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [] };
+  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [], toasts: [] };
   let gateN = 0;
   let ramN = 0;
   const prN = new Map<number, number>();
@@ -141,6 +143,10 @@ export function aufbau(o: Optionen = {}) {
   const langsam: AsyncAufrufer = async (programm, args, opts) => {
     p.aufrufe.push([programm, ...args]);
     if (programm === 'git') return aufrufen(programm, args, opts);
+    if (programm === 'powershell') {
+      p.toasts.push({ args, env: opts?.env });
+      return ok();
+    }
     const skript = skriptVon(args);
     const befehl = args[args.indexOf('-Command') + 1] ?? '';
     if (args.includes('-Command') && befehl.startsWith('gate') && o.gate) {
@@ -259,3 +265,31 @@ export const gateGefahren = () => gateAufruf(`> gate\n${GATE_BLOCK}\n`);
 export const ping =(anteil: number) => ({ wenn: '^FLOTTE-PING', schritte: [{ verbrauch: [anteil, 0.1] }, { text: 'OK' }] });
 
 export { drehbuch };
+
+const gitIn = (cwd: string, ...args: string[]) => {
+  const r = aufrufen('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args]);
+  if (r.code) throw new Error(r.stderr);
+  return r.stdout.trim();
+};
+
+/** a forge stand-in: a bare origin with two commits on main and a source cloned from it at the first */
+export function quelleMitOrigin(): { quelle: string; alt: string; neu: string } {
+  const wurzel = mkdtempSync(join(tmpdir(), 'flotte-stand-'));
+  const origin = join(wurzel, 'origin.git');
+  const arbeit = join(wurzel, 'arbeit');
+  aufrufen('git', ['init', '-q', '--bare', '-b', 'main', origin]);
+  aufrufen('git', ['clone', '-q', origin, arbeit]);
+  gitIn(arbeit, 'checkout', '-q', '-b', 'main');
+  writeFileSync(join(arbeit, 'a.txt'), 'a');
+  gitIn(arbeit, 'add', '-A');
+  gitIn(arbeit, 'commit', '-q', '-m', 'Erster Stand');
+  gitIn(arbeit, 'push', '-q', 'origin', 'main');
+  const alt = gitIn(arbeit, 'rev-parse', 'HEAD');
+  const quelle = join(wurzel, 'quelle');
+  aufrufen('git', ['clone', '-q', origin, quelle]);
+  writeFileSync(join(arbeit, 'b.txt'), 'b');
+  gitIn(arbeit, 'add', '-A');
+  gitIn(arbeit, 'commit', '-q', '-m', 'Merge pull request #155 from interias/epic/149\n\nSchnittplan: Triage fasst Notizen');
+  gitIn(arbeit, 'push', '-q', 'origin', 'main');
+  return { quelle, alt, neu: gitIn(arbeit, 'rev-parse', 'HEAD') };
+}

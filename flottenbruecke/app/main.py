@@ -6,6 +6,12 @@
 # bridge only tightens, merge.ps1 stays the hard limit. No merge of its own, no abort. The Holodeck (#44)
 # shows the prototypes each driver sends, sealed off from the bridge. The Werft of each machine (#90)
 # reports its stand and fetches what the person asks: pull a stack, release a working migration, settings.
+# With a VAPID key (#37) each new
+# event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN. #154: it shows the stand of
+# itself (BRUECKE_COMMIT, BRUECKE_DATUM, build arguments of its image) and of each driver, and carries the update
+# the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again. #48 (ADR-0006):
+# a second entry, FERNPORT, which only the optional Tailscale add-on reaches, is view only: the page and every reading
+# endpoint as in the LAN, every request that writes refused, whatever PIN it carries.
 
 import hashlib
 import hmac
@@ -19,17 +25,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .modelle import Antwort, Bericht, Handlung, Holodeck, WerftBericht, WerftHandlung, einstellung_pruefen
+from .meldung import Push, ereignisse, inhalt
+from .modelle import Antwort, Bericht, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, tafel
 
 STATIC = Path(__file__).parent / 'static'
 FEHLVERSUCHE = 5
 SPERRE_S = 300
+# #48: the remote entry in the container (app/start.py), never published on the machine; the Tailscale add-on proxies to it
+FERNPORT = 8001
+# GETs that write: fetching marks answers and actions as fetched. Only the driver fetches, and only in the LAN.
+ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen')
 
 # A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
 # bridge's localStorage (the PIN) nor its cookies nor the answers of its API. Static resources from
@@ -62,10 +73,24 @@ class Einstellung:
     token: str = ''
     tz: str = 'Europe/Berlin'
     uhr: object = field(default=lambda: datetime.now(timezone.utc))
+    # #37 Web-Push: off without the VAPID key; the contact goes to the push service as `sub`
+    vapid: str = ''
+    vapid_kontakt: str = 'mailto:flottenbruecke@localhost'
+    # replaces pywebpush.webpush (tests: the push service as a stand-in)
+    push_senden: object = None
+    # #154: commit and date of the image, build arguments filled when the driver (or a person) builds it
+    commit: str = ''
+    datum: str = ''
 
     @classmethod
     def aus_umgebung(cls) -> 'Einstellung':
-        return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz))
+        return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt, commit=os.environ.get('BRUECKE_COMMIT', ''), datum=os.environ.get('BRUECKE_DATUM', ''))
+
+
+def fernweg(request: Request) -> bool:
+    """The entry is the socket the request came in on (uvicorn: its local address), not a sender or a header a client sets."""
+    server = request.scope.get('server')
+    return bool(server) and server[1] == FERNPORT
 
 
 class Pinwache:
@@ -96,7 +121,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     tz = ZoneInfo(e.tz)
     speicher = Speicher(e.db)
     wache = Pinwache()
+    push = Push(e.vapid, e.vapid_kontakt, e.push_senden) if e.vapid else None
     app = FastAPI(title='Flottenbrücke', docs_url=None, redoc_url=None, openapi_url=None)
+
+    # #48: over the remote entry only viewing; a principle, not a list of endpoints, so every later one is covered
+    @app.middleware('http')
+    async def nur_ansicht(request: Request, weiter):
+        if fernweg(request) and (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN):
+            return JSONResponse({'detail': 'Über den Fernweg nur Ansicht: Antworten und Handlungen gehen nur im LAN.'}, status_code=403)
+        return await weiter(request)
 
     def jetzt() -> datetime:
         return e.uhr()
@@ -111,9 +144,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # ---- driver
 
     @app.post('/api/bericht')
-    def bericht(b: Bericht, x_bruecke_token: str | None = Header(None)) -> dict:
+    def bericht(b: Bericht, hinterher: BackgroundTasks, x_bruecke_token: str | None = Header(None)) -> dict:
         treiber(x_bruecke_token)
         neu = speicher.bericht_speichern(b.forge, b.model_dump(), stempel())
+        # #37: each event of "Braucht dich" once, also without push (switched on later, nothing old rings);
+        # the new ones of this report as one push, after the answer to the driver
+        alle = ereignisse(speicher.projekt(b.forge), speicher.stufen_seit(), jetzt(), tz)
+        frisch = speicher.neu_gemeldet(b.forge, [x['schluessel'] for x in alle])
+        if push and frisch:
+            hinterher.add_task(push.verschicke, speicher, inhalt([x for x in alle if x['schluessel'] in frisch]))
         return {'ok': True, 'neu': neu}
 
     @app.get('/api/antworten')
@@ -171,8 +210,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # ---- page
 
     @app.get('/api/tafel')
-    def board() -> dict:
-        return tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen())
+    def board(request: Request) -> dict:
+        # push: the public VAPID key when Web-Push is on (#37), else None
+        # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
+        # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
+        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')
@@ -187,6 +229,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
         if h.art == 'triage':
             return triage_starten(h)
+        if h.art == 'einspielen':
+            return einspielen_starten(h)
         p = speicher.projekt(h.forge)
         b = p['bericht'] if p else {}
         ep = next((x for x in b.get('epics', []) if x['nr'] == h.epic), None)
@@ -286,6 +330,34 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
         return {'ok': True, 'id': ids[0], 'ids': ids}
 
+    def einspielen_starten(h: Handlung) -> dict:
+        """#154: one update per driver, or (forge `alle`) one for each driver that reports its stand and is not halting
+        for one already. The text is the commit of this bridge's image: the driver builds it only when flottenbruecke/
+        changed since."""
+        kann = lambda b: b.get('version') and not b['version'].get('einspielen')
+        if h.forge == 'alle':
+            ziele = [p['forge'] for p in speicher.projekte() if kann(p['bericht'])]
+            if not ziele:
+                raise HTTPException(409, 'Kein Treiber kann gerade einspielen.')
+        else:
+            p = speicher.projekt(h.forge)
+            if p is None:
+                raise HTTPException(404, 'Dieses Projekt kennt die Brücke nicht.')
+            if not p['bericht'].get('version'):
+                raise HTTPException(409, 'Dieser Treiber meldet keinen Stand (älterer Stand): einspielen von Hand.')
+            if p['bericht']['version'].get('einspielen'):
+                raise HTTPException(409, 'Der Treiber hält schon zum Einspielen an.')
+            ziele = [h.forge]
+        text = json.dumps({'bruecke': e.commit or None})
+        ids = []
+        for forge in ziele:
+            gespeichert = speicher.handlung_setzen(forge, 0, 'einspielen', None, None, text, stempel())
+            if gespeichert is not None:
+                ids.append(gespeichert['id'])
+        if not ids:
+            raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
+        return {'ok': True, 'id': ids[0], 'ids': ids}
+
     @app.post('/api/werft/handlung')
     def werft_handeln(h: WerftHandlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
         """#90: only with the PIN, checked against the last report of that machine's Werft; the Werft checks again."""
@@ -339,6 +411,21 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(409, 'Der Treiber hat die Antwort schon abgeholt.')
         return {'ok': True, 'id': gespeichert['id']}
 
+    # ---- Web-Push (#37): a device subscribes and unsubscribes only with the PIN
+
+    @app.post('/api/push')
+    def abonnieren(a: PushAbo, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        if not push:
+            raise HTTPException(409, 'Web-Push ist aus: kein VAPID-Schlüssel (BRUECKE_VAPID_SCHLUESSEL in .env).')
+        speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel())
+        return {'ok': True}
+
+    @app.post('/api/push/abmelden')
+    def abmelden(a: PushAbmeldung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        return {'ok': True, 'geloescht': speicher.abo_loeschen(a.endpoint)}
+
     @app.get('/healthz')
     def gesund() -> dict:
         return {'ok': True}
@@ -355,6 +442,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/')
     def seite() -> HTMLResponse:
         return HTMLResponse(seite_html, headers={'Cache-Control': 'no-cache'})
+
+    # the service worker from the root: its scope is the whole page (#37)
+    @app.get('/sw.js')
+    def service_worker() -> FileResponse:
+        return FileResponse(STATIC / 'sw.js', media_type='text/javascript', headers={'Cache-Control': 'no-cache'})
 
     @app.get('/favicon.ico')
     def favicon() -> FileResponse:

@@ -26,6 +26,10 @@
     A folder or file under such a name with other content, a folder without SKILL.md and every
     name not on the list stay, with one line saying why.
 
+    Each installed skill folder gets a stand.json (#154): the commit of the source, its date, the time of
+    the install and the source folder. The fleet driver shows it on the bridge and updates itself from
+    that source. Without a git repository at the top of the source, no stand.json is written.
+
     Agent definitions (agents/*.md) are copied file by file. An existing file that differs is
     first backed up to $env:USERPROFILE\.claude\skills-backup\agents-<yyyyMMdd-HHmmss>\.
 
@@ -116,6 +120,24 @@ function Backup-Folder([string]$path, [string]$name) {
     Write-Host "Backed up $backupCount file(s) to $backupDir"
 }
 
+# #154: the stand of the source as JSON, or $null when the source is not the top of a git repository.
+function Get-SourceStand {
+    $ErrorActionPreference = 'Continue'
+    try {
+        $top = & git -C $repoRoot rev-parse --show-toplevel 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $top -or (Resolve-Path $top).Path -ne (Resolve-Path $repoRoot).Path) { return $null }
+        $commit = (& git -C $repoRoot rev-parse HEAD 2>$null | Out-String).Trim()
+        $datum = (& git -C $repoRoot log -1 --format=%cI HEAD 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or -not $commit) { return $null }
+    } catch { return $null }
+    [ordered]@{ commit = $commit; datum = $datum; installiert = (Get-Date).ToString('o'); quelle = $repoRoot } | ConvertTo-Json
+}
+
+# Writes stand.json into an installed skill folder, UTF-8 without BOM (the driver parses it as JSON).
+function Write-Stand([string]$target) {
+    if ($stand) { [IO.File]::WriteAllText((Join-Path $target 'stand.json'), $stand) }
+}
+
 # Discover skill folders in the repo: any top-level directory containing a SKILL.md.
 $allSkills = Get-ChildItem -Path $repoRoot -Directory | Where-Object {
     Test-Path (Join-Path $_.FullName 'SKILL.md')
@@ -135,6 +157,13 @@ if (-not $skillsToInstall) {
 }
 
 Write-Host "Skills to install: $($skillsToInstall.Name -join ', ')"
+$stand = Get-SourceStand
+if ($stand) {
+    $s = $stand | ConvertFrom-Json
+    Write-Host "Stand $($s.commit.Substring(0, 7)) ($($s.datum))"
+} else {
+    Write-Host "No stand: $repoRoot is not the top of a git repository, the installed skills get no stand.json." -ForegroundColor Yellow
+}
 if ($DryRun) {
     Write-Host "-- DRY RUN: nothing will be changed --" -ForegroundColor Yellow
 }
@@ -154,6 +183,7 @@ foreach ($skillDir in $skillsToInstall) {
         if (-not $DryRun) {
             New-Item -ItemType Directory -Path $target -Force | Out-Null
             Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
+            Write-Stand $target
             Write-Host "Copied." -ForegroundColor Green
         } else {
             Write-Host "[DryRun] Would create target and copy files."
@@ -179,6 +209,7 @@ foreach ($skillDir in $skillsToInstall) {
 
     # Copy fresh contents from the repo.
     Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
+    Write-Stand $target
     Write-Host "Installed to $target" -ForegroundColor Green
 }
 
