@@ -245,6 +245,16 @@ describe('Gitea layer without a server', () => {
     expect(posts[2]).toEqual(['/issues/5/dependencies', { owner: 'o', repo: 'r', index: 6 }]);
   });
 
+  it('#157: verknuepft reads the edges of the mission (Gitea) or the parent of the child (GitHub)', async () => {
+    const abruf = (async (url: string) => new Response(JSON.stringify(url.includes('/issues/5/dependencies') ? [{ number: 6 }, { number: 9 }] : []))) as unknown as typeof fetch;
+    const gitea = giteaForge('http://g.test/api/v1/repos/o/r', () => 'token x', REGELN, abruf);
+    expect([await gitea.verknuepft(5, 6), await gitea.verknuepft(5, 7), await gitea.verknuepft(4, 6)]).toEqual([true, false, false]);
+    const eltern: Record<string, string> = { '6': 'https://api.github.com/repos/o/r/issues/5', '7': 'null', '8': 'https://api.github.com/repos/o/r/issues/55' };
+    const aufrufer: Aufrufer = (_p, args) => ({ code: 0, stdout: `${eltern[args[1].split('/').pop()!]}\n`, stderr: '' });
+    const github = githubForge(aufrufer, 'o/r', REGELN);
+    expect([await github.verknuepft(5, 6), await github.verknuepft(5, 7), await github.verknuepft(5, 8)]).toEqual([true, false, false]);
+  });
+
   it('an API error is thrown with status, never with the login', async () => {
     const abruf = (async () => new Response('nope', { status: 404 })) as unknown as typeof fetch;
     const forge = giteaForge('http://g.test/api/v1/repos/o/r', () => 'token geheim', REGELN, abruf);
