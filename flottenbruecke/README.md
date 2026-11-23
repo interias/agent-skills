@@ -326,6 +326,10 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   anmelden → Forge verknüpfen → Projekt hinzufügen, je offen / wartet auf den Rechner / fertig; fertige
   klappen zu); ist alles da, startet sie auf der Brücke. Bilder:
   `doku/v3-maschinenraum-einrichten-1440.png`, `-390.png`, `doku/v3-maschinenraum-konten-1440.png`, `-390.png`.
+  Darunter (#125) **Forge** je Projekt: GitHub oder Gitea, Repository, angemeldet als …, Schreibrecht, bei
+  Gitea der Hinweis, dass der Treiber es noch nicht fährt (#127), und **Am Rechner verknüpfen** (PIN): Der
+  Rechner öffnet ein Terminal mit `gh auth login` bzw. fragt dort Benutzer und Token für den
+  Git-Credential-Speicher ab; kein Token geht durch die Brücke. Bilder: `doku/v3-maschinenraum-forge-1440.png`, `-390.png`.
   Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die zwölf wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken) und ein Satz, was

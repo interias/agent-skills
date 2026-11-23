@@ -5,6 +5,7 @@
 
 import { adapter } from './befehle/adapter.ts';
 import { epic } from './befehle/epic.ts';
+import { forge } from './befehle/forge.ts';
 import { konten } from './befehle/konten.ts';
 import { auftrag } from './befehle/auftrag.ts';
 import { chat } from './befehle/chat.ts';
@@ -41,6 +42,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   werft: (argv) => werft(argv),
   chat: (argv) => chat(argv),
   konten: (argv) => konten(argv),
+  forge: (argv) => forge(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {

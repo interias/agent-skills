@@ -65,11 +65,35 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     return `${ohne}${liste.length ? `<div class="mr-reihe">${liste.map((k) => kontoEintragHtml(k, t)).join('')}</div>` : ''}${anlegen}`;
   }
 
+  // ---- forge (#125): per project the state the driver reports, never a token; "Am Rechner verknüpfen" is an
+  // action with the PIN: the machine opens a terminal (gh auth login, or the Gitea token into its credential store)
+  const FORGE_NAME = { github: 'GitHub', gitea: 'Gitea' };
+
+  function forgeKarteHtml(t, p) {
+    const f = p.forgeStatus;
+    const zu = !t.pin || p.verknuepfen ? ' disabled' : '';
+    const anmeldung = !f ? nichts('Forge') : f.angemeldet ? `<b class="ok">angemeldet</b>${f.konto ? ` als ${esc(f.konto)}` : ''}` : '<b class="knapp">nicht angemeldet</b>';
+    const rechte = !f || !f.angemeldet ? '<span class="mr-leer">–</span>' : f.rechte === 'ok' ? '<b class="ok">Schreiben</b>' : '<b class="knapp">fehlen</b> · das Konto darf nicht pushen';
+    const gitea = f && !f.treiber ? '<p class="mr-hilfe">Der Treiber spricht noch kein Gitea (#127): Missionen dieses Projekts fährt er noch nicht.</p>' : '';
+    const knopf = p.meldetForge ? `<div class="knoepfe"><button type="button" class="knopf ${f && f.angemeldet && f.rechte === 'ok' ? 'zweit' : 'haupt'}" data-forge-verknuepfen="${esc(p.forge)}"${zu}>Am Rechner verknüpfen</button><span class="status" role="status">${p.verknuepfen ? `<span class="mr-wartet">Verknüpfen wartet auf den Rechner${p.verknuepfen.abgeholt ? ' · abgeholt' : ''}</span>` : ''}</span></div>` : '';
+    return `<article class="mr-karte mr-forge${p.veraltet ? ' veraltet' : ''}"><h3>${esc(f ? FORGE_NAME[f.art] ?? f.art : 'Forge')} · ${esc(p.kurz)}</h3>
+<dl><dt>Repository</dt><dd>${esc(f ? f.forge : p.forge)}</dd><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Rechte</dt><dd>${rechte}</dd></dl>${gitea}${knopf}</article>`;
+  }
+
+  const forgeHtml = (t) => (t.projekte.length ? `<h3 class="mr-titel">Forge</h3><div class="mr-reihe">${t.projekte.map((p) => forgeKarteHtml(t, p)).join('')}</div>` : '');
+
+  async function forgeKnopf(ev) {
+    const b = ev.target.closest('[data-forge-verknuepfen]');
+    if (!(await bestaetigen('Am Rechner ein Terminal zum Verknüpfen der Forge öffnen? Dort meldest du dich an; kein Token geht durch die Brücke.', 'Öffnen'))) return;
+    const zeile = b.closest('.knoepfe');
+    if (await senden('/api/handlung', { forge: b.dataset.forgeVerknuepfen, epic: 0, art: 'forge_verknuepfen', nr: null, seit: null, text: null }, zeile, zeile.querySelector('.status'))) await laden();
+  }
+
   // the guided start (#96): what is still missing, in this order; finished steps fold away
   const SCHRITT = {
     konto: { titel: 'Konto anlegen', text: 'Ein Konto ist ein Claude-Konfigordner auf dem Rechner. Mit laufendem Treiber legt „Konto anlegen“ unten das nächste an; ohne Treiber am Rechner: <code>flotte konten anlegen</code>.' },
     anmeldung: { titel: 'Am Rechner anmelden', text: '„Am Rechner anmelden“ öffnet dort ein Terminal mit <code>claude</code>; die Anmeldung (<code>/login</code>) machst du am Rechner, nichts davon geht durch die Brücke. Ohne Treiber: <code>flotte konten anmelden &lt;nr&gt;</code>.' },
-    forge: { titel: 'Forge verknüpfen', text: 'GitHub am Rechner mit <code>gh auth login</code>. Sobald ein Treiber ein Projekt meldet, steht die Verknüpfung.' },
+    forge: { titel: 'Forge verknüpfen', text: '„Am Rechner verknüpfen“ unter „Forge“ öffnet dort <code>gh auth login</code> (Gitea: Benutzer und Token in den Git-Credential-Speicher des Rechners); ohne Treiber: <code>flotte forge verknuepfen &lt;repo&gt;</code>. Fertig, wenn ein Treiber die Forge angemeldet und mit Schreibrecht meldet.' },
     projekt: { titel: 'Projekt hinzufügen', text: 'Im Repository-Ordner den Treiber starten (<code>flotte fahren</code>, siehe Skill <code>flotte</code>); sein erster Bericht legt das Projekt hier an.' },
   };
   const STAND_SCHRITT = { offen: 'offen', wartet: 'wartet auf den Rechner', fertig: 'fertig' };
@@ -442,7 +466,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
@@ -454,6 +478,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
           else if (ev.target.closest('[data-push]')) push(ev);
           else if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
           else if (ev.target.closest('[data-konto]')) kontoKnopf(ev);
+          else if (ev.target.closest('[data-forge-verknuepfen]')) forgeKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
