@@ -1138,7 +1138,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       ticket.body,
       regelnAus(''),
     ) as Exclude<Entscheidung, { art: 'ungueltig' }>;
-    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage'], 'ready-for-agent'), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
+    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage']), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
     const aufrufer: Aufrufer = (p, a, o) => {
       if (p === 'gh' && a[0] === 'issue' && a[1] === 'list' && a.includes('needs-triage')) {
         const mensch = t.p.kommentare.filter((k) => k.nr === 61).map((k) => ({ body: k.text, author: { login: 'mensch' }, createdAt: '2026-11-20T15:00:00Z', authorAssociation: 'OWNER' }));
@@ -1210,8 +1210,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // 31 and 32 failed at their mission: each counts once as without result, the mission not again
       ...ergebnis([{ nummer: 30, ergebnis: 'klar', mission: 100, zuordnung: 'neue_mission' }, { nummer: 31, ergebnis: 'klar', zuordnung: 'neue_mission', fehler: 'Kommentar steht, Mission „Q“ nicht angelegt' }, { nummer: 32, ergebnis: 'klar', zuordnung: 'mission', fehler: 'Kommentar steht, Kommentar an Mission #40 gescheitert: nicht angehängt' }]),
       schnittplan: [
-        { forge: 'o/r', neue_missionen: [{ schluessel: 'p', titel: 'Port', begruendung: 'b', kinder: [30], nummer: 100, url: 'https://github.com/o/r/issues/100', angehaengt: [30], geschrieben: true }, { schluessel: 'q', titel: 'Q', begruendung: 'b', kinder: [31], fehler: 'HTTP 502' }], missionen: [{ nummer: 40, titel: 'T', kinder: [32], angehaengt: [], kommentar: 'k', geschrieben: false, fehler: 'Kommentar gescheitert, nichts angehängt' }], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
-        { forge: 'o/r', neue_missionen: [], zuordnungen: [], fehler: 'Sternzeit-Notiz #1 ohne Zuordnung' },
+        { forge: 'o/r', aufrufe: 1, neue_missionen: [{ schluessel: 'p', titel: 'Port', begruendung: 'b', kinder: [30], nummer: 100, url: 'https://github.com/o/r/issues/100', angehaengt: [30], geschrieben: true }, { schluessel: 'q', titel: 'Q', begruendung: 'b', kinder: [31], fehler: 'HTTP 502' }], missionen: [{ nummer: 40, titel: 'T', kinder: [32], angehaengt: [], kommentar: 'k', geschrieben: false, fehler: 'Kommentar gescheitert, nichts angehängt' }], sitzung: 's', zuordnungen: [zu(20, 'verworfen'), zu(21, 'zusammengefuehrt', { in: 22, grund: 'dasselbe' }), zu(22, 'triage', { geschrieben: undefined, kommentar: undefined }), zu(23, 'verworfen', { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] },
+        { forge: 'o/r', aufrufe: 2, neue_missionen: [], zuordnungen: [], fehler: 'Sternzeit-Notiz #1 ohne Zuordnung' },
       ],
     } as Awaited<ReturnType<typeof triagiere>>;
     const tr = triageAttrappe(r, 50);
@@ -1267,6 +1267,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       schnittplan: [
         {
           forge: 'o/r',
+          aufrufe: 1,
           neue_missionen: [
             { schluessel: 'p', titel: 'Portprüfung', begruendung: 'Drei Notizen zum selben Port', kinder: [30, 31, 34], nummer: missionNeu, url: `https://github.com/o/r/issues/${missionNeu}`, labels: ['epic', 'ready-for-agent'], angehaengt: [30, 31], geschrieben: true },
             // not created: no clear child, no number
