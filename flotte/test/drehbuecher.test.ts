@@ -302,6 +302,9 @@ describe('Drehbücher (#14)', () => {
       expect(k).toHaveLength(1);
       expect(k[0].text).toMatch(/#21/);
       expect(k[0].text).not.toMatch(/#22/);
+      // the driver does not start a done mission again: the comment promises nothing else
+      expect(k[0].text).toMatch(/startet sie dafür nicht neu/);
+      expect(k[0].text).not.toMatch(/startet erst wieder/);
     }, T);
 
     it('a Missionsziel whose state cannot be read is unknown: nothing written; a later start closes the mission once all are closed', async () => {

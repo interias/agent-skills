@@ -94,6 +94,6 @@ export function missionAbschliessen(a: Aufrufer, forge: string, nr: number, pr: 
   const liste = offen.map((k) => `#${k}`).join(', ');
   if (nachlauf) return { text: `Mission bleibt offen (${liste} offen), beim Start nichts geändert`, endgueltig: false };
   if (a('gh', ['issue', 'edit', String(nr), '--repo', forge, '--remove-label', readyLabel]).code) return null;
-  kommentar(a, forge, nr, `**Mission bleibt offen (Flotte)** — Pull Request #${pr} ist angedockt: ${url}\nNoch offen: ${liste}. \`${readyLabel}\` ist abgenommen; die Mission startet erst wieder, wenn ein offenes Missionsziel freigegeben ist.`);
+  kommentar(a, forge, nr, `**Mission bleibt offen (Flotte)** — Pull Request #${pr} ist angedockt: ${url}\nNoch offen: ${liste}. \`${readyLabel}\` ist abgenommen; der Treiber startet sie dafür nicht neu. Die offenen Missionsziele brauchen eine neue Mission oder einen Menschen.`);
   return { text: `Mission bleibt offen (${liste} offen), ${readyLabel} abgenommen`, endgueltig: false };
 }
