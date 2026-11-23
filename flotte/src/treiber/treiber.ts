@@ -28,7 +28,7 @@ import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
-import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../werkzeuge/detail.ts';
+import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
 
 export interface Einstellung {
@@ -339,6 +339,9 @@ export function guardArgs(guard: string): string[] {
 
 /** how often the driver reads the child tickets of an epic for the package bar of the bridge */
 export const PAKETE_MS = 5 * 60_000;
+
+/** #151: the key of a spec package `P<k>` in the run's calls, `<spec>-p<k>` */
+const specSchluessel = (nr: number, name: string) => `${nr}-p${name.replace(/^P/, '')}`;
 
 /**
  * #116: how often the driver reads the Sternzeit-Notizen for the Frachtraum without a cause (two gh calls):
@@ -835,6 +838,8 @@ class Treiber {
     ep.log = join(laeufe, `${nr}-${this.w.jetzt()}-${this.z.statistik.starts}.jsonl`);
     this.z.statistik.starts++;
     ep.starts = (ep.starts ?? 0) + 1;
+    // #151: a gate an earlier process left without its return (it ended first) runs no more; the count stays
+    if (ep.agenten) fuegeAn(ep.agenten, ep.agenten.filter((a) => a.art === 'aufruf' && a.rolle === 'gate').map((a) => ({ zeit: this.w.jetzt(), art: 'rueckkehr' as const, id: a.id })));
     const p = this.w
       .starte({
         ...this.programm(),
@@ -881,7 +886,8 @@ class Treiber {
   agentZeile(ep: FlottenEpic, zeile: string, zeit: number, nachlese: boolean): void {
     if (!this.e.bruecke) return;
     if (!zeile.includes('"tool_use') && !zeile.includes('"parent_tool_use_id":"')) return;
-    const neu = eintraegeAus(zeile, zeit).filter((e) => !(nachlese && e.art === 'unter'));
+    const gate = [this.adapter?.gate_command, this.adapter?.gate_always_command].filter((b): b is string => Boolean(b));
+    const neu = eintraegeAus(zeile, zeit, gate).filter((e) => !(nachlese && e.art === 'unter'));
     if (neu.length) fuegeAn((ep.agenten ??= []), neu);
   }
 
@@ -2195,16 +2201,26 @@ class Treiber {
 
   /**
    * The child tickets of each epic, waiting ones ("Bereit") included, with title and stand (#28, Nachtrag 2), only with a bridge and at
-   * most every PAKETE_MS per epic; a stage change reads them again. Spec mode has no children here.
+   * most every PAKETE_MS per epic; a stage change reads them again. Spec mode has no children: its
+   * packages are those of the run (specPakete, #151), the merges read here.
    */
   paketeLesen(): void {
     if (!this.bruecke) return;
     for (const b of this.bilder) {
       const ep = this.epic(b.nr);
-      if (!ep || !b.kinder?.length) continue;
+      if (!ep) continue;
       const schluessel = `${ep.stufe}|${ep.geparkt.join(',')}`;
       if (ep.paketeZeit && this.w.jetzt() - ep.paketeZeit < PAKETE_MS && this.paketeStand.get(b.nr) === schluessel) continue;
       if (ep.paketeZeit && ['fertig', 'abgebrochen'].includes(ep.stufe) && ep.pakete?.length) continue;
+      if (!b.kinder?.length) {
+        if (!ep.agenten?.length) continue;
+        this.paketeStand.set(b.nr, schluessel);
+        ep.paketeZeit = this.w.jetzt();
+        const imBranch = this.imEpicBranch(b.nr);
+        ep.pakete = this.specPakete(ep, new Map([...imBranch].filter((e): e is [string, string] => typeof e[0] === 'string')));
+        this.tafelAlt = true;
+        continue;
+      }
       this.paketeStand.set(b.nr, schluessel);
       ep.paketeZeit = this.w.jetzt();
       const alt = new Map((ep.pakete ?? []).map((p) => [p.nr, p]));
@@ -2246,10 +2262,11 @@ class Treiber {
    * (status/in-arbeit) until the epic PR closes it. One git log per epic read: the local branch
    * epic/<nr>-… (often only in the epic worktree), else origin/epic/<nr>-…, without the commits of
    * other branches (the base); a commit counts by
-   * `Merge … agent/<kind>-…`, `(#<kind>)` or `Merge #<kind>: …` in its subject (kinderAusBetreff).
+   * `Merge … agent/<kind>-…`, `(#<kind>)` or `Merge #<kind>: …` in its subject (kinderAusBetreff),
+   * a spec package the same way by `<spec>-p<k>` (specAusBetreff).
    */
-  imEpicBranch(nr: number): Map<number, string> {
-    const fertig = new Map<number, string>();
+  imEpicBranch(nr: number): Map<number | string, string> {
+    const fertig = new Map<number | string, string>();
     const refs = this.w.aufrufer('git', ['-C', this.e.repo, 'for-each-ref', '--format=%(refname)', `refs/heads/epic/${nr}-*`, `refs/heads/epic/${nr}`, `refs/remotes/origin/epic/${nr}-*`, `refs/remotes/origin/epic/${nr}`]);
     if (refs.code) return fertig;
     const alle = refs.stdout.split('\n').map((z) => z.trim()).filter(Boolean);
@@ -2261,7 +2278,7 @@ class Treiber {
     // newest first: the last hit of a child is its first merge
     for (const zeile of log.stdout.split('\n')) {
       const [zeit, betreff = ''] = zeile.split('\t');
-      for (const k of kinderAusBetreff(betreff)) fertig.set(k, new Date(zeit).toISOString());
+      for (const k of [...kinderAusBetreff(betreff), ...specAusBetreff(betreff)]) fertig.set(k, new Date(zeit).toISOString());
     }
     return fertig;
   }
@@ -2364,7 +2381,7 @@ class Treiber {
    * epic branch has no phase; while the epic is not at work (PR, queue) none has, the rest stays.
    */
   paketDetail(ep: FlottenEpic): ReturnType<typeof ableiten> {
-    const alle = ableiten(ep.agenten ?? [], new Set((ep.pakete ?? []).filter((p) => p.stand === 'fertig' && p.nr != null).map((p) => p.nr!)));
+    const alle = ableiten(ep.agenten ?? [], new Set((ep.pakete ?? []).filter((p) => p.stand === 'fertig').map((p) => p.nr ?? specSchluessel(ep.nr, p.name))));
     if (!['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe)) {
       for (const d of alle.values()) {
         delete d.phase;
@@ -2372,6 +2389,23 @@ class Treiber {
       }
     }
     return alle;
+  }
+
+  /**
+   * #151: the packages of a spec epic (no children): each package `<spec>-p<k>` an Agent call of the
+   * run names, and each one merged into the epic branch (`fertig`, with the time of the merge), as
+   * `P<k>`. A package called and not merged is working, parked when the driver parked it.
+   */
+  specPakete(ep: FlottenEpic, fertig: Map<string, string>): BerichtPaket[] {
+    const vor = `${ep.nr}-p`;
+    const aufrufe = (ep.agenten ?? []).filter((a) => a.art === 'aufruf' && typeof a.paket === 'string' && a.paket.startsWith(vor));
+    const namen = [...new Set([...aufrufe.map((a) => a.paket as string), ...[...fertig.keys()].filter((k) => k.startsWith(vor))])].sort((a, b) => Number(a.slice(vor.length)) - Number(b.slice(vor.length)));
+    return namen.map((k) => {
+      const name = `P${k.slice(vor.length)}`;
+      const geparkt = ep.geparkt.some((g) => [k, name.toLowerCase()].includes(g.replace(/^#/, '').toLowerCase()));
+      const erst = aufrufe.find((a) => a.paket === k && a.zeit != null)?.zeit;
+      return { name, nr: null, titel: aufrufe.find((a) => a.paket === k && a.titel)?.titel ?? '', stand: fertig.has(k) ? 'fertig' : geparkt ? 'geparkt' : 'laeuft', beginn: erst == null ? null : new Date(erst).toISOString(), ende: fertig.get(k) ?? null };
+    });
   }
 
   bericht(): Bericht {
@@ -2386,6 +2420,10 @@ class Treiber {
       epics: Object.values(this.z.epics).map((ep) => {
         const halt = ep.stufe === 'blockiert' || ep.stufe === 'abgebrochen';
         const detail = this.paketDetail(ep);
+        // spec mode (#151): the run's packages anew from its calls, the merges as read last
+        const spec = !(ep.pakete ?? []).some((p) => p.nr != null) && ep.agenten?.length;
+        const pakete = spec ? this.specPakete(ep, new Map((ep.pakete ?? []).filter((p) => p.stand === 'fertig').map((p) => [specSchluessel(ep.nr, p.name), p.ende ?? '']))) : (ep.pakete ?? []);
+        const gate = ep.gateSeit ? { n: (ep.gateWiederholungen ?? 0) + 1, seit: ep.gateSeit } : ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) && this.laufend.has(ep.nr) ? gateLauf(ep.agenten ?? []) : null;
         return {
           nr: ep.nr,
           titel: this.titel(ep),
@@ -2394,7 +2432,7 @@ class Treiber {
           pr: ep.pr,
           notiz: ep.notiz,
           geparkt: ep.geparkt,
-          pakete: (ep.pakete ?? []).map((p) => ({ ...p, ...(p.nr == null ? undefined : detail.get(p.nr)) })),
+          pakete: pakete.map((p) => ({ ...p, ...detail.get(p.nr ?? specSchluessel(ep.nr, p.name)) })),
           schritt: ep.schritt ?? null,
           schrittZeit: ep.schrittZeit ?? null,
           prozess: this.laufend.has(ep.nr),
@@ -2414,6 +2452,7 @@ class Treiber {
           prognose: this.prognoseFuer(ep),
           nach: this.bilder.find((b) => b.nr === ep.nr)?.nach ?? [],
           ...(ep.starts ? { neustarts: ep.starts - 1 } : {}),
+          ...(gate ? { gateLauf: gate } : {}),
           ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
       }),
