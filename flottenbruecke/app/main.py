@@ -12,6 +12,8 @@
 # the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again. #48 (ADR-0006):
 # a second entry, FERNPORT, which only the optional Tailscale add-on reaches, is view only: the page and every reading
 # endpoint as in the LAN, every request that writes refused, whatever PIN it carries.
+# The Bereitschaftsraum (#85, agent-skills/ADR-0004) is the chat: the person writes with the PIN, the service
+# `flotte chat` fetches, acknowledges and answers with the token; the bridge never starts claude and stores no credentials.
 
 import hashlib
 import hmac
@@ -30,17 +32,18 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import Antwort, Bericht, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
+from .modelle import CHAT_KONTO, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
-from .tafel import HERKUNFT, tafel
+from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
 STATIC = Path(__file__).parent / 'static'
 FEHLVERSUCHE = 5
 SPERRE_S = 300
 # #48: the remote entry in the container (app/start.py), never published on the machine; the Tailscale add-on proxies to it
 FERNPORT = 8001
-# GETs that write: fetching marks answers and actions as fetched. Only the driver fetches, and only in the LAN.
-ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen')
+# GETs that write: fetching marks answers and actions as fetched, the chat service's fetch remembers its machine and
+# accounts (#85). Only driver, Werft and chat service fetch, and only in the LAN.
+ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen', '/api/chat/nachrichten')
 
 # A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
 # bridge's localStorage (the PIN) nor its cookies nor the answers of its API. Static resources from
@@ -214,7 +217,10 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         # push: the public VAPID key when Web-Push is on (#37), else None
         # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
         # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
-        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
+        projekte = speicher.projekte()
+        t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
+        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin))
+        return t
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')
@@ -384,6 +390,94 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         if gespeichert is None:
             raise HTTPException(409, 'Die Werft hat die Handlung schon abgeholt.')
         return {'ok': True, 'id': gespeichert['id']}
+
+    # ---- Bereitschaftsraum (#85): the chat service (token), SCHNITTSTELLE.md section 8
+
+    @app.get('/api/chat/nachrichten')
+    def chat_holen(rechner: str, konten: str = '', x_bruecke_token: str | None = Header(None)) -> list[dict]:
+        treiber(x_bruecke_token)
+        liste = [k for k in konten.split(',') if k]
+        if not rechner.strip() or len(rechner) > 200 or not all(re.fullmatch(CHAT_KONTO, k) for k in liste):
+            raise HTTPException(422, 'rechner und konten (Kurznamen aus Ziffern, durch Komma getrennt)')
+        # the accounts each machine has: the choice per chat
+        speicher.chat_rechner_merken(rechner, liste, stempel())
+        return [{'id': n['id'], 'chat': n['chat'], 'forge': n['forge'], 'art': n['art'], 'konto': n['konto'], 'modell': n['modell'], 'text': n['text'], 'entwurf': n['entwurf'], 'starten': bool(n['starten']), 'sitzung': n['sitzung'], 'zeit': n['zeit']} for n in speicher.chat_offene(rechner, liste)]
+
+    @app.post('/api/chat/nachrichten/{id_}/quittung')
+    def chat_quittieren(id_: int, q: ChatQuittung, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        grund = speicher.chat_quittieren(id_, q.rechner, stempel())
+        if grund == 'unbekannt':
+            raise HTTPException(404, 'Keine solche Nachricht.')
+        if grund:
+            raise HTTPException(409, grund)
+        return {'ok': True}
+
+    @app.post('/api/chat/nachrichten/{id_}/antwort')
+    def chat_antwort(id_: int, a: ChatAntwort, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        if not speicher.chat_antworten(id_, a.model_dump(), stempel()):
+            raise HTTPException(404, 'Keine solche Nachricht.')
+        return {'ok': True}
+
+    # ---- Bereitschaftsraum: what the person does, each with the PIN
+
+    def chat_pin(request: Request, pin: str | None) -> None:
+        wache.pruefe(e.pin, pin, request.client.host if request.client else '?')
+
+    def konto_bekannt(konto: str) -> None:
+        if not any(konto in r['konten'] for r in speicher.chat_rechner()):
+            raise HTTPException(409, f'Kein Rechner meldet Konto {konto}.')
+
+    def offener_chat(id_: int) -> dict:
+        c = speicher.chat(id_)
+        if c is None:
+            raise HTTPException(404, 'Keinen solchen Chat.')
+        return c
+
+    @app.post('/api/chat')
+    def chat_beginnen(b: ChatBeginn, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        chat_pin(request, x_bruecke_pin)
+        konto_bekannt(b.konto)
+        return {'ok': True, **speicher.chat_beginnen(b.forge, b.konto, b.modell, b.text, stempel())}
+
+    @app.post('/api/chat/{id_}/nachricht')
+    def chat_schreiben(id_: int, t: ChatText, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        chat_pin(request, x_bruecke_pin)
+        offener_chat(id_)
+        neu = speicher.chat_schreiben(id_, t.text, stempel())
+        if neu is None:
+            raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
+        return {'ok': True, 'id': neu}
+
+    @app.post('/api/chat/{id_}/einstellung')
+    def chat_einstellen(id_: int, w: ChatEinstellung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        chat_pin(request, x_bruecke_pin)
+        c = offener_chat(id_)
+        if w.konto != c['konto']:
+            konto_bekannt(w.konto)
+        grund = speicher.chat_einstellen(id_, w.konto, w.modell, stempel())
+        if grund:
+            raise HTTPException(409, grund)
+        return {'ok': True}
+
+    # creating is a release (SCHNITTSTELLE.md): the draft is the stored one of the chat's latest answer, never the form's
+    @app.post('/api/chat/{id_}/anlegen')
+    def chat_anlegen(id_: int, a: ChatAnlegen, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        chat_pin(request, x_bruecke_pin)
+        offener_chat(id_)
+        neu = speicher.chat_anlegen(id_, a.von, a.starten, stempel())
+        if isinstance(neu, str):
+            raise HTTPException(409, neu)
+        return {'ok': True, 'id': neu}
+
+    @app.post('/api/chat/{id_}/verwerfen')
+    def chat_verwerfen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        chat_pin(request, x_bruecke_pin)
+        offener_chat(id_)
+        if not speicher.chat_verwerfen(id_, stempel()):
+            raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
+        return {'ok': True}
 
     @app.post('/api/pin', status_code=204)
     def pin(request: Request, x_bruecke_pin: str | None = Header(None)) -> Response:

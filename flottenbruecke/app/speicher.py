@@ -1,6 +1,7 @@
 # SQLite: the last report per project, when an epic reached its stage, the answers and actions of
-# the person until the driver acknowledges them, the prototypes of each project (Holodeck), and
-# (#37) the push subscriptions of the devices and the events of "Braucht dich" already reported.
+# the person until the driver acknowledges them, the prototypes of each project (Holodeck),
+# (#37) the push subscriptions of the devices and the events of "Braucht dich" already reported, and (#85)
+# the chats of the Bereitschaftsraum: messages, answers and state, never credentials.
 
 import json
 import sqlite3
@@ -88,6 +89,35 @@ create table if not exists werft_meldungen (
   rechner text not null,
   zeit text not null,
   text text not null
+);
+create table if not exists chats (
+  id integer primary key autoincrement,
+  forge text not null,
+  konto text not null,
+  modell text,
+  stand text not null default 'offen',
+  rechner text,
+  sitzung text,
+  angelegt text not null,
+  geaendert text not null
+);
+create table if not exists chat_nachrichten (
+  id integer primary key autoincrement,
+  chat integer not null,
+  art text not null,
+  text text,
+  entwurf text,
+  starten integer not null default 0,
+  zeit text not null,
+  rechner text,
+  quittiert text,
+  antwort text,
+  beantwortet text
+);
+create table if not exists chat_rechner (
+  name text primary key,
+  konten text not null,
+  gesehen text not null
 );
 """
 # the messages of the Werft kept per machine: its reports carry only those of one takt
@@ -297,3 +327,137 @@ class Speicher:
             self.db.execute('delete from gemeldet where forge = ?', (forge,))
             self.db.executemany('insert or ignore into gemeldet values (?, ?)', [(forge, s) for s in schluessel])
             return set(schluessel) - alt
+
+    # ---- Bereitschaftsraum (#85): chats, their messages and the machines of the chat service
+
+    def chat_rechner_merken(self, name: str, konten: list[str], jetzt: str) -> None:
+        with self.lock, self.db:
+            self.db.execute('insert or replace into chat_rechner values (?, ?, ?)', (name, ','.join(konten), jetzt))
+
+    def chat_rechner(self) -> list[dict]:
+        with self.lock:
+            zeilen = self.db.execute('select * from chat_rechner order by name').fetchall()
+        return [{'name': z['name'], 'konten': [k for k in z['konten'].split(',') if k], 'gesehen': z['gesehen']} for z in zeilen]
+
+    def chats(self) -> list[dict]:
+        with self.lock:
+            return [dict(z) for z in self.db.execute('select * from chats order by id')]
+
+    def chat(self, id_: int) -> dict | None:
+        with self.lock:
+            z = self.db.execute('select * from chats where id = ?', (id_,)).fetchone()
+        return None if z is None else dict(z)
+
+    def chat_nachrichten(self) -> list[dict]:
+        """Every message, the answer read back from its JSON."""
+        with self.lock:
+            zeilen = [dict(z) for z in self.db.execute('select * from chat_nachrichten order by id')]
+        for z in zeilen:
+            z['antwort'] = json.loads(z['antwort']) if z['antwort'] else None
+            z['starten'] = bool(z['starten'])
+        return zeilen
+
+    def chat_beginnen(self, forge: str, konto: str, modell: str | None, text: str, jetzt: str) -> dict:
+        with self.lock, self.db:
+            chat = self.db.execute('insert into chats (forge, konto, modell, angelegt, geaendert) values (?, ?, ?, ?, ?)', (forge, konto, modell, jetzt, jetzt)).lastrowid
+            id_ = self.db.execute("insert into chat_nachrichten (chat, art, text, zeit) values (?, 'text', ?, ?)", (chat, text, jetzt)).lastrowid
+        return {'chat': chat, 'id': id_}
+
+    def chat_einstellen(self, id_: int, konto: str, modell: str | None, jetzt: str) -> str | None:
+        """Account and model of a chat; the account only before its first session (a session lives in
+        its account). None when set, else the reason."""
+        with self.lock, self.db:
+            c = self.db.execute('select * from chats where id = ?', (id_,)).fetchone()
+            if konto != c['konto'] and c['sitzung'] is not None:
+                return 'Das Konto steht fest, seit der Chat eine Sitzung hat.'
+            # a machine runs a message on the old account: its session would live there
+            if konto != c['konto'] and self.db.execute('select 1 from chat_nachrichten where chat = ? and quittiert is not null and antwort is null', (id_,)).fetchone():
+                return 'Ein Rechner arbeitet gerade auf dem bisherigen Konto; das Konto erst nach der Antwort wechseln.'
+            self.db.execute('update chats set konto = ?, modell = ?, geaendert = ? where id = ?', (konto, modell, jetzt, id_))
+            return None
+
+    def chat_verwerfen(self, id_: int, jetzt: str) -> bool:
+        """offen -> verworfen; False when the chat is not open."""
+        with self.lock, self.db:
+            return self.db.execute("update chats set stand = 'verworfen', geaendert = ? where id = ? and stand = 'offen'", (jetzt, id_)).rowcount > 0
+
+    def chat_schreiben(self, chat: int, text: str, jetzt: str) -> int | None:
+        """A text message in an open chat; None when the chat is not open (any more)."""
+        with self.lock, self.db:
+            if self.db.execute("update chats set geaendert = ? where id = ? and stand = 'offen'", (jetzt, chat)).rowcount == 0:
+                return None
+            return self.db.execute("insert into chat_nachrichten (chat, art, text, zeit) values (?, 'text', ?, ?)", (chat, text, jetzt)).lastrowid
+
+    def chat_anlegen(self, chat: int, von: int, starten: bool, jetzt: str) -> int | str:
+        """An anlegen message with the draft of the chat's latest answer word for word, if that is the
+        answer to `von` (the one the person saw). Else the reason as a sentence."""
+        with self.lock, self.db:
+            c = self.db.execute('select * from chats where id = ?', (chat,)).fetchone()
+            if c['stand'] != 'offen':
+                return 'Der Chat ist nicht mehr offen.'
+            zeilen = self.db.execute('select * from chat_nachrichten where chat = ? order by id', (chat,)).fetchall()
+            if any(z['antwort'] is None for z in zeilen):
+                return 'Eine Nachricht wartet noch auf ihre Antwort; der Entwurf kann sich noch ändern.'
+            mit = [z for z in zeilen if json.loads(z['antwort']).get('entwurf')]
+            if not mit:
+                return 'Noch kein Entwurf in diesem Chat.'
+            if mit[-1]['id'] != von:
+                return 'Es gibt einen neueren Entwurf; bitte ansehen und dann anlegen.'
+            entwurf = json.loads(mit[-1]['antwort'])['entwurf']
+            self.db.execute('update chats set geaendert = ? where id = ?', (jetzt, chat))
+            return self.db.execute("insert into chat_nachrichten (chat, art, entwurf, starten, zeit) values (?, 'anlegen', ?, ?, ?)", (chat, entwurf, int(starten), jetzt)).lastrowid
+
+    def chat_offene(self, rechner: str, konten: list[str]) -> list[dict]:
+        """The messages without answer this machine may take, oldest first (SCHNITTSTELLE.md, section 8):
+        from chats bound to it, and from unbound chats with an account it has, unless another machine
+        took the message already. Nothing from a chat that is no longer open."""
+        with self.lock:
+            zeilen = self.db.execute(
+                'select n.*, c.forge, c.konto, c.modell, c.sitzung, c.rechner as gebunden from chat_nachrichten n join chats c on c.id = n.chat'
+                " where n.antwort is null and c.stand = 'offen' order by n.id"
+            ).fetchall()
+        mein = []
+        for z in zeilen:
+            if z['gebunden'] is not None:
+                darf = z['gebunden'] == rechner
+            else:
+                darf = z['rechner'] == rechner or (z['rechner'] is None and z['konto'] in konten)
+            if darf:
+                mein.append(dict(z))
+        return mein
+
+    def chat_quittieren(self, id_: int, rechner: str, jetzt: str) -> str | None:
+        """None: taken by this machine (again). Else 'unbekannt' or the reason for a 409."""
+        with self.lock, self.db:
+            n = self.db.execute('select * from chat_nachrichten where id = ?', (id_,)).fetchone()
+            if n is None:
+                return 'unbekannt'
+            c = self.db.execute('select * from chats where id = ?', (n['chat'],)).fetchone()
+            if c['rechner'] is not None and c['rechner'] != rechner:
+                return 'Der Chat gehört einem anderen Rechner.'
+            if n['rechner'] is not None:
+                return None if n['rechner'] == rechner else 'Ein anderer Rechner hat die Nachricht schon.'
+            if c['stand'] != 'offen':
+                return 'Der Chat ist nicht mehr offen.'
+            if self.db.execute('select 1 from chat_nachrichten where chat = ? and id != ? and quittiert is not null and antwort is null', (n['chat'], id_)).fetchone():
+                return 'Im Chat läuft schon eine andere Nachricht.'
+            self.db.execute('update chat_nachrichten set rechner = ?, quittiert = ? where id = ?', (rechner, jetzt, id_))
+            return None
+
+    def chat_antworten(self, id_: int, antwort: dict, jetzt: str) -> bool:
+        """Stores the first answer to a message; a second one changes nothing. False: unknown message.
+        The first answer with a session binds the chat to the machine that acknowledged the message; an
+        answer to anlegen without fehler and with missions makes the chat angelegt."""
+        with self.lock, self.db:
+            n = self.db.execute('select * from chat_nachrichten where id = ?', (id_,)).fetchone()
+            if n is None:
+                return False
+            if n['antwort'] is not None:
+                return True
+            self.db.execute('update chat_nachrichten set antwort = ?, beantwortet = ? where id = ?', (json.dumps(antwort, ensure_ascii=False), jetzt, id_))
+            if antwort['sitzung']:
+                self.db.execute('update chats set sitzung = ?, rechner = coalesce(rechner, ?) where id = ?', (antwort['sitzung'], n['rechner'], n['chat']))
+            if n['art'] == 'anlegen' and antwort['fehler'] is None and antwort.get('missionen'):
+                self.db.execute("update chats set stand = 'angelegt' where id = ? and stand = 'offen'", (n['chat'],))
+            self.db.execute('update chats set geaendert = ? where id = ?', (jetzt, n['chat']))
+            return True
