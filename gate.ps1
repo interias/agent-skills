@@ -27,7 +27,7 @@ $fuenf = $modul.Version.Major -ge 5
 $still = if ($fuenf) { @{ Output = 'None' } } else { @{ Quiet = $true } }
 $r = Invoke-Pester -Path $dateien -PassThru @still
 if (-not $r) { "pester: Invoke-Pester $($modul.Version) lieferte kein Ergebnis."; exit 1 }
-$rot = if ($fuenf) { @($r.Failed | ForEach-Object { $_.ExpandedPath }) } else { @($r.TestResult | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object { "$($_.Describe) :: $($_.Name)" }) }
+$rot = if ($fuenf) { @($r.Failed | ForEach-Object { $_.ExpandedPath }) } else { @($r.TestResult | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object { "$($_.Describe) :: $($_.Name) :: $(@("$($_.FailureMessage)" -split "`n")[0])" }) }
 foreach ($t in $rot) { "pester: ROT $t" }
 "pester: Pester $($modul.Version), $($dateien.Count) Dateien, $($r.TotalCount) Tests, $($r.FailedCount) rot"
 if ($r.TotalCount -eq 0) { 'pester: kein Test gelaufen (Testzahl 0), der Teil ist rot (#165).'; exit 1 }
