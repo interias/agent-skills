@@ -1024,13 +1024,26 @@ class Treiber {
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
     // #61: a paused epic does not start; the priority of the bridge wins over the label
-    const im = this.bilder
-      .filter((b) => {
-        const s = this.epic(b.nr).stufe;
-        return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
-      })
-      .map((b) => ({ ...b, prio: this.prio(b.nr) }));
-    const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze() });
+    const planen = () => {
+      const im = this.bilder
+        .filter((b) => {
+          const s = this.epic(b.nr).stufe;
+          return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
+        })
+        .map((b) => ({ ...b, prio: this.prio(b.nr) }));
+      return belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze() });
+    };
+    let plan = planen();
+    // #198: before a start the order edges and what the missions touch as the forge says them now; an
+    // edge or a collision added since the deployment began keeps the mission waiting
+    if (plan.neu.length) {
+      try {
+        this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+        plan = planen();
+      } catch (err) {
+        this.ereignis(null, `Reihenfolge und Kollisionen vor dem Start nicht neu gelesen: ${String(err).slice(0, 200)}`);
+      }
+    }
     for (const w of plan.wartend) {
       const notiz = `wartet auf den Merge von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
       if (this.epic(w.nr).notiz !== notiz) this.epic(w.nr).notiz = notiz;
