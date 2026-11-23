@@ -95,6 +95,52 @@ describe('#126 Projekt hinzufügen', () => {
     expect(offeneSchluessel('# kein Frontmatter <x>\n')).toEqual([]);
   });
 
+  it('an adapter under the old name .claude/prd.md counts as there: nothing written, the rename is named', async () => {
+    const dir = repo('alter-name');
+    mkdirSync(join(dir, '.claude'));
+    writeFileSync(join(dir, '.claude', 'prd.md'), '---\nforge: github\n---\n');
+    const r = (await projekt(['hinzufuegen', dir], welt())) as Record<string, any>;
+    expect(existsSync(join(dir, '.claude', 'epic.md'))).toBe(false);
+    expect(r.adapter).toEqual({ angelegt: false, offen: [], alterName: true });
+    expect(r.meldung).toContain('Adapter unter altem Namen .claude/prd.md, umbenennen in .claude/epic.md');
+  });
+
+  it('a start script of the same name for another folder: refused before anything is written; for the same folder unchanged', async () => {
+    const w = welt();
+    const dir = repo('gleicher-name');
+    mkdirSync(join(w.heim, '.claude', 'flotte', 'start'), { recursive: true });
+    writeFileSync(skriptVon(w, 'gleicher-name'), "Set-Location -LiteralPath 'D:\\anderswo\\gleicher-name'\r\nbun x\r\n");
+    await expect(projekt(['hinzufuegen', dir, '--autostart'], w)).rejects.toThrow('Das Startskript gleicher-name.ps1 gibt es schon für einen anderen Ordner (gleicher-name in anderswo); nichts geschrieben.');
+    expect(existsSync(join(dir, '.claude'))).toBe(false);
+    expect(w.aufgaben).toEqual([]);
+    writeFileSync(skriptVon(w, 'gleicher-name'), `Set-Location -LiteralPath '${dir}'\r\n`);
+    const r = (await projekt(['hinzufuegen', dir], w)) as Record<string, any>;
+    expect(r.startskript.angelegt).toBe(false);
+    expect(r.meldung).toContain('Startskript gleicher-name.ps1 vorhanden, unverändert');
+  });
+
+  it('a failing autostart does not throw: autostart fehlgeschlagen with its reason, the files are there', async () => {
+    const w = welt();
+    w.autostart = () => {
+      throw new Error('Zugriff verweigert');
+    };
+    const dir = repo('ohne-aufgabe');
+    const r = (await projekt(['hinzufuegen', dir, '--autostart'], w)) as Record<string, any>;
+    expect(r.autostart).toBe('fehlgeschlagen');
+    expect(r.autostartGrund).toBe('Zugriff verweigert');
+    expect(r.startskript.angelegt).toBe(true);
+    expect(r.meldung).toContain('; Autostart fehlgeschlagen: Zugriff verweigert;');
+    expect(r.logbuch).toContain('; Autostart fehlgeschlagen');
+    expect(r.logbuch).not.toContain('Zugriff');
+  });
+
+  it('a folder in surrounding quotes is taken without them; a relative folder is refused', async () => {
+    const dir = repo('in-anfuehrung');
+    const r = (await projekt(['hinzufuegen', `"${dir}"`], welt())) as Record<string, any>;
+    expect(r.ordner).toBe(dir);
+    await expect(projekt(['hinzufuegen', 'relativ\\ordner'], welt())).rejects.toThrow('Der Ordner muss ein absoluter Pfad sein');
+  });
+
   it('the start script quotes the folder and takes only a URL for the bridge', () => {
     const s = startskript({ name: 'p', ordner: "C:\\repos\\o'brien", konten: ['1'], bruecke: 'http://127.0.0.1:4747' });
     expect(s).toContain("Set-Location -LiteralPath 'C:\\repos\\o''brien'");

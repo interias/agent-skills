@@ -332,7 +332,7 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   Git-Credential-Speicher ab; kein Token geht durch die Brücke. Bilder: `doku/v3-maschinenraum-forge-1440.png`, `-390.png`.
   Davor (#126) **Projekte**: je Projekt Repository, Rechner und **Entfernen** (PIN): Der Treiber hält an wie
   `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; ein neuer Start des
-  Treibers bringt es zurück. Darunter **Projekt hinzufügen** (PIN) mit dem Ordner am Rechner und dem
+  Treibers bringt es zurück. Eine geplante Aufgabe „Flotte <name>“ (Autostart) bleibt und startet den Treiber bei jeder Anmeldung wieder, damit kehrt das Projekt zurück; abschalten in der Aufgabenplanung (Aufgabe „Flotte <name>“ deaktivieren oder löschen). Darunter **Projekt hinzufügen** (PIN) mit dem Ordner am Rechner und dem
   Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar) prüft den Ordner,
   legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
   was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.

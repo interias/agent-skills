@@ -8,7 +8,7 @@
 
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { KONTEN_DATEI, kontenTafel, kontoAus, liesKonten } from '../werkzeuge/konten.ts';
@@ -33,9 +33,12 @@ export interface ProjektWelt {
 export interface ProjektErgebnis {
   projekt: string;
   ordner: string;
-  adapter: { angelegt: boolean; offen: string[] };
+  /** alterName: the adapter stands as .claude/prd.md (mission/references/adapter.md, "Alter Name") */
+  adapter: { angelegt: boolean; offen: string[]; alterName?: true };
   startskript: { datei: string; angelegt: boolean };
-  autostart: Autostart | null;
+  /** fehlgeschlagen: the files are written, the scheduled task is not; autostartGrund says why */
+  autostart: Autostart | 'fehlgeschlagen' | null;
+  autostartGrund?: string;
   forge: { origin: boolean; status: ForgeStatus | null };
   /** for events and the CLI: the folder name only, never a path */
   meldung: string;
@@ -117,9 +120,19 @@ const gleicherOrdner = (a: string, b: string) => {
   return echt(a).toLowerCase() === echt(b).toLowerCase();
 };
 
+/** A path copied with "Copy as path" comes in quotes; they go. */
+const ohneAnfuehrung = (s: string) => s.trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+
+/** The folder an existing start script changes to (Set-Location), or null when it names none. */
+function skriptOrdner(text: string): string | null {
+  const m = /Set-Location\s+(?:-(?:Literal)?Path\s+)?(?:'((?:[^']|'')*)'|"([^"]*)"|([^\s;]+))/i.exec(text);
+  if (!m) return null;
+  return m[1] !== undefined ? m[1].replace(/''/g, "'") : (m[2] ?? m[3]);
+}
+
 /** The folder must exist and be the root of a Git repository; otherwise a refusal before anything is written. */
 function pruefeOrdner(ordner: string, a: Aufrufer): string {
-  const abs = resolve(ordner);
+  const abs = resolve(ohneAnfuehrung(ordner));
   const name = basename(abs);
   if (!existsSync(abs) || !statSync(abs).isDirectory()) throw new Error(`Den Ordner ${name} gibt es nicht; nichts geschrieben.`);
   const r = a('git', ['-C', abs, 'rev-parse', '--show-toplevel']);
@@ -143,17 +156,25 @@ function forgeText(f: ProjektErgebnis['forge']): string {
 }
 
 export async function hinzufuegen(ordner: string, o: { autostart: boolean; konten?: string[]; bruecke?: string }, w: ProjektWelt): Promise<ProjektErgebnis> {
-  const abs = pruefeOrdner(ordner, w.aufrufer);
+  const ohne = ohneAnfuehrung(ordner);
+  if (!isAbsolute(ohne) || !/^([A-Za-z]:[\\/]|[\\/])/.test(ohne)) throw new Error('Der Ordner muss ein absoluter Pfad sein (etwa C:\\repos\\projekt); nichts geschrieben.');
+  const abs = pruefeOrdner(ohne, w.aufrufer);
   const name = basename(abs).replace(/[^\w.-]/g, '-');
   const skriptDatei = join(w.heim, '.claude', 'flotte', 'start', `${name}.ps1`);
   // built before anything is written, so a wrong --bruecke or --konten leaves nothing behind
   const skript = startskript({ name, ordner: abs, konten: o.konten ?? standardKonten(w), bruecke: o.bruecke ?? process.env.FLOTTE_BRUECKE ?? STANDARD_BRUECKE });
+  // an existing start script for another folder: refused before anything is written
+  const neuesSkript = !existsSync(skriptDatei);
+  const ziel = neuesSkript ? null : skriptOrdner(readFileSync(skriptDatei, 'utf8'));
+  if (ziel !== null && !gleicherOrdner(ziel, abs)) throw new Error(`Das Startskript ${name}.ps1 gibt es schon für einen anderen Ordner (${basename(ziel)} in ${basename(join(ziel, '..'))}); nichts geschrieben. Das Skript wegräumen oder umbenennen, dann noch einmal.`);
   const origin = w.aufrufer('git', ['-C', abs, 'remote', 'get-url', 'origin']).code === 0;
 
   const adapterDatei = join(abs, '.claude', 'epic.md');
-  const vorhanden = existsSync(adapterDatei);
+  const altDatei = join(abs, '.claude', 'prd.md');
+  const alterName = !existsSync(adapterDatei) && existsSync(altDatei);
+  const vorhanden = existsSync(adapterDatei) || alterName;
   let adapter: string;
-  if (vorhanden) adapter = readFileSync(adapterDatei, 'utf8');
+  if (vorhanden) adapter = readFileSync(alterName ? altDatei : adapterDatei, 'utf8');
   else {
     adapter = adapterVorlage(readFileSync(w.vorlage ?? VORLAGE, 'utf8'));
     mkdirSync(join(abs, '.claude'), { recursive: true });
@@ -168,27 +189,37 @@ export async function hinzufuegen(ordner: string, o: { autostart: boolean; konte
     }
   }
 
-  const neuesSkript = !existsSync(skriptDatei);
   if (neuesSkript) {
     mkdirSync(join(skriptDatei, '..'), { recursive: true });
     // with a BOM: Windows PowerShell 5.1 reads a script without one in the ANSI code page
-    writeFileSync(skriptDatei, `﻿${skript}`, { flag: 'wx' });
+    writeFileSync(skriptDatei, `\uFEFF${skript}`, { flag: 'wx' });
   }
-  const autostart = o.autostart ? (w.autostart ?? autostartEchtMit(w.aufrufer))(`Flotte ${name}`, skriptDatei) : null;
+  let autostart: ProjektErgebnis['autostart'] = null;
+  let autostartGrund: string | undefined;
+  if (o.autostart) {
+    try {
+      autostart = (w.autostart ?? autostartEchtMit(w.aufrufer))(`Flotte ${name}`, skriptDatei);
+    } catch (e) {
+      autostart = 'fehlgeschlagen';
+      autostartGrund = (e as Error).message.slice(0, 300);
+    }
+  }
 
   const offen = offeneSchluessel(adapter);
-  const adapterText = `Adapter ${vorhanden ? 'vorhanden, unverändert' : 'angelegt'}${offen.length ? `, noch auszufüllen: ${offen.join(', ')}` : ''}`;
+  const adapterText = `Adapter ${alterName ? 'unter altem Namen .claude/prd.md, umbenennen in .claude/epic.md' : vorhanden ? 'vorhanden, unverändert' : 'angelegt'}${offen.length ? `, noch auszufüllen: ${offen.join(', ')}` : ''}`;
   const skriptText = `Startskript ${name}.ps1 ${neuesSkript ? 'angelegt' : 'vorhanden, unverändert'}`;
-  const autoText = autostart ? `; Autostart ${autostart === 'angelegt' ? 'angelegt' : 'vorhanden'}` : '';
+  const autoText = autostart ? `; Autostart ${autostart}` : '';
   const forge = { origin, status };
   return {
     projekt: name,
     ordner: abs,
-    adapter: { angelegt: !vorhanden, offen },
+    adapter: { angelegt: !vorhanden, offen, ...(alterName ? { alterName: true as const } : {}) },
     startskript: { datei: `~/.claude/flotte/start/${name}.ps1`, angelegt: neuesSkript },
     autostart,
+    ...(autostartGrund ? { autostartGrund } : {}),
     forge,
-    meldung: `Projekt ${name}: ${adapterText}; ${skriptText}${autoText}; Forge: ${forgeText(forge)}`,
+    // the reason only here (the bridge and the CLI), not in the public logbook
+    meldung: `Projekt ${name}: ${adapterText}; ${skriptText}${autoText}${autostartGrund ? `: ${autostartGrund}` : ''}; Forge: ${forgeText(forge)}`,
     logbuch: `Projekt ${name} hinzugefügt: ${adapterText}; ${skriptText}${autoText}`,
   };
 }
@@ -200,7 +231,7 @@ export function entfernen(ordner: string, w: Pick<ProjektWelt, 'aufrufer'>): unk
   return {
     projekt: basename(abs),
     geloescht: [],
-    hinweis: 'Der Treiber hält an wie bei flotte anhalten (nichts Neues, ein offenes Andocken läuft zu Ende). Adapter, Startskript, Zustand und Repository bleiben. Aus der Liste der Brücke nimmt es „Entfernen“ im Maschinenraum; ein neuer Start des Treibers bringt es zurück.',
+    hinweis: 'Der Treiber hält an wie bei flotte anhalten (nichts Neues, ein offenes Andocken läuft zu Ende). Adapter, Startskript, Zustand und Repository bleiben. Aus der Liste der Brücke nimmt es „Entfernen“ im Maschinenraum; ein neuer Start des Treibers bringt es zurück. Eine geplante Aufgabe „Flotte <name>“ (Autostart) startet ihn bei jeder Anmeldung wieder: in der Aufgabenplanung deaktivieren oder löschen, wenn das Projekt wegbleiben soll.',
   };
 }
 

@@ -6,8 +6,9 @@
 $wurzel = $PSScriptRoot
 
 Describe 'flotte projekt hinzufuegen: the start script' {
-    # a folder name with a space and a quote: the script has to quote it
-    $ordner = Join-Path $TestDrive "mein pro'jekt"
+    # a folder name with an umlaut, a space and a quote: the script has to quote it, and 5.1 reads the umlaut
+    # only with a BOM; the umlaut stands as a char code, so this file stays ASCII for 5.1
+    $ordner = Join-Path $TestDrive "M$([char]0x00FC)ller pro'jekt"
     $heim = Join-Path $TestDrive 'heim'
     New-Item -ItemType Directory -Path $ordner, $heim | Out-Null
     git -C $ordner init -q
@@ -19,10 +20,15 @@ Describe 'flotte projekt hinzufuegen: the start script' {
         "await hinzufuegen(ordner, { autostart: false, konten: ['1', '2'], bruecke: 'http://127.0.0.1:4747' }, { aufrufer: aufrufen, heim, kontenDatei: heim + '/konten.json' });`n"
     [IO.File]::WriteAllText($gen, $ts)
     & (Get-Command bun -CommandType Application | Select-Object -First 1).Source $gen $ordner $heim
-    $skript = Join-Path $heim '.claude\flotte\start\mein-pro-jekt.ps1'
+    $skript = Join-Path $heim '.claude\flotte\start\M-ller-pro-jekt.ps1'
 
     It 'is written under ~/.claude/flotte/start, named after the folder' {
         Test-Path -LiteralPath $skript | Should Be $true
+    }
+
+    It 'starts with a BOM' {
+        $b = [IO.File]::ReadAllBytes($skript)
+        ($b[0..2] -join ',') | Should Be '239,187,191'
     }
 
     It 'parses without error' {

@@ -725,8 +725,13 @@ class Handlung(BaseModel):
             except ValueError:
                 d = None
             ordner = d.get('ordner').strip() if isinstance(d, dict) and isinstance(d.get('ordner'), str) else ''
+            # a path copied with "Copy as path" comes in quotes; they go
+            if len(ordner) >= 2 and ordner[0] == ordner[-1] and ordner[0] in '"\'':
+                ordner = ordner[1:-1].strip()
             if self.epic != 0 or not ordner or len(ordner) > PROJEKT_ORDNER_MAX or not isinstance(d.get('autostart', False), bool):
                 raise ValueError(f'Projekt hinzufügen: epic 0 und text {{"ordner" (1–{PROJEKT_ORDNER_MAX} Zeichen), "autostart" (ja/nein)}}')
+            if not re.match(r'^([A-Za-z]:[\\/]|[\\/])', ordner):
+                raise ValueError('Projekt hinzufügen: der Ordner als absoluter Pfad, etwa C:\\repos\\projekt')
             self.nr, self.seit, self.text = None, None, json.dumps({'ordner': ordner, 'autostart': d.get('autostart', False)}, ensure_ascii=False)
         elif self.art in KONTO_HANDLUNGEN:
             # #95: konto_anlegen: epic 0, text the name or nothing; the others: epic the account's number, no text

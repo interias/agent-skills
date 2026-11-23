@@ -51,6 +51,11 @@ def test_hinzufuegen_abgelehnt_ohne_ordner_zu_lang_oder_aelterer_treiber(client,
     assert hinzufuegen(client, ordner='C:\\' + 'x' * 300).status_code == 422
     assert handlung(client, 'projekt_hinzufuegen', '{"ordner": "C:\\\\r", "autostart": "ja"}').status_code == 422
     assert handlung(client, 'projekt_hinzufuegen', 'kein json').status_code == 422
+    # only an absolute folder; surrounding quotes ("Copy as path") are cut off
+    assert hinzufuegen(client, ordner='repos\\relativ').status_code == 422
+    assert hinzufuegen(client, ordner='"C:\\repos\\in anfuehrung"').json()['ok']
+    geholt = client.get('/api/handlungen', params={'forge': FORGE}).json()
+    assert json.loads(geholt[-1]['text'])['ordner'] == 'C:\\repos\\in anfuehrung'
     alt = copy.deepcopy(bericht)
     alt['forge'] = 'interias/alt'
     del alt['projektHandlungen']
