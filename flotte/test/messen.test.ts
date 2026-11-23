@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { leseText, artDesTexts } from '../src/transkript.ts';
-import { rueckfragen, kalteZeit, istFehlstart, prDauern, verteilung, epicAus } from '../src/messen.ts';
+import { rueckfragen, kalteZeit, kalteNeustarts, istFehlstart, prDauern, verteilung, epicAus } from '../src/messen.ts';
 import { T0, min, mensch, nachricht, meldung, assistent, ergebnis, frage } from './hilfen.ts';
 
 const ganz = { von: T0 - 86_400_000, bis: T0 + 86_400_000 };
@@ -136,5 +136,44 @@ describe('verteilung', () => {
   it('sums and averages', () => {
     expect(verteilung([10, 1, 4])).toEqual({ n: 3, summe: 15, mittel: 5, median: 4, max: 10 });
     expect(verteilung([])).toMatchObject({ n: 0, mittel: null });
+  });
+});
+
+describe('kalteNeustarts (#211)', () => {
+  it('counts a turn after more than 60 min of silence by what woke it: person, limit, own wait', () => {
+    const e = lies(
+      mensch(0, 'los'),
+      assistent(1, 'FLOTTE-FRAGE 1 tor', { stop: 'end_turn' }),
+      mensch(90, 'Antwort auf FLOTTE-FRAGE 1: A'),
+      assistent(91, 'weiter', { tools: [{ id: 'g1', name: 'Bash', input: { run_in_background: true } }] }),
+      ergebnis(91, 'g1', 'started'),
+      assistent(92, 'warte', { stop: 'end_turn' }),
+      meldung(170, 'g1'),
+      assistent(171, 'Gate grün', { stop: 'end_turn' }),
+      mensch(300, 'Limit erreicht, weiter nach dem Reset'),
+      assistent(301, 'weiter', { stop: 'end_turn' }),
+    );
+    expect(kalteNeustarts(e)).toEqual({ mensch: 1, limit: 1, eigen: 1 });
+  });
+
+  it('an alarm clock before the hour keeps the own wait warm', () => {
+    const e = lies(
+      assistent(0, '', { tools: [{ id: 'g1', name: 'Bash', input: { run_in_background: true } }, { id: 'w1', name: 'Bash', input: { run_in_background: true } }] }),
+      ergebnis(0, 'g1', 'started'),
+      ergebnis(0, 'w1', 'started'),
+      assistent(1, 'warte', { stop: 'end_turn' }),
+      meldung(51, 'w1'),
+      assistent(52, 'Stand: pester läuft', { tools: [{ id: 'w2', name: 'Bash', input: { run_in_background: true } }] }),
+      ergebnis(52, 'w2', 'started'),
+      assistent(53, 'warte', { stop: 'end_turn' }),
+      meldung(95, 'g1'),
+      assistent(96, 'Gate grün', { stop: 'end_turn' }),
+    );
+    expect(kalteNeustarts(e)).toEqual({ mensch: 0, limit: 0, eigen: 0 });
+  });
+
+  it('a gap of exactly the threshold is still warm, the trailing wait does not count', () => {
+    const e = lies(assistent(0, 'x', { stop: 'end_turn' }), mensch(60, 'y'), assistent(61, 'z', { stop: 'end_turn' }), mensch(500, 'spät'));
+    expect(kalteNeustarts(e)).toEqual({ mensch: 0, limit: 0, eigen: 0 });
   });
 });

@@ -607,6 +607,15 @@ alles **ausgeschrieben**:
   die Meldung kommt — kein `sleep`, keine Schleife, kein Neustart, kein Zerlegen. **Ein Aufruf über
   10 Minuten im Vordergrund ist verboten**: sein Ergebnis kommt nie an (#190, 23.11.2026). Protokoll
   in den Bericht; die Agent-Dateien der Ingenieure verweisen hierher — schreib den Punkt aus.
+- **Warm bleiben (#211):** Kann eigene Hintergrundarbeit (Volllauf, Andockprüfung, Subagent) länger
+  als 50 Minuten dauern, startest du neben ihr einen Wecker als zweiten Hintergrundbefehl:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/wecker.ps1 -Log <logdatei> -Muster '<Endzeile>' -Minuten 50`
+  (`<skill>`: Ordner des installierten Skills `mission`; ohne Log nur `-Minuten 50`). Er endet,
+  sobald die Endzeile im Log steht (Andockprüfung: `-Muster '^Gate '`), sonst nach 50 Minuten mit
+  „Zeit um“. Dann liest du das Ende des Logs, meldest eine Zeile Stand und startest ihn erneut —
+  kein `sleep`, keine Schleife. Sonst wartet dein Kontext über eine Stunde und wird beim nächsten
+  Zug zum Vielfachen eines Lesezugriffs neu geschrieben. Das gilt auch für dich als Orchestrator
+  (Nachprüfung, Andockprüfung).
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt der Beleg — dazu prüft er vor
   dem Bericht jeden Abnahmepunkt selbst und nennt je Punkt den Beleg (Test, `Datei:Zeile`, Befehl
   mit echter Ausgabe; #201); das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,

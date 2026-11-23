@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { messeEinsatz, type Konfiguration } from '../src/befehle/messen.ts';
 import type { Aufrufer } from '../src/aufruf.ts';
-import { min, mensch, nachricht, assistent, ergebnis, frage } from './hilfen.ts';
+import { min, mensch, nachricht, meldung, assistent, ergebnis, frage } from './hilfen.ts';
 
 function konto(): string {
   return mkdtempSync(join(tmpdir(), 'flotte-messen-'));
@@ -52,7 +52,7 @@ describe('messeEinsatz', () => {
     sitzung(k2, 'C--r-korb', 'bbbb2222-admiral', [mensch(0, 'Admiral-Chat'), assistent(1, 'los')]);
     subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x1', 'epic-lauf', [mensch(2, 'Lauf #1'), assistent(3, 'FLOTTE-FRAGE 1 tor', { stop: 'end_turn' }), nachricht(43), assistent(44, 'weiter')]);
     subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x2', 'ingenieur-standard', [mensch(2, 'Paket'), assistent(3, 'fertig', { stop: 'end_turn' }), nachricht(100)]);
-    sitzung(k1, 'C--r-korb', 'cccc3333-lauf', [mensch(10, 'Background (from the session that started this one): /mission #1'), assistent(11, 'FLOTTE-ENDE 1 https://x/pull/10', { stop: 'end_turn' }), nachricht(26), assistent(27, 'ok')]);
+    sitzung(k1, 'C--r-korb', 'cccc3333-lauf', [mensch(10, 'Background (from the session that started this one): /mission #1'), assistent(11, 'FLOTTE-ENDE 1 https://x/pull/10', { stop: 'end_turn' }), nachricht(26), assistent(27, 'ok'), assistent(28, '', { tools: [{ id: 'g', name: 'Bash', input: { run_in_background: true } }] }), ergebnis(28, 'g', 'started'), assistent(29, 'warte'), meldung(110, 'g'), assistent(111, 'Gate grün')]);
     sitzung(k2, 'C--r-korb', 'dddd4444-leer', [mensch(12, '<system-reminder>hook</system-reminder>')]);
     sitzung(k1, 'C--r-korb', 'eeee5555-fremd', [mensch(13, 'RAM-Upgrade?'), assistent(14, 'x')]);
     sitzung(k1, 'C--r-korb', 'ffff6666-vorher', [mensch(-500, 'alt'), assistent(-499, 'x')]);
@@ -85,6 +85,9 @@ describe('messeEinsatz', () => {
     expect(r.rueckfragen.verteilung_epics).toEqual({ '#1': { anzahl: 1, wartenMin: 30 } });
     expect(r.wartezeit_min).toMatchObject({ n: 1, summe: 30, je_epic: 15 });
     expect(r.kalte_zeit_min.summe).toBe(55);
+    // #211: the run waited 81 min for its own gate without an alarm clock
+    expect(r.kalte_neustarts).toMatchObject({ mensch: 0, limit: 0, eigen: 1 });
+    expect(r.kalte_neustarts.je_lauf).toEqual([{ sitzung: 'k1/cccc3333-lauf', mensch: 0, limit: 0, eigen: 1 }]);
     expect(r.fehlstarts).toMatchObject({ starts: 2, fehlstarts: 1, anteil: 0.5 });
     expect(r.fehlstarts.sitzungen[0]).toContain('dddd4444');
     expect(r.pr_bereit_bis_gemergt_min).toMatchObject({ n: 1, summe: 69, geschaetzt: 0 });
