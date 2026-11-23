@@ -1858,8 +1858,8 @@ class Treiber {
       const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}${nach.length ? `, Warp frei nachgeholt für ${nach.map((m) => `Mission #${m.nummer}`).join(', ')}` : ''}`;
       // #147: a note without an allowed end state makes the run incomplete, not finished; each one stands in the line
       const unsauber = abweichungen.length ? `; ${abweichungen.length} ${abweichungen.length === 1 ? 'Notiz' : 'Notizen'} nicht sauber abgearbeitet: ${abweichungen.map((x) => `#${x.nr} (${x.grund})`).join(', ')}` : '';
-      // #167: how long the admiral calls took and how often the model read itself
-      const gemessen = r.messung ? `; Dauer ${Math.round(r.messung.dauerMs / 1000)} s in ${r.messung.aufrufe} ${r.messung.aufrufe === 1 ? 'Aufruf' : 'Aufrufen'}, ${r.messung.zugriffe} ${r.messung.zugriffe === 1 ? 'Dateizugriff' : 'Dateizugriffe'}` : '';
+      // #167: how long the admiral calls took and how often the model read itself; a run without a call says nothing
+      const gemessen = r.messung?.aufrufe ? `; Dauer ${Math.round(r.messung.dauerMs / 1000)} s in ${r.messung.aufrufe} ${r.messung.aufrufe === 1 ? 'Aufruf' : 'Aufrufen'}, ${r.messung.zugriffe} ${r.messung.zugriffe === 1 ? 'Dateizugriff' : 'Dateizugriffe'}` : '';
       this.imLogbuch(null, `Triage-Lauf ${abgebrochen ? `abgebrochen: ${abgebrochen}; bis dahin` : abweichungen.length ? 'unvollständig:' : 'beendet:'} ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}${unsauber}${gemessen}`);
       this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length, ...(this.z.triage?.schnittplan?.fehler ? { fehler: this.z.triage.schnittplan.fehler } : {}) };
     } catch (err) {

@@ -1296,6 +1296,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     // the final check of a clean run; the driver reads it like a missing one (#163: the type wants it)
     abschluss: { geprueft: 0, sauber: 0, abweichungen: [] },
     zustand: 'beendet',
+    messung: { aufrufe: 0, dauerMs: 0, zugriffe: 0 },
   });
   const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
 
