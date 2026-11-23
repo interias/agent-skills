@@ -1672,7 +1672,9 @@ class Treiber {
       const zeit = new Date(this.w.jetzt()).toISOString();
       // #117: a proposal decided clear counts once its Missionsziel exists (revoked there); its entries get a time of their own,
       // since several superfluous proposals share the collecting issue and (nr, zeit) is the key
-      const entschieden = r.tickets.filter((t) => t.geschrieben && (t.ergebnis === 'klar' || t.ergebnis === 'ueberfluessig') && (t.lernvorschlag && t.ergebnis === 'klar' ? Boolean(t.missionsziel) : !t.fehler));
+      // #170: its note goes into the cut plan of the same run; standing there as a ticket of its own, it counts only there
+      const imPlan = (t: (typeof r.tickets)[number]) => r.tickets.some((x) => !x.lernvorschlag && x.forge === t.forge && x.nummer === t.missionsziel);
+      const entschieden = r.tickets.filter((t) => t.geschrieben && (t.ergebnis === 'klar' || t.ergebnis === 'ueberfluessig') && (t.lernvorschlag && t.ergebnis === 'klar' ? Boolean(t.missionsziel) && !imPlan(t) : !t.fehler));
       const neu: BerichtTriageEntscheidung[] = entschieden.map((t, i) => ({
         nr: t.missionsziel ?? t.nummer,
         titel: (t.lernvorschlag ? `${t.lernvorschlag}: ${t.titel}` : t.titel).slice(0, 300),

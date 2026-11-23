@@ -1893,4 +1893,23 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       await b.zu();
     }
   }, T);
+
+  it('#170: a clear proposal whose note stands in the cut plan of the same run counts once, as that note', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const tr = triageAttrappe(
+      ergebnis([
+        { nummer: 50, titel: 'Typprüfung', url: LERN_URL, herkunft: 'h', grund: 'g', lernvorschlag: 'Lernvorschlag 555/1', ergebnis: 'klar', missionsziel: 200 },
+        { nummer: 200, titel: 'Typprüfung', url: 'https://github.com/o/r/issues/200', herkunft: 'h2', grund: 'g2', ergebnis: 'klar', mission: 40, zuordnung: 'mission' },
+      ]),
+      50,
+    );
+    const b = await attrappe(() => null, { handlung: (x) => (x.triage.entscheidungen.length ? null : { epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(z.triage!.entscheidungen.map((d) => [d.nr, d.titel, d.lernvorschlag, d.mission])).toEqual([[200, 'Typprüfung', undefined, 40]]);
+      expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei (1 an Missionen angehängt), 0 geschlossen, 0 Fragen an den Menschen');
+    } finally {
+      await b.zu();
+    }
+  }, T);
 });

@@ -1,5 +1,5 @@
 // #117: a proposal of the learning loop at lern_issue is triaged like a ticket. Clear: first the
-// comment at the collecting issue, then a Missionsziel through the order writer with ready_label;
+// comment at the collecting issue, then (#170) a Sternzeit-Notiz through the order writer for the cut plan;
 // superfluous: only the comment; critical: exactly one question. A second run does nothing, a
 // stranger's comment with the mark of the loop is no proposal, a failed comment creates nothing.
 
@@ -100,7 +100,7 @@ describe('#117: Lernvorschlag wird wie ein Triage-Ticket behandelt', () => {
     expect(v[0].ticket.body).toContain(`Herkunft: ${QUELLE}`);
   });
 
-  it('klar: first the comment at lern_issue, then the Missionsziel through the order writer with ready-for-agent, then its number', async () => {
+  it('klar: first the comment at lern_issue, then (#170) a Sternzeit-Notiz through the order writer with needs-triage, then its number', async () => {
     const t = welt([lern()], { [K(1)]: antwort.klar, [K(2)]: antwort.ueberfluessig, [K(3)]: antwort.kritisch });
     const r = await triagiere(auftrag(), t.w);
     const [k1, neu, k1b, k2, k3, ...rest] = schreibend(t.aufrufe);
@@ -110,8 +110,8 @@ describe('#117: Lernvorschlag wird wie ein Triage-Ticket behandelt', () => {
     expect(k1.eingabe).toContain(TRIAGE_MARKE);
     expect(k1.eingabe).toContain(K(1));
     expect(k1.eingabe).toContain('Herkunft: Skill-Empfehlung');
-    // the order writer's GitHub layer: one issue, the ready label, the checked sections, the origin
-    expect(neu.args).toEqual(['issue', 'create', '--repo', 'o/r', '--title', 'Typprüfung im Gate', '--label', 'ready-for-agent', '--body-file', '-']);
+    // the order writer's GitHub layer: one issue, needs-triage (#170: the cut plan releases it into a mission), the checked sections, the origin
+    expect(neu.args).toEqual(['issue', 'create', '--repo', 'o/r', '--title', 'Typprüfung im Gate', '--label', 'needs-triage', '--body-file', '-']);
     expect(neu.eingabe).toContain('## Abnahmekriterien\n- Ein Typfehler macht die flotte-Suite rot.');
     expect(neu.eingabe).toContain('## Verifikationsweg\n`cd flotte && bun test`');
     expect(neu.eingabe).toContain(`Herkunft: ${QUELLE}`);
@@ -157,7 +157,8 @@ describe('#117: Lernvorschlag wird wie ein Triage-Ticket behandelt', () => {
     const t2 = welt([lern(), ...danach, { body: `Zu ${K(3)}: nein, keine Mail.`, rolle: 'NONE' }, { body: `Zu ${K(1)}: doch umsetzen.` }], { [K(1)]: antwort.klar, [K(3)]: antwort.klar });
     const r2 = await triagiere(auftrag(), t2.w);
     expect(r2.tickets.map((x) => [x.lernvorschlag, x.ergebnis])).toEqual([[K(1), 'klar'], [K(3), 'wartet']]);
-    expect(t2.gestartet).toHaveLength(1);
+    // #170: the note of the clear proposal goes into the cut plan of the same run; one clearing call
+    expect(t2.gestartet.filter((s) => s.auftrag.startsWith('FLOTTE-TRIAGE'))).toHaveLength(1);
     expect(t2.gestartet[0].auftrag).toContain('doch umsetzen.');
     expect(t2.gestartet[0].auftrag).not.toContain('keine Mail');
   });

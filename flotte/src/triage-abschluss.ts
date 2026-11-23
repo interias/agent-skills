@@ -54,6 +54,33 @@ export function endzustandFehlt(t: Ticket & { offen: boolean }, mission: (Stand 
 }
 
 /**
+ * #170: the open tickets with ready_label outside the input (schon) that hang on no open mission: a run never starts
+ * them, the driver only reports them as released without a mission. One list of the released tickets, one of the
+ * open missions, then the parent of each released ticket that is no mission itself.
+ */
+export function loseFreigaben(a: Aufrufer, forge: string, r: AuftragsRegeln, schon: Set<number>): Abweichung[] {
+  const liste = (label: string) => {
+    const x = a('gh', ['issue', 'list', '--repo', forge, '--label', label, '--state', 'open', '--limit', '500', '--json', 'number,title,labels']);
+    if (x.code) throw new Error(`gh issue list ${forge} --label ${label}: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
+    return JSON.parse(x.stdout || '[]') as { number: number; title: string; labels: { name: string }[] }[];
+  };
+  const missionen = new Set(liste(r.epic_label).map((m) => Number(m.number)));
+  const out: Abweichung[] = [];
+  for (const i of liste(r.ready_label)) {
+    const nr = Number(i.number);
+    const labels = (i.labels ?? []).map((l) => l.name);
+    if (schon.has(nr) || labels.includes(r.epic_label)) continue;
+    const p = a('gh', ['api', `repos/${forge}/issues/${nr}`, '--jq', '.parent_issue_url']);
+    // a forge that does not answer for one ticket: left alone, the next run reads it again
+    if (p.code) continue;
+    const m = /\/issues\/(\d+)\s*$/.exec(p.stdout.trim());
+    if (m && missionen.has(Number(m[1]))) continue;
+    out.push({ forge, nr, titel: String(i.title ?? ''), zustand: ['offen', ...labels, ...(m ? [`Kind von #${m[1]}`] : [])].join(', '), grund: m ? `${r.ready_label} an #${m[1]}, die keine offene Mission (${r.epic_label}) ist` : `${r.ready_label} ohne Mission (kein Sub-Issue einer Mission)` });
+  }
+  return out;
+}
+
+/**
  * Reads each note again (state, labels, comments, parent mission) and returns those without an allowed end state.
  * neu: the missions this run created. A note or mission the forge does not answer for counts as a deviation.
  */

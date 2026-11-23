@@ -117,7 +117,7 @@ type Antworten = Record<number, unknown>;
  * antworten (fragen, abnahmekriterien, verifikationsweg). #146: geplant counts every start, no other call exists.
  * #147: abbrechen aborts during a call: that call and every later one end without an answer, like the real starte.
  */
-async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworten, o: { trocken?: boolean; scheitert?: (args: string[]) => boolean; abbrechen?: (s: Start) => boolean; lernIssue?: number } = {}) {
+async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworten, o: { trocken?: boolean; scheitert?: (args: string[]) => boolean; abbrechen?: (s: Start) => boolean; lernIssue?: number; lern?: unknown } = {}) {
   const aufrufe: Aufruf[] = [];
   const geplant: Start[] = [];
   let abgebrochen = -1;
@@ -129,6 +129,8 @@ async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworte
       starte: async (s: Start): Promise<LaufErgebnis> => {
         if (abgebrochen < 0 && o.abbrechen?.(s)) abgebrochen = aufrufe.length;
         if (abgebrochen >= 0) return { code: null, sitzung: null, dauerMs: 0, fehler: 'abbruch' } as unknown as LaufErgebnis;
+        // #170: the clearing of a proposal of the learning loop, before the cut plan
+        if (s.auftrag.startsWith('FLOTTE-TRIAGE')) return { code: 0, sitzung: 'lern', dauerMs: 1000, strukturiert: o.lern } as LaufErgebnis;
         geplant.push(s);
         expect(s.auftrag.startsWith('FLOTTE-SCHNITTPLAN')).toBe(true);
         const nummern = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => Number(m[1]));
@@ -844,23 +846,17 @@ describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubte
 describe('#147 Abbruch mitten im Lauf: danach schreibt triagiere nichts mehr, das bis dahin Geschriebene steht im Ergebnis', () => {
   const PLAN_MIT_ZU: Plan = (nummern) => ({ ...(PLAN(nummern, '') as object), zuordnungen: (PLAN(nummern, '') as { zuordnungen: { notiz: number }[] }).zuordnungen.map((z) => (z.notiz === 4 ? { notiz: 4, art: 'verworfen', grund: 'passt nicht', herkunft: 'h' } : z)) });
 
-  it('aborted after the one admiral call, in the call for a learning proposal: what the plan wrote stands in the output, nothing is written after it, no final check', async () => {
+  it('#170 aborted in the call for a learning proposal (it comes before the cut plan): no plan call, nothing written, no final check', async () => {
     const f = welt();
     const lern = lernKommentar({ vorschlaege: [{ titel: 'Typprüfung im Gate', beleg: 'PR #10', form: 'test', umsetzung: 'tsc im Gate', wegfallen: 'nichts' }], gegriffen: [] }, 10, 9, '2026-11-22', [], []);
     f.issues.push({ number: 119, title: 'Lernschleife', body: '', labels: [], state: 'open', comments: [{ body: lern, login: 'flotte', rolle: 'OWNER' }], kinder: [] });
+    const vorher = JSON.stringify(f.issues);
     const { r, aufrufe, abgebrochen, geplant } = await lauf(f, PLAN_MIT_ZU, ANTWORTEN, { lernIssue: 119, abbrechen: (s) => !s.auftrag.startsWith('FLOTTE-SCHNITTPLAN') });
-    expect(geplant).toHaveLength(1);
+    expect(geplant).toHaveLength(0);
     expect(abgebrochen).toBeGreaterThan(0);
-    expect(schreibend(aufrufe.slice(abgebrochen))).toEqual([]);
-    expect(aufrufe.slice(abgebrochen).some((x) => x.args[1] === 'view' && x.args[2] !== '119')).toBe(false);
-    // written before the abort: #4 closed, the new mission with its released children, all in the output
-    expect(f.finde(4).state).toBe('closed');
-    expect(r.schnittplan[0].zuordnungen.find((z) => z.notiz === 4)).toMatchObject({ geschrieben: true });
-    expect(f.finde(100).labels).toContain('ready-for-agent');
-    expect(r.schnittplan[0].neue_missionen[0]).toMatchObject({ nummer: 100, geschrieben: true });
-    expect(r.tickets.filter((t) => t.mission === 100).map((t) => t.nummer)).toEqual([1, 2]);
-    // the proposal: no comment at the collecting issue
-    expect(f.finde(119).comments).toHaveLength(1);
+    expect(schreibend(aufrufe)).toEqual([]);
+    expect(JSON.stringify(f.issues)).toBe(vorher);
+    expect(r.schnittplan).toEqual([]);
     expect(r.zustand).toBe('abgebrochen');
     expect(r.abschluss).toMatchObject({ geprueft: 0, abweichungen: [], entfaellt: expect.stringContaining('abgebrochen') });
   });
@@ -872,5 +868,87 @@ describe('#147 Abbruch mitten im Lauf: danach schreibt triagiere nichts mehr, da
     expect(schreibend(aufrufe)).toEqual([]);
     expect(JSON.stringify(f.issues)).toBe(vorher);
     expect(r.zustand).toBe('abgebrochen');
+  });
+});
+
+describe('#170 Lernvorschläge und Missionen im Schnittplan, lose Freigaben in der Abschlussprüfung', () => {
+  const READY = 'ready-for-agent';
+  const LERN_KLAR = { entscheidung: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Beleg zeigt den Fehler.', fragen: [], abnahmekriterien: '- Ein Typfehler macht die Suite rot.', verifikationsweg: '`bun test`' };
+  const mitLern = () => {
+    const f = welt();
+    const lern = lernKommentar({ vorschlaege: [{ titel: 'Typprüfung im Gate', beleg: 'PR #10', form: 'test', umsetzung: 'tsc im Gate', wegfallen: 'nichts' }], gegriffen: [] }, 10, 9, '2026-11-22', [], []);
+    f.issues.push({ number: 119, title: 'Lernschleife', body: '', labels: [], state: 'open', comments: [{ body: lern, login: 'flotte', rolle: 'OWNER' }], kinder: [] });
+    return f;
+  };
+
+  it('a clear proposal becomes a Sternzeit-Notiz through the order writer and goes into the same cut plan; it ends as a child of a mission, never loose', async () => {
+    const f = mitLern();
+    const zu = (n: number) => (n === 100 ? { art: 'mission', mission: 40 } : ZU[n]);
+    const plan: Plan = (nummern) => ({
+      neue_missionen: [{ schluessel: 'port', titel: 'Portprüfung', begruendung: 'drei Notizen zum Port' }],
+      zuordnungen: nummern.map((n) => ({ notiz: n, grund: 'gleiches Thema', herkunft: 'Eigenes Urteil: Thema', ...zu(n) })),
+    });
+    const { r, aufrufe, geplant } = await lauf(f, plan, { ...ANTWORTEN, 100: KLAR }, { lernIssue: 119, lern: LERN_KLAR });
+    // the note of the proposal: created with needs-triage (not ready), before the one cut plan, and part of it
+    const anlegen = aufrufe.filter((x) => x.args[0] === 'issue' && x.args[1] === 'create');
+    expect(anlegen[0].args).toEqual(['issue', 'create', '--repo', 'o/r', '--title', 'Typprüfung im Gate', '--label', 'needs-triage', '--body-file', '-']);
+    expect(geplant).toHaveLength(1);
+    expect(geplant[0].auftrag).toContain('## Sternzeit-Notiz #100: Typprüfung im Gate');
+    // the comment at the collecting issue names the note before it exists, the number after
+    const lernKommentare = f.finde(119).comments.slice(1).map((c) => c.body);
+    expect(lernKommentare[0]).toContain('Lernvorschlag');
+    expect(lernKommentare[0]).toContain('Sternzeit-Notiz');
+    expect(lernKommentare[1]).toMatch(/→ #100, widerrufbar \(Lernvorschlag \d+\/1\)/);
+    // it hangs on mission 40 with Warp frei, like any clear note
+    expect(f.finde(40).kinder).toContain(100);
+    expect(f.finde(100).labels).toEqual([READY]);
+    expect(r.tickets.find((t) => t.lernvorschlag)).toMatchObject({ ergebnis: 'klar', missionsziel: 100 });
+    expect(r.tickets.find((t) => t.nummer === 100 && !t.lernvorschlag)).toMatchObject({ ergebnis: 'klar', mission: 40 });
+    // the final check covers the note of the proposal too
+    expect(r.abschluss).toMatchObject({ geprueft: 6, sauber: 6, abweichungen: [] });
+    const lose = f.issues.filter((i) => i.state === 'open' && i.labels.includes(READY) && !i.labels.includes('epic') && !f.issues.some((m) => m.kinder.includes(i.number)));
+    expect(lose).toEqual([]);
+  });
+
+  it('--trocken: a clear proposal creates nothing and adds nothing to the plan', async () => {
+    const f = mitLern();
+    const { aufrufe, geplant } = await lauf(f, PLAN, ANTWORTEN, { lernIssue: 119, lern: LERN_KLAR, trocken: true });
+    expect(schreibend(aufrufe)).toEqual([]);
+    expect(geplant[0].auftrag).not.toContain('Typprüfung im Gate');
+  });
+
+  it('a mission with needs-triage that gets children from the plan loses needs-triage, after its comment says so', async () => {
+    const f = welt();
+    f.finde(40).labels = ['epic', 'needs-triage'];
+    const { r, aufrufe } = await lauf(f, PLAN, ANTWORTEN);
+    expect(f.finde(40).labels).toEqual(['epic']);
+    expect(f.finde(40).comments[0].body).toContain('`needs-triage`');
+    const k = aufrufe.findIndex((x) => x.args[1] === 'comment' && x.args[2] === '40');
+    const ab = aufrufe.findIndex((x) => x.args[1] === 'edit' && x.args[2] === '40' && x.args.includes('--remove-label'));
+    expect(k).toBeGreaterThanOrEqual(0);
+    expect(ab).toBeGreaterThan(k);
+    expect(aufrufe[ab].args).toEqual(['issue', 'edit', '40', '--repo', 'o/r', '--remove-label', 'needs-triage']);
+    expect(r.schnittplan[0].missionen).toEqual([expect.objectContaining({ nummer: 40, angehaengt: [3], geschrieben: true })]);
+    // a mission without the label is not touched
+    const g = welt();
+    const { aufrufe: b } = await lauf(g, PLAN, ANTWORTEN);
+    expect(b.some((x) => x.args[1] === 'edit' && x.args[2] === '40' && x.args.includes('--remove-label'))).toBe(false);
+  });
+
+  it('a mission with needs-triage keeps it when no child of the plan is released on it', async () => {
+    const f = welt();
+    f.finde(40).labels = ['epic', 'needs-triage'];
+    await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'edit' && a[2] === '3' && a.includes('--add-label') });
+    expect(f.finde(40).labels).toEqual(['epic', 'needs-triage']);
+  });
+
+  it('the final check also reports an open ready ticket without a mission outside the input; one on an open mission is clean', async () => {
+    const f = welt();
+    f.issues.push({ number: 60, title: 'Loses Ticket', body: 'x', labels: [READY], state: 'open', comments: [], kinder: [] });
+    f.issues.push({ number: 61, title: 'Kind einer Mission', body: 'x', labels: [READY], state: 'open', comments: [], kinder: [] });
+    f.finde(40).kinder.push(61);
+    const { r } = await lauf(f, PLAN, ANTWORTEN);
+    expect(r.abschluss.abweichungen).toEqual([{ forge: 'o/r', nr: 60, titel: 'Loses Ticket', zustand: `offen, ${READY}`, grund: `${READY} ohne Mission (kein Sub-Issue einer Mission)` }]);
+    expect(r.zustand).toBe('unvollstaendig');
   });
 });
