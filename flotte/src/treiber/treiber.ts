@@ -386,6 +386,8 @@ class Treiber {
   platteGenug = true;
   bewertung = new Map<string, Bewertung>();
   letzterPing = new Map<string, number>();
+  /** #197: accounts whose last measurement failed, with the time of the value it left; that value counts */
+  messungGescheitert = new Map<string, number>();
   /** pings and merges run beside the loop; the loop wakes up when one ends */
   nebenher = new Set<Promise<void>>();
   /** the head of the merge queue while the driver works on it */
@@ -707,7 +709,7 @@ class Treiber {
     if (genug !== this.platteGenug) this.ereignis(null, genug ? 'Platte wieder über der Schwelle' : `Platte: ${frei ?? 'unbekannt'} GB frei, Schwelle ${this.e.plattMinGb} GB: kein Start`);
     this.platteGenug = genug;
     for (const k of this.alleKonten()) {
-      const b = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k));
+      const b = this.bewerten(k);
       const alt = this.bewertung.get(k)?.stufe;
       if (alt && alt !== b.stufe) this.ereignis(null, `Verbrauch ${this.kontoName(k)}: ${b.stufe} (${b.grund})`);
       if (k === this.e.admiralKonto && b.stufe !== 'gruen' && alt !== b.stufe) this.admiralWarnung(b);
@@ -731,6 +733,48 @@ class Treiber {
     const a = this.e.admiralKonto;
     const offen = Object.values(this.z?.epics ?? {}).flatMap((ep) => (ep.konto && !ENDE.has(ep.stufe) && existsSync(ep.konto) ? [ep.konto] : []));
     return [...new Set([...this.e.konten, ...(a ? [a] : []), ...offen])];
+  }
+
+  /**
+   * The rating of an account's value; a stale one is red, except after a failed measurement (#197):
+   * then the last known value counts by its share, with its age in the reason, until a newer one comes.
+   */
+  bewerten(k: string): Bewertung {
+    const v = liesVerbrauch(k);
+    const gescheitert = this.messungGescheitert.get(k);
+    if (gescheitert !== undefined && v && v.zeit <= gescheitert) {
+      const b = bewerte(v, this.w.jetzt(), Infinity, this.schwellen(k));
+      return { ...b, grund: `${b.grund}; letzter bekannter Wert, ${b.alterMin} min alt, Messung gescheitert` };
+    }
+    this.messungGescheitert.delete(k);
+    return bewerte(v, this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k));
+  }
+
+  /** A small run fetches a fresh value of the account; a failed one leaves the last known value in effect (#197). */
+  async messeNeu(k: string, b: Bewertung): Promise<void> {
+    this.letzterPing.set(k, this.w.jetzt());
+    this.z.statistik.pings++;
+    const r = await this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] });
+    this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
+    const v = liesVerbrauch(k);
+    if (!r.verbrauch && v && !this.messungGescheitert.has(k)) {
+      this.messungGescheitert.set(k, v.zeit);
+      const n = this.bewerten(k);
+      this.imLogbuch(null, `Verbrauch ${this.kontoName(k)}: Messung gescheitert (${r.fehler ?? 'kein rate_limit_event'}), es gilt der letzte bekannte Wert (${n.alterMin} min alt): ${n.stufe}`);
+    }
+    this.bewertung.set(k, this.bewerten(k));
+  }
+
+  /** #197: a stale value of the account the admiral asks on is measured again before the block is routed. */
+  async vorDemFrageblock(ep: FlottenEpic): Promise<void> {
+    const k = this.e.admiralKonto ?? ep.konto;
+    if (!k) return;
+    // the file as it is now, not as the last tick read it
+    const b = this.bewerten(k);
+    this.bewertung.set(k, b);
+    if (b.alterMin === null || b.alterMin <= this.e.verbrauchMaxAlterMin || this.messungGescheitert.has(k)) return;
+    await this.messeNeu(k, b);
+    this.ereignis(ep.nr, `Verbrauch ${this.kontoName(k)} ${b.alterMin} min alt: vor dem Frageblock neu gemessen, ${this.bewertung.get(k)!.stufe}`);
   }
 
   schwellen(k: string): Schwellen {
@@ -769,14 +813,7 @@ class Treiber {
       if (!this.brauchtVerbrauch(k)) continue;
       const zuletzt = this.letzterPing.get(k) ?? 0;
       if (this.w.jetzt() - zuletzt < (this.e.verbrauchMaxAlterMin * 60_000) / 2) continue;
-      this.letzterPing.set(k, this.w.jetzt());
-      this.z.statistik.pings++;
-      this.nebenbei(
-        this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] }).then((r) => {
-          this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
-          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k)));
-        }),
-      );
+      this.nebenbei(this.messeNeu(k, b));
     }
   }
 
@@ -1172,6 +1209,7 @@ class Treiber {
     block.fragen = neu;
     // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
     if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
+    await this.vorDemFrageblock(ep);
     const konto = this.admiralKontoFuer(ep);
     if (!konto) {
       // #111: no account with room; the block waits in the state and goes to the admiral once one is
