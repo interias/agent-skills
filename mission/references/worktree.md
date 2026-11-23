@@ -34,7 +34,10 @@ hält das Paket an. Die Parameter und das Verhalten im Einzelnen stehen im Hilfe
 (`Get-Help`); hier steht nur, was der Orchestrator wissen muss.
 
 **`Down` nie aus einer Shell aufrufen, die im Worktree steht.** Sonst scheitert
-`git worktree remove`, und erst ein zweites `Down` nach dem `cd` heraus räumt fertig ab.
+`git worktree remove`, und erst ein zweites `Down` nach dem `cd` heraus räumt fertig ab. Kennt Git
+den Worktree dann schon nicht mehr, räumt dieses zweite `Down` das Lock ab und den Ordner, wenn er
+fehlt oder leer ist und kein Verweis; ein Ordner mit Inhalt oder ein Verweis bleibt samt Lock stehen,
+`Down` nennt ihn und endet mit Exit 1 (#106). `CleanupStale` lässt ein gehaltenes Lock weiter stehen.
 
 ## Anlegen: was `Up` tut
 

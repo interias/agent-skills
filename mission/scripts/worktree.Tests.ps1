@@ -332,6 +332,53 @@ Describe 'worktree.ps1 Down' {
         (Get-Item (Join-Path $t.Worktree 'server\node_modules') -Force).LinkType | Should Be 'Junction'
     }
 
+    # #106: git removed the worktree (or its entry), but the lock and maybe an empty folder are left,
+    # e.g. after `Down` from a shell that stood in the worktree. Down for the package clears them.
+    function Remove-WorktreeBehindDown($t) {
+        [IO.Directory]::Delete((Join-Path $t.Worktree 'server\node_modules'), $false)
+        git -C $t.Repo worktree remove --force $t.Worktree 2>$null
+        $null = $LASTEXITCODE | Should Be 0
+        Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+    }
+
+    It 'clears the lock of a worktree git no longer knows, with its empty folder or without one' {
+        foreach ($folder in 'empty', 'gone') {
+            $t = New-AdapterRepo
+            (Invoke-Up $t).Exit | Should Be 0
+            Remove-WorktreeBehindDown $t
+            if ($folder -eq 'empty') { New-Item -ItemType Directory -Path $t.Worktree | Out-Null }
+            $r = Invoke-DownWithPath $t (Get-PathWithoutDocker)
+            $r.Exit | Should Be 0
+            $r.Output | Should Match 'Lock removed'
+            Test-Path $t.Worktree | Should Be $false
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $false
+            Test-Path (Join-Path $t.Repo 'server\node_modules\dep\index.js') | Should Be $true
+        }
+    }
+
+    It 'leaves a folder git no longer knows in place with its lock when it is not empty or a link' {
+        $target = Join-Path $TestDrive 'link-target'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        Set-Content -Path (Join-Path $target 'keep.txt') -Value 'kept'
+        foreach ($folder in 'file', 'link') {
+            $t = New-AdapterRepo
+            (Invoke-Up $t).Exit | Should Be 0
+            Remove-WorktreeBehindDown $t
+            if ($folder -eq 'file') {
+                New-Item -ItemType Directory -Path $t.Worktree | Out-Null
+                Set-Content -Path (Join-Path $t.Worktree 'rest.txt') -Value 'work'
+            } else {
+                New-Item -ItemType Junction -Path $t.Worktree -Value $target | Out-Null
+            }
+            $r = Invoke-DownWithPath $t (Get-PathWithoutDocker)
+            $r.Exit | Should Be 1
+            $r.Output | Should Match ([regex]::Escape($t.Worktree))
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+            Test-Path $t.Worktree | Should Be $true
+            Test-Path (Join-Path $target 'keep.txt') | Should Be $true
+        }
+    }
+
     It 'brings down the compose project named <repo>-<nr>' {
         $t = New-AdapterRepo
         (Invoke-Up $t).Exit | Should Be 0
