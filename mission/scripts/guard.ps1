@@ -39,10 +39,10 @@
       kundschafter  Agent kundschafter. A deny list of writing commands - no guarantee:
                     Bash has no real read-only mode, and a command this script does not know
                     (Start-Process, an alias from git config, an encoded command, ...) passes.
-      aufraeumen    Skill mission-aufraeumen, rules 3-5. Denies git branch -D and any --force
+      aufraeumen    Skill mission-aufraeumen, rules 3 and 4. Denies git branch -D and any --force
                     (also --delete --force, -Df), git worktree remove --force/-f and forced
-                    pushes; asks before git push --delete/-d and delete refspecs (:<branch>) -
-                    the person's answer in the permission prompt is the consent of rule 5.
+                    pushes. git push --delete needs no consent since #203: rule 5 of the skill
+                    names the two proofs (commits in the base, pull request merged).
 
     Output (verified against https://code.claude.com/docs/en/hooks, 2026-10-22): deny or ask as
     JSON on stdout (hookSpecificOutput.permissionDecision, permissionDecisionReason) with exit 0;
@@ -635,9 +635,6 @@ function Test-Aufraeumen($seg, $git, [string]$shown) {
         $refspecs = @($a | Where-Object { -not $_.StartsWith('-') })
         if ((Test-ShortFlag $a 'f') -or ($a | Where-Object { $_ -like '--force*' }) -or ($refspecs | Where-Object { $_.StartsWith('+') })) {
             return New-Verdict 'deny' "${rule3}: '$shown' pusht mit Gewalt. $retry"
-        }
-        if ((Test-ShortFlag $a 'd') -or ($a | Where-Object { $_ -eq '--delete' }) -or ($refspecs | Where-Object { $_.StartsWith(':') })) {
-            return New-Verdict 'ask' "Zustimmung nötig (Skill mission-aufraeumen, Regel 5: Remote-Branches nur nach ausdrücklicher Zustimmung): '$shown' löscht einen Branch auf dem Remote. Erlauben nur, wenn der Branch nachweislich im Basiszweig liegt."
         }
     }
     $null

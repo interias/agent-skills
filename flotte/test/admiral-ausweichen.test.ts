@@ -133,3 +133,74 @@ describe('#111: Admiral-Konto rot', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 });
+
+// #197: a stale value of the admiral account is measured again before the question block is routed;
+// a failed measurement keeps the last known value with its age instead of red.
+describe('#197: veralteter Verbrauchswert des Admiral-Kontos', () => {
+  const alt = (k: string, a: number) => schreibeVerbrauch(k, { zeit: Date.now() - 40 * 60_000, fuenf: { anteil: a, reset: Date.now() + 3 * H }, sieben: { anteil: 0.1, reset: Date.now() + 5 * 24 * H } });
+  // the admiral account's value is stale when the run's turn ends (no regular ping in between)
+  const wirdAlt = (t: ReturnType<typeof aufbau>, k: string) => {
+    const melde = t.welt.melde;
+    t.welt.melde = (zeile) => {
+      melde(zeile);
+      if (/Zug zu Ende/.test(zeile)) alt(k, 0.1);
+    };
+  };
+  // the calls up to the admiral's: the last two show what came right before him
+  const reihe = (buch: ReturnType<typeof drehbuch>) => {
+    const l = buch.gesehen().filter((x) => /^FLOTTE-(PING|ADMIRAL)/.test(x.eingabe)).map((x) => [/^FLOTTE-PING/.test(x.eingabe) ? 'PING' : 'ADMIRAL', x.konto]);
+    return l.slice(0, l.findIndex((x) => x[0] === 'ADMIRAL') + 1);
+  };
+
+  it('stale, measured again green: the admiral answers on his own account, nothing waits', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1] });
+    const [konto, admiralKonto] = t.konten;
+    wirdAlt(t, admiralKonto);
+    const buch = drehbuch([lauf(3, [{ warte: 400 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), ping(0.1), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [konto], admiralKonto }), t.welt);
+    expect(reihe(buch).slice(-2)).toEqual([['PING', admiralKonto], ['ADMIRAL', admiralKonto]]);
+    const e = texte(z);
+    expect(e).toContain('#3 Verbrauch Admiral-Konto 40 min alt: vor dem Frageblock neu gemessen, gruen');
+    expect(e.some((x) => /: der Admiral weicht auf Konto|wartet auf ein freies Konto/.test(x))).toBe(false);
+    expect(z.fragen).toEqual([]);
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
+  it('stale, measured again red: only the fresh red value moves the block (#111: to another account with room)', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1] });
+    const [konto, admiralKonto] = t.konten;
+    wirdAlt(t, admiralKonto);
+    const buch = drehbuch([lauf(3, [{ warte: 400 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), ping(0.95), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [konto], admiralKonto }), t.welt);
+    expect(reihe(buch).slice(-2)).toEqual([['PING', admiralKonto], ['ADMIRAL', konto]]);
+    const e = texte(z);
+    expect(e).toContain('#3 Verbrauch Admiral-Konto 40 min alt: vor dem Frageblock neu gemessen, rot');
+    expect(e).toContain('#3 Admiral-Konto rot: der Admiral weicht auf Konto 1 aus');
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
+  it('stale, the ping ends at the account limit: red, no last value; the admiral moves to another account', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1] });
+    const [konto, admiralKonto] = t.konten;
+    wirdAlt(t, admiralKonto);
+    const buch = drehbuch([lauf(3, [{ warte: 400 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), { wenn: '^FLOTTE-PING', schritte: [{ text: "You've hit your limit", fehler: true }], exit: 1 }, admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [konto], admiralKonto }), t.welt);
+    expect(reihe(buch).slice(-1)).toEqual([['ADMIRAL', konto]]);
+    expect(z.ereignisse.some((x) => /Messung gescheitert/.test(x.text))).toBe(false);
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
+  it('stale, the measurement fails: the last known value counts with its age in the logbook, not red', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1] });
+    const [konto, admiralKonto] = t.konten;
+    wirdAlt(t, admiralKonto);
+    const buch = drehbuch([lauf(3, [{ warte: 400 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), { wenn: '^FLOTTE-PING', schritte: [{ text: 'OK' }] }, admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [konto], admiralKonto }), t.welt);
+    expect(reihe(buch).slice(-1)).toEqual([['ADMIRAL', admiralKonto]]);
+    const zeile = /^Verbrauch Admiral-Konto: Messung gescheitert \(kein rate_limit_event\), es gilt der letzte bekannte Wert \(\d+(\.\d)? min alt\): gruen/;
+    expect(z.ereignisse.some((x) => zeile.test(x.text))).toBe(true);
+    expect(t.p.kommentare.some((k) => k.nr === z.logbuch && /Messung gescheitert .*letzte bekannte Wert \(\d+(\.\d)? min alt\)/.test(k.text))).toBe(true);
+    expect(texte(z).some((x) => /: der Admiral weicht auf Konto|wartet auf ein freies Konto/.test(x))).toBe(false);
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+});
