@@ -82,3 +82,20 @@ describe('gate.ps1: the driver reads its stdout as UTF-8 (#75)', () => {
     expect(zeile).toBeLessThan(gate.indexOf('$pesterLauf'));
   });
 });
+
+describe('#169: an open prerequisite parks the mission, in step with the driver (#133)', () => {
+  const vorbedingung = abschnitt('- **Vorbedingung prüfen:**', '- **Basis bestimmen**');
+  it('the other two branches stay as they were', () => {
+    expect(vorbedingung).toContain('werden diese Tickets im selben Lauf mitbearbeitet — ein Missions-Branch, ein Pull Request.');
+    expect(vorbedingung).toContain('Hängen nur **einzelne** Kinder daran, werden diese übersprungen (Phase 2d).');
+  });
+  it('otherwise: no work surfaces, no pull request, a comment with reason and resumption', () => {
+    expect(vorbedingung).toContain('Sonst **parkt die Mission**');
+    expect(vorbedingung).toMatch(/kein Paket-Worktree, kein Pull Request/);
+    expect(vorbedingung).toMatch(/Kommentar an der Mission nennt den Grund .* und die Wiederaufnahme/);
+  });
+  it('under the driver: FLOTTE-ENDE without a pull request naming every open prerequisite, which the driver turns into waiting', () => {
+    expect(vorbedingung).toMatch(/endet der Zug mit `FLOTTE-ENDE` ohne Pull Request, das jede offene Vorbedingung als `#<n>` nennt/);
+    expect(vorbedingung).toContain('wartend');
+  });
+});
