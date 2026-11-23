@@ -367,6 +367,11 @@ describe('flotte chat', () => {
     expect(Object.keys(beispiel.quittung)).toEqual(['rechner']);
   });
 
+  it('an empty text does not fit the schema: the bridge needs text or fehler', () => {
+    expect(chatErgebnisAus({ text: '', karten: [], entwurf: null })).toBeNull();
+    expect(chatErgebnisAus({ text: '  ', karten: [{ frage: 'Q1', optionen: ['A'] }], entwurf: null })).toBeNull();
+  });
+
   it(
     'one service per machine: a second start is refused',
     async () => {
