@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
 import { faktenpaket, genannteDateien, LESEN_MAX } from '../src/triage-fakten.ts';
@@ -40,9 +40,12 @@ describe('#167 Faktenpaket der Triage', () => {
     expect(f).toContain('- #12 Port prüfen');
     expect(f).toContain('### src/port.ts (genannt in #1)\n```\nexport const PORT = 4747;');
     expect(f).not.toContain('src/fehlt.ts');
+    // a path leading out of the repository is never read
+    writeFileSync(join(r, '..', `${basename(r)}-draussen.txt`), 'geheim');
+    expect(faktenpaket(r, 'o/r', merges, [notiz(3, `Siehe ../${basename(r)}-draussen.txt`)])).not.toContain('geheim');
     // a file named twice stands once; a long one is cut and says so
     expect(f.match(/### src\/port\.ts/g)).toHaveLength(1);
-    expect(f).toContain('### src/gross.ts (genannt in #2, gekürzt auf 4000 von 10000 Zeichen)');
+    expect(f).toContain('### src/gross.ts (genannt in #2, gekürzt auf 4000 von 10000 Bytes)');
   });
 
   it('a part the forge does not answer says so instead of failing the run', () => {
@@ -59,6 +62,8 @@ describe('#167 Faktenpaket der Triage', () => {
     const a = new Auswertung();
     a.zeile(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'lese' }, { type: 'tool_use', name: 'Read', input: {} }, { type: 'tool_use', name: 'Grep', input: {} }] } }));
     a.zeile(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Glob', input: {} }] } }));
+    // the answer through the schema is no file access
+    a.zeile(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'StructuredOutput', input: {} }] } }));
     a.zeile(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', content: 'x' }] } }));
     expect(a.ergebnis(0, false, 10, '').zugriffe).toBe(3);
   });

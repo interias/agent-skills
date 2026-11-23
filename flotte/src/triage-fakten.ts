@@ -4,8 +4,8 @@
 // The model reads only when a fact is missing, at most lesenMax file accesses per call (setting triageLesenMax),
 // held by --max-turns. One package per project and run; the cut plan and each learning proposal get the same.
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import type { Aufrufer } from './aufruf.ts';
 import type { Ticket } from './triage.ts';
 
@@ -37,6 +37,17 @@ export function genannteDateien(text: string): string[] {
   return [...new Set([...text.matchAll(/(?<![\w./-])((?:[\w.-]+\/)+[\w.-]+\.[A-Za-z0-9]+)(?![\w/])/g)].map((m) => m[1].replace(/^\.\//, '')))];
 }
 
+/** The first bytes of a file as text, without reading a large one whole. */
+function anfang(datei: string, max: number): string {
+  const fd = openSync(datei, 'r');
+  try {
+    const b = Buffer.alloc(max);
+    return b.subarray(0, readSync(fd, b, 0, max, 0)).toString('utf8');
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /** The files the notes name that exist in the repository, cut per file and in total. */
 function dateien(repo: string, notizen: Ticket[]): string[] {
   const out: string[] = [];
@@ -46,12 +57,13 @@ function dateien(repo: string, notizen: Ticket[]): string[] {
     for (const p of genannteDateien(`${t.titel}\n${t.body}`).slice(0, DATEIEN_JE_NOTIZ)) {
       if (gesehen.has(p) || rest <= 0) continue;
       gesehen.add(p);
-      const voll = join(repo, p);
-      if (!existsSync(voll) || !statSync(voll).isFile()) continue;
-      const text = readFileSync(voll, 'utf8');
-      const teil = text.slice(0, Math.min(DATEI_MAX, rest));
+      const voll = resolve(repo, p);
+      // only files inside the repository: a path with `..` never reads beyond it
+      if (relative(resolve(repo), voll).startsWith('..') || !existsSync(voll) || !statSync(voll).isFile()) continue;
+      const groesse = statSync(voll).size;
+      const teil = anfang(voll, Math.min(DATEI_MAX, rest));
       rest -= teil.length;
-      out.push(`### ${p} (genannt in #${t.nummer}${teil.length < text.length ? `, gekürzt auf ${teil.length} von ${text.length} Zeichen` : ''})\n\`\`\`\n${teil}\n\`\`\``);
+      out.push(`### ${p} (genannt in #${t.nummer}${Buffer.byteLength(teil) < groesse ? `, gekürzt auf ${Buffer.byteLength(teil)} von ${groesse} Bytes` : ''})\n\`\`\`\n${teil}\n\`\`\``);
     }
   }
   return out;

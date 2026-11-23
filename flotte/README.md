@@ -353,8 +353,9 @@ ADRs unter `docs/adr` (Titel und Status), den Adapter `.claude/epic.md` (gekürz
 die es gibt; je Datei und insgesamt gekürzt). Die offenen Missionen mit ihren Missionszielen stehen schon im
 Auftrag des Schnittplans. Das Modell liest nur, wenn ein Fakt fehlt, höchstens `triageLesenMax`
 Dateizugriffe je Aufruf (Einstellung im Maschinenraum, Standard 15); der Aufruf bekommt `--max-turns` =
-Grenze + 3. Die Ausgabe nennt `messung` = `{aufrufe, dauerMs, zugriffe}` (Werkzeugaufrufe aller
-Admiral-Aufrufe), die Zeile im Flottenlogbuch endet mit `; Dauer <s> s in <n> Aufrufen, <z> Dateizugriffe`.
+Grenze + 3. Die Grenze ist ungefähr: Ruft das Modell in einem Zug mehrere Werkzeuge auf, kann es sie
+überschreiten. Die Ausgabe nennt `messung` = `{aufrufe, dauerMs, zugriffe}` (`Read`, `Grep`, `Glob` aller
+Admiral-Aufrufe, nicht die Antwort über das Schema), die Zeile im Flottenlogbuch endet mit `; Dauer <s> s in <n> Aufrufen, <z> Dateizugriffe`.
 
 **Zum Menschen** kommt eine Frage der Triage nur auf zwei Wegen: als Fragekommentar am Ticket (bei
 einem Lernvorschlag am `lern_issue`) und im Frachtraum der Brücke. Einen Chat, der sie sammelt, gibt
@@ -371,7 +372,8 @@ andere ist eine Abweichung, auch eine klare Notiz, die der Plan auf `triage` lie
 Notiz, deren letzter Triage-Kommentar keine Frage ist (gescheiterte Freigabe): Der Lauf ist dann
 `unvollstaendig`, nicht beendet. Die Notizen aus Lernvorschlägen dieses Laufs gehören zur Eingabe; dazu
 nennt `abweichungen` jedes andere offene Ticket mit `ready_label`, das an keiner offenen Mission hängt
-(freigegeben, aber ohne Mission: kein Außeneinsatz startet es; #170), ohne es in `geprueft` zu zählen. Ausgabe `abschluss` = `{geprueft, sauber, abweichungen[] {forge, nr,
+(freigegeben, aber ohne Mission: kein Außeneinsatz startet es; #170), ohne es in `geprueft` zu zählen. Solange ein solches Ticket steht, endet jeder Lauf `unvollstaendig`, bis
+ein Mensch es einer Mission zuordnet oder das Label abnimmt. Ausgabe `abschluss` = `{geprueft, sauber, abweichungen[] {forge, nr,
 titel, zustand, grund}}` und `zustand` = `beendet` | `unvollstaendig` | `abgebrochen`; bei `--trocken`
 und nach einem Abbruch entfällt die Prüfung (`entfaellt` nennt warum). Über die Brücke steht die Zeile dann als
 `Triage-Lauf unvollständig: …; N Notizen nicht sauber abgearbeitet: #a (<grund>), …` im Flottenlogbuch und
@@ -535,7 +537,8 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
   - die Arbeitszeit (`arbeitS`) vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der
     der ganze Lauf auf dich wartete (`menschWartenS`), pausiert war (`pauseS`) oder sein nächster Zug
     an einer Bremse hing, am Limit des Kontos oder am RAM (`limitS`, #202); die drei stehen als eigene
-    Felder daneben, ältere Zeilen haben `pauseS` und `limitS` nicht;
+    Felder daneben, ältere Zeilen haben `pauseS` und `limitS` nicht. Hält ein schon laufender Zug selbst
+    an (Pause oder RAM-Halt in `ram.ps1` vor dem nächsten Paket), zählt diese Zeit weiter als Arbeit;
   - die Andockprüfungs-Zeit des Treibers und das Konto;
   - je Paket die Klasse (mechanisch, Standard, Urteil, Urteil-hoch) und die Eskalationen, gelesen
     aus den Ingenieur-Aufrufen im Log des Laufs.
