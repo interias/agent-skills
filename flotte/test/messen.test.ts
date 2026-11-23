@@ -172,6 +172,11 @@ describe('kalteNeustarts (#211)', () => {
     expect(kalteNeustarts(e)).toEqual({ mensch: 0, limit: 0, eigen: 0 });
   });
 
+  it('an answer that only mentions a limit is the person, not the account limit', () => {
+    const e = lies(assistent(0, 'FLOTTE-FRAGE 1', { stop: 'end_turn' }), mensch(70, 'Antwort auf FLOTTE-FRAGE 1: Limit auf 5'), assistent(71, 'ok'), mensch(200, 'You have hit your usage limit · resets 3am'), assistent(201, 'weiter'));
+    expect(kalteNeustarts(e)).toEqual({ mensch: 1, limit: 1, eigen: 0 });
+  });
+
   it('a gap of exactly the threshold is still warm, the trailing wait does not count', () => {
     const e = lies(assistent(0, 'x', { stop: 'end_turn' }), mensch(60, 'y'), assistent(61, 'z', { stop: 'end_turn' }), mensch(500, 'spät'));
     expect(kalteNeustarts(e)).toEqual({ mensch: 0, limit: 0, eigen: 0 });

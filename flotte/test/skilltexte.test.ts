@@ -125,7 +125,8 @@ describe('#211: a long own wait stays warm, the rule stands word for word in 4a 
     expect(r).toContain('<skill>/scripts/wecker.ps1 -Log <logdatei>');
     expect(r).toContain('-Minuten 50');
     expect(r).toContain('kein `sleep`, keine Schleife');
-    expect(phase4a).toContain('Das gilt auch für dich als Orchestrator');
+    expect(r).toContain('Ist die Arbeit vorher fertig, beendest du den Wecker.');
+    expect(skill).toContain('startest du daneben den Wecker aus 4a („Warm bleiben“, gilt auch für Nachprüfung und Andockprüfung)');
   });
 
   it('every Ingenieur agent file has the same paragraph as 4a', () => {

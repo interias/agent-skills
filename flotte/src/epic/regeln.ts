@@ -171,7 +171,7 @@ export type Bewertung<R extends Rolle> =
   | { art: 'verweigert'; fehler: string }
   | { art: 'konto'; fehler: string };
 
-const KONTOLIMIT = /(hit|reached) (your|the) (usage |session |weekly )?limit|usage limit|limit reached|resets (at )?\d/i;
+export const KONTOLIMIT = /(hit|reached) (your|the) (usage |session |weekly )?limit|usage limit|limit reached|resets (at )?\d/i;
 
 /**
  * A finished, valid result is ok even with permission_denials: the agent took another way, and the

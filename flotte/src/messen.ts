@@ -3,6 +3,7 @@
 // The same functions measure old deployments (Leitstand, Admiral, windows) and new ones (driver).
 
 import type { Eintrag } from './transkript.ts';
+import { KONTOLIMIT } from './epic/regeln.ts';
 
 const MIN = 60_000;
 const EMPFEHLUNG = /\((Recommended|Empfehlung)\)/i;
@@ -163,7 +164,7 @@ export function kalteNeustarts(eintraege: Eintrag[], schwelleMin = 60): KalteNeu
     }
     if (!kalt || ursache) continue;
     if (e.art === 'meldung' || e.art === 'ergebnis') ursache = 'eigen';
-    else if (/\blimit/i.test(e.text)) ursache = 'limit';
+    else if (KONTOLIMIT.test(e.text) || /Limit erreicht/i.test(e.text)) ursache = 'limit';
     else ursache = 'mensch';
   }
   return out;
