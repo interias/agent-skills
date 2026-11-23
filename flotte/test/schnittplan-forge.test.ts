@@ -245,8 +245,9 @@ describe('#147 Schnittplan in der Forge', () => {
     // the critical one: only its question, it stays in triage and is not in the mission
     expect(f.finde(5).labels).toEqual(['needs-triage']);
     expect(f.finde(5).comments.map((c) => c.body.split('\n')[0])).toEqual([TRIAGE_FRAGE_MARKE]);
-    // the plan says triage: clear, but not released on its own, nothing written
-    expect(f.finde(4)).toMatchObject({ labels: ['needs-triage'], comments: [], body: 'Vielleicht ein Filter.' });
+    // the plan says triage without a question: the program asks one (#146), label and text stay
+    expect(f.finde(4)).toMatchObject({ labels: ['needs-triage'], body: 'Vielleicht ein Filter.' });
+    expect(f.finde(4).comments.map((c) => c.body.split('\n')[0])).toEqual([TRIAGE_FRAGE_MARKE]);
 
     jedeAenderungMitKommentar(aufrufe, new Set([100]));
     // the mission's comment comes right after its creation and its links, before any note is released
@@ -258,7 +259,7 @@ describe('#147 Schnittplan in der Forge', () => {
       [1, 'klar', true, 100, 'neue_mission'],
       [2, 'klar', true, 100, 'neue_mission'],
       [3, 'klar', true, 40, 'mission'],
-      [4, 'klar', false, undefined, 'triage'],
+      [4, 'kritisch', true, undefined, 'triage'],
       [5, 'kritisch', true, undefined, 'neue_mission'],
     ]);
     const [p] = r.schnittplan;
@@ -293,7 +294,7 @@ describe('#147 Schnittplan in der Forge', () => {
     const { aufrufe, r } = await lauf(f, PLAN, ANTWORTEN);
     expect(schreibend(aufrufe)).toEqual([]);
     expect(JSON.stringify(f.issues)).toBe(vorher);
-    expect(r.tickets.map((t) => [t.nummer, t.ergebnis, t.geschrieben])).toEqual([[5, 'wartet', false], [4, 'klar', false]]);
+    expect(r.tickets.map((t) => [t.nummer, t.ergebnis, t.geschrieben])).toEqual([[4, 'wartet', false], [5, 'wartet', false]]);
   });
 
   it('a note answered later goes to the open mission of the earlier run, not into a new one', async () => {
@@ -506,13 +507,14 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
 
     expect(r.tickets.map((t) => [t.nummer, t.ergebnis, t.geschrieben, t.mission ?? null])).toEqual([
       [1, 'klar', true, 100], [2, 'klar', true, 100], [3, 'klar', true, 100], [4, 'kritisch', true, null],
-      [5, 'klar', true, 40], [6, 'klar', true, 40], [7, 'klar', true, 40], [10, 'klar', true, 101], [11, 'klar', false, null],
+      [5, 'klar', true, 40], [6, 'klar', true, 40], [7, 'klar', true, 40], [10, 'klar', true, 101], [11, 'kritisch', true, null],
     ]);
     expect(r.tickets.every((t) => t.sitzung === 'plan-1')).toBe(true);
     // the question: one comment in the form of the triage, read back for the Frachtraum
     expect(f.finde(4).comments.map((c) => c.body.split('\n')[0])).toEqual([TRIAGE_FRAGE_MARKE]);
     expect(f.finde(4).comments[0].body).toContain('Darf der Newsletter an alle gehen?');
-    expect(r.fragen).toEqual([expect.objectContaining({ ticket: 4, frage: 'Darf der Newsletter an alle gehen?', marke: 'nach außen' })]);
+    // #11 was left on triage without a question: the program's one comes second (#146)
+    expect(r.fragen).toEqual([expect.objectContaining({ ticket: 4, frage: 'Darf der Newsletter an alle gehen?', marke: 'nach außen' }), expect.objectContaining({ ticket: 11, marke: 'zu dünn' })]);
     expect(f.finde(4).labels).toEqual(['needs-triage']);
     // the body supplemented, not replaced; the comment names what was added
     expect(f.finde(1).body).toBe('Notiz 1\n\n## Abnahmekriterien\n- Es geht.\n\n## Verifikationsweg\n`bun test`\n');
@@ -520,7 +522,7 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     expect(f.finde(1).labels).toEqual(['ready-for-agent']);
     // merged, superfluous, rejected: closed with their comment
     for (const n of [8, 9, 12]) expect(f.finde(n)).toMatchObject({ state: 'closed', comments: [expect.objectContaining({ body: expect.stringContaining(TRIAGE_MARKE) })] });
-    expect(f.finde(11)).toMatchObject({ state: 'open', labels: ['needs-triage'], comments: [] });
+    expect(f.finde(11)).toMatchObject({ state: 'open', labels: ['needs-triage'], comments: [expect.objectContaining({ body: expect.stringContaining(TRIAGE_FRAGE_MARKE) })] });
     expect(f.finde(100).kinder).toEqual([1, 2, 3]);
     expect(f.finde(101).kinder).toEqual([10]);
     expect(f.finde(40).kinder).toEqual([30, 5, 6, 7]);
@@ -606,6 +608,39 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     expect(JSON.stringify(g.issues)).toBe(vorher);
     expect(t.r.tickets).toEqual([expect.objectContaining({ nummer: 2, ergebnis: 'kritisch', geschrieben: false, kommentar: expect.stringContaining(TRIAGE_FRAGE_MARKE) })]);
     expect(t.r.fragen).toHaveLength(1);
+  });
+
+  it('#146 a note the plan leaves on triage without a question gets one from the program; one with its own question stays as it is', async () => {
+    const mk = () => forge([notiz(1, 'Farben für die Themen', 'Welche Farbe welches Thema bekommt, weiß ich noch nicht.'), notiz(2, 'Port beim Neustart', 'Text 2')]);
+    const frage = { frage: 'Welche Farbe?', optionen: ['blau', 'grün'], antwort: 'blau', herkunft: 'h', grund: 'g', beim_menschen: true, marke: 'zu dünn' };
+    const plan: Plan = () => ({ neue_missionen: [], zuordnungen: [
+      { notiz: 1, art: 'triage', grund: 'Zu dünn: die Zuordnung der Farben fehlt', herkunft: 'h', fragen: [] },
+      { notiz: 2, art: 'triage', grund: 'g', herkunft: 'h', fragen: [frage] },
+    ] });
+    const f = mk();
+    const { r } = await lauf(f, plan, {});
+    const tick = (n: number): Ticket => { const i = f.finde(n); return { nummer: n, titel: i.title, body: i.body, url: '', labels: i.labels, kommentare: i.comments.map((c) => ({ body: c.body, autor: c.login, zeit: '2026-11-23T10:00:00Z', rolle: c.rolle })) }; };
+    expect(f.finde(1).comments).toHaveLength(1);
+    expect(f.finde(1).comments[0].body.startsWith(TRIAGE_FRAGE_MARKE)).toBe(true);
+    expect(wartetAufAntwort(tick(1))).toBe(true);
+    expect(offeneFragen(tick(1))).toEqual([expect.objectContaining({ nr: 1, marke: 'zu dünn', optionen: [expect.stringContaining('Notiz ergänzen'), 'verwerfen'] })]);
+    expect(r.tickets.find((t) => t.nummer === 1)).toMatchObject({ ergebnis: 'kritisch', zuordnung: 'triage', fragenErgaenzt: true });
+    // a dash and a paragraph in the reason leave the recommendation intact
+    const h = mk();
+    await lauf(h, () => ({ neue_missionen: [], zuordnungen: [{ notiz: 1, art: 'triage', grund: 'Zu dünn — Ziel fehlt\n\nauch der Rest', herkunft: 'h', fragen: [] }, { notiz: 2, art: 'verworfen', grund: 'g', herkunft: 'h', fragen: [] }] }), {});
+    const [q] = offeneFragen({ nummer: 1, titel: '', body: '', url: '', labels: h.finde(1).labels, kommentare: h.finde(1).comments.map((c) => ({ body: c.body, autor: c.login, zeit: '2026-11-23T10:00:00Z', rolle: c.rolle })) });
+    expect(q.empfehlung).toBe('Notiz ergänzen, dann neu triagieren');
+    expect(q.frage).toContain('Zu dünn — Ziel fehlt auch der Rest');
+    // the model's own question: unchanged, nothing added
+    expect(r.tickets.find((t) => t.nummer === 2)?.fragenErgaenzt).toBeUndefined();
+    expect(offeneFragen(tick(2))).toEqual([expect.objectContaining({ frage: 'Welche Farbe?' })]);
+    expect(r.abschluss.abweichungen).toEqual([]);
+    // --trocken writes nothing
+    const g = mk();
+    const vorher = JSON.stringify(g.issues);
+    const t = await lauf(g, plan, {}, { trocken: true });
+    expect(schreibend(t.aufrufe)).toEqual([]);
+    expect(JSON.stringify(g.issues)).toBe(vorher);
   });
 
   /** 30 long notes to 3 topics (two packages) and the open mission #40 with 5 free places */
@@ -754,17 +789,19 @@ describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubte
     expect(f.finde(100).labels).toContain(READY);
     const freigegeben = f.issues.filter((i) => i.state === 'open' && i.labels.includes(READY) && !i.labels.includes('epic'));
     for (const i of freigegeben) expect(f.issues.some((m) => m.labels.includes('epic') && m.state === 'open' && m.kinder.includes(i.number))).toBe(true);
-    // 1, 2 (new mission 100), 3 (mission 40) released, 5 asked: clean; 4 left in triage by the plan without a question
-    expect(r.abschluss).toMatchObject({ geprueft: 5, sauber: 4 });
-    expect(r.abschluss.abweichungen).toEqual([{ forge: 'o/r', nr: 4, titel: 'Logbuch-Idee', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }]);
-    expect(r.zustand).toBe('unvollstaendig');
+    // 1, 2 (new mission 100), 3 (mission 40) released, 5 asked, 4 left on triage by the plan and asked by the program (#146): all clean
+    expect(r.abschluss).toMatchObject({ geprueft: 5, sauber: 5, abweichungen: [] });
+    expect(r.zustand).toBe('beendet');
+    // the check itself still reports a note in triage without an open question
+    f.finde(4).comments = [];
+    expect(abschlusspruefung(f.aufrufer([]), 'o/r', REGELN, [{ nummer: 4, titel: 'Logbuch-Idee' }], [])).toEqual([{ forge: 'o/r', nr: 4, titel: 'Logbuch-Idee', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }]);
   });
 
   it('reports a note without an allowed end state as an error: ready without mission, child of a new mission without ready, closed without reason', async () => {
     // the mission's own release fails: its released children hang on a mission without Warp frei
     const f = welt();
     const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'edit' && a[2] === '100' && a.includes('--add-label') });
-    expect(nr(r)).toEqual([1, 2, 4]);
+    expect(nr(r)).toEqual([1, 2]);
     expect(r.abschluss.abweichungen[0]).toMatchObject({ zustand: `offen, ${READY}, Kind von #100`, grund: `Mission #100 ist neu und trägt kein ${READY}` });
 
     // a lost link and a closing without reason, read by the check itself

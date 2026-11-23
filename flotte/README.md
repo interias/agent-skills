@@ -239,8 +239,10 @@ Je Notiz, die bleibt, aus derselben Antwort:
 
 - **klar** (keine Frage beim Menschen): die fehlenden oder leeren Abschnitte werden ergänzt (geprüft wie
   im Auftragsschreiber); die Notiz wird nie einzeln freigegeben, sondern geht an ihre Mission (unten).
-  Hat der Plan sie auf `triage` gelassen, bleibt sie ohne jede Änderung in der Triage (`klar`,
-  `geschrieben: false`, `zuordnung: triage`); ein späterer Plan kann sie einer Mission zuordnen.
+  `triage` ohne Frage beim Menschen gibt es nicht (#146): Lässt der Plan eine Notiz so auf `triage`, fragt
+  das Programm selbst (Feld `fragenErgaenzt: true`; Punkt `zu dünn`, Sachverhalt der Grund des Admirals,
+  Optionen „Notiz ergänzen (was fehlt: …), dann neu triagieren“ als Empfehlung oder „verwerfen“); der
+  Plan bleibt gültig, und die Notiz ist **kritisch** wie jede gefragte.
 - **kritisch** (mindestens eine Frage beim Menschen, gleich welche Zuordnung): genau ein Kommentar mit
   allen Fragen, die nach der Liste beim Menschen liegen; das Label bleibt, die Notiz kommt erst nach der
   Antwort (in einem späteren Lauf) in eine Mission.
@@ -438,7 +440,8 @@ neue `body`, gegebenenfalls `fehler`), `zuordnungen` (je `notiz`,
 `titel`, `url`, `art`, `grund`, `herkunft`, bei `mission` die Nummer `mission`, bei `neue_mission`
 deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessig` die `fundstelle`;
 `fragen` der Fragerunde und, wo geschrieben, `abnahmekriterien` und `verifikationsweg`; bei einer vom
-Programm auf `triage` herabgestuften Notiz `herabgestuft` (auch an ihrem Eintrag in `tickets`);
+Programm auf `triage` herabgestuften Notiz `herabgestuft`, bei einer vom Programm gefragten Notiz
+`fragenErgaenzt: true` (beides auch an ihrem Eintrag in `tickets`);
 bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
 ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
 nur hier, nicht in `tickets`. `nachgeholt` (#149): je Mission der Triage, deren `ready_label` der Lauf

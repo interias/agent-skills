@@ -126,6 +126,11 @@ describe('#146 Schnittplan: 12 Notizen zu 3 Themen', () => {
     expect(fehler(mit(0, { art: 'verworfen', fragen: [frage] }))).toContain('verworfen, aber eine Frage liegt beim Menschen');
     // `triage` stays without a change: no sections needed
     expect(fehler(mit(0, { art: 'triage', abnahmekriterien: '', verifikationsweg: '' }))).toBe('');
+    // #146: `triage` without a question with the person gets one from the program, no invalid plan
+    const t = schnittplanAus(mit(0, { art: 'triage', grund: 'Zu dünn' }), n, [], REGELN);
+    expect(t.art === 'plan' && t.zuordnungen[0]).toMatchObject({ art: 'triage', fragenErgaenzt: true, fragen: [expect.objectContaining({ beim_menschen: true, marke: 'zu dünn', herkunft: 'Programm: Notiz in der Triage ohne Frage an den Menschen' })] });
+    expect(t.art === 'plan' && t.zuordnungen[0].fragen).toHaveLength(1);
+    expect(t.art === 'plan' && t.zuordnungen[1].fragenErgaenzt).toBeUndefined();
     // the question reads back in the form of the triage, an unknown mark becomes `ohne Marke`
     const p = schnittplanAus(mit(0, { fragen: [{ ...frage, marke: 'Wetter' }] }), n, [], REGELN);
     expect(p.art === 'plan' && p.zuordnungen[0].fragen).toEqual([{ ...frage, marke: 'ohne Marke' }]);

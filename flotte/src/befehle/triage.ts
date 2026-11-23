@@ -76,6 +76,8 @@ export interface TicketErgebnis {
   mission?: number;
   /** #146: the program left the note on `triage`, its sections failed the check (why, and where it was to go) */
   herabgestuft?: string;
+  /** #146: the plan left the note on `triage` without a question with the person; the program asked one */
+  fragenErgaenzt?: boolean;
 }
 
 export interface KritischeFrage {
@@ -232,14 +234,13 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     const klare = new Map<string, Klar[]>();
     // #147: aborted after the plan: its questions are not written either
     for (const { t, zu, sitzung } of ab() ? [] : (plan?.bleiben ?? [])) {
-      const basis = { forge: z.forge, nummer: t.nummer, titel: t.titel, url: t.url, zuordnung: zu.art, sitzung, herkunft: zu.herkunft, grund: zu.grund, ...(zu.herabgestuft ? { herabgestuft: zu.herabgestuft } : {}) };
+      const basis = { forge: z.forge, nummer: t.nummer, titel: t.titel, url: t.url, zuordnung: zu.art, sitzung, herkunft: zu.herkunft, grund: zu.grund, ...(zu.herabgestuft ? { herabgestuft: zu.herabgestuft } : {}), ...(zu.fragenErgaenzt ? { fragenErgaenzt: true } : {}) };
       const offen = zu.fragen.filter((f) => f.beim_menschen);
       if (!offen.length) {
-        // #147: never released on its own (else each note were a run again); `triage` in the plan stays in triage,
-        // a later cut plan puts it into a mission. The others wait for their mission below.
+        // #147: never released on its own (else each note were a run again); they wait for their mission below.
+        // #146: `triage` never gets here, schnittplanAus gave it a question.
         const erg: TicketErgebnis = { ...basis, ergebnis: 'klar', geschrieben: false, kommentar: null };
         tickets.push(erg);
-        if (zu.art === 'triage') continue;
         // the sections passed the check in schnittplanAus already
         const neu = ergaenzt(t.titel, t.body, zu, z.regeln);
         const e = { art: 'klar', herkunft: zu.herkunft, grund: zu.grund, fragen: zu.fragen, body: neu.body, nachgetragen: neu.nachgetragen } as const;

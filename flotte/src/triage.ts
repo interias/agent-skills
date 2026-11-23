@@ -359,6 +359,8 @@ export interface Zuordnung {
   verifikationsweg?: string;
   /** #146: the program put the note on `triage`: its sections failed the order writer's check (why, and where it was to go) */
   herabgestuft?: string;
+  /** #146: the plan left the note on `triage` without a question with the person: the program added one */
+  fragenErgaenzt?: boolean;
 }
 
 export interface NeueMission {
@@ -488,6 +490,21 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
         delete z.neue_mission;
       }
     }
+    // a note left on `triage` waits with a question to the person; the model gave none, so the program asks
+    if (z.art === 'triage' && !z.fragen.some((f) => f.beim_menschen)) {
+      const was = (z.grund || 'ohne Angabe').replace(/\s+/g, ' ');
+      z.fragenErgaenzt = true;
+      z.fragen.push({
+        frage: `${nr} bleibt in der Triage, der Admiral hat dazu aber keine Frage gestellt (${was}). Wie weiter?`,
+        optionen: [`Notiz ergänzen (was fehlt: ${was}), dann neu triagieren`, 'verwerfen'],
+        // no reason text: offeneFragen splits the recommendation at the first ` — `
+        antwort: 'Notiz ergänzen, dann neu triagieren',
+        herkunft: 'Programm: Notiz in der Triage ohne Frage an den Menschen',
+        grund: was,
+        beim_menschen: true,
+        marke: 'zu dünn',
+      });
+    }
     if (z.art === 'mission') neueKinder.set(z.mission!, (neueKinder.get(z.mission!) ?? 0) + 1);
     else if (z.art === 'neue_mission') neu.find((n) => n.schluessel === z.neue_mission)!.kinder.push(z.notiz);
     else if (z.art === 'zusammengefuehrt') {
@@ -574,7 +591,7 @@ Ordne jede Notiz unten genau einmal zu (art):
 - zusammengefuehrt: Duplikat oder Teilstück derselben Sache wie eine andere Notiz (in = die Notiz, die bleibt und selbst mission, neue_mission oder triage ist). Sie wird mit Verweis geschlossen.
 - ueberfluessig: schon erledigt, doppelt oder überholt; grund und fundstelle nennen wo. Sie wird geschlossen.
 - verworfen: lohnt sich nicht oder passt nicht zur Richtung; grund nennt warum. Sie wird als „not planned“ geschlossen, nicht gelöscht.
-- triage: bleibt in der Triage, weil eine Frage beim Menschen liegt oder sie zu dünn ist; grund nennt was fehlt.
+- triage: bleibt in der Triage, nur mit mindestens einer Frage mit beim_menschen: true (in der Triage heißt immer: eine Frage wartet beim Menschen). Ist sie zu dünn, frage den Menschen, was fehlt; grund nennt was fehlt.
 
 Grenzen: höchstens ${neuMax} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
 
