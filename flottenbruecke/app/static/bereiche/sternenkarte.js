@@ -31,13 +31,13 @@
     : link(x.issueUrl, `#${x.nr}<small> ${x.stufe === 'abgebrochen' ? 'aufgegeben' : x.stufe ? 'erledigt' : 'nicht mehr offen'}</small>`, 'sk-kante erledigt'));
 
   // #61: an action on its way to the driver, in place of its buttons until the driver acknowledges it
-  const unterwegsHtml = (h) => `<span class="status gut">${esc(HANDLUNG[h.art] ?? h.art)}${h.art === 'prioritaet' ? ` ${esc(h.text)}` : h.art === 'merge' ? `: ${esc(andockenWort(h.text))}` : ''} · ${uhrzeit(h.zeit)} · ${h.abgeholt ? 'abgeholt, der Treiber führt es aus' : 'angekommen, der Treiber holt es im nächsten Takt ab'}</span>`;
+  const unterwegsHtml = (h, p) => `<span class="status gut">${esc(HANDLUNG[h.art] ?? h.art)}${h.art === 'prioritaet' ? ` ${esc(h.text)}` : h.art === 'merge' ? `: ${esc(andockenWort(h.text))}` : ''} · ${uhrzeit(h.zeit)} · ${h.abgeholt ? 'abgeholt, der Treiber führt es aus' : p.aktiv ? 'angekommen, der Treiber holt es im nächsten Takt ab' : 'angekommen, kein Treiber läuft, er holt es bei seinem nächsten Start ab'}</span>`;
   const knopfHtml = (p, nr, art, text, wort, cls = 'zweit') => `<button type="button" class="knopf ${cls}" data-steuern="${art}" data-forge="${esc(p.forge)}" data-epic="${nr}"${text ? ` data-text="${text}"` : ''}>${wort}</button>`;
 
   const steuernHtml = (e, p, pin) => {
     if (!pin || !e.imEinsatz) return '';
-    const pause = e.pause ? unterwegsHtml(e.pause) : e.pausiert ? knopfHtml(p, e.nr, 'fortsetzen', null, 'Fortsetzen', 'haupt') : knopfHtml(p, e.nr, 'pausieren', null, 'Pausieren');
-    const vorrang = e.vorrang ? unterwegsHtml(e.vorrang) : e.prio ? knopfHtml(p, e.nr, 'prioritaet', 'normal', 'Priorität normal') : knopfHtml(p, e.nr, 'prioritaet', 'hoch', 'Priorität hoch');
+    const pause = e.pause ? unterwegsHtml(e.pause, p) : e.pausiert ? knopfHtml(p, e.nr, 'fortsetzen', null, 'Fortsetzen', 'haupt') : knopfHtml(p, e.nr, 'pausieren', null, 'Pausieren');
+    const vorrang = e.vorrang ? unterwegsHtml(e.vorrang, p) : e.prio ? knopfHtml(p, e.nr, 'prioritaet', 'normal', 'Priorität normal') : knopfHtml(p, e.nr, 'prioritaet', 'hoch', 'Priorität hoch');
     return `<div class="knoepfe sk-steuern">${pause}${vorrang}${andockenKnoepfe(e, p)}<span class="status"></span></div>`;
   };
 
@@ -51,7 +51,7 @@
   };
   const andockenKnoepfe = (e, p) => {
     if (!e.merge) return '';
-    if (e.andocken) return unterwegsHtml(e.andocken);
+    if (e.andocken) return unterwegsHtml(e.andocken, p);
     const frei = (p.einstellungen ?? []).find((x) => x.name === 'merge')?.werte?.includes('automatisch');
     const anders = e.merge.stellung === 'mensch' ? (frei ? 'automatisch' : null) : 'mensch';
     return [
@@ -86,7 +86,7 @@ ${andockenHtml(e)}${kanten ? `<div class="sk-kantenzeile">${kanten}</div>` : ''}
   // #61: released, not in the deployment: the driver checks label and release again when it takes it in
   const freiHtml = (f, p, pin) => `<li class="sk-epic frei" data-k="${esc(`${p.forge}#${f.nr}`)}">
 <div class="sk-zeile">${link(f.issueUrl, `#${f.nr}`, 'nr')}<span class="sk-titel">${esc(f.titel)}</span><span class="sk-marken"><span class="sk-marke">nicht im Einsatz</span></span></div>
-${pin ? `<div class="knoepfe sk-steuern">${f.handlung ? unterwegsHtml(f.handlung) : knopfHtml(p, f.nr, 'aufnehmen', null, 'Aufnehmen', 'haupt')}<span class="status"></span></div>` : ''}</li>`;
+${pin ? `<div class="knoepfe sk-steuern">${f.handlung ? unterwegsHtml(f.handlung, p) : knopfHtml(p, f.nr, 'aufnehmen', null, 'Aufnehmen', 'haupt')}<span class="status"></span></div>` : ''}</li>`;
 
   const projektHtml = (p, pin) => {
     const epics = p.epics ?? [];

@@ -11,6 +11,8 @@ export interface Forge {
   bodySetzen(nummer: number, body: string): Promise<void>;
   /** Links ziel to mission (GitHub: sub-issue; a forge without sub-issues: its own kind of edge). */
   verknuepfen(mission: number, ziel: number): Promise<void>;
+  /** #157: whether ziel is linked to mission already (the edge verknuepfen makes). */
+  verknuepft(mission: number, ziel: number): Promise<boolean>;
 }
 
 export interface AngelegtesIssue {
@@ -234,13 +236,14 @@ export function mitMissionszielen(body: string, ziele: { titel: string; nummer: 
   const neu = ziele.filter((z) => !new RegExp(`^- \\[[ xX]\\] #${z.nummer}(?!\\d)`, 'm').test(body));
   if (!neu.length) return body;
   const zeilen = neu.map((z) => `- [ ] ${nr(z.nummer)} ${z.titel}`);
-  const liste = body.split('\n');
+  const eol = body.includes('\r\n') ? '\r\n' : '\n'; // a new line takes the line ending the body uses
+  const liste = body.split(eol);
   const kopf = liste.findIndex((z) => z.trim() === '## Missionsziele');
-  if (kopf < 0) return `${body}${body.endsWith('\n') ? '' : '\n'}\n## Missionsziele\n${zeilen.join('\n')}\n`;
+  if (kopf < 0) return `${body}${body.endsWith('\n') ? '' : eol}${eol}## Missionsziele${eol}${zeilen.join(eol)}${eol}`;
   let i = kopf;
   for (let j = kopf + 1; j < liste.length && !/^#{1,2}\s/.test(liste[j]); j++) if (/^- \[[ xX]\] /.test(liste[j])) i = j;
   liste.splice(i + 1, 0, ...zeilen);
-  return liste.join('\n');
+  return liste.join(eol);
 }
 
 /** #148: the body of a mission without the line of this Missionsziel in its list (`- [ ] #<nr> …`); the rest stays as it is. */
@@ -250,12 +253,16 @@ export function ohneMissionsziel(body: string, nummer: number): string {
 
 /**
  * #147: an existing Missionsziel joins an open mission: linked as its child, then into the list of its body.
- * One its list names already (linked before, e.g. a revoked note coming back) is left as it is: a second link
- * fails at the forge. Returns the new body; throws on a forge failure (the link stands when only the body failed).
+ * One its list names already keeps its line; #157: it is linked only when it is not yet (a link that failed
+ * once, or a line written by hand), since a second link fails at the forge. Returns the new body; throws on a
+ * forge failure (the link stands when only the body failed), so the next run tries again.
  */
 export async function missionszielAnhaengen(forge: Forge, mission: { nummer: number; body: string }, ziel: { titel: string; nummer: number }): Promise<string> {
   const body = mitMissionszielen(mission.body, [ziel]);
-  if (body === mission.body) return body;
+  if (body === mission.body) {
+    if (!(await forge.verknuepft(mission.nummer, ziel.nummer))) await forge.verknuepfen(mission.nummer, ziel.nummer);
+    return body;
+  }
   await forge.verknuepfen(mission.nummer, ziel.nummer);
   try {
     await forge.bodySetzen(mission.nummer, body);

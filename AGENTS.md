@@ -21,7 +21,7 @@ Adapter für `/mission` in [`.claude/epic.md`](.claude/epic.md).
 
 | Was | Befehl | Hinweis |
 |---|---|---|
-| Treiber | `cd flotte && bun test test/<datei>` | voll: `bun test` (~7–9 min) |
+| Treiber | `cd flotte && bun test test/<datei>` | voll: `bun test` (~7–9 min); vorher einmal `bun install` in `flotte/`, sonst endet die Typprüfung (`test/typpruefung.test.ts`) rot mit „TypeScript nicht installiert“ |
 | Brücke | `cd flottenbruecke && python -m pytest -q -p no:cacheprovider --basetemp=<eigener Ordner> tests/<datei>` | |
 | Skripte | `Invoke-Pester -Path <datei>.Tests.ps1 -PassThru`, dann `FailedCount` prüfen | auf dem Rechner kann Pester 3.4 aktiv sein |
 | Andockprüfung | `pwsh -NoProfile -File gate.ps1` | alle Suiten, druckt den Andockblock für PR und Treiber |

@@ -122,7 +122,7 @@ describe('Befund 4: der PR aus FLOTTE-ENDE gehört zum Epic', () => {
       expect(z.epics['3']).toMatchObject({ stufe: 'frage', pr: null });
       expect(z.fragen).toEqual([expect.objectContaining({ epic: 3, nr: PR_FRAGE, ganzerLauf: true })]);
       expect(t.p.kommentare.find((k) => k.nr === 3 && k.text.startsWith('**FRAGE AN DEN MENSCHEN'))?.text).toMatch(/PR #49 aus FLOTTE-ENDE .*Welcher Pull Request gehört zu Mission #3\?/);
-      expect(texte(z).some((x) => /PR #49 gemergt/.test(x))).toBe(false);
+      expect(texte(z).some((x) => /PR #49 angedockt/.test(x))).toBe(false);
     }, T);
   }
 });

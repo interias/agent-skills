@@ -21,7 +21,7 @@ import { ohneMissionsziel, TRIAGE_LABEL } from '../auftrag/auftrag.ts';
 import { LERN_MARKE } from '../lernen.ts';
 import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
-import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
+import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
@@ -244,6 +244,10 @@ export interface FlottenEpic extends EpicZustand {
   mergeVersuche?: number;
   /** gate runs of the driver in this epic's worktree after it merged the base in (merge queue) */
   gateWiederholungen?: number;
+  /** #25: conflicts with the base in the merge queue (BASIS_GRENZE), apart from mergeVersuche */
+  basisKonflikte?: number;
+  /** #25: a red gate with a cause outside the diff was run once more already */
+  gateAussenWiederholt?: boolean;
   /** the driver laid out the epic worktree again (worktree.ps1 Up) and takes it down after the merge */
   worktreeSelbst?: boolean;
   /** the last step of the run from its log, for the board (#14, round 5, C4) */
@@ -262,6 +266,8 @@ export interface FlottenEpic extends EpicZustand {
   haltZeit?: string | null;
   /** the person gave the epic up on the bridge */
   aufgegebenAm?: string | null;
+  /** #145: the mission issue is closed (by the driver or before); until then each start looks again */
+  abgeschlossen?: boolean;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
   /** the limit of packages at once changed on the bridge (#60), handed to the run when it is continued */
@@ -324,7 +330,20 @@ export interface FlottenZustand extends Zustand {
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
-type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean };
+/** #25: basis: a conflict with the base (not the run's doing); aussen: a red gate whose output names a cause outside the diff */
+type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean; basis?: boolean; aussen?: string };
+
+/**
+ * #25: causes of a red gate outside the diff, only as the gate itself says them on a line of their own
+ * (`Testsperre belegt …`, `Zeitgrenze des Gates …`) or as the driver's own kill of the gate call
+ * (`Zeitgrenze <ms> ms` at the end); a test that merely timed out is the run's matter.
+ */
+const AUSSEN: [RegExp, string][] = [
+  [/^\s*Testsperre belegt\b/im, 'Testsperre'],
+  [/^\s*Zeitgrenze des Gates\b|Zeitgrenze \d+ ms\s*$/im, 'Zeitgrenze'],
+];
+/** #25: conflicts with the base in the merge queue before the epic is blocked; they do not count against the run */
+const BASIS_GRENZE = 5;
 
 type PrInfo = { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
 
@@ -425,6 +444,12 @@ class Treiber {
   /** a report right after an event is on its way */
   meldungGeplant = false;
   haltGemeldet = false;
+  /** #133: the order edges were read from the forge in this tick already */
+  kantenFrisch = false;
+  /** #150: running epics without a picture, reported once */
+  ohneBildGemeldet = new Set<number>();
+  /** #135: the missions the driver last said it stays for; empty when none */
+  bleibtGemeldet = '';
   /** the finished epics of this repository (messungen.jsonl), the forecast reads them */
   messungen: Messung[] = [];
   prognoseCache: { schluessel: string; wert: Bericht['prognose'] } | null = null;
@@ -489,7 +514,8 @@ class Treiber {
     this.e.merge = this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
     this.einstellungenLaden(new Date(anfang).toISOString());
     if (this.e.auto) {
-      this.e.epics = this.einsammeln(this.adapter);
+      // #150: with --epics and --dauerhaft the fixed list stays, the released ones join it
+      this.e.epics = [...new Set([...this.e.epics, ...this.einsammeln(this.adapter)])];
       this.gesammelt = this.w.jetzt();
     }
     // #61: taken in on the bridge, the epic stays in the deployment until it is done
@@ -498,6 +524,12 @@ class Treiber {
     if (wieder.length) {
       this.e.epics = [...this.e.epics, ...wieder];
       this.ereignis(null, `Über die Brücke aufgenommen, bleibt im Einsatz: ${wieder.map((n) => `#${n}`).join(', ')}`);
+    }
+    // #150: a run of an earlier deployment the collection misses (no epic label, driven with --epics) is still at work
+    const uebernommen = Object.values(this.z.epics).filter((ep) => (BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt') && !this.e.epics.includes(ep.nr)).map((ep) => ep.nr);
+    if (uebernommen.length) {
+      this.e.epics = [...this.e.epics, ...uebernommen];
+      this.ereignis(null, `Übernommen aus einem früheren Einsatz: ${uebernommen.map((n) => `#${n}`).join(', ')} (nicht eingesammelt, aber noch in Arbeit)`);
     }
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
@@ -511,6 +543,8 @@ class Treiber {
     }
     this.messungen = liesMessungen(this.dir);
     this.wiederaufnehmen();
+    // #145: missions merged before whose issue was left open
+    for (const ep of Object.values(this.z.epics)) if (ep.stufe === 'fertig') this.missionAbschliessen(ep, true);
     this.triageNachNeustart();
     // #61: a pause outlives the restart in the holder file as well; a field the state no longer carries goes
     for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
@@ -519,6 +553,7 @@ class Treiber {
     this.optionenNachlesen();
 
     for (;;) {
+      this.kantenFrisch = false;
       const halt = this.anhaltenGewuenscht();
       this.nachsammeln(false);
       await this.brueckeHolen();
@@ -548,7 +583,7 @@ class Treiber {
         return this.z;
       }
       // nothing left: one more look for released epics, then the end (acceptance 3, decision C)
-      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.nachsammeln(true)) break;
+      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.wartetAufBruecke() && !this.nachsammeln(true)) break;
       if (this.e.maxDauerMs !== null && this.w.jetzt() - anfang > this.e.maxDauerMs) {
         this.ereignis(null, `Zeitgrenze von ${Math.round(this.e.maxDauerMs / 1000)} s erreicht, Treiber hält an`);
         await Promise.all(this.laufend.values());
@@ -820,7 +855,7 @@ class Treiber {
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
   blockForm(nr: number): string {
-    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter.`;
+    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, jede in einer Zeile: \`1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe> — Grund: … — Regel/Quelle: …\`, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter.`;
   }
 
   an(nr: number, text: string): string {
@@ -947,6 +982,14 @@ class Treiber {
       this.haltVermerken(ep, !ep.auftrag || this.laufend.has(ep.nr) ? null : ep.pausiert ? 'pause' : this.darfFortsetzen(ep.konto) ? null : 'limit');
       // #61: a paused epic keeps its next turn until the person continues it
       if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
+      // #133: an order edge added meanwhile (forge read once per tick); a run with a PR is held in the merge queue instead (schlangeWeiter)
+      if (ep.auftrag.resume && ep.sitzung && !ep.pr) {
+        const vor = this.offeneVorgaenger(ep.nr);
+        if (vor.length) {
+          this.wartenAuf(ep, vor, 'vor dem Fortsetzen');
+          continue;
+        }
+      }
       const a = ep.auftrag;
       ep.auftrag = null;
       const fortsetzen = a.resume && Boolean(ep.sitzung);
@@ -994,11 +1037,21 @@ class Treiber {
         return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
       })
       .map((b) => ({ ...b, prio: this.prio(b.nr) }));
-    const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze() });
+    const pausiert = Object.values(this.z.epics).filter((ep) => ep.pausiert).map((ep) => ep.nr);
+    const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze(), pausiert });
     for (const w of plan.wartend) {
       const notiz = `wartet auf das Andocken von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
       if (this.epic(w.nr).notiz !== notiz) this.epic(w.nr).notiz = notiz;
     }
+    // #144: why a startable one is left out (a collision or no free place) stands on the board and the bridge
+    for (const w of plan.zurueck) {
+      if (this.epic(w.nr).notiz === w.grund) continue;
+      this.epic(w.nr).notiz = w.grund;
+      this.ereignis(w.nr, w.grund);
+    }
+    const ohneBild = plan.ohneBild.filter((n) => !this.ohneBildGemeldet.has(n));
+    for (const n of ohneBild) this.ohneBildGemeldet.add(n);
+    if (ohneBild.length) this.ereignis(null, `Belegung ohne Bild von ${ohneBild.map((n) => `#${n}`).join(', ')}: zählt als große Kollision mit allen`);
     // the priority label: why a startable one waits stands on the board and the bridge
     for (const v of plan.vorrang) {
       if (v.startet) continue;
@@ -1160,7 +1213,23 @@ class Treiber {
   async aufraeumen(nr: number | null): Promise<void> {
     if (nr !== null) this.loslassen(nr);
     const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'worktree.ps1'), '-Action', 'CleanupStale', '-RepoRoot', this.e.repo], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
-    this.ereignis(nr, r.code ? `CleanupStale meldet Fehler: ${(r.stderr || r.stdout).trim().split('\n').pop()}` : 'Reste abgeräumt (CleanupStale)');
+    // #153: stderr ends with the summary ("nothing to do", "n stopped or removed"); a failed step stands in
+    // the JSON list as skipped with reason "failed: …" and makes the exit code 1
+    let eintraege: { kind?: string; id?: string; action?: string; reason?: string }[] | null = null;
+    try {
+      const j = JSON.parse(r.stdout.trim() || 'null');
+      eintraege = Array.isArray(j) ? j : null;
+    } catch {
+      eintraege = null;
+    }
+    if (r.code) {
+      const fehler = (eintraege ?? []).filter((x) => /^failed\b/i.test(x.reason ?? '')).map((x) => `${[x.kind, x.id].filter(Boolean).join(' ')}: ${x.reason}`);
+      const zeilen = (r.stderr || r.stdout).trim().split('\n');
+      const ohneSumme = zeilen.filter((z) => !/CleanupStale: (nothing to do|\d+ stopped or removed)/.test(z));
+      return this.ereignis(nr, `CleanupStale meldet Fehler (Exit ${r.code}): ${fehler.length ? fehler.join('; ') : (ohneSumme.pop() ?? zeilen.pop())}`);
+    }
+    const getan = (eintraege ?? []).filter((x) => x.action && x.action !== 'skipped').length;
+    if (getan) this.ereignis(nr, `Reste abgeräumt (CleanupStale): ${getan} gestoppt oder entfernt`);
   }
 
   // ---- question blocks (D2, D3)
@@ -1180,7 +1249,7 @@ class Treiber {
       this.ereignis(nr, 'RAM-Frage: weiter, sobald die Bremse frei ist');
       return;
     }
-    if (!block.fragen.length) return this.rohFrage(ep, block, vermerk);
+    if (!block.fragen.length) this.rohAlsFrage(ep, block);
     // a run that was told to go on without the parked packages may ask the same again at once: the
     // question already lies with the person, so neither the admiral nor the bridge sees it twice
     // (or he answered while the run was busy, and the answer still waits to be passed on)
@@ -1373,16 +1442,14 @@ class Treiber {
     }
   }
 
-  /** A question block without a parsable question: the whole block goes to the person (#28, Rückfall). */
-  rohFrage(ep: FlottenEpic, block: FrageBlock, vermerk?: string): void {
-    const nr = ep.nr;
-    const zeit = new Date(this.w.jetzt()).toISOString();
-    this.z.fragen.push({ epic: nr, nr: 1, frage: '', lage: vermerk ?? '', optionen: [], grund: '', herkunft: 'Treiber: Block nicht zerlegbar', marke: 'Block unlesbar', betrifft: 'Lauf', roh: block.roh, empfehlung: '', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
-    kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — Der Block FLOTTE-FRAGE ${block.phase} ließ sich nicht in Fragen zerlegen. Wortlaut:\n\n${block.roh}\n\nAntworten, im Repository: \`flotte antworten . ${nr} 1 "<Antwort>"\``);
-    this.ereignis(nr, `❓ FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut liegt beim Menschen`);
-    ep.stufe = 'frage';
-    ep.notiz = 'wartet auf den Menschen';
-    ep.festgehalten = this.an(nr, `Antwort auf FLOTTE-FRAGE ${block.phase}: Der Block ließ sich nicht in Fragen zerlegen; der Mensch hat ihn gelesen und antwortet.`);
+  /**
+   * A question block without a parsable question (#28, Rückfall). #152: its wording is one question for
+   * the admiral like any other; it reaches the person only when he names a point of BEIM_MENSCHEN (or
+   * gives no usable answer). The empty question text lets the bridge show the wording.
+   */
+  rohAlsFrage(ep: FlottenEpic, block: FrageBlock): void {
+    this.ereignis(ep.nr, `FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut geht als eine Frage an den Admiral`);
+    block.fragen = [{ nr: 1, frage: '', betrifft: 'Lauf', lage: `Der Block ließ sich nicht in Fragen zerlegen. Wortlaut:\n${block.roh}`, optionen: [], mehrfach: false, empfehlung: null, grund: '', quelle: '', roh: block.roh }];
   }
 
   // ---- the Flottenbrücke (#28): only the driver talks to it; off or slow is no error
@@ -1461,9 +1528,20 @@ class Treiber {
       amIssue(`**Mission aufgegeben vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${ep.haltGrund?.split('\n')[0] ?? ep.notiz}`);
       return this.ereignis(h.epic, 'aufgegeben vom Menschen (über die Brücke)');
     }
-    // einreihen: the counters start over; with a session the run continues where it stopped
+    // einreihen: the counters start over; with a session the run continues where it stopped,
+    // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    // #135: a mission of an earlier deployment joins this one, so occupancy, order edges and the end count it
+    if (!this.e.epics.includes(ep.nr)) {
+      this.e.epics = [...this.e.epics, ep.nr];
+      this.kantenFrisch = false;
+    }
+    const vor = this.offeneVorgaenger(ep.nr);
+    if (vor.length) {
+      amIssue(`**Mission neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
+      return this.wartenAuf(ep, vor, 'neu eingereiht vom Menschen (über die Brücke)');
+    }
     if (ep.sitzung && ep.konto) {
       ep.stufe = 'laeuft';
       // #54: questions of the run still without an answer are said to be open, never decided by the run
@@ -1477,6 +1555,31 @@ class Treiber {
     }
     amIssue(`**Mission neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
     this.ereignis(h.epic, `neu eingereiht vom Menschen (über die Brücke)${ep.stufe === 'wartend' ? ', wartet auf einen Platz' : ', der Lauf setzt fort'}`);
+  }
+
+  /**
+   * #133: the predecessors of an epic not merged yet, by its order edges read anew from the forge
+   * (sammle, like at the start): an edge can be added to an epic that has a session already. When
+   * the forge is unreadable the edges read so far count.
+   */
+  offeneVorgaenger(nr: number): number[] {
+    if (!this.kantenFrisch) {
+      this.kantenFrisch = true;
+      try {
+        this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+      } catch (err) {
+        this.ereignis(nr, `Reihenfolge nicht neu gelesen: ${String(err).slice(0, 200)}`);
+      }
+    }
+    return (this.bilder.find((b) => b.nr === nr)?.nach ?? []).filter((n) => !['gemergt', 'fertig'].includes(this.epic(n)?.stufe ?? ''));
+  }
+
+  /** #133: back to waiting for its predecessors; the session is dropped, so the later start is a new one, no --resume */
+  wartenAuf(ep: FlottenEpic, vor: number[], anlass: string): void {
+    this.loslassen(ep.nr);
+    const liste = vor.map((n) => `#${n}`).join(', ');
+    Object.assign(ep, { stufe: 'wartend', konto: null, auftrag: null, sitzung: null, notiz: `wartet auf das Andocken von ${liste}` });
+    this.ereignis(ep.nr, `${anlass}, Vorgänger ${liste} noch nicht angedockt, wartet; die Sitzung ist verworfen`);
   }
 
   // ---- steering epics (#61)
@@ -2541,6 +2644,12 @@ class Treiber {
       this.ereignis(nr, `FLOTTE-ENDE mit PR #${ep.pr}, aber ein Widerruf des Menschen ist da`);
       return;
     }
+    if (!ep.pr) {
+      // #133: a run that found an order edge added after its start ends without a PR. The edge read
+      // anew decides, not the wording of the block: a predecessor not merged yet means waiting.
+      const vor = this.offeneVorgaenger(nr);
+      if (vor.length) return this.wartenAuf(ep, vor, 'FLOTTE-ENDE ohne Pull Request');
+    }
     const offen = block.offen.trim();
     if (this.e.nacharbeit && !ep.nacharbeitGemacht && offen && !/^[-–—]?\s*(keine|nichts)?\.?$/i.test(offen)) {
       ep.nacharbeitGemacht = true;
@@ -2626,13 +2735,27 @@ class Treiber {
       if (ep?.stufe === 'pr' && ep.pr && !ep.auftrag && !this.laufend.has(ep.nr)) break;
       this.z.schlange.shift();
     }
-    const nr = this.z.schlange[0];
+    // #133: a PR whose predecessor (an order edge, maybe added later) is not merged yet stays in the
+    // queue and lets the next one by; it docks only after its predecessors
+    const nr = this.z.schlange.find((n) => {
+      const kandidat = this.epic(n);
+      if (kandidat?.stufe !== 'pr' || !kandidat.pr || kandidat.auftrag || this.laufend.has(n)) return false;
+      const vor = this.offeneVorgaenger(n);
+      if (!vor.length) return true;
+      const notiz = `PR #${kandidat.pr}: Andock-Schlange, wartet auf das Andocken von ${vor.map((v) => `#${v}`).join(', ')}`;
+      if (kandidat.notiz !== notiz) {
+        kandidat.notiz = notiz;
+        this.ereignis(n, `bleibt in der Schlange: Vorgänger ${vor.map((v) => `#${v}`).join(', ')} noch nicht angedockt`);
+      }
+      return false;
+    });
     if (nr === undefined) return;
     const ep = this.epic(nr);
     this.kopfAktiv = nr;
     this.mergesOffen.add(nr);
     ep.notiz = `PR #${ep.pr}: Kopf der Andock-Schlange`;
-    this.ereignis(nr, `Kopf der Schlange${this.z.schlange.length > 1 ? `, dahinter ${this.z.schlange.slice(1).map((n) => `#${n}`).join(', ')}` : ''}`);
+    const dahinter = this.z.schlange.filter((n) => n !== nr);
+    this.ereignis(nr, `Kopf der Schlange${dahinter.length ? `, dahinter ${dahinter.map((n) => `#${n}`).join(', ')}` : ''}`);
     this.nebenbei(
       this.kopf(ep)
         .catch((e) => this.prBereit(ep, `Fehler in der Andock-Schlange: ${e}`))
@@ -2675,9 +2798,10 @@ class Treiber {
     if (nachweis) {
       if (!this.adapter.gate_command) return this.prBereit(ep, `${nachweis}, und der Adapter hat kein gate_command`);
       this.ereignis(ep.nr, `${nachweis}: der Treiber fährt die Andockprüfung selbst`);
-      const g = await this.nachziehen(ep, nachweis);
+      let g = await this.nachziehen(ep, nachweis);
+      if (this.nochmal(ep, g)) g = await this.nachziehen(ep, nachweis);
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
-      if (g.art === 'zurueck') return this.zurueck(ep, g.text);
+      if (g.art === 'zurueck') return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
       selbst = 'voll';
     }
     for (;;) {
@@ -2699,11 +2823,21 @@ class Treiber {
       const g = await this.nachziehen(ep, voll ? 'Teil-Lauf von merge.ps1 abgelehnt' : null);
       if (g.art === 'gruen') {
         selbst = g.teil ? 'teil' : 'voll';
+        ep.gateAussenWiederholt = false;
         continue;
       }
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
-      return this.zurueck(ep, g.text);
+      if (this.nochmal(ep, g)) continue;
+      return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
     }
+  }
+
+  /** #25: a red gate with a cause outside the diff runs once more before it counts against the run */
+  nochmal(ep: FlottenEpic, g: GateErgebnis): boolean {
+    if (g.art !== 'zurueck' || !g.aussen || ep.gateAussenWiederholt) return false;
+    ep.gateAussenWiederholt = true;
+    this.ereignis(ep.nr, `Andockprüfung des Treibers rot, die Ursache liegt außerhalb des Diffs (${g.aussen}): einmal wiederholt`);
+    return true;
   }
 
   /** base_branch of the adapter, else main_branch, else the default branch of the forge; null for from-issue */
@@ -2733,13 +2867,25 @@ class Treiber {
     return `kein Aufruf der Andockprüfung im Log des Laufs zum Andockblock (Basis ${letzter.base}, HEAD ${letzter.head})`;
   }
 
-  /** Back to the run with what failed; counts against the run (two, then blocked). */
-  zurueck(ep: FlottenEpic, text: string): void {
-    ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
-    if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Andocken nach zwei Nachbesserungen weiter nicht möglich:\n\n${text}`);
+  /**
+   * Back to the run with what failed; counts against the run (two, then blocked). #25: a conflict with the
+   * base comes from another merge, not from the run: it counts apart (BASIS_GRENZE, then blocked).
+   */
+  zurueck(ep: FlottenEpic, text: string, art: 'lauf' | 'basis' = 'lauf'): void {
+    ep.gateAussenWiederholt = false;
+    let zaehler: string;
+    if (art === 'basis') {
+      ep.basisKonflikte = (ep.basisKonflikte ?? 0) + 1;
+      if (ep.basisKonflikte >= BASIS_GRENZE) return this.halt(ep, 'blockiert', `Nachziehen der Basis nach ${BASIS_GRENZE} Konflikten weiter nicht möglich:\n\n${text}`);
+      zaehler = `Konflikt mit der Basis ${ep.basisKonflikte} von ${BASIS_GRENZE}, zählt nicht gegen den Lauf`;
+    } else {
+      ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
+      if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Andocken nach zwei Nachbesserungen weiter nicht möglich:\n\n${text}`);
+      zaehler = `${ep.mergeVersuche} von 2`;
+    }
     ep.stufe = 'laeuft';
     ep.auftrag = { resume: true, text: this.an(ep.nr, text) };
-    this.ereignis(ep.nr, `zurück an den Lauf (${ep.mergeVersuche} von 2), danach ans Ende der Schlange: ${text.split('\n')[0].slice(0, 160)}`);
+    this.ereignis(ep.nr, `zurück an den Lauf (${zaehler}), danach ans Ende der Schlange: ${text.split('\n')[0].slice(0, 160)}`);
   }
 
   /** The worktree that has the head branch checked out, or null. */
@@ -2811,7 +2957,7 @@ class Treiber {
       const konflikt = git('diff', '--name-only', '--diff-filter=U').stdout.split(/\r?\n/).filter(Boolean);
       git('merge', '--abort');
       this.ereignis(nr, `Nachziehen: Konflikt mit ${ziel} in ${konflikt.join(', ') || '?'}`);
-      return { art: 'zurueck', text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat \`git merge\` abgebrochen, nichts gepusht. ${auftrag}` };
+      return { art: 'zurueck', basis: true, text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat \`git merge\` abgebrochen, nichts gepusht. ${auftrag}` };
     }
     // from here the worktree holds the driver's merge commit; unless it is green and pushed, the
     // worktree goes back to the head the run left (checked clean above), so the run finds its state
@@ -2871,7 +3017,8 @@ class Treiber {
     if (!b) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` nennt keine Basis (gate_base); merge.ps1 kann sie nicht prüfen` };
     const gruen = b.gruen && r.code === 0;
     this.ereignis(nr, `Andockprüfung des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})`);
-    if (!gruen) return { art: 'zurueck', text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
+    const aussen = gruen ? undefined : AUSSEN.find(([re]) => re.test(ende))?.[1];
+    if (!gruen) return { art: 'zurueck', ...(aussen ? { aussen } : {}), text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
     if (b.teil !== teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ${b.teil ? '' : 'k'}ein Teil-Lauf (gate_partial); der Treiber schreibt sie nicht in den PR` };
     const [bBase, bHead] = [form.base.exec(b.block)?.[1] ?? '', form.head.exec(b.block)?.[1] ?? ''];
     if (!basis.startsWith(bBase) || !bHead || !kopf.startsWith(bHead)) return { art: 'mensch', text: `Die Ausgabe der Andockprüfung nennt Basis ${bBase} und HEAD ${bHead || '?'}, der Worktree steht auf ${basis.slice(0, 7)} und ${kopf.slice(0, 8)}` };
@@ -2928,8 +3075,19 @@ class Treiber {
     this.lokalerBranchWeg(ep);
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} angedockt`;
+    this.missionAbschliessen(ep);
     this.epicMessen(ep);
     if (this.adapter.lern_issue && ep.pr) this.nebenbei(this.lernschleife(ep, ep.pr, this.adapter.lern_issue));
+  }
+
+  /** #145: close the mission issue (or take its ready label) once; a forge that fails is tried again at the next start */
+  missionAbschliessen(ep: FlottenEpic, nachlauf = false): void {
+    if (!ep.pr || ep.abgeschlossen) return;
+    const was = missionAbschliessen(this.w.aufrufer, this.e.forge, ep.nr, ep.pr, this.adapter.ready_label, nachlauf);
+    // only a closed mission is done; one with open Missionsziele is looked at again at the next start
+    ep.abgeschlossen = was?.endgueltig ?? false;
+    // the start looks at it each time; it says so only when something changed
+    if (!nachlauf || was?.endgueltig) this.ereignis(ep.nr, was?.text ?? 'Mission nach dem Andocken nicht abgeschlossen: Forge nicht lesbar oder nicht schreibbar, nächster Versuch beim nächsten Start');
   }
 
   /** Sparpaket, package 6: proposals from the merged run as one comment to lern_issue, applied by nobody. */
@@ -2965,10 +3123,28 @@ class Treiber {
 
   // ---- end of the deployment
 
+  /** #135: the missions of this deployment, not every one zustand.json still holds from earlier ones */
+  imEinsatz(): FlottenEpic[] {
+    return Object.values(this.z.epics).filter((ep) => this.e.epics.includes(ep.nr));
+  }
+
   istZuEnde(): boolean {
-    const eps = Object.values(this.z.epics);
+    const eps = this.imEinsatz();
     if (eps.some((ep) => ep.auftrag || BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt')) return false;
     return eps.every((ep) => ENDE.has(ep.stufe));
+  }
+
+  /**
+   * #135: a blocked or aborted mission not given up can still be requeued on the bridge; with a bridge
+   * the driver stays in the deployment for it (said once per set of missions) instead of ending.
+   */
+  wartetAufBruecke(): boolean {
+    // only missions of this deployment: an old blocked one in zustand.json keeps no driver alive
+    const offen = this.bruecke ? this.imEinsatz().filter((ep) => ['blockiert', 'abgebrochen'].includes(ep.stufe) && !ep.aufgegebenAm) : [];
+    const liste = offen.map((ep) => `#${ep.nr} ${ep.stufe}`).join(', ');
+    if (liste && liste !== this.bleibtGemeldet) this.ereignis(null, `bleibt im Einsatz: ${liste}, wartet auf „Neu einreihen“ oder „Aufgeben“ auf der Brücke`);
+    this.bleibtGemeldet = liste;
+    return offen.length > 0;
   }
 
   async abschluss(): Promise<void> {
@@ -3025,7 +3201,8 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
   if (!konten.length) throw new Error(AUFRUF);
   const e = standard(repo, forge, epics, konten);
-  e.auto = !epics.length;
+  // #150: --dauerhaft with --epics collects the released ones in addition to the fixed list
+  e.auto = !epics.length || argv.includes('--dauerhaft');
   e.dauerhaft = argv.includes('--dauerhaft');
   e.skill = wert(argv, '--skill') ?? e.skill;
   e.modell = wert(argv, '--modell') ?? e.modell;

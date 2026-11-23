@@ -106,13 +106,14 @@ describe('driver: learning loop after the merge', () => {
   it('with lern_issue the driver posts the proposals there after the merge', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll\nlern_issue: "#50"' });
     const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lernAntwort]);
-    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    // #164: the driver ends when merge and learning run are done; the limit only guards a hang (a loaded machine)
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 120_000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     const k = t.p.kommentare.filter((x) => x.nr === 50);
     expect(k).toHaveLength(1);
     expect(k[0].text).toContain('**Lernschleife** — PR #13, Mission #3');
     expect(t.p.meldungen.some((m) => /Lernschleife: 1 Vorschlag/.test(m))).toBe(true);
-  }, T);
+  }, 150_000);
 
   it('without lern_issue no learning run starts', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });

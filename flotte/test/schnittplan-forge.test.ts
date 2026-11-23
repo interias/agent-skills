@@ -378,6 +378,39 @@ describe('#147 Schnittplan in der Forge', () => {
     expect(r.tickets.find((t) => t.nummer === 3)?.fehler).toBeUndefined();
   });
 
+  describe('#157: a note listed in the mission but not linked', () => {
+    const gelistet = () => {
+      const f = welt();
+      f.finde(40).body = MISSION_40.replace('- [ ] #30 Alte Tafel\n', '- [ ] #30 Alte Tafel\n- [ ] #3 Tafel zeigt den Port\n');
+      return f;
+    };
+    const post40 = (x: string[]) => x[0] === 'api' && x.includes('--method') && x[3] === 'repos/o/r/issues/40/sub_issues';
+
+    it('is linked by the next run, after the comment at the mission, without a second line in the list', async () => {
+      const f = gelistet();
+      const { r, aufrufe } = await lauf(f, PLAN, ANTWORTEN);
+      expect(f.finde(40).kinder).toEqual([30, 3]);
+      expect(f.finde(40).body.match(/#3 /g)).toHaveLength(1);
+      const kommentar = aufrufe.findIndex((x) => x.args[1] === 'comment' && x.args[2] === '40');
+      expect(kommentar).toBeGreaterThanOrEqual(0);
+      expect(kommentar).toBeLessThan(aufrufe.findIndex((x) => post40(x.args)));
+      expect(r.tickets.find((t) => t.nummer === 3)).toMatchObject({ mission: 40 });
+      expect(f.finde(3).labels).toEqual(['ready-for-agent']);
+    });
+
+    it('a link that fails again is reported, the run goes on, and the run after links it', async () => {
+      const f = gelistet();
+      const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: post40 });
+      expect(r.tickets.find((t) => t.nummer === 3)?.fehler).toContain('Anhängen an Mission #40 gescheitert');
+      expect(f.finde(40).kinder).toEqual([30]);
+      expect(f.finde(1).labels).toEqual(['ready-for-agent']);
+      f.finde(3).comments = [];
+      await lauf(f, PLAN, ANTWORTEN);
+      expect(f.finde(40).kinder).toEqual([30, 3]);
+      expect(f.finde(40).body.match(/#3 /g)).toHaveLength(1);
+    });
+  });
+
   it('when the comment at a note fails, that note does not change and does not join the mission', async () => {
     const f = welt();
     const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'comment' && a[2] === '1' });
@@ -775,6 +808,18 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
     expect(mitMissionszielen(MISSION_40, [{ nummer: 30, titel: 'Alte Tafel' }])).toBe(MISSION_40);
     expect(mitMissionszielen('Text', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n');
     expect(mitMissionszielen('Text\n\n## Missionsziele\n\nmehr', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n\nmehr');
+  });
+
+  it('a new line takes the line ending of the body: CRLF stays CRLF (no lone LF), LF stays LF, a new list too (#156)', () => {
+    const z = [{ nummer: 3, titel: 'T' }];
+    const crlf = 'Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A\r\n\r\nmehr\r\n';
+    const mit = mitMissionszielen(crlf, z);
+    expect(mit).toBe('Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A\r\n- [ ] #3 T\r\n\r\nmehr\r\n');
+    expect(mit).not.toMatch(/(?<!\r)\n/);
+    expect(mitMissionszielen('Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A', z)).toBe('Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A\r\n- [ ] #3 T');
+    expect(mitMissionszielen('Text\r\n', z)).toBe('Text\r\n\r\n## Missionsziele\r\n- [ ] #3 T\r\n');
+    expect(mitMissionszielen('Text', z)).not.toContain('\r');
+    expect(mitMissionszielen('Text\n\n## Missionsziele\n- [ ] #1 A\n', z)).toBe('Text\n\n## Missionsziele\n- [ ] #1 A\n- [ ] #3 T\n');
   });
 });
 

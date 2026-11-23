@@ -261,6 +261,100 @@ describe('Drehbücher (#14)', () => {
     expect(z.aktiv).toBe(false);
   }, T);
 
+  describe('#153: what CleanupStale reports after the merge', () => {
+    const fahreMit = async (cleanup: () => { code: number; stdout: string; stderr: string }) => {
+      const t = aufbau({ cleanup });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(t.p.aufraeumen).toBe(1);
+      return z.ereignisse.filter((e) => /CleanupStale/.test(e.text)).map((e) => e.text);
+    };
+    const eintrag = (action: string, reason: string) => ({ kind: 'lock', id: 'x', path: 'p', branch: null, action, reason });
+
+    it('nothing to do is no event', async () => {
+      expect(await fahreMit(() => ({ code: 0, stdout: JSON.stringify([eintrag('skipped', 'living lock')]), stderr: 'worktree.ps1: CleanupStale: nothing to do (52 skipped).\n' }))).toEqual([]);
+    });
+
+    it('n stopped or removed is no error', async () => {
+      expect(await fahreMit(() => ({ code: 0, stdout: JSON.stringify([eintrag('removed', 'dead'), eintrag('stopped', 'dead'), eintrag('skipped', 'dirty')]), stderr: 'worktree.ps1: CleanupStale: 2 stopped or removed, 1 skipped.\n' }))).toEqual(['Reste abgeräumt (CleanupStale): 2 gestoppt oder entfernt']);
+    });
+
+    it('a failed step is an error and named, not the summary line', async () => {
+      const t = await fahreMit(() => ({ code: 1, stdout: JSON.stringify([eintrag('skipped', 'living lock'), eintrag('skipped', 'failed: git worktree remove exit 128')]), stderr: 'worktree.ps1: CleanupStale: nothing to do (2 skipped).\n' }));
+      expect(t).toEqual(['CleanupStale meldet Fehler (Exit 1): lock x: failed: git worktree remove exit 128']);
+    });
+  });
+
+  describe('#145: the mission issue after the merge of its PR', () => {
+    const mitZielen = '## Missionsziele\n- [ ] #21 a\n- [x] #22 b\n\n## Betroffene Module\n- m3';
+
+    it('every Missionsziel closed: the driver closes the mission with a comment linking the PR', async () => {
+      const t = aufbau({ bodies: { 3: mitZielen }, zu: [21, 22] });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(t.p.geschlossen).toHaveLength(1);
+      expect(t.p.geschlossen[0].nr).toBe(3);
+      expect(t.p.geschlossen[0].text).toMatch(/Mission abgeschlossen/);
+      expect(t.p.geschlossen[0].text).toContain('https://github.com/o/r/pull/13');
+      expect(t.p.labelWeg).toEqual([]);
+    }, T);
+
+    it('a Missionsziel still open: the mission stays open, loses ready-for-agent, a comment names what is open', async () => {
+      const t = aufbau({ bodies: { 3: mitZielen }, zu: [22] });
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(t.p.geschlossen).toEqual([]);
+      expect(t.p.labelWeg).toEqual([{ nr: 3, label: 'ready-for-agent' }]);
+      const k = t.p.kommentare.filter((x) => x.nr === 3 && /Mission bleibt offen/.test(x.text));
+      expect(k).toHaveLength(1);
+      expect(k[0].text).toMatch(/#21/);
+      expect(k[0].text).not.toMatch(/#22/);
+      // the driver does not start a done mission again: the comment promises nothing else
+      expect(k[0].text).toMatch(/startet sie dafür nicht neu/);
+      expect(k[0].text).not.toMatch(/startet erst wieder/);
+    }, T);
+
+    it('a Missionsziel whose state cannot be read is unknown: nothing written; a later start closes the mission once all are closed', async () => {
+      const zu = [22];
+      const unlesbar = [21];
+      const t = aufbau({ bodies: { 3: mitZielen }, zu, unlesbar });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig', abgeschlossen: false });
+      expect(t.p.geschlossen).toEqual([]);
+      expect(t.p.labelWeg).toEqual([]);
+      expect(z.ereignisse.some((e) => /Stand von #21 nicht lesbar/.test(e.text))).toBe(true);
+      unlesbar.length = 0;
+      zu.push(21);
+      await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen.map((g) => g.nr)).toEqual([3]);
+    }, T);
+
+    it('open Missionsziele after the merge: not final; a later start takes no label off a mission released again, and closes it once all are closed', async () => {
+      const zu = [22];
+      const t = aufbau({ bodies: { 3: mitZielen }, zu, labels: { 3: ['ready-for-agent'] } });
+      const z0 = leer(t.repo);
+      z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig', pr: 13 } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const z = await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(z.epics['3'].abgeschlossen).toBe(false);
+      expect(t.p.labelWeg).toEqual([]);
+      expect(t.p.kommentare.filter((k) => k.nr === 3)).toEqual([]);
+      zu.push(21);
+      await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen.map((g) => g.nr)).toEqual([3]);
+    }, T);
+
+    it('a mission merged before but still open is closed at the next start, once', async () => {
+      const t = aufbau({ bodies: { 3: mitZielen }, zu: [21, 22] });
+      const z0 = leer(t.repo);
+      z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig', pr: 13 } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const z = await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen.map((g) => g.nr)).toEqual([3]);
+      await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen).toHaveLength(1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+    }, T);
+  });
+
   it('D12: merge: mensch waits, reports "PR bereit", notices the merge later', async () => {
     const t = aufbau({ adapter: 'merge: mensch', pr: (_nr, n) => ({ state: n < 4 ? 'OPEN' : 'MERGED' }) });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
@@ -299,6 +393,87 @@ describe('Drehbücher (#14)', () => {
     expect(index(t.p.zeitleiste, /^gemergt 13$/)).toBeLessThan(index(t.p.zeitleiste, /^#4 Lauf gestartet/));
     expect(z.epics['4'].stufe).toBe('fertig');
     expect(z.statistik.maxLaeufe).toBe(1);
+  }, T);
+
+  describe('#133: an order edge added to a running epic', () => {
+    const kante = '> **Reihenfolge:** nach #4\n\n## Betroffene Module\n- a';
+    // the edge comes after the start: the first read of #3 has none, every later one has it
+    const spaeteKante = () => {
+      let gelesen = 0;
+      return { get 3() { return gelesen++ ? kante : '## Betroffene Module\n- a'; }, 4: '## Betroffene Module\n- b' } as Record<number, string>;
+    };
+    const ohnePr = (offen: string) => `Nicht weiter.\n\nFLOTTE-ENDE 3\n\n### Was das Epic offen lässt\n${offen}`;
+    // #4 ends once #3 waits for it; #3 starts again only after #4 is merged
+    const wartet3 = { signale: { 'wartet-3': /^#3 .*Vorgänger #4 noch nicht angedockt, wartet/ } };
+
+    for (const [fall, offen] of [
+      ['naming the predecessor', 'Die Reihenfolge verlangt erst #4, das ist noch offen.'],
+      ['without naming it (the edge decides, not the wording)', 'keine'],
+    ]) {
+      it(`FLOTTE-ENDE without a PR, ${fall}: waiting, the session dropped, not blocked; after the merge of #4 a new start without --resume`, async () => {
+        const t = aufbau({ bodies: spaeteKante(), ...wartet3 });
+        const buch = drehbuch([lauf(3, [{ text: ohnePr(offen) }]), lauf(4, [{ signal: 'wartet-3' }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
+        const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+        expect(z.ereignisse.some((e) => e.epic === 3 && /FLOTTE-ENDE ohne Pull Request, Vorgänger #4 noch nicht angedockt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
+        expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(false);
+        const starts = fuer(buch.gesehen(), 3);
+        expect(starts).toHaveLength(2);
+        expect(starts[1].args).not.toContain('--resume');
+        expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+        expect(z.epics['3'].stufe).toBe('fertig');
+      }, T);
+    }
+
+    it('the predecessor is merged already: blocked as before', async () => {
+      const t = aufbau({ bodies: spaeteKante(), signale: { 'gemergt-14': /^gemergt 14$/ } });
+      const buch = drehbuch([lauf(3, [{ signal: 'gemergt-14' }, { text: ohnePr('keine') }]), lauf(4, [{ text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+      expect(z.epics['4'].stufe).toBe('fertig');
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^#3 blockiert: FLOTTE-ENDE ohne Pull Request/));
+      expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', notiz: 'FLOTTE-ENDE ohne Pull Request' });
+    }, T);
+
+    it('before a resume (an answer of the admiral): waiting, no resumed turn; after the merge of #4 a new start', async () => {
+      const t = aufbau({ bodies: spaeteKante(), signale: { 'wartet-3': /^#3 vor dem Fortsetzen, Vorgänger #4 noch nicht angedockt, wartet/ } });
+      const buch = drehbuch([
+        lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]),
+        admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
+        lauf(4, [{ signal: 'wartet-3' }, { text: ende(4, 14) }]),
+        lauf(3, [{ text: ende(3, 13) }]),
+      ]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+      const starts = fuer(buch.gesehen(), 3);
+      expect(starts).toHaveLength(2);
+      expect(starts[1].args).not.toContain('--resume');
+      expect(starts[1].eingabe).not.toMatch(/Antwort des Admirals/);
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+      expect(z.epics['3'].stufe).toBe('fertig');
+    }, T);
+
+    it('with a PR in the merge queue: it stays in the queue, lets nothing dock before #4 and docks after it', async () => {
+      // a PR is merged only by merge.ps1, never from outside while it is held
+      let gemergt: number[] = [];
+      const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', bodies: spaeteKante(), pr: (nr) => ({ state: gemergt.includes(nr) ? 'MERGED' : 'OPEN' }), signale: { 'haelt-3': /^#3 bleibt in der Schlange: Vorgänger #4 noch nicht angedockt/ } });
+      gemergt = t.p.merges;
+      const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [{ signal: 'haelt-3' }, ...gateGefahren(), { text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+      expect(t.p.merges).toEqual([14, 13]);
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+      expect(t.p.zeitleiste.filter((x) => /^#3 bleibt in der Schlange/.test(x))).toHaveLength(1);
+      expect(fuer(buch.gesehen(), 3)).toHaveLength(1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['4'].stufe).toBe('fertig');
+    }, T);
+  });
+
+  it('#144: an epic left out because of a collision carries the reason as its note', async () => {
+    // #3 ends only once the reason of #4 is said (an event); then #4 runs after it
+    const t = aufbau({ bodies: { 3: 'Ändert `core/a.ts`.', 4: 'Ändert `core/a.ts`.' }, signale: { grund: /^#4 wartet auf #3/ } });
+    const buch = drehbuch([lauf(3, [{ signal: 'grund' }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.filter((e) => e.epic === 4 && e.text === 'wartet auf #3: Kollision gross (dieselben Dateien: core/a.ts)')).toHaveLength(1);
+    expect(index(t.p.zeitleiste, /^#4 wartet auf #3/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+    expect(z.epics['4'].stufe).toBe('fertig');
   }, T);
 
   it('D15: a large collision and five startable epics run one after another; never more than four at once', async () => {

@@ -72,6 +72,9 @@ export function speicherForge(): Pruefstand & { aufrufe: string[] } {
         finde(mission).verknuepft.push(ziel);
         aufrufe.push(`verknuepfen #${mission} #${ziel}`);
       },
+      async verknuepft(mission, ziel) {
+        return finde(mission).verknuepft.includes(ziel);
+      },
     },
     issues: async () => issues.map((i) => ({ ...i, labels: [...i.labels], verknuepft: [...i.verknuepft] })),
   };
