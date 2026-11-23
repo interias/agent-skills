@@ -3,7 +3,6 @@
 # Usage (in a worktree): pwsh -NoProfile -File gate.ps1
 $ErrorActionPreference = 'Continue'
 # the driver reads stdout as UTF-8; without this "Gate grün." arrives mangled and counts as red
-[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 Set-Location $PSScriptRoot
 git fetch -q origin main 2>$null
 $basis = (git merge-base HEAD origin/main).Trim()
@@ -11,7 +10,8 @@ $kopf = (git rev-parse HEAD).Trim()
 # The Pester suites run where test_commands run them: Windows PowerShell 5.1 with Pester 3.4, the
 # version they are written for (INSTALL.md). Without a Pester below 5 the newest one runs with its
 # own switches; the call differs between the two (-Quiet against -Output), and a call that fails
-# leaves no result. The part is green only with a result and no red test (#129).
+# leaves no result. Its messages stay ASCII: the 5.1 host writes them in the console code page.
+# The part is green only with a result, more than 0 tests (#165) and no red test (#129).
 $pesterLauf = @'
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
@@ -28,6 +28,7 @@ if (-not $r) { "pester: Invoke-Pester $($modul.Version) lieferte kein Ergebnis."
 $rot = if ($fuenf) { @($r.Failed | ForEach-Object { $_.ExpandedPath }) } else { @($r.TestResult | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object { "$($_.Describe) :: $($_.Name)" }) }
 foreach ($t in $rot) { "pester: ROT $t" }
 "pester: Pester $($modul.Version), $($dateien.Count) Dateien, $($r.TotalCount) Tests, $($r.FailedCount) rot"
+if ($r.TotalCount -eq 0) { 'pester: kein Test gelaufen (Testzahl 0), der Teil ist rot (#165).'; exit 1 }
 if ($r.FailedCount -gt 0 -or $rot) { exit 1 }
 exit 0
 '@
