@@ -569,9 +569,10 @@ Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wur
 
 ## Prüfen
 
-`bun test` braucht keine Installation und läuft in der Andockprüfung (`gate.ps1`). Die Typprüfung
-(`bun run typecheck`, `tsc -p .`) braucht die `devDependencies` und damit vorher `bun install` in
-`flotte/`; ein Worktree von `Up` hat kein `node_modules`, und die Andockprüfung fährt sie nicht.
+`bun test` läuft in der Andockprüfung (`gate.ps1`) und fährt dabei auch die Typprüfung (`tsc -p .`,
+Test `test/typpruefung.test.ts`; einzeln `bun run typecheck`). Sie braucht die `devDependencies`:
+Vor `bun test` und `gate.ps1` steht deshalb `bun install` in `flotte/`. Ein Worktree von `Up` hat
+kein `node_modules`; ohne die Installation endet der Test rot mit „TypeScript nicht installiert“.
 
 ## Bei dir
 
