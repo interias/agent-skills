@@ -46,6 +46,8 @@ export interface TriageAuftrag {
 export interface TriageWelt {
   aufrufer: Aufrufer;
   starte: (s: Start) => Promise<LaufErgebnis>;
+  /** #147: the run was aborted (Ctrl+C, a stopping driver): from then on nothing is written, no final check */
+  abgebrochen?: () => boolean;
 }
 
 export interface TicketErgebnis {
@@ -180,6 +182,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const fehler: { forge: string; fehler: string }[] = [];
   const schnittplan: SchnittplanErgebnis[] = [];
   const nachgeholt: Nachgeholt[] = [];
+  const ab = () => w.abgebrochen?.() ?? false;
   const abschluss: Abschluss = o.trocken ? { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'trocken: nichts geschrieben, keine Abschlussprüfung' } : { geprueft: 0, sauber: 0, abweichungen: [] };
   for (const z of o.ziele) {
     let liste: Ticket[];
@@ -191,7 +194,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     }
     // before the notes: only what an earlier run left; a release failing in this run waits for the next one
     try {
-      nachgeholt.push(...nachfreigeben(o, w, z));
+      if (!ab()) nachgeholt.push(...nachfreigeben(o, w, z));
     } catch (err) {
       fehler.push({ forge: z.forge, fehler: (err as Error).message });
     }
@@ -270,9 +273,10 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
       }
       tickets.push({ ...basis, ergebnis: e.art, geschrieben: true, kommentar: text, ...(gescheitert ? { fehler: gescheitert } : {}), sitzung: r.sitzung, ...warum });
     }
-    if (plan && klare.size) await freigeben(o, w, z, plan, klare);
-    if (z.lernIssue) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
-    if (!o.trocken) {
+    // #147: before each block that writes: after an abort nothing more
+    if (plan && klare.size && !ab()) await freigeben(o, w, z, plan, klare);
+    if (z.lernIssue && !ab()) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
+    if (!o.trocken && !ab()) {
       // #147: a mission and a stranger's ticket are no notes the run works off (README, "Triage")
       const eingabe = liste.filter((t) => notizen.includes(t) || (!t.labels.includes(z.regeln.epic_label) && wartetAufAntwort(t)));
       const neu = schnittplan.filter((p) => p.forge === z.forge).flatMap((p) => p.neue_missionen.flatMap((m) => (m.nummer === undefined ? [] : [m.nummer])));
@@ -282,7 +286,8 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
       abschluss.abweichungen.push(...abw);
     }
   }
-  const zustand: 'beendet' | 'unvollstaendig' = abschluss.abweichungen.length ? 'unvollstaendig' : 'beendet';
+  if (ab()) Object.assign(abschluss, { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'abgebrochen: nach dem Abbruch nichts mehr geschrieben, keine Abschlussprüfung' });
+  const zustand: 'beendet' | 'unvollstaendig' | 'abgebrochen' = ab() ? 'abgebrochen' : abschluss.abweichungen.length ? 'unvollstaendig' : 'beendet';
   return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand };
 }
 
@@ -326,6 +331,11 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
   }
   if (p.art === 'ungueltig') {
     out.push({ forge: z.forge, neue_missionen: [], zuordnungen: [], sitzung: r.sitzung, ...(reparatur ? { reparatur } : {}), fehler: r.strukturiert ? p.fehler : `${p.fehler} (${r.fehler ?? `Exit ${r.code}`})` });
+    return null;
+  }
+  // #147: aborted meanwhile: the plan is not written
+  if (w.abgebrochen?.()) {
+    out.push({ forge: z.forge, neue_missionen: [], zuordnungen: [], sitzung: r.sitzung, fehler: 'abgebrochen, nichts geschrieben' });
     return null;
   }
   const ergebnis: SchnittplanErgebnis = { forge: z.forge, neue_missionen: p.neue_missionen, zuordnungen: [], sitzung: r.sitzung, ...(reparatur ? { reparatur } : {}) };
@@ -637,9 +647,20 @@ export async function triage(argv: string[], aufrufer: Aufrufer = aufrufen): Pro
       fehler.push({ repo, fehler: (e as Error).message });
     }
   }
-  const r = await triagiere(
-    { ziele, konto: kontoAus(wert(argv, '--konto') ?? '1'), modell: wert(argv, '--modell') ?? 'fable', trocken: argv.includes('--trocken') },
-    { aufrufer, starte },
-  );
+  // #147: Ctrl+C ends the admiral call under way with its whole process tree (it runs detached), then the run
+  // writes nothing more and prints what it wrote so far
+  const abbruch = new AbortController();
+  const stopp = () => abbruch.abort('Ctrl+C');
+  process.once('SIGINT', stopp);
+  let r: Awaited<ReturnType<typeof triagiere>>;
+  try {
+    r = await triagiere(
+      { ziele, konto: kontoAus(wert(argv, '--konto') ?? '1'), modell: wert(argv, '--modell') ?? 'fable', trocken: argv.includes('--trocken') },
+      { aufrufer, starte: (s) => starte({ ...s, abbruch: abbruch.signal }), abgebrochen: () => abbruch.signal.aborted },
+    );
+  } finally {
+    process.off('SIGINT', stopp);
+  }
+  if (abbruch.signal.aborted) process.exitCode = 130;
   return { ...r, repos: ziele.map((z) => ({ repo: z.repo, forge: z.forge })), fehler: [...fehler, ...r.fehler] };
 }

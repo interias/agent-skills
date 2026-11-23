@@ -369,8 +369,8 @@ export async function fahre(e: Einstellung, w: Welt = echteWelt): Promise<Flotte
   }
 }
 
-/** #147: the triage runs under way in this process; Ctrl+C ends their admiral calls before the driver exits */
-const triageAbbrueche = new Set<AbortController>();
+/** #147: the drivers of this process with a triage run under way; Ctrl+C ends it before the driver exits */
+const mitTriage = new Set<Treiber>();
 
 class Treiber {
   z!: FlottenZustand;
@@ -1630,10 +1630,10 @@ class Treiber {
   async triageFahren(konto: string): Promise<void> {
     const abbruch = new AbortController();
     this.triageAbbruch = abbruch;
-    triageAbbrueche.add(abbruch);
-    // #147: each admiral call of the run ends with its whole process tree on an abort; after it none starts
+    mitTriage.add(this);
+    // #147: each admiral call of the run ends with its whole process tree on an abort; after it starte starts none
+    // (answer fehler 'abbruch') and triagiere writes nothing more
     const starteTriage = async (s: Start): Promise<LaufErgebnis> => {
-      if (abbruch.signal.aborted) throw new Error(`abgebrochen: ${String(abbruch.signal.reason)}`);
       let eigen: { pid: number; seit: number | null } | null = null;
       try {
         return await this.w.starte({
@@ -1654,9 +1654,10 @@ class Treiber {
       const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
       const r = await (this.w.triagiere ?? triagiere)(
         { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.admiralModell ?? 'fable', trocken: false, programm: this.programm() },
-        { aufrufer: this.w.aufrufer, starte: starteTriage },
+        { aufrufer: this.w.aufrufer, starte: starteTriage, abgebrochen: () => abbruch.signal.aborted },
       );
-      if (abbruch.signal.aborted) throw new Error(`abgebrochen: ${String(abbruch.signal.reason)}`);
+      // #147: aborted, what the run wrote until then still counts (decisions, cut plan), only its end differs
+      const abgebrochen = abbruch.signal.aborted ? String(abbruch.signal.reason) : null;
       const zeit = new Date(this.w.jetzt()).toISOString();
       // #117: a proposal decided clear counts once its Missionsziel exists (revoked there); its entries get a time of their own,
       // since several superfluous proposals share the collecting issue and (nr, zeit) is the key
@@ -1688,11 +1689,11 @@ class Treiber {
       const abweichungen = (r.abschluss?.abweichungen ?? []).filter((x) => x.forge === this.e.forge);
       const abschluss: BerichtTriageAbschluss = {
         zeit,
-        zustand: abweichungen.length ? 'unvollstaendig' : 'beendet',
+        zustand: abgebrochen ? 'abgebrochen' : abweichungen.length ? 'unvollstaendig' : 'beendet',
         geprueft: r.abschluss?.geprueft ?? 0,
         sauber: r.abschluss?.sauber ?? 0,
         abweichungen: abweichungen.slice(0, 200).map((x) => ({ nr: x.nr, titel: x.titel.slice(0, 300), zustand: x.zustand.slice(0, 300), grund: x.grund.slice(0, 1000) })),
-        grund: null,
+        grund: abgebrochen,
       };
       this.z.triage = { entscheidungen: [...ausPlan, ...neu, ...(this.z.triage?.entscheidungen ?? [])].slice(0, TRIAGE_ENTSCHEIDUNGEN_MAX), schnittplan: this.schnittplanFuerBericht(r, zeit), abschluss };
       const zahl = (e: string) => entschieden.filter((t) => t.ergebnis === e).length;
@@ -1712,12 +1713,12 @@ class Treiber {
       const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}${nach.length ? `, Warp frei nachgeholt für ${nach.map((m) => `Mission #${m.nummer}`).join(', ')}` : ''}`;
       // #147: a note without an allowed end state makes the run incomplete, not finished; each one stands in the line
       const unsauber = abweichungen.length ? `; ${abweichungen.length} ${abweichungen.length === 1 ? 'Notiz' : 'Notizen'} nicht sauber abgearbeitet: ${abweichungen.map((x) => `#${x.nr} (${x.grund})`).join(', ')}` : '';
-      this.imLogbuch(null, `Triage-Lauf ${abweichungen.length ? 'unvollständig' : 'beendet'}: ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}${unsauber}`);
+      this.imLogbuch(null, `Triage-Lauf ${abgebrochen ? `abgebrochen: ${abgebrochen}; bis dahin` : abweichungen.length ? 'unvollständig:' : 'beendet:'} ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}${unsauber}`);
     } catch (err) {
       if (abbruch.signal.aborted) this.triageAbgebrochen(String(abbruch.signal.reason), String(abbruch.signal.reason));
       else this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
     } finally {
-      triageAbbrueche.delete(abbruch);
+      mitTriage.delete(this);
       this.triageAbbruch = null;
       this.triageFahrt = null;
       delete this.z.triageLauf;
@@ -1731,6 +1732,15 @@ class Treiber {
     const zeit = new Date(this.w.jetzt()).toISOString();
     this.z.triage = { entscheidungen: this.z.triage?.entscheidungen ?? [], ...this.z.triage, abschluss: { zeit, zustand: 'abgebrochen', geprueft: 0, sauber: 0, abweichungen: [], grund } };
     this.imLogbuch(null, `Triage-Lauf abgebrochen: ${text}`);
+  }
+
+  /** #147: Ctrl+C: the admiral call ends now with its process tree; the abort is in the logbook and the state before the exit */
+  triageNotaus(grund: string): void {
+    if (!this.triageAbbruch) return;
+    this.triageAbbruch.abort(grund);
+    delete this.z.triageLauf;
+    this.triageAbgebrochen(grund, grund);
+    this.speichern();
   }
 
   /** #147: a stopping driver ends the triage run under way: its admiral call with the whole process tree, then the run */
@@ -2977,7 +2987,7 @@ export async function fahren(argv: string[]): Promise<unknown> {
   // process group and a new start reads their logs (D16)
   process.once('SIGINT', () => {
     // #147: a triage run is not taken over by a new start: its admiral calls end now, with their process trees
-    for (const a of triageAbbrueche) a.abort('Treiber mit Ctrl+C beendet');
+    for (const t of mitTriage) t.triageNotaus('Treiber mit Ctrl+C beendet');
     entsperren(flotteDir(e.repo));
     process.stderr.write('Treiber angehalten. Laufende Züge arbeiten weiter; ein neuer Start liest ihre Logs.\n');
     process.exit(130);

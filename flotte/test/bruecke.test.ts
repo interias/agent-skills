@@ -1266,7 +1266,9 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     const f: typeof triagiere = async (o, w) => {
       const r = await w.starte({ ...(o.programm ?? {}), repo: o.ziele[0].repo, konto: o.konto, auftrag: 'TRIAGE-ATTRAPPE', leerlaufMs: 60_000, beimStart: (p) => (pid = p) });
       expect(r.fehler).toBe('abbruch');
-      return ergebnis([]);
+      expect(w.abgebrochen?.()).toBe(true);
+      // what the run wrote before the abort (here a note released into a mission) stays in the report, revocable
+      return { ...ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'h', grund: 'g', mission: 40 }]), abschluss: { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'abgebrochen' }, zustand: 'abgebrochen' };
     };
     const kinder = () => (existsSync(`${buch.datei}.kinder`) ? readFileSync(`${buch.datei}.kinder`, 'utf8').split('\n').filter(Boolean).map(Number) : []);
     const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
@@ -1282,7 +1284,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const bis = Date.now() + 5000;
       while ([pid, ...kinder()].some(lebt) && Date.now() < bis) await new Promise((r) => setTimeout(r, 50));
       expect([pid, ...kinder()].filter(lebt)).toEqual([]);
-      expect(texte(z)).toContain('Triage-Lauf abgebrochen: Treiber angehalten');
+      expect(texte(z)).toContain('Triage-Lauf abgebrochen: Treiber angehalten; bis dahin 1 Warp frei (1 an Missionen angehängt), 0 geschlossen, 0 Fragen an den Menschen');
+      expect(z.triage!.entscheidungen.map((d) => [d.nr, d.ergebnis, d.mission])).toEqual([[7, 'klar', 40]]);
       expect(z.triageLauf).toBeUndefined();
       expect(z.triage!.abschluss).toMatchObject({ zustand: 'abgebrochen', grund: 'Treiber angehalten' });
       expect(b.berichte.at(-1)!.triage).toMatchObject({ laeuft: false, abschluss: { zustand: 'abgebrochen' } });

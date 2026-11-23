@@ -327,16 +327,21 @@ eine in diesem Lauf angelegte Mission trägt `ready_label` ebenfalls); **in der 
 andere ist eine Abweichung, auch eine klare Notiz, die der Plan auf `triage` ließ, und eine wartende
 Notiz, deren letzter Triage-Kommentar keine Frage ist (gescheiterte Freigabe): Der Lauf ist dann
 `unvollstaendig`, nicht beendet. Ausgabe `abschluss` = `{geprueft, sauber, abweichungen[] {forge, nr,
-titel, zustand, grund}}` und `zustand` = `beendet` | `unvollstaendig`; bei `--trocken` entfällt die
-Prüfung (`entfaellt` nennt warum, nichts wurde geschrieben). Über die Brücke steht die Zeile dann als
+titel, zustand, grund}}` und `zustand` = `beendet` | `unvollstaendig` | `abgebrochen`; bei `--trocken`
+und nach einem Abbruch entfällt die Prüfung (`entfaellt` nennt warum). Über die Brücke steht die Zeile dann als
 `Triage-Lauf unvollständig: …; N Notizen nicht sauber abgearbeitet: #a (<grund>), …` im Flottenlogbuch und
 `triage.abschluss` im Frachtraum.
 
 **Sauberes Ende** (#147): Jeder `claude -p` des Laufs endet mit ihm. Bei Leerlauf (`leerlaufMs`) beendet
 `starte` den ganzen Prozessbaum (Windows `taskkill /T /F`, sonst die Prozessgruppe); über `abbruch`
-(ein `AbortSignal`) ebenso sofort, Ergebnis `fehler: 'abbruch'`, danach startet kein Aufruf mehr. Der
-Treiber bricht einen Triage-Lauf ab, wenn er anhält (`flotte anhalten`) oder Ctrl+C bekommt; anders als
-ein Epic-Lauf übernimmt ihn kein Neustart. Er steht mit `seit` und den pids seiner Aufrufe im Zustand
+(ein `AbortSignal`) ebenso sofort, Ergebnis `fehler: 'abbruch'`, danach startet kein Aufruf mehr.
+`triagiere` prüft den Abbruch (`TriageWelt.abgebrochen`) vor jedem Block, der schreibt (Nachfreigabe,
+Schnittplan, Missionen, Lernvorschläge, Abschlussprüfung): Danach wird nichts mehr geschrieben, was bis
+dahin geschrieben ist, steht in der Ausgabe. `flotte triage` bricht so bei Ctrl+C ab (Exit-Code 130,
+die Ausgabe mit `zustand: abgebrochen`). Der Treiber bricht einen Triage-Lauf ab, wenn er anhält
+(`flotte anhalten`, die Logbuchzeile `Triage-Lauf abgebrochen: Treiber angehalten; bis dahin …`, die
+Entscheidungen und der Schnittplan bis dahin bleiben widerrufbar) oder Ctrl+C bekommt (Logbuch und
+Zustand noch vor dem Ende); anders als ein Epic-Lauf übernimmt ihn kein Neustart. Er steht mit `seit` und den pids seiner Aufrufe im Zustand
 (`triageLauf`); steht er dort beim Start noch, meldet der Treiber ihn als abgebrochen (Logbuch und
 `triage.abschluss`) und beendet einen noch lebenden Aufruf, wenn Startzeit und pid passen (D16).
 

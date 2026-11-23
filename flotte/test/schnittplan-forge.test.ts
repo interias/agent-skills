@@ -111,15 +111,20 @@ function forge(issues: Issue[]) {
 type Plan = (notizen: number[], auftrag: string) => unknown;
 type Antworten = Record<number, unknown>;
 
-async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworten, o: { trocken?: boolean; scheitert?: (args: string[]) => boolean } = {}) {
+async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworten, o: { trocken?: boolean; scheitert?: (args: string[]) => boolean; abbrechen?: (s: Start) => boolean; lernIssue?: number } = {}) {
   const aufrufe: Aufruf[] = [];
   const geplant: Start[] = [];
   const einzeln: Start[] = [];
+  // #147: an abort during a call: that call and every later one end without an answer, like the real starte
+  let abgebrochen = -1;
   const r = await triagiere(
-    { ziele: [{ repo: '.', forge: 'o/r', regeln: REGELN }], konto: 'k', modell: 'fable', trocken: o.trocken ?? false },
+    { ziele: [{ repo: '.', forge: 'o/r', regeln: REGELN, lernIssue: o.lernIssue ?? null }], konto: 'k', modell: 'fable', trocken: o.trocken ?? false },
     {
       aufrufer: f.aufrufer(aufrufe, o.scheitert),
+      abgebrochen: () => abgebrochen >= 0,
       starte: async (s: Start): Promise<LaufErgebnis> => {
+        if (abgebrochen < 0 && o.abbrechen?.(s)) abgebrochen = aufrufe.length;
+        if (abgebrochen >= 0) return { code: null, sitzung: null, dauerMs: 0, fehler: 'abbruch' } as unknown as LaufErgebnis;
         if (s.auftrag.startsWith('FLOTTE-SCHNITTPLAN')) {
           geplant.push(s);
           const nummern = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => Number(m[1]));
@@ -131,7 +136,7 @@ async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworte
       },
     },
   );
-  return { r, aufrufe, geplant, einzeln };
+  return { r, aufrufe, geplant, einzeln, abgebrochen };
 }
 
 const schreibend = (a: Aufruf[]) => a.filter((x) => (x.args[0] === 'issue' && ['edit', 'close', 'comment', 'create', 'delete'].includes(x.args[1])) || (x.args[0] === 'api' && x.args.includes('--method')) || x.args[0] === 'label');
@@ -568,5 +573,33 @@ describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubte
     expect(aufrufe.some((x) => x.args[1] === 'view' || x.args.includes('.parent_issue_url'))).toBe(false);
     expect(r.abschluss).toEqual({ geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'trocken: nichts geschrieben, keine Abschlussprüfung' });
     expect(r.zustand).toBe('beendet');
+  });
+});
+
+describe('#147 Abbruch mitten im Lauf: danach schreibt triagiere nichts mehr, das bis dahin Geschriebene steht im Ergebnis', () => {
+  const PLAN_MIT_ZU: Plan = (nummern) => ({ ...(PLAN(nummern, '') as object), zuordnungen: (PLAN(nummern, '') as { zuordnungen: { notiz: number }[] }).zuordnungen.map((z) => (z.notiz === 4 ? { notiz: 4, art: 'verworfen', grund: 'passt nicht', herkunft: 'h' } : z)) });
+
+  it('aborted in the last call of the single clearing: no mission, no release, no final check; the closed note stands in the output', async () => {
+    const f = welt();
+    const { r, aufrufe, abgebrochen } = await lauf(f, PLAN_MIT_ZU, ANTWORTEN, { abbrechen: (s) => /Sternzeit-Notiz #5\b/.test(s.auftrag) && !s.auftrag.startsWith('FLOTTE-SCHNITTPLAN') });
+    expect(abgebrochen).toBeGreaterThan(0);
+    expect(schreibend(aufrufe.slice(abgebrochen))).toEqual([]);
+    expect(aufrufe.slice(abgebrochen).some((x) => x.args[1] === 'view')).toBe(false);
+    // written before: the plan closed #4
+    expect(f.finde(4).state).toBe('closed');
+    expect(r.schnittplan[0].zuordnungen.find((z) => z.notiz === 4)).toMatchObject({ geschrieben: true });
+    expect(f.issues.some((i) => i.number === 100)).toBe(false);
+    expect(f.finde(1).labels).toEqual(['needs-triage']);
+    expect(r.zustand).toBe('abgebrochen');
+    expect(r.abschluss).toMatchObject({ geprueft: 0, abweichungen: [], entfaellt: expect.stringContaining('abgebrochen') });
+  });
+
+  it('aborted in the cut plan call: nothing written at all', async () => {
+    const f = welt();
+    const vorher = JSON.stringify(f.issues);
+    const { r, aufrufe } = await lauf(f, PLAN_MIT_ZU, ANTWORTEN, { abbrechen: (s) => s.auftrag.startsWith('FLOTTE-SCHNITTPLAN') });
+    expect(schreibend(aufrufe)).toEqual([]);
+    expect(JSON.stringify(f.issues)).toBe(vorher);
+    expect(r.zustand).toBe('abgebrochen');
   });
 });
