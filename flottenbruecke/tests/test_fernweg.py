@@ -75,6 +75,8 @@ def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
         if url == '/api/tafel':
             ta, tb = a.json(), b.json()
             assert (ta.pop('nurAnsicht'), tb.pop('nurAnsicht')) == (False, True)
+            # the Bereitschaftsraum offers no writing over the remote entry either
+            assert (ta['bereitschaftsraum'].pop('pin'), tb['bereitschaftsraum'].pop('pin')) == (True, False)
             assert tb == ta
         else:
             assert b.content == a.content, url

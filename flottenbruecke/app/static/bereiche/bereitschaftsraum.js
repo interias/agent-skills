@@ -64,7 +64,7 @@
   function neuHtml(r) {
     const e = entwuerfe.get('neu') || {};
     const zu = r.pin && r.konten.length ? '' : ' disabled';
-    const hinweis = !r.pin ? 'Schreiben abgeschaltet: keine PIN gesetzt.'
+    const hinweis = !r.pin ? `Schreiben abgeschaltet: ${huelle.ohnePin(letzte)}.`
       : !r.konten.length ? 'Noch meldet kein Rechner seine Konten: Starte dort <code>flotte chat --repos &lt;ordner&gt; --bruecke &lt;url&gt;</code>.' : '';
     const konto = e.konto ?? r.konten[0]?.konto ?? '';
     return `<form class="br-form" data-form="neu">
@@ -145,7 +145,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     const nWahl = Object.values(e.wahl || {}).filter((x) => x.length).length;
     const schreiben = c.stand === 'offen' ? `<form class="br-schreiben" data-form="schreiben">
 <textarea name="text" placeholder="${c.karten.length ? 'Eigene Antwort oder Ergänzung (optional zu den Karten)' : 'Nachricht'}" aria-label="Nachricht an den Bereitschaftsraum"${schreibt ? '' : ' disabled'}>${esc(e.text ?? '')}</textarea>
-<div class="knoepfe"><button type="submit" class="knopf haupt"${schreibt ? '' : ' disabled'}>${nWahl ? 'Antwort senden' : 'Senden'}</button><button type="button" class="knopf zweit" data-verwerfen${schreibt ? '' : ' disabled'}>Verwerfen</button><span class="status" role="status">${r.pin ? '' : 'Schreiben abgeschaltet: keine PIN gesetzt'}</span></div></form>`
+<div class="knoepfe"><button type="submit" class="knopf haupt"${schreibt ? '' : ' disabled'}>${nWahl ? 'Antwort senden' : 'Senden'}</button><button type="button" class="knopf zweit" data-verwerfen${schreibt ? '' : ' disabled'}>Verwerfen</button><span class="status" role="status">${r.pin ? '' : `Schreiben abgeschaltet: ${esc(huelle.ohnePin(letzte))}`}</span></div></form>`
       : `<p class="br-klein">${c.stand === 'angelegt' ? 'Angelegt: Dieser Chat ist abgeschlossen.' : 'Verworfen: Hier entsteht nichts mehr.'}</p>`;
     return `${kopf}<ol class="br-verlauf">${verlaufHtml(c, r)}</ol>${kartenHtml(c, schreibt)}${missionenHtml(c)}${entwurfHtml(c, schreibt)}${schreiben}`;
   }

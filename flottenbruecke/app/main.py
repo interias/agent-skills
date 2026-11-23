@@ -219,7 +219,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
         projekte = speicher.projekte()
         t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
-        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin))
+        # over the remote entry the Bereitschaftsraum offers no writing either (#48)
+        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin) and not fernweg(request))
         return t
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
