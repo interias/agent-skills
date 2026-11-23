@@ -8,5 +8,5 @@ nach_merge:
 ---
 # Adapter flotte-probe
 
-Probe-Repository ohne CI. Der Gate-Block in der PR-Beschreibung ersetzt die Checks
-(`epic/references/adapter.md`, „Merge“).
+Probe-Repository ohne CI. Der Andockblock in der PR-Beschreibung ersetzt die Checks
+(`mission/references/adapter.md`, „Andocken“).

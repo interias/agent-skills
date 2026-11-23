@@ -123,7 +123,7 @@ describe('#111: Admiral-Konto rot', () => {
     expect(erst.epics['3'].auftrag).toBeFalsy();
     expect(erst.epics['3'].wartendeFrage?.fragen.map((f) => f.nr)).toEqual([1]);
     expect(aufrufe()).toEqual([]);
-    expect(buch.gesehen().filter((x) => x.eingabe.startsWith('Flotte, Epic #3'))).toHaveLength(1);
+    expect(buch.gesehen().filter((x) => x.eingabe.startsWith('Flotte, Mission #3'))).toHaveLength(1);
     expect(erst.fragen).toEqual([]);
     gruen(konto);
     gruen(admiralKonto);

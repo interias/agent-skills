@@ -137,10 +137,10 @@ export function lernBeleg(a: Aufrufer, forge: string, pr: number, epic: number |
     if (!e.code) {
       try {
         const j = JSON.parse(e.stdout);
-        teile.push(`## Epic #${j.number}: ${j.title}\n${j.url}`);
+        teile.push(`## Mission #${j.number}: ${j.title}\n${j.url}`);
         for (const c of j.comments ?? []) teile.push(`### Kommentar ${c.url ?? ''} (${c.createdAt ?? ''})\n${c.body ?? ''}`);
       } catch {
-        teile.push(`## Epic #${epic}: nicht lesbar`);
+        teile.push(`## Mission #${epic}: nicht lesbar`);
       }
     }
   }
@@ -149,9 +149,9 @@ export function lernBeleg(a: Aufrufer, forge: string, pr: number, epic: number |
 }
 
 export function lernAuftrag(beleg: string, regeln: { regel: string; datei: string; zeile: string }[], streichen: string[]): string {
-  return `Du bist die Lernschleife nach einem gemergten /epic-Lauf. Du schlägst vor, du änderst nichts.
+  return `Du bist die Lernschleife nach einem angedockten Außeneinsatz (/mission). Du schlägst vor, du änderst nichts.
 
-Lies den Beleg unten: Pull Request, Kommentare am Epic (Zeiten-Zeilen, Befunde der Reviewer, Eskalationen, Rückgaben, offene Punkte).
+Lies den Beleg unten: Pull Request, Kommentare an der Mission (Zeiten-Zeilen, Befunde der Ersten Offiziere, Eskalationen, Rückgaben, offene Punkte).
 
 Aufgabe 1 — höchstens ${LERN_MAX} Vorschläge, eher weniger. Nur aus einem Fehler, einer Wiederholung oder einer Verzögerung, die der Beleg zeigt. Für jeden:
 - beleg: die Fundstelle im Lauf (Link des Kommentars, Commit, Befundnummer). Ohne Beleg kein Vorschlag.

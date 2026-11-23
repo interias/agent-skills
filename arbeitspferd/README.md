@@ -49,7 +49,7 @@ pwsh -File arbeitspferd\einrichten.ps1 -Konfig ~\.claude -DryRun     # Profil f�
   `dateien/icon-bauen.ps1 -Name arbeitspferd-<n> -Zahl <n> -Farbe '#rrggbb'` unter Windows PowerShell.
 - Danach das Profil öffnen, `claude` starten und `/login` mit dem Konto.
 
-`/epic` und `flotte` laufen aus jedem Profil. Die Skills kommen über die Junctions
+`/mission` und `flotte` laufen aus jedem Profil. Die Skills kommen über die Junctions
 aus `~/.claude/skills` (beim Hauptkonto direkt). `bun` muss im Benutzer-`PATH` liegen, nicht nur in
 einer Sitzung. Der Treiber liegt nach `install.ps1 -Skill flotte` unter `~/.claude/skills/flotte`.
 

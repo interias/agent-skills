@@ -14,11 +14,11 @@ epic_label: epic
 glossary: CONTEXT.md
 must_read: [CONTEXT.md, README.md]
 test_commands:
-  worktree: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\worktree.Tests.ps1"
-  guard: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\guard.Tests.ps1"
-  ram: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\ram.Tests.ps1"
-  sweep: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\sweep.Tests.ps1"
-  merge: powershell -NoProfile -Command "Invoke-Pester .\epic\scripts\merge.Tests.ps1"
+  worktree: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\worktree.Tests.ps1"
+  guard: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\guard.Tests.ps1"
+  ram: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\ram.Tests.ps1"
+  sweep: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\sweep.Tests.ps1"
+  merge: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\merge.Tests.ps1"
   install: powershell -NoProfile -Command "Invoke-Pester .\install.Tests.ps1"
   flotte: cd flotte && bun test
   bruecke: cd flottenbruecke && python -m pytest -q
@@ -29,7 +29,7 @@ commit_language: en
 plan_artifact: publish
 ---
 
-# Projektadapter für `/epic` — agent-skills
+# Projektadapter für `/mission` — agent-skills
 
 ## Zugang
 
@@ -53,5 +53,5 @@ laufende Stack `flottenbruecke` (4747) und ein laufender Treiber werden nie ange
   liest seine Regeln aus der installierten Fassung unter `~/.claude/skills`, nicht aus dem
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
 - `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
-- Gemergt wird nach grünem Gate (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
+- Angedockt wird nach grüner Andockprüfung (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
 - Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(flotte): …`), PR-Titel deutsch.

@@ -103,7 +103,7 @@ describe('Befund 3: Grenze des Admirals bei merge: nach_gate', () => {
       await fahre(t.einstellung(buch, [3]), t.welt);
       const a = buch.gesehen().find((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))!;
       for (const p of BEIM_MENSCHEN) expect(a.eingabe).toContain(p);
-      auftraege.push(a.eingabe.slice(0, a.eingabe.indexOf('Epic #3 in ')));
+      auftraege.push(a.eingabe.slice(0, a.eingabe.indexOf('Mission #3 in ')));
     }
     expect(auftraege[0]).toBe(auftraege[1]);
   }, T);
@@ -135,7 +135,7 @@ describe('Befund 7: Konto des Admirals und --konto-max', () => {
     const z = await fahre(t.einstellung(buch, [3], { konten: [k2], admiralKonto }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     const g = buch.gesehen();
-    expect(g.filter((x) => x.eingabe.startsWith('Flotte, Epic #3')).map((x) => x.konto)).toEqual([k2, k2]);
+    expect(g.filter((x) => x.eingabe.startsWith('Flotte, Mission #3')).map((x) => x.konto)).toEqual([k2, k2]);
     expect(g.find((x) => x.eingabe.startsWith('FLOTTE-ADMIRAL'))!.konto).toBe(admiralKonto);
     expect(k1).not.toBe(admiralKonto);
   }, T);

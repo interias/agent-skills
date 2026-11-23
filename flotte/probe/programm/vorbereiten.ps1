@@ -6,10 +6,10 @@
 
 .DESCRIPTION
     Before (stage 0) and after (stage 4) run the same preparation, once per run:
-    - .claude/skills/epic-stapel/  -Motor skill (before): the skill epic of this repository; only
-      `name` and the path of the hook differ (a personal skill `epic` would win otherwise).
+    - .claude/skills/epic-stapel/  -Motor skill (before): the skill mission of this repository; only
+      `name` and the path of the hook differ (a personal skill `mission` would win otherwise).
       -Motor programm (after): the same references and scripts, but SKILL.md is the thin shell of
-      huelle/, which runs `flotte epic` through huelle/programm.ps1 (copied next to the scripts);
+      huelle/, which runs `flotte mission` through huelle/programm.ps1 (copied next to the scripts);
       the path of -Cli goes to <git common dir>/probe-programm.txt. This is the switch of the
       probe; the driver and its call stay the same.
     - .claude/agents/              the agents of this repository unchanged, with their real models;
@@ -31,7 +31,7 @@ param(
     [string]$Forge = 'interias/flotte-probe',
     # only these mini-epics (a, b, c); default all three
     [string[]]$MiniEpics = @('a', 'b', 'c'),
-    # skill: /epic (before, stage 0); programm: `flotte epic` behind the shell (after, stage 4)
+    # skill: /mission (before, stage 0); programm: `flotte mission` behind the shell (after, stage 4)
     [ValidateSet('skill', 'programm')][string]$Motor = 'skill',
     # the flotte/src/cli.ts the shell runs; default the one of this repository
     [string]$Cli
@@ -54,11 +54,11 @@ Invoke-ProbeGit pull -q --ff-only
 $skill = Join-Path $Probe '.claude/skills/epic-stapel'
 if (Test-Path $skill) { Remove-Item $skill -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $skill 'scripts'), (Join-Path $skill 'references') | Out-Null
-Copy-Item (Join-Path $stapel 'epic/references/*') (Join-Path $skill 'references')
-Get-ChildItem (Join-Path $stapel 'epic/scripts') -Filter *.ps1 | Where-Object { $_.Name -notlike '*.Tests.ps1' } | Copy-Item -Destination (Join-Path $skill 'scripts')
+Copy-Item (Join-Path $stapel 'mission/references/*') (Join-Path $skill 'references')
+Get-ChildItem (Join-Path $stapel 'mission/scripts') -Filter *.ps1 | Where-Object { $_.Name -notlike '*.Tests.ps1' } | Copy-Item -Destination (Join-Path $skill 'scripts')
 $hook = '$CLAUDE_PROJECT_DIR/.claude/skills/epic-stapel/scripts/guard.ps1'
-$text = [IO.File]::ReadAllText((Join-Path $stapel 'epic/SKILL.md'))
-$text = $text -replace '(?m)^name: epic\r?$', 'name: epic-stapel' -replace [regex]::Escape('$HOME/.claude/skills/epic/scripts/guard.ps1'), $hook
+$text = [IO.File]::ReadAllText((Join-Path $stapel 'mission/SKILL.md'))
+$text = $text -replace '(?m)^name: mission\r?$', 'name: epic-stapel' -replace [regex]::Escape('$HOME/.claude/skills/mission/scripts/guard.ps1'), $hook
 if ($Motor -eq 'programm') {
     $text = [IO.File]::ReadAllText((Join-Path $hier 'huelle/SKILL.md'))
     Copy-Item (Join-Path $hier 'huelle/programm.ps1') (Join-Path $skill 'scripts')
@@ -66,8 +66,8 @@ if ($Motor -eq 'programm') {
 [IO.File]::WriteAllText((Join-Path $skill 'SKILL.md'), $text)
 $agenten = Join-Path $Probe '.claude/agents'
 New-Item -ItemType Directory -Force $agenten | Out-Null
-foreach ($a in Get-ChildItem (Join-Path $stapel 'agents') -Filter 'epic-*.md') {
-    $t = [IO.File]::ReadAllText($a.FullName) -replace [regex]::Escape('$HOME/.claude/skills/epic/scripts/guard.ps1'), $hook
+foreach ($a in Get-ChildItem (Join-Path $stapel 'agents') -Filter '*.md') {
+    $t = [IO.File]::ReadAllText($a.FullName) -replace [regex]::Escape('$HOME/.claude/skills/mission/scripts/guard.ps1'), $hook
     [IO.File]::WriteAllText((Join-Path $agenten $a.Name), $t)
 }
 
@@ -83,7 +83,7 @@ foreach ($b in 'obst', 'verse', 'thema') {
 Invoke-ProbeGit add -A .claude werkzeug obst verse thema
 git -C $Probe diff --cached --quiet
 if ($LASTEXITCODE) {
-    Invoke-ProbeGit commit -q -m "chore: Probe Epic-Programm, Ausgangsstand fuer $Lauf (agent-skills#69)"
+    Invoke-ProbeGit commit -q -m "chore: Probe Missions-Programm, Ausgangsstand fuer $Lauf (agent-skills#69)"
     Invoke-ProbeGit push -q origin main
 }
 

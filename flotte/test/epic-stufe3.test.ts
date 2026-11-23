@@ -163,7 +163,7 @@ function schluesselGleich(s: JsonSchema, x: unknown, pfad = '$'): string[] {
 }
 
 // full samples: every key of every type is set, also the optional ones (the compiler checks the types)
-const torVoll: TorPunkt = { frage: 'Weiter?', betrifft: ['1'], lage: 'x', optionen: [{ text: 'ja' }, { text: 'nein', abbruch: true }], empfehlung: 'A', grund: 'g', quelle: 'Skill epic, 2c' };
+const torVoll: TorPunkt = { frage: 'Weiter?', betrifft: ['1'], lage: 'x', optionen: [{ text: 'ja' }, { text: 'nein', abbruch: true }], empfehlung: 'A', grund: 'g', quelle: 'Skill mission, 2c' };
 const BEISPIELE: { [R in Rolle]: Exclude<unknown, undefined> } = {
   schnitt: { version: 1, modus: 'tickets', pakete: [paket('1', { decisions: ['d'], outOfScope: ['o'], testing: ['t'], lektuere: ['l'], verifikation: 'v' })], zuordnung: [{ story: '#1', paket: '1' }], uebersprungen: [{ nr: '#2', grund: 'ohne ready-for-agent; das Label schaltet es frei', blocker: ['9'] }], tor: [{ ...torVoll, optionen: [{ text: 'nein', abbruch: true }] }] } satisfies Schnitt,
   implementer: { version: 1, dateien: ['a'], neueDateien: ['b'], abnahme: [{ punkt: 'p', satz: 's' }], volllauf: [{ suite: 'gate', dateien: 0, tests: 2, gruen: true }], nichtGekonnt: ['n'], fremdarbeit: ['f'], betreff: 'feat: x (#1)', warum: 'w' } satisfies ImplementerBericht,
@@ -244,19 +244,19 @@ function stand(o: Partial<ReturnType<typeof neuesPaket>> = {}) {
   return { ...neuesPaket(urteilspaket), worktree: '/wt/67', port: 4067, isolation: 'APP_TEST_NR=67', ...o };
 }
 
-describe('Aufträge nach epic/SKILL.md 4a und 4b (#67)', () => {
+describe('Aufträge nach mission/SKILL.md 4a und 4b (#67)', () => {
   it('implementer: worktree with port and isolation, acceptance list word for word, decisions, out of scope, testing, numbers, interface, reading, graph, rules with origin, targeted then once full, report form', () => {
     const t = implementerAuftrag(kontext(), urteilspaket, stand(), { vorgaenger: ['`Aufrufe { rufe(a), kontoFrei() }`'], torAntworten: ['Konto 2? → A'] });
     for (const teil of [
-      'Implementer (`epic-implementer-urteil`) für Paket 67 „Sprachmodell-Punkte“',
+      'Ingenieur (`ingenieur-urteil`) für Paket 67 „Sprachmodell-Punkte“',
       'Worktree: `/wt/67`',
       'Port: 4067, Isolation: APP_TEST_NR=67 (Variable `APP_TEST_NR`',
       '- Der Graph hat keinen Zyklus.\n- Kein Paket ohne Abnahmeliste.',
       'nicht nachbauen, weil der Treiber es schon trägt',
       '- Slot-Fahrt in 4c',
       'Vorbild test/epic-drehbuecher.test.ts',
-      'Ausgangszahlen (Phase 0, Epic-Worktree): flotte 314 Tests in 25 Dateien, 0 rot.',
-      'Schnittstelle des Vorgängers (vom Reviewer festgehalten, wörtlich — was tatsächlich dasteht):\n`Aufrufe { rufe(a), kontoFrei() }`',
+      'Ausgangszahlen (Phase 0, Missions-Worktree): flotte 314 Tests in 25 Dateien, 0 rot.',
+      'Schnittstelle des Vorgängers (vom Ersten Offizier festgehalten, wörtlich — was tatsächlich dasteht):\n`Aufrufe { rufe(a), kontoFrei() }`',
       'Am Vorab-Tor entschieden: Konto 2? → A',
       'must_read (Adapter): AGENTS.md, README.md',
       'docs/adr/0003-wortschatz.md',
@@ -265,10 +265,10 @@ describe('Aufträge nach epic/SKILL.md 4a und 4b (#67)', () => {
       'graphify path "<A>" "<B>" --graph /git/epic-graph/epic-69/graphify-out/graph.json',
       'Exit 3 heißt mehrdeutig',
       '**Erst den Graphen fragen, dann gezielt die genannten Stellen lesen**',
-      '(Skill epic, Regel 6; Adapter `glossary`)',
-      '**Nicht committen, nicht branchen** — das macht der Host (Skill epic, 4a und Regel 9).',
+      '(Skill mission, Regel 6; Adapter `glossary`)',
+      '**Nicht committen, nicht branchen** — das macht der Host (Skill mission, 4a und Regel 9).',
       'ein Worktree darf starten: dev_server, compose (Adapter `worktree_may_start`',
-      '(Skill epic, Regel 13, #38)',
+      '(Skill mission, Regel 13, #38)',
       '**Gezielt iterieren, einmal voll:** Während der Arbeit nur die betroffenen Tests',
       'Am Ende genau **ein** Volllauf je betroffener Suite; sein Protokoll geht in den Bericht. Testbefehle des Adapters: `cd flotte && bun test` (Suite flotte).',
       'Schema implementer (version 1)',
@@ -282,7 +282,7 @@ describe('Aufträge nach epic/SKILL.md 4a und 4b (#67)', () => {
     const s = stand({ stufe: 'reviewer', bericht: { ...(BEISPIELE.implementer as ImplementerBericht), neueDateien: ['flotte/src/epic/auftraege.ts', 'flotte/src/epic/schemata.ts'] } });
     const t = reviewerAuftrag(kontext(), urteilspaket, s, { kette: true });
     for (const teil of [
-      'Reviewer (`epic-reviewer-urteil`) für Paket 67',
+      'Erster Offizier (`erster-offizier-urteil`) für Paket 67',
       '**Diff: `git -C /wt/67 diff HEAD`.**',
       '`git -C /wt/67 rev-parse HEAD`',
       '**Neue Dateien — lies sie direkt**, sie stehen in keinem Diff:\n- flotte/src/epic/auftraege.ts\n- flotte/src/epic/schemata.ts',
@@ -302,23 +302,23 @@ describe('Aufträge nach epic/SKILL.md 4a und 4b (#67)', () => {
       expect(t).toContain(teil);
     expect(t).not.toContain('andere/x.ts');
     // the epic head as a hash once Up named it
-    expect(reviewerAuftrag(kontext(), urteilspaket, { ...s, kopf: '5938b3b9cfaa' }, { kette: true })).toContain('Der Worktree steht auf dem Epic-Kopf beim Paketstart (`5938b3b9cfaa`)');
+    expect(reviewerAuftrag(kontext(), urteilspaket, { ...s, kopf: '5938b3b9cfaa' }, { kette: true })).toContain('Der Worktree steht auf dem Missions-Kopf beim Paketstart (`5938b3b9cfaa`)');
     expect(reviewerAuftrag(kontext({ adapter: '' }), urteilspaket, s, { kette: false })).toContain('der Lint-Vergleich entfällt');
   });
 
   it('cut and conflict: phase 1 and 2a–2c with the coverage the program checks; the conflict call does not commit', () => {
     const s = schnittAuftrag(kontext());
-    for (const teil of ['Epic #69', '**Du liest nur.**', 'Zuordnung Story → Paket', '14. Ein Paket braucht einen Dienst', '`abbruch: true`', 'Schema schnitt (version 1)', '`69-p<k>`']) expect(s).toContain(teil);
+    for (const teil of ['Mission #69', '**Du liest nur.**', 'Zuordnung Story → Paket', '14. Ein Paket braucht einen Dienst', '`abbruch: true`', 'Schema schnitt (version 1)', '`69-p<k>`']) expect(s).toContain(teil);
     const k = konfliktAuftrag(kontext(), urteilspaket, stand({ stufe: 'merge', konflikt: { dateien: ['obst/REGISTER.md'], ergebnis: null, begruendung: '' } }));
     for (const teil of ['- obst/REGISTER.md', '**nicht committen**', '`inhaltlich`', 'Schema konflikt (version 1)']) expect(k).toContain(teil);
   });
 
   it('the commit of 4d after the adapter: style, language, umlauts, the issue number, the why, Co-Authored-By of the rung', () => {
     const s = stand({ bericht: { ...(BEISPIELE.implementer as ImplementerBericht), betreff: 'Schnittprüfung für Größe und Übergänge', warum: 'Das Programm prüft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.' } });
-    expect(commitNachricht(kontext(), urteilspaket, s, 67)).toBe('feat: Schnittpruefung fuer Groesse und Uebergaenge (#67)\n\nDas Programm prueft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.\n\nUebernommen: f\n\nPaket 67 des Epics #69, abgenommen von flotte epic (4c).\n\nCo-Authored-By: Claude Opus <noreply@anthropic.com>\n');
+    expect(commitNachricht(kontext(), urteilspaket, s, 67)).toBe('feat: Schnittpruefung fuer Groesse und Uebergaenge (#67)\n\nDas Programm prueft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.\n\nUebernommen: f\n\nPaket 67 der Mission #69, abgenommen von flotte mission (4c).\n\nCo-Authored-By: Claude Opus <noreply@anthropic.com>\n');
     const plain = ADAPTER3.replace('commit_style: conventional', 'commit_style: plain').replace('commit_language: de', 'commit_language: en').replace('commit_umlauts: transliterate', 'commit_umlauts: keep');
     const t = commitNachricht(kontext({ adapter: plain }), urteilspaket, { ...s, klasse: 'standard', bericht: { ...s.bericht!, betreff: 'Check the cut (#67)', fremdarbeit: [] } }, 67);
-    expect(t).toBe('Check the cut (#67)\n\nDas Programm prüft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.\n\nPackage 67 of epic #69, accepted by flotte epic (4c).\n\nCo-Authored-By: Claude Sonnet <noreply@anthropic.com>\n');
+    expect(t).toBe('Check the cut (#67)\n\nDas Programm prüft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.\n\nPackage 67 of epic #69, accepted by flotte mission (4c).\n\nCo-Authored-By: Claude Sonnet <noreply@anthropic.com>\n');
   });
 
   it('Co-Authored-By names the model of the init line with its version; without one the rung', () => {
@@ -418,24 +418,24 @@ describe('echte Aufrufe über das Modul lauf (#67, gegen die Attrappe für claud
     const cwd = mkdtempSync(join(tmpdir(), 'flotte-wt-'));
     const a = echteAufrufe({ konto, logDir, programm: { programm: process.execPath, programmArgs: [ATTRAPPE] } });
     const sitzungen: string[] = [];
-    const r = await a.rufe({ rolle: 'implementer', paket: '7', runde: 1, agent: 'epic-implementer-standard', modell: 'sonnet', effort: 'medium', konto, cwd, auftrag: 'Implementer für Paket 7', resume: null, schema: SCHEMATA.implementer }, (s) => sitzungen.push(s));
+    const r = await a.rufe({ rolle: 'implementer', paket: '7', runde: 1, agent: 'ingenieur-standard', modell: 'sonnet', effort: 'medium', konto, cwd, auftrag: 'Implementer für Paket 7', resume: null, schema: SCHEMATA.implementer }, (s) => sitzungen.push(s));
     expect(sitzungen).toEqual(['sitzung-i']);
     expect(r.strukturiert).toEqual(BEISPIELE.implementer);
-    await a.rufe({ rolle: 'implementer', paket: '7', runde: 1, agent: 'epic-implementer-standard', modell: 'sonnet', effort: 'medium', konto, cwd, auftrag: 'Implementer: fortsetzen', resume: 'sitzung-i', schema: SCHEMATA.implementer }, () => {});
+    await a.rufe({ rolle: 'implementer', paket: '7', runde: 1, agent: 'ingenieur-standard', modell: 'sonnet', effort: 'medium', konto, cwd, auftrag: 'Implementer: fortsetzen', resume: 'sitzung-i', schema: SCHEMATA.implementer }, () => {});
     await a.rufe({ rolle: 'schnitt', paket: null, runde: 1, agent: null, modell: 'opus', effort: 'medium', konto, cwd, auftrag: 'Schnitt und Vorab-Tor', resume: null, schema: SCHEMATA.schnitt }, () => {});
-    await a.rufe({ rolle: 'reviewer', paket: '7', runde: 1, agent: 'epic-reviewer-standard', modell: 'sonnet', effort: 'high', konto, cwd, auftrag: 'Reviewer für Paket 7', resume: null, schema: SCHEMATA.reviewer }, () => {});
+    await a.rufe({ rolle: 'reviewer', paket: '7', runde: 1, agent: 'erster-offizier-standard', modell: 'sonnet', effort: 'high', konto, cwd, auftrag: 'Reviewer für Paket 7', resume: null, schema: SCHEMATA.reviewer }, () => {});
     await a.rufe({ rolle: 'konflikt', paket: '7', runde: 1, agent: null, modell: 'sonnet', effort: 'medium', konto, cwd, auftrag: 'Merge-Konflikt im Epic-Worktree', resume: null, schema: SCHEMATA.konflikt }, () => {});
     const [i, fort, s, rv, k] = d.gesehen();
-    // every role carries guard.ps1 of epic/scripts as its PreToolUse hook, profile epic, as the driver does
+    // every role carries guard.ps1 of mission/scripts as its PreToolUse hook, profile epic, as the driver does
     for (const g of [i, fort, s, rv, k]) {
       const hook = JSON.parse(g.args[g.args.indexOf('--settings') + 1]).hooks.PreToolUse[0];
       expect(hook.matcher).toBe('Bash|PowerShell');
       expect(hook.hooks[0]).toMatchObject({ type: 'command', onFailure: 'block' });
-      expect(hook.hooks[0].command).toMatch(/epic[\\/]scripts[\\/]guard\.ps1" -Profile epic$/);
+      expect(hook.hooks[0].command).toMatch(/mission[\\/]scripts[\\/]guard\.ps1" -Profile epic$/);
     }
     expect(a.beendeLaufende()).toEqual([]);
     const wert = (args: string[], n: string) => args[args.indexOf(n) + 1];
-    expect(wert(i.args, '--agent')).toBe('epic-implementer-standard');
+    expect(wert(i.args, '--agent')).toBe('ingenieur-standard');
     expect(i.args).not.toContain('--model');
     expect(JSON.parse(wert(i.args, '--json-schema'))).toEqual(SCHEMATA.implementer);
     expect(i.args).toEqual(expect.arrayContaining(['-p', '--output-format', 'stream-json', '--permission-mode', 'auto']));
@@ -443,7 +443,7 @@ describe('echte Aufrufe über das Modul lauf (#67, gegen die Attrappe für claud
     expect(i.cwd.toLowerCase()).toBe(cwd.toLowerCase());
     expect(i.eingabe).toBe('Implementer für Paket 7');
     expect(wert(fort.args, '--resume')).toBe('sitzung-i');
-    expect(wert(fort.args, '--agent')).toBe('epic-implementer-standard');
+    expect(wert(fort.args, '--agent')).toBe('ingenieur-standard');
     expect([wert(s.args, '--model'), wert(s.args, '--effort')]).toEqual(['opus', 'medium']);
     expect(s.args).not.toContain('--agent');
     expect(existsSync(join(logDir, 'implementer-7-r1.jsonl'))).toBe(true);
@@ -455,8 +455,8 @@ describe('echte Aufrufe über das Modul lauf (#67, gegen die Attrappe für claud
     const ausgabe = (o: unknown) => [{ zeile: { type: 'result', subtype: 'success', is_error: false, result: 'fertig', structured_output: o } }];
     const d = drehbuch([
       { wenn: 'Schnitt und Vorab-Tor', schritte: ausgabe(schnitt({ pakete })) },
-      { wenn: '^Implementer', schritte: [{ zeile: { type: 'system', subtype: 'init', model: 'claude-sonnet-5-5', tools: [] } }, ...ausgabe({ ...(BEISPIELE.implementer as object), abnahme: [{ punkt: '220 tut, was es soll', satz: 'erfüllt' }] })] },
-      { wenn: '^Reviewer', schritte: ausgabe({ ...(BEISPIELE.reviewer as object), befunde: [] }) },
+      { wenn: '^Ingenieur', schritte: [{ zeile: { type: 'system', subtype: 'init', model: 'claude-sonnet-5-5', tools: [] } }, ...ausgabe({ ...(BEISPIELE.implementer as object), abnahme: [{ punkt: '220 tut, was es soll', satz: 'erfüllt' }] })] },
+      { wenn: '^Erster Offizier', schritte: ausgabe({ ...(BEISPIELE.reviewer as object), befunde: [] }) },
     ]);
     process.env.FLOTTE_DREHBUCH = d.datei;
     const repo = neuesRepo();
@@ -475,7 +475,7 @@ describe('echte Aufrufe über das Modul lauf (#67, gegen die Attrappe für claud
     expect(z.phase).toBe('fertig');
     expect(z.pakete['220'].stufe).toBe('fertig');
     const gesehen = d.gesehen();
-    expect(gesehen.map((g) => g.eingabe.split(/\s/)[0])).toEqual(['Schnitt', 'Implementer', 'Reviewer']);
+    expect(gesehen.map((g) => g.eingabe.split(/\s/)[0])).toEqual(['Schnitt', 'Ingenieur', 'Erster']);
     expect(gesehen.map((g) => JSON.parse(g.args[g.args.indexOf('--json-schema') + 1]))).toEqual([SCHEMATA.schnitt, SCHEMATA.implementer, SCHEMATA.reviewer]);
     expect(z.pakete['220'].bericht?.betreff).toBe('feat: x (#1)');
     expect(z.pakete['220'].modell).toBe('claude-sonnet-5-5');
@@ -487,7 +487,7 @@ describe('echte Aufrufe über das Modul lauf (#67, gegen die Attrappe für claud
     const konto = mkdtempSync(join(tmpdir(), 'flotte-konto-'));
     const a = echteAufrufe({ konto, logDir: mkdtempSync(join(tmpdir(), 'flotte-aufrufe-')), programm: { programm: process.execPath, programmArgs: [ATTRAPPE] } });
     let sitzung: string | null = null;
-    const lauf = a.rufe({ rolle: 'implementer', paket: '7', runde: 1, agent: 'epic-implementer-standard', modell: 'sonnet', effort: 'medium', konto, cwd: mkdtempSync(join(tmpdir(), 'flotte-wt-')), auftrag: 'Implementer', resume: null, schema: SCHEMATA.implementer }, (s) => (sitzung = s));
+    const lauf = a.rufe({ rolle: 'implementer', paket: '7', runde: 1, agent: 'ingenieur-standard', modell: 'sonnet', effort: 'medium', konto, cwd: mkdtempSync(join(tmpdir(), 'flotte-wt-')), auftrag: 'Implementer', resume: null, schema: SCHEMATA.implementer }, (s) => (sitzung = s));
     for (let i = 0; i < 200 && !sitzung; i++) await new Promise((r) => setTimeout(r, 50));
     expect(sitzung).toBe('sitzung-h');
     const beendet = a.beendeLaufende();

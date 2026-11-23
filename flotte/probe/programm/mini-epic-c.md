@@ -6,11 +6,11 @@ Zu dem hellen Thema in `thema/` kommen zwei weitere. Die beiden Kinder sind vone
 unabhängig.
 
 ## Abnahmekriterien
-- Alle Kinder sind gemergt.
+- Alle Kinder sind angedockt.
 - `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` ist grün.
 
 ## Verifikationsweg
-`pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Epic-Worktree.
+`pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Missions-Worktree.
 === kind c1: Thema nacht anlegen
 Teil von #{{epic}}
 
@@ -19,7 +19,7 @@ Ein dunkles Thema für die Nacht.
 
 ## Abnahmekriterien
 - `thema/nacht.txt` existiert und enthält genau die Zeile `Hintergrund: schwarz, Schrift: hellgrau`.
-- Das Gate des Pakets ist grün.
+- Die Andockprüfung des Pakets ist grün.
 
 ## Verifikationsweg
 `pwsh -NoProfile -File werkzeug/gate.ps1` im Worktree des Pakets.
@@ -31,7 +31,7 @@ Ein warmes Thema für den Sommer.
 
 ## Abnahmekriterien
 - `thema/sommer.txt` existiert und enthält genau die Zeile `Hintergrund: sandgelb, Schrift: dunkelblau`.
-- Das Gate des Pakets ist grün.
+- Die Andockprüfung des Pakets ist grün.
 
 ## Verifikationsweg
 `pwsh -NoProfile -File werkzeug/gate.ps1` im Worktree des Pakets.
