@@ -174,12 +174,13 @@ export type Bewertung<R extends Rolle> =
 const KONTOLIMIT = /(hit|reached) (your|the) (usage |session |weekly )?limit|usage limit|limit reached|resets (at )?\d/i;
 
 /**
- * permission_denials block (no second try), an account limit or a login failure waits, a run that
- * ended with exit ≠ 0 or without result is resumed once (P9), a run that ended without a valid
- * output gets the error back once (P8).
+ * A finished, valid result is ok even with permission_denials: the agent took another way, and the
+ * program counts the denials itself (P8, #108). Denials without such a result block (no second
+ * try), an account limit or a login failure waits, a run that ended with exit ≠ 0 or without result
+ * is resumed once (P9), a run that ended without a valid output gets the error back once (P8).
  */
 export function bewerteAufruf<R extends Rolle>(rolle: R, r: LaufErgebnis): Bewertung<R> {
-  if (r.verweigert.length) return { art: 'verweigert', fehler: `permission_denials: ${JSON.stringify(r.verweigert).slice(0, 200)}` };
+  if (r.verweigert.length && (r.fehler || pruefeAusgabe(rolle, r.strukturiert))) return { art: 'verweigert', fehler: `permission_denials: ${JSON.stringify(r.verweigert).slice(0, 200)}` };
   const letzte = r.ergebnisse[r.ergebnisse.length - 1];
   if (r.fehler === 'anmeldung') return { art: 'konto', fehler: 'Anmeldung des Kontos fehlt' };
   if (letzte?.istFehler && KONTOLIMIT.test(letzte.text)) return { art: 'konto', fehler: `Kontolimit: ${letzte.text.slice(0, 120)}` };

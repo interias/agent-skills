@@ -50,7 +50,7 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   gesichert und erst geleert, wenn die Sicherung nachweislich vollständig ist. Ordner unter alten
   Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`, `epic`, `epic-nacharbeit`, `epic-aufraeumen`)
   werden gesichert und entfernt, sobald ihr neuer Name installiert wird. Wer von den alten Namen
-  umsteigt, liest [`UMSTELLUNG.md`](UMSTELLUNG.md).
+  umsteigt, liest [`docs/UMSTELLUNG.md`](docs/UMSTELLUNG.md).
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
 - **Entfernte Skills und Agent-Typen abräumen** (nur ohne `-Skill`): Installierte Kopien von

@@ -35,6 +35,8 @@ export interface EpicDrehbuch {
   schnitt: Omit<Schnitt, 'modus' | 'zuordnung' | 'uebersprungen'> & Partial<Pick<Schnitt, 'modus' | 'zuordnung' | 'uebersprungen'>>;
   /** body of an issue (the target issue: its children, its user stories); default empty */
   bodies?: Record<number, string>;
+  /** sub-issues of an issue from the API (dependency_source api); default none */
+  unterIssues?: Record<number, number[]>;
   /** 'schnitt' or '<rolle>:<paket>' → answers in order, the last one repeats; missing: the default */
   aufrufe?: Record<string, Antwort[]>;
   /** Ausgangszahlen of the epic worktree; default one suite of 249 tests in 18 files */
@@ -55,6 +57,10 @@ export interface EpicDrehbuch {
   ram?: RamStufe[];
   /** the slot is busy (a full stack runs) per reading, the last one repeats; default free */
   slot?: boolean[];
+  /** acceptance_commands of the adapter by name → green, red or not runnable (Phase 6); default none */
+  abnahme?: Record<string, boolean | 'nicht fahrbar'>;
+  /** pre_commit_checks the Mechanik reads as prose (#108); default none */
+  vorCommitProsa?: string[];
   /** answers of the driver, `nachTakten` after the question was asked (default 1) */
   antworten?: { frage: number; antwort: string; nachTakten?: number }[];
   /** takts after an account limit until the account is free (default 2) */
@@ -86,9 +92,11 @@ export interface Welt {
   /** the epic worktree is mid-merge with this branch (a conflict) */
   offenerMerge: string | null;
   letzterMerge: string | null;
+  /** what the end handed to the pull request */
+  pr: { wip: boolean; body: string } | null;
 }
 
-export const neueWelt = (): Welt => ({ takt: 0, gemergt: [], kommentare: {}, status: {}, protokoll: [], aufrufe: [], bloecke: [], vollaeufe: { jetzt: 0, max: 0 }, stand: {}, nrVon: {}, gestorben: [], offenerMerge: null, letzterMerge: null });
+export const neueWelt = (): Welt => ({ takt: 0, gemergt: [], kommentare: {}, status: {}, protokoll: [], aufrufe: [], bloecke: [], vollaeufe: { jetzt: 0, max: 0 }, stand: {}, nrVon: {}, gestorben: [], offenerMerge: null, letzterMerge: null, pr: null });
 
 const BASIS: Testlauf = [{ name: 'flotte', dateien: 18, tests: 249, rot: [] }];
 const nachstes = <T>(liste: T[] | undefined, i: number): T | undefined => (liste?.length ? liste[Math.min(i, liste.length - 1)] : undefined);
@@ -163,6 +171,19 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       const belegt = nachstes(buch.slot, slotN++) ?? false;
       log(`slot ${belegt ? 'belegt' : 'frei'}`);
       return { belegt };
+    },
+    abnahmeBefehle() {
+      return Object.keys(buch.abnahme ?? {});
+    },
+    async abnahme(worktree) {
+      log(`abnahme ${worktree}`);
+      const r = Object.entries(buch.abnahme ?? {});
+      const nicht = r.find(([, x]) => x === 'nicht fahrbar');
+      if (nicht) throw new Error(`${nicht[0]}: docker nicht erreichbar`);
+      return r.map(([name, gruen]) => ({ name, ok: gruen === true, text: gruen === true ? `${name}: grün` : `${name}: Exit 1: 2 E2E-Tests rot` }));
+    },
+    vorCommitProsa() {
+      return buch.vorCommitProsa ?? [];
     },
     async volllauf(worktree) {
       welt.vollaeufe.jetzt++;
@@ -240,6 +261,9 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
     async body(ticket) {
       return buch.bodies?.[ticket] ?? '';
     },
+    async unterIssues(ticket) {
+      return buch.unterIssues?.[ticket] ?? [];
+    },
     async kommentare(ticket) {
       return welt.kommentare[ticket] ?? [];
     },
@@ -251,12 +275,19 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
       welt.status[ticket] = label;
       return null;
     },
+    async statusAbnehmen(ticket) {
+      if (welt.status[ticket] !== 'status/in-arbeit' && welt.status[ticket] !== 'status/blockiert') return null;
+      log(`status ab ${ticket}`);
+      delete welt.status[ticket];
+      return null;
+    },
     async eroeffnung() {
       log('eroeffnung');
       return null;
     },
-    async abschluss({ wip }) {
+    async abschluss({ wip, body }) {
       log(`abschluss${wip ? ' WIP' : ''}`);
+      welt.pr = { wip, body };
       return { pr: 'https://github.com/o/r/pull/100' };
     },
   };
