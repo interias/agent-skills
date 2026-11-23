@@ -73,3 +73,12 @@ describe('#200: relieve the orchestrator', () => {
     expect(phase1).toContain('Die Lesearbeit vor dem Vorab-Tor — Behauptungen, Fundstellen, berührte Module, Kanten — geht an Kundschafter');
   });
 });
+
+describe('gate.ps1: the driver reads its stdout as UTF-8 (#75)', () => {
+  it('sets the console output encoding to UTF-8 before anything is printed', () => {
+    const gate = readFileSync(fileURLToPath(new URL('../../gate.ps1', import.meta.url)), 'utf8');
+    const zeile = gate.indexOf('[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)');
+    expect(zeile).toBeGreaterThan(-1);
+    expect(zeile).toBeLessThan(gate.indexOf('$pesterLauf'));
+  });
+});

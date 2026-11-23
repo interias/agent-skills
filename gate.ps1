@@ -3,6 +3,7 @@
 # Usage (in a worktree): pwsh -NoProfile -File gate.ps1
 $ErrorActionPreference = 'Continue'
 # the driver reads stdout as UTF-8; without this "Gate grün." arrives mangled and counts as red
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 Set-Location $PSScriptRoot
 git fetch -q origin main 2>$null
 $basis = (git merge-base HEAD origin/main).Trim()
