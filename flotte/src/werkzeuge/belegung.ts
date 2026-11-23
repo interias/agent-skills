@@ -207,6 +207,10 @@ export interface Plan {
   neu: number[];
   /** startable epics with the priority label: started now, or why they wait */
   vorrang: { nr: number; startet: boolean; grund: string }[];
+  /** #144: startable epics without the priority label left out of this occupancy, and why */
+  zurueck: { nr: number; grund: string }[];
+  /** #150: running epics without a picture; each of their pairs counts as a large collision */
+  ohneBild: number[];
 }
 
 /**
@@ -217,11 +221,16 @@ export interface Plan {
  * because of a collision is not overtaken: nothing new starts that collides with it. Order edges and
  * levels stay as they are, running epics are never stopped.
  */
-export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: number[]; gemergt: number[]; obergrenze?: number }): Plan {
+export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: number[]; gemergt: number[]; obergrenze?: number; pausiert?: number[] }): Plan {
   const kappe = Math.min(4, opts.obergrenze ?? 4);
   const paare: Paar[] = [];
   for (let i = 0; i < bilder.length; i++) for (let j = i + 1; j < bilder.length; j++) paare.push(kollision(bilder[i], bilder[j], adapter));
-  const stufe = (a: number, b: number) => paare.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a))!.stufe;
+  // #150: a running epic the collection missed has no picture: large with everything, never a crash
+  const ohneBild = opts.laufend.filter((n) => !bilder.some((b) => b.nr === n));
+  const alle = [...bilder.map((b) => b.nr), ...ohneBild];
+  for (const n of ohneBild) for (const m of alle) if (m !== n && !paare.some((p) => (p.a === m && p.b === n) || (p.a === n && p.b === m))) paare.push({ a: m, b: n, stufe: 'gross', beleg: 'kein Bild der Mission: nicht eingesammelt' });
+  const paar = (a: number, b: number) => paare.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a))!;
+  const stufe = (a: number, b: number) => paar(a, b).stufe;
   const offen = bilder.filter((b) => !opts.gemergt.includes(b.nr));
   const wartend = offen.filter((b) => !opts.laufend.includes(b.nr) && b.nach.some((n) => !opts.gemergt.includes(n))).map((b) => ({ nr: b.nr, wartetAuf: b.nach.filter((n) => !opts.gemergt.includes(n)) }));
   const startbereit = offen.filter((b) => !opts.laufend.includes(b.nr) && !wartend.some((w) => w.nr === b.nr)).map((b) => b.nr);
@@ -237,7 +246,7 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
   let beste: number[] = [...opts.laufend];
   // on a tie, epics from different gate areas: after a merge the next one then often needs only the
   // part of the gate that always runs (#14, round 5)
-  const bereich = new Map(bilder.map((b) => [b.nr, b.bereiche ?? []]));
+  const bereich = new Map(alle.map((n) => [n, bilder.find((b) => b.nr === n)?.bereiche ?? []]));
   const geteilt = (m: number[]) => {
     let n = 0;
     for (let i = 0; i < m.length; i++) for (let j = i + 1; j < m.length; j++) if (bereich.get(m[i])!.some((x) => bereich.get(m[j])!.includes(x))) n++;
@@ -271,13 +280,24 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
     .sort((a, b) => a - b)
     .map((nr) => {
       if (beste.includes(nr)) return { nr, startet: true, grund: `${adapter.prio_label}: in dieser Belegung zuerst` };
-      const mit = beste.filter((n) => n !== nr && kollidiert(n, nr)).map((n) => paare.find((p) => (p.a === n && p.b === nr) || (p.a === nr && p.b === n))!);
+      const mit = beste.filter((n) => n !== nr && kollidiert(n, nr)).map((n) => paar(n, nr));
       const grund = mit.length
         ? `${adapter.prio_label}, wartet: kollidiert mit ${mit.map((p) => `#${p.a === nr ? p.b : p.a} (${p.stufe}: ${p.beleg})`).join('; ')}; nichts Kollidierendes überholt`
         : `${adapter.prio_label}, wartet: die Plätze sind belegt (Obergrenze ${kappe})`;
       return { nr, startet: false, grund };
     });
-  return { paare, startbereit, wartend, belegung: [...beste].sort((a, b) => a - b), neu: beste.filter((n) => !opts.laufend.includes(n)).sort((a, b) => a - b), vorrang };
+  // #144: a collision that the set cannot take one more of names the epic it waits for; else the places are taken
+  const grenze = (m: number[]) => (m.length > 1 ? Math.min(...m.flatMap((a, i) => m.slice(i + 1).map((b) => GRENZE[stufe(a, b)]))) : 4);
+  const zurueck = startbereit
+    .filter((n) => !prio.has(n) && !beste.includes(n))
+    .sort((a, b) => a - b)
+    .map((nr) => {
+      const mit = beste.filter((n) => kollidiert(n, nr) && GRENZE[stufe(n, nr)] <= beste.length).map((n) => paar(n, nr));
+      if (mit.length) return { nr, grund: `wartet auf ${mit.map((p) => `#${p.a === nr ? p.b : p.a}: Kollision ${p.stufe} (${p.beleg})`).join('; ')}` };
+      const pausiert = beste.filter((n) => opts.pausiert?.includes(n)).length;
+      return { nr, grund: `wartet auf einen freien Platz (${beste.length} von ${Math.min(kappe, grenze(beste))} belegt${pausiert ? `, davon ${pausiert} pausiert` : ''})` };
+    });
+  return { paare, startbereit, wartend, belegung: [...beste].sort((a, b) => a - b), neu: beste.filter((n) => !opts.laufend.includes(n)).sort((a, b) => a - b), vorrang, zurueck, ohneBild };
 }
 
 function liste(argv: string[], name: string): number[] {

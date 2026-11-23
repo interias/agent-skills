@@ -10,6 +10,7 @@ import { einstellungAus, fahre, forgeAus } from '../src/treiber/treiber.ts';
 import { freigegebene, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { kontenTafel, kontoAus, STANDARD_KONTEN } from '../src/werkzeuge/konten.ts';
 import { aufbau, drehbuch, ende, lauf } from './flotte-welt.ts';
+import { flotteDir, leer, neuesEpic, schreibe as schreibeZustand } from '../src/werkzeuge/zustand.ts';
 
 const T = 30_000;
 
@@ -63,6 +64,9 @@ describe('A: Start im Projektordner', () => {
     expect(einstellungAus(['--konten', '1', '--obergrenze', '2', '--leerlauf-min', '60', '--ram-warn', '70', '--platte-min-gb', '30'], join(repo, 'unter', 'ordner')).gesetzt).toEqual(['obergrenze', 'konten', 'ramWarn', 'platteMinGb', 'leerlaufMin']);
     const fest = einstellungAus([repo, '--forge', 'x/y', '--epics', '3,#4', '--konten', '2'], tmpdir());
     expect([fest.forge, fest.epics, fest.auto, fest.dauerhaft]).toEqual(['x/y', [3, 4], false, false]);
+    // #150: --epics with --dauerhaft is the fixed list plus the ones released later
+    const beides = einstellungAus([repo, '--forge', 'x/y', '--epics', '3', '--konten', '2', '--dauerhaft'], tmpdir());
+    expect([beides.epics, beides.auto, beides.dauerhaft]).toEqual([[3], true, true]);
   });
 
   it('names what is missing: no repository, no GitHub origin, no accounts, an account outside --konten', () => {
@@ -130,6 +134,32 @@ describe('B: freigegebene Epics', () => {
     const ohne = z.ereignisse.filter((x) => x.text.startsWith('freigegeben, aber kein Epic'));
     expect(ohne.map((x) => x.text)).toEqual(['freigegeben, aber kein Epic: #8 (ohne epic und nicht Kind eines Epics; mit --epics fahren oder das Label setzen)']);
     expect(Object.keys(z.epics)).toEqual(['3']);
+  }, T);
+
+  it('#150: --epics with --dauerhaft (auto with a fixed list): the fixed list plus the released ones', async () => {
+    const t = aufbau({ freigegeben: () => ({ bereit: [4], epics: [{ number: 4 }] }) });
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+    // without --dauerhaft the driver ends once both are done; the limit only guards a hang
+    const z = await fahre(t.einstellung(buch, [3], { auto: true, maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    expect(Object.values(z.epics).map((e) => [e.nr, e.stufe])).toEqual([
+      [3, 'fertig'],
+      [4, 'fertig'],
+    ]);
+  }, T);
+
+  it('#150: a run taken over from an earlier deployment that the collection misses still counts in the occupancy', async () => {
+    const t = aufbau({ freigegeben: () => ({ bereit: [3], epics: [{ number: 3 }] }) });
+    const z0 = leer(t.repo);
+    // a living run of an issue without the epic label, driven before with --epics; its process is gone by now
+    z0.epics['5'] = { ...neuesEpic(5), stufe: 'laeuft', konto: t.konten[0], sitzung: 's5', pid: 2 ** 22 + 7, pidSeit: Date.now() } as never;
+    schreibeZustand(flotteDir(t.repo), z0);
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(5, [{ text: ende(5, 15) }])]);
+    const z = await fahre(t.einstellung(buch, [], { auto: true, maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    expect(z.ereignisse.some((e) => e.epic === null && /^Übernommen aus einem früheren Einsatz: #5/.test(e.text))).toBe(true);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.epics['5'].stufe).toBe('fertig');
   }, T);
 
   it('with --epics the list stays fixed: no epic is collected', async () => {

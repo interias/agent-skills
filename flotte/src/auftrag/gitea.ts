@@ -59,5 +59,9 @@ export function giteaForge(api: string, kopf: () => string | Promise<string>, re
       // the mission waits for its Missionsziel: "blocked by" points from epic to child (forge.md, "Abhängigkeiten lesen")
       await aufruf('POST', `/issues/${mission}/dependencies`, { owner, repo, index: ziel });
     },
+    async verknuepft(mission, ziel) {
+      const liste: { number: number }[] = (await aufruf('GET', `/issues/${mission}/dependencies?limit=50`)) ?? [];
+      return liste.some((i) => i.number === ziel);
+    },
   };
 }
