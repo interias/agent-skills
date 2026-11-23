@@ -62,11 +62,13 @@ export function logbuchBody(daten: { active: boolean; admiral: string; brake: st
 
 /**
  * #145: after the merge of a mission's PR the PR closes only its Missionsziele. Every one of them closed
- * (or none listed): the mission is closed with a comment linking the PR. One still open: the mission stays
- * open but loses the ready label, with a comment naming what is open. Returns what happened, for the event;
- * null when the forge could not be read or written (tried again at the next start).
+ * (or none listed): the mission is closed with a comment linking the PR. One still open: right after the
+ * merge the mission stays open but loses the ready label, with a comment naming what is open; at a later
+ * start (nachlauf) nothing is taken off, a mission released again since keeps its label. A Missionsziel
+ * whose state cannot be read is unknown, not open: nothing is written. Returns what happened for the event
+ * and whether it is final (closed); null when the forge could not be read or written (tried again later).
  */
-export function missionAbschliessen(a: Aufrufer, forge: string, nr: number, pr: number, readyLabel: string): string | null {
+export function missionAbschliessen(a: Aufrufer, forge: string, nr: number, pr: number, readyLabel: string, nachlauf = false): { text: string; endgueltig: boolean } | null {
   const zustand = (n: number, felder: string) => {
     const r = a('gh', ['issue', 'view', String(n), '--repo', forge, '--json', felder]);
     if (r.code) return null;
@@ -78,16 +80,20 @@ export function missionAbschliessen(a: Aufrufer, forge: string, nr: number, pr: 
   };
   const mission = zustand(nr, 'state,body');
   if (!mission) return null;
-  if (mission.state === 'CLOSED') return 'Mission ist schon geschlossen';
+  if (mission.state === 'CLOSED') return { text: 'Mission ist schon geschlossen', endgueltig: true };
   const ziele = kinderAus(String(mission.body ?? ''));
-  const offen = ziele.filter((k) => zustand(k, 'state')?.state !== 'CLOSED');
+  const stand = ziele.map((k) => ({ k, state: zustand(k, 'state')?.state ?? null }));
+  const unbekannt = stand.filter((x) => x.state === null).map((x) => `#${x.k}`);
+  if (unbekannt.length) return { text: `Mission nicht abgeschlossen: Stand von ${unbekannt.join(', ')} nicht lesbar, nächster Versuch beim nächsten Start`, endgueltig: false };
+  const offen = stand.filter((x) => x.state !== 'CLOSED').map((x) => x.k);
   const url = `https://github.com/${forge}/pull/${pr}`;
   if (!offen.length) {
     const text = `**Mission abgeschlossen (Flotte)** — Pull Request #${pr} ist angedockt: ${url}\n${ziele.length ? `Alle Missionsziele sind geschlossen: ${ziele.map((k) => `#${k}`).join(', ')}.` : 'Die Mission listet keine Missionsziele.'}`;
-    return a('gh', ['issue', 'close', String(nr), '--repo', forge, '--comment', text]).code ? null : `Mission geschlossen nach dem Andocken von PR #${pr}`;
+    return a('gh', ['issue', 'close', String(nr), '--repo', forge, '--comment', text]).code ? null : { text: `Mission geschlossen nach dem Andocken von PR #${pr}`, endgueltig: true };
   }
   const liste = offen.map((k) => `#${k}`).join(', ');
+  if (nachlauf) return { text: `Mission bleibt offen (${liste} offen), beim Start nichts geändert`, endgueltig: false };
   if (a('gh', ['issue', 'edit', String(nr), '--repo', forge, '--remove-label', readyLabel]).code) return null;
   kommentar(a, forge, nr, `**Mission bleibt offen (Flotte)** — Pull Request #${pr} ist angedockt: ${url}\nNoch offen: ${liste}. \`${readyLabel}\` ist abgenommen; die Mission startet erst wieder, wenn ein offenes Missionsziel freigegeben ist.`);
-  return `Mission bleibt offen (${liste} offen), ${readyLabel} abgenommen`;
+  return { text: `Mission bleibt offen (${liste} offen), ${readyLabel} abgenommen`, endgueltig: false };
 }

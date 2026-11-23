@@ -24,6 +24,8 @@ export interface Optionen {
   labels?: Record<number, string[]>;
   titel?: Record<number, string>;
   zu?: number[];
+  /** #145: issues whose `gh issue view` fails */
+  unlesbar?: number[];
   /** frontmatter lines of .claude/epic.md */
   adapter?: string;
   /** JSON lines of ram.ps1 in order, the last one repeats; null: the measurement fails */
@@ -121,6 +123,7 @@ export function aufbau(o: Optionen = {}) {
     if (programm !== 'gh') return { code: 1, stdout: '', stderr: `unerwartet: ${programm}` };
     const [a, b] = args;
     const nr = Number(args[2]);
+    if (a === 'issue' && b === 'view' && o.unlesbar?.includes(nr)) return { code: 1, stdout: '', stderr: 'HTTP 502' };
     if (a === 'issue' && b === 'view') return ok(JSON.stringify({ body: o.bodies?.[nr] ?? `## Betroffene Module\n- m${nr}\n`, labels: (o.labels?.[nr] ?? []).map((name) => ({ name })), title: o.titel?.[nr] ?? '', state: o.zu?.includes(nr) ? 'CLOSED' : 'OPEN', closedAt: o.zu?.includes(nr) ? '2026-01-01T10:00:00Z' : null }));
     if (a === 'issue' && b === 'comment') {
       p.kommentare.push({ nr, text: opts?.eingabe ?? '' });

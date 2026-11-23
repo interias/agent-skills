@@ -304,6 +304,36 @@ describe('Drehbücher (#14)', () => {
       expect(k[0].text).not.toMatch(/#22/);
     }, T);
 
+    it('a Missionsziel whose state cannot be read is unknown: nothing written; a later start closes the mission once all are closed', async () => {
+      const zu = [22];
+      const unlesbar = [21];
+      const t = aufbau({ bodies: { 3: mitZielen }, zu, unlesbar });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig', abgeschlossen: false });
+      expect(t.p.geschlossen).toEqual([]);
+      expect(t.p.labelWeg).toEqual([]);
+      expect(z.ereignisse.some((e) => /Stand von #21 nicht lesbar/.test(e.text))).toBe(true);
+      unlesbar.length = 0;
+      zu.push(21);
+      await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen.map((g) => g.nr)).toEqual([3]);
+    }, T);
+
+    it('open Missionsziele after the merge: not final; a later start takes no label off a mission released again, and closes it once all are closed', async () => {
+      const zu = [22];
+      const t = aufbau({ bodies: { 3: mitZielen }, zu, labels: { 3: ['ready-for-agent'] } });
+      const z0 = leer(t.repo);
+      z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig', pr: 13 } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const z = await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(z.epics['3'].abgeschlossen).toBe(false);
+      expect(t.p.labelWeg).toEqual([]);
+      expect(t.p.kommentare.filter((k) => k.nr === 3)).toEqual([]);
+      zu.push(21);
+      await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen.map((g) => g.nr)).toEqual([3]);
+    }, T);
+
     it('a mission merged before but still open is closed at the next start, once', async () => {
       const t = aufbau({ bodies: { 3: mitZielen }, zu: [21, 22] });
       const z0 = leer(t.repo);

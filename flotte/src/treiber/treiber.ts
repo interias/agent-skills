@@ -257,7 +257,7 @@ export interface FlottenEpic extends EpicZustand {
   haltZeit?: string | null;
   /** the person gave the epic up on the bridge */
   aufgegebenAm?: string | null;
-  /** #145: the mission issue was closed or lost its ready label after the merge */
+  /** #145: the mission issue is closed (by the driver or before); until then each start looks again */
   abgeschlossen?: boolean;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
@@ -529,7 +529,7 @@ class Treiber {
     this.messungen = liesMessungen(this.dir);
     this.wiederaufnehmen();
     // #145: missions merged before whose issue was left open
-    for (const ep of Object.values(this.z.epics)) if (ep.stufe === 'fertig') this.missionAbschliessen(ep);
+    for (const ep of Object.values(this.z.epics)) if (ep.stufe === 'fertig') this.missionAbschliessen(ep, true);
     this.triageNachNeustart();
     // #61: a pause outlives the restart in the holder file as well; a field the state no longer carries goes
     for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
@@ -3017,11 +3017,13 @@ class Treiber {
   }
 
   /** #145: close the mission issue (or take its ready label) once; a forge that fails is tried again at the next start */
-  missionAbschliessen(ep: FlottenEpic): void {
+  missionAbschliessen(ep: FlottenEpic, nachlauf = false): void {
     if (!ep.pr || ep.abgeschlossen) return;
-    const was = missionAbschliessen(this.w.aufrufer, this.e.forge, ep.nr, ep.pr, this.adapter.ready_label);
-    ep.abgeschlossen = was !== null;
-    this.ereignis(ep.nr, was ?? 'Mission nach dem Andocken nicht abgeschlossen: Forge nicht lesbar oder nicht schreibbar, nächster Versuch beim nächsten Start');
+    const was = missionAbschliessen(this.w.aufrufer, this.e.forge, ep.nr, ep.pr, this.adapter.ready_label, nachlauf);
+    // only a closed mission is done; one with open Missionsziele is looked at again at the next start
+    ep.abgeschlossen = was?.endgueltig ?? false;
+    // the start looks at it each time; it says so only when something changed
+    if (!nachlauf || was?.endgueltig) this.ereignis(ep.nr, was?.text ?? 'Mission nach dem Andocken nicht abgeschlossen: Forge nicht lesbar oder nicht schreibbar, nächster Versuch beim nächsten Start');
   }
 
   /** Sparpaket, package 6: proposals from the merged run as one comment to lern_issue, applied by nobody. */
