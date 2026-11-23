@@ -65,19 +65,19 @@ it('P13/P13b/P2/P19 echt: red epic branch after the merge is reverted with -m 1,
   expect(p81.testlauf).toEqual([{ name: 'fix', dateien: 1, tests: 1, rot: [] }]);
   expect(f.git(['branch', '--list', 'agent/81-paket-81'])).toBe('');
   expect(existsSync(join(f.wt, '81'))).toBe(false);
-  const k81 = g.kommentare[81].find((k) => k.startsWith('**Gemergt**'))!;
-  expect(k81).toContain(`Merge-Commit ${p81.mergeCommit}`);
+  const k81 = g.kommentare[81].find((k) => k.startsWith('**Angedockt**'))!;
+  expect(k81).toContain(`Andock-Commit ${p81.mergeCommit}`);
   expect(k81).toContain('- 81 tut, was es soll: erfüllt');
   expect(k81).toContain('Verifikation (4c, Volllauf im Paket-Worktree): fix 1 Tests in 1 Dateien, 0 rot; Ausgangszahlen: fix 1 Tests in 1 Dateien, 0 rot.');
-  expect(k81).toContain('Lauf auf dem Epic-Branch entfällt: git diff --quiet agent/81-paket-81 HEAD endete mit 0');
-  expect(k81).toMatch(/\nZeiten: Start \S+, Implementer zurück \S+, Reviewer zurück \S+, abgenommen \S+, gemergt \S+/);
+  expect(k81).toContain('Lauf auf dem Missions-Branch entfällt: git diff --quiet agent/81-paket-81 HEAD endete mit 0');
+  expect(k81).toMatch(/\nZeiten: Start \S+, Ingenieur zurück \S+, Erster Offizier zurück \S+, abgenommen \S+, angedockt \S+/);
   expect(g.labels[81]).toEqual(['status/in-arbeit']);
 
   // P2: 83 started from the epic head that holds 81; P19: hold asked, warn started and is in the comment
   expect(flagIn83).toBe(true);
   expect(z.pakete['83'].stufe).toBe('fertig');
   expect(z.fragen.some((q) => q.art === 'ram')).toBe(true);
-  expect(g.kommentare[83].find((k) => k.startsWith('**Gemergt**'))).toMatch(/RAM beim Start: warn bei 78 %, Start: 83/);
+  expect(g.kommentare[83].find((k) => k.startsWith('**Angedockt**'))).toMatch(/RAM beim Start: warn bei 78 %, Start: 83/);
 
   // the epic branch holds 81 and 83, not 80; pushed to the fixture's remote; the PR is WIP and closes only the accepted children
   const epicWt = z.epicWorktree!;

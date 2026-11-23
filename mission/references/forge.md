@@ -32,11 +32,11 @@ Fünf Eigenheiten, die nirgends in einer Konfiguration stehen:
 - **Ein Issue mit offenen Blockern lässt sich nicht schließen.** Der Server antwortet mit
   **HTTP 412**. Das fällt erst beim Andocken auf, wenn Gitea die `Closes`-Zeilen abarbeitet, nicht
   beim Eröffnen des Pull Requests. Deshalb gehört in den PR-Body, welches geschlossene Issue noch
-  offene Blocker hat. Eine Mission betrifft das immer, weil die API ihre Kinder als Blocker führt: Der
+  offene Blocker hat. Eine Mission betrifft das immer, weil die API ihre Missionsziele als Blocker führt: Der
   Pull Request trägt darum nie `Closes #<epic>` (welche Issues `Closes` bekommen: `SKILL.md`,
-  Phase 6). Für Ketten unter den Kindern gilt: Ob Gitea die `Closes`-Zeilen der Reihe nach
+  Phase 6). Für Ketten unter den Missionszielen gilt: Ob Gitea die `Closes`-Zeilen der Reihe nach
   abarbeitet, ist ebenfalls nicht belegt. Die `Closes`-Zeilen stehen darum in der Reihenfolge des Graphen, Vorgänger zuerst, und im PR-Body
-  steht je Kind mit Blocker der Satz „schließt sich ggf. nicht automatisch (412), dann von Hand".
+  steht je Missionsziel mit Blocker der Satz „schließt sich ggf. nicht automatisch (412), dann von Hand".
 - **Listen sind bei 50 Einträgen gedeckelt**, auch wenn `limit` größer gesetzt ist. Mit
   `?limit=50&page=<n>` weiterblättern, bis eine Seite weniger als 50 Einträge liefert.
 - **Ein Titel mit `WIP:` macht einen Pull Request zu `draft`.** Das Präfix ist also der Schalter:
@@ -63,13 +63,13 @@ curl -s -u "$GU:$GP" "$API/issues/41"
   | `<nr>` | blockierendes Issue | Bedeutung |
   |---|---|---|
   | Mission | Mission | **Reihenfolge**: die andere Mission muss vorher fertig sein |
-  | Mission | keine Mission | **Kind** der Mission |
-  | keine Mission | keine Mission | harter Vorgänger des Kindes |
+  | Mission | keine Mission | **Missionsziel** der Mission |
+  | keine Mission | keine Mission | harter Vorgänger des Missionsziels |
 
-  Trägt im Repository kein Issue das `epic_label`, gilt jede Kante von der Mission aus als Kind, wie vor
+  Trägt im Repository kein Issue das `epic_label`, gilt jede Kante von der Mission aus als Missionsziel, wie vor
   der Einführung des Labels. Die Lesart gehört in den Plan.
 - **GitHub:** kennt keine Issue-Abhängigkeiten. Die Kanten stehen im Body, als Aufgabenlisten der
-  Mission für die Kinder und als Zeilen wie `Blocked by #53` für die harten Kanten. Beides parsen und
+  Mission für die Missionsziele und als Zeilen wie `Blocked by #53` für die harten Kanten. Beides parsen und
   im Plan offenlegen, damit ein Mensch eine Fehldeutung sieht.
 - **GitLab:** `GET /issues/<iid>/links` (Typ `blocks` / `is_blocked_by`).
 
@@ -112,7 +112,7 @@ Namen, Farben und Beschreibungen sind in allen Repositorys gleich, damit KIBO ü
 | `status/haengt` | `#fcee0a` | Zustand für KIBO: ein Lauf hat das Ticket aufgegeben, ohne einen Menschen geht es nicht weiter. Steuert nichts. |
 
 Das Label für Missionen (`epic_label`, Standard `epic`) wird auf demselben Weg angelegt: Farbe `#ff2bd6`,
-Beschreibung „Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)". Es ist kein
+Beschreibung „Mission: wartet auf ihre Missionsziele (gesetzt von /mission, gelesen von KIBO)". Es ist kein
 Statuslabel und bleibt an der Mission, bis sie geschlossen ist.
 
 - **Gitea:** Beim Setzen nimmt die API Label-**IDs**, beim Entfernen ebenfalls. Die IDs einmal je

@@ -62,9 +62,9 @@ it('P17b echt: the program dies right after the merge, before the state knows it
   const p122 = z.pakete['122'];
   expect(p122).toMatchObject({ stufe: 'fertig', nichtsZuMergen: true, mergeCommit: null, revertCommit: null, epicLauf: null });
   expect(merges(f, 'agent/122-paket-122')).toHaveLength(0);
-  expect(g.kommentare[122].find((k) => k.startsWith('**Gemergt**'))).toMatch(/nichts zu mergen, agent\/122-paket-122 hat keine eigenen Commits.*kein Merge-Commit\.\nAbnahme:[\s\S]*Lauf auf dem Epic-Branch entfällt: nichts gemergt/);
+  expect(g.kommentare[122].find((k) => k.startsWith('**Angedockt**'))).toMatch(/nichts anzudocken, agent\/122-paket-122 hat keine eigenen Commits.*kein Andock-Commit\.\nAbnahme:[\s\S]*Lauf auf dem Missions-Branch entfällt: nichts angedockt/);
   expect(f.git(['branch', '--list', 'agent/122-paket-122'])).toBe('');
   expect(z.pakete['121']).toMatchObject({ stufe: 'fertig' });
   expect(z.pakete['121'].mergeCommit).not.toBe(echt);
-  expect(g.prs[0].body).toContain('- Paket 122: nichts zu mergen, Runde 1');
+  expect(g.prs[0].body).toContain('- Paket 122: nichts anzudocken, Runde 1');
 }, 120_000);

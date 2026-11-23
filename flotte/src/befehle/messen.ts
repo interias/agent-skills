@@ -252,7 +252,7 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
       methode: 'AskUserQuestion mit Antwort und Empfehlungslabel; Textrunden je ❓ ohne Urteil über die Empfehlung; unter dem Treiber seine Fragen an den Menschen aus zustand.json',
     },
     wartezeit_min: { ...verteilung(fragen.map((q) => q.wartenMin).filter((x): x is number => x !== null)), je_epic: e.epics.length ? runde(fragen.reduce((s, q) => s + (q.wartenMin ?? 0), 0) / e.epics.length) : null },
-    kalte_zeit_min: { summe: runde(kalt.reduce((s, k) => s + k.minuten, 0)), je_lauf: kalt, methode: treiber ? 'Treiber: „Zug zu Ende" bis zum nächsten Start des Epics, ohne das Warten auf den Menschen dazwischen, ab 2 min' : 'Zugende ohne eigene Hintergrundarbeit bis zur nächsten Eingabe von außen, ab 2 min; Warten nach dem letzten Zug nicht gezählt' },
+    kalte_zeit_min: { summe: runde(kalt.reduce((s, k) => s + k.minuten, 0)), je_lauf: kalt, methode: treiber ? 'Treiber: „Zug zu Ende" bis zum nächsten Start der Mission, ohne das Warten auf den Menschen dazwischen, ab 2 min' : 'Zugende ohne eigene Hintergrundarbeit bis zur nächsten Eingabe von außen, ab 2 min; Warten nach dem letzten Zug nicht gezählt' },
     fehlstarts: treiber
       ? { starts: treiber.starts, fehlstarts: treiber.fehlstarts, anteil: treiber.starts ? runde(treiber.fehlstarts / treiber.starts) : null, sitzungen: [], methode: 'Treiber: Starts und Fortsetzungen; Fehlstart = „Start ohne Ergebnis"' }
       : { starts: starts.length, fehlstarts: fehlstarts.length, anteil: starts.length ? runde(fehlstarts.length / starts.length) : null, sitzungen: fehlstarts.map((t) => `${t.ref.konto}/${t.ref.id}`), methode: 'keine Antwort des Modells in den ersten 3 min; Lauf-Agenten zählen nicht als Start' },
@@ -349,14 +349,14 @@ function messeEpicLauf(konf: Konfiguration, e: Einsatz, lauf: EpicLauf, u: Umgeb
   for (const r of refs) {
     const gefunden = findeSitzung(konf, r.id, r.konto);
     if (!gefunden) {
-      fehler.push(`Epic #${lauf.epic}: Sitzung ${r.id} nicht gefunden`);
+      fehler.push(`Mission #${lauf.epic}: Sitzung ${r.id} nicht gefunden`);
       continue;
     }
     const kopf = kopfdaten(readFileSync(gefunden.datei, 'utf8'));
     const rolle = r.rolle ?? (kopf.agent ? rolleAus(kopf.agent) : r.vorgabe);
     const j = pwshJson(u.aufrufer, u.usageSkript, ['-Transcript', gefunden.datei, '-ModelWeights', MODELLGEWICHTE]).json as { agents?: UsageZeile[] } | null;
     if (!j?.agents) {
-      fehler.push(`Epic #${lauf.epic}: usage.ps1 lieferte nichts für ${r.id}`);
+      fehler.push(`Mission #${lauf.epic}: usage.ps1 lieferte nichts für ${r.id}`);
       continue;
     }
     zeilen[rolle] = (zeilen[rolle] ?? 0) + 1;
@@ -405,7 +405,7 @@ function messeEpicLauf(konf: Konfiguration, e: Einsatz, lauf: EpicLauf, u: Umgeb
       return { ...n, verbrauch_bis_worker: Math.round(w) };
     }),
   };
-  if (k.pakete.length && !k.pakete.some((p) => p.merges)) fehler.push(`Epic #${lauf.epic}: ${pz ? 'kein Ereignis gemergt im Programm' : 'kein Paket-Merge im Orchestrator'} gefunden; Merge-Zeiten, Prüfzeit und Fensterverlust ohne Merge`);
+  if (k.pakete.length && !k.pakete.some((p) => p.merges)) fehler.push(`Mission #${lauf.epic}: ${pz ? 'kein Ereignis des Andockens im Programm' : 'kein Andocken eines Pakets im Orchestrator'} gefunden; Andockzeiten, Prüfzeit und Fensterverlust ohne Andocken`);
   return {
     epic: lauf.epic,
     sitzungen: zeilen,
@@ -421,7 +421,7 @@ function epicLaeufe(konf: Konfiguration, e: Einsatz, u: Umgebung, fehler: string
   return {
     laeufe,
     summe: epicSumme(laeufe),
-    methode: `Sitzungen je Epic aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Paket-Merge = git merge … agent/<nr> des Orchestrators; unter flotte mission Aufrufe aus epics/<nr>/aufrufe (Rolle aus dem Dateinamen, Schnitt und Konflikt als Orchestrierung), Merge = Ereignis gemergt, Neustart = Ereignis neustart bis zum nächsten Aufruf von Implementer oder Reviewer (auch --resume), Modellzeit der Prüfzeit aus Schnitt und Konflikt; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
+    methode: `Sitzungen je Mission aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Andocken eines Pakets = git merge … agent/<nr> des Orchestrators; unter flotte mission Aufrufe aus epics/<nr>/aufrufe (Rolle aus dem Dateinamen, Schnitt und Konflikt als Orchestrierung), Andocken = Ereignis des Andockens, Neustart = Ereignis neustart bis zum nächsten Aufruf von Ingenieur oder Erstem Offizier (auch --resume), Modellzeit der Prüfzeit aus Schnitt und Konflikt; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
   };
 }
 
@@ -454,7 +454,7 @@ function prognoseKennzahlen(e: Einsatz): unknown {
     gate_min: verteilung(m.map((x) => x.gateS / 60)),
     pakete_je_klasse: m.flatMap((x) => x.pakete).reduce<Record<string, number>>((acc, p) => ({ ...acc, [p.klasse]: (acc[p.klasse] ?? 0) + 1 }), {}),
     eskalationen: m.flatMap((x) => x.pakete).reduce((s, p) => s + p.eskalationen, 0),
-    methode: 'messungen.jsonl des Treibers: Arbeitszeit = erster Start bis letztes FLOTTE-ENDE ohne die Zeit, in der der ganze Lauf auf den Menschen wartete; Treffer = Dauer samt Gate zwischen P10 und P90 der Prognose beim Start',
+    methode: 'messungen.jsonl des Treibers: Arbeitszeit = erster Start bis letztes FLOTTE-ENDE ohne die Zeit, in der der ganze Lauf auf den Menschen wartete; Treffer = Dauer samt Andockprüfung zwischen P10 und P90 der Prognose beim Start',
   };
 }
 

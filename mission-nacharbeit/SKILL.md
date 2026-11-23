@@ -25,7 +25,7 @@ Fachsprache aus der Vokabulardatei.
 
 ## Was diesen Ablauf von `/mission` unterscheidet
 
-`/mission` hat einen fremden Scope: die Abnahmekriterien der Kind-Tickets, und nichts darüber hinaus.
+`/mission` hat einen fremden Scope: die Abnahmekriterien der Missionsziele, und nichts darüber hinaus.
 Nacharbeit hat **keinen vorgegebenen Scope** — sie ist genau die Arbeit, die außerhalb lag. Damit
 fällt die Sicherung weg, die bei `/mission` der Ticket-Body war, und an ihre Stelle tritt die
 Fragerunde: **jeder Punkt wird einzeln entschieden, bevor er angefasst wird.**
@@ -79,9 +79,9 @@ Menschen vor. Die Bestätigung vor dem Handeln (Phase 2, Ende) gibt ebenfalls er
 - **Den Basis-Branch feststellen:** `base_branch` aus dem Adapter ist der Standard, maßgeblich
   aber — sobald der Pull Request existiert — dessen eigene `base`. Eine Mission kann von einer anderen
   Mission abzweigen; dann ist der Hauptzweig des Repositorys nicht die Basis dieses Laufs.
-- **Spec-Modus erkennen** (`issue_form: spec`): Nur **ohne** Kind-Tickets liegt alles am
-  Spec-Issue selbst, und die Paket-Branches heißen nicht nach Kind-Issues. Hat das Spec-Issue
-  Kinder, gilt derselbe Weg wie im Modus `tickets` — die Kinder sind die Pakete. Das
+- **Spec-Modus erkennen** (`issue_form: spec`): Nur **ohne** Missionsziele liegt alles am
+  Spec-Issue selbst, und die Paket-Branches heißen nicht nach Missionsziele. Hat das Spec-Issue
+  Missionsziele, gilt derselbe Weg wie im Modus `tickets` — die Missionsziele sind die Pakete. Das
   Namensschema der Branches steht in `mission/SKILL.md` (Phase 3).
 - `git worktree list` prüfen. Reste eines früheren Laufs melden, nicht löschen — dafür ist
   `/mission-aufraeumen` da.
@@ -98,12 +98,12 @@ Aus **drei** Quellen, und keine davon reicht allein:
 
 1. **Der Abschlusskommentar an der Mission.** Sein Abschnitt `### Was das Epic offen lässt` ist die
    Hauptquelle (ältere Läufe schreiben noch „Was das PRD offen lässt" — such nach beiden). Lies
-   auch die Kommentare an den Kind-Tickets — dort stehen die Punkte, die nur ein einzelnes Ticket
-   betreffen, und die im Abschlusskommentar zusammengefasst wurden. Kind ist dabei jedes Issue,
+   auch die Kommentare an den Missionsziele — dort stehen die Punkte, die nur ein einzelnes Ticket
+   betreffen, und die im Abschlusskommentar zusammengefasst wurden. Missionsziel ist dabei jedes Issue,
    das der Adapter nicht über `epic_label` als Mission kennzeichnet; eine Kante zwischen zwei Missionen
-   ist Reihenfolge, kein Kind, und bleibt hier außen vor. **Im Spec-Modus ohne Kinder**
-   (`issue_form: spec`) gibt es keine Kind-Tickets — alle Rückmeldungen zu den Paketen stehen als
-   Kommentare am Spec-Issue selbst; **mit Kindern** gilt derselbe Weg wie im Modus `tickets`. Ergänze
+   ist Reihenfolge, kein Missionsziel, und bleibt hier außen vor. **Im Spec-Modus ohne Missionsziele**
+   (`issue_form: spec`) gibt es keine Missionsziele — alle Rückmeldungen zu den Paketen stehen als
+   Kommentare am Spec-Issue selbst; **mit Missionszielen** gilt derselbe Weg wie im Modus `tickets`. Ergänze
    hier die Lauftafel (`references/lauftafel.md`): jeder dort verzeichnete Glut-Punkt (wartet auf
    den Menschen) gehört auf diese Liste. Lief der Lauf mit `Lauftafel aus` (Flotten-Treiber), gibt es
    keine Tafel; ihre Punkte stehen dann im Abschlusskommentar.
@@ -181,12 +181,12 @@ ohnehin von einem Menschen gelesen, und die Nacharbeit gehört in dieselbe Lesun
 
 Zwei Dinge dabei, und beide sind leicht zu vergessen:
 
-- **Ein eigener Commit, erkennbar als Nacharbeit.** Er gehört zu keinem Kind-Ticket. Nenne im
+- **Ein eigener Commit, erkennbar als Nacharbeit.** Er gehört zu keinem Missionsziel. Nenne im
   Betreff die Mission und nicht eine Ticketnummer, sonst schließt eine `Closes`-Zeile später ein
   Ticket mit, das damit nichts zu tun hatte.
 - **Der Pull-Request-Body bekommt einen eigenen Abschnitt „Nacharbeit".** Die `Closes`-Zeilen
   bleiben unangetastet bei ihren Tickets. Wer den Pull Request liest, muss sehen können, was von
-  den Kindern kam und was danach dazukam — sonst prüft er die Nacharbeit gegen Abnahmekriterien,
+  den Missionszielen kam und was danach dazukam — sonst prüft er die Nacharbeit gegen Abnahmekriterien,
   die sie nie hatte.
 
 Ist der Pull Request schon angedockt, oder betrifft die Nacharbeit einen anderen Gegenstand: eigener
@@ -213,16 +213,16 @@ Der Teil, der am leichtesten ausfällt, weil sich der Punkt nach dem Commit erle
   entschieden, **mit welcher Begründung**, wo steht das Ergebnis. Dazu: was weiterhin offen ist
   und warum. Dieser Kommentar ist die Fortsetzung des Abschlusskommentars und der Ort, an dem in
   einem halben Jahr steht, warum ein Fund nicht zum Ticket wurde.
-- **Kommentar am betroffenen Kind-Ticket**, wenn ein Punkt aus dessen Review kam.
-- **Die Mission schließen**, wenn der Pull Request angedockt ist, jedes Kind geschlossen ist und keine
+- **Kommentar am betroffenen Missionsziel**, wenn ein Punkt aus dessen Review kam.
+- **Die Mission schließen**, wenn der Pull Request angedockt ist, jedes Missionsziel geschlossen ist und keine
   User Story mehr offen ist — `/mission` schließt sie nie per `Closes` (`mission/SKILL.md`, Phase 6). Vorher
-  die Kinder, deren `Closes` gescheitert ist (412, `mission/references/forge.md`, „Diese
+  die Missionsziele, deren `Closes` gescheitert ist (412, `mission/references/forge.md`, „Diese
   Gitea-Instanz"), von Hand schließen, Vorgänger zuerst. Dazu
-  ein Kommentar an der Mission: die Kinder mit ihren Andock-Commits. Bleibt eine Story offen, bleibt die
+  ein Kommentar an der Mission: die Missionsziele mit ihren Andock-Commits. Bleibt eine Story offen, bleibt die
   Mission offen, und der Kommentar sagt, welche und warum.
 - **Statuslabels** (`mission/SKILL.md`, „Die Statuslabels"): Ein Ticket, dessen Glut-Punkt oder
   Zurücklassen-Grund jetzt erledigt ist, verliert `status/haengt`; ein Ticket, dessen Blocker jetzt
-  geschlossen ist, verliert `status/blockiert`. Ein Kind, das nach dem Andocken des Pull Requests
+  geschlossen ist, verliert `status/blockiert`. Ein Missionsziel, das nach dem Andocken des Pull Requests
   offen bleibt (etwa weil `Closes` scheiterte und es noch nicht von Hand zu ist),
   verliert `status/in-arbeit`. Ein Punkt, der zum Ticket wird, ändert am alten Ticket nichts.
 - **Neu angelegte Issues** — falls die Entscheidung welche verlangt hat — tragen das

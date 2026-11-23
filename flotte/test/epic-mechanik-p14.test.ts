@@ -60,7 +60,7 @@ it('P14/P15 echt: a mechanical conflict is resolved, committed and tested on the
   // Up names the epic head the package started on (the hash of the reviewer's order)
   expect(p91.kopf).toMatch(/^[0-9a-f]{40}$/);
   expect(p91.epicLauf).toEqual([{ name: 'fix', dateien: 1, tests: 1, rot: [] }]);
-  expect(z.kanten).toContainEqual({ a: '90', b: '91', art: 'kollision', grund: 'Merge-Konflikt in src/liste.txt' });
+  expect(z.kanten).toContainEqual({ a: '90', b: '91', art: 'kollision', grund: 'Andock-Konflikt in src/liste.txt' });
   // P15: aborted, nothing of 92 in the epic branch, no merge in progress, the branch stays
   expect(z.pakete['92']).toMatchObject({ stufe: 'zurueckgelassen', mergeCommit: null });
   expect(z.pakete['92'].grund).toMatch(/inhaltlich: beide ändern dieselbe Zeile/);

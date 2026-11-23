@@ -172,7 +172,7 @@ Phase (Ingenieur, Review, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer
 (eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
 (ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
-(älterer Treiber, Paket ohne Aufruf), bleibt es weg; spec-Pakete haben sie wie Kind-Tickets (#151).
+(älterer Treiber, Paket ohne Aufruf), bleibt es weg; spec-Pakete haben sie wie Missionsziele (#151).
 Felder: `SCHNITTSTELLE.md`.
 
 Unter den Paketen stehen die **Entscheidungen bis zum Andocken** (#52), neueste zuerst, von jedem Tag:

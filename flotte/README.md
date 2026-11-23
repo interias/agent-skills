@@ -181,7 +181,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/
 `Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) liest alle Notizen, die ins Modell gehen
 (Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
 (Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Missionsziele aus
-`sub_issues_summary`, im Auftrag als `(<n> Kinder, noch <m> frei)` bzw. `(8 Kinder, voll, keine neuen Kinder)`;
+`sub_issues_summary`, im Auftrag als `(<n> Missionsziele, noch <m> frei)` bzw. `(8 Missionsziele, voll, keine neuen Missionsziele)`;
 eine, deren Missionsziele nicht lesbar sind, kommt nicht in Frage). Passende offene Missionen haben
 ausdrücklich Vorrang vor neuen, so gehen Notizen eines späteren Laufs in die Missionen früherer. Er liefert in
 einer strukturierten Antwort den Schnittplan und die Klärung jeder Notiz; eine Einzelklärung je Notiz gibt es

@@ -6,7 +6,7 @@ Die Andockprüfung bekommt einen Wächter für die Länge der Verse; danach komm
 ausreizt. Ein Zweizeiler ist davon unabhängig.
 
 ## Abnahmekriterien
-- Alle Kinder sind angedockt.
+- Alle Missionsziele sind angedockt.
 - `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` ist grün.
 
 ## Verifikationsweg

@@ -64,6 +64,6 @@ it('P17 echt: the program dies after the merge commit is in the state, before Do
   expect(f.git(['branch', '--list', 'agent/110-paket-110'])).toBe('');
   expect(z.pakete['111'].stufe).toBe('fertig');
   expect(readFileSync(join(z.epicWorktree!, 'src', 'liste.txt'), 'utf8').replace(/\r/g, '')).toBe('a\nhundertzehn\nhundertelf\n');
-  expect(g.kommentare[110].filter((k) => k.startsWith('**Gemergt**'))).toHaveLength(1);
+  expect(g.kommentare[110].filter((k) => k.startsWith('**Angedockt**'))).toHaveLength(1);
   expect(g.prs[0].titel).toBe('Ticket 69');
 }, 120_000);

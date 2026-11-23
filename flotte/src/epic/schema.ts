@@ -199,7 +199,7 @@ function zuordnungFehler(modus: string, pakete: Paket[], zuordnung: unknown): st
     const vorher = gesehen.get(story);
     if (vorher !== undefined) return `zuordnung: ${story} steht ${vorher === z.paket ? 'doppelt' : `bei den Paketen ${vorher} und ${z.paket}`}, jede Story gehört genau einem Paket`;
     gesehen.set(story, z.paket);
-    if (modus === 'tickets' && story.replace(/^#/, '').split(/\s/)[0] !== z.paket) return `zuordnung: im Modus tickets ist jedes Kind sein eigenes Paket, ${story} geht an ${z.paket}`;
+    if (modus === 'tickets' && story.replace(/^#/, '').split(/\s/)[0] !== z.paket) return `zuordnung: im Modus tickets ist jedes Missionsziel sein eigenes Paket, ${story} geht an ${z.paket}`;
   }
   const ohne = pakete.find((p) => ![...gesehen.values()].includes(p.nr));
   return ohne ? `Paket ${ohne.nr} hat keine Story in der Zuordnung` : null;
@@ -232,8 +232,8 @@ export function abdeckungFehler(s: Schnitt, body: string): string | null {
     const zugeordnet = new Set(s.zuordnung.map((z) => ohneRaute(z.story)));
     const weg = new Set(s.uebersprungen.map((u) => ohneRaute(u.nr)));
     for (const k of kinderAus(body).map(String)) {
-      if (zugeordnet.has(k) && weg.has(k)) return `Kind #${k} steht in zuordnung und in uebersprungen`;
-      if (!zugeordnet.has(k) && !weg.has(k)) return `Kind #${k} des Epics steht weder in zuordnung noch in uebersprungen`;
+      if (zugeordnet.has(k) && weg.has(k)) return `Missionsziel #${k} steht in zuordnung und in uebersprungen`;
+      if (!zugeordnet.has(k) && !weg.has(k)) return `Missionsziel #${k} der Mission steht weder in zuordnung noch in uebersprungen`;
     }
     return null;
   }

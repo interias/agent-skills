@@ -62,7 +62,7 @@ export function adapter(argv: string[], a: Aufrufer = aufrufen): unknown {
     adapter: staende,
     ohneMerge: ohne.map((s) => s.repo),
     folge: ohne.length
-      ? `Es mergt nur ein Mensch in ${ohne.length} Projekt(en) (fehlender Schlüssel gilt als merge: mensch): ${ohne.map((s) => s.repo).join(', ')}`
+      ? `Nur ein Mensch dockt an in ${ohne.length} Projekt(en) (fehlender Schlüssel gilt als merge: mensch): ${ohne.map((s) => s.repo).join(', ')}`
       : 'Jeder gefundene Adapter nennt merge.',
   };
 }
