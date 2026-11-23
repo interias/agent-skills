@@ -36,7 +36,7 @@ describe('Drehbücher (#14)', () => {
 
   it('D1b (#132): an account limit is no failed start; the run continues once the account has room', async () => {
     const t = aufbau();
-    const limit = "You've hit your weekly limit · resets Nov 24, 3am (Europe/Berlin)";
+    const limit = "You've hit your weekly limit"; // without a reset time (with one: limit.test.ts, #199)
     const buch = drehbuch([lauf(3, [{ text: limit, fehler: true }], 1), lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     const laeufe = fuer(buch.gesehen(), 3);

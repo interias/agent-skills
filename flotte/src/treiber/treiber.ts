@@ -10,7 +10,7 @@ import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../a
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
 import { kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
-import { beende, beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
+import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
@@ -276,6 +276,8 @@ export interface FlottenEpic extends EpicZustand {
   gestartetAm?: string | null;
   schlangeSeit?: string | null;
   gateSeit?: string | null;
+  /** #199: after a limit with a reset time or a 429: nothing runs on the mission or its account before this time, ISO */
+  limitBis?: string | null;
   /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
   endeAm?: string | null;
   gateS?: number;
@@ -339,6 +341,19 @@ export function guardArgs(guard: string): string[] {
 
 /** how often the driver reads the child tickets of an epic for the package bar of the bridge */
 export const PAKETE_MS = 5 * 60_000;
+/** #199: a mission after a limit requeues itself this long after the reset; after a 429 without another account it waits DROSSEL_MS */
+export const LIMIT_NACHLAUF_MS = 2 * 60_000;
+export const DROSSEL_MS = 5 * 60_000;
+
+/** a time of day in the driver's local time, HH:MM */
+const uhr = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+
+/** #199: the cause of a block, for the note on the bridge and the logbook */
+export function ursache(grund: string): 'Limit' | 'Erlaubnis' | 'anderes' {
+  if (/Limit erreicht|usage limit|hit your .*limit|\b429\b/i.test(grund)) return 'Limit';
+  if (/Erlaubnis verweigert|guard\.ps1|Hook-Sperre|Gesperrt durch/i.test(grund)) return 'Erlaubnis';
+  return 'anderes';
+}
 
 /** #151: the key of a spec package `P<k>` in the run's calls, `<spec>-p<k>` */
 const specSchluessel = (nr: number, name: string) => `${nr}-p${name.replace(/^P/, '')}`;
@@ -741,6 +756,13 @@ class Treiber {
    */
   bewerten(k: string): Bewertung {
     const v = liesVerbrauch(k);
+    // #199: a limit or a 429 of a mission on the account holds it until the mission's time
+    const jetzt = this.w.jetzt();
+    const gesperrt = Object.values(this.z?.epics ?? {}).filter((ep) => ep.konto === k && ep.limitBis && Date.parse(ep.limitBis) > jetzt);
+    if (gesperrt.length) {
+      const bis = Math.max(...gesperrt.map((ep) => Date.parse(ep.limitBis!)));
+      return { ...bewerte(v, jetzt, Infinity, this.schwellen(k)), stufe: 'rot', grund: `gesperrt bis ${uhr(bis)} nach Limit oder 429 (${gesperrt.map((ep) => `#${ep.nr}`).join(', ')})` };
+    }
     const gescheitert = this.messungGescheitert.get(k);
     if (gescheitert !== undefined && v && v.zeit <= gescheitert) {
       const b = bewerte(v, this.w.jetzt(), Infinity, this.schwellen(k));
@@ -970,6 +992,12 @@ class Treiber {
 
   verteile(): void {
     for (const ep of Object.values(this.z.epics)) {
+      if (ep.limitBis && this.w.jetzt() >= Date.parse(ep.limitBis)) {
+        ep.limitBis = null;
+        if (ep.konto) this.bewertung.set(ep.konto, this.bewerten(ep.konto));
+        this.ereignis(ep.nr, 'Reset des Limits vorbei: die Mission reiht sich selbst wieder ein');
+      }
+      if (ep.limitBis) continue;
       // #61: a paused epic keeps its next turn until the person continues it
       if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
       const a = ep.auftrag;
@@ -1064,6 +1092,9 @@ class Treiber {
     this.ereignis(nr, `Zug zu Ende (${Math.round(r.dauerMs / 1000)} s)`);
     if (r.sitzung) ep.sitzung = r.sitzung;
     if (r.fehler === 'werkzeuge') return this.halt(ep, 'blockiert', `${r.stderr.split('\n')[0]}. Der Lauf wurde beendet, bevor er arbeitete.`);
+    // #199: before the denials, a turn the limit ended may have denials too (#114)
+    if (r.fehler === 'limit') return this.limit(ep, r);
+    if (r.fehler === 'drossel') return this.drossel(ep);
     const hookIds = new Set(r.sperren.map((s) => s.id));
     const fremd = r.verweigert.filter((d) => !hookIds.has(String((d as { tool_use_id?: string }).tool_use_id ?? '')));
     const block = leseBlock(r.text);
@@ -1101,21 +1132,6 @@ class Treiber {
       return this.halt(ep, 'abgebrochen', `Leerlauf: ${Math.round(this.e.leerlaufMs / 60_000)} min ohne Ausgabe`, true);
     }
     if (r.fehler === 'anmeldung') return this.halt(ep, 'blockiert', `Konto ${this.kontoName(ep.konto ?? '')} ist nicht angemeldet. Ein Mensch meldet es an.`);
-    if (r.fehler === 'limit') {
-      // #132: the account is used up; red until the next measurement says otherwise, and the epic waits for it
-      const konto = ep.konto ?? '';
-      const grund = `Limit erreicht: ${r.text.trim().slice(0, 120) || 'usage_limit_reached'}`;
-      const alt = this.bewertung.get(konto);
-      if (alt) this.bewertung.set(konto, { ...alt, stufe: 'rot', grund });
-      if (ep.sitzung) ep.auftrag = { resume: true, text: this.an(nr, 'Das Konto hatte sein Limit erreicht. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.') };
-      else {
-        await this.aufraeumen(nr);
-        ep.auftrag = { resume: false, text: this.startText(nr) };
-      }
-      ep.notiz = `wartet auf ${this.kontoName(konto)}: ${grund}`;
-      this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, der Lauf wartet, bis das Konto wieder Luft hat`);
-      return;
-    }
     if (r.fehler === 'netz') {
       if (ep.fortsetzungen < 2 && ep.sitzung) {
         ep.fortsetzungen++;
@@ -1153,10 +1169,76 @@ class Treiber {
     else await this.ende(ep, block);
   }
 
+  /** The run's next turn after a limit or a 429: on in its session, else a fresh start. */
+  async wiederAufnehmen(ep: FlottenEpic, text: string): Promise<void> {
+    if (ep.sitzung) ep.auftrag = { resume: true, text: this.an(ep.nr, text) };
+    else {
+      await this.aufraeumen(ep.nr);
+      ep.auftrag = { resume: false, text: this.startText(ep.nr) };
+    }
+  }
+
+  /**
+   * #132: the account is used up, no failed start; the mission waits for it. #199: with a reset time in
+   * the message (or a used-up window in the run's usage) it requeues itself at the reset + 2 min, and
+   * nothing runs on the account before.
+   */
+  async limit(ep: FlottenEpic, r: LaufErgebnis): Promise<void> {
+    const nr = ep.nr;
+    const konto = ep.konto ?? '';
+    const grund = `Limit erreicht: ${r.text.trim().slice(0, 120) || 'usage_limit_reached'}`;
+    const alt = this.bewertung.get(konto);
+    if (alt) this.bewertung.set(konto, { ...alt, stufe: 'rot', grund });
+    await this.wiederAufnehmen(ep, 'Das Konto hatte sein Limit erreicht. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.');
+    const jetzt = this.w.jetzt();
+    const voll = [r.verbrauch?.fuenf, r.verbrauch?.sieben].filter((f) => f && f.anteil >= 1 && f.reset > jetzt).map((f) => f!.reset);
+    const reset = limitReset(`${r.text}\n${r.stderr}`, jetzt) ?? (voll.length ? Math.max(...voll) : null);
+    if (reset === null) {
+      ep.notiz = `wartet auf ${this.kontoName(konto)}: ${grund}`;
+      this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, der Lauf wartet, bis das Konto wieder Luft hat`);
+      return;
+    }
+    const bis = reset + LIMIT_NACHLAUF_MS;
+    ep.limitBis = new Date(bis).toISOString();
+    ep.notiz = `wartet bis ${uhr(bis)} (Reset des Limits + 2 min): ${grund}`;
+    this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, die Mission reiht sich um ${uhr(bis)} selbst wieder ein`);
+  }
+
+  /**
+   * #199: 429, the API throttles the account. Another free account of the list takes the mission over,
+   * with a fresh start (a session lives in its account); without one it waits DROSSEL_MS on its own.
+   */
+  async drossel(ep: FlottenEpic): Promise<void> {
+    const nr = ep.nr;
+    const konto = ep.konto ?? '';
+    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    if (frei.length) {
+      const neu = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
+      await this.aufraeumen(nr);
+      ep.konto = neu;
+      ep.sitzung = null;
+      ep.auftrag = { resume: false, text: this.startText(nr) };
+      ep.notiz = '';
+      this.ereignis(nr, `429 (Anfragen gedrosselt) auf ${this.kontoName(konto)}: weiter auf ${this.kontoName(neu)}`);
+      return;
+    }
+    await this.wiederAufnehmen(ep, 'Die Anfragen des Kontos wurden gedrosselt (429). Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.');
+    const bis = this.w.jetzt() + DROSSEL_MS;
+    ep.limitBis = new Date(bis).toISOString();
+    ep.notiz = `wartet bis ${uhr(bis)} (429 auf ${this.kontoName(konto)})`;
+    this.ereignis(nr, `429 (Anfragen gedrosselt) auf ${this.kontoName(konto)}, kein anderes Konto frei: die Mission wartet ${DROSSEL_MS / 60_000} min`);
+  }
+
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
     this.loslassen(ep.nr);
     ep.stufe = stufe;
     ep.notiz = grund.split('\n')[0];
+    if (stufe === 'blockiert') {
+      // #199: the cause on the bridge (the note) and in the logbook
+      const u = ursache(grund);
+      ep.notiz = `Ursache ${u}: ${ep.notiz}`;
+      if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${u}: ${grund.split('\n')[0]}.`);
+    }
     ep.haltGrund = grund.slice(0, 3000);
     ep.haltZeit = new Date(this.w.jetzt()).toISOString();
     ep.aufgegebenAm = null;
