@@ -168,7 +168,7 @@ export interface Start {
   log?: string | null;
   /** further arguments for claude (--json-schema, --tools, ...) */
   extraArgs?: string[];
-  /** --permission-mode; default auto. The chat takes dontAsk: only what --allowedTools names runs */
+  /** --permission-mode; default auto. The chat takes dontAsk: what would ask is refused (reads never ask; the chat's hook locks them) */
   modus?: string;
   /** further environment variables for the run (EPIC_LOCK_HOLDER) */
   env?: Record<string, string>;

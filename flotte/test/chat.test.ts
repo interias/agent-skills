@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import type { Aufrufer } from '../src/aufruf.ts';
 import { chat, ChatDienst, CHAT_MODELL, type ChatNachricht, chatErgebnisAus, nachrichtenAusJson } from '../src/befehle/chat.ts';
 import { auftrag } from '../src/befehle/auftrag.ts';
+import { LESESPERRE } from '../src/befehle/chat-lesesperre.ts';
 import { Bruecke } from '../src/treiber/bruecke.ts';
 import { schreibe as schreibeVerbrauch } from '../src/werkzeuge/verbrauch.ts';
 import { drehbuch, mitAttrappe } from './attrappe.ts';
@@ -177,9 +178,15 @@ describe('flotte chat', () => {
       expect(g.args.filter((a: string) => a === '--permission-mode')).toHaveLength(1);
       expect(nach('--permission-mode')).toBe('dontAsk');
       expect(nach('--tools').split(',').sort()).toEqual(['Glob', 'Grep', 'Read']);
-      // only a path rule on the working directory: a bare Read, Grep or Glob would allow every path
+      // no bare Read, Grep or Glob; the rule narrows nothing (read tools need no approval), the hook below is the lock
       expect(nach('--allowedTools').split(',')).toEqual(['Read(./**)']);
       expect(g.args.filter((a: string) => a === '--allowedTools')).toHaveLength(1);
+      // the read lock: a PreToolUse hook on the read tools that blocks when it fails, running the hook script with bun
+      expect(g.args.filter((a: string) => a === '--settings')).toHaveLength(1);
+      const [eintrag] = JSON.parse(nach('--settings')).hooks.PreToolUse;
+      expect(eintrag.matcher).toBe('Read|Grep|Glob');
+      expect(eintrag.hooks).toEqual([{ type: 'command', command: `"${process.execPath}" "${LESESPERRE}"`, timeout: 30, onFailure: 'block' }]);
+      expect(LESESPERRE).toMatch(/chat-lesesperre\.ts$/);
       for (const w of ['Bash', 'Edit', 'Write', 'NotebookEdit', 'MultiEdit', 'Task', 'WebFetch', 'Skill']) {
         expect(nach('--tools').split(',')).not.toContain(w);
         expect(nach('--allowedTools')).not.toContain(w);

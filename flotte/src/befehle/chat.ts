@@ -19,6 +19,7 @@ import { starte, type LaufErgebnis, type Start } from '../werkzeuge/lauf.ts';
 import { bewerte, lies as liesVerbrauch, type Bewertung } from '../werkzeuge/verbrauch.ts';
 import { entsperren, sperren } from '../werkzeuge/zustand.ts';
 import { auftrag } from './auftrag.ts';
+import { LESESPERRE } from './chat-lesesperre.ts';
 
 const AUFRUF = 'Aufruf: flotte chat --repos <ordner> [--bruecke <url>] [--takt-s 10]. Der Ordner enthält je Repository einen Checkout mit dem Namen des Repositorys (owner/name → <ordner>/name). Basis-URL auch aus FLOTTE_BRUECKE, Token aus FLOTTE_BRUECKE_TOKEN.';
 
@@ -34,18 +35,28 @@ const BEREITSCHAFTSRAUM = fileURLToPath(new URL('../../../bereitschaftsraum/SKIL
 export const CHAT_WERKZEUGE = ['Read', 'Grep', 'Glob', 'StructuredOutput'];
 
 /**
- * --tools leaves only the read tools (no Bash, Edit, Write, NotebookEdit, Task, WebFetch, ...).
- * --allowedTools names Read with a path rule only: a bare `Read` would allow every path, the account
- * folder with its credentials included (review finding 3). Rule syntax after the Claude Code
- * permission docs: Read rules are gitignore patterns, `./` is relative to the working directory (the
- * repository), and Claude Code applies Read rules to Grep and Glob as well, so they get no rule of
- * their own (a bare `Grep` would open every path again). Reads inside the working directory need no
- * approval; dontAsk refuses everything that would ask, so a read outside the repository is refused.
+ * --tools leaves only the read tools (no Bash, Edit, Write, NotebookEdit, Task, WebFetch, ...), and
+ * dontAsk refuses every tool that would ask, so nothing writes. Reading is not locked by that: read
+ * tools need no approval in Claude Code, so a permission rule does not narrow them; the real probe of
+ * 23.11.2026 read a file outside the repository under `--allowedTools Read(./**)` with
+ * permission_denials []. The lock is the PreToolUse hook of lesesperreArgs. `Read(./**)` stays only so
+ * that reads in the repository keep running should Claude Code ever ask for them under dontAsk; it
+ * opens nothing a bare `Read` would (that would allow every path, should reads ever be asked for).
  * --strict-mcp-config comes with every run (claudeArgs). The skill text goes into the system
- * prompt, so the model needs no read rule outside the repository.
+ * prompt, so the model needs nothing outside the repository.
  */
 export function chatArgs(): string[] {
-  return ['--tools', 'Read,Grep,Glob', '--allowedTools', 'Read(./**)', '--json-schema', JSON.stringify(chatSchema()), '--append-system-prompt', chatRahmen()];
+  return ['--tools', 'Read,Grep,Glob', '--allowedTools', 'Read(./**)', ...lesesperreArgs(), '--json-schema', JSON.stringify(chatSchema()), '--append-system-prompt', chatRahmen()];
+}
+
+/**
+ * The read lock as a hook of the session, as guardArgs in the driver: chat-lesesperre.ts refuses Read,
+ * Grep and Glob outside the working directory with exit 2. It runs with the bun of this service
+ * (process.execPath), not one from the PATH; onFailure block: a hook that fails refuses the read.
+ */
+export function lesesperreArgs(): string[] {
+  const befehl = `"${process.execPath}" "${LESESPERRE}"`;
+  return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Read|Grep|Glob', hooks: [{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' }] }] } })];
 }
 
 export function chatRahmen(): string {

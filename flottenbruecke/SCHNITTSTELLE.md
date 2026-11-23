@@ -690,9 +690,12 @@ noch einmal), dann `GET`, dann je freiem Chat die älteste Nachricht: Quittung, 
 Je Chat läuft höchstens eines; mehrere Chats laufen nebeneinander.
 
 **Rechte des Chats:** Das Modell liest nur, und nur im Repository: `--tools Read,Grep,Glob`,
-`--allowedTools 'Read(./**)'` (eine Pfadregel relativ zum Arbeitsverzeichnis, kein Werkzeug ohne
-Pfad), `--permission-mode dontAsk`, `--strict-mcp-config`; meldet `claude` beim Start ein anderes
-Werkzeug, bricht der Dienst den Aufruf ab. Kein Bash: Anlegen ist allein die Nachrichtenart
+`--permission-mode dontAsk`, `--strict-mcp-config`; meldet `claude` beim Start ein anderes
+Werkzeug, bricht der Dienst den Aufruf ab. Die Grenze zum Repository zieht die Lesesperre, ein
+`PreToolUse`-Hook für `Read|Grep|Glob` per `--settings` (`flotte/src/befehle/chat-lesesperre.ts`,
+`onFailure: block`): Jeder Pfad außerhalb des Arbeitsverzeichnisses, auch über einen Link, wird mit
+Exit 2 abgelehnt. `--allowedTools 'Read(./**)'` bleibt stehen, engt aber nichts ein, denn
+Lesewerkzeuge brauchen keine Freigabe (Probe 23.11.2026). Kein Bash: Anlegen ist allein die Nachrichtenart
 `anlegen`, also der Knopf des Menschen, und Missionen entstehen nur über den Auftragsschreiber
 (agent-skills/ADR-0002).
 
