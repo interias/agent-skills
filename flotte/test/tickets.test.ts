@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { admiralAuftrag, BEIM_MENSCHEN, TICKET_REGEL } from '../src/treiber/admiral.ts';
 import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
 import { frage } from './flotte-welt.ts';
+import { schnittplanAuftrag } from '../src/triage.ts';
 
 const block = leseBlock(frage(3, 'tor', [{ betrifft: 'Lauf' }])) as FrageBlock;
 // frage() writes a generic question; the block has to carry the ticket question itself
@@ -29,6 +30,17 @@ describe('#113: Tickets nur, wenn nötig', () => {
   it('the rule names needs-triage, one sentence of cause and the listing in the mission PR', () => {
     expect(TICKET_REGEL).toMatch(/`needs-triage` und einen Satz zur Ursache/);
     expect(TICKET_REGEL).toMatch(/Missions-PR listet die angelegten Tickets/);
+  });
+
+  it('#185: needs-triage only when the person is needed; clear work is done, wishes are discarded', () => {
+    expect(TICKET_REGEL).toMatch(/nur, wenn der Mensch gebraucht wird/);
+    expect(TICKET_REGEL).toMatch(/nach Zeit und Umfang angemessen ist, wird in der Mission erledigt/);
+    expect(TICKET_REGEL).toMatch(/`epic` und dem Freigabelabel, nicht `needs-triage`/);
+    expect(TICKET_REGEL).toMatch(/ohne beobachteten Schaden wird verworfen/);
+    const nacharbeit = leer(readFileSync(fileURLToPath(new URL('../../mission-nacharbeit/SKILL.md', import.meta.url)), 'utf8'));
+    expect(nacharbeit).toContain('— verworfen');
+    expect(nacharbeit).not.toMatch(/braucht einen neuen Test, um überhaupt prüfbar zu sein/);
+    expect(leer(schnittplanAuftrag([], [], { acceptance_section: ['Abnahmekriterien'], verification_section: 'Verifikationsweg' } as never))).toMatch(/verworfen ist der Regelfall/);
   });
 
   for (const datei of ['mission/SKILL.md', 'mission-nacharbeit/SKILL.md']) {

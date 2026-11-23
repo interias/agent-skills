@@ -89,7 +89,7 @@ Flotten-Treiber.
 2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
    Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
 3. **Der Erste Offizier legt keine Issues an**, Funde außerhalb des Pakets gehen an dich.
-   Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht in die laufende Mission passt. Was mit bescheidenem Aufwand passt, wird in der Mission erledigt. Jedes neue Ticket trägt `needs-triage` und einen Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.
+   Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entscheidung von der Liste „Beim Menschen“ verlangt (Sicherheit und Zugänge, ein Bruch mit einer Architekturentscheidung, was nach außen geht) oder den Ablauf des Projekts ändert. Arbeit, die klar ist und nach Zeit und Umfang angemessen ist, wird in der Mission erledigt, bevor sie andockt: zuerst gefundene Fehler und was zum Missionsziel gehört. Klare Arbeit, die dafür zu groß ist, wird ein Issue mit `epic` und dem Freigabelabel, nicht `needs-triage`. Ein Wunsch ohne beobachteten Schaden wird verworfen: eine Zeile unter „Verworfen“ im Missions-PR, kein Ticket. Jedes Ticket für den Menschen trägt `needs-triage` und einen Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.
 4. **Datenmigration ist Handarbeit.** Eine Schema-Migration darf ein Paket schreiben; ein Skript,
    das Produktiv- oder Stammdaten umschreibt, wird vorgeschlagen, nicht ausgeführt.
 5. **Keine Testsuite wird grün gemacht, indem Tests gelöscht oder übersprungen werden.**

@@ -1,6 +1,6 @@
 ---
 name: mission-nacharbeit
-description: Die offenen Punkte eines abgeschlossenen Außeneinsatzes abarbeiten — Fragerunden im Frontier-Verfahren, je Punkt entscheiden ob er in diese Sitzung passt oder ein Ticket braucht, dann umsetzen und nachdokumentieren. Legt ein Ticket nur an, wenn es nötig ist, mit needs-triage.
+description: Die offenen Punkte eines abgeschlossenen Außeneinsatzes abarbeiten — Fragerunden im Frontier-Verfahren, je Punkt entscheiden, ob er in dieser Sitzung erledigt, verworfen oder ein Ticket wird, dann umsetzen und nachdokumentieren. Legt ein needs-triage-Ticket nur an, wenn der Mensch gebraucht wird.
 ---
 
 # Missions-Nacharbeit
@@ -40,10 +40,15 @@ diese Sitzung gehört.
 
 ## Die Regel, um die es geht
 
-Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht in die laufende Mission passt. Was mit
-bescheidenem Aufwand passt, wird in der Mission erledigt. Jedes neue Ticket trägt `needs-triage` und einen
-Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den
-Menschen.
+Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entscheidung von der
+Liste „Beim Menschen“ verlangt (Sicherheit und Zugänge, ein Bruch mit einer Architekturentscheidung,
+was nach außen geht) oder den Ablauf des Projekts ändert. Arbeit, die klar ist und nach Zeit und
+Umfang angemessen ist, wird in der Mission erledigt, bevor sie andockt: zuerst gefundene Fehler und
+was zum Missionsziel gehört. Klare Arbeit, die dafür zu groß ist, wird ein Issue mit `epic` und dem
+Freigabelabel, nicht `needs-triage`. Ein Wunsch ohne beobachteten Schaden wird verworfen: eine Zeile
+unter „Verworfen“ im Missions-PR, kein Ticket. Jedes Ticket für den Menschen trägt `needs-triage`
+und einen Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht
+nicht an den Menschen.
 
 Der Grund: Ein Ticket anzulegen ist billig und fühlt sich nach Fortschritt an — und es verlagert
 Arbeit in eine Zukunft, in der niemand mehr weiß, warum sie dasteht. Die drei Zeilen Nachtrag,
@@ -140,27 +145,30 @@ Runde.
 Neben dem inhaltlichen „was soll dastehen" trägt jede Runde eine zweite Frage, und die ist der
 Zweck dieses Ablaufs:
 
-> **Passt dieser Punkt in diese Sitzung — umsetzen und nachdokumentieren —, oder braucht er ein
-> eigenes Ticket?**
+> **Wird dieser Punkt in dieser Sitzung erledigt, wird er verworfen, oder braucht er ein eigenes
+> Ticket?**
 
 Du entscheidest sie selbst (Regel oben): Sie geht nicht als Frage an den Menschen, sondern steht
-in der Runde als Zeile `✔ <Punkt> — Sitzung` oder `✔ <Punkt> — Ticket`, mit Grund.
-Beantworte sie nicht nach Gefühl, sondern nach Volumen. Nenne dabei, was du geschätzt hast:
-welche Dateien, wie viele Zeilen, ob Code oder nur Text, ob ein Test dazukommt, ob eine Suite
-betroffen ist. Ein Punkt gehört in ein Ticket, wenn eins davon zutrifft:
+in der Runde als Zeile `✔ <Punkt> — Sitzung`, `✔ <Punkt> — verworfen` oder `✔ <Punkt> — Ticket`,
+mit Grund. Beantworte sie nicht nach Gefühl, sondern nach Volumen. Nenne dabei, was du geschätzt
+hast: welche Dateien, wie viele Zeilen, ob Code oder nur Text, ob ein Test dazukommt.
 
-- Er ändert **Verhalten**, das heute von einem Test abgedeckt ist, oder er braucht einen neuen
-  Test, um überhaupt prüfbar zu sein.
-- Er berührt eine **Entscheidungsdokumentation**, die dann neu zu treffen wäre — nicht
-  fortzuschreiben, sondern zu ändern.
-- Er hat **einen Verifikationsweg, der hier nicht fahrbar ist** (fehlender Host, fehlender
-  Compose-Stack, fehlender Zugang).
-- Er wäre ohne die **Abnahmekriterien** eines Tickets nicht abnehmbar — du könntest also am Ende
-  nicht belegen, dass er fertig ist.
+- **Sitzung** ist der Regelfall für alles, was klar ist und nach Zeit und Umfang angemessen —
+  auch mit neuem Test. Zuerst gefundene Fehler, die so nicht andocken dürfen, und alles, was zum
+  Missionsziel gehört: Eine Mission, deren Ziel nur halb erreicht ist, ist nicht fertig, und der
+  Rest wird kein Folgeticket.
+- **Verworfen** ist ein Wunsch ohne beobachteten Schaden: eine Idee, eine Verschönerung, „wäre
+  schön, wenn“. Er steht als Zeile unter „Verworfen“ im Missions-PR, mit Grund; mehr nicht.
+- **Ticket** nur in zwei Fällen. Mit `needs-triage`, wenn der Mensch gebraucht wird: eine
+  Entscheidung von der Liste „Beim Menschen“ (`flotte/references/entscheidungsrecht.md`) — etwa
+  Sicherheit und Zugänge oder ein Bruch mit einer Architekturentscheidung — oder eine Änderung am
+  Ablauf des Projekts. Mit `epic` und dem Freigabelabel, wenn die Arbeit klar ist, aber für diese
+  Sitzung zu groß (ein eigener Umbau, mehr als ein Subagent trüge) oder ihr Verifikationsweg hier
+  nicht fahrbar ist; dann nimmt die Flotte sie ohne Triage.
 
-Trifft nichts davon zu, gehört er in diese Sitzung. Der häufigste Fall ist der Fund, für den ein
-datierter Nachtrag und ein Querverweis die ganze Lösung sind: er hält die Erkenntnis fest, kostet
-eine Viertelstunde und erzeugt keine Arbeit, die später niemand mehr begründen kann.
+Der häufigste Fall ist der Fund, für den ein datierter Nachtrag und ein Querverweis die ganze
+Lösung sind: er hält die Erkenntnis fest, kostet eine Viertelstunde und erzeugt keine Arbeit, die
+später niemand mehr begründen kann.
 
 **Handle nicht, bevor der Nutzer bestätigt hat, dass ihr dasselbe Verständnis habt** — sobald die
 Frontier leer ist, holst du diese Bestätigung ein.
