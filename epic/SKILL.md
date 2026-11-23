@@ -829,8 +829,8 @@ Lauf hält deswegen **nicht** an — nichts davon ist gemergt, alles ist folgenl
   'epic/<nr>-'` (Kopfkommentar des Skripts) summiert aus den Transkripten den Verbrauch je Rolle,
   je Paket und je Agent. Hat die Sitzung mehr getan als diesen Lauf, grenzt `-Since` mit der Zeit
   des Eröffnungskommentars ein. Das Paket liest das Skript aus der `description` des
-  `Agent`-Aufrufs — sie nennt deshalb immer die Paketnummer (`Implementer #588 …`,
-  `Reviewer #588 …`). Exit 1 ist ein offener Punkt im Bericht, kein Glut-Punkt.
+  `Agent`-Aufrufs — sie nennt deshalb immer die Paketnummer (`Implementer #588 …`, im Modus `spec`
+  ohne Kinder `Implementer #<spec>-p<k> …`; daran erkennt auch die Brücke das Paket, #151). Exit 1 ist ein offener Punkt im Bericht, kein Glut-Punkt.
 - **Abschlusskommentar am Zielissue** (und am fremden Epic). Hinein: Link auf
   Pull Request und Lauftafel; je Paket Ergebnis, Merge-Commit, Runden, Paketklasse und
   Eskalationen; tatsächliche gegen geplante
