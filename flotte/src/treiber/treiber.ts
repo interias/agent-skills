@@ -2633,9 +2633,9 @@ class Treiber {
     // follow-up check of #27: only a PR on the expected base is merged
     const basis = this.erwarteteBasis();
     if (info && info.baseRefName !== basis) return this.prBereit(ep, basis === null ? 'base_branch: from-issue, die erwartete Basis ist nicht lesbar' : `Basis des PRs ist ${info.baseRefName}, erwartet ${basis}`);
-    // acceptance 3, finding 2: a block the run only wrote is no gate. The last run of the gate
-    // section must appear in the run's log as the output of a gate call; else the driver gates.
-    const nachweis = info ? this.gateNachweis(ep, info.body) : 'PR nicht lesbar';
+    // #191: a green block on the PR's head and merge-base counts; else the last run of the gate section
+    // must appear in the run's log as the output of a gate call (acceptance 3, finding 2); else the driver gates.
+    const nachweis = info ? await this.gateNachweis(ep, info) : 'PR nicht lesbar';
     if (nachweis) {
       if (!this.adapter.gate_command) return this.prBereit(ep, `${nachweis}, und der Adapter hat kein gate_command`);
       this.ereignis(ep.nr, `${nachweis}: der Treiber fährt das Gate selbst`);
@@ -2679,14 +2679,27 @@ class Treiber {
   }
 
   /**
-   * null when the last run of the PR's gate section is green and appears, with the same base, head
-   * and kind, as the output of a Bash or PowerShell call of gate_command or gate_always_command in a
-   * log of this epic's runs; else why not.
+   * null when the last run of the PR's gate section is green and either names the PR's head and the
+   * merge-base of that head with the base (#191: the run's gate on this state counts, whatever form
+   * of the command ran it) or appears, with the same base, head and kind, as the output of a Bash or
+   * PowerShell call of gate_command or gate_always_command in a log of this epic's runs; else why not.
+   * A block on another head or against another base is never counted: the driver gates.
    */
-  gateNachweis(ep: FlottenEpic, body: string): string | null {
+  async gateNachweis(ep: FlottenEpic, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }): Promise<string | null> {
     const form = gateForm(this.adapter);
-    const letzter = gateLaeufe(body ?? '', form)?.at(-1);
+    const letzter = gateLaeufe(info.body ?? '', form)?.at(-1);
     if (!letzter || !letzter.gruen || !letzter.head) return 'kein grüner Gate-Lauf in der PR-Beschreibung';
+    if (!letzter.teil && info.headRefOid) {
+      if (!gleich(letzter.head, info.headRefOid)) return `Gate-Block auf HEAD ${letzter.head.slice(0, 8)}, der PR steht auf ${info.headRefOid.slice(0, 8)}`;
+      await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', info.baseRefName, info.headRefName], { timeoutMs: 5 * 60_000 });
+      const mb = this.w.aufrufer('git', ['-C', this.e.repo, 'merge-base', `origin/${info.baseRefName}`, info.headRefOid]);
+      const basis = mb.code ? '' : mb.stdout.trim();
+      if (basis && !gleich(letzter.base, basis)) return `Gate-Block gegen Basis ${letzter.base.slice(0, 7)}, die merge-base ist ${basis.slice(0, 7)}`;
+      if (basis) {
+        this.ereignis(ep.nr, `Gate-Block des Laufs angerechnet (Basis ${letzter.base.slice(0, 7)} = merge-base, HEAD ${letzter.head.slice(0, 8)} = Head des PR)`);
+        return null;
+      }
+    }
     const befehle = [this.adapter.gate_command, this.adapter.gate_always_command].filter((b): b is string => Boolean(b));
     const laeufe = join(this.dir, 'laeufe');
     const logs = existsSync(laeufe) ? readdirSync(laeufe).filter((d) => d.startsWith(`${ep.nr}-`) && d.endsWith('.jsonl')) : [];

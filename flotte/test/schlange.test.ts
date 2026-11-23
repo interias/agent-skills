@@ -101,7 +101,7 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
   }
   /** the run ran the gate of its PR body (acceptance 3, finding 2) */
   const nachweis = (nr: number) => gateAufruf(/```\n([\s\S]*?)\n```/.exec(bodies.get(10 + nr)!)![1]);
-  return { ...t, epics: liste, origin, nachweis };
+  return { ...t, epics: liste, origin, nachweis, bodies };
 }
 
 const texte = (z: { ereignisse: { epic: number | null; text: string }[] }) => z.ereignisse.map((e) => `${e.epic ? `#${e.epic} ` : ''}${e.text}`);
@@ -133,20 +133,49 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['4'].mergeVersuche ?? 0).toBe(0);
   }, T);
 
-  it('without a gate call in the run\'s log the driver runs the full gate on the head before merge.ps1 (acceptance 3, finding 2)', async () => {
+  it('a green block on the PR\'s head and merge-base counts without a gate call in the log; the driver runs no gate (#191)', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
-    // the run wrote a valid block into the PR but never ran the gate
+    // the run's gate call is not in its log (another form of the command), the block fits the state
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates).toEqual([]);
+    expect(z.statistik.gateWiederholungen ?? 0).toBe(0);
+    const e = texte(z);
+    const an = index(e, /^#3 Gate-Block des Laufs angerechnet \(Basis [0-9a-f]{7} = merge-base, HEAD [0-9a-f]{8} = Head des PR\)$/);
+    expect(an).toBeGreaterThanOrEqual(0);
+    expect(an).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+  }, T);
+
+  it('a block on another head than the PR\'s is not counted: the driver runs the full gate before merge.ps1 (#191)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
+    // the run committed after its gate
+    writeFileSync(join(t.epics[0].wt, 'a', 'nach.txt'), 'nach dem Gate\n');
+    git(t.epics[0].wt, 'add', '-A');
+    git(t.epics[0].wt, 'commit', '-q', '-m', 'nach dem Gate');
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', t.epics[0].wt]]);
     const e = texte(z);
-    const ohne = index(e, /^#3 kein Gate-Aufruf im Log des Laufs zum Gate-Block .*: der Treiber fährt das Gate selbst$/);
+    const ohne = index(e, /^#3 Gate-Block auf HEAD [0-9a-f]{8}, der PR steht auf [0-9a-f]{8}: der Treiber fährt das Gate selbst$/);
     expect(ohne).toBeGreaterThanOrEqual(0);
     expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
-    expect(e.some((x) => /^#3 Gate des Treibers \(voll, kein Gate-Aufruf im Log/.test(x))).toBe(true);
     // the driver's block is the last run of the PR, and merge.ps1 merged on it
     expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [false, true]]);
+  }, T);
+
+  it('a block against another base than the merge-base is not counted, even with a gate call in the log (#191)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
+    // the gate ran against a base the branch does not hold
+    const fremd = 'abcdef1';
+    t.bodies.set(13, t.bodies.get(13)!.replace(/@ [0-9a-f]{7}/, `@ ${fremd}`));
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
+    expect(texte(z).some((x) => /^#3 Gate-Block gegen Basis abcdef1, die merge-base ist [0-9a-f]{7}: der Treiber fährt das Gate selbst$/.test(x))).toBe(true);
   }, T);
 
   it('a red gate goes back to its run with the output, the queue goes on, the epic queues up again at the end', async () => {
