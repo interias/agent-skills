@@ -12,7 +12,8 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
 - **Nur der Treiber** spricht per HTTP mit der Brücke. Läufe und Admiral laufen weiter mit
   `--strict-mcp-config` und sehen sie nicht; kein MCP.
 - **Basis-URL:** `flotte fahren --bruecke http://127.0.0.1:4747` oder Umgebung `FLOTTE_BRUECKE`.
-  Ohne sie meldet der Treiber nichts.
+  Ohne sie meldet der Treiber nichts. Läuft die Brücke mit Zertifikat (#37), gilt
+  `https://127.0.0.1:4747` mit `NODE_EXTRA_CA_CERTS` auf das Stammzertifikat von mkcert (`INSTALL.md`).
 - **Kurze Zeitgrenze** (3 s) je Aufruf. Fehler, Zeitüberschreitung oder ein Status ≠ 2xx sind kein
   Fehler des Treibers: ein Ereignis beim Wechsel (erreichbar ↔ nicht erreichbar), sonst still
   weiter. Ist die Brücke aus, bleiben `flotte antworten` und das Issue als Weg.
@@ -146,15 +147,15 @@ Thema sind die Labels ohne `needs-triage`, `needs-info`, `ready-for-agent`, `sta
 Thema“ unten, sonst nach Namen; darin Tickets mit Frage zuerst, dann nach Nummer.
 
 **Einstellungen** (#58): je Einstellung `{name, titel, wert, herkunft, seit, standard, leer, min?, max?,
-auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (elf; ein älterer Treiber meldet die
-ersten zehn ohne `merge`). `herkunft` ist `start` (Startparameter oder ein
+auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (zwölf; ein älterer Treiber meldet die
+ersten zehn ohne `merge` oder die ersten elf ohne `meldung`). `herkunft` ist `start` (Startparameter oder ein
 vom Standard abweichender Startwert), `bruecke` (zuletzt über die Brücke geändert) oder `standard`;
 `seit` ist bei `bruecke` der Zeitpunkt der Änderung, sonst der Beginn des Einsatzes. `standard` ist
 der Wert ohne Startparameter und Brücke. `leer: true` heißt, `wert` darf `null` sein (zurück auf
 automatisch). Zahlen sind ganze Zahlen zwischen `min` und `max` (die Brücke übernimmt die Grenzen von
 hier, statt sie selbst zu kennen); Konten stehen als Kurzname wie in `konten[]` (`Konto <n>`, sonst
 Ordnername, nie ein Pfad), `auswahl` nennt die Konten, die es auf dem Rechner des Treibers gibt.
-Eine Wahl unter Wörtern (#112, `merge`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
+Eine Wahl unter Wörtern (#112, `merge`; #37, `meldung`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
 und `hinweis`, warum eines fehlt (sonst `null`); die Brücke lehnt ein anderes Wort mit `422` und dem
 Hinweis ab.
 
@@ -171,6 +172,7 @@ Hinweis ab.
 | `platteMinGb` | Plattenminimum (GB) | Zahl | 1–1000, Standard 20; Startparameter `--platte-min-gb` | darunter startet nichts Neues |
 | `leerlaufMin` | Leerlauf (Minuten bis Nachfassen/Abbruch) | Zahl | 5–480, Standard 60; Startparameter `--leerlauf-min` | gilt für jeden Zug, der danach beginnt; ein laufender Zug behält seine Grenze. `leerlaufS` folgt |
 | `merge` | Andocken | `automatisch` oder `mensch` | `werte`; Standard = Adapterschlüssel `merge` (`nach_gate` → `automatisch`, sonst `mensch`) | wie das Projekt andockt, ab dem nächsten Takt: `automatisch` = Merge-Schlange und `merge.ps1` nach grünem Gate, `mensch` = wie `merge: mensch` (PR bereit, ein Mensch mergt). Je Epic gilt die wirksame Stellung (Epic-Feld `merge`); ein PR, der nur wegen ihr wartet, kommt bei `automatisch` in die Schlange |
+| `meldung` | Windows-Meldung bei „Braucht dich“ | `an` oder `aus` | `werte`; Standard `aus`; Startparameter `--meldung` | #37: bei `an` zeigt der Rechner des Treibers je neuer offener Frage und je neu blockierter oder abgebrochener Mission eine Windows-Meldung (Windows PowerShell, ohne Modul), mehrere aus demselben Takt als eine mit der Zahl. Inhalt nur Projektkürzel, Missionsnummer, Art (Frage/Blockade) und Titel (höchstens 60 Zeichen). Gemeldete Ereignisse stehen in `zustand.json` (`gemeldet`), auch bei `aus`: Nach einem Neustart oder beim Einschalten klingelt nichts Altes |
 
 **Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
 sagt. Sonst fehlt es in `werte`, `hinweis` sagt warum, und der Treiber lehnt es ab (Ereignis
@@ -461,9 +463,35 @@ offen ist (sonst erledigt oder dem Bericht unbekannt, `stufe` dann `null`); `fol
 der offenen Epics, die nach diesem kommen. Das Projekt trägt wie bisher `prognose`. Alles stammt aus
 dem Bericht, die Brücke fragt keine Forge.
 
+## 6. Web-Push (#37, optional)
+
+Aus, solange `BRUECKE_VAPID_SCHLUESSEL` leer ist: Dann versucht die Brücke keinen Versand und spricht
+mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` antwortet `409`.
+
+- **Auslöser:** jeder `POST /api/bericht`. Die Brücke bildet aus dem Bericht die Ebene „Braucht dich“
+  (offene Fragen, blockierte und abgebrochene Missionen, die nicht aufgegeben sind) und vergleicht sie mit
+  den schon gemeldeten Ereignissen des Projekts (SQLite, Tabelle `gemeldet`, auch ohne VAPID-Schlüssel
+  geführt). Neu ist eine Frage mit neuem `(epic, nr, seit)` und eine Mission, die mit neuer `stufe` oder
+  neuem `haltZeit` hält. Die neuen eines Berichts gehen als **ein** Push an jedes Abo, nach der
+  Antwort an den Treiber; ein Neustart der Brücke meldet nichts erneut.
+- **Inhalt** (verschlüsselt, `aes128gcm`, TTL 24 h): `{"titel", "text"}`. Ein Ereignis:
+  `Braucht dich: <kürzel> #<nr>` und `Frage · <Titel>` oder `Blockade · <Titel>`; mehrere:
+  `Braucht dich: <n> neue Meldungen` und je Ereignis eine Zeile `<kürzel> #<nr> <Art> · <Titel>`.
+  Kürzel ist der Repository-Name ohne Besitzer, der Titel höchstens 60 Zeichen. Nie Fragetext, Lage,
+  Grund, Log, Pfade oder Transkript.
+- **`POST /api/push`** mit `X-Bruecke-Pin`: das Abo des Geräts, wie `PushSubscription.toJSON()` es
+  liefert, `{endpoint, keys: {p256dh, auth}}`; `endpoint` nur `https://`. `200 {ok}`, ohne oder mit
+  falscher PIN `401`/`403`/`429` wie bei den Antworten, ohne VAPID-Schlüssel `409`.
+- **`POST /api/push/abmelden`** mit `X-Bruecke-Pin`: `{endpoint}`; `200 {ok, geloescht}`. Meldet der
+  Push-Dienst ein Abo mit `404` oder `410` als abgelaufen, löscht die Brücke es selbst; jeder andere
+  Fehler lässt es stehen (Log-Zeile ohne Inhalt).
+- **`GET /sw.js`**: der Service Worker (zeigt den Push, ein Tipp öffnet die Brücke). Das Manifest
+  `/static/manifest.webmanifest` trägt `id` und `scope` `/`.
+
 ## Was die Seite selbst nutzt
 
-`GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]` und `sitzungen[]`), `GET /holodeck/…` (im
+`GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]`, `sitzungen[]` und `push`, der
+öffentliche VAPID-Schlüssel oder `null`), `POST /api/push` und `POST /api/push/abmelden` (Abschnitt 6), `GET /holodeck/…` (im
 abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
 (`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender

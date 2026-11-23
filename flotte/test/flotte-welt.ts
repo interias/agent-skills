@@ -68,6 +68,8 @@ export interface Protokoll {
   /** bodies written with `gh pr edit` */
   prEdits: { pr: number; body: string }[];
   gates: { befehl: string; cwd: string }[];
+  /** #37: the Windows notifications the driver would show (powershell, never run) */
+  toasts: { args: string[]; env: Record<string, string> | undefined }[];
 }
 
 export function aufbau(o: Optionen = {}) {
@@ -90,7 +92,7 @@ export function aufbau(o: Optionen = {}) {
     }
     return k;
   });
-  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [] };
+  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [], toasts: [] };
   let gateN = 0;
   let ramN = 0;
   const prN = new Map<number, number>();
@@ -141,6 +143,10 @@ export function aufbau(o: Optionen = {}) {
   const langsam: AsyncAufrufer = async (programm, args, opts) => {
     p.aufrufe.push([programm, ...args]);
     if (programm === 'git') return aufrufen(programm, args, opts);
+    if (programm === 'powershell') {
+      p.toasts.push({ args, env: opts?.env });
+      return ok();
+    }
     const skript = skriptVon(args);
     const befehl = args[args.indexOf('-Command') + 1] ?? '';
     if (args.includes('-Command') && befehl.startsWith('gate') && o.gate) {

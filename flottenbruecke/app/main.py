@@ -4,7 +4,8 @@
 # blocked epic, revoke a decision of the admiral, change a setting of the driver (#59), take a released
 # epic in, pause or continue an epic and set its priority (#61), and set how an epic merges (#112): the
 # bridge only tightens, merge.ps1 stays the hard limit. No merge of its own, no abort. The Holodeck (#44)
-# shows the prototypes each driver sends, sealed off from the bridge.
+# shows the prototypes each driver sends, sealed off from the bridge. With a VAPID key (#37) each new
+# event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN.
 
 import hashlib
 import hmac
@@ -18,11 +19,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .modelle import Antwort, Bericht, Handlung, Holodeck, einstellung_pruefen
+from .meldung import Push, ereignisse, inhalt
+from .modelle import Antwort, Bericht, Handlung, Holodeck, PushAbmeldung, PushAbo, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, tafel
 
@@ -61,10 +63,15 @@ class Einstellung:
     token: str = ''
     tz: str = 'Europe/Berlin'
     uhr: object = field(default=lambda: datetime.now(timezone.utc))
+    # #37 Web-Push: off without the VAPID key; the contact goes to the push service as `sub`
+    vapid: str = ''
+    vapid_kontakt: str = 'mailto:flottenbruecke@localhost'
+    # replaces pywebpush.webpush (tests: the push service as a stand-in)
+    push_senden: object = None
 
     @classmethod
     def aus_umgebung(cls) -> 'Einstellung':
-        return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz))
+        return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt)
 
 
 class Pinwache:
@@ -95,6 +102,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     tz = ZoneInfo(e.tz)
     speicher = Speicher(e.db)
     wache = Pinwache()
+    push = Push(e.vapid, e.vapid_kontakt, e.push_senden) if e.vapid else None
     app = FastAPI(title='Flottenbrücke', docs_url=None, redoc_url=None, openapi_url=None)
 
     def jetzt() -> datetime:
@@ -110,9 +118,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # ---- driver
 
     @app.post('/api/bericht')
-    def bericht(b: Bericht, x_bruecke_token: str | None = Header(None)) -> dict:
+    def bericht(b: Bericht, hinterher: BackgroundTasks, x_bruecke_token: str | None = Header(None)) -> dict:
         treiber(x_bruecke_token)
         neu = speicher.bericht_speichern(b.forge, b.model_dump(), stempel())
+        # #37: each event of "Braucht dich" once, also without push (switched on later, nothing old rings);
+        # the new ones of this report as one push, after the answer to the driver
+        alle = ereignisse(speicher.projekt(b.forge), speicher.stufen_seit(), jetzt(), tz)
+        frisch = speicher.neu_gemeldet(b.forge, [x['schluessel'] for x in alle])
+        if push and frisch:
+            hinterher.add_task(push.verschicke, speicher, inhalt([x for x in alle if x['schluessel'] in frisch]))
         return {'ok': True, 'neu': neu}
 
     @app.get('/api/antworten')
@@ -150,7 +164,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     @app.get('/api/tafel')
     def board() -> dict:
-        return tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen())
+        # push: the public VAPID key when Web-Push is on (#37), else None
+        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen()), 'push': push.oeffentlich if push else None}
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')
@@ -290,6 +305,21 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(409, 'Der Treiber hat die Antwort schon abgeholt.')
         return {'ok': True, 'id': gespeichert['id']}
 
+    # ---- Web-Push (#37): a device subscribes and unsubscribes only with the PIN
+
+    @app.post('/api/push')
+    def abonnieren(a: PushAbo, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        if not push:
+            raise HTTPException(409, 'Web-Push ist aus: kein VAPID-Schlüssel (BRUECKE_VAPID_SCHLUESSEL in .env).')
+        speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel())
+        return {'ok': True}
+
+    @app.post('/api/push/abmelden')
+    def abmelden(a: PushAbmeldung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        return {'ok': True, 'geloescht': speicher.abo_loeschen(a.endpoint)}
+
     @app.get('/healthz')
     def gesund() -> dict:
         return {'ok': True}
@@ -306,6 +336,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/')
     def seite() -> HTMLResponse:
         return HTMLResponse(seite_html, headers={'Cache-Control': 'no-cache'})
+
+    # the service worker from the root: its scope is the whole page (#37)
+    @app.get('/sw.js')
+    def service_worker() -> FileResponse:
+        return FileResponse(STATIC / 'sw.js', media_type='text/javascript', headers={'Cache-Control': 'no-cache'})
 
     @app.get('/favicon.ico')
     def favicon() -> FileResponse:

@@ -22,8 +22,31 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 | `BRUECKE_PIN` | leer | PIN fürs Antworten und für Handlungen; leer schaltet beides ab |
 | `BRUECKE_TOKEN` | leer | optional: Treiber muss ihn als `X-Bruecke-Token` schicken |
 | `BRUECKE_TZ` | `Europe/Berlin` | Zeitzone für „Gemergt (heute)“ |
+| `BRUECKE_ZERT`, `BRUECKE_ZERT_SCHLUESSEL` | leer | optional (#37): Zertifikat und Schlüssel im Container (`/zert/…`, aus `./zert`); beide gesetzt: HTTPS, beide leer: HTTP |
+| `BRUECKE_VAPID_SCHLUESSEL` | leer | optional (#37): privater VAPID-Schlüssel; gesetzt: Web-Push an, leer: aus |
+| `BRUECKE_VAPID_KONTAKT` | `mailto:flottenbruecke@localhost` | optional: Kontakt, den der Push-Dienst sieht |
 
 Unter Windows muss die Firewall den Port im privaten Netz zulassen, damit das Handy ihn erreicht.
+
+## Meldungen: „Braucht dich“ am Rechner und auf dem Handy
+
+Beides ist optional und getrennt abschaltbar (#37). Es meldet sich nur die Ebene „Braucht dich“: eine neue
+offene Frage, eine neu blockierte oder abgebrochene Mission, je Ereignis einmal; mehrere aus demselben
+Bericht des Treibers kommen als eine Meldung mit der Zahl. Inhalt nur Projektkürzel, Nummer, Art
+(Frage/Blockade) und Titel (höchstens 60 Zeichen), nie Fragetext, Pfade oder Transkript. Ein schon
+gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht erneut.
+
+- **Am Rechner:** Der Treiber zeigt eine Windows-Meldung, auch wenn die Brücke in keinem Browser offen
+  ist (oder gar nicht läuft). Schalter `meldung` des Treibers: Startparameter `--meldung an`, oder im
+  Maschinenraum; Standard `aus` (`flotte/README.md`).
+- **Auf dem Handy (Android):** Web-Push an die installierte Web-App, auch wenn sie geschlossen ist. Die
+  Brücke braucht dafür HTTPS (Zertifikat aus mkcert) und einen VAPID-Schlüssel; ohne beide läuft sie
+  unverändert über HTTP und spricht mit keinem Push-Dienst. Die Brücke schickt ausgehend an den
+  Push-Dienst des Browsers (bei Chrome der von Google), Ende-zu-Ende verschlüsselt. **Nur LAN:** kein
+  Tunnel, keine öffentliche Adresse; das Handy erreicht die Brücke im WLAN. Ein Gerät meldet sich im
+  Maschinenraum unter „Meldungen auf diesem Gerät“ mit **Einschalten** an und mit **Abschalten** ab,
+  beides mit PIN. Ein Abo, das der Push-Dienst als abgelaufen meldet, löscht die Brücke selbst.
+  Einrichten: [`INSTALL.md`](../INSTALL.md), „Optional: Meldungen“. iOS ist nicht geprüft.
 
 ## Bereiche und Navigation
 
@@ -254,7 +277,7 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   nur als Halt eines Epics, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
   Seite sie.
-  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die elf wirksamen Werte
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die zwölf wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken) und ein Satz, was
   er bremst. Eine Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
@@ -272,7 +295,7 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 
 `git pull`, dann `docker compose up -d --build` im Ordner. Das Volume bleibt; v2 legt auf einem
 v1-Volume nur die Tabelle `handlungen` an und nimmt weiter Berichte eines älteren Treibers an, v3
-ebenso die Tabelle `prototypen`.
+ebenso die Tabelle `prototypen`, die Meldungen (#37) die Tabellen `push_abos` und `gemeldet`.
 
 ## Treiber
 
@@ -301,5 +324,6 @@ python -m venv .venv
 .venv/Scripts/python -m pytest
 ```
 
-Backend: FastAPI (`app/main.py`), Board-Logik `app/tafel.py`, Speicher `app/speicher.py`.
+Backend: FastAPI (`app/main.py`), Board-Logik `app/tafel.py`, Speicher `app/speicher.py`, Web-Push
+`app/meldung.py`, Start mit HTTP oder HTTPS `app/start.py`.
 Frontend ohne Build: `app/static/`.
