@@ -1,7 +1,8 @@
-// flotte auftrag <repo> <entwurf.md> [--starten] [--trocken]: the order writer (agent-skills/ADR-0002),
+// flotte auftrag <repo> <entwurf.md|-> [--starten] [--trocken]: the order writer (agent-skills/ADR-0002),
 // the only way Missionen and Missionsziele come into the forge. Reads the adapter of the target
 // repository (.claude/epic.md in its checkout), checks the draft, creates it through the forge
-// layer (src/auftrag/) and prints the links. --trocken prints what would be created.
+// layer (src/auftrag/) and prints the links. --trocken prints what would be created. `-` reads the
+// draft from stdin: `flotte chat` passes the draft the bridge sent with "anlegen" (#84).
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -13,7 +14,7 @@ import { forgeAus } from '../treiber/treiber.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
 import { schluessel } from './adapter.ts';
 
-const AUFRUF = 'Aufruf: flotte auftrag <repo> <entwurf.md> [--starten] [--trocken]';
+const AUFRUF = 'Aufruf: flotte auftrag <repo> <entwurf.md|-> [--starten] [--trocken]';
 const ABNAHME_STANDARD = ['## Abnahmekriterien', '## Akzeptanzkriterien', '## Acceptance criteria'];
 
 /** The issue keys of the adapter with their defaults (mission/references/adapter.md, "Issues", form tickets). */
@@ -69,18 +70,18 @@ export function giteaZugang(adapterText: string, repo: string, a: Aufrufer): str
   return `Basic ${Buffer.from(`${wert('username')}:${wert('password')}`).toString('base64')}`;
 }
 
-export async function auftrag(argv: string[], a: Aufrufer = aufrufen): Promise<unknown> {
+export async function auftrag(argv: string[], a: Aufrufer = aufrufen, stdin: () => string = () => readFileSync(0, 'utf8')): Promise<unknown> {
   const pos = argv.filter((x) => !x.startsWith('--'));
   const unbekannt = argv.filter((x) => x.startsWith('--') && x !== '--starten' && x !== '--trocken');
   if (pos.length !== 2 || unbekannt.length) throw new Error(AUFRUF);
   const repo = resolve(pos[0]);
-  const datei = resolve(pos[1]);
+  const datei = pos[1] === '-' ? null : resolve(pos[1]);
   if (!existsSync(repo)) throw new Error(`Repository fehlt: ${repo}`);
-  if (!existsSync(datei)) throw new Error(`Entwurf fehlt: ${datei}`);
+  if (datei && !existsSync(datei)) throw new Error(`Entwurf fehlt: ${datei}`);
   const adapterDatei = join(repo, '.claude', 'epic.md');
   const adapterText = existsSync(adapterDatei) ? readFileSync(adapterDatei, 'utf8') : '';
   const regeln = regelnAus(adapterText);
-  const entwurf = readFileSync(datei, 'utf8');
+  const entwurf = datei ? readFileSync(datei, 'utf8') : stdin();
   // also in a dry run: it shows which repository the order would go to; the forge is not called then
   const gitea = schluessel(adapterText, 'forge') === 'gitea';
   const forge = gitea ? giteaRepoAus(adapterText) : githubRepoAus(adapterText, repo, a);

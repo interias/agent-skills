@@ -13,7 +13,7 @@ Fernzugriff über Tailscale, als optionaler Zusatz: ein Compose-Profil `fernzugr
 Tailscale-Container, standardmäßig aus. Der Container reicht im Tailnet per `tailscale serve` (HTTPS,
 ohne Funnel) an einen eigenen Eingang der Brücke weiter, Port 8001 im Container, der auf dem Rechner
 nirgends veröffentlicht ist. Über diesen Eingang ist die Brücke nur Ansicht: Seite und lesende
-Endpunkte wie im LAN, jede Anfrage außer GET und HEAD wird abgelehnt, ebenso das Abholen von Treiber und Werft
+Endpunkte wie im LAN, jede Anfrage außer GET und HEAD wird abgelehnt, ebenso das Abholen von Treiber, Werft und Chat-Dienst
 (ein GET, das schreibt), auch mit richtiger PIN. Der Cloudflare-Tunnel ist verworfen.
 
 ## Begründung
