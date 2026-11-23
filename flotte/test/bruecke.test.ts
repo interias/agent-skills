@@ -418,6 +418,23 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('#135: a blocked mission of an earlier deployment in zustand.json keeps no driver in this one', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      const z0 = leer(t.repo);
+      z0.epics['7'] = { ...neuesEpic(7), stufe: 'blockiert', notiz: 'alt' } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3], { bruecke: b.url, maxDauerMs: 60_000 }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.ereignisse.some((e) => /bleibt im Einsatz/.test(e.text))).toBe(false);
+      expect(z.ereignisse.some((e) => /^Einsatz beendet/.test(e.text))).toBe(true);
+      expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#133: requeued after an order edge to an open epic was added: waiting with the session dropped, no resume', async () => {
     const bodies: Record<number, string> = { 3: '## Betroffene Module\n- a', 4: '## Betroffene Module\n- b' };
     const b = await attrappe(() => null, {

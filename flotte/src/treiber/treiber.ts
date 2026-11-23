@@ -3057,8 +3057,13 @@ class Treiber {
 
   // ---- end of the deployment
 
+  /** #135: the missions of this deployment, not every one zustand.json still holds from earlier ones */
+  imEinsatz(): FlottenEpic[] {
+    return Object.values(this.z.epics).filter((ep) => this.e.epics.includes(ep.nr));
+  }
+
   istZuEnde(): boolean {
-    const eps = Object.values(this.z.epics);
+    const eps = this.imEinsatz();
     if (eps.some((ep) => ep.auftrag || BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt')) return false;
     return eps.every((ep) => ENDE.has(ep.stufe));
   }
@@ -3068,7 +3073,8 @@ class Treiber {
    * the driver stays in the deployment for it (said once per set of missions) instead of ending.
    */
   wartetAufBruecke(): boolean {
-    const offen = this.bruecke ? Object.values(this.z.epics).filter((ep) => ['blockiert', 'abgebrochen'].includes(ep.stufe) && !ep.aufgegebenAm) : [];
+    // only missions of this deployment: an old blocked one in zustand.json keeps no driver alive
+    const offen = this.bruecke ? this.imEinsatz().filter((ep) => ['blockiert', 'abgebrochen'].includes(ep.stufe) && !ep.aufgegebenAm) : [];
     const liste = offen.map((ep) => `#${ep.nr} ${ep.stufe}`).join(', ');
     if (liste && liste !== this.bleibtGemeldet) this.ereignis(null, `bleibt im Einsatz: ${liste}, wartet auf „Neu einreihen“ oder „Aufgeben“ auf der Brücke`);
     this.bleibtGemeldet = liste;
