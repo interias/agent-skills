@@ -14,7 +14,7 @@ import { auftragAusfuehren, missionAnlegen, missionszielAnhaengen, mitMissionszi
 import { githubForge } from '../auftrag/github.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
 import { kommentar } from '../treiber/forge.ts';
-import { BERECHTIGT, entscheidungAus, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, neueMissionKommentar, offeneFragen, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, wartetAufAntwort, type Entscheidung, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
+import { BERECHTIGT, entscheidungAus, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, neueMissionKommentar, offeneFragen, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
 import { kontoAus } from '../werkzeuge/konten.ts';
 import { starte, type LaufErgebnis, type Start } from '../werkzeuge/lauf.ts';
@@ -153,10 +153,22 @@ export function offeneMissionen(a: Aufrufer, forge: string, regeln: AuftragsRege
   return out;
 }
 
+/** #149: a mission the triage created whose ready_label a later run set (or, --trocken, would set) */
+export interface Nachgeholt {
+  forge: string;
+  nummer: number;
+  titel: string;
+  /** its open children with ready_label */
+  kinder: number[];
+  kommentar: string;
+  geschrieben: boolean;
+  fehler?: string;
+}
+
 /**
  * fragen: the questions to the person asked in this run; offen (#117): those of earlier runs still without
  * an answer, so a reader of the output needs no comment of the forge. schnittplan (#146): per project the
- * cut plan made before the single clearing.
+ * cut plan made before the single clearing. nachgeholt (#149): the missions of the triage released later.
  */
 export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const tickets: TicketErgebnis[] = [];
@@ -164,6 +176,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const offen: KritischeFrage[] = [];
   const fehler: { forge: string; fehler: string }[] = [];
   const schnittplan: SchnittplanErgebnis[] = [];
+  const nachgeholt: Nachgeholt[] = [];
   for (const z of o.ziele) {
     let liste: Ticket[];
     try {
@@ -171,6 +184,12 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     } catch (err) {
       fehler.push({ forge: z.forge, fehler: (err as Error).message });
       continue;
+    }
+    // before the notes: only what an earlier run left; a release failing in this run waits for the next one
+    try {
+      nachgeholt.push(...nachfreigeben(o, w, z));
+    } catch (err) {
+      fehler.push({ forge: z.forge, fehler: (err as Error).message });
     }
     const notizen: Ticket[] = [];
     for (const t of liste) {
@@ -250,7 +269,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     if (plan && klare.size) await freigeben(o, w, z, plan, klare);
     if (z.lernIssue) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
   }
-  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan };
+  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt };
 }
 
 /**
@@ -461,6 +480,49 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
       }
     }
   }
+}
+
+/**
+ * #149: a mission the triage created gets ready_label with its first released child (freigeben); when only that
+ * step failed, it stays without, though its children are released, and no run would start it. A later run sets it:
+ * for each open mission without ready_label that the triage created (vonDerTriageAngelegt: its comment stands, no
+ * objection below it), that never carried ready_label (a person who took it off revoked it), with at least one open
+ * sub-issue with ready_label. The comment with origin first; it fails: nothing changes. --trocken only reports.
+ */
+function nachfreigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel): Nachgeholt[] {
+  const ready = z.regeln.ready_label;
+  const r = w.aufrufer('gh', ['issue', 'list', '--repo', z.forge, '--label', z.regeln.epic_label, '--state', 'open', '--limit', '200', '--json', 'number,title,labels,comments']);
+  if (r.code) throw new Error(`gh issue list ${z.forge} --label ${z.regeln.epic_label}: ${(r.stderr || r.stdout).trim()}`);
+  const out: Nachgeholt[] = [];
+  for (const i of JSON.parse(r.stdout || '[]') as any[]) {
+    const t: Ticket = {
+      nummer: Number(i.number),
+      titel: String(i.title ?? ''),
+      body: '',
+      url: '',
+      labels: (i.labels ?? []).map((l: { name: string }) => l.name),
+      kommentare: (i.comments ?? []).map((c: any) => ({ body: String(c.body ?? ''), autor: String(c.author?.login ?? '?'), zeit: String(c.createdAt ?? ''), rolle: String(c.authorAssociation ?? 'NONE') })),
+    };
+    if (t.labels.includes(ready) || !vonDerTriageAngelegt(t)) continue;
+    // read with jq, so --paginate gives lines, not concatenated arrays; a forge that does not answer: left alone
+    const einmal = w.aufrufer('gh', ['api', `repos/${z.forge}/issues/${t.nummer}/events`, '--paginate', '--jq', `.[] | select(.event == "labeled" and .label.name == ${JSON.stringify(ready)}) | .id`]);
+    if (einmal.code || einmal.stdout.trim()) continue;
+    const k = w.aufrufer('gh', ['api', `repos/${z.forge}/issues/${t.nummer}/sub_issues`, '--paginate', '--jq', `.[] | select(.state == "open" and any(.labels[]; .name == ${JSON.stringify(ready)})) | .number`]);
+    const kinder = k.code ? [] : k.stdout.split('\n').filter((x) => /^\d+$/.test(x.trim())).map(Number);
+    if (!kinder.length) continue;
+    const text = nachfreigabeKommentar(kinder, ready);
+    const e: Nachgeholt = { forge: z.forge, nummer: t.nummer, titel: t.titel, kinder, kommentar: text, geschrieben: false };
+    out.push(e);
+    if (o.trocken) continue;
+    if (!kommentar(w.aufrufer, z.forge, t.nummer, text)) {
+      e.fehler = 'Kommentar gescheitert, nichts geändert';
+      continue;
+    }
+    e.geschrieben = true;
+    const x = w.aufrufer('gh', ['issue', 'edit', String(t.nummer), '--repo', z.forge, '--add-label', ready]);
+    if (x.code) e.fehler = `Kommentar steht, Freigabe gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 300)}`;
+  }
+  return out;
 }
 
 /**

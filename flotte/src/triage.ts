@@ -530,15 +530,42 @@ export function schnittplanKlarKommentar(e: Extract<Entscheidung, { art: 'klar' 
   return zeilen.join('\n');
 }
 
+/** #147: heading of the comment at a mission the triage created (neueMissionKommentar) */
+const NEUE_MISSION_KOPF = 'Mission aus dem Schnittplan';
+
 /** #147: the comment at a mission the triage created from the cut plan, right after it exists. */
 export function neueMissionKommentar(m: NeueMission, kinder: Ticket[], spaeter: Ticket[], ready: string): string {
-  const zeilen = [kopf('Mission aus dem Schnittplan'), '', `Titel: ${m.titel}`, `Begründung: ${m.begruendung}`];
+  const zeilen = [kopf(NEUE_MISSION_KOPF), '', `Titel: ${m.titel}`, `Begründung: ${m.begruendung}`];
   zeilen.push(`Herkunft: Eigenes Urteil des Admirals im Schnittplan über alle offenen Sternzeit-Notizen dieses Projekts; angelegt vom Auftragsschreiber (agent-skills/ADR-0002).`);
   zeilen.push(`Warp frei: Die Mission bekommt \`${ready}\` erst, wenn ihr erstes Missionsziel freigegeben ist; gelingt das nicht, bleibt sie ohne und startet keinen Außeneinsatz.`);
   zeilen.push('', 'Missionsziele (die Sternzeit-Notizen selbst, kein neues Ticket):', ...kinder.map((t) => `- #${t.nummer} ${t.titel}`));
   if (spaeter.length) zeilen.push('', 'Kommen später dazu, sobald ihre Frage beantwortet ist:', ...spaeter.map((t) => `- #${t.nummer} ${t.titel}`));
   zeilen.push('', `Widerrufbar: an dieser Mission \`${ready}\` abnehmen und den Einwand hier als Kommentar schreiben; dann startet kein Außeneinsatz.`);
   return zeilen.join('\n');
+}
+
+/**
+ * #149: the triage created this mission: an entitled comment of the triage with the heading of neueMissionKommentar
+ * stands at it (its body comes from the order writer, like that of a mission a person orders), and no entitled
+ * comment without the marks of the triage follows it: an objection or a revocation there leaves the mission alone.
+ */
+export function vonDerTriageAngelegt(t: Ticket): boolean {
+  const i = t.kommentare.findIndex((k) => berechtigt(k) && k.body.includes(TRIAGE_MARKE) && (k.body.split(/\r?\n/)[1] ?? '').startsWith(`**Triage: ${NEUE_MISSION_KOPF}**`));
+  return i >= 0 && !t.kommentare.slice(i + 1).some((k) => berechtigt(k) && !k.body.includes(TRIAGE_MARKE) && !k.body.includes(TRIAGE_FRAGE_MARKE));
+}
+
+/** #149: the comment at a mission of the triage before ready_label is set on it later. */
+export function nachfreigabeKommentar(kinder: number[], ready: string): string {
+  return [
+    `${TRIAGE_MARKE}\n**Triage: Warp frei der Mission nachgeholt** — vom Programm (\`flotte triage\`)`,
+    '',
+    `Herkunft: Regel der Triage (#147): Eine Mission aus dem Schnittplan bekommt \`${ready}\` mit ihrem ersten freigegebenen Missionsziel. Das Setzen an der Mission war gescheitert; ein späterer Lauf holt es nach (#149).`,
+    `Freigegebene Missionsziele: ${kinder.map((n) => `#${n}`).join(', ')}`,
+    '',
+    `Danach: \`${ready}\` an dieser Mission.`,
+    '',
+    `Widerrufbar: an dieser Mission \`${ready}\` abnehmen und den Einwand hier als Kommentar schreiben; dann startet kein Außeneinsatz, und keine Triage setzt es wieder.`,
+  ].join('\n');
 }
 
 /** #147: the comment at an open mission before notes join it. */
