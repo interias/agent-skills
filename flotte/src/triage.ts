@@ -470,7 +470,18 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
       if (e.fehler) {
         const fehler = `${nr}: abnahmekriterien oder verifikationsweg fehlt (${e.fehler.replace(/^[^\n]*\n- /, '')})`;
         if (!herabstufen) return nein(fehler);
-        z.herabgestuft = `${fehler}; vorgesehen: ${z.art === 'mission' ? `Mission #${z.mission}` : `neue Mission „${z.neue_mission}“`}`;
+        const vorgesehen = z.art === 'mission' ? `Mission #${z.mission}` : `neue Mission „${z.neue_mission}“`;
+        z.herabgestuft = `${fehler}; vorgesehen: ${vorgesehen}`;
+        // #147 knows three end states of a note; on `triage` it waits with a question to the person (the form of the triage)
+        z.fragen.push({
+          frage: `${nr} war für ${vorgesehen} vorgesehen, aber ihre Abschnitte bestehen die Prüfung des Auftragsschreibers nicht (${e.fehler.replace(/^[^\n]*\n- /, '').replace(/\s+/g, ' ')}). Wie weiter?`,
+          optionen: [`Abschnitte ergänzen, dann ${vorgesehen} zuordnen`, 'verwerfen'],
+          antwort: `Abschnitte ergänzen, dann ${vorgesehen} zuordnen`,
+          herkunft: 'Programm: Prüfung des Auftragsschreibers nach der Reparaturrunde des Schnittplans',
+          grund: 'der Admiral hat die fehlenden Abschnitte auch im zweiten Plan nicht geliefert',
+          beim_menschen: true,
+          marke: 'Prüfung nicht bestanden',
+        });
         if (z.neue_mission) geleert.add(z.neue_mission);
         z.art = 'triage';
         delete z.mission;

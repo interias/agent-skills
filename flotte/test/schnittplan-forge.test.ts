@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { mitMissionszielen } from '../src/auftrag/auftrag.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
-import { entscheidungAus, schnittplanAuftrag, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE } from '../src/triage.ts';
+import { entscheidungAus, offeneFragen, schnittplanAuftrag, type Ticket, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort } from '../src/triage.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
 
 const REGELN = regelnAus('');
@@ -548,16 +548,46 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     expect(herab(4)).toMatchObject({ art: 'triage', herabgestuft: expect.stringContaining('vorgesehen: Mission #40') });
     expect(herab(4).mission).toBeUndefined();
     expect(herab(1).herabgestuft).toBeUndefined();
-    expect(r.tickets.find((t) => t.nummer === 2)).toMatchObject({ ergebnis: 'klar', geschrieben: false, zuordnung: 'triage', herabgestuft: expect.stringContaining('fehlt') });
+    // it waits with a question to the person in the form of the triage (#147: an end state, no deviation)
+    expect(r.tickets.find((t) => t.nummer === 2)).toMatchObject({ ergebnis: 'kritisch', geschrieben: true, zuordnung: 'triage', herabgestuft: expect.stringContaining('fehlt') });
+    expect(r.fragen.map((x) => [x.ticket, x.optionen, x.empfehlung])).toEqual([
+      [2, ['Abschnitte ergänzen, dann neue Mission „port“ zuordnen', 'verwerfen'], 'Abschnitte ergänzen, dann neue Mission „port“ zuordnen'],
+      [3, ['Abschnitte ergänzen, dann neue Mission „solo“ zuordnen', 'verwerfen'], 'Abschnitte ergänzen, dann neue Mission „solo“ zuordnen'],
+      [4, ['Abschnitte ergänzen, dann Mission #40 zuordnen', 'verwerfen'], 'Abschnitte ergänzen, dann Mission #40 zuordnen'],
+    ]);
+    for (const n of [2, 3, 4]) {
+      const i = f.finde(n);
+      expect(i.comments).toHaveLength(1);
+      expect(i.comments[0].body.split('\n').slice(0, 2).join('\n')).toMatch(new RegExp(`^${TRIAGE_FRAGE_MARKE}\\n\\*\\*FRAGE AN DEN MENSCHEN \\(Triage\\)\\*\\* — Sternzeit-Notiz #${n}: `));
+      expect(i.comments[0].body).toMatch(/Herkunft: \S/);
+      const t: Ticket = { nummer: n, titel: i.title, body: i.body, url: '', labels: i.labels, kommentare: i.comments.map((c) => ({ body: c.body, autor: c.login, zeit: '2026-11-23T10:00:00Z', rolle: c.rolle })) };
+      expect(wartetAufAntwort(t)).toBe(true);
+      expect(offeneFragen(t)).toEqual([expect.objectContaining({ nr: 1, frage: expect.stringContaining('Verifikationsweg'), optionen: [expect.stringContaining('Abschnitte ergänzen'), 'verwerfen'], marke: 'Prüfung nicht bestanden' })]);
+    }
+    expect(f.finde(2).comments[0].body).toContain('war für neue Mission „port“ vorgesehen');
+    // the next run waits for the answer: no call for these notes, nothing written
+    const zwei = await lauf(f, plan, { 1: KLAR, 2: OHNE, 3: OHNE, 4: OHNE, 5: KLAR });
+    expect(zwei.geplant).toEqual([]);
+    expect(zwei.r.tickets.filter((t) => [2, 3, 4].includes(t.nummer)).map((t) => t.ergebnis)).toEqual(['wartet', 'wartet', 'wartet']);
     // the new mission left without children is not created, the other one keeps only its good child
     expect(p.neue_missionen.map((m) => [m.schluessel, m.kinder])).toEqual([['port', [1]]]);
     expect(aufrufe.filter((x) => x.args[0] === 'issue' && x.args[1] === 'create')).toHaveLength(1);
     expect(f.finde(100).kinder).toEqual([1]);
     expect(f.finde(1).labels).toEqual(['ready-for-agent']);
-    // the downgraded notes and the open mission do not change; the rejected one is closed as planned
-    for (const n of [2, 3, 4]) expect(f.finde(n)).toMatchObject({ labels: ['needs-triage'], comments: [], body: `Text ${n}` });
+    // the downgraded notes keep label and text, the open mission does not change; the rejected one is closed as planned
+    for (const n of [2, 3, 4]) expect(f.finde(n)).toMatchObject({ labels: ['needs-triage'], body: `Text ${n}` });
     expect(f.finde(40).kinder).toEqual([30]);
     expect(f.finde(5).state).toBe('closed');
+    jedeAenderungMitKommentar(aufrufe, new Set([100]));
+
+    // --trocken writes nothing, the question stands in the output
+    const g = forge([notiz(2, 'Port beim Neustart', 'Text 2'), { number: 40, title: 'Tafel', body: MISSION_40, labels: ['epic'], state: 'open', comments: [], kinder: [30] }]);
+    const vorher = JSON.stringify(g.issues);
+    const t = await lauf(g, () => ({ neue_missionen: [], zuordnungen: [{ notiz: 2, art: 'mission', mission: 40, grund: 'g', herkunft: 'h' }] }), { 2: OHNE }, { trocken: true });
+    expect(schreibend(t.aufrufe)).toEqual([]);
+    expect(JSON.stringify(g.issues)).toBe(vorher);
+    expect(t.r.tickets).toEqual([expect.objectContaining({ nummer: 2, ergebnis: 'kritisch', geschrieben: false, kommentar: expect.stringContaining(TRIAGE_FRAGE_MARKE) })]);
+    expect(t.r.fragen).toHaveLength(1);
   });
 
   /** 30 long notes to 3 topics (two packages) and the open mission #40 with 5 free places */

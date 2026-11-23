@@ -204,8 +204,10 @@ mit dem Fehler und der ungültigen Antwort darunter, „korrigiere nur das“. S
 Aufruf: Der Normalfall ist genau ein Aufruf je Projekt, die Zahl steht in der Ausgabe (`aufrufe`). Fallen
 im Plan nach der Reparaturrunde nur noch einzelne Notizen mit `mission` oder `neue_mission` durch die
 Prüfung ihrer Abschnitte, hält das den Plan nicht auf: Das Programm stuft jede solche Notiz auf `triage`
-herab (sie bleibt unverändert, `herabgestuft` nennt Fehler und vorgesehene Mission), der Rest gilt; eine neue
-Mission, der so alle Kinder fehlen, wird nicht angelegt. Ist
+herab (`herabgestuft` nennt Fehler und vorgesehene Mission), der Rest gilt; eine neue Mission, der so alle
+Kinder fehlen, wird nicht angelegt. Text und Label der Notiz bleiben; sie bekommt eine Frage an den Menschen
+in der Form der Triage (Punkt `Prüfung nicht bestanden`, Optionen „Abschnitte ergänzen, dann <Mission>
+zuordnen“ als Empfehlung oder „verwerfen“) und wartet auf seine Antwort, wie jede gefragte Notiz. Ist
 auch der zweite Plan sonst ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte;
 derselbe Auftrag noch einmal scheiterte meist genauso), gilt er als Ganzes nicht: Für die Notizen dieses
 Projekts wird in diesem Lauf nichts geschrieben (der nächste Lauf versucht es neu).
