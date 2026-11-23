@@ -45,17 +45,18 @@ export const CHAT_WERKZEUGE = ['Read', 'Grep', 'Glob', 'StructuredOutput'];
  * --strict-mcp-config comes with every run (claudeArgs). The skill text goes into the system
  * prompt, so the model needs nothing outside the repository.
  */
-export function chatArgs(): string[] {
-  return ['--tools', 'Read,Grep,Glob', '--allowedTools', 'Read(./**)', ...lesesperreArgs(), '--json-schema', JSON.stringify(chatSchema()), '--append-system-prompt', chatRahmen()];
+export function chatArgs(repo: string): string[] {
+  return ['--tools', 'Read,Grep,Glob', '--allowedTools', 'Read(./**)', ...lesesperreArgs(repo), '--json-schema', JSON.stringify(chatSchema()), '--append-system-prompt', chatRahmen()];
 }
 
 /**
  * The read lock as a hook of the session, as guardArgs in the driver: chat-lesesperre.ts refuses Read,
  * Grep and Glob outside the working directory with exit 2. It runs with the bun of this service
- * (process.execPath), not one from the PATH; onFailure block: a hook that fails refuses the read.
+ * (process.execPath), not one from the PATH, the repository as its root by argument (the hook input's cwd
+ * is not trusted for that); onFailure block: a hook that fails refuses the read.
  */
-export function lesesperreArgs(): string[] {
-  const befehl = `"${process.execPath}" "${LESESPERRE}"`;
+export function lesesperreArgs(repo: string): string[] {
+  const befehl = `"${process.execPath}" "${LESESPERRE}" "${repo}"`;
   return ['--settings', JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Read|Grep|Glob', hooks: [{ type: 'command', command: befehl, timeout: 30, onFailure: 'block' }] }] } })];
 }
 
@@ -267,7 +268,7 @@ export class ChatDienst {
       resume: sitzung,
       modell: n.modell ?? CHAT_MODELL,
       modus: 'dontAsk',
-      extraArgs: chatArgs(),
+      extraArgs: chatArgs(repo),
       werkzeuge: chatWerkzeuge,
       leerlaufMs: 10 * 60_000,
       log: join(this.w.ordner, `chat-${n.chat}.jsonl`),

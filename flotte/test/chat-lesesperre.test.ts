@@ -69,7 +69,21 @@ describe('lesesperre', () => {
     const { repo, heim } = welt();
     for (const p of ['../**', '**/../../*', 'a/../../x', 'C:/**', 'c:\\Users\\**', '/etc/*', '\\x\\**', '~/.claude/*', '{a,../b}/*', '{a,/etc}/*'])
       expect(lesesperre(glob(repo, p), heim)).toMatch(/Muster/);
-    expect(lesesperre(glob(repo, '**/..foo/*.md'), heim)).toBeNull();
+    // narrow, not clever: brace expansion, extglob and classes that can spell .. or an absolute path (review of #84)
+    for (const p of ['..{,}/**', '.{.,}/**', '.{a,}./*', '{C,D}:/**', '@(..)/*', '[.][.]/*', '[.a][.a]/*', '{{a,/},b}etc/*', '[/]etc/*', '**/..foo/*.md', '{a', 'a[', '{' + 'a,'.repeat(40) + 'b}{' + 'a,'.repeat(40) + 'b}'])
+      expect([p, lesesperre(glob(repo, p), heim)]).toEqual([p, expect.stringMatching(/Muster/)]);
+    for (const p of ['**/*.md', 'src/**/*.{ts,tsx}', '*.test.ts', 'a/[bc]/*.json', '.github/**'])
+      expect([p, lesesperre(glob(repo, p), heim)]).toEqual([p, null]);
+  });
+
+  it('the root given by argument wins over the cwd of the hook input', () => {
+    const { basis, repo, heim } = welt();
+    // a cwd outside the repository does not widen the lock
+    expect(lesesperre(read(basis, join('repo-andere', 'x')), heim, repo)).toMatch(/außerhalb des Repositorys/);
+    expect(lesesperre(read(basis, join(repo, 'README.md')), heim, repo)).toBeNull();
+    // a cwd below the repository: relative paths from there, the repository stays the root
+    expect(lesesperre(read(join(repo, 'a'), join('..', 'README.md')), heim, repo)).toBeNull();
+    expect(lesesperre(read(join(repo, 'a'), join('..', '..', 'repo-andere', 'x')), heim, repo)).toMatch(/außerhalb des Repositorys/);
   });
 
   it('a link inside the repository that points outside is outside', () => {
@@ -99,7 +113,7 @@ describe('lesesperre', () => {
 });
 
 describe('the hook script as a process', () => {
-  const hook = (eingabe: string) => spawnSync(process.execPath, [LESESPERRE], { input: eingabe, encoding: 'utf8', timeout: 20_000 });
+  const hook = (eingabe: string, ...wurzel: string[]) => spawnSync(process.execPath, [LESESPERRE, ...wurzel], { input: eingabe, encoding: 'utf8', timeout: 20_000 });
 
   it('exit 2 with the reason on stderr outside, exit 0 without output inside, exit 2 on garbage', () => {
     const { basis, repo } = welt();
@@ -112,5 +126,9 @@ describe('the hook script as a process', () => {
     const kaputt = hook('{kein json');
     expect(kaputt.status).toBe(2);
     expect(kaputt.stderr).toMatch(/Lesesperre/);
+    // with the root as argument a cwd outside the repository does not widen the lock
+    const fremd = hook(JSON.stringify(read(basis, join('repo-andere', 'x'))), repo);
+    expect(fremd.status).toBe(2);
+    expect(hook(JSON.stringify(read(basis, join(repo, 'README.md'))), repo).status).toBe(0);
   }, 30_000);
 });

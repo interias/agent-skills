@@ -11,7 +11,9 @@
 // Claude Code calls the hook under --permission-mode dontAsk for reads it would allow anyway, the
 // exact tool_input of Grep and Glob, and that the model goes on with the refusal as a tool error.
 //
-// Called as `"<bun>" "<this file>"` (chat.ts, lesesperreArgs); the check is the exported function.
+// Called as `"<bun>" "<this file>" "<repository>"` (chat.ts, lesesperreArgs): the root comes from the
+// service, not from the hook input; without it the cwd of the input is the root. The check is the
+// exported function.
 
 import { readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -20,8 +22,48 @@ import { fileURLToPath } from 'node:url';
 
 export const LESESPERRE = fileURLToPath(import.meta.url);
 
-/** an absolute path or a step up in a Glob pattern, also inside a brace alternative ({a,../b}) */
-const MUSTER_AUS = /(^|[{,])\s*([\\/~]|[A-Za-z]:)|(^|[\\/{,])\.\.([\\/},]|$)/;
+/**
+ * A Glob pattern is refused narrowly, not recognised cleverly (review of #84): no extglob, drive,
+ * home or backslash at all; every brace expansion (at most 64), each class read as the character it
+ * may stand for, must neither begin with / nor hold .. anywhere.
+ */
+const MUSTER_VERBOTEN = /[()|:~\\]/;
+const KLASSE = /\[[^\]]*\]/g;
+const AUSKLAPPEN_MAX = 64;
+
+/** the brace expansions of a pattern; null when a brace is unbalanced or there are too many */
+function ausgeklappt(muster: string): string[] | null {
+  const auf = muster.indexOf('{');
+  if (auf < 0) return muster.includes('}') ? null : [muster];
+  const kommas: number[] = [];
+  for (let i = auf, tiefe = 0; i < muster.length; i++) {
+    const c = muster[i];
+    if (c === '{') tiefe++;
+    else if (c === ',' && tiefe === 1) kommas.push(i);
+    else if (c === '}' && --tiefe === 0) {
+      const grenzen = [auf, ...kommas, i];
+      const out: string[] = [];
+      for (let k = 0; k + 1 < grenzen.length; k++) {
+        const r = ausgeklappt(muster.slice(0, auf) + muster.slice(grenzen[k] + 1, grenzen[k + 1]) + muster.slice(i + 1));
+        if (!r) return null;
+        out.push(...r);
+        if (out.length > AUSKLAPPEN_MAX) return null;
+      }
+      return out;
+    }
+  }
+  return null;
+}
+
+function musterFuehrtHinaus(muster: string): boolean {
+  if (MUSTER_VERBOTEN.test(muster)) return true;
+  const alle = ausgeklappt(muster);
+  if (!alle) return true;
+  return alle.some((m) => {
+    const flach = m.replace(KLASSE, (k) => (k.includes('.') ? '.' : k.includes('/') ? '/' : 'x'));
+    return /[[\]]/.test(flach) || flach.startsWith('/') || flach.includes('..');
+  });
+}
 
 /** the path with every link and junction resolved, as far as it exists; the rest is appended as written */
 function echt(p: string): string {
@@ -49,7 +91,7 @@ function innerhalb(wurzel: string, ziel: string): boolean {
  * Read checks file_path, Grep and Glob check path (none: the working directory); Glob also refuses
  * a pattern that leads out. Grep's glob filter only narrows the files below path, so it is not checked.
  */
-export function lesesperre(eingabe: unknown, heim = homedir()): string | null {
+export function lesesperre(eingabe: unknown, heim = homedir(), wurzel?: string): string | null {
   const e = eingabe as any;
   if (!e || typeof e !== 'object' || typeof e.cwd !== 'string' || !isAbsolute(e.cwd) || !e.tool_input || typeof e.tool_input !== 'object')
     return 'Lesesperre: Hook-Eingabe ohne cwd oder tool_input, Zugriff nicht geprüft und deshalb gesperrt.';
@@ -57,10 +99,10 @@ export function lesesperre(eingabe: unknown, heim = homedir()): string | null {
   if (!['Read', 'Grep', 'Glob'].includes(werkzeug)) return `Lesesperre: Werkzeug ${String(werkzeug)} ist im Chat nicht vorgesehen.`;
   const pfad = werkzeug === 'Read' ? e.tool_input.file_path : (e.tool_input.path ?? '');
   if (typeof pfad !== 'string' || (werkzeug === 'Read' && !pfad)) return `Lesesperre: ${werkzeug} ohne lesbaren Pfad, gesperrt.`;
-  if (werkzeug === 'Glob' && (typeof e.tool_input.pattern !== 'string' || MUSTER_AUS.test(e.tool_input.pattern)))
-    return `Lesesperre: Das Muster ${JSON.stringify(e.tool_input.pattern)} führt aus dem Repository; nur relative Muster ohne .. sind erlaubt.`;
+  if (werkzeug === 'Glob' && (typeof e.tool_input.pattern !== 'string' || musterFuehrtHinaus(e.tool_input.pattern)))
+    return `Lesesperre: Das Muster ${JSON.stringify(e.tool_input.pattern)} kann aus dem Repository führen; erlaubt sind nur relative Muster ohne .., Laufwerk, ~, Backslash und runde Klammern.`;
   const ausgeschrieben = /^~([\\/]|$)/.test(pfad) ? join(heim, pfad.slice(1)) : pfad;
-  if (!innerhalb(echt(resolve(e.cwd)), echt(resolve(e.cwd, ausgeschrieben))))
+  if (!innerhalb(echt(resolve(wurzel ?? e.cwd)), echt(resolve(e.cwd, ausgeschrieben))))
     return `Lesesperre: ${pfad} liegt außerhalb des Repositorys; der Chat liest nur im Repository (ADR-0004).`;
   return null;
 }
@@ -68,7 +110,7 @@ export function lesesperre(eingabe: unknown, heim = homedir()): string | null {
 if (import.meta.main) {
   let grund: string | null;
   try {
-    grund = lesesperre(JSON.parse(readFileSync(0, 'utf8')));
+    grund = lesesperre(JSON.parse(readFileSync(0, 'utf8')), homedir(), process.argv[2] || undefined);
   } catch (err) {
     grund = `Lesesperre: Hook-Eingabe nicht lesbar (${(err as Error).message}), Zugriff gesperrt.`;
   }

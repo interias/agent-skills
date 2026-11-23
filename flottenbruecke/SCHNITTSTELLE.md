@@ -693,8 +693,9 @@ Je Chat läuft höchstens eines; mehrere Chats laufen nebeneinander.
 `--permission-mode dontAsk`, `--strict-mcp-config`; meldet `claude` beim Start ein anderes
 Werkzeug, bricht der Dienst den Aufruf ab. Die Grenze zum Repository zieht die Lesesperre, ein
 `PreToolUse`-Hook für `Read|Grep|Glob` per `--settings` (`flotte/src/befehle/chat-lesesperre.ts`,
-`onFailure: block`): Jeder Pfad außerhalb des Arbeitsverzeichnisses, auch über einen Link, wird mit
-Exit 2 abgelehnt. `--allowedTools 'Read(./**)'` bleibt stehen, engt aber nichts ein, denn
+`onFailure: block`, das Repository als Argument): Jeder Pfad außerhalb des Repositorys, auch über einen
+Link, wird mit Exit 2 abgelehnt, ebenso jedes Glob-Muster mit `..` (auch nach Klammer-Expansion und
+Zeichenklassen), Laufwerk, `~`, Backslash, runden Klammern oder einem Anfang mit `/`. `--allowedTools 'Read(./**)'` bleibt stehen, engt aber nichts ein, denn
 Lesewerkzeuge brauchen keine Freigabe (Probe 23.11.2026). Kein Bash: Anlegen ist allein die Nachrichtenart
 `anlegen`, also der Knopf des Menschen, und Missionen entstehen nur über den Auftragsschreiber
 (agent-skills/ADR-0002).

@@ -170,7 +170,7 @@ describe('flotte chat', () => {
     async () => {
       const b = await brueckenAttrappe([nachricht()]);
       const d = drehbuch([{ werkzeuge: ['Read', 'Grep', 'Glob', 'StructuredOutput', 'Edit'], schritte: [{ warte: 2000 }, { text: 'zu spät' }] }]);
-      const { dienst } = welt(b.bruecke, { '2': konto() }, d.datei);
+      const { dienst, repos } = welt(b.bruecke, { '2': konto() }, d.datei);
       await dienst.takt();
       await dienst.fertig();
       const [g] = d.gesehen();
@@ -181,11 +181,12 @@ describe('flotte chat', () => {
       // no bare Read, Grep or Glob; the rule narrows nothing (read tools need no approval), the hook below is the lock
       expect(nach('--allowedTools').split(',')).toEqual(['Read(./**)']);
       expect(g.args.filter((a: string) => a === '--allowedTools')).toHaveLength(1);
-      // the read lock: a PreToolUse hook on the read tools that blocks when it fails, running the hook script with bun
+      // the read lock: a PreToolUse hook on the read tools that blocks when it fails, running the hook script with bun,
+      // the repository as its root by argument, not from the hook input
       expect(g.args.filter((a: string) => a === '--settings')).toHaveLength(1);
       const [eintrag] = JSON.parse(nach('--settings')).hooks.PreToolUse;
       expect(eintrag.matcher).toBe('Read|Grep|Glob');
-      expect(eintrag.hooks).toEqual([{ type: 'command', command: `"${process.execPath}" "${LESESPERRE}"`, timeout: 30, onFailure: 'block' }]);
+      expect(eintrag.hooks).toEqual([{ type: 'command', command: `"${process.execPath}" "${LESESPERRE}" "${join(repos, 'demo')}"`, timeout: 30, onFailure: 'block' }]);
       expect(LESESPERRE).toMatch(/chat-lesesperre\.ts$/);
       for (const w of ['Bash', 'Edit', 'Write', 'NotebookEdit', 'MultiEdit', 'Task', 'WebFetch', 'Skill']) {
         expect(nach('--tools').split(',')).not.toContain(w);
