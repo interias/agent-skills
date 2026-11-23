@@ -163,8 +163,8 @@ Kurz; die verbindliche Fachsprache steht in [`CONTEXT.md`](CONTEXT.md).
 - **Bremsen:** Ab der RAM-Schwelle startet kein neues Paket; der Treiber hält bei gelbem Limit
   Neues und bei rotem auch Fortsetzungen an.
 - **Aufräumen löscht nur**, was nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`.
-- **Die Brücke steuert nichts:** kein Starten, Stoppen oder Mergen; nur im LAN, Antworten nur mit
-  PIN.
+- **Die Brücke steuert nichts:** kein Starten, Stoppen oder Mergen; Antworten nur im LAN mit PIN,
+  unterwegs optional über Tailscale nur zur Ansicht (ADR-0006).
 - **Nichts nur im Chat:** Jede Entscheidung und jeder Abschluss steht als Kommentar in der Forge.
 
 ## Ändern

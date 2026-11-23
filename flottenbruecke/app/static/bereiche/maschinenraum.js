@@ -143,7 +143,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
   function einstellungenHtml(t) {
     const mehrere = t.projekte.length > 1;
     const geteilt = gemeinsam(t);
-    const hinweisText = (p) => (!t.pin ? 'Ändern abgeschaltet: keine PIN gesetzt.' : p?.veraltet ? 'Der Treiber meldet sich gerade nicht: eine Änderung wirkt ab seinem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt, nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.');
+    const hinweisText = (p) => (!t.pin ? `Ändern abgeschaltet: ${huelle.ohnePin(t)}.` : p?.veraltet ? 'Der Treiber meldet sich gerade nicht: eine Änderung wirkt ab seinem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt, nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.');
     let html = '';
     if (geteilt) {
       const ps = mitEinstellungen(t);
@@ -212,7 +212,7 @@ ${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
       return `<span class="mr-wartet">${w.length ? `Wartet auf das Andocken von ${w.map((n) => `#${n}`).join(', ')}` : 'Hält an'}</span>, dann spielt der Treiber ein und startet neu.`;
     }
     if (p.einspielen) return `<span class="mr-wartet">wartet auf den Treiber</span>${p.einspielen.abgeholt ? ' · abgeholt' : ''}`;
-    return t.pin ? '' : 'Einspielen abgeschaltet: keine PIN gesetzt.';
+    return t.pin ? '' : `Einspielen abgeschaltet: ${huelle.ohnePin(t)}.`;
   }
 
   function treiberStandHtml(t, p) {
