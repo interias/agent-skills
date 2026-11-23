@@ -22,9 +22,9 @@ describe('lernen: building blocks', () => {
   it('finds rule ids in adapter and skill texts, first place wins, sorted by number', () => {
     const r = lernRegeln([
       { datei: '.claude/epic.md', text: 'a\n- Port prüfen (Lernschleife L2, 2026-11-20)\n' },
-      { datei: 'epic/SKILL.md', text: 'Regel (Lernschleife L1, 2026-11-01)\nnoch einmal Lernschleife L2' },
+      { datei: 'mission/SKILL.md', text: 'Regel (Lernschleife L1, 2026-11-01)\nnoch einmal Lernschleife L2' },
     ]);
-    expect(r.map((x) => [x.regel, x.datei])).toEqual([['L1', 'epic/SKILL.md'], ['L2', '.claude/epic.md']]);
+    expect(r.map((x) => [x.regel, x.datei])).toEqual([['L1', 'mission/SKILL.md'], ['L2', '.claude/epic.md']]);
   });
 
   it('proposes a rule for deletion only after n loops in a row without it applying', () => {

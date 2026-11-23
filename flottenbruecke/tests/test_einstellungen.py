@@ -39,7 +39,7 @@ def test_annahme_abholen_quittieren(client, bericht):
     assert je_name(client)['obergrenze']['offen'] is None
     # the logbook gets it by the title of the setting, without an epic
     x = next(x for x in tafel(client)['erledigt'] if x['art'] == 'handlung')
-    assert (x['epic'], x['handlung'], x['titel'], x['wert']) == (None, 'einstellen', 'Epics gleichzeitig', 2)
+    assert (x['epic'], x['handlung'], x['titel'], x['wert']) == (None, 'einstellen', 'Missionen gleichzeitig', 2)
 
 
 def test_letzte_aenderung_je_einstellung_gilt_bis_zum_abholen(client, bericht):

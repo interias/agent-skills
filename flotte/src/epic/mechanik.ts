@@ -1,5 +1,5 @@
-// The real Mechanik of `flotte epic` (#66, stage 2 of #69): worktrees, RAM and graph through the
-// scripts of epic/scripts (called, not rebuilt, decision 1), 4c through the adapter's test_commands
+// The real Mechanik of `flotte mission` (#66, stage 2 of #69): worktrees, RAM and graph through the
+// scripts of mission/scripts (called, not rebuilt, decision 1), 4c through the adapter's test_commands
 // and lint_commands (decision 6, counted in zaehlen.ts), merge, revert and push through git in the
 // epic worktree, labels, comments and the pull request through gh. Every program goes through one
 // AsyncAufrufer, so tests run git and the scripts for real against a fixture and record gh.
@@ -15,13 +15,13 @@ import type { Aufgeraeumt, Mechanik, StatusLabel } from './motor.ts';
 import { zaehle, zaehleLint, verzeichnisAus } from './zaehlen.ts';
 import { epicDir, type Testlauf } from './zustand.ts';
 
-/** names, colours and descriptions as in epic/references/forge.md, "Statuslabels" */
+/** names, colours and descriptions as in mission/references/forge.md, "Statuslabels" */
 export const LABELS: Record<StatusLabel, { farbe: string; text: string }> = {
   'status/in-arbeit': { farbe: '00f0ff', text: 'Zustand für KIBO: ein Lauf hat das Ticket angefasst und ist noch nicht fertig. Steuert nichts.' },
   'status/blockiert': { farbe: 'ff3b5c', text: 'Zustand für KIBO: das Ticket wartet auf ein anderes Ticket. Steuert nichts.' },
   'status/haengt': { farbe: 'fcee0a', text: 'Zustand für KIBO: ein Lauf hat das Ticket aufgegeben, ohne einen Menschen geht es nicht weiter. Steuert nichts.' },
 };
-const EPIC_LABEL = { farbe: 'ff2bd6', text: 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)' };
+const EPIC_LABEL = { farbe: 'ff2bd6', text: 'Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)' };
 
 export interface MechanikEinstellung {
   /** main checkout */
@@ -35,7 +35,7 @@ export interface MechanikEinstellung {
   /** the lock owner of Up: the program, which lives as long as its packages */
   pid?: number;
   aufrufer?: AsyncAufrufer;
-  /** epic/scripts */
+  /** mission/scripts */
   skripte?: string;
   /** tests measure RAM and slot themselves; default ram.ps1 and docker compose ls */
   ram?: () => Promise<Ram>;
@@ -196,7 +196,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
 
   const labelsVon = async (ticket: number) => ((JSON.parse(await gh(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'labels'])).labels ?? []) as { name: string }[]).map((l) => l.name);
 
-  /** edit, then read back (epic/SKILL.md, "Die Statuslabels"); one more try, then a Glut point: the text, not a stop */
+  /** edit, then read back (mission/SKILL.md, "Die Statuslabels"); one more try, then a Glut point: the text, not a stop */
   async function labelsSetzen(ticket: number, dazu: string[], weg: string[]): Promise<string | null> {
     for (let versuch = 0; versuch < 2; versuch++) {
       await gh(['issue', 'edit', String(ticket), '--repo', e.forge, ...(dazu.length ? ['--add-label', dazu.join(',')] : []), ...(weg.length ? ['--remove-label', weg.join(',')] : [])]);
@@ -235,7 +235,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       let ab = von;
       let ausRemote = false;
       if (name === epicName) {
-        // epic/SKILL.md, Phase 3: an epic branch on the remote is taken, never created anew
+        // mission/SKILL.md, Phase 3: an epic branch on the remote is taken, never created anew
         await git(repo, ['fetch', '-q', remote]);
         ausRemote = !(await git(repo, ['rev-parse', '-q', '--verify', `refs/remotes/${remote}/${branch}`])).code;
         const lokal = !(await git(repo, ['rev-parse', '-q', '--verify', `refs/heads/${branch}`])).code;
@@ -381,7 +381,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       return ((j.comments ?? []) as { body: string }[]).map((k) => k.body);
     },
     async kommentar(ticket, text) {
-      // from a file (stdin), never from a shell string (epic/references/forge.md, "Stolperstellen")
+      // from a file (stdin), never from a shell string (mission/references/forge.md, "Stolperstellen")
       await gh(['issue', 'comment', String(ticket), '--repo', e.forge, '--body-file', '-'], text);
     },
     async status(ticket, label) {

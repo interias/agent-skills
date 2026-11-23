@@ -145,8 +145,8 @@
     const sprung = k.fragen && p.fragen.length ? '<button type="button" class="knopf zweit" data-zu-fragen>Zu den Fragen</button>' : '';
     // #147: the same run ended aborted or incomplete: the line says so, the list of the notes stands below it
     if (k.abschluss?.zustand === 'abgebrochen') return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf abgebrochen${k.abschluss.grund ? `: ${esc(k.abschluss.grund)}` : ''}</b><span>Was bis dahin geschrieben war, steht unten.</span>${seit}${sprung}</div>`;
-    if (k.abschluss?.zustand === 'unvollstaendig') return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf unvollständig: ${zahl(k.epics, 'Epic', 'Epics')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich — ${zahl(k.abschluss.unsauber, 'Notiz', 'Notizen')} nicht sauber abgearbeitet</b><span>Liste unten.</span>${seit}${sprung}</div>`;
-    return `<div class="fr-kurz beendet" role="status"><b>Triage-Lauf beendet: ${zahl(k.epics, 'Epic', 'Epics')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich</b>${seit}${sprung}</div>`;
+    if (k.abschluss?.zustand === 'unvollstaendig') return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf unvollständig: ${zahl(k.epics, 'Mission', 'Missionen')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich — ${zahl(k.abschluss.unsauber, 'Notiz', 'Notizen')} nicht sauber abgearbeitet</b><span>Liste unten.</span>${seit}${sprung}</div>`;
+    return `<div class="fr-kurz beendet" role="status"><b>Triage-Lauf beendet: ${zahl(k.epics, 'Mission', 'Missionen')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich</b>${seit}${sprung}</div>`;
   }
 
   function startHtml(p, pin) {

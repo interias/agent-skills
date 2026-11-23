@@ -6,11 +6,11 @@ Drei Obstsorten bekommen je eine Datei im Bereich `obst/`. Die drei Kinder sind 
 unabhängig.
 
 ## Abnahmekriterien
-- Alle Kinder sind gemergt.
+- Alle Kinder sind angedockt.
 - `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` ist grün.
 
 ## Verifikationsweg
-`pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Epic-Worktree.
+`pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Missions-Worktree.
 === kind a1: obst/apfel.txt anlegen
 Teil von #{{epic}}
 
@@ -19,7 +19,7 @@ Eine Datei für den Apfel.
 
 ## Abnahmekriterien
 - `obst/apfel.txt` existiert und enthält genau die Zeile `Apfel: suess und knackig`.
-- Das Gate des Pakets ist grün.
+- Die Andockprüfung des Pakets ist grün.
 
 ## Verifikationsweg
 `pwsh -NoProfile -File werkzeug/gate.ps1` im Worktree des Pakets.
@@ -31,7 +31,7 @@ Eine Datei für die Birne.
 
 ## Abnahmekriterien
 - `obst/birne.txt` existiert und enthält genau die Zeile `Birne: saftig und weich`.
-- Das Gate des Pakets ist grün.
+- Die Andockprüfung des Pakets ist grün.
 
 ## Verifikationsweg
 `pwsh -NoProfile -File werkzeug/gate.ps1` im Worktree des Pakets.
@@ -43,7 +43,7 @@ Eine Datei für die Pflaume.
 
 ## Abnahmekriterien
 - `obst/pflaume.txt` existiert und enthält genau die Zeile `Pflaume: blau und herb`.
-- Das Gate des Pakets ist grün.
+- Die Andockprüfung des Pakets ist grün.
 
 ## Verifikationsweg
 `pwsh -NoProfile -File werkzeug/gate.ps1` im Worktree des Pakets.

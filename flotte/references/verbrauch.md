@@ -11,6 +11,6 @@ Der Treiber rechnet damit nicht; er bremst nur nach den Stufen in `bremsen.md`,
 Prozent des Planlimits liefern nur `get_usage` und, unter dem Treiber, das `rate_limit_event` der
 Läufe. Wohin der Verbrauch innerhalb eines Laufs ging —
 je Rolle, je Paket, je Agent, und welche Werkzeugausgaben den Kontext gefüllt haben —, misst
-`epic/scripts/usage.ps1` aus den Transkripten, auch nachträglich für abgeschlossene Läufe. Über einen
+`mission/scripts/usage.ps1` aus den Transkripten, auch nachträglich für abgeschlossene Läufe. Über einen
 ganzen Einsatz, mit Cache-Quote und Kontextanteil je Agent-Typ: `flotte messen`, Abschnitt `tokens`
 (`flotte/README.md`, „Messen“).

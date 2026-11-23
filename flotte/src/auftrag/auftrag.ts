@@ -18,7 +18,7 @@ export interface AngelegtesIssue {
   url: string;
 }
 
-/** What the adapter of the target repository says about issues (epic/references/adapter.md, "Issues"). */
+/** What the adapter of the target repository says about issues (mission/references/adapter.md, "Issues"). */
 export interface AuftragsRegeln {
   epic_label: string;
   ready_label: string;
@@ -103,8 +103,8 @@ export function abschnittInhalt(text: string, ueberschrift: string): string | nu
 
 /**
  * Checks every Missionsziel for the sections a run needs: acceptance and verification must be there
- * and not empty (without them /epic skips the Missionsziel). The modules section is optional, as in
- * /epic; its absence is only a note. Returns the notes, throws with every gap at once.
+ * and not empty (without them /mission skips the Missionsziel). The modules section is optional, as in
+ * /mission; its absence is only a note. Returns the notes, throws with every gap at once.
  */
 export function pruefen(e: Entwurf, r: AuftragsRegeln): string[] {
   const fehler: string[] = [];
@@ -126,9 +126,9 @@ export function labelsFuer(art: 'mission' | 'ziel', r: AuftragsRegeln, starten: 
   return art === 'mission' ? [r.epic_label, status] : [status];
 }
 
-/** Colour and description of a label the writer creates when it is missing (epic/references/forge.md, "Statuslabels"); both layers take them from here. */
+/** Colour and description of a label the writer creates when it is missing (mission/references/forge.md, "Statuslabels"); both layers take them from here. */
 export function labelArt(label: string, r: AuftragsRegeln): { farbe: string; beschreibung: string } | null {
-  return label === r.epic_label ? { farbe: 'ff2bd6', beschreibung: 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)' } : null;
+  return label === r.epic_label ? { farbe: 'ff2bd6', beschreibung: 'Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)' } : null;
 }
 
 const nr = (n: number | null) => (n === null ? '#?' : `#${n}`);

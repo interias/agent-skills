@@ -51,7 +51,7 @@
   function geruest() {
     el.innerHTML = `<h2 class="ek bereich-kopf">Logbuch</h2>
 <div class="lb-filter" role="group" aria-label="Filter">
-<label>Epic <select id="lb-epic"></select></label>
+<label>Mission <select id="lb-epic"></select></label>
 <label>Art <select id="lb-art"></select></label>
 <span class="lb-zahl" id="lb-zahl" aria-live="polite"></span>
 </div>

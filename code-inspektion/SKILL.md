@@ -8,10 +8,10 @@ description: Als Erster Offizier abnehmen, was ein Ingenieur gebaut hat — ob i
 Eine Inspektion beantwortet zwei Fragen, die man nicht vermischt: **Wurde gebaut, was verlangt
 war?** und **Ist es so gebaut, wie das Projekt es verlangt?** Wer beides in einem Atemzug prüft,
 lässt eine Achse durchrutschen. Dieser Skill gilt für jede Änderung seit einem Commit oder Zweig,
-in einer Mission (`/epic`, Phase 4b) und außerhalb.
+in einer Mission (`/mission`, Phase 4b) und außerhalb.
 
 Die **Befundform** (Muss, Sollte, Kann, Fundstelle, Fall, kleinste Korrektur, Urteilszeile) steht in
-`agents/epic-reviewer-standard.md` und `-urteil.md`; sie gilt hier unverändert. Dieser Skill sagt,
+`agents/erster-offizier-standard.md` und `-urteil.md`; sie gilt hier unverändert. Dieser Skill sagt,
 **wie du zu den Befunden kommst**.
 
 ## 1. Den Maßstab festlegen

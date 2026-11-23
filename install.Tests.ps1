@@ -9,10 +9,10 @@ function New-Front([string]$name) { "---`nname: $name`ndescription: test`n---`n`
 
 function New-Repo {
     $repo = Join-Path $TestDrive "repo-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-    New-Item -ItemType Directory -Path "$repo\epic", "$repo\agents" | Out-Null
+    New-Item -ItemType Directory -Path "$repo\mission", "$repo\agents" | Out-Null
     Copy-Item $source "$repo\install.ps1"
-    Set-Content -Path "$repo\epic\SKILL.md" -Value (New-Front 'epic')
-    Set-Content -Path "$repo\agents\epic-kundschafter.md" -Value (New-Front 'epic-kundschafter')
+    Set-Content -Path "$repo\mission\SKILL.md" -Value (New-Front 'mission')
+    Set-Content -Path "$repo\agents\kundschafter.md" -Value (New-Front 'kundschafter')
     $repo
 }
 
@@ -53,11 +53,21 @@ Describe 'install.ps1 removes installed copies of retired skills and agents' {
     Add-Skill $heim 'eigener' 'eigener'
     Add-Agent $heim 'epic-lauf.md' 'epic-lauf'
     Add-Agent $heim 'mein-agent.md' 'mein-agent'
+    Add-Skill $heim 'epic' 'epic'
+    Add-Agent $heim 'epic-implementer-standard.md' 'epic-implementer-standard'
+    Add-Agent $heim 'epic-kundschafter.md' 'epic-kundschafter'
     $out = Invoke-Install $repo $heim @()
 
     It 'installs into the redirected profile' {
-        Test-Path "$heim\.claude\skills\epic\SKILL.md" | Should Be $true
-        Test-Path "$heim\.claude\agents\epic-kundschafter.md" | Should Be $true
+        Test-Path "$heim\.claude\skills\mission\SKILL.md" | Should Be $true
+        Test-Path "$heim\.claude\agents\kundschafter.md" | Should Be $true
+    }
+
+    It 'removes the skills and agents under their names before the Sprachraum (hard switch, ADR-0003)' {
+        Test-Path "$heim\.claude\skills\epic" | Should Be $false
+        (Get-Backups $heim 'epic-2*').Count | Should Be 1
+        Test-Path "$heim\.claude\agents\epic-implementer-standard.md" | Should Be $false
+        Test-Path "$heim\.claude\agents\epic-kundschafter.md" | Should Be $false
     }
 
     It 'removes a retired skill folder whose SKILL.md carries its name' {
@@ -175,7 +185,7 @@ Describe 'install.ps1 -Skill leaves retired copies alone' {
     $heim = New-Home
     Add-Skill $heim 'epic-flotte' 'epic-flotte'
     Add-Agent $heim 'epic-lauf.md' 'epic-lauf'
-    $null = Invoke-Install $repo $heim @('-Skill', 'epic')
+    $null = Invoke-Install $repo $heim @('-Skill', 'mission')
 
     It 'keeps the retired skill and agent' {
         Test-Path "$heim\.claude\skills\epic-flotte\SKILL.md" | Should Be $true

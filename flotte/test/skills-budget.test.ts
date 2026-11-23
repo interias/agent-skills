@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const WURZEL = fileURLToPath(new URL('../..', import.meta.url));
 const BUDGET = 500;
-const EINGEFROREN: Record<string, number> = { epic: 902 };
+const EINGEFROREN: Record<string, number> = { mission: 902 };
 
 const skills = readdirSync(WURZEL).filter((d) => !d.startsWith('.') && statSync(join(WURZEL, d)).isDirectory() && existsSync(join(WURZEL, d, 'SKILL.md')));
 const zeilen = (datei: string) => readFileSync(datei, 'utf8').split(/\r?\n/).length - (readFileSync(datei, 'utf8').endsWith('\n') ? 1 : 0);
@@ -28,7 +28,7 @@ function texte(): { datei: string; text: string }[] {
 
 describe('skills: growth limit', () => {
   it('finds the skills of the repository', () => {
-    expect(skills).toEqual(expect.arrayContaining(['epic', 'flotte', 'codebase-design', 'research', 'prototype', 'tdd', 'diagnosing-bugs', 'code-inspektion']));
+    expect(skills).toEqual(expect.arrayContaining(['mission', 'flotte', 'codebase-design', 'research', 'prototype', 'tdd', 'diagnosing-bugs', 'code-inspektion']));
   });
 
   for (const s of skills) {

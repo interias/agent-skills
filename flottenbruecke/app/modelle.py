@@ -535,14 +535,14 @@ class Handlung(BaseModel):
             self.nr, self.seit, self.text = None, None, json.dumps({'name': d['name'], 'wert': d['wert']}, ensure_ascii=False)
         elif self.art == 'prioritaet':
             if self.epic < 1 or self.text not in ('hoch', 'normal'):
-                raise ValueError('Priorität: ein Epic und hoch oder normal')
+                raise ValueError('Priorität: eine Mission und hoch oder normal')
             self.nr, self.seit = None, None
         elif self.art == 'merge':
             if self.epic < 1 or (self.text is not None and self.text not in STELLUNGEN):
-                raise ValueError('Andocken: ein Epic und automatisch, mensch oder nichts (zurück zum Vorschlag)')
+                raise ValueError('Andocken: eine Mission und automatisch, mensch oder nichts (zurück zum Vorschlag)')
             self.nr, self.seit = None, None
         elif self.art in ('aufnehmen', 'pausieren', 'fortsetzen') and self.epic < 1:
-            raise ValueError('Diese Handlung braucht ein Epic')
+            raise ValueError('Diese Handlung braucht eine Mission')
         elif self.art not in BEZUG:
             self.nr, self.seit, self.text = None, None, None
         return self
