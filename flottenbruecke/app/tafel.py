@@ -10,13 +10,14 @@
 # (#61) the released ones outside the driver's deployment (`freigegeben`), with the steering actions on their way.
 # The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`),
 # with (#148) the cut plan of its last triage run.
+# The Maschinenraum (#90) gets the Werft of every machine (`werft`); its messages join the ticker.
 
 import json
 import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from .modelle import HANDLUNG_GRUPPE
+from .modelle import ABFRAGE_MAX, ABFRAGE_MIN, HANDLUNG_GRUPPE
 
 HERKUNFT = 'Mensch über die Brücke'
 HALT = ('blockiert', 'abgebrochen')
@@ -30,6 +31,8 @@ KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nachar
 # #116 Frachtraum: the labels of the workflow are no topic (besides status/*); a ticket without a topic
 OHNE_THEMA = ('needs-triage', 'needs-info', 'ready-for-agent', 'epic')
 OHNE = 'ohne Thema'
+# #90: a Werft reports every 15 s; silent this long, its stand is old
+WERFT_STILL_S = 180
 # #148: how long "Triage-Lauf beendet" stays in the head of the project
 BEENDET_MIN = 15
 
@@ -204,9 +207,54 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
     }
 
 
-def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None) -> dict:
+def _werft_einstellungen(r: dict, offen: dict) -> list[dict]:
+    """#90: the settings of a repository's Werft in the form of the driver's settings (#59), so the Maschinenraum
+    draws both alike; `offen` maps (stack, name) to the change still on its way to the Werft."""
+    namen = [s['name'] for s in r['stacks']]
+    an = [s['name'] for s in r['stacks'] if s['an']]
+    unterwegs = lambda h: {'wert': json.loads(h['text'])['wert'], 'zeit': h['zeit'], 'abgeholt': bool(h['abgeholt'])} if h else None
+    janein = lambda h, ja, nein: {**unterwegs(h), 'wert': ja if unterwegs(h)['wert'] else nein} if h else None
+    # the stacks on their way: every open change of one stack applied to the list it has now
+    je_stack = {s: h for (s, n), h in offen.items() if s is not None and n == 'an'}
+    stacks_offen = None
+    if je_stack:
+        neu = [n for n in namen if (json.loads(je_stack[n]['text'])['wert'] if n in je_stack else n in an)]
+        stacks_offen = {'wert': neu, 'zeit': max(h['zeit'] for h in je_stack.values()), 'abgeholt': all(h['abgeholt'] for h in je_stack.values())}
+    zeile = lambda name, titel, wert, standard, **mehr: {'name': name, 'titel': titel, 'wert': wert, 'standard': standard, 'herkunft': 'standard' if wert == standard else 'bruecke', 'seit': None, 'leer': False, 'min': None, 'max': None, 'auswahl': None, 'werte': None, 'hinweis': None, **mehr}
+    return [
+        zeile('an', 'Werft', 'an' if r['an'] else 'aus', 'an', werte=['an', 'aus'], offen=janein(offen.get((None, 'an')), 'an', 'aus')),
+        zeile('stacks', 'Stacks', an, namen, auswahl=namen, offen=stacks_offen),
+        zeile('abfrage_s', 'Abfrageabstand (s)', r['abfrageGesetzt'], None, leer=True, min=ABFRAGE_MIN, max=ABFRAGE_MAX, adapter=r['abfrageS'] if r['abfrageGesetzt'] is None else None, offen=unterwegs(offen.get((None, 'abfrage_s')))),
+        zeile('migration_test', 'Test-Migrationen selbst', 'ja' if r['migrationTest'] else 'nein', 'ja', werte=['ja', 'nein'], offen=janein(offen.get((None, 'migration_test')), 'ja', 'nein')),
+    ]
+
+
+def werft_liste(werft: list[dict], werft_h: list[dict], jetzt: datetime) -> list[dict]:
+    """#90: every repository of every machine's Werft, with its stacks, settings and the actions on their way."""
+    liste = []
+    for w in werft:
+        empfangen = zeit(w['empfangen'])
+        veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=WERFT_STILL_S)
+        for r in w['bericht']['repos']:
+            offen_h = [h for h in werft_h if h['rechner'] == w['rechner'] and h['forge'] == r['forge'] and not h['quittiert']]
+            art = lambda stack, a: _handlung(next((h for h in offen_h if h['stack'] == stack and h['art'] == a), None))
+            liste.append({
+                'id': f"werft:{w['rechner']}|{r['forge']}",
+                'rechner': w['rechner'],
+                'empfangen': w['empfangen'],
+                'veraltet': veraltet,
+                'kurz': r['forge'].split('/')[-1],
+                **{k: r[k] for k in ('forge', 'branch', 'stand', 'geprueft', 'abfrageS', 'abfrageGesetzt', 'an', 'migrationTest', 'fehler')},
+                'stacks': [{**s, 'nachziehen': art(s['name'], 'nachziehen'), 'freigabe': art(s['name'], 'migration_freigeben')} for s in r['stacks']],
+                'einstellungen': _werft_einstellungen(r, {(h['stack'], json.loads(h['text'])['name']): h for h in offen_h if h['art'] == 'einstellen'}),
+            })
+    return sorted(liste, key=lambda x: (x['forge'], x['rechner']))
+
+
+def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt: datetime, tz: ZoneInfo, pin_gesetzt: bool, handlungen: list[dict] | None = None, prototypen: list[dict] | None = None, werft: list[dict] | None = None, werft_h: list[dict] | None = None) -> dict:
     heute = jetzt.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     handlungen = handlungen or []
+    werft = werft or []
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
     liste, rechner, konten, lager = [], {}, {}, []
@@ -423,6 +471,27 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 # #116: a ticket of the triage, no epic; #154: the update belongs to the project
                 x = {**x, 'epic': None, 'ticket': h['epic'] or None}
             erledigt.append(x)
+    # #90: the person's actions for a Werft, once it acknowledged them; a setting by its title and its value in words
+    for h in werft_h or []:
+        t = zeit(h['quittiert'])
+        if not t or t < heute:
+            continue
+        x = {'art': 'handlung', 'id': f"werft-handlung:{h['id']}", 'werft': True, 'forge': h['forge'], 'repo': h['forge'].split('/')[-1], 'rechner': h['rechner'], 'stack': h['stack'], 'epic': None, 'nr': None, 'zeit': t.isoformat(), 'handlung': h['art'], 'text': h['text']}
+        if h['art'] == 'einstellen':
+            z = json.loads(h['text'])
+            titel = {'an': f"Werft · Stack {h['stack']}" if h['stack'] else 'Werft', 'abfrage_s': 'Werft · Abfrageabstand (s)', 'migration_test': 'Werft · Test-Migrationen selbst'}.get(z['name'], z['name'])
+            wert = z['wert']
+            if isinstance(wert, bool):
+                wert = ('ja' if wert else 'nein') if z['name'] == 'migration_test' else ('an' if wert else 'aus')
+            x = {**x, 'titel': titel, 'wert': wert}
+        erledigt.append(x)
+
+    # #90: the messages of the Werft, kept by the bridge (a report carries only those of one takt)
+    for w in werft:
+        repos = {r['forge'] for r in w['bericht']['repos']}
+        for m in w['meldungen']:
+            forge = m['text'].split(': ', 1)[0]
+            ereignisse.append({'zeit': m['zeit'], 'forge': forge if forge in repos else None, 'kurz': 'Werft', 'epic': None, 'text': m['text']})
 
     # the cost of waiting: what holds a whole epic first, then the longest wait
     braucht.sort(key=lambda x: (0 if x['ganzerLauf'] else 1, -(x['wartetS'] or 0), x['forge'], x['epic'], x.get('nr') or 0))
@@ -453,5 +522,6 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         # Holodeck (#44): name and forge are checked on receipt, the page opens url in its sealed frame
         'sitzungen': sitzungen_liste,
         'frachtraum': lager,
+        'werft': werft_liste(werft, werft_h or [], jetzt),
         'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
     }

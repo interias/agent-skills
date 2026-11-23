@@ -67,7 +67,31 @@ create table if not exists gemeldet (
   schluessel text not null,
   primary key (forge, schluessel)
 );
+create table if not exists werft (
+  rechner text primary key,
+  empfangen text not null,
+  bericht text not null
+);
+create table if not exists werft_handlungen (
+  id integer primary key autoincrement,
+  rechner text not null,
+  forge text not null,
+  stack text,
+  art text not null,
+  text text,
+  zeit text not null,
+  abgeholt text,
+  quittiert text
+);
+create table if not exists werft_meldungen (
+  id integer primary key autoincrement,
+  rechner text not null,
+  zeit text not null,
+  text text not null
+);
 """
+# the messages of the Werft kept per machine: its reports carry only those of one takt
+WERFT_MELDUNGEN = 40
 
 
 class Speicher:
@@ -187,6 +211,51 @@ class Speicher:
     def handlung_quittieren(self, id_: int, jetzt: str) -> bool:
         with self.lock, self.db:
             r = self.db.execute('update handlungen set quittiert = coalesce(quittiert, ?), abgeholt = coalesce(abgeholt, ?) where id = ?', (jetzt, jetzt, id_))
+            return r.rowcount > 0
+
+    # ---- Werft (#90): the last report per machine, its messages, the actions of the person until the Werft acknowledges them
+
+    def werft_speichern(self, bericht: dict, jetzt: str) -> None:
+        rechner = bericht['rechner']
+        with self.lock, self.db:
+            self.db.execute('insert or replace into werft values (?, ?, ?)', (rechner, jetzt, json.dumps(bericht, ensure_ascii=False)))
+            self.db.executemany('insert into werft_meldungen (rechner, zeit, text) values (?, ?, ?)', [(rechner, bericht['zeit'], m) for m in bericht['meldungen']])
+            self.db.execute('delete from werft_meldungen where rechner = ? and id not in (select id from werft_meldungen where rechner = ? order by id desc limit ?)', (rechner, rechner, WERFT_MELDUNGEN))
+
+    def werft(self) -> list[dict]:
+        with self.lock:
+            zeilen = self.db.execute('select * from werft order by rechner').fetchall()
+            meldungen = [dict(z) for z in self.db.execute('select rechner, zeit, text from werft_meldungen order by id')]
+        return [{'rechner': z['rechner'], 'empfangen': z['empfangen'], 'bericht': json.loads(z['bericht']), 'meldungen': [m for m in meldungen if m['rechner'] == z['rechner']]} for z in zeilen]
+
+    def werft_handlungen(self) -> list[dict]:
+        with self.lock:
+            return [dict(z) for z in self.db.execute('select * from werft_handlungen order by id')]
+
+    def werft_handlung_setzen(self, rechner: str, forge: str, stack: str | None, art: str, text: str | None, jetzt: str) -> dict | None:
+        """New or changed action; the last one per target counts until the Werft fetches it (target: the stack and art,
+        for einstellen the stack and the setting's name). None when the Werft already fetched an open one."""
+        name = json.loads(text)['name'] if art == 'einstellen' else None
+        with self.lock, self.db:
+            offen = self.db.execute('select * from werft_handlungen where rechner = ? and forge = ? and stack is ? and art = ? and quittiert is null', (rechner, forge, stack, art)).fetchall()
+            alt = next((z for z in offen if name is None or json.loads(z['text'])['name'] == name), None)
+            if alt is not None and alt['abgeholt']:
+                return None
+            if alt is None:
+                id_ = self.db.execute('insert into werft_handlungen (rechner, forge, stack, art, text, zeit) values (?, ?, ?, ?, ?, ?)', (rechner, forge, stack, art, text, jetzt)).lastrowid
+            else:
+                self.db.execute('update werft_handlungen set text = ?, zeit = ? where id = ?', (text, jetzt, alt['id']))
+                id_ = alt['id']
+            return dict(self.db.execute('select * from werft_handlungen where id = ?', (id_,)).fetchone())
+
+    def werft_handlungen_abholen(self, rechner: str, jetzt: str) -> list[dict]:
+        with self.lock, self.db:
+            self.db.execute('update werft_handlungen set abgeholt = ? where rechner = ? and quittiert is null and abgeholt is null', (jetzt, rechner))
+            return [dict(z) for z in self.db.execute('select * from werft_handlungen where rechner = ? and quittiert is null order by id', (rechner,))]
+
+    def werft_handlung_quittieren(self, id_: int, jetzt: str) -> bool:
+        with self.lock, self.db:
+            r = self.db.execute('update werft_handlungen set quittiert = coalesce(quittiert, ?), abgeholt = coalesce(abgeholt, ?) where id = ?', (jetzt, jetzt, id_))
             return r.rowcount > 0
 
     # ---- Holodeck (#44): the prototypes the driver sent, delivered only from here

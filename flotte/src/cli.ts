@@ -9,6 +9,7 @@ import { auftrag } from './befehle/auftrag.ts';
 import { lernen } from './befehle/lernen.ts';
 import { messen } from './befehle/messen.ts';
 import { triage } from './befehle/triage.ts';
+import { werft } from './befehle/werft.ts';
 import { zuschauen } from './befehle/zuschauen.ts';
 import { belegung } from './werkzeuge/belegung.ts';
 import { bloecke } from './werkzeuge/bloecke.ts';
@@ -35,6 +36,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   lernen: (argv) => lernen(argv),
   auftrag: (argv) => auftrag(argv),
   triage: (argv) => triage(argv),
+  werft: (argv) => werft(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {

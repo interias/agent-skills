@@ -4,7 +4,9 @@
 # blocked epic, revoke a decision of the admiral, change a setting of the driver (#59), take a released
 # epic in, pause or continue an epic and set its priority (#61), and set how an epic merges (#112): the
 # bridge only tightens, merge.ps1 stays the hard limit. No merge of its own, no abort. The Holodeck (#44)
-# shows the prototypes each driver sends, sealed off from the bridge. With a VAPID key (#37) each new
+# shows the prototypes each driver sends, sealed off from the bridge. The Werft of each machine (#90)
+# reports its stand and fetches what the person asks: pull a stack, release a working migration, settings.
+# With a VAPID key (#37) each new
 # event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN. #154: it shows the stand of
 # itself (BRUECKE_COMMIT, BRUECKE_DATUM, build arguments of its image) and of each driver, and carries the update
 # the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again. #48 (ADR-0006):
@@ -28,7 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import Antwort, Bericht, Handlung, Holodeck, PushAbmeldung, PushAbo, einstellung_pruefen
+from .modelle import Antwort, Bericht, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, tafel
 
@@ -38,7 +40,7 @@ SPERRE_S = 300
 # #48: the remote entry in the container (app/start.py), never published on the machine; the Tailscale add-on proxies to it
 FERNPORT = 8001
 # GETs that write: fetching marks answers and actions as fetched. Only the driver fetches, and only in the LAN.
-ABHOLEN = ('/api/antworten', '/api/handlungen')
+ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen')
 
 # A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
 # bridge's localStorage (the PIN) nor its cookies nor the answers of its API. Static resources from
@@ -184,6 +186,27 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         speicher.prototypen_setzen(h.forge, [d.model_dump() for d in h.dateien])
         return {'ok': True, 'dateien': len(h.dateien)}
 
+    # ---- Werft (#90, agent-skills/ADR-0005): like the driver it only calls; the bridge commands nothing
+
+    @app.post('/api/werft')
+    def werft_bericht(b: WerftBericht, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        speicher.werft_speichern(b.model_dump(), stempel())
+        return {'ok': True}
+
+    @app.get('/api/werft/handlungen')
+    def werft_abholen(rechner: str, x_bruecke_token: str | None = Header(None)) -> list[dict]:
+        treiber(x_bruecke_token)
+        # the contract: beispiel/werft-handlungen.json
+        return [{'id': h['id'], 'forge': h['forge'], 'stack': h['stack'], 'art': h['art'], 'text': h['text'], 'zeit': h['zeit'], 'herkunft': HERKUNFT} for h in speicher.werft_handlungen_abholen(rechner, stempel())]
+
+    @app.post('/api/werft/handlungen/{id_}/quittung')
+    def werft_quittieren(id_: int, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        if not speicher.werft_handlung_quittieren(id_, stempel()):
+            raise HTTPException(404, 'Keine solche Handlung.')
+        return {'ok': True}
+
     # ---- page
 
     @app.get('/api/tafel')
@@ -191,7 +214,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         # push: the public VAPID key when Web-Push is on (#37), else None
         # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
         # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
-        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
+        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')
@@ -334,6 +357,33 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         if not ids:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
         return {'ok': True, 'id': ids[0], 'ids': ids}
+
+    @app.post('/api/werft/handlung')
+    def werft_handeln(h: WerftHandlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        """#90: only with the PIN, checked against the last report of that machine's Werft; the Werft checks again."""
+        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        w = next((x for x in speicher.werft() if x['rechner'] == h.rechner), None)
+        repo = next((r for r in (w['bericht']['repos'] if w else []) if r['forge'] == h.forge), None)
+        if repo is None:
+            raise HTTPException(404, 'Dieses Repository meldet keine Werft auf diesem Rechner.')
+        st = next((s for s in repo['stacks'] if s['name'] == h.stack), None)
+        if h.stack is not None and st is None:
+            raise HTTPException(404, 'Diesen Stack kennt die Werft nicht.')
+        if h.art != 'einstellen' and not repo['an']:
+            raise HTTPException(409, 'Die Werft ist für dieses Repository aus.')
+        if h.art != 'einstellen' and not st['an']:
+            raise HTTPException(409, 'Dieser Stack ist aus.')
+        if h.art == 'migration_freigeben':
+            # bound to the migration the person saw: a newer backup or commit needs its own release
+            a = st.get('arbeit')
+            if not a or a['zustand'] != 'wartet':
+                raise HTTPException(409, 'Die Arbeits-Migration dieses Stacks wartet nicht auf eine Freigabe.')
+            if json.loads(h.text) != {k: a[k] for k in ('commit', 'sicherung', 'pruefsumme')}:
+                raise HTTPException(409, 'Die wartende Arbeits-Migration hat sich geändert: bitte neu ansehen.')
+        gespeichert = speicher.werft_handlung_setzen(h.rechner, h.forge, h.stack, h.art, h.text, stempel())
+        if gespeichert is None:
+            raise HTTPException(409, 'Die Werft hat die Handlung schon abgeholt.')
+        return {'ok': True, 'id': gespeichert['id']}
 
     @app.post('/api/pin', status_code=204)
     def pin(request: Request, x_bruecke_pin: str | None = Header(None)) -> Response:

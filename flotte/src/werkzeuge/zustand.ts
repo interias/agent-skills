@@ -73,9 +73,9 @@ export function startZeit(pid: number, aufrufer: Aufrufer = aufrufen): number | 
 
 export type Sperre ={ ok: true; datei: string } | { ok: false; pid: number; seit: string };
 
-/** Takes the driver lock of the repository (D20). A lock of a dead process is stale and taken over. */
-export function sperren(dir: string, pid = process.pid, istLebendig: (p: number) => boolean = lebt): Sperre {
-  const datei = join(dir, 'treiber.lock');
+/** Takes the driver lock of the repository (D20), or another lock by name (#88: werft.lock). A lock of a dead process is stale and taken over. */
+export function sperren(dir: string, pid = process.pid, istLebendig: (p: number) => boolean = lebt, name = 'treiber.lock'): Sperre {
+  const datei = join(dir, name);
   for (let versuch = 0; versuch < 2; versuch++) {
     try {
       const fd = openSync(datei, 'wx');
@@ -97,8 +97,8 @@ export function sperren(dir: string, pid = process.pid, istLebendig: (p: number)
   return { ok: false, pid: -1, seit: '' };
 }
 
-export function entsperren(dir: string, pid = process.pid): void {
-  const datei = join(dir, 'treiber.lock');
+export function entsperren(dir: string, pid = process.pid, name = 'treiber.lock'): void {
+  const datei = join(dir, name);
   try {
     const alt = JSON.parse(readFileSync(datei, 'utf8'));
     if (alt.pid === pid) unlinkSync(datei);

@@ -18,8 +18,8 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
   Fehler des Treibers: ein Ereignis beim Wechsel (erreichbar ↔ nicht erreichbar), sonst still
   weiter. Ist die Brücke aus, bleiben `flotte antworten` und das Issue als Weg.
 - **Nur über den LAN-Eingang:** Über den Fernzugriff (Tailscale, #48, agent-skills/ADR-0006) antwortet die
-  Brücke auf Bericht, Abholen, Quittieren und Holodeck mit `403`; der Treiber meldet sich wie bisher am
-  Rechner.
+  Brücke auf Bericht, Abholen, Quittieren und Holodeck mit `403`, ebenso auf die Werft (Abschnitt 6);
+  Treiber und Werft melden sich wie bisher am Rechner.
 - **Token (optional):** Setzt die Brücke `BRUECKE_TOKEN`, schickt der Treiber den Wert aus
   `FLOTTE_BRUECKE_TOKEN` als Kopf `X-Bruecke-Token` bei allen Aufrufen.
 - **Alt und neu passen zusammen:** Alle Felder, die v2 dazugebracht hat, sind im Bericht
@@ -479,7 +479,98 @@ offen ist (sonst erledigt oder dem Bericht unbekannt, `stufe` dann `null`); `fol
 der offenen Missionen, die nach dieser kommen. Das Projekt trägt wie bisher `prognose`. Alles stammt aus
 dem Bericht, die Brücke fragt keine Forge.
 
-## 6. Web-Push (#37, optional)
+## 6. Werft: `POST /api/werft`, `GET /api/werft/handlungen`
+
+Die Werft (`flotte werft`, #88, agent-skills/ADR-0005) ist ein eigener Dienst je Rechner, umgesetzt
+in `flotte/src/befehle/werft.ts`, getestet gegen eine Attrappe in `flotte/test/werft.test.ts`. Wie
+der Treiber **ruft nur sie**: Die Brücke befiehlt nichts, sie hält Stand, Einstellungen und
+Handlungen. Basis-URL, Token und Zeitgrenze wie in den Grundregeln (`--bruecke`, `FLOTTE_BRUECKE`,
+`FLOTTE_BRUECKE_TOKEN`, 3 s); ist die Brücke aus, zieht die Werft weiter nach. Die Gegenseite der
+Brücke (#90) steht unten unter „Auf der Brücke“; der gemeinsame Vertrag sind
+[`beispiel/werft.json`](beispiel/werft.json) (Bericht) und
+[`beispiel/werft-handlungen.json`](beispiel/werft-handlungen.json) (Abholen): pytest
+(`tests/test_werft.py`) prüft die Brücke, `bun test` (`flotte/test/werft.test.ts`) die Werft dagegen.
+
+**Takt** (alle 15 s): `GET /api/werft/handlungen?rechner=<os.hostname()>`, dann die fälligen
+Repositorys, dann `POST /api/werft`; nur wenn die Brücke den Bericht angenommen hat,
+`POST /api/werft/handlungen/{id}/quittung` je Handlung, die gewirkt hat oder abgelehnt wurde. Ein
+`nachziehen`, das nicht wirken konnte (Fetch, Adapter oder Diff gescheitert, `fehler` im Bericht),
+bleibt unquittiert und wirkt im nächsten Takt.
+
+**Bericht** `POST /api/werft`, Antwort `{"ok": true}`; der Bericht eines Rechners ersetzt seinen
+vorigen.
+
+| Feld | Bedeutung |
+|---|---|
+| `rechner` | `os.hostname()`; je Rechner eine Werft |
+| `zeit` | ISO-Zeit des Takts |
+| `repos[]` | je Repository mit `deploy`: `{forge, branch, stand, geprueft, abfrageS, abfrageGesetzt, an, migrationTest, fehler, stacks[]}`. `forge` ist `owner/name` von `origin` auf GitHub, sonst der Ordnername (nie ein Pfad), und mit `rechner` der Schlüssel des Repositorys; `branch` der `main_branch`; `stand` der zuletzt abgearbeitete Commit von `origin/<branch>` (`null` vor dem ersten Blick); `geprueft` ISO; `abfrageS` der wirksame Abstand, `abfrageGesetzt` der über die Brücke gesetzte (`null`: `deploy.abfrage_s`); `an` und `migrationTest` die wirksamen Einstellungen (unten); `fehler` Text, wenn das Repository nicht geprüft werden konnte (Fetch, Adapter, Diff), sonst `null` |
+| `repos[].stacks[]` | `{name, status, commit, zeit, protokoll, migration, arbeit, an}`, in der Reihenfolge des Adapters. `status` `gruen`, `rot` oder `null` (noch nie von der Werft gezogen); `commit` der Stand, bei dem der Stack zuletzt gezogen wurde; `protokoll` bei `rot` das Ende der Ausgabe (höchstens 4000 Zeichen), sonst `null`; `migration` `{test, arbeit, sicherung}`: welche Befehle von #89 der Adapter nennt; `arbeit` die Arbeitsmigration (unten) oder `null`; `an` `false`, wenn der Mensch den Stack abgeschaltet hat |
+| `repos[].stacks[].arbeit` | `{zustand, commit, sicherung, pruefsumme, zeit}` oder `null` (kein `migration_arbeit` oder noch nie nachgezogen). `zustand`: `wartet` (Sicherung geprüft, wartet auf `migration_freigeben`; nur hier zeigt die Brücke den Knopf), `gesperrt` (keine geprüfte Sicherung: scheiterte die Sicherung beim Nachziehen, steht der Stack `rot` mit Protokoll; sperrt eine abgelehnte Freigabe, weil Sicherungsdatei oder Befehl sich geändert haben, bleibt der Stack, wie er war, und der Grund steht in `meldungen[]`; `nachziehen` nimmt eine neue), `laeuft` (freigegeben und gestartet; bleibt nach einem Absturz stehen und wird nie wiederholt), `migriert`, `rot` (Exit ≠ 0, Protokoll am Stack). `commit` der nachgezogene Commit, `sicherung` der Dateiname der Sicherung (nie ein Pfad) oder `null`, `pruefsumme` ihr SHA-256 (hex) oder `null`, `zeit` ISO des letzten Wechsels |
+| `meldungen[]` | was dieser Takt getan oder abgelehnt hat, als Text (Laufband) |
+
+**Handlungen** `GET /api/werft/handlungen?rechner=<name>` liefert die noch nicht quittierten
+Handlungen des Rechners: `{id, forge, stack, art, text, zeit, herkunft}`.
+
+| `art` | Felder | was die Werft tut |
+|---|---|---|
+| `nachziehen` | `stack` ein Stack aus `stacks[]` | holt `origin/<branch>` sofort und zieht den Stack beim aktuellen Stand nach, auch wenn er `rot` steht; grün hebt den Halt auf. Ein unbekannter Stack wird eine Meldung `Nachziehen über die Brücke abgelehnt` |
+| `einstellen` | `text` = `{"name", "wert"}`, Namen unten | setzt den Wert ab diesem Takt, gespeichert im Stand (`werft.json`), überdauert einen Neustart; Meldung `Einstellung <Titel> von <alt> → auf <neu>, Mensch über die Brücke`. Ein anderer Name, Wert oder Stack wird eine Meldung `Einstellung über die Brücke abgelehnt` |
+| `migration_freigeben` | `stack` ein Stack aus `stacks[]`, `text` = `{"commit": <sha>, "sicherung": <Dateiname>, "pruefsumme": <sha256>}`, abgeschrieben aus `arbeit` des Berichts | die PIN prüft die Brücke vor dem Anlegen. Die Werft fährt `migration_arbeit` nur, wenn `arbeit.zustand` `wartet` ist, alle drei Felder genau passen, die Sicherungsdatei noch dieselbe Prüfsumme hat und der Adapter noch denselben Befehl nennt wie bei der Sicherung (gefahren wird dieser gespeicherte Befehl; Prüfsumme oder Befehl geändert → `gesperrt`); sonst eine Meldung `Freigabe der Migration über die Brücke abgelehnt: <Grund>` und nichts läuft. Wirkt höchstens einmal, auch nach Neustart; eine Freigabe einer älteren Sicherung oder eines älteren Commits wirkt nie |
+
+**Einstellungen** (#90), je Repository, Standard in Klammern:
+
+| `name` | `stack` | `wert` | Wirkung |
+|---|---|---|---|
+| `abfrage_s` | `null` | Sekunden > 0 oder `null` (`deploy.abfrage_s`) | wie oft das Repository fällig ist |
+| `an` | `null` | `true`/`false` (`true`) | Werft für das Repository: aus holt sie nichts, zieht nichts nach (auch kein `nachziehen` der Brücke: Meldung `Nachziehen über die Brücke abgelehnt: die Werft ist für <forge> aus`, quittiert) und fährt keine Migration; der Stand bleibt stehen, wieder an zieht sie nach, was seitdem kam |
+| `an` | ein Stack aus `stacks[]` | `true`/`false` (`true`) | dieser Stack wird nicht nachgezogen, auch nicht auf `nachziehen` (abgelehnt, quittiert), keine Test- und keine Arbeitsmigration; was ihn in der Zeit berührt, merkt sich die Werft (`nachholen`); wieder an, zieht sie ihn im nächsten fälligen Takt beim dann aktuellen Stand nach |
+| `migration_test` | `null` | `true`/`false` (`true`) | `migration_test` läuft nach einem grünen `nachziehen` von selbst; aus: nur `nachziehen` |
+
+**Aus schließt das Tor nicht auf** (#90): Eine Freigabe für eine abgeschaltete Werft oder einen
+abgeschalteten Stack lehnt die Werft ab (`Freigabe der Migration über die Brücke abgelehnt: die Werft
+ist für <forge> aus` bzw. `der Stack <name> ist aus`) und quittiert sie; die Migration bleibt
+`wartet` (nichts wird gesperrt), nach dem Einschalten braucht sie eine neue Freigabe. Eine Freigabe,
+die bis zum Einschalten liegen bliebe, würde später unbemerkt wirken; deshalb keine.
+
+Eine Handlung für ein Repository, das auf diesem Rechner keine Werft führt, wird abgelehnt und
+quittiert. Eine `art`, die die Werft nicht kennt (bei einer älteren Werft), bleibt unquittiert
+liegen. Kommt eine Handlung ein zweites Mal (die Quittung ging verloren),
+erkennt die Werft sie an `handlungenErledigt` im Stand und quittiert nur. Jede wirkt genau einmal.
+
+**Auf der Brücke** (#90): `POST /api/werft`, `GET /api/werft/handlungen?rechner=` und
+`POST /api/werft/handlungen/{id}/quittung` brauchen wie der Treiber den Token (`401`), sonst `422`
+bei ungültigen Feldern (ein Stack-Status außerhalb `gruen`/`rot`/`null`, eine Sicherung oder `forge`
+mit Pfad); `meldungen` und `fehler` kürzt sie auf 4000 Zeichen statt abzulehnen. Fehlen die Felder
+von #90 (ältere Werft), gelten sie als an. Die Brücke hebt die letzten 40 `meldungen` je Rechner auf
+und zeigt sie im Laufband und Logbuch (`ereignisse[]` mit `kurz` `Werft`, `forge` aus dem Präfix
+`<forge>:`, `zeit` des Berichts). Den Werft-Handlungen dient eine eigene Tabelle; `GET /api/handlungen`
+des Treibers liefert sie nie.
+
+Die Seite legt Handlungen mit PIN an: `POST /api/werft/handlung` mit `X-Bruecke-Pin`, Body
+`{rechner, forge, stack, art, text}`, Antwort `{ok, id}`; ohne oder mit falscher PIN `401`, ohne
+gesetzte PIN `403`, fünf falsche sperren (`429`). Geprüft gegen den letzten Bericht dieses Rechners:
+Repository oder Stack unbekannt `404`; `nachziehen` und `migration_freigeben` bei Werft oder Stack aus
+`409`; `migration_freigeben` nur bei `arbeit.zustand` `wartet` und nur mit genau `commit`,
+`sicherung`, `pruefsumme` von `arbeit` im Bericht (`409` sonst: die Freigabe gilt dem, was der Mensch
+sah); `einstellen` wie in der Tabelle, `abfrage_s` ganze Sekunden von 15 bis 86400 oder `null`,
+sonst `422`. Bis zum Abholen gilt je Ziel die letzte (Ziel: Stack und `art`, bei `einstellen` Stack
+und `name`); danach `409`.
+
+In `GET /api/tafel` steht `werft[]`, ein Eintrag je Repository und Rechner, sortiert nach `forge`:
+`{id, rechner, empfangen, veraltet, kurz, forge, branch, stand, geprueft, abfrageS, abfrageGesetzt,
+an, migrationTest, fehler, stacks[], einstellungen[]}`. `veraltet` nach 180 s ohne Bericht. Jeder
+Stack trägt dazu `nachziehen` und `freigabe` (die noch nicht quittierte Handlung `{id, art, text, zeit,
+abgeholt, quittiert}` oder `null`). `einstellungen[]` hat die Form der Treiber-Einstellungen
+(`an` mit `werte` `an`/`aus`, `stacks` als Liste der eingeschalteten mit `auswahl`, `abfrage_s` mit
+`leer`, `min`, `max` und `adapter`, `migration_test` mit `werte` `ja`/`nein`), `offen` ist die Änderung
+unterwegs zur Werft.
+Eine quittierte Werft-Handlung steht ab dann in `erledigt[]` (heute) wie eine des Treibers:
+`{art: "handlung", werft: true, forge, repo, rechner, stack, epic: null, nr: null, zeit, handlung, text}`,
+bei `einstellen` dazu `titel` (`Werft`, `Werft · Stack <name>`, `Werft · Abfrageabstand (s)`,
+`Werft · Test-Migrationen selbst`) und `wert` in Worten (`an`/`aus`, `ja`/`nein`, Sekunden oder `null`).
+
+## 7. Web-Push (#37, optional)
 
 Aus, solange `BRUECKE_VAPID_SCHLUESSEL` leer ist: Dann versucht die Brücke keinen Versand und spricht
 mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` antwortet `409`.
@@ -510,7 +601,7 @@ mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` 
 ## Was die Seite selbst nutzt
 
 `GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]`, `sitzungen[]` und `push`, der
-öffentliche VAPID-Schlüssel oder `null`), `POST /api/push` und `POST /api/push/abmelden` (Abschnitt 6), `GET /holodeck/…` (im
+öffentliche VAPID-Schlüssel oder `null`), `POST /api/push` und `POST /api/push/abmelden` (Abschnitt 7), `GET /holodeck/…` (im
 abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
 (`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender

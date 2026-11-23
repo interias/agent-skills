@@ -40,6 +40,68 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
 <dl><dt>RAM</dt><dd>${ram}</dd><dt>Platte</dt><dd>${platte}</dd><dt>Obergrenze</dt><dd>${grenze}</dd><dt>Takt</dt><dd>${takt}</dd></dl></article>`;
   };
 
+  // ---- Werft (#90): per repository and machine the stand of each stack, its last log and the two buttons;
+  // the bridge only stores what the person asks, the Werft fetches it in its next takt (every 15 s)
+  const WERFT = 'werft:';
+  const istWerft = (key) => String(key).startsWith(WERFT);
+  const kurzSha = (sha) => (sha ? sha.slice(0, 7) : '');
+  const STAND = { gruen: 'grün', rot: 'rot', wartet: 'wartet', aus: 'aus', neu: 'noch nicht gezogen' };
+  const ARBEIT = {
+    wartet: (a) => `wartet auf deine Freigabe · Sicherung <code>${esc(a.sicherung)}</code> geprüft`,
+    gesperrt: () => 'gesperrt: keine geprüfte Sicherung · „Jetzt nachziehen“ nimmt eine neue',
+    laeuft: (a) => `läuft seit ${esc(wann(a.zeit))}`,
+    migriert: (a) => `migriert ${esc(wann(a.zeit))}`,
+    rot: () => 'rot, siehe Protokoll · „Jetzt nachziehen“ nimmt eine neue Sicherung',
+  };
+  const findeWerft = (t, key) => (t?.werft ?? []).find((w) => w.id === key);
+  const unterwegs = (h, was) => (h ? `<span class="mr-wartet">${was} wartet auf die Werft${h.abgeholt ? ' · abgeholt, Quittung folgt' : ''}</span>` : '');
+
+  function stackHtml(w, s, darf) {
+    const aus = !w.an || !s.an;
+    const a = s.arbeit;
+    const stand = aus ? 'aus' : s.nachziehen || a?.zustand === 'wartet' ? 'wartet' : s.status ?? 'neu';
+    const farbe = { gruen: 'gruen', rot: 'rot', wartet: 'gelb' }[stand] ?? '';
+    const zu = !darf || aus ? ' disabled' : '';
+    // locked or red: pulling again takes a new backup, so that is the main button then
+    const neuSichern = a && (a.zustand === 'gesperrt' || a.zustand === 'rot');
+    const nachziehen = `<button type="button" class="knopf ${neuSichern || s.status === 'rot' ? 'haupt' : 'zweit'}" data-nachziehen${zu || s.nachziehen?.abgeholt ? ' disabled' : ''}>Jetzt nachziehen</button>`;
+    const freigeben = a?.zustand === 'wartet' ? `<button type="button" class="knopf haupt" data-freigeben${zu || s.freigabe?.abgeholt ? ' disabled' : ''}>Arbeits-Migration freigeben</button>` : '';
+    const migration = s.migration?.arbeit ? `<dt>Arbeits-Migration</dt><dd>${a ? ARBEIT[a.zustand]?.(a) ?? esc(a.zustand) : '<span class="mr-leer">noch keine</span>'}${a?.commit ? ` · <code>${esc(kurzSha(a.commit))}</code>` : ''}</dd>` : '';
+    const test = s.migration?.test ? `<dt>Test-Migration</dt><dd>${w.migrationTest ? 'läuft nach jedem Nachziehen selbst' : 'aus'}</dd>` : '';
+    const protokoll = s.protokoll ? `<details class="mr-protokoll"${s.status === 'rot' ? ' open' : ''}><summary>Letztes Protokoll</summary><pre>${esc(s.protokoll)}</pre></details>` : '';
+    return `<article class="mr-karte mr-stack ${farbe}" data-werft="${esc(w.id)}" data-stack="${esc(s.name)}">
+<h4>${esc(s.name)} <b class="mr-marke ${farbe || 'aus'}">${esc(STAND[stand])}</b></h4>
+<dl><dt>Stand</dt><dd>${s.commit ? `<code>${esc(kurzSha(s.commit))}</code> · ${esc(wann(s.zeit))}` : '<span class="mr-leer">noch nicht gezogen</span>'}${s.commit && w.stand && s.commit !== w.stand && !aus ? ' · <span class="mr-leer">älter als der Stand</span>' : ''}</dd>${test}${migration}</dl>
+${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Freigabe')}
+<div class="knoepfe">${freigeben}${nachziehen}<span class="status" role="status"></span></div></article>`;
+  }
+
+  function werftHtml(t) {
+    const liste = t.werft ?? [];
+    if (!liste.length) return '';
+    const mehrere = new Set(liste.map((w) => w.rechner)).size > 1;
+    return `<h3 class="mr-titel">Werft</h3>${liste.map((w) => {
+      const kopf = `${esc(w.kurz)}${mehrere ? ` · ${esc(w.rechner)}` : ''}`;
+      const lage = !w.an ? 'Die Werft ist für dieses Repository aus: sie holt nichts und zieht nichts nach.' : w.veraltet ? `Die Werft meldet sich seit ${wann(w.empfangen)} nicht: Knöpfe wirken ab ihrem nächsten Takt.` : '';
+      return `<div class="mr-werft${w.veraltet ? ' veraltet' : ''}"><p class="mr-hinweis"><b>${kopf}</b> · ${esc(w.branch)} bei <code>${esc(kurzSha(w.stand)) || '–'}</code> · geprüft ${esc(wann(w.geprueft)) || '–'} · alle ${esc(w.abfrageS)} s${w.fehler ? `<br><span class="mr-fehler">${esc(w.fehler)}</span>` : ''}${lage ? `<br>${esc(lage)}` : ''}</p>
+<div class="mr-reihe">${w.stacks.map((s) => stackHtml(w, s, t.pin)).join('') || '<p class="bereich-leer">Der Adapter nennt keine Stacks.</p>'}</div></div>`;
+    }).join('')}`;
+  }
+
+  async function werftKnopf(ev, art) {
+    const karte = ev.target.closest('.mr-stack');
+    const w = karte && findeWerft(letzte, karte.dataset.werft);
+    const s = w?.stacks.find((x) => x.name === karte.dataset.stack);
+    if (!s) return;
+    let text = null;
+    if (art === 'migration_freigeben') {
+      const a = s.arbeit;
+      if (!(await bestaetigen(`Arbeits-Migration von ${s.name} (${w.kurz}) beim Stand ${kurzSha(a.commit)} freigeben? Die Werft fährt sie genau einmal, gebunden an die Sicherung ${a.sicherung}. Eine neuere Sicherung braucht eine eigene Freigabe.`, 'Freigeben'))) return;
+      text = JSON.stringify({ commit: a.commit, sicherung: a.sicherung, pruefsumme: a.pruefsumme });
+    }
+    if (await senden('/api/werft/handlung', { rechner: w.rechner, forge: w.forge, stack: s.name, art, text }, karte, karte.querySelector('.status'))) await laden();
+  }
+
   // ---- settings (#59): the effective values with their origin, a control per value, a change only after "Übernehmen"
   const HERKUNFT = { start: 'Start', bruecke: 'Brücke', standard: 'Standard', gemischt: 'je Treiber' };
   // every setting holds for the whole fleet: shown once, "Übernehmen" goes to each driver
@@ -57,13 +119,18 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     leerlaufMin: 'Nach so vielen Minuten ohne Lebenszeichen fasst der Treiber nach oder bricht den Zug ab.',
     meldung: 'An: Bei einer neuen Frage oder Blockade zeigt der Rechner des Treibers eine Windows-Meldung, mehrere im selben Takt als eine mit der Zahl.',
     merge: 'Automatisch dockt der Treiber nach grüner Andockprüfung an, sonst prüft ein Mensch jedes Andocken. Berührt eine Mission einen Punkt der Liste „beim Menschen“, schlägt der Treiber dort „Mensch prüft“ vor; den Schalter je Mission gibt es auf der Sternenkarte.',
+    // #90: the settings of the Werft of a repository
+    an: 'Aus: die Werft holt nichts, zieht nichts nach und fährt keine Migration; eine Freigabe lehnt sie ab. Wieder an, zieht sie nach, was inzwischen kam.',
+    stacks: 'Nur diese Stacks zieht die Werft nach. Ein abgeschalteter Stack wird nicht gezogen, auch nicht auf Knopfdruck, und keine Migration läuft; wieder an, holt er nach, was ihn inzwischen berührt hat.',
+    abfrage_s: 'So oft schaut die Werft nach einem neuen Stand; automatisch gilt der Wert aus dem Adapter des Projekts.',
+    migration_test: 'Ja: nach jedem Nachziehen läuft die Test-Migration von selbst. Die Arbeits-Migration wartet immer auf deine Freigabe.',
   };
   // drafts: "forge|name" -> the value the person picked and has not sent yet
   const entwuerfe = new Map();
   let letzte = null;
   const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const art = (e) => (Array.isArray(e.wert) || Array.isArray(e.standard) ? 'liste' : e.werte ? 'wahl' : e.auswahl ? 'konto' : e.max - e.min <= 3 ? 'stufe' : 'zahl');
-  const anzeige = (e, w) => (w == null ? (e.name === 'admiral' ? 'Konto der Mission' : 'automatisch') : Array.isArray(w) ? (w.length ? w.join(', ') : 'keine') : e.werte ? ANDOCKEN[w] ?? String(w) : String(w));
+  const anzeige = (e, w) => (w == null ? (e.name === 'admiral' ? 'Konto der Mission' : e.adapter ? `automatisch (${e.adapter} s)` : 'automatisch') : Array.isArray(w) ? (w.length ? w.join(', ') : 'keine') : e.werte ? ANDOCKEN[w] ?? String(w) : String(w));
   // what the driver runs now, or what is on its way there
   const basis = (e) => (e.offen ? e.offen.wert : e.wert);
   const wann = (iso) => {
@@ -76,6 +143,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
   // the drivers a row speaks for: one, or all of them for a shared row
   const ziele = (t, zeile) => (zeile.dataset.forge === ALLE ? mitEinstellungen(t) : (t?.projekte ?? []).filter((p) => p.forge === zeile.dataset.forge));
   const finde = (t, zeile) => {
+    if (istWerft(zeile.dataset.forge)) return findeWerft(t, zeile.dataset.forge)?.einstellungen.find((x) => x.name === zeile.dataset.name);
     const es = ziele(t, zeile).map((p) => p.einstellungen?.find((x) => x.name === zeile.dataset.name)).filter(Boolean);
     return zeile.dataset.forge === ALLE ? vereint(es) : es[0];
   };
@@ -130,8 +198,8 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     const stand = e.je && !e.einig
       ? `<span class="mr-wartet">unterschiedlich</span> · ${e.je.map((x, k) => `${esc(mitEinstellungen(t)[k].kurz)} <b>${esc(anzeige(x, basis(x)))}</b>`).join(' · ')}`
       : e.offen
-      ? `<span class="mr-wartet">wartet auf den Treiber</span> · neu <b>${esc(anzeige(e, e.offen.wert))}</b>${geholt ? ' · abgeholt, Quittung folgt' : ''} <span class="mr-seit">(jetzt <b>${esc(anzeige(e, e.wert))}</b>)</span>`
-      : `<b>${esc(anzeige(e, e.wert))}</b> · wirksam seit ${esc(wann(e.seit))}`;
+      ? `<span class="mr-wartet">wartet auf ${istWerft(p.forge) ? 'die Werft' : 'den Treiber'}</span> · neu <b>${esc(anzeige(e, e.offen.wert))}</b>${geholt ? ' · abgeholt, Quittung folgt' : ''} <span class="mr-seit">(jetzt <b>${esc(anzeige(e, e.wert))}</b>)</span>`
+      : `<b>${esc(anzeige(e, e.wert))}</b>${e.seit ? ` · wirksam seit ${esc(wann(e.seit))}` : ''}`;
     return `<div class="mr-karte mr-einst-zeile${e.offen ? ' wartet' : ''}" role="group" aria-labelledby="${id}-t" data-forge="${esc(p.forge)}" data-name="${esc(e.name)}">
 <h4 id="${id}-t">${esc(e.titel)} <span class="mr-herkunft ${esc(e.herkunft)}">${esc(HERKUNFT[e.herkunft] ?? e.herkunft)}</span></h4>
 <p class="mr-hilfe">${esc(HILFE[e.name] ?? '')}</p>${e.hinweis ? `<p class="mr-hilfe mr-grenze">${esc(e.hinweis)}</p>` : ''}
@@ -161,7 +229,23 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
         return `${kopf}<p class="mr-hinweis">Dieser Treiber meldet keine Einstellungen (älterer Stand): hier nur lesend${bekannt ? `, bekannt ist ${bekannt}` : ''}. Ändern geht, sobald der Treiber aktualisiert ist.</p>`;
       }
       return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
+    }).join('') + werftEinstellungenHtml(t);
+  }
+
+  // #90: the settings of the Werft, per repository and machine, drawn like those of a driver
+  function werftEinstellungenHtml(t) {
+    const liste = t.werft ?? [];
+    const mehrere = new Set(liste.map((w) => w.rechner)).size > 1;
+    return liste.map((w, i) => {
+      const hinweis = !t.pin ? 'Ändern abgeschaltet: keine PIN gesetzt.' : w.veraltet ? 'Die Werft meldet sich gerade nicht: eine Änderung wirkt ab ihrem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt der Werft (alle 15 s), nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.';
+      return `<h3 class="mr-titel">Einstellungen · Werft ${esc(w.kurz)}${mehrere ? ` · ${esc(w.rechner)}` : ''}</h3><p class="mr-hinweis">${esc(hinweis)}</p><div class="mr-reihe mr-einst">${w.einstellungen.map((e) => zeileHtml({ forge: w.id }, `w${i}`, e, t.pin, t)).join('')}</div>`;
     }).join('');
+  }
+
+  // what "Übernehmen" sends to the Werft: one change per stack switched, else the setting itself
+  function werftAenderungen(e, w) {
+    if (e.name === 'stacks') return e.auswahl.filter((n) => w.includes(n) !== basis(e).includes(n)).map((n) => ({ stack: n, name: 'an', wert: w.includes(n) }));
+    return [{ stack: null, name: e.name, wert: e.name === 'abfrage_s' ? w : w === 'an' || w === 'ja' }];
   }
 
   // a control changed: keep the draft (the 10 s load draws again), enable "Übernehmen" at once
@@ -187,7 +271,14 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     if (!e) return;
     const text = JSON.stringify({ name: e.name, wert: lies(zeile, e) });
     let alle = true;
-    for (const p of ziele(letzte, zeile)) {
+    const werft = istWerft(zeile.dataset.forge) && findeWerft(letzte, zeile.dataset.forge);
+    for (const x of werft ? werftAenderungen(e, lies(zeile, e)) : []) {
+      if (!(await senden('/api/werft/handlung', { rechner: werft.rechner, forge: werft.forge, stack: x.stack, art: 'einstellen', text: JSON.stringify({ name: x.name, wert: x.wert }) }, zeile, zeile.querySelector('.status')))) {
+        alle = false;
+        break;
+      }
+    }
+    for (const p of werft ? [] : ziele(letzte, zeile)) {
       if (!(await senden('/api/handlung', { forge: p.forge, epic: 0, art: 'einstellen', nr: null, seit: null, text }, zeile, zeile.querySelector('.status')))) {
         alle = false;
         break;
@@ -295,15 +386,17 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}<h3 class="mr-titel">Konten</h3>${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
         el.addEventListener('input', geaendert);
         el.addEventListener('click', (ev) => {
           if (ev.target.closest('[data-uebernehmen]')) uebernehmen(ev);
-          if (ev.target.closest('[data-push]')) push(ev);
-          if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
+          else if (ev.target.closest('[data-nachziehen]')) werftKnopf(ev, 'nachziehen');
+          else if (ev.target.closest('[data-freigeben]')) werftKnopf(ev, 'migration_freigeben');
+          else if (ev.target.closest('[data-push]')) push(ev);
+          else if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
