@@ -97,6 +97,9 @@ export interface Einstellung {
   brueckeAbfrageMs: number;
 }
 
+/** #183: a stage in a visible text; the state key gemergt stays, the text says angedockt */
+const stufeText = (s: string) => (s === 'gemergt' ? 'angedockt' : s);
+
 export function standard(repo: string, forge: string, epics: number[], konten: string[]): Einstellung {
   return {
     repo: resolve(repo),
@@ -975,7 +978,7 @@ class Treiber {
       const tot = b.nach.find((n) => ['blockiert', 'abgebrochen'].includes(this.epic(n)?.stufe ?? ''));
       if (ep.stufe === 'wartend' && tot) {
         ep.stufe = 'blockiert';
-        ep.notiz = `Vorgänger #${tot} ist ${this.epic(tot).stufe}`;
+        ep.notiz = `Vorgänger #${tot} ist ${stufeText(this.epic(tot).stufe)}`;
         this.ereignis(b.nr, ep.notiz);
       }
     }
@@ -1448,7 +1451,7 @@ class Treiber {
     }
     if (h.art === 'pausieren' || h.art === 'fortsetzen' || h.art === 'prioritaet') return this.steuern(h, ep);
     if (h.art === 'merge') return this.mergeStellen(h, ep);
-    if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || ep.aufgegebenAm) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Mission ist ${ep.stufe}, nichts zu tun`);
+    if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || ep.aufgegebenAm) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Mission ist ${stufeText(ep.stufe)}, nichts zu tun`);
     if (h.art === 'aufgeben') {
       ep.stufe = 'abgebrochen';
       ep.aufgegebenAm = jetzt;
@@ -1494,7 +1497,7 @@ class Treiber {
     const nein = (grund: string) => this.ereignis(nr, `Aufnehmen über die Brücke abgelehnt: ${grund}`);
     if (this.e.epics.includes(nr)) return nein('schon im Einsatz');
     const ep = this.epic(nr);
-    if (ep && (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm)) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    if (ep && (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm)) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : stufeText(ep.stufe)}`);
     try {
       if (!freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.includes(nr)) return nein(`keine offene Mission mit ${this.adapter.epic_label} und ${this.adapter.ready_label}`);
       this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, [...this.e.epics, nr]).bilder;
@@ -1523,7 +1526,7 @@ class Treiber {
     const was = { pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität' }[h.art as 'pausieren' | 'fortsetzen' | 'prioritaet'];
     const nein = (grund: string) => this.ereignis(nr, `${was} über die Brücke abgelehnt: ${grund}`);
     if (!this.e.epics.includes(nr)) return nein('Mission ist nicht im Einsatz');
-    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : stufeText(ep.stufe)}`);
     if (h.art === 'prioritaet') {
       const p = h.text?.trim();
       if (p !== 'hoch' && p !== 'normal') return nein(`unbekannte Priorität ${JSON.stringify(h.text ?? null).slice(0, 40)}`);
@@ -1556,7 +1559,7 @@ class Treiber {
     const nr = ep.nr;
     const nein = (grund: string) => this.ereignis(nr, `Andocken über die Brücke abgelehnt: ${grund}`);
     if (!this.e.epics.includes(nr)) return nein('Mission ist nicht im Einsatz');
-    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : ep.stufe}`);
+    if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : stufeText(ep.stufe)}`);
     const neu = h.text?.trim() || null;
     if (neu !== null && neu !== 'automatisch' && neu !== 'mensch') return nein(`unbekannte Stellung ${JSON.stringify(h.text).slice(0, 40)}`);
     const gesperrt = this.mergeGesperrt('merge', neu);
