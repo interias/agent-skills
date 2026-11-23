@@ -571,7 +571,7 @@ Kläre jede Notiz in derselben Antwort. ${FRAGERUNDE}
 
 Je Zuordnung dazu:
 - fragen: die Fragen der Fragerunde zu dieser Notiz mit deiner Antwort. Liegt eine beim Menschen, gehen nur diese gebündelt mit optionen und deiner Empfehlung als Kommentar an die Notiz; sie bleibt in der Triage und kommt erst nach seiner Antwort in ihre Mission. Eine Notiz, die geschlossen wird (zusammengefuehrt, ueberfluessig, verworfen), hat keine Frage beim Menschen.
-- abnahmekriterien, verifikationsweg: bei mission und neue_mission ohne Frage beim Menschen. ${abschnitte(r)} Das Programm ergänzt den Text der Notiz damit (der bisherige Text bleibt stehen) und prüft ihn wie der Auftragsschreiber; fehlt dann ein Abschnitt, gilt der Plan nicht, und fehlt er nach einer Korrektur noch, bleibt die Notiz in der Triage.
+- abnahmekriterien, verifikationsweg: bei mission und neue_mission ohne Frage beim Menschen. ${abschnitte(r)} Das Programm ergänzt den Text der Notiz damit (der bisherige Text bleibt stehen) und prüft ihn wie der Auftragsschreiber; fehlt dann ein Abschnitt, gilt der Plan nicht, und fehlt er auch im zweiten Plan noch, bleibt die Notiz in der Triage.
 
 herkunft gilt je Zuordnung, jede Frage hat ihre eigene. ${HERKUNFT_REGEL}
 
