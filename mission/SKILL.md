@@ -310,10 +310,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
   `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
   Erste Offizier blind.
 - **Behauptungen im Body gegen den Arbeitsbaum prüfen**, bevor du planst: nennt das Issue eine
-  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt.
-  Eine nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Bei mehr als
-  einer Handvoll Behauptungen gehen sie gebündelt an Kundschafter („Modelle, Paketklasse,
-  Kundschafter").
+  Datei, ein Skript, einen Test als Vorbild — nachsehen, ob es existiert und noch so heißt; eine
+  nicht haltbare Behauptung, an der ein Paket hängt, ist ein Tor-Punkt. Die Lesearbeit vor dem
+  Vorab-Tor — Behauptungen, Fundstellen, berührte Module, Kanten — geht an Kundschafter (#200).
 - Widerspricht das Issue einem ADR oder einem Out-of-Scope-Eintrag, ist eines von beiden falsch —
   das entscheidet ein Mensch (Vorab-Tor).
 
@@ -463,20 +462,21 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket
   alles Angedockte, und ein Konflikt kann nur noch von einem gleichzeitig laufenden Paket kommen.
 - **Rüsten und Abräumen nur mit `Up`, `Down` und `CleanupStale`**, nie von Hand. `Up` liest den
-  Adapter selbst und verlinkt **alle** `link_dirs` und `always_link`; während der Umstellung (2c,
-  Punkt 13) bekommt jeder Aufruf `-AdapterFile <epic-worktree>/.claude/epic.md`. **Ein Paket, das das Lockfile
-  ändert und eine echte Installation bräuchte, ist per `Up` nicht rüstbar** — ein Tor-Punkt (2c,
-  Punkt 14), keine Handarbeit. Exit 1 heißt: das Skript im Wortlaut melden, nichts von Hand
-  nachholen; bei `Up` hält das Paket an. `Down` nie aus einer Shell aufrufen, die im Worktree
-  steht. Aufruf und Regeln: **`references/worktree.md`**. Lies die Datei, bevor du den ersten
-  Worktree anlegst.
+  Adapter selbst und verlinkt **alle** `link_dirs` und `always_link`. Kein `bun install`, `npm install`
+  oder Gegenstück je Worktree für ein Verzeichnis, das `link_dirs` nennt (#200). Während der
+  Umstellung (2c, Punkt 13) bekommt jeder Aufruf `-AdapterFile <epic-worktree>/.claude/epic.md`.
+  **Ein Paket, das das Lockfile ändert und eine echte Installation bräuchte, ist per `Up` nicht
+  rüstbar** — ein Tor-Punkt (2c, Punkt 14). Exit 1 heißt: das Skript im Wortlaut melden, nichts von
+  Hand nachholen; bei `Up` hält das Paket an. `Down` nie aus einer Shell aufrufen, die im Worktree
+  steht. Aufruf und Regeln: **`references/worktree.md`** — lies sie vor dem ersten Worktree.
 
 ## Phase 4 — Das Fenster
 
 Gearbeitet wird in einem gleitenden Fenster mit `window` Plätzen (Phase 0), höchstens drei, denn
 deine Nachprüfung ist die Engstelle. Nennt der Auftrag „höchstens N Pakete gleichzeitig“, senkt N
 das Fenster, nie darüber (#60); es gilt ab dem nächsten frei werdenden Platz, laufende Pakete
-laufen zu Ende. Wird ein Platz frei, rückt sofort das nächste startbereite Paket nach.
+laufen zu Ende. Wird ein Platz frei, rückt sofort das nächste startbereite Paket nach, nicht erst
+nach der Nacharbeit des Andockens (#200).
 
 **Startbereit** ist ein Paket, wenn alle harten Vorgänger **angedockt** sind und zu keinem laufenden
 Paket eine Kollisionskante besteht. Ein Exklusivknoten startet nur bei leeren Plätzen. Bei mehreren
@@ -488,9 +488,9 @@ Vorschau, keine Entscheidung. Eine Abweichung von der Vorschau trägst du auf de
 Grund.
 
 **Das Fenster gleitet je Paket, nicht je Belegung.** Jedes Paket geht seinen Weg einzeln weiter,
-sobald sein eigener Schritt fertig ist: Der Erste Offizier startet, wenn **sein** Ingenieur zurück
-ist, deine Nachprüfung, wenn **sein** Erster Offizier zurück ist — nie erst, wenn die Nachbarn so weit
-sind. Läuft für ein Paket ein langer Befehl (Volllauf, Andockprüfung, Slot-Fahrt), legst du ihn in den
+sobald sein eigener Schritt fertig ist: Ist **sein** Ingenieur zurück, startet der Erste Offizier,
+und deine Nachprüfung (4c) startet **zugleich mit** seinem Ersten Offizier, nicht danach; was er
+korrigiert, fährst du gezielt nach. Nie wartet ein Paket, bis die Nachbarn so weit sind. Läuft für ein Paket ein langer Befehl (Volllauf, Andockprüfung, Slot-Fahrt), legst du ihn in den
 Hintergrund und führst inzwischen die anderen Pakete weiter: Berichte lesen, Erste Offiziere starten,
 andocken, Nachrücker starten. Die Grenze „nie zwei Vollläufe gleichzeitig" (4c) bleibt. Herkunft:
 Messung vom 18.11.2026 (hexanite, Missionen #240/#241) — in 70 % der Laufzeit arbeitete kein

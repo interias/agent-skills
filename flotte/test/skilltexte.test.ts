@@ -52,3 +52,24 @@ describe('#201: independent packages at the same time, the Ingenieur checks hims
     expect(phase4b).toContain('Ist jeder Abnahmepunkt erfüllt — nachweisbar, nicht behauptet?');
   });
 });
+
+const phase4 = abschnitt('## Phase 4 — Das Fenster', '### Die RAM-Bremse');
+const phase1 = abschnitt('## Phase 1 — Lesen', '## Phase 2');
+const phase3 = abschnitt('## Phase 3 — Missions-Branch und Worktrees', '## Phase 4');
+const worktreeMd = lies('mission/references/worktree.md');
+
+describe('#200: relieve the orchestrator', () => {
+  it('Phase 4: the check of a package starts alongside its Erster Offizier, the next Ingenieur as soon as a place is free', () => {
+    expect(phase4).toContain('deine Nachprüfung (4c) startet **zugleich mit** seinem Ersten Offizier, nicht danach');
+    expect(phase4).toContain('nicht erst nach der Nacharbeit des Andockens');
+  });
+
+  it('Phase 3 and references/worktree.md: no install per worktree where link_dirs names the folder', () => {
+    expect(phase3).toMatch(/Kein `bun install`, `npm install` oder Gegenstück je Worktree/);
+    expect(worktreeMd).toMatch(/Kein `bun install`, `npm install` oder Gegenstück je Worktree/);
+  });
+
+  it('Phase 1: the reading before the Vorab-Tor goes to Kundschafter', () => {
+    expect(phase1).toContain('Die Lesearbeit vor dem Vorab-Tor — Behauptungen, Fundstellen, berührte Module, Kanten — geht an Kundschafter');
+  });
+});
