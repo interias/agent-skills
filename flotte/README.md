@@ -201,8 +201,12 @@ Notiz, die bleibt, fragt eine geschlossene Notiz den Menschen, oder besteht eine
 Mission kommt, mit ihren ergänzten Abschnitten die Prüfung des Auftragsschreibers nicht,
 gilt er nicht. Hat das Modell geantwortet, folgt genau eine **Reparaturrunde** (#147): derselbe Auftrag
 mit dem Fehler und der ungültigen Antwort darunter, „korrigiere nur das“. Sie ist der einzige zweite
-Aufruf: Der Normalfall ist genau ein Aufruf je Projekt, die Zahl steht in der Ausgabe (`aufrufe`). Ist
-auch der zweite Plan ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte;
+Aufruf: Der Normalfall ist genau ein Aufruf je Projekt, die Zahl steht in der Ausgabe (`aufrufe`). Fallen
+im Plan nach der Reparaturrunde nur noch einzelne Notizen mit `mission` oder `neue_mission` durch die
+Prüfung ihrer Abschnitte, hält das den Plan nicht auf: Das Programm stuft jede solche Notiz auf `triage`
+herab (sie bleibt unverändert, `herabgestuft` nennt Fehler und vorgesehene Mission), der Rest gilt; eine neue
+Mission, der so alle Kinder fehlen, wird nicht angelegt. Ist
+auch der zweite Plan sonst ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte;
 derselbe Auftrag noch einmal scheiterte meist genauso), gilt er als Ganzes nicht: Für die Notizen dieses
 Projekts wird in diesem Lauf nichts geschrieben (der nächste Lauf versucht es neu).
 Aus einem gültigen Plan werden
@@ -220,7 +224,8 @@ anderen Notizen teilen, aber höchstens die Hälfte aller; ganze Themen kommen z
 passen, ein Thema größer als ein Paket wird in der Reihenfolge seiner Notizen geschnitten. Ein Paket je Notiz
 gibt es nie. Die Grenzen gelten über alle Pakete zusammen: Jedes nächste Paket sieht die freien Plätze, die
 die früheren den offenen Missionen ließen, und die übrigen neuen Missionen; ein Schlüssel einer neuen Mission,
-den ein früheres Paket schon trägt, bekommt `-<Paket>` angehängt. Ist ein Paket ungültig, wird für das ganze
+den ein früheres Paket schon trägt, bekommt `-<Paket>` angehängt, so oft, bis er weder in einem früheren
+noch im selben Paket vorkommt. Ist ein Paket ungültig, wird für das ganze
 Projekt nichts geschrieben. Innerhalb eines Auftrags werden viele Notizen kürzer
 gekürzt, keine fällt weg. Gekürzt wird eine Notiz (#148) zuerst um ihre ältesten Kommentare (mit dem
 Vermerk `(N ältere Kommentare ausgelassen)`), dann am Text; der neueste Kommentar, etwa ein Widerruf
@@ -402,7 +407,8 @@ Notizen kommen sollten: je `nummer`, `titel`, `kinder` = die vorgesehenen Notize
 neue `body`, gegebenenfalls `fehler`), `zuordnungen` (je `notiz`,
 `titel`, `url`, `art`, `grund`, `herkunft`, bei `mission` die Nummer `mission`, bei `neue_mission`
 deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessig` die `fundstelle`;
-`fragen` der Fragerunde und, wo geschrieben, `abnahmekriterien` und `verifikationsweg`;
+`fragen` der Fragerunde und, wo geschrieben, `abnahmekriterien` und `verifikationsweg`; bei einer vom
+Programm auf `triage` herabgestuften Notiz `herabgestuft` (auch an ihrem Eintrag in `tickets`);
 bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
 ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
 nur hier, nicht in `tickets`. `nachgeholt` (#149): je Mission der Triage, deren `ready_label` der Lauf

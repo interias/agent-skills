@@ -116,6 +116,11 @@ describe('#146 Schnittplan: 12 Notizen zu 3 Themen', () => {
     const mit = (i: number, z: object) => ({ ...DREI_THEMEN, zuordnungen: DREI_THEMEN.zuordnungen.map((y, j) => (j === i ? { ...y, ...z } : y)) });
     expect(fehler(mit(0, { verifikationsweg: '' }))).toContain('Sternzeit-Notiz #1: abnahmekriterien oder verifikationsweg fehlt');
     const frage = { frage: 'Darf das raus?', optionen: ['ja', 'nein'], antwort: 'nein', herkunft: 'h', grund: 'g', beim_menschen: true, marke: 'nach außen' };
+    // the last plan (after the repair): such a note alone stays on triage, a structural error still invalidates
+    const q = schnittplanAus(mit(0, { verifikationsweg: '' }), n, [], REGELN, 4, true);
+    expect(q.art === 'plan' && q.zuordnungen[0]).toMatchObject({ art: 'triage', herabgestuft: expect.stringContaining('vorgesehen: neue Mission „port“') });
+    expect(q.art === 'plan' && q.neue_missionen.map((m) => m.kinder.length)).toEqual([3, 4, 4]);
+    expect(schnittplanAus({ ...mit(0, { verifikationsweg: '' }), zuordnungen: DREI_THEMEN.zuordnungen.slice(1) }, n, [], REGELN, 4, true).art).toBe('ungueltig');
     // with a question with the person a note waits for the answer: no sections needed yet
     expect(fehler(mit(0, { verifikationsweg: '', fragen: [frage] }))).toBe('');
     expect(fehler(mit(0, { art: 'verworfen', fragen: [frage] }))).toContain('verworfen, aber eine Frage liegt beim Menschen');

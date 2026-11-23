@@ -357,6 +357,8 @@ export interface Zuordnung {
   /** #146: the sections the admiral wrote for a note joining a mission, where they are missing or empty */
   abnahmekriterien?: string;
   verifikationsweg?: string;
+  /** #146: the program put the note on `triage`: its sections failed the order writer's check (why, and where it was to go) */
+  herabgestuft?: string;
 }
 
 export interface NeueMission {
@@ -412,9 +414,11 @@ export function schnittplanSchema(): object {
  * What the model's plan allows: each note of the input exactly once, missions and notes only known ones,
  * the limits kept (neuMax: the new missions still free in this run), closing only with a reason. #146: a note
  * joining a mission without a question with the person carries its sections (they pass the order writer's
- * check), a closed one asks no question. Anything else is invalid as a whole and changes nothing.
+ * check), a closed one asks no question. Anything else is invalid as a whole and changes nothing. With
+ * herabstufen (the last plan, after the repair) a note whose sections fail the check alone does not hold back
+ * the plan: it stays on `triage` (herabgestuft names why), and a new mission left without children is dropped.
  */
-export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX): Schnittplan {
+export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX, herabstufen = false): Schnittplan {
   const o = x as Record<string, unknown> | null;
   const nein = (fehler: string): Schnittplan => ({ art: 'ungueltig', fehler });
   if (!o || !Array.isArray(o.neue_missionen) || !Array.isArray(o.zuordnungen)) return nein('kein Schnittplan im Schema');
@@ -452,23 +456,30 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
   const fehlt = notizen.find((t) => !zuordnungen.some((z) => z.notiz === t.nummer));
   if (fehlt) return nein(`Sternzeit-Notiz #${fehlt.nummer} ohne Zuordnung`);
   const neueKinder = new Map<number, number>();
+  // new missions that lost a child to herabstufen: left empty, they are dropped instead of invalid
+  const geleert = new Set<string>();
   for (const z of zuordnungen) {
     const nr = `Sternzeit-Notiz #${z.notiz}`;
     const frage = z.fragen.some((f) => f.beim_menschen);
     if (frage && GESCHLOSSEN.includes(z.art)) return nein(`${nr}: ${z.art}, aber eine Frage liegt beim Menschen`);
+    if (z.art === 'mission' && !missionen.some((m) => m.nummer === z.mission)) return nein(`${nr}: Mission #${z.mission ?? '?'} ist nicht offen, im Außeneinsatz oder unbekannt`);
+    if (z.art === 'neue_mission' && !neu.some((n) => n.schluessel === z.neue_mission)) return nein(`${nr}: neue Mission „${z.neue_mission}“ nicht im Plan`);
     if (!frage && (z.art === 'mission' || z.art === 'neue_mission')) {
       const t = notizen.find((t) => t.nummer === z.notiz)!;
       const e = ergaenzt(t.titel, t.body, z, r);
-      if (e.fehler) return nein(`${nr}: abnahmekriterien oder verifikationsweg fehlt (${e.fehler.replace(/^[^\n]*\n- /, '')})`);
+      if (e.fehler) {
+        const fehler = `${nr}: abnahmekriterien oder verifikationsweg fehlt (${e.fehler.replace(/^[^\n]*\n- /, '')})`;
+        if (!herabstufen) return nein(fehler);
+        z.herabgestuft = `${fehler}; vorgesehen: ${z.art === 'mission' ? `Mission #${z.mission}` : `neue Mission „${z.neue_mission}“`}`;
+        if (z.neue_mission) geleert.add(z.neue_mission);
+        z.art = 'triage';
+        delete z.mission;
+        delete z.neue_mission;
+      }
     }
-    if (z.art === 'mission') {
-      if (!missionen.some((m) => m.nummer === z.mission)) return nein(`${nr}: Mission #${z.mission ?? '?'} ist nicht offen, im Außeneinsatz oder unbekannt`);
-      neueKinder.set(z.mission!, (neueKinder.get(z.mission!) ?? 0) + 1);
-    } else if (z.art === 'neue_mission') {
-      const m = neu.find((n) => n.schluessel === z.neue_mission);
-      if (!m) return nein(`${nr}: neue Mission „${z.neue_mission}“ nicht im Plan`);
-      m.kinder.push(z.notiz);
-    } else if (z.art === 'zusammengefuehrt') {
+    if (z.art === 'mission') neueKinder.set(z.mission!, (neueKinder.get(z.mission!) ?? 0) + 1);
+    else if (z.art === 'neue_mission') neu.find((n) => n.schluessel === z.neue_mission)!.kinder.push(z.notiz);
+    else if (z.art === 'zusammengefuehrt') {
       const ziel = zuordnungen.find((y) => y.notiz === z.in);
       if (!ziel || z.in === z.notiz || GESCHLOSSEN.includes(ziel.art)) return nein(`${nr}: zusammengeführt in #${z.in ?? '?'}, die nicht bleibt`);
     } else if (z.art === 'ueberfluessig' && (!z.grund || !z.fundstelle)) return nein(`${nr}: überflüssig ohne Grund oder Fundstelle`);
@@ -479,10 +490,10 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
     if (m.kinder + n > KINDER_MAX) return nein(`Mission #${nr} hätte mehr als ${KINDER_MAX} Kinder (${m.kinder} + ${n})`);
   }
   for (const m of neu) {
-    if (!m.kinder.length) return nein(`neue Mission „${m.schluessel}“ ohne Kinder`);
+    if (!m.kinder.length && !geleert.has(m.schluessel)) return nein(`neue Mission „${m.schluessel}“ ohne Kinder`);
     if (m.kinder.length > KINDER_MAX) return nein(`neue Mission „${m.schluessel}“ hätte mehr als ${KINDER_MAX} Kinder (${m.kinder.length})`);
   }
-  return { art: 'plan', neue_missionen: neu, zuordnungen };
+  return { art: 'plan', neue_missionen: neu.filter((m) => m.kinder.length), zuordnungen };
 }
 
 /** Words of a title that name no topic. */
@@ -560,7 +571,7 @@ Kläre jede Notiz in derselben Antwort. ${FRAGERUNDE}
 
 Je Zuordnung dazu:
 - fragen: die Fragen der Fragerunde zu dieser Notiz mit deiner Antwort. Liegt eine beim Menschen, gehen nur diese gebündelt mit optionen und deiner Empfehlung als Kommentar an die Notiz; sie bleibt in der Triage und kommt erst nach seiner Antwort in ihre Mission. Eine Notiz, die geschlossen wird (zusammengefuehrt, ueberfluessig, verworfen), hat keine Frage beim Menschen.
-- abnahmekriterien, verifikationsweg: bei mission und neue_mission ohne Frage beim Menschen. ${abschnitte(r)} Das Programm ergänzt den Text der Notiz damit (der bisherige Text bleibt stehen) und prüft ihn wie der Auftragsschreiber; fehlt dann ein Abschnitt, verwirft es den Plan.
+- abnahmekriterien, verifikationsweg: bei mission und neue_mission ohne Frage beim Menschen. ${abschnitte(r)} Das Programm ergänzt den Text der Notiz damit (der bisherige Text bleibt stehen) und prüft ihn wie der Auftragsschreiber; fehlt dann ein Abschnitt, gilt der Plan nicht, und fehlt er nach einer Korrektur noch, bleibt die Notiz in der Triage.
 
 herkunft gilt je Zuordnung, jede Frage hat ihre eigene. ${HERKUNFT_REGEL}
 

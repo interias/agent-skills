@@ -511,15 +511,69 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     jedeAenderungMitKommentar(aufrufe, new Set([100, 101]));
   });
 
-  it('above the size limit: few packages by topic, one call each, never one per note; the limits hold over all packages', async () => {
-    const lang = 'x'.repeat(5_000);
+  it('a note whose sections still fail after the repair stays on triage with its reason; the rest of the plan counts', async () => {
     const f = forge([
-      ...Array.from({ length: 30 }, (_, i) => notiz(i + 1, `${THEMEN[i % 3]} Notiz ${i + 1}`, lang)),
+      notiz(1, 'Port vor dem Start', 'Text 1'),
+      notiz(2, 'Port beim Neustart', 'Text 2'),
+      notiz(3, 'Eigenes Thema', 'Text 3'),
+      notiz(4, 'Tafel zeigt den Port', 'Text 4'),
+      notiz(5, 'Alte Idee', 'Text 5'),
+      { number: 40, title: 'Tafel', body: MISSION_40, labels: ['epic'], state: 'open', comments: [], kinder: [30] },
+    ]);
+    const zu: Record<number, object> = {
+      1: { art: 'neue_mission', neue_mission: 'port' },
+      2: { art: 'neue_mission', neue_mission: 'port' },
+      3: { art: 'neue_mission', neue_mission: 'solo' },
+      4: { art: 'mission', mission: 40 },
+      5: { art: 'verworfen' },
+    };
+    const plan: Plan = (nummern) => ({
+      neue_missionen: [
+        { schluessel: 'port', titel: 'Portprüfung', begruendung: 'Port' },
+        { schluessel: 'solo', titel: 'Solo', begruendung: 'eine Notiz' },
+      ],
+      zuordnungen: nummern.map((n) => ({ notiz: n, grund: 'Thema', herkunft: 'h', ...zu[n] })),
+    });
+    const OHNE = { ...KLAR, verifikationsweg: '' };
+    // the repair answers the same plan again: the sections of #2, #3 and #4 still fail
+    const { r, geplant, aufrufe } = await lauf(f, plan, { 1: KLAR, 2: OHNE, 3: OHNE, 4: OHNE, 5: KLAR });
+    expect(geplant).toHaveLength(2);
+    const [p] = r.schnittplan;
+    expect(p.fehler).toBeUndefined();
+    expect(p.reparatur?.fehler).toContain('Sternzeit-Notiz #2: abnahmekriterien oder verifikationsweg fehlt');
+    // per note the reason and where it was to go
+    const herab = (n: number) => p.zuordnungen.find((z) => z.notiz === n)!;
+    expect(herab(2)).toMatchObject({ art: 'triage', herabgestuft: expect.stringContaining('vorgesehen: neue Mission „port“') });
+    expect(herab(3)).toMatchObject({ art: 'triage', herabgestuft: expect.stringContaining('vorgesehen: neue Mission „solo“') });
+    expect(herab(4)).toMatchObject({ art: 'triage', herabgestuft: expect.stringContaining('vorgesehen: Mission #40') });
+    expect(herab(4).mission).toBeUndefined();
+    expect(herab(1).herabgestuft).toBeUndefined();
+    expect(r.tickets.find((t) => t.nummer === 2)).toMatchObject({ ergebnis: 'klar', geschrieben: false, zuordnung: 'triage', herabgestuft: expect.stringContaining('fehlt') });
+    // the new mission left without children is not created, the other one keeps only its good child
+    expect(p.neue_missionen.map((m) => [m.schluessel, m.kinder])).toEqual([['port', [1]]]);
+    expect(aufrufe.filter((x) => x.args[0] === 'issue' && x.args[1] === 'create')).toHaveLength(1);
+    expect(f.finde(100).kinder).toEqual([1]);
+    expect(f.finde(1).labels).toEqual(['ready-for-agent']);
+    // the downgraded notes and the open mission do not change; the rejected one is closed as planned
+    for (const n of [2, 3, 4]) expect(f.finde(n)).toMatchObject({ labels: ['needs-triage'], comments: [], body: `Text ${n}` });
+    expect(f.finde(40).kinder).toEqual([30]);
+    expect(f.finde(5).state).toBe('closed');
+  });
+
+  /** 30 long notes to 3 topics (two packages) and the open mission #40 with 5 free places */
+  const teilungsForge = () =>
+    forge([
+      ...Array.from({ length: 30 }, (_, i) => notiz(i + 1, `${THEMEN[i % 3]} Notiz ${i + 1}`, 'x'.repeat(5_000))),
       { number: 40, title: 'Tafel', body: MISSION_40, labels: ['epic'], state: 'open', comments: [], kinder: [90, 91, 92] },
     ]);
-    // the admiral keeps the limits the order names: the free places of #40 first, then one new mission per topic
-    // (at most 8 children, keys m1, m2, … counted per package), the rest stays in triage
-    const plan: Plan = (nummern, auftrag) => {
+  /**
+   * The admiral keeps the limits the order names: the free places of #40 first, then a new mission per topic
+   * (at most 8 children; with ueberlauf a full one gets a second of the same topic), the rest stays in triage.
+   * Keys per package: schluessel(k), k counted from 1.
+   */
+  const teilungsPlan =
+    (o: { ueberlauf?: boolean; schluessel?: (k: number) => string } = {}): Plan =>
+    (nummern, auftrag) => {
       let neuMax = Number(/höchstens (\d+) neue Missionen/.exec(auftrag)![1]);
       let frei = Number(/## Mission #40: .*noch (\d+) frei/.exec(auftrag)?.[1] ?? 0);
       const neue: { schluessel: string; titel: string; begruendung: string }[] = [];
@@ -528,15 +582,20 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
         const basis = { notiz: n, grund: 'Thema', herkunft: 'Eigenes Urteil: Thema' };
         if (frei-- > 0) return { ...basis, art: 'mission', mission: 40 };
         const thema = THEMEN[(n - 1) % 3];
-        let m = neue.find((x) => x.titel === thema);
-        if (!m && neuMax-- > 0) neue.push((m = { schluessel: `m${neue.length + 1}`, titel: thema, begruendung: thema }));
+        let m = neue.findLast((x) => x.titel === thema);
+        const voll = m && (kinder.get(m.schluessel) ?? 0) >= 8;
+        if ((!m || (voll && o.ueberlauf)) && neuMax-- > 0) neue.push((m = { schluessel: (o.schluessel ?? ((k) => `m${k}`))(neue.length + 1), titel: thema, begruendung: thema }));
         if (!m || (kinder.get(m.schluessel) ?? 0) >= 8) return { ...basis, art: 'triage' };
         kinder.set(m.schluessel, (kinder.get(m.schluessel) ?? 0) + 1);
         return { ...basis, art: 'neue_mission', neue_mission: m.schluessel };
       });
       return { neue_missionen: neue, zuordnungen };
     };
-    const { r, geplant } = await lauf(f, plan, Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 1, KLAR])));
+  const alleKlar = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 1, KLAR]));
+
+  it('above the size limit: few packages by topic, one call each, never one per note; the limits hold over all packages', async () => {
+    const f = teilungsForge();
+    const { r, geplant } = await lauf(f, teilungsPlan(), alleKlar);
 
     expect(geplant).toHaveLength(2);
     const notizenIn = (s: Start) => [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+): (\w+)/gm)].map((m) => m[2]);
@@ -562,6 +621,21 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     const dritte = f.issues.find((i) => i.labels.includes('epic') && i.title === allein && i.number >= 100)!;
     expect(dritte.kinder).toHaveLength(8);
     expect(dritte.kinder.every((n) => THEMEN[(n - 1) % 3] === allein)).toBe(true);
+  });
+
+  it('a renamed key never takes the key of another mission of the same package', async () => {
+    // both packages name their missions m1 and m1-2: the renamed m1 of the second must skip its own m1-2 as well
+    const f = teilungsForge();
+    const { r } = await lauf(f, teilungsPlan({ ueberlauf: true, schluessel: (k) => (k === 1 ? 'm1' : 'm1-2') }), alleKlar);
+    const [p] = r.schnittplan;
+    expect(p.fehler).toBeUndefined();
+    expect(p.neue_missionen.map((m) => [m.schluessel, m.kinder.length])).toEqual([['m1', 8], ['m1-2', 7], ['m1-2-2', 8], ['m1-2-2-2', 2]]);
+    const schluessel = p.neue_missionen.map((m) => m.schluessel);
+    expect(new Set(schluessel).size).toBe(schluessel.length);
+    // each note hangs on the mission of its own package: the four missions carry 8 + 7 + 8 + 2 notes, no note twice
+    const missionen = f.issues.filter((i) => i.number >= 100);
+    expect(missionen.map((m) => m.kinder.length).sort((a, b) => a - b)).toEqual([2, 7, 8, 8]);
+    expect(new Set(missionen.flatMap((m) => m.kinder)).size).toBe(25);
   });
 });
 

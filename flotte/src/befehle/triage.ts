@@ -71,6 +71,8 @@ export interface TicketErgebnis {
   zuordnung?: Zuordnungsart;
   /** #147, klar: the mission the note hangs on now (an open one, or the one created in this run) */
   mission?: number;
+  /** #146: the program left the note on `triage`, its sections failed the check (why, and where it was to go) */
+  herabgestuft?: string;
 }
 
 export interface KritischeFrage {
@@ -222,7 +224,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     // plan, written mission by mission below
     const klare = new Map<string, Klar[]>();
     for (const { t, zu, sitzung } of plan?.bleiben ?? []) {
-      const basis = { forge: z.forge, nummer: t.nummer, titel: t.titel, url: t.url, zuordnung: zu.art, sitzung, herkunft: zu.herkunft, grund: zu.grund };
+      const basis = { forge: z.forge, nummer: t.nummer, titel: t.titel, url: t.url, zuordnung: zu.art, sitzung, herkunft: zu.herkunft, grund: zu.grund, ...(zu.herabgestuft ? { herabgestuft: zu.herabgestuft } : {}) };
       const offen = zu.fragen.filter((f) => f.beim_menschen);
       if (!offen.length) {
         // #147: never released on its own (else each note were a run again); `triage` in the plan stays in triage,
@@ -301,7 +303,8 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
       reparatur = { sitzung: r.sitzung, fehler: p.fehler };
       r = await fahre(schnittplanReparatur(auftrag, p.fehler, r.strukturiert));
       ergebnis.aufrufe++;
-      p = schnittplanAus(r.strukturiert, teil, frei, z.regeln, neuMax);
+      // the last plan: a note whose sections still fail stays on `triage`, the rest of the plan counts
+      p = schnittplanAus(r.strukturiert, teil, frei, z.regeln, neuMax, true);
     }
     ergebnis.sitzung = r.sitzung;
     if (reparatur) ergebnis.reparatur = reparatur;
@@ -310,10 +313,13 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
       out.push({ ...ergebnis, neue_missionen: [], zuordnungen: [], fehler: r.strukturiert ? p.fehler : `${p.fehler} (${r.fehler ?? `Exit ${r.code}`})` });
       return null;
     }
-    // a key of an earlier package stays its own: the later new mission gets the number of its package behind it
+    // a key of an earlier package stays its own: the later new mission gets the number of its package behind it,
+    // as often as the new key is taken, by an earlier package or by another mission of this one
+    const vergeben = (m: NeueMission) => ergebnis.neue_missionen.some((n) => n.schluessel === m.schluessel) || p.neue_missionen.some((n) => n !== m && n.schluessel === m.schluessel);
     for (const m of p.neue_missionen) {
       const alt = m.schluessel;
-      while (ergebnis.neue_missionen.some((n) => n.schluessel === m.schluessel)) m.schluessel = `${m.schluessel}-${i + 1}`;
+      if (!ergebnis.neue_missionen.some((n) => n.schluessel === alt)) continue;
+      while (vergeben(m)) m.schluessel = `${m.schluessel}-${i + 1}`;
       for (const x of p.zuordnungen) if (x.art === 'neue_mission' && x.neue_mission === alt) x.neue_mission = m.schluessel;
     }
     ergebnis.neue_missionen.push(...p.neue_missionen);
