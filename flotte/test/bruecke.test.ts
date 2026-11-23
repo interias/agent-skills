@@ -12,6 +12,7 @@ import { anhalten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
 import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
 import { flotteDir, leer, lebt, neuesEpic, schreibe as schreibeZustand, startZeit } from '../src/werkzeuge/zustand.ts';
+import { liesMessungen } from '../src/werkzeuge/prognose.ts';
 import { spawn } from 'node:child_process';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
@@ -886,6 +887,34 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(index(m, /^#3 Epic #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
       expect(z.ereignisse.some((x) => /abgebrochen|Leerlauf|beendet den Zug/.test(x.text))).toBe(false);
       expect(gestoppt).toBeGreaterThan(5);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#202: a pause is no work: the measurement takes it off arbeitS and keeps it as pauseS', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const e = x.epics[0];
+        if (e?.prozess && !e.pausiert) return { epic: 3, art: 'pausieren' };
+        // the held turn waits at least 3 s for the person
+        if (e?.pausiert && !e.prozess && e.stufe === 'laeuft' && Date.now() - Date.parse(e.pausiert) > 3000) return { epic: 3, art: 'fortsetzen' };
+        return null;
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pausiert: null });
+      const [m] = liesMessungen(flotteDir(t.repo)).filter((x) => x.epic === 3);
+      const gesamt = Math.round((Date.parse(m.ende) - Date.parse(m.start)) / 1000);
+      expect(m.pauseS).toBeGreaterThanOrEqual(1);
+      expect(m.limitS).toBe(0);
+      expect(m.menschWartenS).toBe(0);
+      expect(m.arbeitS).toBe(Math.max(0, gesamt - m.pauseS! - m.limitS! - m.menschWartenS));
+      expect(m.arbeitS).toBeLessThan(gesamt);
+      expect(z.ereignisse.some((x) => x.text.startsWith(`Gemessen für die Prognose: ${Math.round(m.arbeitS / 60)} min Arbeit`))).toBe(true);
     } finally {
       await b.zu();
     }

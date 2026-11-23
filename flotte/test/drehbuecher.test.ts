@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { antworten, fahre } from '../src/treiber/treiber.ts';
 import { flotteDir, lebt, neuesEpic, schreibe as schreibeZustand, leer } from '../src/werkzeuge/zustand.ts';
+import { liesMessungen } from '../src/werkzeuge/prognose.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, ping, skriptVon } from './flotte-welt.ts';
 
 const T = 30_000;
@@ -45,6 +46,10 @@ describe('Drehbücher (#14)', () => {
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', neustarts: 0 });
     expect(z.ereignisse.some((e) => /Limit erreicht/.test(e.text) && /kein Fehlstart/.test(e.text))).toBe(true);
     expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(false);
+    // #202: the time the account was used up is no work
+    const [m] = liesMessungen(flotteDir(t.repo)).filter((x) => x.epic === 3);
+    expect(m.limitS).toBeGreaterThanOrEqual(0);
+    expect(m.arbeitS + m.limitS! + (m.pauseS ?? 0) + m.menschWartenS).toBe(Math.round((Date.parse(m.ende) - Date.parse(m.start)) / 1000));
   }, T);
 
   it('D2: the admiral decides a gate question; answer by --resume, comment at the issue, the run goes on', async () => {

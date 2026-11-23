@@ -514,8 +514,10 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
 
 - **Messen:** Je fertiger Mission schreibt der Treiber eine Zeile in
   `<git common dir>/flotte/messungen.jsonl`. Sie überdauert Einsätze. In der Zeile stehen:
-  - die Arbeitszeit vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der der ganze
-    Lauf auf dich wartete;
+  - die Arbeitszeit (`arbeitS`) vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der
+    der ganze Lauf auf dich wartete (`menschWartenS`), pausiert war (`pauseS`) oder sein nächster Zug
+    an einer Bremse hing, am Limit des Kontos oder am RAM (`limitS`, #202); die drei stehen als eigene
+    Felder daneben, ältere Zeilen haben `pauseS` und `limitS` nicht;
   - die Andockprüfungs-Zeit des Treibers und das Konto;
   - je Paket die Klasse (mechanisch, Standard, Urteil, Urteil-hoch) und die Eskalationen, gelesen
     aus den Ingenieur-Aufrufen im Log des Laufs.
