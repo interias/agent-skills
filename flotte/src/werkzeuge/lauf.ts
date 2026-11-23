@@ -166,6 +166,8 @@ export interface Start {
   log?: string | null;
   /** further arguments for claude (--json-schema, --tools, ...) */
   extraArgs?: string[];
+  /** --permission-mode; default auto. The chat takes dontAsk: only what --allowedTools names runs */
+  modus?: string;
   /** further environment variables for the run (EPIC_LOCK_HOLDER) */
   env?: Record<string, string>;
   /** checks the tool list of the init event; a text names what is wrong and the run is killed */
@@ -187,7 +189,7 @@ export interface Start {
 
 export function claudeArgs(s: Start): string[] {
   // --strict-mcp-config: no MCP server of the account, no claude.ai connector (acceptance finding 2)
-  const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'auto', '--permission-prompts', 'none', '--strict-mcp-config'];
+  const a = ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', s.modus ?? 'auto', '--permission-prompts', 'none', '--strict-mcp-config'];
   if (s.modell) a.push('--model', s.modell);
   if (s.resume) a.push('--resume', s.resume);
   if (s.extraArgs) a.push(...s.extraArgs);

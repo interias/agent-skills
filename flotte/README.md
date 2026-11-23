@@ -72,6 +72,23 @@ das nicht gewollt ist.
 Ein weiteres Konto zuschalten: [`SKILL.md`](SKILL.md), „Weiteres Konto
 zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/README.md).
 
+## Bereitschaftsraum auf der Brücke
+
+Der Chat der Brücke läuft als eigener Dienst, einer je Rechner, ebenfalls aus einem Terminal:
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" chat --repos C:\git --bruecke http://127.0.0.1:4747
+```
+
+`--repos` ist der Ordner mit je einem Checkout pro Repository unter dessen Namen (`owner/name` →
+`<ordner>/name`); geklont wird nichts. Je Chat eine fortgesetzte `claude -p`-Sitzung auf dem Konto
+und Modell, die der Mensch gewählt hat (Standard Opus 5.5); das Modell liest nur, und nur im
+Repository, und antwortet mit Text, Fragekarten und Entwurf. Drückt der Mensch „anlegen“ oder
+„anlegen und starten“, ruft der Dienst selbst `flotte auftrag` mit dem Entwurf auf. Ein Chat bleibt
+bei dem Rechner, der ihm die Sitzung gab. Bei roter Verbrauchsbremse antwortet er mit einer Meldung
+statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste Start. Vertrag:
+[`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), Abschnitt 6.
+
 ## Was der Treiber tut
 
 1. **Belegen:** Kollisionsstufen und Reihenfolge-Kanten aus Adapter und Issues bestimmen, wie
