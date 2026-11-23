@@ -34,7 +34,10 @@ hält das Paket an. Die Parameter und das Verhalten im Einzelnen stehen im Hilfe
 (`Get-Help`); hier steht nur, was der Orchestrator wissen muss.
 
 **`Down` nie aus einer Shell aufrufen, die im Worktree steht.** Sonst scheitert
-`git worktree remove`, und erst ein zweites `Down` nach dem `cd` heraus räumt fertig ab.
+`git worktree remove`, und erst ein zweites `Down` nach dem `cd` heraus räumt fertig ab. Kennt Git
+den Worktree dann schon nicht mehr, räumt dieses zweite `Down` das Lock ab und den Ordner, wenn er
+fehlt oder leer ist und kein Verweis; ein Ordner mit Inhalt oder ein Verweis bleibt samt Lock stehen,
+`Down` nennt ihn und endet mit Exit 1 (#106). `CleanupStale` lässt ein gehaltenes Lock weiter stehen.
 
 ## Anlegen: was `Up` tut
 
@@ -63,7 +66,10 @@ fehlt es, Exit 1; zur Umstellung siehe unten) und rüstet danach:
 Verlinkt wird statt installiert, weil das Lockfile identisch ist. **Ein Paket, das genau dieses
 Lockfile ändert** (`exclusive_paths`), bräuchte eine echte Installation statt des Links; **dafür
 gibt es in `Up` keinen Weg. Ein solches Paket ist per `Up` nicht rüstbar** und ein Tor-Punkt
-(`SKILL.md`, Phase 2c, Punkt 14). Das Skript installiert nie.
+(`SKILL.md`, Phase 2c, Punkt 14). Das Skript installiert nie. Kein `bun install`, `npm install` oder
+Gegenstück je Worktree für ein Verzeichnis, das `link_dirs` nennt: Der Verweis ist die Installation
+(#200). Nennt der Adapter einen Abhängigkeitsordner nicht, installiert der Worktree selbst; ihn
+einzutragen, sobald er im Hauptverzeichnis steht, ist ein offener Punkt fürs Projekt.
 
 Nach dem Verlinken prüft `Up` jedes Verzeichnis darauf, dass es ein Verweis auf das erwartete
 Ziel ist, und bricht bei einer Kopie ab. Die angelegten Verweise stehen in einem Manifest im

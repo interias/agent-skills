@@ -4,10 +4,17 @@
 
 $script = Join-Path $PSScriptRoot 'ram.ps1'
 
-# stdout and stderr apart: the script promises exactly one JSON object on stdout.
-function Invoke-Ram([string[]]$arguments) {
+# stdout and stderr apart: the script promises exactly one JSON object on stdout. The script reads
+# EPIC_LOCK_HOLDER, which the flotte driver sets for its runs; a paused holder file there turned
+# every level into hold (#142). So the test names the holder, none by default, and the variable of
+# the calling session comes back afterwards.
+function Invoke-Ram([string[]]$arguments, [string]$holder) {
+    $before = $env:EPIC_LOCK_HOLDER
     $errFile = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.err')
-    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script @arguments 2>$errFile
+    try {
+        $env:EPIC_LOCK_HOLDER = $holder
+        $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script @arguments 2>$errFile
+    } finally { $env:EPIC_LOCK_HOLDER = $before }
     @{ Exit = $LASTEXITCODE; Out = @($out | Where-Object { $_ -ne $null }); Err = ((Get-Content $errFile -Raw) -replace '\s+', ' ') }
 }
 
@@ -103,18 +110,11 @@ Describe 'ram.ps1 settings' {
     }
 }
 
-# A 40 % reading with EPIC_LOCK_HOLDER set to a holder file of the given content ($null: no file);
-# the variable of the calling session comes back afterwards.
+# A 40 % reading with EPIC_LOCK_HOLDER set to a holder file of the given content ($null: no file).
 function Invoke-RamHolder($content, [switch]$NoVariable) {
-    $before = $env:EPIC_LOCK_HOLDER
     $holder = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.json')
     if ($null -ne $content) { Set-Content -LiteralPath $holder -Value $content }
-    try {
-        if ($NoVariable) { Remove-Item Env:EPIC_LOCK_HOLDER -ErrorAction SilentlyContinue } else { $env:EPIC_LOCK_HOLDER = $holder }
-        Invoke-Ram @('-TotalGb', '100', '-FreeGb', '60')
-    } finally {
-        if ($null -eq $before) { Remove-Item Env:EPIC_LOCK_HOLDER -ErrorAction SilentlyContinue } else { $env:EPIC_LOCK_HOLDER = $before }
-    }
+    Invoke-Ram @('-TotalGb', '100', '-FreeGb', '60') $(if ($NoVariable) { '' } else { $holder })
 }
 
 Describe 'ram.ps1 and the pause of the flotte driver (#61)' {

@@ -7,7 +7,7 @@ Projektadapters in [`references/adapter.md`](references/adapter.md), die Skripte
 
 ## Der Ablauf
 
-![Schienenplan: grill-with-docs klärt Plan und Fachsprache; to-spec oder to-tickets schneiden daraus eine Mission; du gibst sie mit ready-for-agent frei, beantwortest am Vorab-Tor einmal alle Fragen und dockst am Ende den Pull Request an; dazwischen setzt /mission die Pakete um; danach schließen /mission-nacharbeit und /mission-aufraeumen ab. Darunter die Spuren in Gitea und KIBO: Labels, Statuslabels, Kommentare, Lauftafel, erledigte Tickets.](../assets/prozess/prozess.png)
+![Schienenplan: Im Bereitschaftsraum wird der Plan geklärt, daraus entsteht eine Mission mit Missionszielen; du gibst sie mit ready-for-agent frei, beantwortest am Vorab-Tor einmal alle Fragen und dockst am Ende den Pull Request an; dazwischen setzt /mission die Pakete um; danach schließen /mission-nacharbeit und /mission-aufraeumen ab. Darunter die Spuren in Gitea und KIBO: Labels, Statuslabels, Kommentare, Lauftafel, erledigte Tickets.](../assets/prozess/prozess.png)
 
 Die orangen Halte sind die Stellen, an denen du entscheidest. Dazwischen läuft alles ohne
 Rückfrage; den Stand zeigt die Forge.

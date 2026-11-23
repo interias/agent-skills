@@ -14,3 +14,6 @@ Netz.
   --virtual-time-budget=8000 --window-size=1200,560 \
   --screenshot="$(cygpath -w $PWD)\prozess.png" "file:///$(cygpath -m $PWD)/prozess.html"
 ```
+
+Ohne Edge geht derselbe Aufruf mit Chrome (`/c/Program Files/Google/Chrome/Application/chrome.exe`),
+dazu `--user-data-dir=<leerer Ordner>`, damit kein Profil berührt wird.
