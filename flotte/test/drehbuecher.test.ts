@@ -256,6 +256,29 @@ describe('Drehbücher (#14)', () => {
     expect(z.aktiv).toBe(false);
   }, T);
 
+  describe('#153: what CleanupStale reports after the merge', () => {
+    const fahreMit = async (cleanup: () => { code: number; stdout: string; stderr: string }) => {
+      const t = aufbau({ cleanup });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(t.p.aufraeumen).toBe(1);
+      return z.ereignisse.filter((e) => /CleanupStale/.test(e.text)).map((e) => e.text);
+    };
+    const eintrag = (action: string, reason: string) => ({ kind: 'lock', id: 'x', path: 'p', branch: null, action, reason });
+
+    it('nothing to do is no event', async () => {
+      expect(await fahreMit(() => ({ code: 0, stdout: JSON.stringify([eintrag('skipped', 'living lock')]), stderr: 'worktree.ps1: CleanupStale: nothing to do (52 skipped).\n' }))).toEqual([]);
+    });
+
+    it('n stopped or removed is no error', async () => {
+      expect(await fahreMit(() => ({ code: 0, stdout: JSON.stringify([eintrag('removed', 'dead'), eintrag('stopped', 'dead'), eintrag('skipped', 'dirty')]), stderr: 'worktree.ps1: CleanupStale: 2 stopped or removed, 1 skipped.\n' }))).toEqual(['Reste abgeräumt (CleanupStale): 2 gestoppt oder entfernt']);
+    });
+
+    it('a failed step is an error and named, not the summary line', async () => {
+      const t = await fahreMit(() => ({ code: 1, stdout: JSON.stringify([eintrag('skipped', 'living lock'), eintrag('skipped', 'failed: git worktree remove exit 128')]), stderr: 'worktree.ps1: CleanupStale: nothing to do (2 skipped).\n' }));
+      expect(t).toEqual(['CleanupStale meldet Fehler (Exit 1): lock x: failed: git worktree remove exit 128']);
+    });
+  });
+
   describe('#145: the mission issue after the merge of its PR', () => {
     const mitZielen = '## Missionsziele\n- [ ] #21 a\n- [x] #22 b\n\n## Betroffene Module\n- m3';
 

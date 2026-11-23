@@ -49,6 +49,8 @@ export interface Optionen {
   gate?: (befehl: string, cwd: string, n: number) => { code: number; stdout: string };
   /** `gh pr view --json headRefName,...` of a PR; default: open, on epic/<pr - 10>-x, with GATE_BODY */
   prInfo?: (pr: number) => { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
+  /** #153: what worktree.ps1 -Action CleanupStale answers; default: exit 0, nothing to do */
+  cleanup?: () => { code: number; stdout: string; stderr: string };
   /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
   worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
   /** the forge's open issues with ready-for-agent and with epic, per call (without --epics) */
@@ -182,7 +184,7 @@ export function aufbau(o: Optionen = {}) {
     if (skript === 'worktree.ps1') {
       p.aufraeumen++;
       p.zeitleiste.push('aufraeumen');
-      return ok('[]');
+      return o.cleanup?.() ?? ok('[]');
     }
     if (skript === 'sweep.ps1') {
       p.sweeps++;

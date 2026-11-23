@@ -1152,7 +1152,23 @@ class Treiber {
   async aufraeumen(nr: number | null): Promise<void> {
     if (nr !== null) this.loslassen(nr);
     const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(this.e.skripte, 'worktree.ps1'), '-Action', 'CleanupStale', '-RepoRoot', this.e.repo], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
-    this.ereignis(nr, r.code ? `CleanupStale meldet Fehler: ${(r.stderr || r.stdout).trim().split('\n').pop()}` : 'Reste abgeräumt (CleanupStale)');
+    // #153: stderr ends with the summary ("nothing to do", "n stopped or removed"); a failed step stands in
+    // the JSON list as skipped with reason "failed: …" and makes the exit code 1
+    let eintraege: { kind?: string; id?: string; action?: string; reason?: string }[] | null = null;
+    try {
+      const j = JSON.parse(r.stdout.trim() || 'null');
+      eintraege = Array.isArray(j) ? j : null;
+    } catch {
+      eintraege = null;
+    }
+    if (r.code) {
+      const fehler = (eintraege ?? []).filter((x) => /^failed\b/i.test(x.reason ?? '')).map((x) => `${[x.kind, x.id].filter(Boolean).join(' ')}: ${x.reason}`);
+      const zeilen = (r.stderr || r.stdout).trim().split('\n');
+      const ohneSumme = zeilen.filter((z) => !/CleanupStale: (nothing to do|\d+ stopped or removed)/.test(z));
+      return this.ereignis(nr, `CleanupStale meldet Fehler (Exit ${r.code}): ${fehler.length ? fehler.join('; ') : (ohneSumme.pop() ?? zeilen.pop())}`);
+    }
+    const getan = (eintraege ?? []).filter((x) => x.action && x.action !== 'skipped').length;
+    if (getan) this.ereignis(nr, `Reste abgeräumt (CleanupStale): ${getan} gestoppt oder entfernt`);
   }
 
   // ---- question blocks (D2, D3)
