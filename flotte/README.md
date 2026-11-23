@@ -29,7 +29,8 @@ Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brüc
 mit PIN) lassen sich ändern: Missionen gleichzeitig (1–4), Pakete je Mission gleichzeitig (1–3), die Konten
 der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
 100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
-Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR). Der Treiber prüft die
+Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#166) das Modell der Triage
+(Standard `opus`) und des Admirals (Startwert `--admiral-modell`), ab dem nächsten Aufruf. Der Treiber prüft die
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze

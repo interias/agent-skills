@@ -45,6 +45,8 @@ export interface Einstellung {
   skill: string;
   modell: string | null;
   admiralModell: string | null;
+  /** #166: model of a triage run (and its cut plan); set on the bridge, opus by default */
+  triageModell: string;
   /** --admiral: CLAUDE_CONFIG_DIR of the admiral calls; null: the account of the epic (acceptance 3, decision D) */
   admiralKonto: string | null;
   admiralEffort: string | null;
@@ -107,6 +109,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     skill: 'mission',
     modell: null,
     admiralModell: 'fable',
+    triageModell: 'opus',
     admiralKonto: null,
     admiralEffort: 'high',
     pingModell: 'haiku',
@@ -1664,7 +1667,7 @@ class Treiber {
       const datei = join(this.e.repo, '.claude', 'epic.md');
       const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
       const r = await (this.w.triagiere ?? triagiere)(
-        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.admiralModell ?? 'fable', trocken: false, programm: this.programm() },
+        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.triageModell, trocken: false, programm: this.programm() },
         { aufrufer: this.w.aufrufer, starte: starteTriage, abgebrochen: () => abbruch.signal.aborted },
       );
       // #147: aborted, what the run wrote until then still counts (decisions, cut plan), only its end differs

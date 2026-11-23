@@ -677,7 +677,9 @@
     { "name": "ramWarn", "titel": "RAM-Schwelle (%)", "wert": null, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": null, "leer": true, "min": 50, "max": 84 },
     { "name": "platteMinGb", "titel": "Plattenminimum (GB)", "wert": 20, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 20, "leer": false, "min": 1, "max": 1000 },
     { "name": "leerlaufMin", "titel": "Leerlauf (Minuten bis Nachfassen/Abbruch)", "wert": 60, "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": 60, "leer": false, "min": 5, "max": 480 },
-    { "name": "merge", "titel": "Andocken", "wert": "automatisch", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "automatisch", "leer": false, "werte": ["automatisch", "mensch"], "hinweis": null }
+    { "name": "merge", "titel": "Andocken", "wert": "automatisch", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "automatisch", "leer": false, "werte": ["automatisch", "mensch"], "hinweis": null },
+    { "name": "triageModell", "titel": "Modell der Triage", "wert": "opus", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "opus", "leer": false, "werte": ["opus", "fable", "sonnet"], "hinweis": null },
+    { "name": "admiralModell", "titel": "Modell des Admirals", "wert": "fable", "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": "fable", "leer": false, "werte": ["opus", "fable", "sonnet"], "hinweis": null }
   ],
   "freigegeben": [
     { "nr": 43, "titel": "Mini-Epic: Statusseite" },

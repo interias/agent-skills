@@ -22,6 +22,9 @@ interface Art {
   standard: Wert;
 }
 
+/** #166: the models the bridge offers for triage and admiral */
+export const MODELLE = ['opus', 'fable', 'sonnet'];
+
 export const EINSTELLUNGEN = {
   obergrenze: { titel: 'Missionen gleichzeitig', min: 1, max: 4, leer: true, standard: null },
   paketeJeEpic: { titel: 'Pakete je Mission gleichzeitig', min: 1, max: 3, leer: false, standard: 3 },
@@ -35,6 +38,9 @@ export const EINSTELLUNGEN = {
   leerlaufMin: { titel: 'Leerlauf (Minuten bis Nachfassen/Abbruch)', min: 5, max: 480, leer: false, standard: 60 },
   // #112: the standard is the adapter's (treiber.ts, standardWert); automatisch only with merge: nach_gate
   merge: { titel: 'Andocken', werte: ['automatisch', 'mensch'], leer: false, standard: 'mensch' },
+  // #166: from the next triage run or question block on; a running one keeps its model
+  triageModell: { titel: 'Modell der Triage', werte: MODELLE, leer: false, standard: 'opus' },
+  admiralModell: { titel: 'Modell des Admirals', werte: MODELLE, leer: false, standard: 'fable' },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -49,6 +55,7 @@ export const START_PARAMETER: Partial<Record<EinstellungName, string>> = {
   ramWarn: '--ram-warn',
   platteMinGb: '--platte-min-gb',
   leerlaufMin: '--leerlauf-min',
+  admiralModell: '--admiral-modell',
 };
 
 /** One setting in the report: value, where it comes from and since when, and what the bridge may offer. */
@@ -119,6 +126,10 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return Math.round(e.leerlaufMs / 60_000);
     case 'merge':
       return e.merge;
+    case 'triageModell':
+      return e.triageModell;
+    case 'admiralModell':
+      return e.admiralModell;
   }
 }
 
@@ -177,6 +188,12 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'merge':
       e.merge = wert as Stellung;
+      break;
+    case 'triageModell':
+      e.triageModell = wert as string;
+      break;
+    case 'admiralModell':
+      e.admiralModell = wert as string;
       break;
   }
   return null;

@@ -171,6 +171,8 @@ Hinweis ab.
 | `platteMinGb` | Plattenminimum (GB) | Zahl | 1–1000, Standard 20; Startparameter `--platte-min-gb` | darunter startet nichts Neues |
 | `leerlaufMin` | Leerlauf (Minuten bis Nachfassen/Abbruch) | Zahl | 5–480, Standard 60; Startparameter `--leerlauf-min` | gilt für jeden Zug, der danach beginnt; ein laufender Zug behält seine Grenze. `leerlaufS` folgt |
 | `merge` | Andocken | `automatisch` oder `mensch` | `werte`; Standard = Adapterschlüssel `merge` (`nach_gate` → `automatisch`, sonst `mensch`) | wie das Projekt andockt, ab dem nächsten Takt: `automatisch` = Andock-Schlange und `merge.ps1` nach grüner Andockprüfung, `mensch` = wie `merge: mensch` (PR bereit, ein Mensch dockt an). Je Mission gilt die wirksame Stellung (Missions-Feld `merge`); ein PR, der nur wegen ihr wartet, kommt bei `automatisch` in die Schlange |
+| `triageModell` | Modell der Triage | `opus`, `fable` oder `sonnet` | `werte`; Standard `opus` | das Modell des nächsten Triage-Laufs (mit Schnittplan); ein laufender behält seines |
+| `admiralModell` | Modell des Admirals | `opus`, `fable` oder `sonnet` | `werte`; Standard `fable`; Startparameter `--admiral-modell` | das Modell des nächsten Frageblocks des Admirals |
 
 **Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
 sagt. Sonst fehlt es in `werte`, `hinweis` sagt warum, und der Treiber lehnt es ab (Ereignis

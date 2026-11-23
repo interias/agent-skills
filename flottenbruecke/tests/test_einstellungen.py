@@ -98,6 +98,25 @@ def test_konten_nur_aus_der_auswahl_und_mindestens_eines(client, bericht):
     assert einstellen(client, 'admiral', ['Konto 2']).status_code == 422
 
 
+def test_modelle_von_triage_und_admiral(client, bericht):
+    """#166: the models of triage and admiral, only with the PIN and only the words the driver offers."""
+    client.post('/api/bericht', json=bericht)
+    e = je_name(client)
+    assert (e['triageModell']['wert'], e['triageModell']['werte']) == ('opus', ['opus', 'fable', 'sonnet'])
+    assert einstellen(client, 'triageModell', 'sonnet', pin=None).status_code == 401
+    assert einstellen(client, 'admiralModell', 'opus', pin='0000').status_code == 401
+    assert offene(client) == []
+    for name in ('triageModell', 'admiralModell'):
+        for w in ('haiku', 'claude-opus-5-5', 'Opus', None, 1, ['opus']):
+            r = einstellen(client, name, w)
+            assert r.status_code == 422, (name, w)
+    assert 'opus oder fable oder sonnet' in einstellen(client, 'triageModell', 'haiku').json()['detail']
+    assert einstellen(client, 'triageModell', 'sonnet').json()['ok']
+    assert einstellen(client, 'admiralModell', 'opus').json()['ok']
+    assert [json.loads(h['text']) for h in offene(client)] == [{'name': 'triageModell', 'wert': 'sonnet'}, {'name': 'admiralModell', 'wert': 'opus'}]
+    assert je_name(client)['triageModell']['offen']['wert'] == 'sonnet'
+
+
 def test_gelb_bleibt_unter_rot_auch_mit_einer_wartenden_aenderung(client, bericht):
     client.post('/api/bericht', json=bericht)
     # reported: gelb 60, rot 85
