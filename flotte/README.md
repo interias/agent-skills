@@ -514,9 +514,9 @@ Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wur
 
 ## Prüfen
 
-`bun test` braucht keine Installation und läuft im Gate (`gate.ps1`). Die Typprüfung
+`bun test` braucht keine Installation und läuft in der Andockprüfung (`gate.ps1`). Die Typprüfung
 (`bun run typecheck`, `tsc -p .`) braucht die `devDependencies` und damit vorher `bun install` in
-`flotte/`; ein Worktree von `Up` hat kein `node_modules`, und das Gate fährt sie nicht.
+`flotte/`; ein Worktree von `Up` hat kein `node_modules`, und die Andockprüfung fährt sie nicht.
 
 ## Bei dir
 

@@ -294,8 +294,8 @@ python -c "import json,urllib.request as u;[u.urlopen(u.Request('http://127.0.0.
 
 `beispiel/holodeck.json` ist eine Liste mit einem Body je Projekt; die Zeile schickt jeden.
 `beispiel/bericht-notizen.json` ist ein zweites, kleines Projekt (der Frachtraum mit zwei Projekten);
-`beispiel/bericht-spec.json` ein drittes mit drei Epics im spec-Modus (Pakete des Laufs, eine Andockprüfung
-des Laufs, eine des Treibers in der Merge-Schlange, #151);
+`beispiel/bericht-spec.json` ein drittes mit drei Missionen im spec-Modus (Pakete des Laufs, eine Andockprüfung
+des Laufs, eine des Treibers in der Andock-Schlange, #151);
 `beispiel/bericht.json` trägt den Schnittplan eines Triage-Laufs (zwei neue Missionen, eine bestehende,
 drei geschlossene Notizen).
 
