@@ -179,6 +179,17 @@ describe('#197: veralteter Verbrauchswert des Admiral-Kontos', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
+  it('stale, the ping ends at the account limit: red, no last value; the admiral moves to another account', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1] });
+    const [konto, admiralKonto] = t.konten;
+    wirdAlt(t, admiralKonto);
+    const buch = drehbuch([lauf(3, [{ warte: 400 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), { wenn: '^FLOTTE-PING', schritte: [{ text: "You've hit your limit", fehler: true }], exit: 1 }, admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [konto], admiralKonto }), t.welt);
+    expect(reihe(buch).slice(-1)).toEqual([['ADMIRAL', konto]]);
+    expect(z.ereignisse.some((x) => /Messung gescheitert/.test(x.text))).toBe(false);
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
   it('stale, the measurement fails: the last known value counts with its age in the logbook, not red', async () => {
     const t = aufbau({ verbrauch: [0.1, 0.1] });
     const [konto, admiralKonto] = t.konten;

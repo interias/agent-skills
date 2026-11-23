@@ -73,6 +73,16 @@ describe('#199: 429 wechselt das Konto', () => {
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', konto: k2, neustarts: 0 });
   }, T);
 
+  it('two throttled accounts never hand the mission back and forth: after the second 429 it waits', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1] });
+    const [k1, k2] = t.konten;
+    const drossel = { text: 'API Error: 429 rate_limit_error', fehler: true };
+    const buch = drehbuch([lauf(3, [drossel], 1), lauf(3, [drossel], 1), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [k1, k2], maxDauerMs: 3000 }), t.welt);
+    expect(fuer(buch.gesehen(), 3).map((l) => l.konto)).toEqual([k1, k2]);
+    expect(texte(z)).toContain('#3 429 (Anfragen gedrosselt) auf Konto 2, kein anderes Konto frei: die Mission wartet 5 min');
+  }, T);
+
   it('a 429 without another free account: the mission waits on its account, no start within the same tick', async () => {
     const t = aufbau({ verbrauch: [0.1] });
     const [k1] = t.konten;
@@ -91,6 +101,8 @@ describe('#199: blockiert nennt die Ursache', () => {
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 3000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('blockiert');
     expect(z.epics['3'].notiz).toMatch(/^Ursache Erlaubnis: Erlaubnis verweigert: Bash/);
+    // the bridge shows a blocked mission's reason (haltGrund) before its note
+    expect(z.epics['3'].haltGrund).toMatch(/^Ursache Erlaubnis: Erlaubnis verweigert: Bash/);
     expect(t.p.kommentare.some((k) => k.nr === z.logbuch && /Mission #3 blockiert, Ursache Erlaubnis: Erlaubnis verweigert: Bash/.test(k.text))).toBe(true);
   }, T);
 
@@ -100,6 +112,8 @@ describe('#199: blockiert nennt die Ursache', () => {
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 5000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('blockiert');
     expect(z.epics['3'].notiz).toMatch(/^Ursache anderes: Start ohne Ergebnis nach zwei Neustarts/);
+    // the bridge shows a blocked mission's reason (haltGrund) before its note
+    expect(z.epics['3'].haltGrund).toMatch(/^Ursache anderes: Start ohne Ergebnis nach zwei Neustarts/);
     expect(t.p.kommentare.some((k) => k.nr === z.logbuch && /Mission #3 blockiert, Ursache anderes/.test(k.text))).toBe(true);
   }, T);
 });

@@ -55,6 +55,6 @@ describe('#198: vor dem Start prüfen', () => {
     const z = await fahre(t.einstellung(buch, [3, 4, 5], { obergrenze: 2, maxDauerMs: 2000 }), t.welt);
     expect(fuer(buch.gesehen(), 4)).toHaveLength(1);
     expect(fuer(buch.gesehen(), 5)).toHaveLength(0);
-    expect(z.epics['5'].stufe).toBe('wartend');
+    expect(z.epics['5']).toMatchObject({ stufe: 'wartend', notiz: 'wartet: kollidiert mit #3 (gross: Exklusiv in #5)' });
   }, T);
 });

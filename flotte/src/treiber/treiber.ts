@@ -403,6 +403,8 @@ class Treiber {
   letzterPing = new Map<string, number>();
   /** #197: accounts whose last measurement failed, with the time of the value it left; that value counts */
   messungGescheitert = new Map<string, number>();
+  /** #199: accounts a 429 throttled, until when (ms) */
+  gedrosselt = new Map<string, number>();
   /** pings and merges run beside the loop; the loop wakes up when one ends */
   nebenher = new Set<Promise<void>>();
   /** the head of the merge queue while the driver works on it */
@@ -763,6 +765,8 @@ class Treiber {
       const bis = Math.max(...gesperrt.map((ep) => Date.parse(ep.limitBis!)));
       return { ...bewerte(v, jetzt, Infinity, this.schwellen(k)), stufe: 'rot', grund: `gesperrt bis ${uhr(bis)} nach Limit oder 429 (${gesperrt.map((ep) => `#${ep.nr}`).join(', ')})` };
     }
+    const drossel = this.gedrosselt.get(k) ?? 0;
+    if (drossel > jetzt) return { ...bewerte(v, jetzt, Infinity, this.schwellen(k)), stufe: 'rot', grund: `gedrosselt (429) bis ${uhr(drossel)}` };
     const gescheitert = this.messungGescheitert.get(k);
     if (gescheitert !== undefined && v && v.zeit <= gescheitert) {
       const b = bewerte(v, this.w.jetzt(), Infinity, this.schwellen(k));
@@ -778,6 +782,11 @@ class Treiber {
     this.z.statistik.pings++;
     const r = await this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] });
     this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
+    // a ping the account's limit, throttle or login ended says the account has no room: red, no last value
+    if (!r.verbrauch && (r.fehler === 'limit' || r.fehler === 'drossel' || r.fehler === 'anmeldung')) {
+      this.bewertung.set(k, { ...this.bewerten(k), stufe: 'rot', grund: `Mini-Lauf endete mit ${r.fehler}` });
+      return;
+    }
     const v = liesVerbrauch(k);
     if (!r.verbrauch && v && !this.messungGescheitert.has(k)) {
       this.messungGescheitert.set(k, v.zeit);
@@ -1048,6 +1057,16 @@ class Treiber {
       const notiz = `wartet auf den Merge von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
       if (this.epic(w.nr).notiz !== notiz) this.epic(w.nr).notiz = notiz;
     }
+    // #198: a startable mission a collision with the occupancy holds back says so
+    for (const nr of plan.startbereit) {
+      if (plan.neu.includes(nr) || plan.vorrang.some((v) => v.nr === nr)) continue;
+      const mit = plan.paare.filter((p) => p.stufe !== 'keine' && ((p.a === nr && plan.belegung.includes(p.b)) || (p.b === nr && plan.belegung.includes(p.a))));
+      const notiz = mit.length ? `wartet: kollidiert mit ${mit.map((p) => `#${p.a === nr ? p.b : p.a} (${p.stufe}: ${p.beleg})`).join('; ')}` : null;
+      if (notiz && this.epic(nr).notiz !== notiz) {
+        this.epic(nr).notiz = notiz;
+        this.ereignis(nr, notiz);
+      }
+    }
     // the priority label: why a startable one waits stands on the board and the bridge
     for (const v of plan.vorrang) {
       if (v.startet) continue;
@@ -1224,7 +1243,10 @@ class Treiber {
   async drossel(ep: FlottenEpic): Promise<void> {
     const nr = ep.nr;
     const konto = ep.konto ?? '';
-    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    // the throttled account is held DROSSEL_MS, so two throttled accounts never hand a mission back and forth
+    this.gedrosselt.set(konto, this.w.jetzt() + DROSSEL_MS);
+    this.bewertung.set(konto, this.bewerten(konto));
+    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && (this.gedrosselt.get(k) ?? 0) <= this.w.jetzt() && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
     if (frei.length) {
       const neu = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
       await this.aufraeumen(nr);
@@ -1245,13 +1267,13 @@ class Treiber {
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
     this.loslassen(ep.nr);
     ep.stufe = stufe;
-    ep.notiz = grund.split('\n')[0];
     if (stufe === 'blockiert') {
-      // #199: the cause on the bridge (the note) and in the logbook
+      // #199: the cause on the bridge (its reason, haltGrund, and the note) and in the logbook
       const u = ursache(grund);
-      ep.notiz = `Ursache ${u}: ${ep.notiz}`;
       if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${u}: ${grund.split('\n')[0]}.`);
+      grund = `Ursache ${u}: ${grund}`;
     }
+    ep.notiz = grund.split('\n')[0];
     ep.haltGrund = grund.slice(0, 3000);
     ep.haltZeit = new Date(this.w.jetzt()).toISOString();
     ep.aufgegebenAm = null;
@@ -3088,13 +3110,13 @@ class Treiber {
     try {
       j = JSON.parse(this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName']).stdout);
     } catch {
-      return;
+      j = {};
     }
     const { headRefName: kopf, baseRefName: basis } = j;
-    if (!kopf || !basis) return;
+    if (!kopf || !basis) return this.ereignis(ep.nr, `Branches auf der Forge bleiben: PR #${ep.pr} nicht lesbar`);
     const git = (...a: string[]) => this.w.aufrufer('git', ['-C', this.e.repo, ...a]);
     const ls = git('ls-remote', '--heads', 'origin');
-    if (ls.code) return;
+    if (ls.code) return this.ereignis(ep.nr, `Branches auf der Forge bleiben: git ls-remote scheiterte (${ls.stderr.trim().split('\n')[0].slice(0, 160)})`);
     await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', basis], { timeoutMs: 5 * 60_000 });
     const kinder = this.bilder.find((b) => b.nr === ep.nr)?.kinder ?? [];
     const paket = new RegExp(`^agent/(?:${kinder.length ? `(?:${kinder.join('|')})-|` : ''}${ep.nr}-p\\d+-)`);
@@ -3124,7 +3146,8 @@ class Treiber {
         continue;
       }
       const pr = eigene[0]?.number ?? ep.pr;
-      const d = await this.w.langsam('git', ['-C', this.e.repo, 'push', 'origin', '--delete', name], { timeoutMs: 5 * 60_000 });
+      // with a lease: a commit pushed since ls-remote keeps the branch
+      const d = await this.w.langsam('git', ['-C', this.e.repo, 'push', `--force-with-lease=refs/heads/${name}:${sha}`, 'origin', `:refs/heads/${name}`], { timeoutMs: 5 * 60_000 });
       if (d.code) bleibt(`git push --delete scheiterte: ${d.stderr.trim().split('\n')[0]}`);
       else this.ereignis(ep.nr, `Branch ${name} auf der Forge gelöscht (in origin/${basis}, PR #${pr} merged)`);
     }
