@@ -6,7 +6,8 @@
 .DESCRIPTION
     Without -Konfig it sets up the second account ("Arbeitspferd", ~/.claude-arbeitspferd). Further
     accounts get a folder ~/.claude-arbeitspferd-<n>; -Konfig ~/.claude gives the main account a profile.
-    Profile name, tab colour and icon come from the table $bekannt below unless given.
+    Profile name ("Claude <name>") and tab colour come from ~/.claude/flotte/konten.json unless given
+    (without the file: the standard accounts 1-3); the icon from the table $icons.
     - Copies dateien/* into the config folder. A file that already exists and differs is first
       backed up to ~/.claude/skills-backup/<folder>-<timestamp>/. settings.json is only written when
       none exists yet, because the account keeps changing its own settings. For the main account it
@@ -57,12 +58,16 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Bitte mit pwsh (PowerShell 7) starten.' }
 
-# Accounts with a fixed profile name, tab colour and icon (dateien/<icon>, built by icon-bauen.ps1)
-$bekannt = @{
-    '.claude'                = @{ Profil = 'Claude Hauptkonto'; Farbe = '#8FB573'; Icon = 'hauptkonto.ico' }
-    '.claude-arbeitspferd'   = @{ Profil = 'Claude Arbeitspferd'; Farbe = '#D97757'; Icon = 'arbeitspferd.ico' }
-    '.claude-arbeitspferd-3' = @{ Profil = 'Claude Arbeitspferd 3'; Farbe = '#7AA2C8'; Icon = 'arbeitspferd-3.ico' }
+# The accounts come from ~/.claude/flotte/konten.json (#94: number, folder, name, colour, aktiv), the
+# same list `flotte konten` keeps; without the file the standard accounts 1-3 below apply
+$kontenDatei = Join-Path $HOME '.claude\flotte\konten.json'
+$liste = if (Test-Path -LiteralPath $kontenDatei) { @(Get-Content -Raw -LiteralPath $kontenDatei | ConvertFrom-Json) } else {
+    @([pscustomobject]@{ nr = '1'; ordner = '~/.claude'; name = 'Hauptkonto'; farbe = '#8FB573' },
+      [pscustomobject]@{ nr = '2'; ordner = '~/.claude-arbeitspferd'; name = 'Arbeitspferd'; farbe = '#D97757' },
+      [pscustomobject]@{ nr = '3'; ordner = '~/.claude-arbeitspferd-3'; name = 'Arbeitspferd 3'; farbe = '#7AA2C8' })
 }
+# Icons by folder (dateien/<icon>, built by icon-bauen.ps1); any other account takes the second one's
+$icons = @{ '.claude' = 'hauptkonto.ico'; '.claude-arbeitspferd' = 'arbeitspferd.ico'; '.claude-arbeitspferd-3' = 'arbeitspferd-3.ico' }
 
 $src = $PSScriptRoot
 $main = Join-Path $HOME '.claude'
@@ -73,11 +78,10 @@ if ((Split-Path -Parent $cfg) -ne $HOME.TrimEnd('\') -or ($leaf -ne '.claude' -a
     throw "Konfigordner muss $main sein oder direkt in $HOME liegen und mit .claude-arbeitspferd beginnen: $cfg"
 }
 $haupt = $cfg -eq $main
-$konto = $bekannt[$leaf]
-if (-not $konto) { $konto = @{ Profil = "Claude Arbeitspferd $($leaf.Substring('.claude-arbeitspferd'.Length).TrimStart('-'))"; Farbe = '#D97757'; Icon = 'arbeitspferd.ico' } }
-if (-not $Profil) { $Profil = $konto.Profil }
-if (-not $Farbe) { $Farbe = $konto.Farbe }
-$icon = $konto.Icon
+$eintrag = $liste | Where-Object { $o = "$($_.ordner)"; if ($o -match '^~') { $o = $HOME + $o.Substring(1) }; [IO.Path]::GetFullPath($o).TrimEnd([char]92) -eq $cfg } | Select-Object -First 1
+if (-not $Profil) { $Profil = if ($eintrag.name) { "Claude $($eintrag.name)" } else { "Claude Arbeitspferd $($leaf.Substring('.claude-arbeitspferd'.Length).TrimStart('-'))" } }
+if (-not $Farbe) { $Farbe = if ($eintrag.farbe) { $eintrag.farbe } else { '#D97757' } }
+$icon = if ($icons[$leaf]) { $icons[$leaf] } else { 'arbeitspferd.ico' }
 $startSkript = if ($haupt) { 'start-claude.ps1' } else { 'start-arbeitspferd.ps1' }
 $backup = Join-Path $main "skills-backup\$($leaf.TrimStart('.').Replace('claude-', ''))-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 

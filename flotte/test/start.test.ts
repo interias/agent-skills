@@ -26,13 +26,13 @@ describe('D: Konten mit Kurznamen', () => {
     expect(() => kontoAus('7', STANDARD_KONTEN)).toThrow(/Konto 7 ist nicht bekannt/);
   });
 
-  it('konten.json next to the skill overrides the standard', () => {
+  it('konten.json under ~/.claude/flotte is the one source (#94)', () => {
     const datei = join(mkdtempSync(join(tmpdir(), 'flotte-tafel-')), 'konten.json');
-    writeFileSync(datei, JSON.stringify({ '2': 'D:/konten/zwei', '4': '~/.vier' }));
+    writeFileSync(datei, JSON.stringify([{ nr: '2', ordner: 'D:/konten/zwei', name: 'Zwei', farbe: '#000000', aktiv: true }, { nr: '4', ordner: '~/.vier', name: 'Vier', farbe: '#000000', aktiv: true }]));
     const t = kontenTafel(datei);
     expect(kontoAus('2', t)).toBe(resolve('D:/konten/zwei'));
     expect(kontoAus('4', t)).toBe(join(homedir(), '.vier'));
-    expect(kontoAus('1', t)).toBe(join(homedir(), '.claude'));
+    expect(() => kontoAus('1', t)).toThrow(/Konto 1 ist nicht bekannt/);
     writeFileSync(datei, '{kaputt');
     expect(() => kontenTafel(datei)).toThrow(/kein JSON/);
   });

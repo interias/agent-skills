@@ -8,7 +8,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
-import { kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
+import { aktiveAuswahl, kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -2206,10 +2206,10 @@ class Treiber {
 
   // ---- settings (#58)
 
-  /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's */
+  /** short name → CLAUDE_CONFIG_DIR of the accounts that exist: the table's, those of the start, the runs', the admiral's; without the deactivated ones (#94) */
   kontenAuswahl(): Map<string, string> {
     const m = new Map<string, string>();
-    for (const d of [...Object.keys(kontenTafel()).map((n) => kontoAus(n)), ...this.startKonten, ...this.alleKonten()]) {
+    for (const d of aktiveAuswahl([...Object.keys(kontenTafel()).map((n) => kontoAus(n)), ...this.startKonten, ...this.alleKonten()])) {
       const k = this.kontoKurz(d);
       if (!m.has(k) && existsSync(d)) m.set(k, d);
     }
