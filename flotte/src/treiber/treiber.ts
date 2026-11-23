@@ -1503,6 +1503,11 @@ class Treiber {
     // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
     Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    // #135: a mission of an earlier deployment joins this one, so occupancy, order edges and the end count it
+    if (!this.e.epics.includes(ep.nr)) {
+      this.e.epics = [...this.e.epics, ep.nr];
+      this.kantenFrisch = false;
+    }
     const vor = this.offeneVorgaenger(ep.nr);
     if (vor.length) {
       amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
