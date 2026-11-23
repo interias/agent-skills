@@ -23,7 +23,7 @@ export interface Ergebnis {
 /** a PreToolUse hook (guard.ps1) refused a tool call; the run saw the reason and can change its way */
 export interface HookSperre {
   id: string;
-  /** "Skill epic, Regel 1" from guard.ps1's text, else the start of the text */
+  /** "Skill mission, Regel 1" from guard.ps1's text, else the start of the text */
   regel: string;
   text: string;
 }

@@ -1,5 +1,5 @@
 // #110: one list "beim Menschen" in the admiral's prompt, the same in flotte/references/entscheidungsrecht.md and
-// epic/SKILL.md. The admiral is a language model; what goes to the person is decided by its prompt,
+// mission/SKILL.md. The admiral is a language model; what goes to the person is decided by its prompt,
 // so the cases are checked against the prompt: the list names the person's questions, the sentence
 // "Alles andere entscheidest du" names the admiral's.
 
@@ -52,7 +52,7 @@ describe('#110: Entscheidungsrecht, eine Liste beim Menschen', () => {
   // the whole list, nothing more: an extra point in one skill would make the texts differ
   for (const [datei, von, bis, trenner] of [
     ['flotte/references/entscheidungsrecht.md', 'nur dafür wartet der Lauf: ', ' **Alles andere entscheidest du**', ' '],
-    ['epic/SKILL.md', '„Entscheidungsrecht"): ', '. Alles andere entscheidet der Admiral', '; '],
+    ['mission/SKILL.md', '„Entscheidungsrecht"): ', '. Alles andere entscheidet der Admiral', '; '],
   ] as const) {
     it(`${datei} names the same list`, () => {
       const skill = readFileSync(fileURLToPath(new URL(`../../${datei}`, import.meta.url)), 'utf8').replace(/\s+/g, ' ');

@@ -219,7 +219,7 @@ export function aufbau(o: Optionen = {}) {
 
 // ---- script building blocks for the stand-in
 
-export const lauf = (nr: number, schritte: unknown[], exit?: number) => ({ wenn: `^Flotte, Epic #${nr}\\b`, sitzung: `s${nr}`, schritte, ...(exit === undefined ? {} : { exit }) });
+export const lauf = (nr: number, schritte: unknown[], exit?: number) => ({ wenn: `^Flotte, Mission #${nr}\\b`, sitzung: `s${nr}`, schritte, ...(exit === undefined ? {} : { exit }) });
 
 export const frage = (nr: number, phase: string, fragen: { betrifft?: string; empfehlung?: string }[]) =>
   [`Bericht.`, ``, `FLOTTE-FRAGE ${nr} ${phase}`, ...fragen.map((f, i) => `${i + 1}. Frage ${i + 1} zu #${nr}?${f.betrifft === undefined ? '' : ` — Betrifft: ${f.betrifft}`} — Lage: Sachverhalt — Optionen: A) vorsichtig B) riskant — Empfehlung: ${f.empfehlung ?? 'A'} — Grund: sicher — Regel/Quelle: Skill`), `STAND: Tor  TAFEL: http://tafel`].join('\n');

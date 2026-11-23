@@ -1,6 +1,6 @@
 // Tokens per agent type, per epic and per package from the transcripts of the runs (Sparpaket,
 // package 3): what an epic costs, where the cache works, and how many review rounds a package
-// took. Reads like epic/scripts/usage.ps1 - one count per message id, <synthetic> left out - but
+// took. Reads like mission/scripts/usage.ps1 - one count per message id, <synthetic> left out - but
 // without weights: the four kinds of tokens stay apart, and the cache rate is computed from them.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -187,8 +187,8 @@ export function tokenKennzahlen(laeufe: AgentLauf[]) {
       const k = `${l.epic ?? '?'}/${l.paket}`;
       const p = pakete.get(k) ?? { epic: l.epic, paket: l.paket, tokens: leer(), implementer: 0, reviewer: 0 };
       p.tokens = plus(p.tokens, l.tokens);
-      if (/implementer/.test(l.rolle)) p.implementer++;
-      if (/reviewer/.test(l.rolle)) p.reviewer++;
+      if (/implementer|ingenieur/.test(l.rolle)) p.implementer++;
+      if (/reviewer|erster-offizier/.test(l.rolle)) p.reviewer++;
       pakete.set(k, p);
     }
   }

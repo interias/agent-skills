@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    The thin shell of the after probe (agent-skills#69, stage 4): runs `flotte epic` for one epic
+    The thin shell of the after probe (agent-skills#69, stage 4): runs `flotte mission` for one mission
     under the driver and hands its blocks to the session that called it (SKILL.md next to it).
 
 .DESCRIPTION
@@ -17,7 +17,7 @@
     The program runs detached behind an intermediate process that ends at once: neither the end of
     a turn nor the time limit of the shell tool ends it. It keeps running between the turns and
     reads the answers from its file. A program that died without a block is started again, which
-    continues its running calls with --resume (restart of flotte epic), at most three times.
+    continues its running calls with --resume (restart of flotte mission), at most three times.
 
 .EXAMPLE
     pwsh -NoProfile -File .claude/skills/epic-stapel/scripts/programm.ps1 -Epic 82
@@ -46,7 +46,7 @@ if ($Intern) {
     $konto = $env:CLAUDE_CONFIG_DIR
     if (-not $konto) { throw 'CLAUDE_CONFIG_DIR fehlt: das Konto des Laufs ist unbekannt' }
     $n = @(Get-Content $starts -ErrorAction SilentlyContinue).Count
-    $argumente = @($cli, 'epic', $Epic, $repo, '--mechanik', 'echt', '--aufrufe', 'echt', '--konto', $konto, '--branch', "epic/$Epic-programm", '--basis', 'origin/main', '--antworten', $antworten, '--max-min', '120') | ForEach-Object { '"{0}"' -f $_ }
+    $argumente = @($cli, 'mission', $Epic, $repo, '--mechanik', 'echt', '--aufrufe', 'echt', '--konto', $konto, '--branch', "epic/$Epic-programm", '--basis', 'origin/main', '--antworten', $antworten, '--max-min', '120') | ForEach-Object { '"{0}"' -f $_ }
     # bun.exe: a bun.ps1 next to it (npm) would win as bun and is no program to start
     $bun = (Get-Command bun.exe -CommandType Application | Select-Object -First 1).Source
     Start-Process $bun -ArgumentList ($argumente -join ' ') -WorkingDirectory $repo -WindowStyle Hidden -RedirectStandardOutput (Join-Path $dir "programm-$n.out") -RedirectStandardError (Join-Path $dir "programm-$n.err") | Out-Null
@@ -104,10 +104,10 @@ for (;;) {
     if ($block) { Write-Output $block; exit 0 }
     if (-not (Get-ProgrammPid)) {
         $z = Get-Zustand
-        if ($z -and $z.phase -in 'fertig', 'abgebrochen') { Write-Output "PROGRAMM BEENDET: Epic $Epic ist $($z.phase), kein neuer Block."; exit 0 }
+        if ($z -and $z.phase -in 'fertig', 'abgebrochen') { Write-Output "PROGRAMM BEENDET: Mission $Epic ist $($z.phase), kein neuer Block."; exit 0 }
         if (@(Get-Content $starts -ErrorAction SilentlyContinue).Count -ge 4) {
             $err = Get-ChildItem $dir -Filter 'programm-*.err' | Sort-Object LastWriteTime | Select-Object -Last 1
-            Write-Output "PROGRAMM GESCHEITERT: flotte epic $Epic endete viermal ohne Block. Letzte Fehlerausgabe:"
+            Write-Output "PROGRAMM GESCHEITERT: flotte mission $Epic endete viermal ohne Block. Letzte Fehlerausgabe:"
             if ($err) { Get-Content $err.FullName -Tail 15 }
             exit 0
         }
@@ -117,7 +117,7 @@ for (;;) {
     if ((Get-Date) -gt $ende) {
         $z = Get-Zustand
         $letztes = if ($z -and $z.ereignisse) { $z.ereignisse[-1].text } else { '-' }
-        Write-Output "LAEUFT: flotte epic $Epic, Phase $($z.phase), zuletzt: $letztes"
+        Write-Output "LAEUFT: flotte mission $Epic, Phase $($z.phase), zuletzt: $letztes"
         exit 0
     }
     Start-Sleep 2

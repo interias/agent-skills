@@ -1,4 +1,4 @@
-// The rules of the package loop as pure functions (epic/SKILL.md, "Modelle, Paketklasse,
+// The rules of the package loop as pure functions (mission/SKILL.md, "Modelle, Paketklasse,
 // Kundschafter", Phase 4 and 4c): roles per rung, escalation ladder, the window choice, the
 // verification against the Ausgangszahlen, the reading of a call's result, and the blocks to the
 // driver (flotte/references/bloecke.md).
@@ -14,18 +14,18 @@ export interface Besetzung {
 }
 
 export const IMPLEMENTER: Record<Stufe, Besetzung> = {
-  mechanisch: { agent: 'epic-implementer-mechanisch', modell: 'sonnet', effort: 'low' },
-  standard: { agent: 'epic-implementer-standard', modell: 'sonnet', effort: 'medium' },
-  urteil: { agent: 'epic-implementer-urteil', modell: 'opus', effort: 'medium' },
-  'urteil-hoch': { agent: 'epic-implementer-urteil-hoch', modell: 'opus', effort: 'high' },
+  mechanisch: { agent: 'ingenieur-mechanisch', modell: 'sonnet', effort: 'low' },
+  standard: { agent: 'ingenieur-standard', modell: 'sonnet', effort: 'medium' },
+  urteil: { agent: 'ingenieur-urteil', modell: 'opus', effort: 'medium' },
+  'urteil-hoch': { agent: 'ingenieur-urteil-hoch', modell: 'opus', effort: 'high' },
 };
 
-/** the reviewer follows the rung; there is no reviewer above epic-reviewer-urteil */
+/** the reviewer follows the rung; there is no reviewer above erster-offizier-urteil */
 export const REVIEWER: Record<Stufe, Besetzung> = {
-  mechanisch: { agent: 'epic-reviewer-standard', modell: 'sonnet', effort: 'high' },
-  standard: { agent: 'epic-reviewer-standard', modell: 'sonnet', effort: 'high' },
-  urteil: { agent: 'epic-reviewer-urteil', modell: 'opus', effort: 'medium' },
-  'urteil-hoch': { agent: 'epic-reviewer-urteil', modell: 'opus', effort: 'medium' },
+  mechanisch: { agent: 'erster-offizier-standard', modell: 'sonnet', effort: 'high' },
+  standard: { agent: 'erster-offizier-standard', modell: 'sonnet', effort: 'high' },
+  urteil: { agent: 'erster-offizier-urteil', modell: 'opus', effort: 'medium' },
+  'urteil-hoch': { agent: 'erster-offizier-urteil', modell: 'opus', effort: 'medium' },
 };
 
 const LEITER: Stufe[] = ['mechanisch', 'standard', 'urteil', 'urteil-hoch'];
@@ -80,7 +80,7 @@ export function geparkt(z: EpicLaufZustand): Set<string> {
 }
 
 /**
- * Startbereit (epic/SKILL.md, Phase 4): all hard predecessors merged, no collision edge to a running
+ * Startbereit (mission/SKILL.md, Phase 4): all hard predecessors merged, no collision edge to a running
  * package, not parked; an exclusive node only with every place empty, and nothing next to a running one.
  */
 export function startbereit(z: EpicLaufZustand, nr: string, laufend: string[], park: Set<string>): boolean {
@@ -133,7 +133,7 @@ export interface Nachpruefung {
 }
 
 /**
- * epic/SKILL.md 4c: red in a touched file is a finding; red only in untouched files that are green
+ * mission/SKILL.md 4c: red in a touched file is a finding; red only in untouched files that are green
  * alone is a Lastflake; a lower suite or test count is a finding even when all is green; new lint
  * findings in changed files are a finding.
  */

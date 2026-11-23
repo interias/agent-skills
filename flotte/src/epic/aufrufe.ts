@@ -1,7 +1,7 @@
-// The real language-model calls of `flotte epic` (#69, stage 3, decision 2): each one `claude -p`
+// The real language-model calls of `flotte mission` (#69, stage 3, decision 2): each one `claude -p`
 // with stream-json, --json-schema, auto mode without permission prompts and the account's
 // CLAUDE_CONFIG_DIR, started and read by the driver's module lauf (not rebuilt). Every call carries
-// epic/scripts/guard.ps1 as its PreToolUse hook, as the driver gives it to every run (rules 1, 2
+// mission/scripts/guard.ps1 as its PreToolUse hook, as the driver gives it to every run (rules 1, 2
 // and 11 of the skill are enforced by it). The roles with an agent file run as `--agent <name>`
 // (instruction, model and effort from agents/, stage 0); cut and conflict get model and effort.
 // The session is reported from the first line that names it; a continuation is only ever --resume.
@@ -25,7 +25,7 @@ export interface AufrufEinstellung {
   leerlaufMs?: number;
   /** after an account limit, the account is asked again at the earliest after this long, default 10 minutes */
   kontoPauseMs?: number;
-  /** epic/scripts with guard.ps1; default the scripts of this repository */
+  /** mission/scripts with guard.ps1; default the scripts of this repository */
   skripte?: string;
   /** tests: the stand-in instead of claude */
   programm?: Pick<Start, 'programm' | 'programmArgs'>;

@@ -1,4 +1,4 @@
-// The state of one `flotte epic` run (#69, decision 7): <git common dir>/flotte/epics/<nr>/zustand.json
+// The state of one `flotte mission` run (#69, decision 7): <git common dir>/flotte/epics/<nr>/zustand.json
 // with a lock next to it (one program per epic). It is written after every transition; a restart
 // continues from it. Lock and atomic write are the driver's (werkzeuge/zustand.ts).
 
@@ -82,7 +82,7 @@ export interface PaketZustand extends AufrufStand {
   revertCommit: string | null;
   grund: string | null;
   blockiertDurch: string | null;
-  /** ISO times of the package (epic/SKILL.md, Phase 5, line `Zeiten:`) */
+  /** ISO times of the package (mission/SKILL.md, Phase 5, line `Zeiten:`) */
   zeiten: { start?: string; implementerZurueck?: string; reviewerZurueck?: string; abgenommen?: string; gemergt?: string; ende?: string; pruefungBeginn?: string; mergeBeginn?: string };
 }
 
@@ -134,10 +134,10 @@ export interface EpicLaufZustand {
   schnitt: AufrufStand & { ergebnis: Schnitt | null };
   fragen: FrageZustand[];
   pakete: Record<string, PaketZustand>;
-  /** collision edges added after a merge conflict (epic/SKILL.md, Phase 5) */
+  /** collision edges added after a merge conflict (mission/SKILL.md, Phase 5) */
   kanten: Kante[];
   ram: { halt: boolean; frage: number | null; freigabe: boolean };
-  /** the slot (epic/SKILL.md, rule 12): a full stack of the project runs, nothing new starts */
+  /** the slot (mission/SKILL.md, rule 12): a full stack of the project runs, nothing new starts */
   slot: { belegt: boolean };
   konto: { gesperrt: boolean };
   ereignisse: Ereignis[];
@@ -168,7 +168,7 @@ export function neuerLauf(epic: number): EpicLaufZustand {
   };
 }
 
-/** agent/<nr>-<slug>, slug as in epic/SKILL.md Phase 3: lower case, ASCII, at most four words */
+/** agent/<nr>-<slug>, slug as in mission/SKILL.md Phase 3: lower case, ASCII, at most four words */
 export function paketBranch(p: Pick<Paket, 'nr' | 'titel'>): string {
   const slug = p.titel
     .toLowerCase()

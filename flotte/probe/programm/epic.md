@@ -29,10 +29,10 @@ nach_merge:
 ---
 # Adapter flotte-probe
 
-Probe-Repository ohne CI. Der Gate-Block in der PR-Beschreibung ersetzt die Checks
-(`epic/references/adapter.md`, „Merge“).
+Probe-Repository ohne CI. Der Andockblock in der PR-Beschreibung ersetzt die Checks
+(`mission/references/adapter.md`, „Andocken“).
 
-- **Merge-Gate:** `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Epic-Worktree, nach dem
+- **Andockprüfung:** `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Missions-Worktree, nach dem
   letzten Commit. Seine Zusammenfassung (ab der letzten Zeile `== Gate: …Basis…`) gehört als
   Codeblock unter `## Gate` in die PR-Beschreibung.
 - **Je Paket** reicht `pwsh -NoProfile -File werkzeug/gate.ps1` (nur die berührten Bereiche). Das
@@ -40,6 +40,6 @@ Probe-Repository ohne CI. Der Gate-Block in der PR-Beschreibung ersetzt die Chec
 - **isolation: none-needed:** Jedes Paket arbeitet an kurzen Textdateien; es gibt keinen Dienst
   und keine Datenbank.
 - **Bereiche:** `obst/`, `verse/`, `thema/`. Eine `.txt`-Datei darf nicht leer sein und nicht
-  `ROT` enthalten. Was das Gate darüber hinaus verlangt, sagt seine Ausgabe.
-- **Modus tickets:** Das Epic nennt seine Kinder in der Kopfzeile `> **Reihenfolge:** Kinder: …`,
-  harte Kanten stehen im Kind unter `## Blocked by`. Der Pull Request schließt Epic und Kinder.
+  `ROT` enthalten. Was die Andockprüfung darüber hinaus verlangt, sagt ihre Ausgabe.
+- **Modus tickets:** Die Mission nennt ihre Missionsziele in der Kopfzeile `> **Reihenfolge:** Kinder: …`,
+  harte Kanten stehen im Missionsziel unter `## Blocked by`. Der Pull Request schließt Mission und Missionsziele.

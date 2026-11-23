@@ -51,7 +51,7 @@ export interface EpicLauf {
   epic: number;
   /** hard predecessors per package for the window loss, e.g. { "60": ["59"] } */
   kanten?: Record<string, string[]>;
-  /** further sessions of the run; rolle and paket for a session that is not an orchestrator (`flotte epic`: one `claude -p` per role) */
+  /** further sessions of the run; rolle and paket for a session that is not an orchestrator (`flotte mission`: one `claude -p` per role) */
   sitzungen?: (SitzungRef & { rolle?: Rolle; paket?: string })[];
 }
 
@@ -290,9 +290,9 @@ function sitzungenAusLogs(dir: string, unter: string, nr: number): { ids: string
 const initIds = (text: string) => [...text.matchAll(/"subtype":"init"[^\n]*?"session_id":"([\w-]+)"|"session_id":"([\w-]+)"[^\n]*?"subtype":"init"/g)].map((m) => m[1] ?? m[2]);
 
 /**
- * The calls of `flotte epic` (#68): sessions from the init lines of <epic dir>/aufrufe/*.jsonl, role
+ * The calls of `flotte mission` (#68): sessions from the init lines of <epic dir>/aufrufe/*.jsonl, role
  * and package from the file name. Cut and conflict are orchestration of the whole epic, so they
- * carry no package (as the conflicts the orchestrator of /epic solves itself).
+ * carry no package (as the conflicts the orchestrator of /mission solves itself).
  */
 function sitzungenAusAufrufen(d: string): { refs: { id: string; rolle: Rolle; paket: string | null }[]; texte: string[] } {
   if (!existsSync(d)) return { refs: [], texte: [] };
@@ -321,7 +321,7 @@ function findeSitzung(konf: Konfiguration, id: string, nur?: string): { konto: s
 /**
  * One epic run split by role (#64): every session of the run with usage.ps1 (model weights), its
  * subagents by agentType; package merges and model time from the orchestrator transcripts; run time
- * from messungen.jsonl of the driver; restarts from its events. A run of `flotte epic` (#68) brings
+ * from messungen.jsonl of the driver; restarts from its events. A run of `flotte mission` (#68) brings
  * its state next to the driver's (epics/<nr>/): its calls by role from the call logs; merges,
  * restarts, worker starts and invalid outputs from its events; the model time of the check from its
  * cut and conflict calls (the shell under the driver takes no part in it).
@@ -421,7 +421,7 @@ function epicLaeufe(konf: Konfiguration, e: Einsatz, u: Umgebung, fehler: string
   return {
     laeufe,
     summe: epicSumme(laeufe),
-    methode: `Sitzungen je Epic aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Paket-Merge = git merge … agent/<nr> des Orchestrators; unter flotte epic Aufrufe aus epics/<nr>/aufrufe (Rolle aus dem Dateinamen, Schnitt und Konflikt als Orchestrierung), Merge = Ereignis gemergt, Neustart = Ereignis neustart bis zum nächsten Aufruf von Implementer oder Reviewer (auch --resume), Modellzeit der Prüfzeit aus Schnitt und Konflikt; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
+    methode: `Sitzungen je Epic aus den Treiber-Logs (laeufe/, admiral/) und der Liste; Rolle: Subagent nach agentType, Sitzung nach agentSetting (claude -p --agent) oder Liste, sonst Orchestrator bzw. Admiral; Verbrauch usage.ps1 mit ${MODELLGEWICHTE}; Paket-Merge = git merge … agent/<nr> des Orchestrators; unter flotte mission Aufrufe aus epics/<nr>/aufrufe (Rolle aus dem Dateinamen, Schnitt und Konflikt als Orchestrierung), Merge = Ereignis gemergt, Neustart = Ereignis neustart bis zum nächsten Aufruf von Implementer oder Reviewer (auch --resume), Modellzeit der Prüfzeit aus Schnitt und Konflikt; Durchlauf = arbeitS aus messungen.jsonl; Fensterverlust ohne Kollisionskanten (obere Schranke)`,
   };
 }
 
@@ -470,5 +470,5 @@ export function messen(argv: string[], u: Umgebung = standardUmgebung()): unknow
 
 export function standardUmgebung(): Umgebung {
   const hier = dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
-  return { aufrufer: aufrufen, usageSkript: resolve(hier, '../../../epic/scripts/usage.ps1') };
+  return { aufrufer: aufrufen, usageSkript: resolve(hier, '../../../mission/scripts/usage.ps1') };
 }

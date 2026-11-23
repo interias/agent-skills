@@ -1,14 +1,14 @@
 ---
 name: epic-stapel
-description: Hülle der Nachher-Probe des Epic-Programms (agent-skills#69, Stufe 4) in flotte-probe — fährt `flotte epic` für ein Epic unter dem Flotten-Treiber und reicht seine Blöcke FLOTTE-FRAGE und FLOTTE-ENDE durch. Nur auf Auftrag des Treibers.
+description: Hülle der Nachher-Probe des Missions-Programms (agent-skills#69, Stufe 4) in flotte-probe — fährt `flotte mission` für eine Mission unter dem Flotten-Treiber und reicht seine Blöcke FLOTTE-FRAGE und FLOTTE-ENDE durch. Nur auf Auftrag des Treibers.
 allowed-tools: Bash(pwsh -NoProfile -File .claude/skills/epic-stapel/scripts/programm.ps1:*)
 ---
 
-# Hülle: `flotte epic` unter dem Treiber
+# Hülle: `flotte mission` unter dem Treiber
 
-Das Programm `flotte epic` arbeitet das Epic ab: Schnitt, Tor, Pakete, Merges, Pull Request. Du
+Das Programm `flotte mission` arbeitet die Mission ab: Schnitt, Tor, Pakete, Andocken, Pull Request. Du
 startest es über ein Skript und gibst seine Blöcke wörtlich weiter. Du liest keinen Code, baust
-nichts, entscheidest nichts und fragst niemanden. `N` ist die Epic-Nummer aus dem Auftrag.
+nichts, entscheidest nichts und fragst niemanden. `N` ist die Missionsnummer aus dem Auftrag.
 
 Jeder Befehl steht hier vollständig. Du rufst ihn mit dem Werkzeug Bash genau so auf, einzeln und
 ohne etwas davor oder dahinter: kein `cd`, kein `&&`, keine Umleitung. Schlägt ein Aufruf fehl,
@@ -30,9 +30,9 @@ pwsh -NoProfile -File .claude/skills/epic-stapel/scripts/programm.ps1 -Epic N
 
 ## Nachrichten des Treibers
 
-Der erste Auftrag nennt das Epic: sofort „Warten auf den nächsten Block“.
+Der erste Auftrag nennt die Mission: sofort „Warten auf den nächsten Block“.
 
-Eine Nachricht `Flotte, Epic #N: Antwort … auf FLOTTE-FRAGE …` trägt nummerierte Zeilen wie
+Eine Nachricht `Flotte, Mission #N: Antwort … auf FLOTTE-FRAGE …` trägt nummerierte Zeilen wie
 `1. A — Herkunft: …`. Für jede Zeile, die mit einer Zahl beginnt, ein Aufruf, die Zeile wörtlich in
 einfachen Anführungszeichen (ein Apostroph in der Zeile fällt weg):
 

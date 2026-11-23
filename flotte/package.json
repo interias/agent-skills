@@ -2,7 +2,7 @@
   "name": "flotte",
   "private": true,
   "type": "module",
-  "description": "Flotten-Treiber: führt /epic-Läufe als claude -p, ohne Fenster (#14)",
+  "description": "Flotten-Treiber: führt Außeneinsätze (/mission) als claude -p, ohne Fenster (#14)",
   "bin": { "flotte": "src/cli.ts" },
   "scripts": {
     "test": "bun test",

@@ -1,4 +1,4 @@
-// Stand-ins for `flotte epic` (#65, stage 1): every language-model call and every command plays a
+// Stand-ins for `flotte mission` (#65, stage 1): every language-model call and every command plays a
 // script. Calls come back as stream-json lines read by the driver's Auswertung, so the state
 // machine sees the LaufErgebnis a real `claude -p` gives. The world (epic branch, comments, labels,
 // what was called) outlives one program run, so a test can stop the program and start it again.
@@ -100,7 +100,7 @@ export function attrappe(buch: EpicDrehbuch, welt: Welt = neueWelt(), jetzt: () 
   const geliefert = new Set<number>();
   let kontoSeit: number | null = null;
   // the program dies in a command: that command never ends, the loop throws at the end of the takt
-  // (a throw inside the command would be the package's matter, epic/SKILL.md rule 10)
+  // (a throw inside the command would be the package's matter, mission/SKILL.md rule 10)
   let tod: string | null = null;
   const sterben = (text: string) => {
     tod = text;

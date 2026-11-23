@@ -19,11 +19,11 @@
 
   // colour, wording and filter chip of a dot; the source column is the table of the README
   const ZUORDNUNG = {
-    blau: { text: 'Freigabe', chip: 'freigabe', quelle: 'Epic in der Merge-Schlange (Stufe pr)' },
+    blau: { text: 'Freigabe', chip: 'freigabe', quelle: 'Mission in der Andock-Schlange (Stufe pr)' },
     lila: { text: 'Frage', chip: 'braucht', quelle: 'offene Frage, blockiert, abgebrochen (Braucht dich)' },
     gruen: { text: 'läuft', chip: 'laeuft', quelle: 'laeuft, nacharbeit, frage mit Prozess; Sitzung busy' },
     gelb: { text: 'neuer Prototyp', chip: null, quelle: 'Projekt mit einem neuen Prototyp (Regel des Holodecks), am Projektkopf' },
-    grau: { text: 'ruht', chip: 'ruht', quelle: 'wartend, heute gemergt; Sitzung idle' },
+    grau: { text: 'ruht', chip: 'ruht', quelle: 'wartend, heute angedockt; Sitzung idle' },
   };
   const REIHE = ['lila', 'blau', 'gruen', 'grau'];
   const CHIPS = [['alle', 'Alle'], ['braucht', 'Braucht dich'], ['freigabe', 'Freigabe'], ['laeuft', 'Läuft'], ['sitzung', 'Sitzungen'], ['ruht', 'Ruht']];
@@ -70,7 +70,7 @@
     }
     for (const s of t.unterwegs.schlange) dazu(s, s.nr, 'blau', ZUORDNUNG.blau.text, 'e2-liste', `${s.id}:s`);
     for (const b of t.unterwegs.bereit) dazu(b, b.nr, 'grau', 'wartet', 'bereit', b.id);
-    for (const x of t.erledigt) if (x.art === 'gemergt') dazu(x, x.nr, 'grau', 'gemergt', 'e3-liste', x.id);
+    for (const x of t.erledigt) if (x.art === 'gemergt') dazu(x, x.nr, 'grau', 'angedockt', 'e3-liste', x.id);
     return [...da.values()];
   }
 

@@ -46,11 +46,11 @@ describe('ladeSitzung and tokenKennzahlen', () => {
       writeFileSync(join(sub, `agent-${name}.jsonl`), [mensch(2, 'Auftrag'), antwort(3, `${name}-1`, u, [{ id: `${name}-t`, name: 'Bash' }]), ergebnis(4, `${name}-t`, 'y'.repeat(100))].join('\n'));
       writeFileSync(join(sub, `agent-${name}.meta.json`), JSON.stringify({ agentType: typ, description: beschreibung }));
     };
-    agent('i1', 'epic-implementer-standard', 'Implementer #43-p1', { i: 1, w: 200, r: 800, o: 40 });
-    agent('r1', 'epic-reviewer-standard', 'Reviewer #43-p1', { i: 1, w: 100, r: 400, o: 20 });
-    agent('i2', 'epic-implementer-standard', 'Implementer #43-p1 Runde 2', { i: 1, w: 50, r: 900, o: 10 });
-    agent('r2', 'epic-reviewer-standard', 'Reviewer #43-p1 Runde 2', { i: 1, w: 10, r: 200, o: 5 });
-    agent('k', 'epic-kundschafter', 'Kundschafter Behauptungen', { i: 1, w: 10, r: 0, o: 1 });
+    agent('i1', 'ingenieur-standard', 'Implementer #43-p1', { i: 1, w: 200, r: 800, o: 40 });
+    agent('r1', 'erster-offizier-standard', 'Reviewer #43-p1', { i: 1, w: 100, r: 400, o: 20 });
+    agent('i2', 'ingenieur-standard', 'Implementer #43-p1 Runde 2', { i: 1, w: 50, r: 900, o: 10 });
+    agent('r2', 'erster-offizier-standard', 'Reviewer #43-p1 Runde 2', { i: 1, w: 10, r: 200, o: 5 });
+    agent('k', 'kundschafter', 'Kundschafter Behauptungen', { i: 1, w: 10, r: 0, o: 1 });
     writeFileSync(join(sub, 'agent-leer.jsonl'), mensch(2, 'nichts'));
 
     const laeufe = ladeSitzung(sitzung, fenster, [43, 44]);
@@ -59,8 +59,8 @@ describe('ladeSitzung and tokenKennzahlen', () => {
 
     const k = tokenKennzahlen(laeufe);
     expect(k.summe.ausgabe).toBe(126);
-    expect(k.je_agent_typ['epic-implementer-standard']).toMatchObject({ agenten: 2, eingabe: 2, cache_schreiben: 250, cache_lesen: 1700, ausgabe: 50, ergebnis_zeichen: { Bash: 200 } });
-    expect(k.je_agent_typ['epic-implementer-standard'].cache_quote).toBe(0.871);
+    expect(k.je_agent_typ['ingenieur-standard']).toMatchObject({ agenten: 2, eingabe: 2, cache_schreiben: 250, cache_lesen: 1700, ausgabe: 50, ergebnis_zeichen: { Bash: 200 } });
+    expect(k.je_agent_typ['ingenieur-standard'].cache_quote).toBe(0.871);
     expect(k.je_agent_typ.lauf).toMatchObject({ agenten: 1, cache_quote: 0 });
     expect(Object.keys(k.je_epic)).toEqual(['#43']);
     expect(k.je_paket).toEqual([expect.objectContaining({ epic: 43, paket: '43-p1', implementer_laeufe: 2, review_runden: 2, ausgabe: 75 })]);

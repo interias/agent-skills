@@ -301,7 +301,7 @@ describe('#117: Skill-Text und Verhalten', () => {
   const wurzel = fileURLToPath(new URL('../..', import.meta.url));
   const readme = readFileSync(`${wurzel}flotte/README.md`, 'utf8');
   const schnittstelle = readFileSync(`${wurzel}flottenbruecke/SCHNITTSTELLE.md`, 'utf8');
-  const adapter = readFileSync(`${wurzel}epic/references/adapter.md`, 'utf8');
+  const adapter = readFileSync(`${wurzel}mission/references/adapter.md`, 'utf8');
 
   it('README and adapter leave each Lernvorschlag to flotte triage; a ticket comes only from a clear proposal, never from a superfluous one', async () => {
     expect(adapter).toContain('jeden Vorschlag entscheidet `flotte triage`');

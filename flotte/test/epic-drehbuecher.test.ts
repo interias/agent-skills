@@ -1,4 +1,4 @@
-// The scripts P1–P22 of #65 (stage 1 of #69): `flotte epic` with stand-ins for every language-model
+// The scripts P1–P22 of #65 (stage 1 of #69): `flotte mission` with stand-ins for every language-model
 // call and every command (src/epic/attrappe.ts); state and lock are real, in a fresh git repository.
 
 import { describe, expect, it } from 'vitest';
@@ -54,7 +54,7 @@ const aufrufeVon = (w: Welt, rolle: string, paket: string) => w.aufrufe.filter((
 const getan = (w: Welt, muster: RegExp) => w.protokoll.filter((p) => muster.test(p.was));
 const letzterBlock = (w: Welt) => leseBlock(w.bloecke[w.bloecke.length - 1]);
 
-describe('flotte epic, Drehbücher (#65)', () => {
+describe('flotte mission, Drehbücher (#65)', () => {
   it('P1: five packages without edges: never more than 3 at once, a freed place is taken in the same takt', async () => {
     const lang = (n: number) => [{ takte: n }];
     const { z, w } = await fahre(buch(['1', '2', '3', '4', '5'].map((n) => paket(n)), { aufrufe: { 'implementer:1': lang(1), 'implementer:2': lang(4), 'implementer:3': lang(6), 'implementer:4': lang(1), 'implementer:5': lang(1) } }));
@@ -110,10 +110,10 @@ describe('flotte epic, Drehbücher (#65)', () => {
     const sollte = { befunde: [{ gruppe: 'sollte', fundstelle: 'src/p31.ts:1', text: 'Name' }], strukturell: false };
     const { z, w } = await fahre(buch([paket('30'), paket('31')], { aufrufe: { 'reviewer:30': [{ ausgabe: muss }, {}], 'reviewer:31': [{ ausgabe: sollte }] } }));
     const impl = aufrufeVon(w, 'implementer', '30');
-    expect(impl.map((a) => a.agent)).toEqual(['epic-implementer-standard', 'epic-implementer-standard']);
+    expect(impl.map((a) => a.agent)).toEqual(['ingenieur-standard', 'ingenieur-standard']);
     expect(impl[1].resume).toBeNull();
     expect(impl[1].auftrag).toMatch(/Befund der letzten Runde:\n- src\/p30\.ts:3: Abnahmepunkt 1 fehlt/);
-    expect(aufrufeVon(w, 'reviewer', '30').map((a) => a.agent)).toEqual(['epic-reviewer-standard', 'epic-reviewer-standard']);
+    expect(aufrufeVon(w, 'reviewer', '30').map((a) => a.agent)).toEqual(['erster-offizier-standard', 'erster-offizier-standard']);
     expect(z.pakete['30']).toMatchObject({ stufe: 'fertig', runde: 2, klasse: 'standard', eskalationen: [] });
     expect(aufrufeVon(w, 'implementer', '31')).toHaveLength(1);
     expect(z.pakete['31'].stufe).toBe('fertig');
@@ -123,17 +123,17 @@ describe('flotte epic, Drehbücher (#65)', () => {
     const strukturell = { befunde: [{ gruppe: 'muss', fundstelle: 'src/p40.ts', text: 'falscher Schnitt der Schnittstelle' }], strukturell: true };
     const { z, w } = await fahre(buch([paket('40'), paket('41', { klasse: 'urteil' })], { aufrufe: { 'reviewer:40': [{ ausgabe: strukturell }, {}], 'reviewer:41': [{ ausgabe: strukturell }, {}] } }));
     expect(aufrufeVon(w, 'implementer', '40').map((a) => [a.agent, a.modell, a.effort])).toEqual([
-      ['epic-implementer-standard', 'sonnet', 'medium'],
-      ['epic-implementer-urteil', 'opus', 'medium'],
+      ['ingenieur-standard', 'sonnet', 'medium'],
+      ['ingenieur-urteil', 'opus', 'medium'],
     ]);
-    expect(aufrufeVon(w, 'reviewer', '40').map((a) => a.agent)).toEqual(['epic-reviewer-standard', 'epic-reviewer-urteil']);
+    expect(aufrufeVon(w, 'reviewer', '40').map((a) => a.agent)).toEqual(['erster-offizier-standard', 'erster-offizier-urteil']);
     expect(z.pakete['40'].eskalationen).toEqual([{ runde: 2, von: 'standard', nach: 'urteil', grund: 'src/p40.ts: falscher Schnitt der Schnittstelle' }]);
     expect(z.ereignisse.some((e) => e.paket === '40' && e.art === 'eskalation')).toBe(true);
     expect(w.kommentare[40].some((k) => /\*\*Eskalation\*\* Paket 40, Runde 2: standard → urteil/.test(k))).toBe(true);
     // the last rung: Opus high only after an escalation out of Urteil
     expect(aufrufeVon(w, 'implementer', '41').map((a) => [a.agent, a.effort])).toEqual([
-      ['epic-implementer-urteil', 'medium'],
-      ['epic-implementer-urteil-hoch', 'high'],
+      ['ingenieur-urteil', 'medium'],
+      ['ingenieur-urteil-hoch', 'high'],
     ]);
     expect(z.pakete['41'].klasse).toBe('urteil-hoch');
     expect(letzterBlock(w)?.art === 'ende' && (letzterBlock(w) as { offen: string }).offen).toMatch(/Eskalation Paket 40, Runde 2: standard → urteil/);
@@ -414,8 +414,8 @@ describe('flotte epic, Drehbücher (#65)', () => {
     const { z, w } = await fahre(buch([paket('143'), paket('144')], { aufrufe: { 'implementer:143': [{ kontolimit: true }, {}] }, kontoFreiNach: 3 }));
     const impl = aufrufeVon(w, 'implementer', '143');
     expect(impl.map((a) => [a.resume, a.agent, a.runde])).toEqual([
-      [null, 'epic-implementer-standard', 1],
-      ['s-implementer:143-0', 'epic-implementer-standard', 1],
+      [null, 'ingenieur-standard', 1],
+      ['s-implementer:143-0', 'ingenieur-standard', 1],
     ]);
     expect(impl[1].auftrag).toMatch(/Kontolimit ist vorbei/);
     const wartet = z.ereignisse.findIndex((e) => e.art === 'konto' && /^wartet/.test(e.text));
@@ -448,7 +448,7 @@ describe('flotte epic, Drehbücher (#65)', () => {
   }, T);
 
   it('P22: the gate rejected: nothing started, the epic worktree cleaned up, FLOTTE-ENDE with the reason', async () => {
-    const tor: TorPunkt[] = [{ frage: 'Darf das Epic Produktivdaten umschreiben?', betrifft: 'Lauf', lage: 'Paket 161 schreibt Stammdaten um', optionen: [{ text: 'ja, mit Sicherung' }, { text: 'nein, Lauf beenden', abbruch: true }], empfehlung: 'B', grund: 'Regel 4', quelle: 'epic/SKILL.md, Regel 4' }];
+    const tor: TorPunkt[] = [{ frage: 'Darf das Epic Produktivdaten umschreiben?', betrifft: 'Lauf', lage: 'Paket 161 schreibt Stammdaten um', optionen: [{ text: 'ja, mit Sicherung' }, { text: 'nein, Lauf beenden', abbruch: true }], empfehlung: 'B', grund: 'Regel 4', quelle: 'mission/SKILL.md, Regel 4' }];
     const { z, w } = await fahre(buch([paket('160'), paket('161')], { antworten: [{ frage: 1, antwort: 'B' }] }, tor));
     expect(leseBlock(w.bloecke[0])).toMatchObject({ art: 'frage', phase: 'tor', fragen: [{ betrifft: 'Lauf' }] });
     expect(w.aufrufe.filter((a) => a.rolle !== 'schnitt')).toHaveLength(0);
@@ -497,7 +497,7 @@ describe('flotte epic, Drehbücher (#65)', () => {
     expect(u.welt.protokoll).toHaveLength(0);
   }, T);
 
-  it('flotte epic <nr> <repo> --drehbuch plays a script; without one it refuses', async () => {
+  it('flotte mission <nr> <repo> --drehbuch plays a script; without one it refuses', async () => {
     const repo = neuesRepo();
     const datei = join(mkdtempSync(join(tmpdir(), 'flotte-epic-buch-')), 'drehbuch.json');
     writeFileSync(datei, JSON.stringify(buch([paket('180')])));

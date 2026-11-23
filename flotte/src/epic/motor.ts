@@ -1,4 +1,4 @@
-// flotte epic: the package loop of /epic as a program (#69). A state machine per package —
+// flotte mission: the package loop of /mission as a program (#69). A state machine per package —
 // wartend → startbereit → implementer → reviewer → pruefung → merge → fertig or zurueckgelassen —
 // and around it the window, the RAM brake, the escalation ladder, max_rounds, blocking successors,
 // state and resume. Language models are only the content of a state, each one call (Aufrufe);
@@ -61,7 +61,7 @@ export interface Aufgeraeumt {
   reason?: string | null;
 }
 
-/** scripts of epic/scripts (called, not rebuilt), the adapter's test commands, git and the forge */
+/** scripts of mission/scripts (called, not rebuilt), the adapter's test commands, git and the forge */
 export interface Mechanik {
   /** worktree.ps1 CleanupStale at every program start: what dead sessions left behind (the locks of this epic stay, they have a holder) */
   aufraeumen(): Promise<Aufgeraeumt[]>;
@@ -73,7 +73,7 @@ export interface Mechanik {
   branchLoeschen(branch: string): Promise<void>;
   /** ram.ps1 */
   ram(): Promise<Ram>;
-  /** the slot (epic/SKILL.md, rule 12): busy while a full stack of the project runs */
+  /** the slot (mission/SKILL.md, rule 12): busy while a full stack of the project runs */
   slot(): Promise<{ belegt: boolean }>;
   /** test_commands of the adapter, all suites */
   volllauf(worktree: string): Promise<Testlauf>;
@@ -103,7 +103,7 @@ export interface Mechanik {
   body(ticket: number): Promise<string>;
   kommentare(ticket: number): Promise<string[]>;
   kommentar(ticket: number, text: string): Promise<void>;
-  /** sets one status label and takes the other two off, then reads it back (epic/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
+  /** sets one status label and takes the other two off, then reads it back (mission/SKILL.md, "Die Statuslabels"); a text when it still is wrong after a second try (a Glut point, no stop) */
   status(ticket: number, label: StatusLabel): Promise<string | null>;
   /** 2d: the target issue gets status/in-arbeit and epic_label; a text as with status */
   eroeffnung(): Promise<string | null>;
@@ -148,7 +148,7 @@ type MergeErgebnis = { art: 'gemergt' } | { art: 'rot' } | { art: 'konflikt' } |
 type Erledigt = { art: 'aufruf'; schluessel: string; rolle: Rolle; r: LaufErgebnis } | { art: 'pruefung'; nr: string; n: Nachpruefung } | { art: 'merge'; nr: string; m: MergeErgebnis };
 
 const SCHNITT = 'schnitt';
-/** under the driver there is no run board (epic/references/lauftafel.md, "Lauftafel aus") */
+/** under the driver there is no run board (mission/references/lauftafel.md, "Lauftafel aus") */
 const LAUFTAFEL = 'Lauftafel aus (Flotten-Treiber)';
 const FUENF_MIN = 5 * 60_000;
 const flach = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -159,7 +159,7 @@ export async function fahreEpic(e: EpicEinstellung, u: Umgebung): Promise<EpicLa
   const dir = epicDir(e.repo, e.epic);
   const pid = e.pid ?? process.pid;
   const sperre = sperren(dir, pid, e.istLebendig ?? lebt);
-  if (!sperre.ok) throw new Error(`flotte epic ${e.epic} läuft schon (PID ${sperre.pid} seit ${sperre.seit}); kein zweites Programm für dasselbe Epic`);
+  if (!sperre.ok) throw new Error(`flotte mission ${e.epic} läuft schon (PID ${sperre.pid} seit ${sperre.seit}); kein zweites Programm für dasselbe Epic`);
   try {
     return await new EpicLauf({ ...e, fenster: Math.min(3, Math.max(1, e.fenster)) }, u, dir).fahre();
   } finally {
@@ -242,7 +242,7 @@ class EpicLauf {
       try {
         z.epicWorktree = (await this.m.up(`epic-${this.e.epic}`, this.e.epicBranch, this.e.basis)).worktree;
       } catch (f) {
-        // exit 1 of Up: the message word for word, nothing done by hand (epic/SKILL.md, Phase 3)
+        // exit 1 of Up: the message word for word, nothing done by hand (mission/SKILL.md, Phase 3)
         await this.abbrechen(`Epic-Worktree nicht gerüstet: ${(f as Error).message}`, false);
         return z;
       }
@@ -446,7 +446,7 @@ class EpicLauf {
       p.zeiten.reviewerZurueck = this.zeit();
       this.neuerAufruf(p);
       this.ereignis('zurueck', p.nr, `Reviewer zurück, Runde ${p.runde}, ${b.daten.befunde.length} Befunde${b.daten.strukturell ? ', strukturell' : ''}`, 'reviewer');
-      // only a Muss finding starts a round (epic/SKILL.md, 4b); a structural one a rung higher
+      // only a Muss finding starts a round (mission/SKILL.md, 4b); a structural one a rung higher
       const muss = b.daten.befunde.filter((f) => f.gruppe === 'muss');
       if (!muss.length) {
         p.stufe = 'pruefung';
@@ -559,7 +559,7 @@ class EpicLauf {
     return t.map((s) => `${s.name} ${s.tests} Tests in ${s.dateien ?? '?'} Dateien, ${s.rot.length} rot`).join('; ');
   }
 
-  /** epic/SKILL.md, Phase 5, point 4: acceptance points with their places, verification against phase 0, the line Zeiten: */
+  /** mission/SKILL.md, Phase 5, point 4: acceptance points with their places, verification against phase 0, the line Zeiten: */
   private gemergtText(p: PaketZustand): string {
     const z = p.zeiten;
     const ms = (x?: string) => (x ? Date.parse(x) : NaN);
@@ -598,7 +598,7 @@ class EpicLauf {
 
   // ---- leaving behind and blocking
 
-  /** epic/SKILL.md, "Zurücklassen": the branch stays, Down, comment, status/haengt; the run goes on */
+  /** mission/SKILL.md, "Zurücklassen": the branch stays, Down, comment, status/haengt; the run goes on */
   private async zuruecklassen(p: PaketZustand, grund: string) {
     if (istEnde(p)) return;
     if (p.worktree) {
@@ -638,7 +638,7 @@ class EpicLauf {
 
   // ---- the window
 
-  /** RAM brake and slot before starting (epic/SKILL.md, "Die RAM-Bremse", rule 12): hold or a busy slot starts nothing; ok, a release or a free slot goes on (P19) */
+  /** RAM brake and slot before starting (mission/SKILL.md, "Die RAM-Bremse", rule 12): hold or a busy slot starts nothing; ok, a release or a free slot goes on (P19) */
   private async starte() {
     if (this.z.konto.gesperrt) return;
     const kandidaten = wahl(this.z, this.e.fenster);
@@ -656,7 +656,7 @@ class EpicLauf {
         this.z.fragen.push({ nr, art: 'ram', punkt: null, betrifft: kandidaten, antwort: null, abgelehnt: false, erledigt: false });
         this.z.ram.frage = nr;
         this.u.leitung.melde(
-          frageBlock(this.e.epic, 'ram', [{ nr, frage: 'Die RAM-Bremse steht auf hold. Warten oder trotzdem starten?', betrifft: kandidaten, lage: ram.fehler ? `Messung fehlgeschlagen: ${ram.fehler}` : `ram.ps1 meldet hold (${ram.percent_used ?? '?'} % belegt); laufende Pakete laufen weiter`, optionen: ['warten bis ok', 'trotz hold starten (gilt für den nächsten Start)'], empfehlung: 'A', grund: 'ein voller Speicher reißt alle laufenden Pakete mit', quelle: 'epic/SKILL.md, Die RAM-Bremse' }], 'RAM-Bremse hold, kein neuer Start'),
+          frageBlock(this.e.epic, 'ram', [{ nr, frage: 'Die RAM-Bremse steht auf hold. Warten oder trotzdem starten?', betrifft: kandidaten, lage: ram.fehler ? `Messung fehlgeschlagen: ${ram.fehler}` : `ram.ps1 meldet hold (${ram.percent_used ?? '?'} % belegt); laufende Pakete laufen weiter`, optionen: ['warten bis ok', 'trotz hold starten (gilt für den nächsten Start)'], empfehlung: 'A', grund: 'ein voller Speicher reißt alle laufenden Pakete mit', quelle: 'mission/SKILL.md, Die RAM-Bremse' }], 'RAM-Bremse hold, kein neuer Start'),
         );
       }
       this.speichere();
@@ -681,7 +681,7 @@ class EpicLauf {
       this.z.ram.frage = null;
       this.ereignis('ram', null, `${ram.level}, Starts gehen weiter`);
     }
-    // warn starts; the reading stands with the start (epic/SKILL.md, "Die RAM-Bremse")
+    // warn starts; the reading stands with the start (mission/SKILL.md, "Die RAM-Bremse")
     if (ram.level === 'warn') this.ereignis('ram', null, `warn bei ${ram.percent_used ?? '?'} %, Start: ${starts.join(', ')}`);
     for (const nr of starts) await this.starteEines(this.z.pakete[nr]);
   }
@@ -743,7 +743,7 @@ class EpicLauf {
     this.befehl = p.nr;
     if (p.stufe === 'pruefung') p.zeiten.pruefungBeginn ??= this.zeit();
     else p.zeiten.mergeBeginn ??= this.zeit();
-    // what goes wrong in a command is the package's matter (epic/SKILL.md, rule 10): a finding in 4c, left behind in the merge
+    // what goes wrong in a command is the package's matter (mission/SKILL.md, rule 10): a finding in 4c, left behind in the merge
     const meldung = (f: unknown) => flach(f instanceof Error ? f.message : String(f));
     const job: Promise<Erledigt> =
       p.stufe === 'pruefung'
@@ -907,10 +907,10 @@ class EpicLauf {
     for (const u of this.z.schnitt.ergebnis!.uebersprungen ?? []) {
       const nr = u.nr.replace(/^#/, '');
       if (!/^\d+$/.test(nr)) continue;
-      await this.kommentiere(nr, 'uebersprungen', `**Übersprungen** #${nr}: Der Lauf von Epic #${this.e.epic} (flotte epic) bearbeitet es nicht. Grund: ${u.grund}${u.blocker.length ? ` Blockiert durch ${u.blocker.map((x) => `#${x.replace(/^#/, '')}`).join(', ')}.` : ''}`);
+      await this.kommentiere(nr, 'uebersprungen', `**Übersprungen** #${nr}: Der Lauf von Epic #${this.e.epic} (flotte mission) bearbeitet es nicht. Grund: ${u.grund}${u.blocker.length ? ` Blockiert durch ${u.blocker.map((x) => `#${x.replace(/^#/, '')}`).join(', ')}.` : ''}`);
       if (u.blocker.length) await this.status(nr, 'status/blockiert');
     }
-    await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Epic #${this.e.epic} mit flotte epic: Basis ${this.e.basis}, Epic-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
+    await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Epic #${this.e.epic} mit flotte mission: Basis ${this.e.basis}, Epic-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
   }
 
   private async abschluss() {

@@ -66,7 +66,7 @@ describe('auftrag: shared cases, GitHub layer over a gh stand-in', () => {
     await auftragAusfuehren(ENTWURF_DREI, REGELN, githubForge(gh.aufrufer, 'o/r', REGELN), { starten: false, trocken: false });
     const z = gh.aufrufe.map((a) => a.slice(1).join(' '));
     expect(z.filter((x) => x.startsWith('label create'))).toEqual([
-      'label create epic --repo o/r --color ff2bd6 --description Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)',
+      'label create epic --repo o/r --color ff2bd6 --description Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)',
       'label create needs-triage --repo o/r',
     ]);
     expect(z).toContain('issue create --repo o/r --title Probe des Auftragsschreibers --label epic --label needs-triage --body-file -');
@@ -238,7 +238,7 @@ describe('Gitea layer without a server', () => {
     expect(await forge.anlegen({ titel: 'T', body: 'B', labels: ['epic', 'needs-triage'] })).toEqual({ nummer: 5, url: 'http://g.test/o/r/issues/5' });
     expect(seiten).toEqual(['/labels?limit=50&page=1', '/labels?limit=50&page=2']);
     expect(posts).toEqual([
-      ['/labels', { name: 'epic', color: '#ff2bd6', description: 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)' }],
+      ['/labels', { name: 'epic', color: '#ff2bd6', description: 'Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)' }],
       ['/issues', { title: 'T', body: 'B', labels: [7, 200] }],
     ]);
     await forge.verknuepfen(5, 6);
