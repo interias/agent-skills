@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { kopfdaten, leseDatei, type Eintrag } from '../transkript.ts';
-import { aufrufLog, epicKennzahlen, epicSumme, epicVerlauf, istFehlstart, kalteZeit, modellzeit, ORCHESTRIERUNG, paketMerges, prDauern, programmEreignisse, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type ProgrammZustand, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
+import { aufrufLog, epicKennzahlen, epicSumme, epicVerlauf, istFehlstart, kalteNeustarts, kalteZeit, modellzeit, ORCHESTRIERUNG, paketMerges, prDauern, programmEreignisse, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type ProgrammZustand, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
 import { ladeSitzung, tokenKennzahlen, type AgentLauf } from '../tokens.ts';
 import { liesMessungen, stand as prognoseStand } from '../werkzeuge/prognose.ts';
@@ -221,6 +221,15 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
     ? treiber.kalt.map((k) => ({ sitzung: `treiber/#${k.epic}`, minuten: runde(k.minuten) }))
     : laeufe.map((t) => ({ sitzung: `${t.ref.konto}/${basename(t.pfad, '.jsonl').slice(0, 14)}`, minuten: runde(kalteZeit(t.eintraege, fensterVon(e, t.ref))) }));
 
+  // #211: turns after more than 60 min of silence, by what woke them
+  const neustarts = laeufe
+    .map((t) => {
+      const fl = fensterVon(e, t.ref);
+      return { sitzung: `${t.ref.konto}/${basename(t.pfad, '.jsonl').slice(0, 14)}`, ...kalteNeustarts(t.eintraege.filter((x) => x.zeit >= fl.von && x.zeit <= fl.bis)) };
+    })
+    .filter((k) => k.mensch + k.limit + k.eigen > 0);
+  const summeAus = (k: 'mensch' | 'limit' | 'eigen') => neustarts.reduce((s, n) => s + n[k], 0);
+
   // 4: misses per start
   const starts = e.laeufeAusOrdnern ? laeufe.filter((t) => !t.ref.agentType) : [...laeufe.filter((t) => !t.ref.agentType), ...extra];
   const fehlstarts = starts.filter((t) => istFehlstart(t.eintraege));
@@ -253,6 +262,7 @@ export function messeEinsatz(konf: Konfiguration, e: Einsatz, u: Umgebung) {
     },
     wartezeit_min: { ...verteilung(fragen.map((q) => q.wartenMin).filter((x): x is number => x !== null)), je_epic: e.epics.length ? runde(fragen.reduce((s, q) => s + (q.wartenMin ?? 0), 0) / e.epics.length) : null },
     kalte_zeit_min: { summe: runde(kalt.reduce((s, k) => s + k.minuten, 0)), je_lauf: kalt, methode: treiber ? 'Treiber: „Zug zu Ende" bis zum nächsten Start der Mission, ohne das Warten auf den Menschen dazwischen, ab 2 min' : 'Zugende ohne eigene Hintergrundarbeit bis zur nächsten Eingabe von außen, ab 2 min; Warten nach dem letzten Zug nicht gezählt' },
+    kalte_neustarts: { mensch: summeAus('mensch'), limit: summeAus('limit'), eigen: summeAus('eigen'), je_lauf: neustarts, methode: 'Zug des Modells nach über 60 min Stille, nach der Eingabe, die ihn weckte: Mensch oder Treiber (mensch), Limit im Text (limit), eigene Hintergrundarbeit oder Werkzeugergebnis (eigen); Stille nach dem letzten Eintrag nicht gezählt' },
     fehlstarts: treiber
       ? { starts: treiber.starts, fehlstarts: treiber.fehlstarts, anteil: treiber.starts ? runde(treiber.fehlstarts / treiber.starts) : null, sitzungen: [], methode: 'Treiber: Starts und Fortsetzungen; Fehlstart = „Start ohne Ergebnis"' }
       : { starts: starts.length, fehlstarts: fehlstarts.length, anteil: starts.length ? runde(fehlstarts.length / starts.length) : null, sitzungen: fehlstarts.map((t) => `${t.ref.konto}/${t.ref.id}`), methode: 'keine Antwort des Modells in den ersten 3 min; Lauf-Agenten zählen nicht als Start' },

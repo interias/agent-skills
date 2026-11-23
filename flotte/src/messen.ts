@@ -3,6 +3,7 @@
 // The same functions measure old deployments (Leitstand, Admiral, windows) and new ones (driver).
 
 import type { Eintrag } from './transkript.ts';
+import { KONTOLIMIT } from './epic/regeln.ts';
 
 const MIN = 60_000;
 const EMPFEHLUNG = /\((Recommended|Empfehlung)\)/i;
@@ -131,6 +132,42 @@ export function kalteZeit(eintraege: Eintrag[], fenster: Fenster, schwelleMin = 
     }
   }
   return kalt;
+}
+
+export interface KalteNeustarts {
+  /** woken by a person, another session or the driver with an answer */
+  mensch: number;
+  /** woken after the limit of the account */
+  limit: number;
+  /** woken by its own background work or a tool result: the run waited for itself */
+  eigen: number;
+}
+
+/**
+ * #211: turns of the model after more than schwelleMin of silence. The warm cache holds one hour;
+ * after that the turn writes its whole context anew. Each is counted by the input that woke it.
+ * Silence after the last entry is not counted.
+ */
+export function kalteNeustarts(eintraege: Eintrag[], schwelleMin = 60): KalteNeustarts {
+  const out: KalteNeustarts = { mensch: 0, limit: 0, eigen: 0 };
+  let letzte: number | null = null;
+  let ursache: keyof KalteNeustarts | null = null;
+  for (const e of eintraege) {
+    // reminders and hook output ride along with the input that woke the run; they say nothing of the cause
+    if (e.art === 'meta') continue;
+    const kalt = letzte !== null && e.zeit - letzte > schwelleMin * MIN;
+    letzte = e.zeit;
+    if (e.art === 'assistent') {
+      if (ursache ?? kalt) out[ursache ?? 'eigen']++;
+      ursache = null;
+      continue;
+    }
+    if (!kalt || ursache) continue;
+    if (e.art === 'meldung' || e.art === 'ergebnis') ursache = 'eigen';
+    else if (KONTOLIMIT.test(e.text) || /Limit erreicht/i.test(e.text)) ursache = 'limit';
+    else ursache = 'mensch';
+  }
+  return out;
 }
 
 /** A start whose order was not taken: no answer of the model within the first minutes. */

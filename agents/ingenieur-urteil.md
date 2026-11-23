@@ -39,6 +39,11 @@ zweiter Volllauf, kein Zerlegen. Bis dahin arbeitest du weiter (Bericht vorberei
 deinen Zug nur mit dem Bericht, nie während ein Befehl läuft — eine Benachrichtigung nach dem Ende
 des Zugs erreicht dich nie (Lauf BRIQNET #574, 09.11.2026: ein Subagent stand so 248 Minuten).
 
+**Warm bleiben (#211):** Kann eigene Hintergrundarbeit (Volllauf, Andockprüfung, Subagent) länger
+als 50 Minuten dauern, startest du daneben `<skill>/scripts/wecker.ps1` (Aufruf im Kopf des Skripts)
+als zweiten Hintergrundbefehl. Meldet er „Zeit um“, liest du das Log, meldest eine Zeile Stand und
+startest ihn neu; ist die Arbeit fertig, beendest du ihn — kein `sleep`, keine Schleife.
+
 **Tests:** `/mission`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
 Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/mission/SKILL.md`. Neues Verhalten setzt du mit
 Skill `tdd` um (Test zuerst, je Abnahmepunkt); einen Fehler, dessen Ursache nicht auf der Hand

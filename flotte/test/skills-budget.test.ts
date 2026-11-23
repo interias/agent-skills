@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 const WURZEL = fileURLToPath(new URL('../..', import.meta.url));
 const BUDGET = 500;
-const EINGEFROREN: Record<string, number> = { mission: 902 };
+// mission: 902 frozen; +5 for the warm-cache rule of #211 (decided in its pull request)
+const EINGEFROREN: Record<string, number> = { mission: 907 };
 
 const skills = readdirSync(WURZEL).filter((d) => !d.startsWith('.') && statSync(join(WURZEL, d)).isDirectory() && existsSync(join(WURZEL, d, 'SKILL.md')));
 const zeilen = (datei: string) => readFileSync(datei, 'utf8').split(/\r?\n/).length - (readFileSync(datei, 'utf8').endsWith('\n') ? 1 : 0);

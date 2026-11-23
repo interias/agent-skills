@@ -17,6 +17,9 @@ Jedes Skript hat Pester-Tests daneben und Hilfe im Kopfkommentar (`Get-Help <skr
   es auf; ein Lauf nie.
 - **`ram.ps1`** misst den freien Speicher des Windows-Hosts und gibt `ok`, `warn` oder `hold`
   aus — die RAM-Bremse vor jedem Paketstart und unter der Flotte.
+- **`wecker.ps1`** endet, sobald die Endzeile im Log eines Hintergrundbefehls steht, spätestens nach
+  `-Minuten` (höchstens 55). Ein Lauf startet ihn neben langer eigener Hintergrundarbeit, damit sein
+  Kontext im warmen Speicher bleibt (#211, `SKILL.md` 4a, „Warm bleiben“).
 - **`graph.ps1`** baut mit [Graphify](https://github.com/Graphify-Labs/graphify) den Code-Graphen
   eines Laufs (lokal per AST, ohne Modell) und räumt ihn wieder ab. Optional: Ohne installiertes
   `graphify` (`uv tool install graphifyy`) läuft `/mission` ohne Graph.

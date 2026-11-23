@@ -495,8 +495,9 @@ sobald sein eigener Schritt fertig ist: Ist **sein** Ingenieur zurück, startet 
 und deine Nachprüfung (4c) startet **zugleich mit** seinem Ersten Offizier, nicht danach; was er
 korrigiert, fährst du gezielt nach. Nie wartet ein Paket auf die Nachbarn. Einen langen Befehl
 (Volllauf, Andockprüfung, Slot-Fahrt) legst du in den Hintergrund und führst inzwischen die anderen
-Pakete weiter; „nie zwei Vollläufe gleichzeitig" (4c) bleibt. Herkunft: Messung vom 18.11.2026
-(hexanite #240/#241) — in 70 % der Laufzeit arbeitete weder Ingenieur noch Erster Offizier.
+Pakete weiter; kann er länger als 50 Minuten dauern, startest du daneben den Wecker aus 4a („Warm
+bleiben“, auch bei Nachprüfung und Andockprüfung); „nie zwei Vollläufe gleichzeitig" (4c) bleibt.
+Herkunft: Messung vom 18.11.2026 (hexanite #240/#241) — in 70 % der Laufzeit arbeitete weder Ingenieur noch Erster Offizier.
 
 ### Die RAM-Bremse (#37)
 
@@ -607,6 +608,10 @@ alles **ausgeschrieben**:
   die Meldung kommt — kein `sleep`, keine Schleife, kein Neustart, kein Zerlegen. **Ein Aufruf über
   10 Minuten im Vordergrund ist verboten**: sein Ergebnis kommt nie an (#190, 23.11.2026). Protokoll
   in den Bericht; die Agent-Dateien der Ingenieure verweisen hierher — schreib den Punkt aus.
+- **Warm bleiben (#211):** Kann eigene Hintergrundarbeit (Volllauf, Andockprüfung, Subagent) länger
+  als 50 Minuten dauern, startest du daneben `<skill>/scripts/wecker.ps1` (Aufruf im Kopf des Skripts)
+  als zweiten Hintergrundbefehl. Meldet er „Zeit um“, liest du das Log, meldest eine Zeile Stand und
+  startest ihn neu; ist die Arbeit fertig, beendest du ihn — kein `sleep`, keine Schleife.
 - Berichtsform: geänderte und **neue** Dateien; je Abnahmepunkt der Beleg — dazu prüft er vor
   dem Bericht jeden Abnahmepunkt selbst und nennt je Punkt den Beleg (Test, `Datei:Zeile`, Befehl
   mit echter Ausgabe; #201); das **Protokoll des Volllaufs** je Suite (Suiten- und Testzahl,

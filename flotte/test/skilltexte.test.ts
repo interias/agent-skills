@@ -112,3 +112,25 @@ describe('the Ingenieur and the Erster Offizier keep their prompt cache for an h
     expect(kopf).toMatch(/\nexperimental:\n {2}cacheTtl: 1h(\n|$)/);
   });
 });
+
+describe('#211: a long own wait stays warm, the rule stands word for word in 4a and every Ingenieur', () => {
+  const regel = (text: string) => {
+    const von = text.indexOf('**Warm bleiben (#211):**');
+    return von < 0 ? '' : text.slice(von, text.indexOf('keine Schleife.', von) + 'keine Schleife.'.length);
+  };
+
+  it('4a carries the alarm clock with a time limit, no sleep, no loop', () => {
+    const r = regel(phase4a);
+    expect(r).toContain('länger als 50 Minuten');
+    expect(r).toContain('startest du daneben `<skill>/scripts/wecker.ps1`');
+    expect(r).toContain('Meldet er „Zeit um“, liest du das Log, meldest eine Zeile Stand und startest ihn neu');
+    expect(r).toContain('ist die Arbeit fertig, beendest du ihn — kein `sleep`, keine Schleife.');
+    expect(skill).toContain('startest du daneben den Wecker aus 4a („Warm bleiben“, auch bei Nachprüfung und Andockprüfung)');
+  });
+
+  it('every Ingenieur agent file has the same paragraph as 4a', () => {
+    expect(ingenieure.length).toBe(4);
+    expect(regel(phase4a)).not.toBe('');
+    for (const { n, text } of ingenieure) expect(regel(text), n).toBe(regel(phase4a));
+  });
+});
