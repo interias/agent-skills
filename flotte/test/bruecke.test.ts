@@ -1137,7 +1137,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       ticket.body,
       regelnAus(''),
     ) as Exclude<Entscheidung, { art: 'ungueltig' }>;
-    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage'], 'ready-for-agent'), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
+    const frage = { body: triageKommentar(kritisch, ticket, ['needs-triage']), author: { login: 'flotte' }, createdAt: '2026-11-20T13:05:00Z', authorAssociation: 'OWNER' };
     const aufrufer: Aufrufer = (p, a, o) => {
       if (p === 'gh' && a[0] === 'issue' && a[1] === 'list' && a.includes('needs-triage')) {
         const mensch = t.p.kommentare.filter((k) => k.nr === 61).map((k) => ({ body: k.text, author: { login: 'mensch' }, createdAt: '2026-11-20T15:00:00Z', authorAssociation: 'OWNER' }));

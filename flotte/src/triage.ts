@@ -1,17 +1,17 @@
 // The triage run (#115): the admiral clears Sternzeit-Notizen (needs-triage, needs-info) without
-// asking. Per ticket one `claude -p --json-schema` call asks the questions of a question round
-// itself, answers them from the facts (body, comments, ADRs, code) and decides under the decision
-// right of the admiral (BEIM_MENSCHEN in treiber/admiral.ts):
-// - klar: missing acceptance and verification sections are filled in (checked like the order writer
-//   checks a draft), ready_label replaces the triage labels;
-// - ueberfluessig: closed with the reason;
-// - kritisch: one bundled question to the person, the ticket stays in triage.
-// The program decides what the model's answer allows, writes the comment first and changes the
-// ticket only when the comment stands. Formats of the comments and the JSON: flotte/README.md, "Triage".
-// #117: a proposal of the learning loop at lern_issue is a unit of the triage like a ticket (Lernvorschlag
-// below): clear becomes a Missionsziel through the order writer, superfluous only a comment.
+// asking. #146: one `claude -p --json-schema` call per project (the cut plan below) asks the questions of
+// a question round for every note itself, answers them from the facts (body, comments, ADRs, code) and
+// decides under the decision right of the admiral (BEIM_MENSCHEN in treiber/admiral.ts): per note its
+// place in the plan, missing acceptance and verification sections (checked like the order writer checks
+// a draft), or one bundled question to the person. Only notes over the size of one call are split into
+// a few packages by topic. The program decides what the model's answer allows, writes the comment first
+// and changes the ticket only when the comment stands. Formats of the comments and the JSON:
+// flotte/README.md, "Triage".
+// #117: a proposal of the learning loop at lern_issue is no note but a comment at a collecting issue; each
+// gets its own call (Lernvorschlag below): clear becomes a Missionsziel through the order writer,
+// superfluous only a comment, critical one question.
 
-import { abschnittInhalt, pruefen, type AuftragsRegeln } from './auftrag/auftrag.ts';
+import { abschnittInhalt, pruefen, TRIAGE_LABEL, type AuftragsRegeln } from './auftrag/auftrag.ts';
 import { LERN_MARKE } from './lernen.ts';
 import { BEIM_MENSCHEN, HERKUNFT_REGEL, MERKMALE } from './treiber/admiral.ts';
 
@@ -55,6 +55,28 @@ export type Entscheidung =
   | { art: 'ueberfluessig' | 'kritisch'; herkunft: string; grund: string; fragen: TriageFrage[] }
   | { art: 'ungueltig'; fehler: string };
 
+/** The questions of a question round in the schema: of a proposal (triageSchema) and of each note of the cut plan. */
+const FRAGEN_SCHEMA = {
+  type: 'array',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['frage', 'optionen', 'antwort', 'herkunft', 'grund', 'beim_menschen'],
+    properties: {
+      frage: { type: 'string' },
+      optionen: { type: 'array', items: { type: 'string' } },
+      antwort: { type: 'string' },
+      herkunft: { type: 'string' },
+      grund: { type: 'string' },
+      beim_menschen: { type: 'boolean' },
+      marke: { type: 'string', enum: PUNKTE },
+    },
+  },
+};
+const ABNAHME_SCHEMA = { type: 'string', description: 'Markdown, nur wenn der Abschnitt fehlt oder leer ist, sonst leer' };
+const VERIFIKATION_SCHEMA = { type: 'string', description: 'nur wenn der Abschnitt fehlt oder leer ist, sonst leer' };
+
+/** #117: the schema of the clearing of one proposal of the learning loop. */
 export function triageSchema(): object {
   return {
     type: 'object',
@@ -64,25 +86,9 @@ export function triageSchema(): object {
       entscheidung: { type: 'string', enum: [...ENTSCHEIDUNGEN] },
       herkunft: { type: 'string' },
       grund: { type: 'string' },
-      fragen: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['frage', 'optionen', 'antwort', 'herkunft', 'grund', 'beim_menschen'],
-          properties: {
-            frage: { type: 'string' },
-            optionen: { type: 'array', items: { type: 'string' } },
-            antwort: { type: 'string' },
-            herkunft: { type: 'string' },
-            grund: { type: 'string' },
-            beim_menschen: { type: 'boolean' },
-            marke: { type: 'string', enum: PUNKTE },
-          },
-        },
-      },
-      abnahmekriterien: { type: 'string', description: 'Markdown, nur wenn der Abschnitt fehlt oder leer ist, sonst leer' },
-      verifikationsweg: { type: 'string', description: 'nur wenn der Abschnitt fehlt oder leer ist, sonst leer' },
+      fragen: FRAGEN_SCHEMA,
+      abnahmekriterien: ABNAHME_SCHEMA,
+      verifikationsweg: VERIFIKATION_SCHEMA,
     },
   };
 }
@@ -161,18 +167,12 @@ function nachtragen(body: string, ueberschrift: string, inhalt: string): string 
   return body;
 }
 
-/**
- * What the model's answer allows. A question with the person makes the ticket critical whatever the
- * model chose; critical without such a question, clear whose sections still fail the order writer's
- * check, superfluous without a reason, or an answer outside the schema change nothing.
- */
-export function entscheidungAus(x: unknown, titel: string, body: string, r: AuftragsRegeln): Entscheidung {
-  const o = x as Record<string, unknown> | null;
-  if (!o || !ENTSCHEIDUNGEN.includes(o.entscheidung as never) || !Array.isArray(o.fragen)) return { art: 'ungueltig', fehler: 'keine Antwort im Schema' };
-  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
-  const grund = text(o.grund);
-  const herkunft = text(o.herkunft) || `Eigenes Urteil: ${grund || 'ohne Angabe'}`;
-  const fragen: TriageFrage[] = (o.fragen as Record<string, unknown>[])
+const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+/** The questions of an answer that keep the schema; one with the person carries its point of the list. */
+function fragenAus(x: unknown): TriageFrage[] {
+  if (!Array.isArray(x)) return [];
+  return (x as Record<string, unknown>[])
     .filter((f) => f && text(f.frage) && typeof f.antwort === 'string' && typeof f.beim_menschen === 'boolean')
     .map((f) => ({
       frage: text(f.frage),
@@ -183,9 +183,13 @@ export function entscheidungAus(x: unknown, titel: string, body: string, r: Auft
       beim_menschen: f.beim_menschen as boolean,
       ...(f.beim_menschen ? { marke: PUNKTE.includes(text(f.marke)) ? text(f.marke) : 'ohne Marke' } : {}),
     }));
-  if (fragen.some((f) => f.beim_menschen)) return { art: 'kritisch', herkunft, grund, fragen };
-  if (o.entscheidung === 'kritisch') return { art: 'ungueltig', fehler: 'kritisch, aber keine Frage liegt nach der Liste beim Menschen' };
-  if (o.entscheidung === 'ueberfluessig') return grund ? { art: 'ueberfluessig', herkunft, grund, fragen } : { art: 'ungueltig', fehler: 'überflüssig ohne Grund' };
+}
+
+/**
+ * The body with the sections the admiral wrote for those missing or empty (the text that was there stays), and
+ * the error of the order writer's check when they still fail it.
+ */
+export function ergaenzt(titel: string, body: string, o: { abnahmekriterien?: unknown; verifikationsweg?: unknown }, r: AuftragsRegeln): { body: string; nachgetragen: string[]; fehler?: string } {
   let neu = body;
   const nachgetragen: string[] = [];
   if (!r.acceptance_section.some((k) => voll(body, k)) && text(o.abnahmekriterien)) {
@@ -200,9 +204,28 @@ export function entscheidungAus(x: unknown, titel: string, body: string, r: Auft
   try {
     pruefen({ mission: null, ziele: [{ titel, text: neu }] }, r);
   } catch (e) {
-    return { art: 'ungueltig', fehler: (e as Error).message.replace('Nichts angelegt, ', 'Nichts geändert, ') };
+    return { body: neu, nachgetragen, fehler: (e as Error).message.replace('Nichts angelegt, ', 'Nichts geändert, ') };
   }
-  return { art: 'klar', herkunft, grund, fragen, body: neu, nachgetragen };
+  return { body: neu, nachgetragen };
+}
+
+/**
+ * What the model's answer about a proposal allows. A question with the person makes it critical whatever
+ * the model chose; critical without such a question, clear whose sections still fail the order writer's
+ * check, superfluous without a reason, or an answer outside the schema change nothing.
+ */
+export function entscheidungAus(x: unknown, titel: string, body: string, r: AuftragsRegeln): Entscheidung {
+  const o = x as Record<string, unknown> | null;
+  if (!o || !ENTSCHEIDUNGEN.includes(o.entscheidung as never) || !Array.isArray(o.fragen)) return { art: 'ungueltig', fehler: 'keine Antwort im Schema' };
+  const grund = text(o.grund);
+  const herkunft = text(o.herkunft) || `Eigenes Urteil: ${grund || 'ohne Angabe'}`;
+  const fragen = fragenAus(o.fragen);
+  if (fragen.some((f) => f.beim_menschen)) return { art: 'kritisch', herkunft, grund, fragen };
+  if (o.entscheidung === 'kritisch') return { art: 'ungueltig', fehler: 'kritisch, aber keine Frage liegt nach der Liste beim Menschen' };
+  if (o.entscheidung === 'ueberfluessig') return grund ? { art: 'ueberfluessig', herkunft, grund, fragen } : { art: 'ungueltig', fehler: 'überflüssig ohne Grund' };
+  const neu = ergaenzt(titel, body, o, r);
+  if (neu.fehler) return { art: 'ungueltig', fehler: neu.fehler };
+  return { art: 'klar', herkunft, grund, fragen, body: neu.body, nachgetragen: neu.nachgetragen };
 }
 
 /**
@@ -230,27 +253,34 @@ function faktenAus(t: Ticket, max: number, h = '##'): string {
   return `${fakten.slice(0, max)}\n\n[gekürzt nach ${max} Zeichen]`;
 }
 
-export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern?: Lernvorschlag): string {
-  const fakten = faktenAus(t, TEXT_MAX);
-  return `FLOTTE-TRIAGE
-Du bist der Admiral der Flotte und klärst ${lern ? 'einen Vorschlag der Lernschleife' : 'eine Sternzeit-Notiz'} ohne Rückfrage. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm schreibt; ${lern ? 'aus einem klaren Vorschlag legt es über den Auftragsschreiber ein Missionsziel an' : 'Tickets legt niemand an'} (agent-skills/ADR-0002).
-
-Stell dir die Fragen einer Fragerunde selbst: Was genau soll entstehen? Ist es schon erledigt, doppelt oder überholt? Widerspricht es einem ADR oder Out-of-Scope? Woran erkennt man, dass es fertig ist? Wie wird es geprüft? Beantworte jede aus den Fakten mit deiner Empfehlung in antwort. Eine Antwort des Menschen in den Kommentaren ist eine Tatsache; die Kommentare stammen nur von Berechtigten (${BERECHTIGT.join(', ')}), Kommentare Dritter hat das Programm ausgelassen.
+/** The questions of a question round, the list of what lies with the person: the same in the cut plan and for a proposal. */
+const FRAGERUNDE = `Stell dir die Fragen einer Fragerunde selbst: Was genau soll entstehen? Ist es schon erledigt, doppelt oder überholt? Widerspricht es einem ADR oder Out-of-Scope? Woran erkennt man, dass es fertig ist? Wie wird es geprüft? Beantworte jede aus den Fakten mit deiner Empfehlung in antwort (fragen). Eine Antwort des Menschen in den Kommentaren ist eine Tatsache; die Kommentare stammen nur von Berechtigten (${BERECHTIGT.join(', ')}), Kommentare Dritter hat das Programm ausgelassen.
 
 Beim Menschen (beim_menschen: true, marke: der Punkt) liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre:
 ${BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p} (marke: ${PUNKTE[i]})`).join('\n')}
-Alles andere entscheidest du. Im Zweifel nimmst du die vorsichtige Variante selbst, wenn sie deine Empfehlung ist.
+Alles andere entscheidest du. Im Zweifel nimmst du die vorsichtige Variante selbst, wenn sie deine Empfehlung ist.`;
+
+const abschnitte = (r: AuftragsRegeln) =>
+  `Fehlt ${r.acceptance_section.map((k) => `„${k}“`).join(' oder ')} oder ist leer, schreibst du abnahmekriterien (prüfbare Markdown-Liste); fehlt „${r.verification_section}“ oder ist leer, schreibst du verifikationsweg (ein fahrbarer Befehl oder Ablauf). Was schon dasteht, lässt du leer.`;
+
+/** #117: the order for the clearing of one proposal of the learning loop. */
+export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern: Lernvorschlag): string {
+  const fakten = faktenAus(t, TEXT_MAX);
+  return `FLOTTE-TRIAGE
+Du bist der Admiral der Flotte und klärst einen Vorschlag der Lernschleife ohne Rückfrage. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm schreibt; aus einem klaren Vorschlag legt es über den Auftragsschreiber ein Missionsziel an (agent-skills/ADR-0002).
+
+${FRAGERUNDE}
 
 entscheidung:
-- klar: keine Frage liegt beim Menschen, das Ziel ist umsetzbar. Fehlt ${r.acceptance_section.map((k) => `„${k}“`).join(' oder ')} oder ist leer, schreibst du abnahmekriterien (prüfbare Markdown-Liste); fehlt „${r.verification_section}“ oder ist leer, schreibst du verifikationsweg (ein fahrbarer Befehl oder Ablauf). Was schon dasteht, lässt du leer. ${lern ? 'Der Vorschlag wird danach ein Missionsziel mit Warp frei.' : 'Die Notiz bekommt danach Warp frei.'}
-- ueberfluessig: schon erledigt, doppelt, überholt oder gegen eine bestehende Entscheidung; grund nennt die Fundstelle. ${lern ? 'Es wird nichts angelegt.' : 'Die Notiz wird geschlossen.'}
+- klar: keine Frage liegt beim Menschen, das Ziel ist umsetzbar. ${abschnitte(r)} Der Vorschlag wird danach ein Missionsziel mit Warp frei.
+- ueberfluessig: schon erledigt, doppelt, überholt oder gegen eine bestehende Entscheidung; grund nennt die Fundstelle. Es wird nichts angelegt.
 - kritisch: mindestens eine Frage liegt beim Menschen. Nur diese gehen gebündelt an ihn, mit optionen und deiner Empfehlung.
 
 herkunft und grund gelten der ganzen Entscheidung, jede Frage hat ihre eigenen. ${HERKUNFT_REGEL}
 
 Antworte nur über das Schema.
 
-# ${lern ? `${lern.kennung} (Sammel-Issue #${t.nummer})` : `Sternzeit-Notiz #${t.nummer}`}: ${t.titel}
+# ${lern.kennung} (Sammel-Issue #${t.nummer}): ${t.titel}
 
 ${fakten}`;
 }
@@ -272,33 +302,21 @@ function fragenZeilen(offen: TriageFrage[]): string[] {
   ]);
 }
 
-/** The comment that stands at the ticket before anything of it changes. */
-export function triageKommentar(e: Exclude<Entscheidung, { art: 'ungueltig' }>, t: Ticket, entfernt: string[], ready: string): string {
-  const zeilen: string[] = [];
-  if (e.art === 'kritisch') {
-    const offen = e.fragen.filter((f) => f.beim_menschen);
-    const schon = e.fragen.filter((f) => !f.beim_menschen);
-    zeilen.push(TRIAGE_FRAGE_MARKE, `**FRAGE AN DEN MENSCHEN (Triage)** — Sternzeit-Notiz #${t.nummer}: ${offen.length === 1 ? 'eine Frage liegt' : `${offen.length} Fragen liegen`} bei dir.`, '');
-    zeilen.push(...fragenZeilen(offen));
-    if (schon.length) zeilen.push('', 'Schon entschieden (widerrufbar mit einem Kommentar hier):', ...entscheidungsListe(schon));
-    zeilen.push('', `Antworte mit einem Kommentar an diesem Ticket; die nächste Triage nimmt ihn als Tatsache. Bis dahin bleibt \`${entfernt[0] ?? 'needs-triage'}\`, und die Frage wird nicht noch einmal gestellt.`);
-    return zeilen.join('\n');
-  }
-  if (e.art === 'klar') {
-    zeilen.push(kopf('Warp frei'), '', `Herkunft: ${e.herkunft}${e.grund ? ` — ${e.grund}` : ''}`);
-    if (e.fragen.length) zeilen.push('', 'Entscheidungen:', ...entscheidungsListe(e.fragen));
-    if (e.nachgetragen.length) zeilen.push('', `Nachgetragen: ${e.nachgetragen.map((k) => `\`${k}\``).join(', ')} (vom Admiral aus den Fakten des Tickets).`);
-    zeilen.push('', `Labels: ${entfernt.map((l) => `\`${l}\``).join(', ')} ab, \`${ready}\` dazu.`);
-    zeilen.push('', 'Widerrufbar: setz `needs-triage` wieder und schreib den Einwand als Kommentar; die nächste Triage nimmt ihn als Tatsache.');
-    return zeilen.join('\n');
-  }
-  zeilen.push(kopf('geschlossen, überflüssig'), '', `Grund: ${e.grund}`, `Herkunft: ${e.herkunft}`);
-  if (e.fragen.length) zeilen.push('', 'Entscheidungen:', ...entscheidungsListe(e.fragen));
-  zeilen.push('', 'Widerrufbar: das Ticket wieder öffnen und den Einwand als Kommentar schreiben; es trägt seine Labels noch und kommt in die nächste Triage.');
+/**
+ * The comment with the questions of a note that lie with the person (the decided ones below them); nothing else
+ * of the note changes. offeneFragen reads it back.
+ */
+export function triageKommentar(e: { fragen: TriageFrage[] }, t: Ticket, entfernt: string[]): string {
+  const offen = e.fragen.filter((f) => f.beim_menschen);
+  const schon = e.fragen.filter((f) => !f.beim_menschen);
+  const zeilen = [TRIAGE_FRAGE_MARKE, `**FRAGE AN DEN MENSCHEN (Triage)** — Sternzeit-Notiz #${t.nummer}: ${offen.length === 1 ? 'eine Frage liegt' : `${offen.length} Fragen liegen`} bei dir.`, ''];
+  zeilen.push(...fragenZeilen(offen));
+  if (schon.length) zeilen.push('', 'Schon entschieden (widerrufbar mit einem Kommentar hier):', ...entscheidungsListe(schon));
+  zeilen.push('', `Antworte mit einem Kommentar an diesem Ticket; die nächste Triage nimmt ihn als Tatsache. Bis dahin bleibt \`${entfernt[0] ?? 'needs-triage'}\`, und die Frage wird nicht noch einmal gestellt.`);
   return zeilen.join('\n');
 }
 
-// ---- #146: the cut plan over all Sternzeit-Notizen of a project, before the single clearing
+// ---- #146: the cut plan over all Sternzeit-Notizen of a project, their clearing in the same call
 
 /** At most this many new missions per run, at most this many children per mission (existing ones count). */
 export const NEUE_MISSIONEN_MAX = 4;
@@ -334,6 +352,11 @@ export interface Zuordnung {
   in?: number;
   /** art ueberfluessig: where it is done, doubled or overtaken */
   fundstelle?: string;
+  /** #146: the questions of the question round about the note, decided by the admiral or (beim_menschen) with the person */
+  fragen: TriageFrage[];
+  /** #146: the sections the admiral wrote for a note joining a mission, where they are missing or empty */
+  abnahmekriterien?: string;
+  verifikationsweg?: string;
 }
 
 export interface NeueMission {
@@ -365,7 +388,7 @@ export function schnittplanSchema(): object {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['notiz', 'art', 'grund', 'herkunft'],
+          required: ['notiz', 'art', 'grund', 'herkunft', 'fragen'],
           properties: {
             notiz: { type: 'integer' },
             art: { type: 'string', enum: [...ZUORDNUNGEN] },
@@ -375,6 +398,9 @@ export function schnittplanSchema(): object {
             neue_mission: { type: 'string', description: 'nur bei art neue_mission: schluessel aus neue_missionen' },
             in: { type: 'integer', description: 'nur bei art zusammengefuehrt: die Notiz, die bleibt' },
             fundstelle: { type: 'string', description: 'bei art ueberfluessig: wo es erledigt, doppelt oder überholt ist' },
+            fragen: FRAGEN_SCHEMA,
+            abnahmekriterien: { ...ABNAHME_SCHEMA, description: `bei art mission und neue_mission ohne Frage beim Menschen: ${ABNAHME_SCHEMA.description}` },
+            verifikationsweg: { ...VERIFIKATION_SCHEMA, description: `bei art mission und neue_mission ohne Frage beim Menschen: ${VERIFIKATION_SCHEMA.description}` },
           },
         },
       },
@@ -384,13 +410,14 @@ export function schnittplanSchema(): object {
 
 /**
  * What the model's plan allows: each note of the input exactly once, missions and notes only known ones,
- * the limits kept, closing only with a reason. Anything else is invalid as a whole and changes nothing.
+ * the limits kept (neuMax: the new missions still free in this run), closing only with a reason. #146: a note
+ * joining a mission without a question with the person carries its sections (they pass the order writer's
+ * check), a closed one asks no question. Anything else is invalid as a whole and changes nothing.
  */
-export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneMission[]): Schnittplan {
+export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX): Schnittplan {
   const o = x as Record<string, unknown> | null;
   const nein = (fehler: string): Schnittplan => ({ art: 'ungueltig', fehler });
   if (!o || !Array.isArray(o.neue_missionen) || !Array.isArray(o.zuordnungen)) return nein('kein Schnittplan im Schema');
-  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   const nummer = (v: unknown) => (Number.isInteger(v) ? (v as number) : undefined);
   const neu: NeueMission[] = [];
   for (const m of o.neue_missionen as Record<string, unknown>[]) {
@@ -399,7 +426,7 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
     if (neu.some((n) => n.schluessel === schluessel)) return nein(`neue Mission „${schluessel}“ doppelt`);
     neu.push({ schluessel, titel: text(m.titel), begruendung: text(m.begruendung), kinder: [] });
   }
-  if (neu.length > NEUE_MISSIONEN_MAX) return nein(`mehr als ${NEUE_MISSIONEN_MAX} neue Missionen (${neu.length})`);
+  if (neu.length > neuMax) return nein(`mehr als ${neuMax} neue Missionen (${neu.length})`);
   const bekannt = new Set(notizen.map((t) => t.nummer));
   const zuordnungen: Zuordnung[] = [];
   for (const z of o.zuordnungen as Record<string, unknown>[]) {
@@ -417,6 +444,9 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
       ...(z.art === 'neue_mission' ? { neue_mission: text(z.neue_mission) } : {}),
       ...(z.art === 'zusammengefuehrt' ? { in: nummer(z.in) } : {}),
       ...(z.art === 'ueberfluessig' ? { fundstelle: text(z.fundstelle) } : {}),
+      fragen: fragenAus(z.fragen),
+      ...(text(z.abnahmekriterien) ? { abnahmekriterien: text(z.abnahmekriterien) } : {}),
+      ...(text(z.verifikationsweg) ? { verifikationsweg: text(z.verifikationsweg) } : {}),
     });
   }
   const fehlt = notizen.find((t) => !zuordnungen.some((z) => z.notiz === t.nummer));
@@ -424,6 +454,13 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
   const neueKinder = new Map<number, number>();
   for (const z of zuordnungen) {
     const nr = `Sternzeit-Notiz #${z.notiz}`;
+    const frage = z.fragen.some((f) => f.beim_menschen);
+    if (frage && GESCHLOSSEN.includes(z.art)) return nein(`${nr}: ${z.art}, aber eine Frage liegt beim Menschen`);
+    if (!frage && (z.art === 'mission' || z.art === 'neue_mission')) {
+      const t = notizen.find((t) => t.nummer === z.notiz)!;
+      const e = ergaenzt(t.titel, t.body, z, r);
+      if (e.fehler) return nein(`${nr}: abnahmekriterien oder verifikationsweg fehlt (${e.fehler.replace(/^[^\n]*\n- /, '')})`);
+    }
     if (z.art === 'mission') {
       if (!missionen.some((m) => m.nummer === z.mission)) return nein(`${nr}: Mission #${z.mission ?? '?'} ist nicht offen, im Außeneinsatz oder unbekannt`);
       neueKinder.set(z.mission!, (neueKinder.get(z.mission!) ?? 0) + 1);
@@ -448,7 +485,57 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
   return { art: 'plan', neue_missionen: neu, zuordnungen };
 }
 
-export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]): string {
+/** Words of a title that name no topic. */
+const FUELLWOERTER = new Set(['aber', 'alle', 'auch', 'beim', 'damit', 'dass', 'eine', 'einem', 'einen', 'einer', 'kein', 'keine', 'mehr', 'nach', 'nicht', 'noch', 'ohne', 'oder', 'sich', 'soll', 'statt', 'über', 'wenn', 'wird']);
+const themenWoerter = (t: Ticket) => [
+  ...new Set([
+    ...t.titel.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 4 && !FUELLWOERTER.has(w)),
+    ...t.labels.filter((l) => l !== TRIAGE_LABEL && l !== INFO_LABEL).map((l) => `label:${l}`),
+  ]),
+];
+/** The share of a note in the order: its facts up to the limit per note, with its heading. */
+const umfang = (t: Ticket) => t.titel.length + 30 + faktenAus(t, NOTIZ_MAX, '###').length;
+
+/**
+ * #146: the notes of a project in packages of one admiral call each. All in one while their facts fit the budget
+ * of one order (NOTIZEN_GESAMT). Above it by topic, without a model: a note's topic is the word of its title (or
+ * a label) most other notes share, but not more than half of all (such a word names no topic); whole topics are
+ * packed into as few packages as fit, a topic larger than one package is cut in the order of its notes. Never a
+ * package per note.
+ */
+export function pakete(notizen: Ticket[], budget = NOTIZEN_GESAMT): Ticket[][] {
+  const groesse = (s: Ticket[]) => s.reduce((n, t) => n + umfang(t), 0);
+  if (groesse(notizen) <= budget) return notizen.length ? [notizen] : [];
+  const haeufig = new Map<string, number>();
+  for (const t of notizen) for (const w of themenWoerter(t)) haeufig.set(w, (haeufig.get(w) ?? 0) + 1);
+  const themen = new Map<string, Ticket[]>();
+  for (const t of notizen) {
+    const thema = themenWoerter(t).filter((w) => haeufig.get(w)! > 1 && haeufig.get(w)! <= Math.max(2, notizen.length / 2)).sort((a, b) => haeufig.get(b)! - haeufig.get(a)! || a.localeCompare(b))[0] ?? '';
+    themen.set(thema, [...(themen.get(thema) ?? []), t]);
+  }
+  const stuecke: Ticket[][] = [];
+  for (const liste of themen.values()) {
+    let s: Ticket[] = [];
+    for (const t of liste) {
+      if (s.length && groesse(s) + umfang(t) > budget) {
+        stuecke.push(s);
+        s = [];
+      }
+      s.push(t);
+    }
+    stuecke.push(s);
+  }
+  // the largest topics first, each into the first package with room left
+  const out: Ticket[][] = [];
+  for (const s of stuecke.sort((a, b) => groesse(b) - groesse(a))) {
+    const p = out.find((p) => groesse(p) + groesse(s) <= budget);
+    if (p) p.push(...s);
+    else out.push([...s]);
+  }
+  return out.map((p) => p.sort((a, b) => a.nummer - b.nummer));
+}
+
+export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX): string {
   const jeNotiz = Math.min(NOTIZ_MAX, Math.floor(NOTIZEN_GESAMT / Math.max(1, notizen.length)));
   const jeMission = Math.min(MISSION_MAX, Math.floor(MISSIONEN_GESAMT / Math.max(1, missionen.length)));
   // #147: the free places spelled out; the limit alone in the text did not keep the model from overfilling
@@ -457,7 +544,7 @@ export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]
     ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${plaetze(m)})\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
     : '(keine)';
   return `FLOTTE-SCHNITTPLAN
-Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002). Die Kommentare stammen nur von Berechtigten (${BERECHTIGT.join(', ')}), Kommentare Dritter hat das Programm ausgelassen.
+Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen und klärst sie dabei ohne Rückfrage, alle in diesem einen Aufruf; eine Einzelklärung danach gibt es nicht. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002).
 
 Ordne jede Notiz unten genau einmal zu (art):
 - mission: Kind einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
@@ -467,9 +554,15 @@ Ordne jede Notiz unten genau einmal zu (art):
 - verworfen: lohnt sich nicht oder passt nicht zur Richtung; grund nennt warum. Sie wird als „not planned“ geschlossen, nicht gelöscht.
 - triage: bleibt in der Triage, weil eine Frage beim Menschen liegt oder sie zu dünn ist; grund nennt was fehlt.
 
-Grenzen: höchstens ${NEUE_MISSIONEN_MAX} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
+Grenzen: höchstens ${neuMax} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
 
-herkunft gilt je Zuordnung. ${HERKUNFT_REGEL}
+Kläre jede Notiz in derselben Antwort. ${FRAGERUNDE}
+
+Je Zuordnung dazu:
+- fragen: die Fragen der Fragerunde zu dieser Notiz mit deiner Antwort. Liegt eine beim Menschen, gehen nur diese gebündelt mit optionen und deiner Empfehlung als Kommentar an die Notiz; sie bleibt in der Triage und kommt erst nach seiner Antwort in ihre Mission. Eine Notiz, die geschlossen wird (zusammengefuehrt, ueberfluessig, verworfen), hat keine Frage beim Menschen.
+- abnahmekriterien, verifikationsweg: bei mission und neue_mission ohne Frage beim Menschen. ${abschnitte(r)} Das Programm ergänzt den Text der Notiz damit (der bisherige Text bleibt stehen) und prüft ihn wie der Auftragsschreiber; fehlt dann ein Abschnitt, verwirft es den Plan.
+
+herkunft gilt je Zuordnung, jede Frage hat ihre eigene. ${HERKUNFT_REGEL}
 
 Antworte nur über das Schema.
 
@@ -518,8 +611,7 @@ export function missionsName(m: { nummer?: number; titel: string }): string {
  * appended (the text that was there stays), then joined to the mission and Warp frei.
  */
 export function schnittplanKlarKommentar(e: Extract<Entscheidung, { art: 'klar' }>, z: Zuordnung, mission: string, entfernt: string[], ready: string): string {
-  const zeilen = [kopf(`Missionsziel von ${mission}, Warp frei`), '', `Herkunft: ${e.herkunft}${e.grund ? ` — ${e.grund}` : ''}`];
-  zeilen.push(`Schnittplan: Missionsziel von ${mission}${z.grund ? ` — ${z.grund}` : ''} (Herkunft: ${z.herkunft})`);
+  const zeilen = [kopf(`Missionsziel von ${mission}, Warp frei`), '', `Schnittplan: Missionsziel von ${mission}${z.grund ? ` — ${z.grund}` : ''}`, `Herkunft: ${z.herkunft}`];
   if (e.fragen.length) zeilen.push('', 'Entscheidungen:', ...entscheidungsListe(e.fragen));
   if (e.nachgetragen.length) {
     zeilen.push('', 'Ergänzt, vom Admiral aus den Fakten des Tickets (der bisherige Text bleibt unverändert stehen):');
