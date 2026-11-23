@@ -414,6 +414,8 @@ class Treiber {
   /** a report right after an event is on its way */
   meldungGeplant = false;
   haltGemeldet = false;
+  /** #135: the missions the driver last said it stays for; empty when none */
+  bleibtGemeldet = '';
   /** the finished epics of this repository (messungen.jsonl), the forecast reads them */
   messungen: Messung[] = [];
   prognoseCache: { schluessel: string; wert: Bericht['prognose'] } | null = null;
@@ -537,7 +539,7 @@ class Treiber {
         return this.z;
       }
       // nothing left: one more look for released epics, then the end (acceptance 3, decision C)
-      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.nachsammeln(true)) break;
+      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.wartetAufBruecke() && !this.nachsammeln(true)) break;
       if (this.e.maxDauerMs !== null && this.w.jetzt() - anfang > this.e.maxDauerMs) {
         this.ereignis(null, `Zeitgrenze von ${Math.round(this.e.maxDauerMs / 1000)} s erreicht, Treiber hält an`);
         await Promise.all(this.laufend.values());
@@ -2969,6 +2971,18 @@ class Treiber {
     const eps = Object.values(this.z.epics);
     if (eps.some((ep) => ep.auftrag || BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt')) return false;
     return eps.every((ep) => ENDE.has(ep.stufe));
+  }
+
+  /**
+   * #135: a blocked or aborted mission not given up can still be requeued on the bridge; with a bridge
+   * the driver stays in the deployment for it (said once per set of missions) instead of ending.
+   */
+  wartetAufBruecke(): boolean {
+    const offen = this.bruecke ? Object.values(this.z.epics).filter((ep) => ['blockiert', 'abgebrochen'].includes(ep.stufe) && !ep.aufgegebenAm) : [];
+    const liste = offen.map((ep) => `#${ep.nr} ${ep.stufe}`).join(', ');
+    if (liste && liste !== this.bleibtGemeldet) this.ereignis(null, `bleibt im Einsatz: ${liste}, wartet auf „Neu einreihen“ oder „Aufgeben“ auf der Brücke`);
+    this.bleibtGemeldet = liste;
+    return offen.length > 0;
   }
 
   async abschluss(): Promise<void> {

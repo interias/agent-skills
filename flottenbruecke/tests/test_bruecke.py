@@ -214,6 +214,17 @@ def test_stiller_treiber_gilt_als_veraltet(client, bericht, uhr):
     assert t['braucht'][0]['aktiv'] is False
 
 
+def test_ohne_treiber_verspricht_keine_karte_den_naechsten_takt():
+    # #135: a requeue waiting while no driver reports is not fetched "in the next tick"
+    static = Path(__file__).parent.parent / 'app' / 'static'
+    for datei in ['app.js', 'bereiche/sternenkarte.js', 'bereiche/frachtraum.js']:
+        js = (static / datei).read_text(encoding='utf-8')
+        assert 'kein Treiber läuft' in js, datei
+        for zeile in js.splitlines():
+            if 'nächsten Takt ab' in zeile:
+                assert 'kein Treiber läuft' in zeile, f'{datei}: {zeile.strip()[:80]}'
+
+
 def test_ungueltiger_forge_name(client, bericht):
     bericht['forge'] = '../etc'
     assert client.post('/api/bericht', json=bericht).status_code == 422

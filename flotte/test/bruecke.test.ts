@@ -363,6 +363,44 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('#135: every mission blocked, no --dauerhaft: the driver stays in the deployment, a later requeue continues the run', async () => {
+    let blockiertSeit = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (x.epics.find((e) => e.nr === 3)?.stufe !== 'blockiert') return null;
+        blockiertSeit ||= Date.now();
+        // the person comes back later, well after the next tick
+        return Date.now() - blockiertSeit > 800 ? { epic: 3, art: 'einreihen' } : null;
+      },
+    });
+    try {
+      const t = aufbau();
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const buch = drehbuch([lauf(3, [abgemeldet], 1), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, maxDauerMs: 8000 }), t.welt);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(2);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.ereignisse.filter((e) => /bleibt im Einsatz: #3 blockiert/.test(e.text))).toHaveLength(1);
+      expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#135: a blocked mission given up on the bridge: then the deployment ends', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.epics[0]?.stufe === 'blockiert' ? { epic: 3, art: 'aufgeben' } : null) });
+    try {
+      const t = aufbau();
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [abgemeldet], 1)]), [3], { bruecke: b.url, maxDauerMs: 8000 }), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'abgebrochen' });
+      expect(z.ereignisse.some((e) => /^Einsatz beendet/.test(e.text))).toBe(true);
+      expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#133: requeued after an order edge to an open epic was added: waiting with the session dropped, no resume', async () => {
     const bodies: Record<number, string> = { 3: '## Betroffene Module\n- a', 4: '## Betroffene Module\n- b' };
     const b = await attrappe(() => null, {
