@@ -77,13 +77,14 @@ export function schreibeMessung(dir: string, m: Messung): void {
   appendFileSync(join(dir, DATEI), JSON.stringify(m) + '\n');
 }
 
-export const KLASSE = /^epic-implementer-(mechanisch|standard|urteil-hoch|urteil)$/;
+// transcripts before the Sprachraum (ADR-0003) carry the old agent names
+export const KLASSE = /^(?:ingenieur|epic-implementer)-(mechanisch|standard|urteil-hoch|urteil)$/;
 const PAKET = /#\d+|\bP\d+\b/;
 export const RANG: Klasse[] = ['mechanisch', 'standard', 'urteil', 'urteil-hoch'];
 
 /**
  * The packages of a run from its logs (stream-json of claude -p, all turns): each Agent call of an
- * epic-implementer names its package in the description (`Implementer #588 …`, `Implementer P2 …`).
+ * ingenieur names its package in the description (`Implementer #588 …`, `Implementer P2 …`).
  * The first call gives the class, every later one in a higher class is an escalation.
  */
 export function paketeAusLogs(logs: string[]): MessPaket[] {

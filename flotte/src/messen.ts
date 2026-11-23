@@ -258,8 +258,8 @@ export function treiberKennzahlen(z: TreiberZustand, fenster: Fenster, schwelleM
 }
 
 // ---- Epic runs by role (#64) ----
-// One epic run is split into its work: today the session of /epic and its subagents, under
-// `flotte epic` one `claude -p` session per role. Both arrive here as Arbeit; the loader in
+// One epic run is split into its work: today the session of /mission and its subagents, under
+// `flotte mission` one `claude -p` session per role. Both arrive here as Arbeit; the loader in
 // befehle/messen.ts decides the role (subagent agentType or the role a session is listed with).
 
 export type Rolle = 'orchestrator' | 'implementer' | 'reviewer' | 'kundschafter' | 'admiral' | 'schnitt' | 'konflikt' | 'andere';
@@ -267,11 +267,11 @@ export type Rolle = 'orchestrator' | 'implementer' | 'reviewer' | 'kundschafter'
 /** Orchestration in the sense of the acceptance table of epic #69: cut, gate, conflict, questions. */
 export const ORCHESTRIERUNG: Rolle[] = ['orchestrator', 'admiral', 'schnitt', 'konflikt'];
 
-/** The role of an agent type or of a listed session: epic-implementer-urteil-hoch is an implementer, epic-lauf the orchestrator. */
+/** The role of an agent type or of a listed session: ingenieur-urteil-hoch (before ADR-0003 epic-implementer-urteil-hoch) is an implementer, epic-lauf the orchestrator. */
 export function rolleAus(agentType: string | null | undefined): Rolle {
   const t = String(agentType ?? '');
-  if (/implementer/.test(t)) return 'implementer';
-  if (/reviewer/.test(t)) return 'reviewer';
+  if (/implementer|ingenieur/.test(t)) return 'implementer';
+  if (/reviewer|erster-offizier/.test(t)) return 'reviewer';
   if (/kundschafter/.test(t)) return 'kundschafter';
   if (/admiral/.test(t)) return 'admiral';
   if (t === 'epic-lauf' || t === 'host' || t === 'orchestrator') return 'orchestrator';
@@ -281,9 +281,9 @@ export function rolleAus(agentType: string | null | undefined): Rolle {
 
 const LEITER = ['mechanisch', 'standard', 'urteil', 'urteil-hoch'];
 
-/** The step of an implementer on the escalation ladder (epic/SKILL.md), or -1. */
+/** The step of an implementer on the escalation ladder (mission/SKILL.md), or -1. */
 export function stufeAus(agentType: string | null | undefined): number {
-  const m = /implementer-(mechanisch|standard|urteil-hoch|urteil)\b/.exec(String(agentType ?? ''));
+  const m = /(?:implementer|ingenieur)-(mechanisch|standard|urteil-hoch|urteil)\b/.exec(String(agentType ?? ''));
   return m ? LEITER.indexOf(m[1]) : -1;
 }
 
@@ -334,7 +334,7 @@ const MERGE = /\bgit\b[^\n]*\bmerge\b(?![-\w])[^\n]*?\bagent\/(\d+(?:-p\d+)?)/;
 
 /**
  * Package merges of an orchestrator: a Bash or PowerShell call `git merge … agent/<nr>-…`
- * (epic/SKILL.md, phase 5), at the time of its result. A result with a conflict or an error does
+ * (mission/SKILL.md, phase 5), at the time of its result. A result with a conflict or an error does
  * not count; `--abort` and `merge-base` never do.
  */
 export function paketMerges(eintraege: Eintrag[]): PaketMerge[] {
@@ -373,11 +373,11 @@ export interface EpicEingabe {
   arbeitMs?: number | null;
   /** model time of the orchestration between two moments; absent where no model orchestrates */
   modellzeit?: (von: number, bis: number) => number;
-  /** moments the epic run was started anew (driver: "Lauf gestartet" after the first; flotte epic: event neustart) */
+  /** moments the epic run was started anew (driver: "Lauf gestartet" after the first; flotte mission: event neustart) */
   neustarts?: number[];
-  /** moments a worker process started, --resume included (flotte epic: its aufruf events); default the first lines of the worker transcripts */
+  /** moments a worker process started, --resume included (flotte mission: its aufruf events); default the first lines of the worker transcripts */
   workerStarts?: number[];
-  /** moments a call was started anew, not with --resume (flotte epic); counted between a restart and its first worker */
+  /** moments a call was started anew, not with --resume (flotte mission); counted between a restart and its first worker */
   neueAufrufe?: number[];
 }
 
@@ -530,19 +530,19 @@ export function epicSumme(laeufe: EpicMessung[]) {
   };
 }
 
-/** Role, package and round of a call log of `flotte epic` (<rolle>[-<paket>]-r<runde>.jsonl, src/epic/aufrufe.ts). */
+/** Role, package and round of a call log of `flotte mission` (<rolle>[-<paket>]-r<runde>.jsonl, src/epic/aufrufe.ts). */
 export function aufrufLog(name: string): { rolle: Rolle; paket: string | null; runde: number } | null {
   const m = /^([a-z]+)(?:-(.+?))?-r(\d+)\.jsonl$/.exec(name);
   return m ? { rolle: rolleAus(m[1]), paket: m[2] ?? null, runde: Number(m[3]) } : null;
 }
 
-/** What flotte messen reads from the state of `flotte epic` (<git common dir>/flotte/epics/<nr>/zustand.json, src/epic/zustand.ts). */
+/** What flotte messen reads from the state of `flotte mission` (<git common dir>/flotte/epics/<nr>/zustand.json, src/epic/zustand.ts). */
 export interface ProgrammZustand {
   ereignisse: { zeit: string; paket: string | null; art: string; rolle?: string; text: string }[];
 }
 
 /**
- * The events of `flotte epic` as the source of an epic run (#68): package merges (event gemergt),
+ * The events of `flotte mission` as the source of an epic run (#68): package merges (event gemergt),
  * restarts (neustart), worker processes started or resumed (aufruf of implementer and reviewer),
  * calls started anew (aufruf without --resume) and invalid outputs (ungueltig).
  */

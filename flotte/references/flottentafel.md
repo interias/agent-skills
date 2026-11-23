@@ -1,15 +1,15 @@
 # Die Flottentafel
 
-Die Flottentafel zeigt dem Menschen, welche Epics laufen, wo jeder Lauf steht, was der Admiral
+Die Flottentafel zeigt dem Menschen, welche Missionen laufen, wo jeder Lauf steht, was der Admiral
 selbst entschieden hat, wie nah die Verbrauchsbremse ist und was beim Menschen liegt. Der Treiber
 baut seine Tafel selbst (`flotte/src/treiber/tafel.ts`); diese Datei beschreibt die Vorlage
 `flottentafel.html`. Sie ist ein **fester Bildschirm ohne Scrollen**: Oben steht immer dasselbe, den
 unteren Bereich blättern Knöpfe in der Seitenleiste um. Die Lauftafeln der einzelnen Läufe bleiben
-daneben bestehen (`epic/references/lauftafel.md`); die Flottentafel verlinkt sie, statt sie zu
+daneben bestehen (`mission/references/lauftafel.md`); die Flottentafel verlinkt sie, statt sie zu
 wiederholen.
 
 Wo die Tafel liegt und ob sie veröffentlicht oder nur geschrieben wird (`plan_artifact`):
-`epic/references/adapter.md`; hier liegt sie im Scratchpad. Die URL bleibt über den
+`mission/references/adapter.md`; hier liegt sie im Scratchpad. Die URL bleibt über den
 ganzen Einsatz gleich und wird dem Menschen genannt (bei `file` der Pfad).
 
 ## Die Vorlage
@@ -22,14 +22,14 @@ cp ~/.claude/skills/flotte/references/flottentafel.html "<scratchpad>/flottentaf
 ```
 
 **Der `<style>`-Block und das `<script>` werden nicht angefasst.** Der gemeinsame Block am Anfang
-des Styles steht wortgleich in `epic/references/lauftafel.html` und wird nur in beiden Dateien
+des Styles steht wortgleich in `mission/references/lauftafel.html` und wird nur in beiden Dateien
 zugleich geändert; die Prüfung mit `diff` steht in `lauftafel.md` („Die Vorlage"). Das Script
 zeichnet die Formation und blättert den unteren Bereich; gepflegt werden nur HTML-Daten.
 
 Die Vorlage trägt die Musterdaten eines erfundenen Einsatzes und zeigt darin **jede** Form einmal:
 alle fünf Laufzustände, alle fünf Paketformen, drei Kollisionsstufen, eine Entscheidung
 im Protokoll, beide Sorten Punkte beim Menschen, eine gelbe Bremse. Das ist eine Formenlehre, kein
-Anfangszustand. Im Anfangszustand stehen die Epics der Belegung auf „läuft" mit allen Paketen
+Anfangszustand. Im Anfangszustand stehen die Missionen der Belegung auf „läuft" mit allen Paketen
 „wartend", die übrigen im Dock; unter „Beim Menschen" steht `Nichts offen.` nach dem
 auskommentierten Muster, unter „Entscheidungen" `<p class="none">Noch keine.</p>`, unter „Bremse"
 die erste Messung. Ein leerer Block bleibt stehen.
@@ -92,21 +92,21 @@ Farbchips `gruen`, `gelb`, `rot` gehören der Verbrauchsbremse.
 
 | Kachel | Wert | `.basis` |
 |---|---|---|
-| Läufe | belegte Plätze `/` Obergrenze der Flotte (nach Kollisionsstufe und Wochenfenster) | Zahl der Epics im Dock |
+| Läufe | belegte Plätze `/` Obergrenze der Flotte (nach Kollisionsstufe und Wochenfenster) | Zahl der Missionen im Dock |
 | Pakete | abgenommene Pakete `/` alle Pakete, über alle Läufe | „über alle Läufe" |
 | Selbst entschieden | Zahl der Zeilen auf der Seite Entscheidungen | davon im Protokoll |
 | Wartet auf dich | Zahl der Glut-Punkte unter „Beim Menschen" | von wie vielen Punkten, wie viele die Flotte hebt |
 
 Die Pakete-Kachel ist die Summe der Mini-Segmentleisten. Hitze-Tönung gibt es auf der
-Flottentafel nicht; Kennzahlen der Epics stehen auf deren Lauftafeln.
+Flottentafel nicht; Kennzahlen der Missionen stehen auf deren Lauftafeln.
 
 ## Stand der Läufe — die Datenquelle
 
-Je Epic eine Zeile `<tr data-epic="<nr>">`, in der Reihenfolge des Flottenplans. **Aus diesen
+Je Mission eine Zeile `<tr data-epic="<nr>">`, in der Reihenfolge des Flottenplans. **Aus diesen
 Zeilen zeichnet das Script die Formation**; was hier steht, steht dort. Die Spalten:
 
-- **Epic** und **Ziel** mit `.sub`: Welle, Platz und seit wann; bei wartenden worauf; bei fertigen
-  der Merge-Stand (PR offen, gemergt, aufgeräumt).
+- **Mission** und **Ziel** mit `.sub`: Welle, Platz und seit wann; bei wartenden worauf; bei fertigen
+  der Andockstand (PR offen, angedockt, aufgeräumt).
 - **Module · Kollision**: die berührten Module wie in der Lauftafel (`<b>exklusiv</b>` bei
   Exklusivknoten), darunter die Kollisionsstufe zum schlechtesten Partner als Chip:
   `<span class="coll keine|klein|mittel|gross">mittel zu #<nr></span>` (`keine` ohne Partner).
@@ -117,11 +117,11 @@ Zeilen zeichnet das Script die Formation**; was hier steht, steht dort. Die Spal
 | im Dock | `.state.wait` | im Dock links | wartet auf eine Reihenfolge-Kante, eine Kollision oder die Bremse; `data-wartet="#<nr>"` an der Zeile nennt den Grund im Dock |
 | läuft | `.state.live` | Schiff glüht | der Lauf arbeitet |
 | wartet auf dich | `.state.you` | Schiff blinkt | eine Frage, auf die der Lauf wartet, liegt beim Menschen |
-| fertig | `.state.done` | Schiff blau | `FLOTTE-ENDE` ist da; der `.sub` sagt, ob PR offen, gemergt oder aufgeräumt |
+| fertig | `.state.done` | Schiff blau | `FLOTTE-ENDE` ist da; der `.sub` sagt, ob PR offen, angedockt oder aufgeräumt |
 | abgebrochen | `.state.fail` | Schiff rot | der Lauf endet ohne Block oder mit Abbruch; Glut-Punkt unter „Beim Menschen" |
 
 - **Pakete**: eine Mini-Segmentleiste `<span class="pips mini">` mit genau einem `.pip` je Paket
-  des Epics, in der Reihenfolge und im Zustand seiner Lauftafel (`wait`, `live`, `done`, `fail`,
+  der Mission, in der Reihenfolge und im Zustand ihrer Lauftafel (`wait`, `live`, `done`, `fail`,
   `block`), dahinter `<span class="mono">abgenommen/gesamt</span>`. Die Zahlen stehen auch im
   `aria-label`.
 - **Lauf**: der Link auf die Lauftafel des Laufs.
@@ -164,24 +164,24 @@ der Tafel, nie im Flottenlogbuch.
 Wie „Offene Punkte" der Lauftafel, mit derselben Schiene links:
 
 - `.item.you` (Glut): Was nach „Entscheidungsrecht" beim Menschen liegt — offene Fragen,
-  Pull Requests zum Mergen, Abbrüche. Entscheidungen des Admirals stehen nicht hier, sondern auf
+  Pull Requests zum Andocken, Abbrüche. Entscheidungen des Admirals stehen nicht hier, sondern auf
   der Seite Entscheidungen: Sie warten auf keine Bestätigung.
   Diese Punkte zählt die Kachel „Wartet auf dich".
 - `.item.run` (Blau): Was die Flotte selbst hebt, etwa eine Pause der Bremse.
 
-Je Punkt eine Überschrift mit Epic, ein Wort für die Art in `.owner` (bei Glut mit `blink-dot`),
+Je Punkt eine Überschrift mit Mission, ein Wort für die Art in `.owner` (bei Glut mit `blink-dot`),
 **ein** Satz, die Monozeile `.meta2` mit seit wann und welchem Lauf. Ist nichts offen, steht dort
 `Nichts offen.`
 
 ## Die drei Seiten unten
 
 **Belegung** (Standard): die Zeitleiste wie in `lauftafel.md` („Zeitleiste"), eine Spur je Platz
-der Obergrenze, ein Balken je Epic-Lauf mit der Klasse seines Zustands (`done`, `live`, `you`,
+der Obergrenze, ein Balken je Außeneinsatz mit der Klasse seines Zustands (`done`, `live`, `you`,
 `fail`). Darunter die Abweichungszeile: geplante gegen tatsächliche Belegung, Pausen der Bremse,
 warum ein Platz leer ist.
 
 **Entscheidungen**: **alle** eigenen Entscheidungen des Einsatzes, neueste oben, je eine
-`<div class="d">` mit dem Epic (oder `Flotte`) in `.lbl`, der Entscheidung in einem Satz und in
+`<div class="d">` mit der Mission (oder `Flotte`) in `.lbl`, der Entscheidung in einem Satz und in
 `.hard` Herkunft, „Widerrufen" (was ein Mensch tun müsste) und dem Link auf den Forge-Kommentar —
 dieselben Felder wie der Kommentar in `entscheidungsrecht.md`. Eine einflussreiche trägt `class="d vorl"` und
 `<span class="vk">Protokoll</span>`, ihr Link führt auf den Eintrag im Entscheidungsprotokoll;
@@ -202,7 +202,7 @@ im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
 
 - Einsatzzustand, Stand, Nummer der Fortschreibung und Sternzeit in `.stamp`
 - die Zeilen von „Stand der Läufe": Zustand, Mini-Segmente aus der jeweiligen Lauftafel, `.sub`,
-  PR; neue Epics aus dem Dock, freie Plätze
+  PR; neue Missionen aus dem Dock, freie Plätze
 - die Kacheln
 - die Bremse-Leiste und eine neue Zeile auf der Seite Bremse bei jeder Messung, mit der RAM-Messung
   dieses Aufwachens und der Messung in `.stamp`
@@ -219,10 +219,10 @@ im selben Zug wie das Flottenlogbuch. Nachzuziehen sind jedes Mal:
   ```bash
   grep -n "Musterbelegung\|Beispielrepo\|Auftragsliste\|Rechnungen gesammelt\|Lieferscheine\|Rollenrechte\|Exportformat XLSX\|10,8 GB\|18,7 GB\|15,2 GB\|11,4 GB\|7,3 GB\|Testkonto\|#9[4-7][0-9]\|data-epic=\"9[4-7][0-9]\"\|a7f3e21\|c21e9d0\|5be8f13\|9b04c77\|#212\|22.09.2026, 14:10\|80724.8\|hochgerechnet 101 %" "<scratchpad>/flottentafel.html"
   ```
-  Trägt ein echtes Epic eine Nummer zwischen #940 und #979 oder ein echter Pull Request #212,
+  Trägt eine echte Mission eine Nummer zwischen #940 und #979 oder ein echter Pull Request #212,
   meldet das Muster auch echte Treffer. Dann jede Zeile einzeln ansehen. Der Admiralsname der
   Musterdaten wird nicht gesucht, weil die Ziehung ihn auch echt liefern kann.
-- Zeilen in „Stand der Läufe" = Epics des Einsatzes; jede Mini-Segmentleiste hat so viele
+- Zeilen in „Stand der Läufe" = Missionen des Einsatzes; jede Mini-Segmentleiste hat so viele
   Segmente wie ihre Lauftafel.
 - Die Kachel „Pakete" ist die Summe der Segmente, „Wartet auf dich" zählt die Glut-Punkte,
   „Selbst entschieden" die Zeilen der Seite Entscheidungen.

@@ -1,6 +1,6 @@
 ---
 name: mail-antwort
-description: Eine Anwender-E-Mail (.eml) zum aktiven Repository beantworten — zerlegen, recherchieren, nach einem Halt bei Bedarf Spec-Issue anlegen und mit /epic bis zum Pull Request umsetzen, am Ende ein Antwortentwurf mit markierten Ist- und Soll-Bildern.
+description: Eine Anwender-E-Mail (.eml) zum aktiven Repository beantworten — zerlegen, recherchieren, nach einem Halt bei Bedarf Spec-Issue anlegen und mit /mission bis zum Pull Request umsetzen, am Ende ein Antwortentwurf mit markierten Ist- und Soll-Bildern.
 disable-model-invocation: true
 ---
 
@@ -8,14 +8,14 @@ disable-model-invocation: true
 
 Ein Anwender meldet per Mail einen Fehler, einen Wunsch oder eine Frage zu der Anwendung, deren
 Repository diese Sitzung geöffnet hat. Du machst daraus **einen Befund**, bei Bedarf **einen Pull
-Request** über `/epic`, und immer **einen Antwortentwurf**, den der Mensch prüft und selbst
+Request** über `/mission`, und immer **einen Antwortentwurf**, den der Mensch prüft und selbst
 abschickt. Du verschickst nie etwas.
 
 Argument des Aufrufs ist der Pfad der `.eml`. Fehlt er, frag danach.
 
 **Ein Halt.** Gefragt wird einmal, in Schritt 4, nach den Regeln „Wie gefragt wird“ des Skills
-`epic` (Optionen, markierte Empfehlung, `AskUserQuestion`). Danach läuft alles bis zum Entwurf
-durch. Das Vorab-Tor von `/epic` bleibt bestehen; es fragt nur, wenn das Issue Lücken hat — darum
+`mission` (Optionen, markierte Empfehlung, `AskUserQuestion`). Danach läuft alles bis zum Entwurf
+durch. Das Vorab-Tor von `/mission` bleibt bestehen; es fragt nur, wenn das Issue Lücken hat — darum
 schreibst du es in Schritt 5 so vollständig, dass das Tor leer bleibt.
 
 Skripte liegen neben dieser Datei unter `scripts/`. Python mit `-P` aufrufen (hält das aktuelle Verzeichnis aus dem Importpfad; `-I` würde auch Pillow aus den Benutzerpaketen ausblenden), Pfade als Argumente;
@@ -24,7 +24,7 @@ Pillow wird gebraucht.
 ## 0 — Vorbereiten
 
 - **Adapter lesen:** `.claude/epic.md` des Repositorys (Vertrag: `references/adapter.md` des Skills
-  `epic`). Er liefert Forge, API, Token, `issue_form`, `ready_label`, Vokabulardatei, ADR-Pfad und
+  `mission`). Er liefert Forge, API, Token, `issue_form`, `ready_label`, Vokabulardatei, ADR-Pfad und
   `must_read`. Fehlt er, leite Forge und API aus `git remote -v` ab; das Token steht dann als
   `GITEA_TOKEN` in `~/.env`.
 - `must_read` und die Vokabulardatei lesen. In Befund, Issue und Mail gelten deren Begriffe.
@@ -50,8 +50,8 @@ Fertig, wenn du in drei Zeilen festhalten kannst:
 
 | Art | Erkennbar an | Weg |
 |---|---|---|
-| **Fehler** | Die Anwendung tut nicht, was Code oder Doku zusagen | Issue + `/epic` |
-| **Wunsch** | Tut, was sie soll, der Anwender will mehr oder anders | Issue + `/epic`, wenn klein und eindeutig; sonst Issue mit `needs-triage`, kein Lauf |
+| **Fehler** | Die Anwendung tut nicht, was Code oder Doku zusagen | Issue + `/mission` |
+| **Wunsch** | Tut, was sie soll, der Anwender will mehr oder anders | Issue + `/mission`, wenn klein und eindeutig; sonst Issue mit `needs-triage`, kein Lauf |
 | **Bedienung** | Funktion existiert, wurde anders benutzt | nur Antwort |
 | **Daten** | Code richtig, der Datensatz oder die Stammdaten sind es nicht | Antwort; Stammdaten ändert nur ein Mensch |
 | **Schon erledigt** | Behoben in neuerer Version oder offenes Issue/PR vorhanden | Antwort + Kommentar am vorhandenen Issue |
@@ -65,14 +65,14 @@ ohne eigene Recherche über das Gegenprüfen der Fundstellen des Issues hinaus.
 
 ## 3 — Recherche
 
-Vier Spuren, unabhängig voneinander — bei größerem Umfang als `epic-kundschafter` parallel, mit
+Vier Spuren, unabhängig voneinander — bei größerem Umfang als `kundschafter` parallel, mit
 absoluten Pfaden im Auftrag:
 
 1. **Code:** vom angezeigten Element (Spaltenkopf, Feldname, Übersetzungsschlüssel) zur Stelle, die
    den Wert berechnet oder lädt. Bedingungen suchen, unter denen der Wert leer bleibt, und gegen
    die Werte im Bild prüfen.
 2. **Forge:** offene **und** geschlossene Issues und PRs zu den Begriffen der Mail (Listen blättern,
-   siehe `references/forge.md` des Skills `epic`). Dubletten und frühere Entscheidungen.
+   siehe `references/forge.md` des Skills `mission`). Dubletten und frühere Entscheidungen.
 3. **Version:** die Änderungshistorie des Projekts (bei BRIQNET `client/content/patch-notes.json`)
    seit dem Stand des Anwenders. Ein Hinweis „neue Version verfügbar“ im Bild heißt: der Anwender
    lief auf einem alten Stand.
@@ -89,7 +89,7 @@ Fundstelle ist kein Befund.
 Lege in einer Nachricht vor:
 
 - **Befund:** Ursache, Fundstellen, nachgestellter Fall, Einordnung.
-- **Weg:** A nur Antwort · B Spec-Issue + `/epic` · C Kommentar an vorhandenem Issue + Antwort ·
+- **Weg:** A nur Antwort · B Spec-Issue + `/mission` · C Kommentar an vorhandenem Issue + Antwort ·
   D Wunsch als `needs-triage`-Issue + Antwort ohne Termin.
 - **Issue-Entwurf** (bei B/D) vollständig, wie er angelegt würde.
 - **Kern der Antwort** in zwei, drei Sätzen.
@@ -100,21 +100,21 @@ vorlegen; sonst weiter mit dem gewählten Weg.
 ## 5 — Issue und Lauf (Weg B, D)
 
 - **Issue anlegen** in der Form `issue_form` des Adapters. Für `spec` die sieben Abschnitte, die
-  der Skill `epic` in Phase 1 beschreibt; als Vorlage den Body eines jüngeren Spec-Issues des
+  der Skill `mission` in Phase 1 beschreibt; als Vorlage den Body eines jüngeren Spec-Issues des
   Repositorys lesen. Pflichtinhalte:
   - **Herkunft** unter Further Notes: Absender, Datum, Betreff, Kennung des Datensatzes.
   - **Bild** des Anwenders als Anhang am Issue (Gitea: `POST /issues/<n>/assets`, Feld
     `attachment`) und im Body verlinkt.
   - **Fundstellen** aus Schritt 3 unter Implementation Decisions, mit der Begründung des Wegs.
   - **Testing Decisions** mit dem nachgestellten Fall als Prüfung und dem Bildschirmfoto als
-    Verifikation, damit `/epic` den Soll-Zustand belegt.
+    Verifikation, damit `/mission` den Soll-Zustand belegt.
   - Labels: Kategorie (`bug`/`enhancement`) und bei B das `ready_label`; bei D `needs-triage`.
-- **Weg B:** den Skill `epic` mit `#<n>` aufrufen und ihm folgen. Die Patch-Note-Pflicht des
+- **Weg B:** den Skill `mission` mit `#<n>` aufrufen und ihm folgen. Die Patch-Note-Pflicht des
   Projekts deckt der Lauf ab. Fertig, wenn der Pull Request offen ist; notiere PR-Nummer, Branch,
   Worktree und die Version aus der Patch-Note.
 - **Weg C:** am vorhandenen Issue kommentieren — Herkunft, Bild, was die Mail Neues beiträgt.
-  Nennt das Issue die Mail schon, entfällt der Kommentar. **Läuft dazu schon ein `/epic`** (Label
-  `status/in-arbeit`, Epic-Branch oder -Worktree vorhanden), startest du keinen zweiten: Die Antwort
+  Nennt das Issue die Mail schon, entfällt der Kommentar. **Läuft dazu schon ein `/mission`** (Label
+  `status/in-arbeit`, Missions-Branch oder -Worktree vorhanden), startest du keinen zweiten: Die Antwort
   wartet auf dessen Pull Request, das Soll-Bild entsteht in dessen Worktree. Ist der Pull Request
   noch nicht offen, endest du mit Ist-Bild und Textentwurf und sagst, worauf das Soll-Bild wartet.
 
@@ -124,7 +124,7 @@ Für die Antwort entstehen **Ist** und, wenn Code geändert wurde, **Soll**:
 
 - **Ist:** das Bild des Anwenders, auf den Ausschnitt um den Fundort zugeschnitten, das gemeldete
   Element markiert.
-- **Soll:** die Anwendung aus dem Epic-Worktree lokal starten (nach dem Weg des Projekts:
+- **Soll:** die Anwendung aus dem Missions-Worktree lokal starten (nach dem Weg des Projekts:
   `run`-Skill, `.claude/launch.json`, README), dieselbe Ansicht mit demselben oder einem
   gleichartigen Datensatz öffnen, Bildschirmfoto im Browser-Pane, dasselbe Element markiert.
   Gelingt das nicht, bleibt es beim Ist-Bild; der Grund kommt in den Abschlussbericht.
@@ -158,7 +158,7 @@ Der Text:
 - **Ursache in der Sprache des Anwenders:** Begriffe der Oberfläche und der Vokabulardatei; Datei-,
   Funktions- und Branchnamen bleiben im Issue.
 - **Was sich ändert und wann:** „kommt mit Version x.y.z, sobald sie freigegeben ist“ — kein Datum,
-  denn Merge und Deploy entscheidet der Mensch. Bis dahin ein Behelf, falls es einen gibt.
+  denn Andocken und Deploy entscheidet der Mensch. Bis dahin ein Behelf, falls es einen gibt.
 - **Bilder** mit je einer Zeile Unterschrift: „Bisher:“ / „Nach der Korrektur:“.
 - **Kurz:** höchstens acht Sätze ohne Bildunterschriften. Gruß mit dem Vornamen des Menschen aus
   dem `To` der Original-Mail.

@@ -41,13 +41,13 @@ Stand der Flotte vom Treiber `flotte`. Wird automatisch fortgeschrieben; KIBO li
 | Feld | Inhalt |
 |---|---|
 | `brake` | Stufe der Verbrauchsbremse: `gruen`, `gelb`, `rot`. **Nur die Stufe, nie Prozente** — das Planlimit sind Kontodaten einer Person, Gitea liest das Team |
-| `ram` | **Jeder Messwert der RAM-Bremse** beim Epic-Start dieses Einsatzes (#37), älteste zuerst, je `at` (Ortszeit aus der Systemuhr), `epic` (das Epic, dessen Start gemessen wurde, sonst `0`), `level` (`ok`, `warn`, `hold`), `percent_used`, `free_gb`. RAM-Werte sind Maschinendaten, keine Kontodaten, deshalb dürfen Zahlen hinein. Mit `epics` wird die Liste beim Start des nächsten Einsatzes geleert |
-| `epics[].stage` | Etappe: `waiting`, `gate`, `packages`, `pr`, `followup` (Nacharbeit), `merge` (wartet auf den Merge), `cleanup`, `done` |
+| `ram` | **Jeder Messwert der RAM-Bremse** beim Missionsstart dieses Einsatzes (#37), älteste zuerst, je `at` (Ortszeit aus der Systemuhr), `epic` (die Mission, deren Start gemessen wurde, sonst `0`), `level` (`ok`, `warn`, `hold`), `percent_used`, `free_gb`. RAM-Werte sind Maschinendaten, keine Kontodaten, deshalb dürfen Zahlen hinein. Mit `epics` wird die Liste beim Start des nächsten Einsatzes geleert |
+| `epics[].stage` | Etappe: `waiting`, `gate`, `packages`, `pr`, `followup` (Nacharbeit), `merge` (wartet auf das Andocken), `cleanup`, `done` |
 | `epics[].carrier` | `agent` (ein Lauf des Treibers); `chat` stammt aus Einsätzen des früheren Admiral-Chats |
 | `epics[].paused` | `true` während einer Pause |
-| `epics[].note` | ein kurzer Satz, etwa worauf ein wartendes Epic wartet |
+| `epics[].note` | ein kurzer Satz, etwa worauf eine wartende Mission wartet |
 | `questions` | was nach dem Entscheidungsrecht beim Menschen liegt und offen ist; erledigt → raus |
 | `history` | über alle Einsätze: `deployments` +1 beim Abschluss, `max_runs` die höchste Zahl gleichzeitiger Läufe, `all_green` +1, wenn ein Einsatz die Bremse nie verlassen hat. Der Treiber schreibt `deployments` und `all_green` bisher als `0` (`logbuchText` in `src/treiber/treiber.ts`) |
 
-Ein Epic, das fertig ist (`done`), bleibt bis zum Ende des Einsatzes im Block; danach wird `epics`
+Eine Mission, die fertig ist (`done`), bleibt bis zum Ende des Einsatzes im Block; danach wird `epics`
 geleert.

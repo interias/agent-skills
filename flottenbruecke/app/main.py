@@ -205,6 +205,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(404, 'Diese Entscheidung des Triage-Laufs kennt die Brücke nicht.')
             if d.get('widerrufen'):
                 raise HTTPException(409, 'Diese Entscheidung ist schon widerrufen.')
+        elif h.art == 'schnitt-widerruf':
+            # #148: a mission of the last cut plan in the report; the driver comments first, then loosens and closes
+            m = next((m for m in (triage.get('schnittplan') or {}).get('missionen', []) if m['nr'] == h.epic), None)
+            if m is None:
+                raise HTTPException(404, 'Diese Mission steht nicht im Schnittplan des letzten Triage-Laufs.')
+            if m.get('widerrufen'):
+                raise HTTPException(409, 'Diese Mission ist schon widerrufen.')
+            if not m.get('neu') and not m.get('kinder'):
+                raise HTTPException(409, 'An dieser Mission hat der Triage-Lauf nichts angehängt.')
         elif h.art == 'einstellen':
             # belongs to the project: the bridge checks against the limits of the report, the driver checks again
             liste = b.get('einstellungen')
@@ -223,12 +232,12 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         elif h.art == 'aufnehmen':
             # the driver checks ready_label and epic_label against the forge again
             if h.epic not in [f['nr'] for f in b.get('freigegeben', [])]:
-                raise HTTPException(409, 'Das Epic ist nicht freigegeben oder schon im Einsatz.')
+                raise HTTPException(409, 'Die Mission ist nicht freigegeben oder schon im Einsatz.')
         elif ep is None:
-            raise HTTPException(404, 'Dieses Epic kennt die Brücke nicht.')
+            raise HTTPException(404, 'Diese Mission kennt die Brücke nicht.')
         elif h.art in ('pausieren', 'fortsetzen', 'prioritaet', 'merge'):
             if ep['stufe'] in ('gemergt', 'fertig') or ep.get('aufgegebenAm') or not ep.get('imEinsatz', True):
-                raise HTTPException(409, 'Das Epic ist nicht im Einsatz.')
+                raise HTTPException(409, 'Die Mission ist nicht im Einsatz.')
             if h.art == 'merge' and not ep.get('merge'):
                 raise HTTPException(409, 'Dieser Treiber kennt den Schalter fürs Andocken nicht (älterer Stand).')
             # #112: the bridge only tightens: automatisch only where the driver offers it (adapter merge: nach_gate)
@@ -236,17 +245,17 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             if h.art == 'merge' and h.text == 'automatisch' and 'automatisch' not in ((projekt or {}).get('werte') or []):
                 raise HTTPException(409, (projekt or {}).get('hinweis') or 'Automatisch andocken bietet dieser Treiber nicht an.')
             if h.art == 'pausieren' and ep.get('pausiert'):
-                raise HTTPException(409, 'Das Epic ist schon pausiert.')
+                raise HTTPException(409, 'Die Mission ist schon pausiert.')
             if h.art == 'fortsetzen' and not ep.get('pausiert'):
-                raise HTTPException(409, 'Das Epic ist nicht pausiert.')
+                raise HTTPException(409, 'Die Mission ist nicht pausiert.')
         elif h.art == 'widerruf':
             d = next((d for d in b.get('entscheidungen', []) if d['epic'] == h.epic and d['nr'] == h.nr and d['zeit'] == h.seit), None)
             if d is None:
                 raise HTTPException(404, 'Diese Entscheidung kennt die Brücke nicht.')
             if ep['stufe'] in ('gemergt', 'fertig') or d.get('widerrufen'):
-                raise HTTPException(409, 'Nach dem Merge oder ein zweites Mal geht kein Widerruf mehr über die Brücke.')
+                raise HTTPException(409, 'Nach dem Andocken oder ein zweites Mal geht kein Widerruf mehr über die Brücke.')
         elif ep['stufe'] not in ('blockiert', 'abgebrochen') or ep.get('aufgegebenAm'):
-            raise HTTPException(409, 'Das Epic ist nicht blockiert.')
+            raise HTTPException(409, 'Die Mission ist nicht blockiert.')
         gespeichert = speicher.handlung_setzen(h.forge, h.epic, h.art, h.nr, h.seit, h.text, stempel())
         if gespeichert is None:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')

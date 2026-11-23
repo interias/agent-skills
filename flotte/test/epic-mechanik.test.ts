@@ -1,4 +1,4 @@
-// The real Mechanik of `flotte epic` (#66): counting and lint parsers on fixed outputs, then
+// The real Mechanik of `flotte mission` (#66): counting and lint parsers on fixed outputs, then
 // worktree.ps1 (Up, Down, CleanupStale), ram.ps1, the slot, 4c and the git steps for real against a
 // fixture repository with its own remote; gh is recorded (test/epic-fixture.ts).
 
@@ -28,7 +28,7 @@ describe('Zählung der Testausgaben (#66)', () => {
 
   it('Pester 3: counts from the summary, the file from the command, red tests by name', () => {
     const aus = 'Describing D\n [+] ok 328ms\n [-] bad 89ms\n   Expected: {2}\nTests completed in 417ms\nPassed: 1 Failed: 1 Skipped: 0 Pending: 0 Inconclusive: 0';
-    expect(zaehle(aus, 'powershell -NoProfile -Command "Invoke-Pester .\\epic\\scripts\\guard.Tests.ps1"', WT)).toEqual({ dateien: 1, tests: 2, rot: [{ datei: 'epic/scripts/guard.Tests.ps1', test: 'bad' }] });
+    expect(zaehle(aus, 'powershell -NoProfile -Command "Invoke-Pester .\\mission\\scripts\\guard.Tests.ps1"', WT)).toEqual({ dateien: 1, tests: 2, rot: [{ datei: 'mission/scripts/guard.Tests.ps1', test: 'bad' }] });
     expect(zaehle('Tests completed in 5.2s\nTests Passed: 10, Failed: 0, Skipped: 1, NotRun: 0', 'Invoke-Pester x.Tests.ps1', WT)).toMatchObject({ dateien: 1, tests: 11, rot: [] });
   });
 
@@ -64,8 +64,8 @@ describe('Zählung der Testausgaben (#66)', () => {
     expect(karte(ADAPTER, 'test_commands')).toEqual({ fix: 'bun test' });
     expect(karte(ADAPTER, 'lint_commands')).toEqual({ fix: 'bun lint.ts' });
     expect(karte(ADAPTER, 'acceptance_commands')).toBeNull();
-    const pester = '---\nisolation: none-needed\ntest_commands:\n  worktree: powershell -NoProfile -Command "Invoke-Pester .\\epic\\scripts\\worktree.Tests.ps1"\n  flotte: cd flotte && bun test   # bun\nworktree_root: ../x\n---\n';
-    expect(karte(pester, 'test_commands')).toEqual({ worktree: 'powershell -NoProfile -Command "Invoke-Pester .\\epic\\scripts\\worktree.Tests.ps1"', flotte: 'cd flotte && bun test' });
+    const pester = '---\nisolation: none-needed\ntest_commands:\n  worktree: powershell -NoProfile -Command "Invoke-Pester .\\mission\\scripts\\worktree.Tests.ps1"\n  flotte: cd flotte && bun test   # bun\nworktree_root: ../x\n---\n';
+    expect(karte(pester, 'test_commands')).toEqual({ worktree: 'powershell -NoProfile -Command "Invoke-Pester .\\mission\\scripts\\worktree.Tests.ps1"', flotte: 'cd flotte && bun test' });
   });
 });
 
@@ -92,7 +92,7 @@ describe('echte Mechanik gegen die Fixture (#66)', () => {
   });
   afterAll(() => f.weg());
 
-  it('flotte epic --mechanik echt: the forge comes from the push remote, an unreadable remote asks for --forge', () => {
+  it('flotte mission --mechanik echt: the forge comes from the push remote, an unreadable remote asks for --forge', () => {
     f.git(['remote', 'add', 'gh', 'https://github.com/o/r.git']);
     expect(forgeAus(f.repo, 'gh')).toBe('o/r');
     expect(() => forgeAus(f.repo, 'origin')).toThrow(/--forge/);

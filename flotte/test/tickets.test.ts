@@ -1,5 +1,5 @@
 // #113: new tickets only when needed. The admiral decides a "new ticket?" question block; the rule
-// reads the same in its prompt, epic/SKILL.md and epic-nacharbeit/SKILL.md.
+// reads the same in its prompt, mission/SKILL.md and mission-nacharbeit/SKILL.md.
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -26,12 +26,12 @@ describe('#113: Tickets nur, wenn nötig', () => {
     expect(TICKET_REGEL).toContain('Eine Ticketfrage geht nicht an den Menschen.');
   });
 
-  it('the rule names needs-triage, one sentence of cause and the listing in the epic PR', () => {
+  it('the rule names needs-triage, one sentence of cause and the listing in the mission PR', () => {
     expect(TICKET_REGEL).toMatch(/`needs-triage` und einen Satz zur Ursache/);
-    expect(TICKET_REGEL).toMatch(/Epic-PR listet die angelegten Tickets/);
+    expect(TICKET_REGEL).toMatch(/Missions-PR listet die angelegten Tickets/);
   });
 
-  for (const datei of ['epic/SKILL.md', 'epic-nacharbeit/SKILL.md']) {
+  for (const datei of ['mission/SKILL.md', 'mission-nacharbeit/SKILL.md']) {
     it(`${datei} says the same sentence`, () => {
       const skill = readFileSync(fileURLToPath(new URL(`../../${datei}`, import.meta.url)), 'utf8');
       expect(leer(skill)).toContain(TICKET_REGEL);
@@ -39,7 +39,7 @@ describe('#113: Tickets nur, wenn nötig', () => {
   }
 
   it('the old rule "no issues without explicit decision" and "at most three" is gone', () => {
-    for (const datei of ['epic/SKILL.md', 'epic-nacharbeit/SKILL.md']) {
+    for (const datei of ['mission/SKILL.md', 'mission-nacharbeit/SKILL.md']) {
       const skill = readFileSync(fileURLToPath(new URL(`../../${datei}`, import.meta.url)), 'utf8');
       expect(skill).not.toMatch(/Keine Issues ohne ausdrückliche Entscheidung|Vorschlag zur Entscheidung|höchstens drei pro Lauf/);
     }

@@ -10,7 +10,7 @@ import { flotteDir, lebt, neuesEpic, schreibe as schreibeZustand, leer } from '.
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, ping, skriptVon } from './flotte-welt.ts';
 
 const T = 30_000;
-const fuer = <G extends { eingabe: string }>(gesehen: G[], nr: number): G[] => gesehen.filter((g) => new RegExp(`^Flotte, Epic #${nr}\\b`).test(g.eingabe));
+const fuer = <G extends { eingabe: string }>(gesehen: G[], nr: number): G[] => gesehen.filter((g) => new RegExp(`^Flotte, Mission #${nr}\\b`).test(g.eingabe));
 const index = (liste: string[], muster: RegExp) => liste.findIndex((z) => muster.test(z));
 
 /** a process that lives for `ms` and then ends, for pids alive or dead */
@@ -216,7 +216,7 @@ describe('Drehbücher (#14)', () => {
     const frisch = aufbau({ verbrauch: [null] });
     const gruenerPing = drehbuch([ping(0.1), lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(frisch.einstellung(gruenerPing, [3]), frisch.welt);
-    expect(gruenerPing.gesehen().map((g) => g.eingabe.slice(0, 11))).toEqual(['FLOTTE-PING', 'Flotte, Epi']);
+    expect(gruenerPing.gesehen().map((g) => g.eingabe.slice(0, 11))).toEqual(['FLOTTE-PING', 'Flotte, Mis']);
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
@@ -237,7 +237,7 @@ describe('Drehbücher (#14)', () => {
     expect(laeufe).toHaveLength(2);
     expect(laeufe[1].args).toEqual(expect.arrayContaining(['--resume', 's3']));
     // without a worktree the driver cannot pull the base in itself: back to the run
-    expect(laeufe[1].eingabe).toMatch(/Die Basis zog davon[\s\S]*Gate-Block in der PR-Beschreibung ersetzen/);
+    expect(laeufe[1].eingabe).toMatch(/Die Basis zog davon[\s\S]*Andockblock in der PR-Beschreibung ersetzen/);
     expect(t.p.merges).toEqual([13, 13]);
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
@@ -282,7 +282,7 @@ describe('Drehbücher (#14)', () => {
     const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
     const laeufe = fuer(buch.gesehen(), 4);
     expect(laeufe).toHaveLength(2);
-    expect(laeufe[1].eingabe).toMatch(/Konflikt\. Basis in den Epic-Worktree mergen[\s\S]*Gate neu/);
+    expect(laeufe[1].eingabe).toMatch(/Konflikt\. Basis per `git merge` in den Missions-Worktree holen[\s\S]*Andockprüfung neu/);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(z.epics['4'].stufe).toBe('fertig');
   }, T);

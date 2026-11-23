@@ -15,7 +15,7 @@ Warp frei, Außeneinsatz, Lagebesprechung, Ingenieur, Erster Offizier, Andockpr�
 Adapterschlüssel bleiben technisch.
 
 Lies zuerst, bevor du fragst: `CONTEXT.md`, `docs/adr/` (mit README, falls vorhanden), `.claude/epic.md` des
-Ziel-Repositorys und `epic/references/adapter.md` („Issues“), dazu den Code, um den es geht. Fehlen
+Ziel-Repositorys und `mission/references/adapter.md` („Issues“), dazu den Code, um den es geht. Fehlen
 `CONTEXT.md` oder `docs/adr/` im Ziel-Repository, legt sie der Doku-Pull-Request (Abschnitt 4) bei
 Bedarf an, im Format derselben Dateien von agent-skills.
 **Was du im Repository nachlesen kannst, fragst du nicht.**
@@ -92,9 +92,9 @@ berühren, bekommen `## Betroffene Module` — das Wort `Exklusiv` dort heißt: 
 
 ## 3 — Was ein Missionsziel braucht
 
-`/epic` nimmt ein Ziel nur auf, wenn es die Pflichtabschnitte des Adapters hat. Lies deren Namen aus
+`/mission` nimmt ein Ziel nur auf, wenn es die Pflichtabschnitte des Adapters hat. Lies deren Namen aus
 `.claude/epic.md` (Schlüssel `acceptance_section`, `verification_section`, `modules_section`); die
-Standards stehen in `epic/references/adapter.md`. Ein Missionsziel im Entwurf hat:
+Standards stehen in `mission/references/adapter.md`. Ein Missionsziel im Entwurf hat:
 
 - `## Was` — ein bis drei Sätze, im Sprachraum, ohne Lösungsvorgabe, wo keine nötig ist.
 - `## Abnahmekriterien` — prüfbare Aufzählung; jedes Kriterium so, dass ein Erster Offizier „erfüllt“

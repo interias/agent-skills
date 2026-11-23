@@ -9,7 +9,7 @@ const PIN_KEY = 'flottenbruecke-pin';
 const STILL = matchMedia('(prefers-reduced-motion: reduce)');
 const BREIT = matchMedia('(min-width: 701px)');
 const WORT = { ok: 'ok', warn: 'warn', hold: 'halt' };
-const PHASE = { implementer: 'Implementer', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Merge' };
+const PHASE = { implementer: 'Ingenieur', review: 'Review', nachbesserung: 'Nachbesserung', merge: 'Andocken' };
 const STUFE = { mechanisch: 'Mechanisch', standard: 'Standard', urteil: 'Urteil', 'urteil-hoch': 'Urteil hoch' };
 const PAKET = { fertig: 'fertig', laeuft: 'läuft', geparkt: 'geparkt (Frage)', blockiert: 'blockiert', zurueckgelassen: 'zurückgelassen', offen: 'offen' };
 const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: 'Widerruf', aufnehmen: 'Aufnehmen', pausieren: 'Pausieren', fortsetzen: 'Fortsetzen', prioritaet: 'Priorität', merge: 'Andocken' };
@@ -66,7 +66,7 @@ function kopf(t) {
   const teile = [];
   for (const k of t.konten) {
     const alt = k.veraltet || (k.alterMin != null && k.alterMin > 30);
-    const fenster = fensterHtml('5 h', k.fuenf) + fensterHtml('Woche', k.woche);
+    const fenster = fensterHtml('Hauptenergie', k.fuenf) + fensterHtml('Reserveenergie', k.woche);
     teile.push(`<span class="tank ${esc(k.stufe)}${alt ? ' veraltet' : ''}" title="Verbrauch ${esc(k.konto)}: Stufe ${esc(k.stufe)}${k.alterMin != null ? `, Wert ${Math.round(k.alterMin)} min alt` : ''}"><span class="tank-name">${esc(k.konto.replace(/^Konto /, 'K'))}</span>${fenster || `<span class="fenster">${esc(k.stufe)}</span>`}</span>`);
   }
   const mehrere = t.rechner.length > 1;
@@ -172,7 +172,7 @@ function teile(text) {
 
 function marken(x) {
   const m = [];
-  if (x.umkehrbar === true) m.push('<span class="m um">umkehrbar bis Merge</span>');
+  if (x.umkehrbar === true) m.push('<span class="m um">umkehrbar bis zum Andocken</span>');
   else if (x.umkehrbar === false) m.push(`<span class="m bleibt">${esc(x.marke || 'Entscheidung')} · bleibt</span>`);
   else if (x.marke) m.push(`<span class="m">${esc(x.marke)}</span>`);
   return m.length ? `<div class="marken">${m.join('')}</div>` : '';
@@ -284,7 +284,7 @@ async function antworten(x, el) {
 function blockadeHtml(x, t) {
   const grund = x.grund || x.notiz || 'ohne Grund gemeldet';
   const [erste, ...rest] = grund.split('\n');
-  const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">${x.stufe === 'abgebrochen' ? 'Abgebrochen' : 'Blockiert'} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · Epic steht ganz</span></div>`;
+  const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">${x.stufe === 'abgebrochen' ? 'Abgebrochen' : 'Blockiert'} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · Mission steht ganz</span></div>`;
   const titel = x.titel ? `<p class="lage">${esc(x.titel)}${x.prUrl ? ` · <a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : ''}</p>` : '';
   const lage = rest.join('\n').trim() ? `<p class="lage kurz">${esc(rest.join('\n').trim())}</p>` : '';
   const log = auf.has(`log:${x.id}`) ? `<ol class="log">${(x.log.length ? x.log : ['(keine Ereignisse gemeldet)']).map((z) => `<li>${esc(z)}</li>`).join('')}</ol>` : '';
@@ -310,7 +310,7 @@ function blockadeVerdrahten(el, x) {
   for (const b of el.querySelectorAll('[data-h]')) {
     b.addEventListener('click', async () => {
       const art = b.dataset.h;
-      if (art === 'aufgeben' && !(await bestaetigen(`Epic #${x.epic} aufgeben? Der Treiber setzt es auf „abgebrochen“ und startet es nicht mehr. Branch, Pull Request und Issue bleiben, wie sie sind.`, 'Aufgeben'))) return;
+      if (art === 'aufgeben' && !(await bestaetigen(`Mission #${x.epic} aufgeben? Der Treiber setzt sie auf „abgebrochen“ und startet sie nicht mehr. Branch, Pull Request und Issue bleiben, wie sie sind.`, 'Aufgeben'))) return;
       if (await senden('/api/handlung', { forge: x.forge, epic: x.epic, art }, el, el.querySelector('.status'))) await laden();
     });
   }
@@ -338,7 +338,7 @@ function ebene2(t) {
 // a ready epic: one line, below it its child tickets as the bar of level 2 (none in spec mode)
 function bereitHtml(b) {
   const nr = b.issueUrl ? `<a class="nr" href="${esc(b.issueUrl)}">#${b.nr}</a>` : `<span class="nr">#${b.nr}</span>`;
-  return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
+  return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Missionen dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
 }
 
 // #51: phase, round, class and times of a package; every part only when the driver reported it
@@ -368,7 +368,7 @@ function gewesen(iso) {
 function entscheidungenHtml(x) {
   if (!x.entscheidungen?.length) return '';
   const zeilen = x.entscheidungen.map((d) => `<li data-ent="${esc(d.id)}"><span class="von ${esc(d.von)}">${esc(VON[d.von] ?? d.von)}</span><time datetime="${esc(d.zeit)}">${esc(gewesen(d.zeit))}</time><span class="et"><b>Frage ${d.nr} → ${esc(d.antwort)}</b> · ${esc(d.frage)} <small title="${esc(d.grund)}">(${esc(d.herkunft)})</small>${widerrufHtml(d)}</span></li>`).join('');
-  return `<section class="entscheidungen" aria-label="Entscheidungen bis zum Merge"><h4>Entscheidungen bis zum Merge</h4><ol>${zeilen}</ol></section>`;
+  return `<section class="entscheidungen" aria-label="Entscheidungen bis zum Andocken"><h4>Entscheidungen bis zum Andocken</h4><ol>${zeilen}</ol></section>`;
 }
 
 // the opened detail of an epic: one section per entry
@@ -406,7 +406,7 @@ function paketeVerdrahten(el, x) {
 function laufHtml(x) {
   const nr = x.issueUrl ? `<a class="nr" href="${esc(x.issueUrl)}">#${x.nr}</a>` : `<span class="nr">#${x.nr}</span>`;
   // how long the epic runs (since its first run); a tap shows the start as clock time
-  const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf des Epics"></button>` : '';
+  const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf der Mission"></button>` : '';
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
   const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
   // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
@@ -414,7 +414,7 @@ function laufHtml(x) {
   const kopfmeta = meta.length ? `<span class="epic-meta">${meta.join(' · ')}</span>` : '';
   if (x.form === 'schlange') {
     const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
-    const gate = x.gateSeit ? zeitHtml(x.gateSeit, 'Gate seit {}', null, 'rel gate') : '';
+    const gate = x.gateSeit ? zeitHtml(x.gateSeit, 'Andockprüfung seit {}', null, 'rel gate') : '';
     return `${kopfz}${titel}<span class="schritt">${pr}${x.notiz ? ` · ${esc(x.notiz)}` : ''}</span>${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
   }
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
@@ -460,7 +460,7 @@ function ebene3(t, vorher) {
   const e = t.erledigt;
   $('e3-zahl').textContent = e.length;
   const n = (a) => e.filter((x) => x.art === a).length;
-  $('e3-klein').textContent = [n('gemergt') ? `${n('gemergt')} gemergt` : '', n('admiral') ? `${n('admiral')} vom Admiral entschieden` : '', n('antwort') + n('handlung') ? `${n('antwort') + n('handlung')} von dir` : '', n('aufgegeben') ? `${n('aufgegeben')} aufgegeben` : ''].filter(Boolean).join(' · ') + (e.length && !$('e3').open ? ' · antippen' : '');
+  $('e3-klein').textContent = [n('gemergt') ? `${n('gemergt')} angedockt` : '', n('admiral') ? `${n('admiral')} vom Admiral entschieden` : '', n('antwort') + n('handlung') ? `${n('antwort') + n('handlung')} von dir` : '', n('aufgegeben') ? `${n('aufgegeben')} aufgegeben` : ''].filter(Boolean).join(' · ') + (e.length && !$('e3').open ? ' · antippen' : '');
   const neueMerges = e.filter((x) => x.art === 'gemergt' && !erstes && !vorher.has(x.id));
   if (neueMerges.length && !STILL.matches) {
     const e3 = $('e3');
@@ -494,17 +494,17 @@ function wann(iso, sekunden) {
 function prognoseHtml(x) {
   const wo = x.mehrere ? `${esc(x.kurz)}: ` : '';
   const quote = x.geprueft ? ` · traf ${x.treffer} von ${x.geprueft}` : '';
-  if (x.status === 'zu_wenig') return `<time></time><span>${wo}Prognose ab ${x.ab} Epics · bisher ${x.bisher}</span>`;
+  if (x.status === 'zu_wenig') return `<time></time><span>${wo}Prognose ab ${x.ab} Missionen · bisher ${x.bisher}</span>`;
   if (x.status === 'ungenau') return `<time></time><span>${wo}Prognose ausgeblendet: zu ungenau für dieses Projekt${quote}</span>`;
-  if (!x.backlog) return `<time></time><span>${wo}Backlog leer · Prognose aus ${x.bisher} Epics${quote}</span>`;
-  return `<time></time><span>${wo}<b>Backlog leer etwa ${esc(wann(x.berechnet, x.backlog.p50))} – ${esc(wann(x.berechnet, x.backlog.p90))}</b>${quote} · <small>aus ${x.bisher} Epics, ohne Wartezeit auf deine Antworten</small></span>`;
+  if (!x.backlog) return `<time></time><span>${wo}Backlog leer · Prognose aus ${x.bisher} Missionen${quote}</span>`;
+  return `<time></time><span>${wo}<b>Backlog leer etwa ${esc(wann(x.berechnet, x.backlog.p50))} – ${esc(wann(x.berechnet, x.backlog.p90))}</b>${quote} · <small>aus ${x.bisher} Missionen, ohne Wartezeit auf deine Antworten</small></span>`;
 }
 
 function zeileHtml(x) {
   if (x.art === 'prognose') return prognoseHtml(x);
   const nr = `#${x.epic ?? x.nr}`;
   const zeit = `<time>${uhrzeit(x.zeit)}</time>`;
-  if (x.art === 'gemergt') return `${zeit}<span><b>${nr} gemergt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
+  if (x.art === 'gemergt') return `${zeit}<span><b>${nr} angedockt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
   if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · ${esc(x.titel)}</span>`;
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
@@ -526,6 +526,8 @@ function handlungWort(x) {
   if (x.handlung === 'nachziehen') return `Werft: ${esc(x.stack)} jetzt nachziehen`;
   if (x.handlung === 'migration_freigeben') return `Werft: Arbeits-Migration von ${esc(x.stack)} freigegeben`;
   if (x.handlung === 'triage-widerruf') return `#${x.ticket} Triage-Entscheidung widerrufen → ${esc(x.text)}`;
+  // #148: the epic is the mission
+  if (x.handlung === 'schnitt-widerruf') return `Mission aus dem Schnittplan widerrufen → ${esc(x.text)}`;
   if (x.handlung === 'triage-antwort') {
     let a = {};
     try { a = JSON.parse(x.text); } catch { /* the question without the answer */ }
@@ -843,7 +845,7 @@ function brueckeTreffer(t) {
     const k = `${x.forge}#${nr}`;
     if (nr == null || epics.has(k)) return;
     const name = x.titel || x.frage || '';
-    epics.set(k, { art: 'Epic', titel: `#${nr}${name ? ` ${name}` : ''}`, info: mehrere ? x.repo : '', ziel: () => karteIn(box, id) });
+    epics.set(k, { art: 'Mission', titel: `#${nr}${name ? ` ${name}` : ''}`, info: mehrere ? x.repo : '', ziel: () => karteIn(box, id) });
   };
   for (const x of t.braucht) dazu(x, x.epic, 'e1-liste', x.id);
   for (const l of t.unterwegs.laeufe) dazu(l, l.nr, 'e2-liste', l.id);

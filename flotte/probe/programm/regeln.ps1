@@ -52,7 +52,7 @@ function Test-ProbeRegel([string]$bereich) {
                         $teile += $kopf
                     }
                 }
-                if ($teile.Count -ge 2 -and $teile[1] -eq $kopf) { return 'verse: nach dem Merge des Pakets bricht die Pruefung der Verse (Probe-Befund, bleibt bis zum Revert)' }
+                if ($teile.Count -ge 2 -and $teile[1] -eq $kopf) { return 'verse: nach dem Andocken des Pakets bricht die Pruefung der Verse (Probe-Befund, bleibt bis zum Revert)' }
             }
         }
     }

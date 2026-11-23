@@ -217,3 +217,240 @@ def test_lernvorschlaege_wie_tickets_unter_dem_thema_lernschleife(client, berich
     assert handlung(client, 'triage-antwort', epic=119, nr=1, seit='2026-11-22T12:00:00Z', text=antwort('A')).status_code == 200
     assert handlung(client, 'triage-widerruf', epic=119, seit='2026-11-22T12:00:00.001Z', text='Doch nicht erledigt.').status_code == 200
     assert sorted(h['art'] for h in offene(client)) == ['triage-antwort', 'triage-widerruf']
+
+
+# ---- #148: the cut plan of the last triage run, a mission revoked
+
+SCHNITT = {'epic': 70, 'text': 'Suche und Filter sind zwei Dinge; erst den Filter allein.'}
+
+
+@pytest.mark.parametrize('pin', [None, '0000'])
+def test_schnitt_widerruf_braucht_die_pin(zwei, pin):
+    assert handlung(zwei, 'schnitt-widerruf', pin=pin, **SCHNITT).status_code == 401
+    assert offene(zwei) == []
+
+
+def test_schnitt_widerruf_angenommen_abgeholt_und_unterwegs_an_der_mission(zwei):
+    r = handlung(zwei, 'schnitt-widerruf', **SCHNITT)
+    assert r.status_code == 200 and r.json()['ok']
+    [h] = offene(zwei)
+    assert (h['epic'], h['art'], h['nr'], h['seit'], h['text'], h['herkunft']) == (70, 'schnitt-widerruf', None, None, SCHNITT['text'], 'Mensch über die Brücke')
+    [m70, m71, m41] = frachtraum(zwei)[0]['schnittplan']['missionen']
+    assert m70['handlung']['art'] == 'schnitt-widerruf' and m70['handlung']['abgeholt'] is True
+    assert m71['handlung'] is None and m41['handlung'] is None
+    assert zwei.post(f"/api/handlungen/{h['id']}/quittung").json() == {'ok': True}
+    assert [x['handlung'] for x in zwei.get('/api/tafel').json()['erledigt'] if x['art'] == 'handlung'] == ['schnitt-widerruf']
+    # a mission the run only hung a note on can be revoked as well
+    assert handlung(zwei, 'schnitt-widerruf', epic=41, text='Englisch kommt später.').status_code == 200
+
+
+def test_schnitt_widerruf_was_nicht_passt(zwei, bericht):
+    # the form: a mission and the objection
+    assert handlung(zwei, 'schnitt-widerruf', epic=70).status_code == 422
+    assert handlung(zwei, 'schnitt-widerruf', epic=70, text='   ').status_code == 422
+    assert handlung(zwei, 'schnitt-widerruf', epic=0, text='nein').status_code == 422
+    # a mission not in the plan, another project
+    assert handlung(zwei, 'schnitt-widerruf', epic=38, text='nein').status_code == 404
+    assert handlung(zwei, 'schnitt-widerruf', forge='interias/notizen', epic=70, text='nein').status_code == 404
+    assert offene(zwei) == []
+    # revoked already; an open mission the run hung nothing on
+    bericht['triage']['schnittplan']['missionen'][0]['widerrufen'] = 'schon'
+    bericht['triage']['schnittplan']['missionen'][2]['kinder'] = []
+    zwei.post('/api/bericht', json=bericht)
+    assert handlung(zwei, 'schnitt-widerruf', **SCHNITT).status_code == 409
+    assert handlung(zwei, 'schnitt-widerruf', epic=41, text='nein').status_code == 409
+    # an older driver without the plan
+    del bericht['triage']['schnittplan']
+    zwei.post('/api/bericht', json=bericht)
+    assert handlung(zwei, 'schnitt-widerruf', **SCHNITT).status_code == 404
+    assert offene(zwei) == []
+
+
+def test_schnittplan_in_der_tafel(zwei):
+    s = frachtraum(zwei)[0]['schnittplan']
+    assert s['zeit'] == '2026-11-20T13:04:40Z' and s['fehler'] is None
+    m70, m71, m41 = s['missionen']
+    assert (m70['nr'], m70['titel'], m70['neu'], m70['zustand'], m70['widerrufbar']) == (70, 'Logbuch durchsuchen und filtern', True, 'frei', True)
+    assert m70['begruendung'].startswith('Drei Sternzeit-Notizen')
+    assert m70['issueUrl'] == 'https://github.com/interias/flotte-probe/issues/70'
+    assert m70['id'] == 'schnitt:interias/flotte-probe#70' and m70['forge'] == FORGE
+    assert [(k['nr'], k['titel'], k['issueUrl']) for k in m70['kinder']] == [
+        (57, 'Logbuch nach Mission filtern', 'https://github.com/interias/flotte-probe/issues/57'),
+        (65, 'Volltextsuche im Logbuch', 'https://github.com/interias/flotte-probe/issues/65'),
+    ]
+    assert (m71['zustand'], m71['fehler']) == ('fehler', 'Freigabe der Mission #71 gescheitert: HTTP 502')
+    assert (m41['neu'], m41['zustand'], m41['issueUrl'], [k['grund'] for k in m41['kinder']]) == (False, 'frei', 'https://github.com/interias/flotte-probe/issues/41', ['Gehört zur Begrüßungsdatei, die Mission hat noch Platz'])
+    assert [(n['nr'], n['art'], n['verweis'], n['verweisUrl']) for n in s['notizen']] == [
+        (68, 'zusammengefuehrt', 57, 'https://github.com/interias/flotte-probe/issues/57'),
+        (58, 'ueberfluessig', None, None),
+        (69, 'verworfen', None, None),
+    ]
+    assert s['notizen'][1]['fundstelle'] == '#43 Sternenkarte'
+    # the second project reports no plan
+    assert frachtraum(zwei)[1]['schnittplan'] is None
+
+
+def test_schnittplan_zustaende(client, bericht):
+    ms = bericht['triage']['schnittplan']['missionen']
+    ms[0]['widerrufen'] = 'zu groß'
+    ms[0]['fehler'] = 'Widerruf: Labels an #65 gescheitert: HTTP 502'
+    ms[1]['fehler'] = None
+    client.post('/api/bericht', json=bericht)
+    m70, m71, _ = frachtraum(client)[0]['schnittplan']['missionen']
+    assert (m70['zustand'], m70['widerrufbar'], m70['fehler']) == ('widerrufen', False, 'Widerruf: Labels an #65 gescheitert: HTTP 502')
+    assert (m71['zustand'], m71['widerrufbar']) == ('offen', True)
+
+
+def test_bericht_ohne_schnittplan_bleibt_gueltig_und_ungueltiger_ist_422(client, bericht):
+    alt = copy.deepcopy(bericht)
+    del alt['triage']['schnittplan']
+    assert client.post('/api/bericht', json=alt).status_code == 200
+    assert frachtraum(client)[0]['schnittplan'] is None
+    for weg, wert in [(('notizen', 0, 'art'), 'vielleicht'), (('missionen', 0, 'nr'), 0)]:
+        kaputt = copy.deepcopy(bericht)
+        x = kaputt['triage']['schnittplan']
+        for k in weg[:-1]:
+            x = x[k]
+        x[weg[-1]] = wert
+        assert client.post('/api/bericht', json=kaputt).status_code == 422
+    zuviel = copy.deepcopy(bericht)
+    zuviel['triage']['schnittplan']['missionen'] *= 7
+    assert client.post('/api/bericht', json=zuviel).status_code == 422
+
+
+# ---- #147: how the last triage run ended
+
+ABSCHLUSS = {
+    'zeit': '2026-11-22T10:15:00Z', 'zustand': 'unvollstaendig', 'geprueft': 5, 'sauber': 3, 'grund': None,
+    'abweichungen': [
+        {'nr': 57, 'titel': 'Logbuch nach Mission filtern', 'zustand': 'offen, needs-triage', 'grund': 'in der Triage ohne offene Frage an den Menschen'},
+        {'nr': 65, 'titel': 'Volltextsuche im Logbuch', 'zustand': 'offen, ready-for-agent', 'grund': 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)'},
+    ],
+}
+
+
+def test_abschluss_des_triage_laufs_im_frachtraum(client, bericht):
+    bericht['triage']['abschluss'] = ABSCHLUSS
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    a = frachtraum(client)[0]['abschluss']
+    assert (a['zustand'], a['geprueft'], a['sauber'], a['zeit']) == ('unvollstaendig', 5, 3, '2026-11-22T10:15:00Z')
+    assert [(x['nr'], x['grund'], x['issueUrl']) for x in a['abweichungen']] == [
+        (57, 'in der Triage ohne offene Frage an den Menschen', 'https://github.com/interias/flotte-probe/issues/57'),
+        (65, 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)', 'https://github.com/interias/flotte-probe/issues/65'),
+    ]
+    # aborted: the reason, no list
+    bericht['triage']['abschluss'] = {**ABSCHLUSS, 'zustand': 'abgebrochen', 'abweichungen': [], 'geprueft': 0, 'sauber': 0, 'grund': 'Neustart des Treibers'}
+    client.post('/api/bericht', json=bericht)
+    assert frachtraum(client)[0]['abschluss']['grund'] == 'Neustart des Treibers'
+    # an unknown end state is refused; an older driver has none
+    bericht['triage']['abschluss'] = {**ABSCHLUSS, 'zustand': 'halb'}
+    assert client.post('/api/bericht', json=bericht).status_code == 422
+    del bericht['triage']['abschluss']
+    client.post('/api/bericht', json=bericht)
+    assert frachtraum(client)[0]['abschluss'] is None
+
+
+# ---- #148: the short info in the head of the project: started, running, ended
+
+def kurzinfo(c, forge=FORGE):
+    return next(p for p in frachtraum(c) if p['forge'] == forge)['kurzinfo']
+
+
+def melde(c, forge=FORGE, **triage):
+    b = copy.deepcopy(NOTIZEN)
+    b['forge'] = forge
+    b['triage'].update(triage)
+    assert c.post('/api/bericht', json=b).status_code == 200
+
+
+def test_kurzinfo_ohne_lauf_ist_leer(zwei):
+    assert kurzinfo(zwei, 'interias/notizen') is None
+
+
+def test_kurzinfo_gestartet_wartet_auf_den_treiber(zwei):
+    handlung(zwei, 'triage', forge='interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen') == {'zustand': 'unterwegs', 'seit': '2026-11-20T14:31:10+00:00', 'abgeholt': False, 'fortschritt': None}
+    # the driver fetched it, the report does not say "laeuft" yet: still the start, now "abgeholt"
+    offene(zwei, 'interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'unterwegs'
+    assert kurzinfo(zwei, 'interias/notizen')['abgeholt'] is True
+
+
+def test_kurzinfo_laeuft_mit_startzeit_und_fortschritt_nur_wenn_gemeldet(zwei):
+    melde(zwei, 'interias/notizen', laeuft=True, seit='2026-11-20T14:30:00Z')
+    assert kurzinfo(zwei, 'interias/notizen') == {'zustand': 'laeuft', 'seit': '2026-11-20T14:30:00Z', 'fortschritt': None, 'still': False}
+    melde(zwei, 'interias/notizen', laeuft=True, seit='2026-11-20T14:30:00Z', fortschritt={'n': 2, 'm': 5})
+    assert kurzinfo(zwei, 'interias/notizen')['fortschritt'] == {'n': 2, 'm': 5}
+    # a running report beats the action that started it
+    handlung(zwei, 'triage', forge='interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'laeuft'
+
+
+def test_kurzinfo_beendet_mit_zaehlern_und_ein_neuer_lauf_loest_es_ab(zwei):
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2})
+    # the questions are the ones open now (the sample has none), not the count of the run
+    assert kurzinfo(zwei, 'interias/notizen') == {'zustand': 'beendet', 'seit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 0, 'gescheitert': False, 'fehler': None}
+    # a new run started: the old end is gone
+    handlung(zwei, 'triage', forge='interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'unterwegs'
+
+
+def test_kurzinfo_beendet_verschwindet_nach_der_frist(zwei, uhr):
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2})
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'beendet'
+    uhr.t = uhr.t.replace(minute=45, second=0)
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2})
+    assert kurzinfo(zwei, 'interias/notizen') is None
+
+
+def test_kurzinfo_fortschritt_und_beendet_pruefen_die_form(zwei):
+    b = copy.deepcopy(NOTIZEN)
+    b['triage']['fortschritt'] = {'n': 0, 'm': 5}
+    assert zwei.post('/api/bericht', json=b).status_code == 422
+    b['triage']['fortschritt'] = None
+    b['triage']['beendet'] = {'zeit': 'x', 'epics': -1, 'fragen': 0}
+    assert zwei.post('/api/bericht', json=b).status_code == 422
+
+
+def test_kurzinfo_beendet_zaehlt_die_offenen_fragen_auch_aus_fruehren_laeufen(zwei, bericht):
+    # the run found no new question, one from an earlier run is still open
+    melde(zwei, FORGE, beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 0, 'fragen': 0}, fragen=bericht['triage']['fragen'])
+    assert kurzinfo(zwei)['fragen'] == 1
+    # answered: the person's question goes with it from the report
+    melde(zwei, FORGE, beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 0, 'fragen': 0}, fragen=[])
+    assert kurzinfo(zwei)['fragen'] == 0
+
+
+def test_kurzinfo_gescheitert_und_ungueltiger_plan_tragen_den_grund(zwei):
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 0, 'fragen': 0, 'gescheitert': True, 'fehler': 'kein Konto'})
+    k = kurzinfo(zwei, 'interias/notizen')
+    assert (k['zustand'], k['gescheitert'], k['fehler']) == ('beendet', True, 'kein Konto')
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 0, 'fragen': 0, 'fehler': 'Plan ungültig'})
+    k = kurzinfo(zwei, 'interias/notizen')
+    assert (k['gescheitert'], k['fehler']) == (False, 'Plan ungültig')
+
+
+def test_kurzinfo_laeuft_bei_stillem_treiber_ist_still(zwei, uhr):
+    melde(zwei, 'interias/notizen', laeuft=True, seit='2026-11-20T14:30:00Z')
+    assert kurzinfo(zwei, 'interias/notizen')['still'] is False
+    uhr.t = uhr.t.replace(minute=50)
+    assert kurzinfo(zwei, 'interias/notizen')['still'] is True
+
+
+def test_kurzinfo_beendet_vertraegt_kleinen_uhrversatz(zwei):
+    # the driver's clock runs a minute ahead of the bridge
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:32:10Z', 'epics': 1, 'fragen': 0})
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'beendet'
+
+
+def test_kurzinfo_beendet_traegt_den_abschluss_mit(zwei):
+    # #147: the end of the same run: an incomplete or aborted run says so in the short info, the list stands below
+    beendet = {'zeit': '2026-11-20T14:30:00Z', 'epics': 1, 'fragen': 0}
+    melde(zwei, 'interias/notizen', beendet=beendet, abschluss={**ABSCHLUSS, 'zeit': '2026-11-20T14:30:00Z'})
+    k = kurzinfo(zwei, 'interias/notizen')
+    assert (k['zustand'], k['abschluss']) == ('beendet', {'zustand': 'unvollstaendig', 'unsauber': 2, 'grund': None})
+    melde(zwei, 'interias/notizen', beendet=beendet, abschluss={**ABSCHLUSS, 'zustand': 'abgebrochen', 'abweichungen': [], 'grund': 'Treiber angehalten'})
+    assert kurzinfo(zwei, 'interias/notizen')['abschluss'] == {'zustand': 'abgebrochen', 'unsauber': 0, 'grund': 'Treiber angehalten'}
+    # a clean end adds nothing
+    melde(zwei, 'interias/notizen', beendet=beendet, abschluss={**ABSCHLUSS, 'zustand': 'beendet', 'abweichungen': []})
+    assert 'abschluss' not in kurzinfo(zwei, 'interias/notizen')

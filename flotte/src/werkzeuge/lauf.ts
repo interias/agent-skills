@@ -23,7 +23,7 @@ export interface Ergebnis {
 /** a PreToolUse hook (guard.ps1) refused a tool call; the run saw the reason and can change its way */
 export interface HookSperre {
   id: string;
-  /** "Skill epic, Regel 1" from guard.ps1's text, else the start of the text */
+  /** "Skill mission, Regel 1" from guard.ps1's text, else the start of the text */
   regel: string;
   text: string;
 }
@@ -35,7 +35,7 @@ export function hookRegel(text: string): string {
   return /Gesperrt durch Hook \(([^:)]+)/.exec(t)?.[1].trim() ?? t.slice(0, 80);
 }
 
-export type Fehlerart = 'netz' | 'anmeldung' | 'limit' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | null;
+export type Fehlerart = 'netz' | 'anmeldung' | 'limit' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | 'abbruch' | null;
 
 const kurz = (s: unknown, n = 100) => String(s ?? '').split(/\r?\n/).find((z) => z.trim())?.trim().slice(0, n) ?? '';
 
@@ -178,6 +178,8 @@ export interface Start {
   beiZeile?: (zeile: string, zeit: number) => void;
   /** silence with a living child process counts as work up to this long (C1); default 4 × leerlaufMs */
   stilleMaxMs?: number;
+  /** #147: aborting ends the run's whole process tree at once (fehler 'abbruch'); aborted before, nothing starts */
+  abbruch?: AbortSignal;
   /** the program instead of claude: a stand-in that plays a script (stage 3) */
   programm?: string;
   programmArgs?: string[];
@@ -210,6 +212,7 @@ export function beende(pid: number): void {
  * reads the rest from the log (D16, acceptance finding 10).
  */
 export function starte(s: Start): Promise<LaufErgebnis> {
+  if (s.abbruch?.aborted) return Promise.resolve({ ...new Auswertung().ergebnis(null, false, 0, `abgebrochen vor dem Start: ${String(s.abbruch.reason ?? '')}`), fehler: 'abbruch' });
   const programm = s.programm ?? process.env.FLOTTE_CLAUDE ?? 'claude';
   const args = [...(s.programmArgs ?? []), ...claudeArgs(s)];
   const log = s.log ?? join(tmpdir(), `flotte-lauf-${process.pid}-${Date.now()}.jsonl`);
@@ -232,7 +235,12 @@ export function starte(s: Start): Promise<LaufErgebnis> {
     kind.on('error', () => fertig(null));
     kind.on('close', (code) => fertig(code));
   });
-  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, beiZeile: s.beiZeile, stilleMaxMs: s.stilleMaxMs });
+  const abbrechen = () => kind.pid && beende(kind.pid);
+  s.abbruch?.addEventListener('abort', abbrechen, { once: true });
+  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, beiZeile: s.beiZeile, stilleMaxMs: s.stilleMaxMs }).then((r) => {
+    s.abbruch?.removeEventListener('abort', abbrechen);
+    return s.abbruch?.aborted ? { ...r, fehler: 'abbruch' as const } : r;
+  });
 }
 
 /**

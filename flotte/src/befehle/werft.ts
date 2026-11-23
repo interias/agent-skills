@@ -78,7 +78,7 @@ export function deployAus(text: string): Deploy | null {
   return stacks.size ? { abfrageS, stacks: [...stacks.values()] } : null;
 }
 
-/** A path pattern as in gate_areas (epic/scripts/merge.ps1, ConvertTo-GlobRegex). */
+/** A path pattern as in gate_areas (mission/scripts/merge.ps1, ConvertTo-GlobRegex). */
 export function musterRegex(muster: string): RegExp {
   const p = muster.endsWith('/') ? `${muster}**` : muster;
   const r = p

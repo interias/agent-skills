@@ -8,7 +8,8 @@
 # them the prototypes of the Holodeck, without their content, and the sessions of the accounts.
 # The Sternenkarte (#43) gets its own flat view: every project lists its open epics (`epics`) and
 # (#61) the released ones outside the driver's deployment (`freigegeben`), with the steering actions on their way.
-# The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`).
+# The Frachtraum (#116) gets the triage state of every project whose driver reports one (`frachtraum`),
+# with (#148) the cut plan of its last triage run.
 # The Maschinenraum (#90) gets the Werft of every machine (`werft`); its messages join the ticker.
 
 import json
@@ -32,6 +33,8 @@ OHNE_THEMA = ('needs-triage', 'needs-info', 'ready-for-agent', 'epic')
 OHNE = 'ohne Thema'
 # #90: a Werft reports every 15 s; silent this long, its stand is old
 WERFT_STILL_S = 180
+# #148: how long "Triage-Lauf beendet" stays in the head of the project
+BEENDET_MIN = 15
 
 
 def zeit(text: str | None) -> datetime | None:
@@ -112,7 +115,53 @@ def thema_von(labels: list[str]) -> list[str]:
     return [x for x in labels if x not in OHNE_THEMA and not x.startswith('status/')]
 
 
-def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, veraltet: bool, offen_h: dict) -> dict:
+def schnittplan(tr: dict, forge: str, link, offen_h: dict) -> dict | None:
+    """#148: the cut plan of the last triage run: per mission its children, its state and the revocation on its
+    way; the notes it closed with the note they went into. None: an older driver, or no plan yet."""
+    s = tr.get('schnittplan')
+    if not s:
+        return None
+    zustand = lambda m: 'widerrufen' if m.get('widerrufen') else 'fehler' if m.get('fehler') else 'frei' if m.get('freigegeben') else 'offen'
+    return {
+        'zeit': s['zeit'],
+        'fehler': s.get('fehler'),
+        'missionen': [{
+            **m,
+            'id': f"schnitt:{forge}#{m['nr']}",
+            'forge': forge,
+            'issueUrl': link(m['nr']) or m.get('url'),
+            'kinder': [{**k, 'issueUrl': link(k['nr'])} for k in m.get('kinder', [])],
+            'zustand': zustand(m),
+            'widerrufbar': not m.get('widerrufen') and bool(m.get('neu') or m.get('kinder')),
+            'handlung': _handlung(offen_h.get((m['nr'], 'schnitt-widerruf', None, None))),
+        } for m in s.get('missionen', [])],
+        'notizen': [{**n, 'issueUrl': link(n['nr']), 'verweisUrl': link(n['verweis']) if n.get('verweis') else None} for n in s.get('notizen', [])],
+    }
+
+
+def kurzinfo(tr: dict, handlung: dict | None, jetzt: datetime, fragen: int, veraltet: bool) -> dict | None:
+    """#148: the short info of a triage run: unterwegs (the action stands, the driver has not reported a run), laeuft
+    (the report says so, with the start and, only if the driver knows it, note n of m), beendet (for BEENDET_MIN minutes)."""
+    if tr.get('laeuft'):
+        # a silent driver: the report is old, the run may be long over
+        return {'zustand': 'laeuft', 'seit': tr.get('seit') or (handlung or {}).get('zeit'), 'fortschritt': tr.get('fortschritt'), 'still': veraltet}
+    if handlung:
+        return {'zustand': 'unterwegs', 'seit': handlung['zeit'], 'abgeholt': handlung['abgeholt'], 'fortschritt': None}
+    e = tr.get('beendet')
+    t = zeit(e['zeit']) if e else None
+    # a little clock skew between driver and bridge is tolerated
+    if t and -timedelta(minutes=2) <= jetzt - t < timedelta(minutes=BEENDET_MIN):
+        # the questions the person sees now (still right after an answer), not the new ones of the run
+        k = {'zustand': 'beendet', 'seit': e['zeit'], 'epics': e['epics'], 'fragen': fragen, 'gescheitert': bool(e.get('gescheitert')), 'fehler': e.get('fehler')}
+        # #147: the run ended incomplete or aborted: said in the same line, the list stands below (abschluss)
+        a = tr.get('abschluss')
+        if a and a['zustand'] != 'beendet' and not k['gescheitert']:
+            k['abschluss'] = {'zustand': a['zustand'], 'unsauber': len(a.get('abweichungen', [])), 'grund': a.get('grund')}
+        return k
+    return None
+
+
+def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, veraltet: bool, offen_h: dict, jetzt: datetime) -> dict:
     """#116: the triage state of a project, bundled: the open questions, the decisions of the triage runs
     (newest first) and the Sternzeit-Notizen by topic; a topic with an open question first, "ohne Thema" last."""
     tr = b['triage']
@@ -148,8 +197,12 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
         'forge': forge, 'kurz': kurz, 'url': url, 'aktiv': aktiv, 'veraltet': veraltet,
         'gelesen': tr.get('gelesen'), 'laeuft': bool(tr.get('laeuft')), 'zahl': len(tr.get('tickets', [])),
         'handlung': _handlung(offen_h.get((0, 'triage', None, None))),
+        'kurzinfo': kurzinfo(tr, _handlung(offen_h.get((0, 'triage', None, None))), jetzt, len(fragen), veraltet),
         'fragen': fragen,
         'entscheidungen': entscheidungen,
+        'schnittplan': schnittplan(tr, forge, link, offen_h),
+        # #147: the end of the last triage run, each note not cleanly worked off with its link
+        'abschluss': {**a, 'abweichungen': [{**x, 'issueUrl': link(x['nr'])} for x in a.get('abweichungen', [])]} if (a := tr.get('abschluss')) else None,
         'themen': [{'thema': th, 'tickets': themen[th]} for th in reihe],
     }
 
@@ -376,7 +429,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         liste[-1]['epics'] = karte
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
         if b.get('triage'):
-            lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h))
+            lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h, jetzt))
         liste[-1]['freigegeben'] = [{'nr': f['nr'], 'titel': f.get('titel', ''), 'issueUrl': f"{url}/issues/{f['nr']}" if url else None, 'handlung': _handlung(offen_h.get((f['nr'], 'aufnehmen', None, None)))} for f in b.get('freigegeben', [])]
 
         # ---- level 3: the admiral's decisions of today, revocable until the merge

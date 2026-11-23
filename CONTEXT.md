@@ -1,23 +1,23 @@
 # agent-skills
 
-Die Skills, mit denen Agenten freigegebene Epics aus der Forge umsetzen, und der Treiber, der
+Die Skills, mit denen Agenten freigegebene Missionen aus der Forge umsetzen, und der Treiber, der
 mehrere solcher Läufe gleichzeitig führt.
 
 ## Language
 
 ### Was ein Lauf bearbeitet
 
-**Epic**:
-Das Zielissue eines Laufs — entweder ein Sammelticket mit Kindern oder eine Spec. Es trägt das
-Label `epic`, sobald ein Lauf es aufnimmt.
+**Mission**:
+Das Zielissue eines Außeneinsatzes — entweder ein Sammelticket mit Missionszielen oder eine Spec. Sie trägt das
+Label `epic`, sobald ein Lauf sie aufnimmt.
 _Avoid_: PRD, Sammel-Issue, Projekt
 
-**Kind**:
-Ein Ticket, das ein Epic blockiert und als eigenes Paket umgesetzt wird.
+**Missionsziel**:
+Ein Ticket, das eine Mission blockiert und als eigenes Paket umgesetzt wird.
 _Avoid_: Unterticket, Subtask, Story
 
 **Spec**:
-Ein Epic, das in sieben festen Abschnitten beschreibt, was gebaut wird. Hat es keine Kinder,
+Eine Mission, die in sieben festen Abschnitten beschreibt, was gebaut wird. Hat sie keine Missionsziele,
 schneidet der Lauf die Pakete selbst daraus.
 _Avoid_: PRD, Konzept
 
@@ -25,7 +25,7 @@ _Avoid_: PRD, Konzept
 
 **Paketklasse**:
 Die Einstufung eines Pakets beim Schneiden — *mechanisch*, *Standard* oder *Urteil* —, nach der
-sich Modell und Denkstufe von Implementer und Reviewer richten. Der Adapter darf sie nur hochstufen.
+sich Modell und Denkstufe von Ingenieur und Erstem Offizier richten. Der Adapter darf sie nur hochstufen.
 _Avoid_: Schwierigkeit, Komplexität, Tier
 
 **Kundschafter**:
@@ -35,7 +35,7 @@ nachgeprüft, wenn ein Tor-Punkt, ein Befund oder eine Löschung daraus folgt.
 _Avoid_: Recherche-Agent, Scout, Helfer
 
 **Eskalation**:
-Die Wiederholung einer Implementer-Runde eine Paketklasse höher, nachdem der Reviewer einen
+Die Wiederholung einer Ingenieur-Runde eine Paketklasse höher, nachdem der Erste Offizier einen
 strukturellen Befund gemeldet hat. Sie gilt als Hinweis, dass die Klasse falsch geschätzt war.
 _Avoid_: Retry, Upgrade
 

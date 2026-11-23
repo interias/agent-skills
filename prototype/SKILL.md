@@ -26,7 +26,7 @@ Seite oder Bauteil → Oberfläche) und schreib die Annahme oben in den Prototyp
 ## Ablage
 
 **HTML-Prototypen** legst du in den Ordner `prototype_dir` des Adapters (`.claude/epic.md`; Standard
-`prototypen/`, relativ zur Wurzel des Repositorys; Schlüssel in `epic/references/adapter.md`). Dort
+`prototypen/`, relativ zur Wurzel des Repositorys; Schlüssel in `mission/references/adapter.md`). Dort
 zeigt sie das Holodeck der Flottenbrücke: Der Flotten-Treiber schickt jede HTML-Datei **direkt** in
 diesem Ordner an die Brücke — keine Unterordner, keine Verknüpfungen, höchstens 50 Dateien zu je
 2 MB. Der Dateiname besteht nur aus Buchstaben, Ziffern, `.`, `_` und `-`; sonst wird die Datei

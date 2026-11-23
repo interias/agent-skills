@@ -20,7 +20,7 @@
     const bremse = k.stufe === 'gruen' ? '<b class="ok">keine</b>' : `<b class="${esc(k.stufe)}">${esc(STUFE[k.stufe] ?? k.stufe)}</b> ${k.grund ? `<span>${esc(k.grund)}</span>` : nichts('Grund')}`;
     return `<article class="mr-karte ${esc(k.stufe)}${alt ? ' veraltet' : ''}">
 <h3>${esc(k.konto)}</h3>
-${fenster('5 h', k.fuenf)}${fenster('Woche', k.woche)}
+${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
 <dl><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Bremse</dt><dd>${bremse}</dd><dt>Wert</dt><dd>${k.alterMin != null ? `${Math.round(k.alterMin)} min alt` : nichts('Alter')}${k.veraltet ? ' · Treiber still' : ''}</dd></dl></article>`;
   };
 
@@ -105,10 +105,10 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
   // every setting holds for the whole fleet: shown once, "Übernehmen" goes to each driver
   const ALLE = '*';
   const HILFE = {
-    obergrenze: 'Mehr Epics laufen nie gleichzeitig; automatisch folgt die Grenze der Wochen-Hochrechnung.',
-    paketeJeEpic: 'So viele Pakete eines Epics arbeiten gleichzeitig; /epic senkt das Fenster ab dem nächsten frei werdenden Platz, nichts wird abgebrochen.',
-    konten: 'Neue Epics starten nur auf diesen Konten, laufende bleiben auf ihrem; ein Neustart setzt --konten wieder ein.',
-    admiral: 'Dieses Konto beantwortet die nächsten Fragen des Admirals; automatisch das Konto des Epics.',
+    obergrenze: 'Mehr Missionen laufen nie gleichzeitig; automatisch folgt die Grenze der Wochen-Hochrechnung.',
+    paketeJeEpic: 'So viele Pakete einer Mission arbeiten gleichzeitig; /mission senkt das Fenster ab dem nächsten frei werdenden Platz, nichts wird abgebrochen.',
+    konten: 'Neue Missionen starten nur auf diesen Konten, laufende bleiben auf ihrem; ein Neustart setzt --konten wieder ein.',
+    admiral: 'Dieses Konto beantwortet die nächsten Fragen des Admirals; automatisch das Konto der Mission.',
     verbrauchGelb: 'Über diesem Verbrauch im 5-Stunden-Fenster startet nichts Neues; muss unter Rot liegen.',
     verbrauchRot: 'Darüber halten auch Fortsetzungen an; muss über Gelb liegen.',
     leerfahren: 'Diese Konten bremsen erst bei 100 %, nicht schon bei Hochrechnung oder Gelb.',
@@ -127,7 +127,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
   let letzte = null;
   const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const art = (e) => (Array.isArray(e.wert) || Array.isArray(e.standard) ? 'liste' : e.werte ? 'wahl' : e.auswahl ? 'konto' : e.max - e.min <= 3 ? 'stufe' : 'zahl');
-  const anzeige = (e, w) => (w == null ? (e.name === 'admiral' ? 'Konto des Epics' : e.adapter ? `automatisch (${e.adapter} s)` : 'automatisch') : Array.isArray(w) ? (w.length ? w.join(', ') : 'keine') : e.werte ? ANDOCKEN[w] ?? String(w) : String(w));
+  const anzeige = (e, w) => (w == null ? (e.name === 'admiral' ? 'Konto der Mission' : e.adapter ? `automatisch (${e.adapter} s)` : 'automatisch') : Array.isArray(w) ? (w.length ? w.join(', ') : 'keine') : e.werte ? ANDOCKEN[w] ?? String(w) : String(w));
   // what the driver runs now, or what is on its way there
   const basis = (e) => (e.offen ? e.offen.wert : e.wert);
   const wann = (iso) => {
@@ -165,7 +165,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
     if (a === 'liste') return e.auswahl.map((k) => chip('checkbox', id, k, k, (w ?? []).includes(k))).join('');
     // #112: a choice of words, only those the driver takes now
     if (a === 'wahl') return e.werte.map((x) => chip('radio', id, x, ANDOCKEN[x] ?? x, w === x)).join('');
-    if (a === 'konto') return chip('radio', id, '', 'Konto des Epics', w == null) + e.auswahl.map((k) => chip('radio', id, k, k, w === k)).join('');
+    if (a === 'konto') return chip('radio', id, '', 'Konto der Mission', w == null) + e.auswahl.map((k) => chip('radio', id, k, k, w === k)).join('');
     if (a === 'stufe') {
       const stufen = Array.from({ length: e.max - e.min + 1 }, (_, i) => e.min + i);
       return (e.leer ? chip('radio', id, '', 'automatisch', w == null) : '') + stufen.map((n) => chip('radio', id, n, n, w === n)).join('');
@@ -215,14 +215,14 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
       const namen = ps[0].einstellungen.map((e) => e.name);
       const zeilen = namen.map((n) => vereint(ps.map((p) => p.einstellungen.find((e) => e.name === n)).filter(Boolean))).filter(Boolean);
       const still = ps.some((p) => p.veraltet);
-      html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}; „Epics gleichzeitig“ zählt je Treiber. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
+      html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}; „Missionen gleichzeitig“ zählt je Treiber. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
     }
     // a driver without settings (older version) still gets its read-only note
     return html + t.projekte.filter((p) => !geteilt || !p.einstellungen).map((p, i) => {
       const kopf = `<h3 class="mr-titel">Einstellungen${mehrere ? ` · ${esc(p.kurz)}` : ''}</h3>`;
       if (!p.einstellungen) {
         const r = t.rechner.find((x) => x.name === p.rechner);
-        const bekannt = [r?.obergrenze != null ? `Epics gleichzeitig <b>${r.obergrenze}</b>` : '', p.leerlaufS != null ? `Leerlauf <b>${Math.round(p.leerlaufS / 60)} min</b>` : ''].filter(Boolean).join(' · ');
+        const bekannt = [r?.obergrenze != null ? `Missionen gleichzeitig <b>${r.obergrenze}</b>` : '', p.leerlaufS != null ? `Leerlauf <b>${Math.round(p.leerlaufS / 60)} min</b>` : ''].filter(Boolean).join(' · ');
         return `${kopf}<p class="mr-hinweis">Dieser Treiber meldet keine Einstellungen (älterer Stand): hier nur lesend${bekannt ? `, bekannt ist ${bekannt}` : ''}. Ändern geht, sobald der Treiber aktualisiert ist.</p>`;
       }
       return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;

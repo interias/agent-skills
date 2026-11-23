@@ -20,7 +20,7 @@ synthetisch. Das Kit verweigert jede Basis-URL außer `localhost`, `127.0.0.1`, 
 `*.localhost` und `*.test`.
 
 **Zwei Halte.** Gefragt wird in Schritt 3 (Startvorlage) und in Schritt 7 (Entscheidungen), nach den
-Regeln „Wie gefragt wird“ des Skills `epic` (Optionen, markierte Empfehlung, `AskUserQuestion`).
+Regeln „Wie gefragt wird“ des Skills `mission` (Optionen, markierte Empfehlung, `AskUserQuestion`).
 Dazwischen läuft die Runde durch.
 
 Skripte liegen neben dieser Datei unter `scripts/`, Vorlagen unter `references/`. Python mit `-P`
@@ -113,7 +113,7 @@ Stolpersteine an, die als „blockiert“ markiert sind.
 | **nicht als Befund gewertet** | mit Grund: lokales Entwicklungs-Overlay, Glossar-Schreibweise, Wunsch außerhalb des Umfangs |
 
 **Jeden Fehlerbefund prüfst du selbst nach, bevor er in A steht.** Den Weg zur Stelle darf ein
-lesender Subagent suchen (`epic-kundschafter`); die Stelle liest du selbst. Wo der Code allein nicht
+lesender Subagent suchen (`kundschafter`); die Stelle liest du selbst. Wo der Code allein nicht
 reicht, stellst du den Fall mit dem Kit nach. Zählt eine Persona etwas als Fehler, das gewollt ist,
 gehört es nach C mit der Stelle, die es so festlegt (ADR, Spec, Kommentar).
 
@@ -136,11 +136,11 @@ Ablagepfad.
 ## 7 — Rückfluss
 
 - **Halt — Entscheidungen:** Lege jeden C-Befund als Frage vor, mit Optionen, Folgen und
-  Empfehlung; dazu, welche A- und B-Befunde vor dem Merge behoben werden sollen.
+  Empfehlung; dazu, welche A- und B-Befunde vor dem Andocken behoben werden sollen.
 - **Tickets und Nacharbeit:** Aus den Antworten werden Tickets in der Forge des Projekts (Adapter
   `.claude/epic.md`), nur nach ausdrücklicher Entscheidung. Jedes Ticket nennt Befund, Personen,
-  Fundstelle und als Verifikation den Fall der Persona. Umsetzen mit `/epic` oder
-  `/epic-nacharbeit`. D-Befunde gehen an den, der die Stammdaten pflegt.
+  Fundstelle und als Verifikation den Fall der Persona. Umsetzen mit `/mission` oder
+  `/mission-nacharbeit`. D-Befunde gehen an den, der die Stammdaten pflegt.
 - **Nächste Runde:** nach den Fixes dieselben Personas und Fälle auf neuen Datensätzen (Schritt 2,
   Folgerunde). Die Zusammenfassung vergleicht dann je Persona mit der Vorrunde.
 

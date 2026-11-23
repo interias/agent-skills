@@ -219,7 +219,7 @@ describe('#117: Lernvorschlag wird wie ein Triage-Ticket behandelt', () => {
     // a Sternzeit-Notiz with the question of an earlier triage below it
     const notiz: Ticket = { nummer: 61, titel: 'Newsletter', body: 'Text', url: 'https://github.com/o/r/issues/61', labels: ['needs-triage'], kommentare: [] };
     const e = entscheidungAus({ ...antwort.kritisch, fragen: [{ ...antwort.kritisch.fragen[0], frage: 'Darf der Newsletter raus?' }] }, notiz.titel, notiz.body, REGELN) as Exclude<Entscheidung, { art: 'ungueltig' }>;
-    const roh = { number: 61, title: notiz.titel, body: notiz.body, url: notiz.url, labels: [{ name: 'needs-triage' }], comments: [{ body: triageKommentar(e, notiz, ['needs-triage'], 'ready-for-agent'), author: { login: 'flotte' }, createdAt: '2026-11-22T09:00:00Z', authorAssociation: 'OWNER' }] };
+    const roh = { number: 61, title: notiz.titel, body: notiz.body, url: notiz.url, labels: [{ name: 'needs-triage' }], comments: [{ body: triageKommentar(e, notiz, ['needs-triage']), author: { login: 'flotte' }, createdAt: '2026-11-22T09:00:00Z', authorAssociation: 'OWNER' }] };
     const t2 = welt([lern(), ...danach], {}, { tickets: [roh] });
     const r2 = await triagiere(auftrag(), t2.w);
     expect(t2.gestartet).toEqual([]);
@@ -301,7 +301,7 @@ describe('#117: Skill-Text und Verhalten', () => {
   const wurzel = fileURLToPath(new URL('../..', import.meta.url));
   const readme = readFileSync(`${wurzel}flotte/README.md`, 'utf8');
   const schnittstelle = readFileSync(`${wurzel}flottenbruecke/SCHNITTSTELLE.md`, 'utf8');
-  const adapter = readFileSync(`${wurzel}epic/references/adapter.md`, 'utf8');
+  const adapter = readFileSync(`${wurzel}mission/references/adapter.md`, 'utf8');
 
   it('README and adapter leave each Lernvorschlag to flotte triage; a ticket comes only from a clear proposal, never from a superfluous one', async () => {
     expect(adapter).toContain('jeden Vorschlag entscheidet `flotte triage`');

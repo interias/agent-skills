@@ -667,12 +667,12 @@
     }
   ],
   "einstellungen": [
-    { "name": "obergrenze", "titel": "Epics gleichzeitig", "wert": 3, "herkunft": "bruecke", "seit": "2026-11-20T11:05:00Z", "standard": null, "leer": true, "min": 1, "max": 4 },
-    { "name": "paketeJeEpic", "titel": "Pakete je Epic gleichzeitig", "wert": 3, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 3, "leer": false, "min": 1, "max": 3 },
+    { "name": "obergrenze", "titel": "Missionen gleichzeitig", "wert": 3, "herkunft": "bruecke", "seit": "2026-11-20T11:05:00Z", "standard": null, "leer": true, "min": 1, "max": 4 },
+    { "name": "paketeJeEpic", "titel": "Pakete je Mission gleichzeitig", "wert": 3, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 3, "leer": false, "min": 1, "max": 3 },
     { "name": "konten", "titel": "Konten der Läufe", "wert": ["Konto 1", "Konto 2"], "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": ["Konto 1", "Konto 2"], "leer": false, "auswahl": ["Konto 1", "Konto 2", "Konto 3"] },
     { "name": "admiral", "titel": "Admiral-Konto", "wert": null, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": null, "leer": true, "auswahl": ["Konto 1", "Konto 2", "Konto 3"] },
-    { "name": "verbrauchGelb", "titel": "Verbrauch 5 h gelb über (%)", "wert": 60, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 60, "leer": false, "min": 1, "max": 98 },
-    { "name": "verbrauchRot", "titel": "Verbrauch 5 h rot über (%)", "wert": 85, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 85, "leer": false, "min": 2, "max": 99 },
+    { "name": "verbrauchGelb", "titel": "Verbrauch Hauptenergie gelb über (%)", "wert": 60, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 60, "leer": false, "min": 1, "max": 98 },
+    { "name": "verbrauchRot", "titel": "Verbrauch Hauptenergie rot über (%)", "wert": 85, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 85, "leer": false, "min": 2, "max": 99 },
     { "name": "leerfahren", "titel": "Bis 100 % leerfahren", "wert": ["Konto 1"], "herkunft": "bruecke", "seit": "2026-11-20T12:40:00Z", "standard": [], "leer": false, "auswahl": ["Konto 1", "Konto 2", "Konto 3"] },
     { "name": "ramWarn", "titel": "RAM-Schwelle (%)", "wert": null, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": null, "leer": true, "min": 50, "max": 84 },
     { "name": "platteMinGb", "titel": "Plattenminimum (GB)", "wert": 20, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 20, "leer": false, "min": 1, "max": 1000 },
@@ -713,6 +713,57 @@
         "marke": "nach außen",
         "seit": "2026-11-20T13:05:00Z"
       }
-    ]
+    ],
+    "schnittplan": {
+      "zeit": "2026-11-20T13:04:40Z",
+      "fehler": null,
+      "missionen": [
+        {
+          "nr": 70,
+          "url": "https://github.com/interias/flotte-probe/issues/70",
+          "titel": "Logbuch durchsuchen und filtern",
+          "begruendung": "Drei Sternzeit-Notizen wollen dasselbe: Einträge im Logbuch wiederfinden. Eine Mission statt drei einzelner Läufe.",
+          "neu": true,
+          "kinder": [
+            { "nr": 57, "titel": "Logbuch nach Mission filtern", "grund": "Kern der Mission" },
+            { "nr": 65, "titel": "Volltextsuche im Logbuch", "grund": "Dieselbe Liste, dieselbe Datei" }
+          ],
+          "freigegeben": true,
+          "fehler": null,
+          "widerrufen": null
+        },
+        {
+          "nr": 71,
+          "url": "https://github.com/interias/flotte-probe/issues/71",
+          "titel": "Exportformate",
+          "begruendung": "Export als CSV und als Markdown teilen sich den Exportpfad.",
+          "neu": true,
+          "kinder": [
+            { "nr": 67, "titel": "Export als CSV", "grund": "Erstes Format des Exports" }
+          ],
+          "freigegeben": false,
+          "fehler": "Freigabe der Mission #71 gescheitert: HTTP 502",
+          "widerrufen": null
+        },
+        {
+          "nr": 41,
+          "url": null,
+          "titel": "Mini-Epic: Begrüßungsdatei",
+          "begruendung": "",
+          "neu": false,
+          "kinder": [
+            { "nr": 66, "titel": "Begrüßung auch auf Englisch", "grund": "Gehört zur Begrüßungsdatei, die Mission hat noch Platz" }
+          ],
+          "freigegeben": true,
+          "fehler": null,
+          "widerrufen": null
+        }
+      ],
+      "notizen": [
+        { "nr": 68, "titel": "Logbuch nach Epic filtern", "art": "zusammengefuehrt", "grund": "Dasselbe wie #57 mit anderem Wort.", "verweis": 57, "fundstelle": "", "fehler": null },
+        { "nr": 58, "titel": "Alte Tafel-Ansicht wiederherstellen", "art": "ueberfluessig", "grund": "Überholt durch die Sternenkarte.", "verweis": null, "fundstelle": "#43 Sternenkarte", "fehler": null },
+        { "nr": 69, "titel": "Ton bei jedem Merge", "art": "verworfen", "grund": "Lenkt ab; die Brücke meldet sich nur, wenn sie den Menschen braucht.", "verweis": null, "fundstelle": "", "fehler": null }
+      ]
+    }
   }
 }

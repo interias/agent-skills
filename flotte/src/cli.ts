@@ -32,7 +32,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   anhalten,
   zuschauen: (argv) => zuschauen(argv),
   adapter: (argv) => adapter(argv),
-  epic: (argv) => epic(argv),
+  mission: (argv) => epic(argv),
   lernen: (argv) => lernen(argv),
   auftrag: (argv) => auftrag(argv),
   triage: (argv) => triage(argv),
