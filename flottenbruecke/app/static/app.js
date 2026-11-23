@@ -515,7 +515,7 @@ function zeileHtml(x) {
   if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
   // #116: an action of the Frachtraum belongs to a ticket or the project, not to an epic
-  if (x.art === 'handlung' && x.handlung.startsWith('triage')) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
+  if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.werft)) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
   if (x.art === 'handlung') return `${zeit}<span>Du: <b>${nr} ${handlungWort(x)}</b></span>`;
   // admiral
   return `${zeit}<span>Admiral: <b>${nr} Frage ${x.nr} → ${esc(x.antwort)}</b> <span title="${esc(x.grund)}">(${esc(x.herkunft)})</span> · ${esc(x.frage)}${widerrufHtml(x)}</span>`;
@@ -528,6 +528,9 @@ function handlungWort(x) {
   if (x.handlung === 'prioritaet') return `Priorität ${esc(x.text)}`;
   if (x.handlung === 'merge') return `Andocken: ${esc(andockenWort(x.text))}`;
   if (x.handlung === 'triage') return 'Triage-Lauf gestartet';
+  // #90: an action for the Werft of a repository
+  if (x.handlung === 'nachziehen') return `Werft: ${esc(x.stack)} jetzt nachziehen`;
+  if (x.handlung === 'migration_freigeben') return `Werft: Arbeits-Migration von ${esc(x.stack)} freigegeben`;
   if (x.handlung === 'triage-widerruf') return `#${x.ticket} Triage-Entscheidung widerrufen → ${esc(x.text)}`;
   // #148: the epic is the mission
   if (x.handlung === 'schnitt-widerruf') return `Mission aus dem Schnittplan widerrufen → ${esc(x.text)}`;

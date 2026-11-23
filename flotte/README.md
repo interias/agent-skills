@@ -456,6 +456,56 @@ ein gescheiterter Schritt an einer
 Mission zählt einmal als „ohne Ergebnis“, an ihren Notizen, nur ohne solche an der Mission selbst. Die
 Anzeige des Plans ist #148.
 
+## Werft
+
+Nach dem Andocken auf `main` zieht die Werft die berührten Stacks nach, auf dem Rechner und nicht im
+Brücken-Container (agent-skills/ADR-0005). Einmal je Rechner aus einem Terminal starten (Sperre
+`~/.flotte/werft.lock`; ein zweiter Start endet mit Exit 1, die Sperre eines toten Prozesses wird
+übernommen):
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" werft [<ordner>...] [--bruecke http://127.0.0.1:4747] [--einmal]
+```
+
+- Sie nimmt jedes Repository in den Ordnern (Standard `~/git`, nur Hauptverzeichnisse) mit dem
+  Adapterschlüssel `deploy` (`mission/references/adapter.md`, „Werft“). Alle 15 s schaut sie, welches
+  fällig ist (`deploy.abfrage_s`, Standard 120 s), holt `origin/<main_branch>` und liest den Adapter
+  von dort. Ob ein Repository `deploy` hat, sieht sie dagegen an `origin/HEAD`, ohne zu holen: Kommt
+  `deploy` erst mit einem Andocken in ein Repository, nimmt sie es erst im Takt nach dem
+  nächsten `git fetch` dort auf, das ein anderer macht (der Treiber, ein Lauf, der Mensch).
+- Gezogen wird jeder Stack, dessen `pfade` eine Datei im Diff seit dem letzten Stand trifft, in der
+  Reihenfolge des Adapters: `<stack>.nachziehen` in der Wurzel des Repositorys, mit `WERFT_COMMIT`
+  und `WERFT_STACK` in der Umgebung, höchstens 30 min. Die Arbeitskopie fasst die Werft nicht an; wer
+  den neuen Stand braucht, holt ihn im Befehl.
+- Der Stand steht je Repository in `.git/flotte/werft.json`: `stand` (zuletzt abgearbeiteter Commit)
+  und je Stack `status`, `commit`, `protokoll`. Geschrieben wird nach jedem Stack; ein Neustart setzt
+  dort fort und zieht nichts doppelt: Ein Stack, der schon bei einem späteren Commit gezogen wurde,
+  zählt nur, was danach kam. Beim ersten Blick merkt sie sich nur den Stand. Fehlt der alte Stand
+  lokal (Force-Push und gc), gelten alle Stacks als berührt, mit einer Meldung.
+- Ein Fehler (Exit ≠ 0) stellt nur diesen Stack auf `rot`, mit dem Ende der Ausgabe als Protokoll;
+  die übrigen laufen weiter. Ein roter Stack wird nicht mehr von selbst gezogen, bis der Mensch auf
+  der Brücke „nachziehen“ wählt.
+- Mit `--bruecke` (oder `FLOTTE_BRUECKE`, Token `FLOTTE_BRUECKE_TOKEN`) meldet sie je Takt den
+  Stand und holt Handlungen ab (`flottenbruecke/SCHNITTSTELLE.md`, „Werft“); ist die Brücke aus,
+  zieht sie weiter nach.
+- `<stack>.migration_test` läuft direkt nach einem grünen `nachziehen`; scheitert sie, steht der
+  Stack rot wie bei einem Fehler im Nachziehen.
+- Hat der Stack `migration_arbeit`, nimmt die Werft nach dem Nachziehen die Sicherung
+  (`<stack>.sicherung`) und prüft sie (`mission/references/adapter.md`, „Geprüfte Sicherung“). Dann
+  wartet die Migration auf die Freigabe des Menschen auf der Brücke (Handlung `migration_freigeben`
+  mit PIN), gebunden an Commit, Sicherung und den Befehl zur Zeit der Sicherung (nennt der Adapter
+  inzwischen einen anderen, wird sie abgelehnt). Erst dann läuft sie, genau einmal: Der Stand
+  (`arbeit` je Stack: `wartet`, `gesperrt`, `laeuft`, `migriert`, `rot`) wird vor dem Start
+  geschrieben, auch nach einem Absturz startet dieselbe Freigabe sie nicht noch einmal. Ohne
+  geprüfte Sicherung steht der Stack rot und jede Freigabe wird abgelehnt.
+- Einstellungen über die Brücke (Maschinenraum, mit PIN, #90), je Repository im Stand gespeichert:
+  Abfrageabstand (`abfrage_s`), **Werft an/aus** (aus: nichts geholt, nichts gezogen, keine Migration;
+  wieder an, zieht sie nach, was inzwischen kam), **Stack an/aus** (ein abgeschalteter Stack wird nie
+  gezogen, auch nicht auf Knopfdruck; was ihn berührte, holt er nach dem Einschalten nach) und
+  **Test-Migrationen selbst** ja/nein. Eine Freigabe für eine abgeschaltete Werft oder einen
+  abgeschalteten Stack wird abgelehnt, die Migration wartet weiter auf eine neue. Der Bericht zeigt
+  die wirksamen Werte (`flottenbruecke/SCHNITTSTELLE.md`, „Werft“).
+
 ## Prognose
 
 Die Brücke sagt je wartender Mission „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der

@@ -266,6 +266,17 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   `einstellungen` im Bericht: nur lesend mit Hinweis. Andocken (#112) verschärft nur: „automatisch“
   steht nur zur Wahl, wenn der Adapter `merge: nach_gate` sagt, sonst nennt die Zeile den Grund. Die
   Andock-Regel des Adapters, Rechte, Geheimnisse und Updates gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
+  Meldet eine **Werft** (`flotte werft`, agent-skills/ADR-0005), steht nach den Rechnern der Abschnitt
+  **Werft** (#90): je Repository und Rechner der Stand (Commit, geprüft, Abstand) und je Stack eine
+  Karte mit gezogenem Commit, Zeit und Marke (grün, rot, wartet, aus), bei rot das letzte Protokoll
+  aufgeklappt, dazu „Jetzt nachziehen“ und, nur wenn die Arbeits-Migration auf die Freigabe wartet,
+  „Arbeits-Migration freigeben“ (mit Rückfrage, gebunden an Commit und Sicherung, die die Karte
+  zeigt). Ist sie gesperrt oder rot, ist „Jetzt nachziehen“ der Hauptknopf: es nimmt eine neue
+  Sicherung. Unter den Einstellungen folgt **Einstellungen · Werft** je Repository: Werft an/aus,
+  Stacks an/aus, Abfrageabstand, Test-Migrationen selbst ja/nein. Alles nur mit PIN, bis zum Abholen
+  „wartet auf die Werft“; die Brücke ruft die Werft nie auf, die Werft holt im nächsten Takt (15 s) ab
+  und ihre Meldungen (auch jede Ablehnung) stehen im Laufband und Logbuch. Bilder:
+  `doku/v3-maschinenraum-werft-1440.png`, `-390.png`, `doku/v3-maschinenraum-werft-einstellungen-1440.png`, `-390.png`.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Mission und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das
@@ -282,13 +293,14 @@ ebenso die Tabelle `prototypen`.
 Der Treiber meldet sich mit `flotte fahren … --bruecke http://127.0.0.1:4747` (oder Umgebung
 `FLOTTE_BRUECKE`). Die HTTP-Schnittstelle (Bericht, Abholen von Antworten und Handlungen, Quittieren, Prototypen) steht in
 [`SCHNITTSTELLE.md`](SCHNITTSTELLE.md), der gemeinsame Vertrag in
-[`beispiel/bericht.json`](beispiel/bericht.json), [`beispiel/antworten.json`](beispiel/antworten.json), [`beispiel/handlungen.json`](beispiel/handlungen.json) und [`beispiel/holodeck.json`](beispiel/holodeck.json).
+[`beispiel/bericht.json`](beispiel/bericht.json), [`beispiel/antworten.json`](beispiel/antworten.json), [`beispiel/handlungen.json`](beispiel/handlungen.json) und [`beispiel/holodeck.json`](beispiel/holodeck.json), für die Werft [`beispiel/werft.json`](beispiel/werft.json) und [`beispiel/werft-handlungen.json`](beispiel/werft-handlungen.json).
 Zum Ausprobieren ohne Treiber:
 
 ```
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht.json http://127.0.0.1:4747/api/bericht
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht-notizen.json http://127.0.0.1:4747/api/bericht
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht-spec.json http://127.0.0.1:4747/api/bericht
+curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/werft.json http://127.0.0.1:4747/api/werft
 python -c "import json,urllib.request as u;[u.urlopen(u.Request('http://127.0.0.1:4747/api/holodeck',json.dumps(b).encode(),{'Content-Type':'application/json'})) for b in json.load(open('beispiel/holodeck.json',encoding='utf-8'))]"
 ```
 

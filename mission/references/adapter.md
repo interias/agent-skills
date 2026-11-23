@@ -214,6 +214,44 @@ Ohne `gate_areas` im Adapter zählt ein Teil-Lauf nie: Jede Bewegung der Basis v
 volle Andockprüfung. `merge.ps1` prüft das selbst über die Forge; kann es den Vergleich nicht lesen,
 dockt es nicht an.
 
+### Werft (#88)
+
+Was nach dem Andocken auf `main_branch` nachgezogen wird, liest die Werft (`flotte werft`,
+agent-skills/ADR-0005) aus `origin/<main_branch>`. Fehlt der Schlüssel, zieht sie in diesem
+Repository nichts nach. Ein Lauf liest ihn nicht.
+
+| Schlüssel | Bedeutung | Standard |
+|---|---|---|
+| `deploy` | Map wie `test_commands`, je Eintrag `<stack>.<feld>: <wert>` (Stackname aus Buchstaben, Ziffern, `_`, `-`), dazu `abfrage_s`. Felder: `pfade` (Liste von Mustern wie `gate_areas`; eine geänderte Datei, die eines trifft, zieht den Stack nach), `nachziehen` (Befehl der System-Shell in der Repo-Wurzel, mit `WERFT_COMMIT` und `WERFT_STACK`; die Werft stellt die Arbeitskopie nicht um, der Befehl holt den Stand `WERFT_COMMIT` selbst; Exit ≠ 0 stellt den Stack auf rot), `migration_test` (Migration der Testdatenbank, läuft ohne Freigabe direkt nach `nachziehen`; Exit ≠ 0 stellt den Stack auf rot), `migration_arbeit` (Migration der Arbeitsdatenbank, nur nach geprüfter `sicherung` und Freigabe auf der Brücke), `sicherung` (Sicherungsbefehl vor `migration_arbeit`, Pflicht neben ihr). Alle mit `WERFT_COMMIT` und `WERFT_STACK`. `pfade` und `nachziehen` sind Pflicht; ein anderes Feld ist ein Fehler, den die Werft meldet, statt still nichts zu tun | keiner: keine Werft |
+| `deploy.abfrage_s` | Abstand in Sekunden, in dem die Werft `origin/<main_branch>` holt; der Mensch kann ihn auf der Brücke überschreiben | `120` |
+
+Berührt ist ein Stack, wenn eine Datei im Diff seit dem letzten Stand der Werft eines seiner `pfade`
+trifft. Fehlt dieser Stand lokal (Force-Push und gc), gelten alle Stacks als berührt.
+
+**Geprüfte Sicherung** (#89): Der Sicherungsbefehl endet mit Exit 0 und nennt in der letzten Zeile
+seiner Ausgabe die Sicherungsdatei (absolut oder von der Repo-Wurzel aus). Die Werft prüft, dass sie
+existiert, nicht leer ist und nach dem Start des Befehls geschrieben wurde (eine Sekunde Spielraum
+für Dateisysteme mit ganzen Sekunden), und merkt sich ihren SHA-256. Eine Sicherung, die das nicht
+erfüllt, stellt den Stack auf rot und sperrt die Freigabe, bis `nachziehen` eine neue nimmt. Die
+Freigabe nennt Commit, Dateiname und Prüfsumme; vor der Migration rechnet die Werft die Prüfsumme
+nach, eine geänderte oder fehlende Datei sperrt. Jedes `nachziehen` des Stacks nimmt eine neue
+Sicherung, eine Freigabe der alten wirkt dann nicht mehr. Die Werft merkt sich auch
+`migration_arbeit` zur Zeit der Sicherung und fährt genau diesen Befehl; nennt der Adapter
+inzwischen einen anderen (etwa ein Andocken, das nur den Adapter ändert), wird die Freigabe abgelehnt
+und die Migration gesperrt.
+
+```yaml
+deploy:
+  abfrage_s: 120
+  web.pfade: [apps/web/, packages/ui/**]
+  web.nachziehen: pwsh -File scripts/nachziehen.ps1 web
+  web.migration_test: bun run --cwd apps/web migrate:test
+  web.sicherung: pwsh -File scripts/sichern.ps1
+  web.migration_arbeit: bun run --cwd apps/web migrate
+  api.pfade: [apps/api/]
+  api.nachziehen: pwsh -File scripts/nachziehen.ps1 api
+```
+
 ## Auslegung
 
 Festgelegt am 23.09.2026 nach dem ersten Entwurf von Skill und Referenzen. Die Regeln gelten für

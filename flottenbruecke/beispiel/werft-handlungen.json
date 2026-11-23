@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "forge": "interias/flotte-probe",
+    "stack": "worker",
+    "art": "nachziehen",
+    "text": null,
+    "zeit": "2026-11-20T14:32:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 2,
+    "forge": "interias/flotte-probe",
+    "stack": "api",
+    "art": "migration_freigeben",
+    "text": "{\"commit\": \"4e1c9a27b03d5f8e6a1b2c3d4e5f60718293a4b5\", \"sicherung\": \"2026-11-20-141351-api.sql.gz\", \"pruefsumme\": \"9f2b6c1d0e3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4\"}",
+    "zeit": "2026-11-20T14:33:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 3,
+    "forge": "interias/flotte-probe",
+    "stack": null,
+    "art": "einstellen",
+    "text": "{\"name\": \"abfrage_s\", \"wert\": 300}",
+    "zeit": "2026-11-20T14:34:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 4,
+    "forge": "interias/flotte-probe",
+    "stack": "doku",
+    "art": "einstellen",
+    "text": "{\"name\": \"an\", \"wert\": true}",
+    "zeit": "2026-11-20T14:35:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  },
+  {
+    "id": 5,
+    "forge": "interias/flotte-probe",
+    "stack": null,
+    "art": "einstellen",
+    "text": "{\"name\": \"migration_test\", \"wert\": false}",
+    "zeit": "2026-11-20T14:36:00+00:00",
+    "herkunft": "Mensch über die Brücke"
+  }
+]
