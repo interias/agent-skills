@@ -150,7 +150,7 @@ export function implementerAuftrag(k: Kontext, p: Paket, s: PaketZustand, x: { v
     liste('Implementation Decisions samt Begründung — ohne sie wählst du die naheliegende Lösung, gegen die die Decision geschrieben wurde:', p.decisions),
     liste('Out of Scope (geprüft und verworfen, auch wenn es beim Lesen des Codes nötig erscheint):', [...p.outOfScope, ...(a.outOfScopeDir ? [`dokumentiert unter \`${a.outOfScopeDir}\` (Adapter)`] : [])]),
     liste('Testing Decisions (mit benanntem Vorbild):', p.testing),
-    `Verifikationsweg: ${p.verifikation || 'die Abnahmeliste und die Testbefehle des Adapters'}. Fahre ihn im eigenen Worktree${a.isolationEnv ? ` mit gesetzter \`${a.isolationEnv}\`` : ''}, soweit er ohne vollen Stack geht (\`test_commands\`: ${testBefehle(k)}); den Rest fährt der Host in 4c.`,
+    `Verifikationsweg: ${p.verifikation || 'die Abnahmeliste und die Testbefehle des Adapters'}. Fahre ihn im eigenen Worktree${a.isolationEnv ? ` mit gesetzter \`${a.isolationEnv}\`` : ''}, soweit er ohne vollen Stack geht (\`test_commands\`: ${testBefehle(k)}); den Rest fährt der Host: die \`test_commands\` in 4c, die \`acceptance_commands\` des Adapters einmal in Phase 6 nach dem letzten Andocken; einen vollen Stack je Paket fährt niemand.`,
     `Ausgangszahlen (Phase 0, Missions-Worktree): ${zahlen(k.basis)}.`,
     ...x.vorgaenger.map((t) => `Schnittstelle des Vorgängers (vom Ersten Offizier festgehalten, wörtlich — was tatsächlich dasteht):\n${t}`),
     ...x.torAntworten.map((t) => `Am Vorab-Tor entschieden: ${t}`),
