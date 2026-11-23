@@ -36,7 +36,7 @@ export function hookRegel(text: string): string {
   return /Gesperrt durch Hook \(([^:)]+)/.exec(t)?.[1].trim() ?? t.slice(0, 80);
 }
 
-export type Fehlerart = 'netz' | 'anmeldung' | 'limit' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | 'abbruch' | null;
+export type Fehlerart = 'netz' | 'anmeldung' | 'limit' | 'drossel' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | 'abbruch' | null;
 
 const kurz = (s: unknown, n = 100) => String(s ?? '').split(/\r?\n/).find((z) => z.trim())?.trim().slice(0, n) ?? '';
 
@@ -127,7 +127,38 @@ export class Auswertung {
 // narrow on purpose (acceptance, low): a 5xx number or "login" anywhere in a text is no evidence
 const NETZ = /ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed|network error|Overloaded|API Error: (500|502|503|504|529)\b|connection error/i;
 // #132: the account's usage limit; no failed start, the run waits until the account has room
-const LIMIT = /usage_limit_reached|hit your (weekly |session |opus |)limit/i;
+const LIMIT = /usage_limit_reached|usage limit reached|hit your (weekly |session |opus |)limit|(5-hour|weekly|session|opus) limit reached/i;
+// #199: 429, the API throttles the account's requests; another account of the list takes over
+const DROSSEL = /API Error: 429\b|rate_limit_error|429 Too Many Requests/i;
+const MONATE = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/**
+ * #199: the reset time of a limit message, ms, or null. The old form carries the epoch (`…|1795400000`),
+ * the newer ones a clock time (`resets 3am`, `resets 11:30pm`, `resets Nov 26, 3am`, a time zone in
+ * brackets after it); a clock time is read in the driver's local time and is the next one after now.
+ */
+export function limitReset(text: string, jetzt: number): number | null {
+  const epoch = /limit reached\|(\d{10})\b/i.exec(text);
+  if (epoch) return Number(epoch[1]) * 1000;
+  const m = /resets\s+(?:([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i.exec(text);
+  if (!m) return null;
+  let stunde = Number(m[3]);
+  const minute = Number(m[4] ?? 0);
+  const ampm = m[5]?.toLowerCase();
+  if (ampm === 'pm' && stunde < 12) stunde += 12;
+  if (ampm === 'am' && stunde === 12) stunde = 0;
+  if (stunde > 23 || minute > 59) return null;
+  const d = new Date(jetzt);
+  if (m[1] && m[2]) {
+    const monat = MONATE.indexOf(m[1].toLowerCase());
+    if (monat < 0) return null;
+    const t = new Date(d.getFullYear(), monat, Number(m[2]), stunde, minute).getTime();
+    // a date after the turn of the year
+    return t < jetzt - 24 * 3_600_000 ? new Date(d.getFullYear() + 1, monat, Number(m[2]), stunde, minute).getTime() : t;
+  }
+  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), stunde, minute).getTime();
+  return t > jetzt ? t : t + 24 * 3_600_000;
+}
 const ANMELDUNG = /Failed to authenticate|OAuth (token|session) (has )?expired|not logged in|Please run \/login|Invalid API key|authentication_error/i;
 
 export function fehlerart(ergebnisse: Ergebnis[], code: number | null, leerlauf: boolean, stderr: string): Fehlerart {
@@ -135,6 +166,7 @@ export function fehlerart(ergebnisse: Ergebnis[], code: number | null, leerlauf:
   const letzte = ergebnisse[ergebnisse.length - 1];
   const fehlerText = [letzte?.istFehler ? letzte.text : '', letzte?.grund === 'api_error' ? 'api_error' : '', stderr].join(' ');
   if (LIMIT.test(fehlerText) && (letzte?.istFehler || code !== 0)) return 'limit';
+  if (DROSSEL.test(fehlerText) && (letzte?.istFehler || code !== 0)) return 'drossel';
   if (ANMELDUNG.test(fehlerText) && (letzte?.istFehler || code !== 0)) return 'anmeldung';
   if ((letzte?.istFehler || code !== 0) && NETZ.test(fehlerText)) return 'netz';
   if (!ergebnisse.length) return 'kein_ergebnis';

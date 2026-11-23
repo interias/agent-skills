@@ -10,7 +10,7 @@ import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../a
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
 import { kontenTafel, kontoAus, kurzname } from '../werkzeuge/konten.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
-import { beende, beobachte, type LaufErgebnis, type Start, starte } from '../werkzeuge/lauf.ts';
+import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
@@ -289,6 +289,10 @@ export interface FlottenEpic extends EpicZustand {
   gestartetAm?: string | null;
   schlangeSeit?: string | null;
   gateSeit?: string | null;
+  /** #199: after a limit with a reset time or a 429: nothing runs on the mission or its account before this time, ISO */
+  limitBis?: string | null;
+  /** #199: the cause of a block, shown before its reason on the bridge */
+  haltUrsache?: 'Limit' | 'Erlaubnis' | 'anderes' | null;
   /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
   endeAm?: string | null;
   gateS?: number;
@@ -369,6 +373,19 @@ export function guardArgs(guard: string): string[] {
 
 /** how often the driver reads the child tickets of an epic for the package bar of the bridge */
 export const PAKETE_MS = 5 * 60_000;
+/** #199: a mission after a limit requeues itself this long after the reset; after a 429 without another account it waits DROSSEL_MS */
+export const LIMIT_NACHLAUF_MS = 2 * 60_000;
+export const DROSSEL_MS = 5 * 60_000;
+
+/** a time of day in the driver's local time, HH:MM */
+const uhr = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+
+/** #199: the cause of a block, for the note on the bridge and the logbook */
+export function ursache(grund: string): 'Limit' | 'Erlaubnis' | 'anderes' {
+  if (/Limit erreicht|usage limit|hit your .*limit|\b429\b/i.test(grund)) return 'Limit';
+  if (/Erlaubnis verweigert|guard\.ps1|Hook-Sperre|Gesperrt durch/i.test(grund)) return 'Erlaubnis';
+  return 'anderes';
+}
 
 /** #151: the key of a spec package `P<k>` in the run's calls, `<spec>-p<k>` */
 const specSchluessel = (nr: number, name: string) => `${nr}-p${name.replace(/^P/, '')}`;
@@ -416,6 +433,10 @@ class Treiber {
   platteGenug = true;
   bewertung = new Map<string, Bewertung>();
   letzterPing = new Map<string, number>();
+  /** #197: accounts whose last measurement failed, with the time of the value it left; that value counts */
+  messungGescheitert = new Map<string, number>();
+  /** #199: accounts a 429 throttled, until when (ms) */
+  gedrosselt = new Map<string, number>();
   /** pings and merges run beside the loop; the loop wakes up when one ends */
   nebenher = new Set<Promise<void>>();
   /** the head of the merge queue while the driver works on it */
@@ -769,7 +790,7 @@ class Treiber {
     if (genug !== this.platteGenug) this.ereignis(null, genug ? 'Platte wieder über der Schwelle' : `Platte: ${frei ?? 'unbekannt'} GB frei, Schwelle ${this.e.plattMinGb} GB: kein Start`);
     this.platteGenug = genug;
     for (const k of this.alleKonten()) {
-      const b = bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k));
+      const b = this.bewerten(k);
       const alt = this.bewertung.get(k)?.stufe;
       if (alt && alt !== b.stufe) this.ereignis(null, `Verbrauch ${this.kontoName(k)}: ${b.stufe} (${b.grund})`);
       if (k === this.e.admiralKonto && b.stufe !== 'gruen' && alt !== b.stufe) this.admiralWarnung(b);
@@ -793,6 +814,62 @@ class Treiber {
     const a = this.e.admiralKonto;
     const offen = Object.values(this.z?.epics ?? {}).flatMap((ep) => (ep.konto && !ENDE.has(ep.stufe) && existsSync(ep.konto) ? [ep.konto] : []));
     return [...new Set([...this.e.konten, ...(a ? [a] : []), ...offen])];
+  }
+
+  /**
+   * The rating of an account's value; a stale one is red, except after a failed measurement (#197):
+   * then the last known value counts by its share, with its age in the reason, until a newer one comes.
+   */
+  bewerten(k: string): Bewertung {
+    const v = liesVerbrauch(k);
+    // #199: a limit or a 429 of a mission on the account holds it until the mission's time
+    const jetzt = this.w.jetzt();
+    const gesperrt = Object.values(this.z?.epics ?? {}).filter((ep) => ep.konto === k && ep.limitBis && Date.parse(ep.limitBis) > jetzt);
+    if (gesperrt.length) {
+      const bis = Math.max(...gesperrt.map((ep) => Date.parse(ep.limitBis!)));
+      return { ...bewerte(v, jetzt, Infinity, this.schwellen(k)), stufe: 'rot', grund: `gesperrt bis ${uhr(bis)} nach Limit oder 429 (${gesperrt.map((ep) => `#${ep.nr}`).join(', ')})` };
+    }
+    const drossel = this.gedrosselt.get(k) ?? 0;
+    if (drossel > jetzt) return { ...bewerte(v, jetzt, Infinity, this.schwellen(k)), stufe: 'rot', grund: `gedrosselt (429) bis ${uhr(drossel)}` };
+    const gescheitert = this.messungGescheitert.get(k);
+    if (gescheitert !== undefined && v && v.zeit <= gescheitert) {
+      const b = bewerte(v, this.w.jetzt(), Infinity, this.schwellen(k));
+      return { ...b, grund: `${b.grund}; letzter bekannter Wert, ${b.alterMin} min alt, Messung gescheitert` };
+    }
+    this.messungGescheitert.delete(k);
+    return bewerte(v, this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k));
+  }
+
+  /** A small run fetches a fresh value of the account; a failed one leaves the last known value in effect (#197). */
+  async messeNeu(k: string, b: Bewertung): Promise<void> {
+    this.letzterPing.set(k, this.w.jetzt());
+    this.z.statistik.pings++;
+    const r = await this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] });
+    this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
+    // a ping the account's limit, throttle or login ended says the account has no room: red, no last value
+    if (!r.verbrauch && (r.fehler === 'limit' || r.fehler === 'drossel' || r.fehler === 'anmeldung')) {
+      this.bewertung.set(k, { ...this.bewerten(k), stufe: 'rot', grund: `Mini-Lauf endete mit ${r.fehler}` });
+      return;
+    }
+    const v = liesVerbrauch(k);
+    if (!r.verbrauch && v && !this.messungGescheitert.has(k)) {
+      this.messungGescheitert.set(k, v.zeit);
+      const n = this.bewerten(k);
+      this.imLogbuch(null, `Verbrauch ${this.kontoName(k)}: Messung gescheitert (${r.fehler ?? 'kein rate_limit_event'}), es gilt der letzte bekannte Wert (${n.alterMin} min alt): ${n.stufe}`);
+    }
+    this.bewertung.set(k, this.bewerten(k));
+  }
+
+  /** #197: a stale value of the account the admiral asks on is measured again before the block is routed. */
+  async vorDemFrageblock(ep: FlottenEpic): Promise<void> {
+    const k = this.e.admiralKonto ?? ep.konto;
+    if (!k) return;
+    // the file as it is now, not as the last tick read it
+    const b = this.bewerten(k);
+    this.bewertung.set(k, b);
+    if (b.alterMin === null || b.alterMin <= this.e.verbrauchMaxAlterMin || this.messungGescheitert.has(k)) return;
+    await this.messeNeu(k, b);
+    this.ereignis(ep.nr, `Verbrauch ${this.kontoName(k)} ${b.alterMin} min alt: vor dem Frageblock neu gemessen, ${this.bewertung.get(k)!.stufe}`);
   }
 
   schwellen(k: string): Schwellen {
@@ -831,14 +908,7 @@ class Treiber {
       if (!this.brauchtVerbrauch(k)) continue;
       const zuletzt = this.letzterPing.get(k) ?? 0;
       if (this.w.jetzt() - zuletzt < (this.e.verbrauchMaxAlterMin * 60_000) / 2) continue;
-      this.letzterPing.set(k, this.w.jetzt());
-      this.z.statistik.pings++;
-      this.nebenbei(
-        this.w.starte({ ...this.programm(), repo: this.e.repo, konto: k, auftrag: 'FLOTTE-PING Antworte nur mit OK.', modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--tools', ''] }).then((r) => {
-          this.ereignis(null, `Verbrauch ${this.kontoName(k)} ${b.alterMin === null ? 'unbekannt' : `${b.alterMin} min alt`}: Mini-Lauf ${r.verbrauch ? 'lieferte einen frischen Wert' : `ohne Wert (${r.fehler ?? 'kein rate_limit_event'})`}`);
-          this.bewertung.set(k, bewerte(liesVerbrauch(k), this.w.jetzt(), this.e.verbrauchMaxAlterMin, this.schwellen(k)));
-        }),
-      );
+      this.nebenbei(this.messeNeu(k, b));
     }
   }
 
@@ -995,6 +1065,12 @@ class Treiber {
 
   verteile(): void {
     for (const ep of Object.values(this.z.epics)) {
+      if (ep.limitBis && this.w.jetzt() >= Date.parse(ep.limitBis)) {
+        ep.limitBis = null;
+        if (ep.konto) this.bewertung.set(ep.konto, this.bewerten(ep.konto));
+        this.ereignis(ep.nr, 'Reset des Limits vorbei: die Mission reiht sich selbst wieder ein');
+      }
+      if (ep.limitBis) continue;
       // #61: a paused epic keeps its next turn until the person continues it
       if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
       // #133: an order edge added meanwhile (forge read once per tick); a run with a PR is held in the merge queue instead (schlangeWeiter)
@@ -1029,14 +1105,28 @@ class Treiber {
     const laufend = Object.values(this.z.epics).filter((ep) => BELEGT.has(ep.stufe) || this.laufend.has(ep.nr)).map((ep) => ep.nr);
     const gemergt = Object.values(this.z.epics).filter((ep) => ep.stufe === 'gemergt' || ep.stufe === 'fertig').map((ep) => ep.nr);
     // #61: a paused epic does not start; the priority of the bridge wins over the label
-    const im = this.bilder
-      .filter((b) => {
-        const s = this.epic(b.nr).stufe;
-        return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
-      })
-      .map((b) => ({ ...b, prio: this.prio(b.nr) }));
     const pausiert = Object.values(this.z.epics).filter((ep) => ep.pausiert).map((ep) => ep.nr);
-    const plan = belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze(), pausiert });
+    const planen = () => {
+      const im = this.bilder
+        .filter((b) => {
+          const s = this.epic(b.nr).stufe;
+          return (s === 'wartend' && !this.epic(b.nr).pausiert) || laufend.includes(b.nr) || gemergt.includes(b.nr);
+        })
+        .map((b) => ({ ...b, prio: this.prio(b.nr) }));
+      return belege(im, this.adapter, { laufend, gemergt, obergrenze: this.obergrenze(), pausiert });
+    };
+    let plan = planen();
+    // #198: before a start the order edges and what the missions touch as the forge says them now; an
+    // edge or a collision added since the deployment began keeps the mission waiting (#144 names why)
+    if (plan.neu.length && !this.kantenFrisch) {
+      this.kantenFrisch = true;
+      try {
+        this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+        plan = planen();
+      } catch (err) {
+        this.ereignis(null, `Reihenfolge und Kollisionen vor dem Start nicht neu gelesen: ${String(err).slice(0, 200)}`);
+      }
+    }
     for (const w of plan.wartend) {
       const notiz = `wartet auf den Merge von ${w.wartetAuf.map((n) => `#${n}`).join(', ')}`;
       if (this.epic(w.nr).notiz !== notiz) this.epic(w.nr).notiz = notiz;
@@ -1107,6 +1197,9 @@ class Treiber {
     this.ereignis(nr, `Zug zu Ende (${Math.round(r.dauerMs / 1000)} s)`);
     if (r.sitzung) ep.sitzung = r.sitzung;
     if (r.fehler === 'werkzeuge') return this.halt(ep, 'blockiert', `${r.stderr.split('\n')[0]}. Der Lauf wurde beendet, bevor er arbeitete.`);
+    // #199: before the denials, a turn the limit ended may have denials too (#114)
+    if (r.fehler === 'limit') return this.limit(ep, r);
+    if (r.fehler === 'drossel') return this.drossel(ep);
     const hookIds = new Set(r.sperren.map((s) => s.id));
     const fremd = r.verweigert.filter((d) => !hookIds.has(String((d as { tool_use_id?: string }).tool_use_id ?? '')));
     const block = leseBlock(r.text);
@@ -1144,21 +1237,6 @@ class Treiber {
       return this.halt(ep, 'abgebrochen', `Leerlauf: ${Math.round(this.e.leerlaufMs / 60_000)} min ohne Ausgabe`, true);
     }
     if (r.fehler === 'anmeldung') return this.halt(ep, 'blockiert', `Konto ${this.kontoName(ep.konto ?? '')} ist nicht angemeldet. Ein Mensch meldet es an.`);
-    if (r.fehler === 'limit') {
-      // #132: the account is used up; red until the next measurement says otherwise, and the epic waits for it
-      const konto = ep.konto ?? '';
-      const grund = `Limit erreicht: ${r.text.trim().slice(0, 120) || 'usage_limit_reached'}`;
-      const alt = this.bewertung.get(konto);
-      if (alt) this.bewertung.set(konto, { ...alt, stufe: 'rot', grund });
-      if (ep.sitzung) ep.auftrag = { resume: true, text: this.an(nr, 'Das Konto hatte sein Limit erreicht. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.') };
-      else {
-        await this.aufraeumen(nr);
-        ep.auftrag = { resume: false, text: this.startText(nr) };
-      }
-      ep.notiz = `wartet auf ${this.kontoName(konto)}: ${grund}`;
-      this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, der Lauf wartet, bis das Konto wieder Luft hat`);
-      return;
-    }
     if (r.fehler === 'netz') {
       if (ep.fortsetzungen < 2 && ep.sitzung) {
         ep.fortsetzungen++;
@@ -1196,10 +1274,79 @@ class Treiber {
     else await this.ende(ep, block);
   }
 
+  /** The run's next turn after a limit or a 429: on in its session, else a fresh start. */
+  async wiederAufnehmen(ep: FlottenEpic, text: string): Promise<void> {
+    if (ep.sitzung) ep.auftrag = { resume: true, text: this.an(ep.nr, text) };
+    else {
+      await this.aufraeumen(ep.nr);
+      ep.auftrag = { resume: false, text: this.startText(ep.nr) };
+    }
+  }
+
+  /**
+   * #132: the account is used up, no failed start; the mission waits for it. #199: with a reset time in
+   * the message (or a used-up window in the run's usage) it requeues itself at the reset + 2 min, and
+   * nothing runs on the account before.
+   */
+  async limit(ep: FlottenEpic, r: LaufErgebnis): Promise<void> {
+    const nr = ep.nr;
+    const konto = ep.konto ?? '';
+    const grund = `Limit erreicht: ${r.text.trim().slice(0, 120) || 'usage_limit_reached'}`;
+    const alt = this.bewertung.get(konto);
+    if (alt) this.bewertung.set(konto, { ...alt, stufe: 'rot', grund });
+    await this.wiederAufnehmen(ep, 'Das Konto hatte sein Limit erreicht. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.');
+    const jetzt = this.w.jetzt();
+    const voll = [r.verbrauch?.fuenf, r.verbrauch?.sieben].filter((f) => f && f.anteil >= 1 && f.reset > jetzt).map((f) => f!.reset);
+    const reset = limitReset(`${r.text}\n${r.stderr}`, jetzt) ?? (voll.length ? Math.max(...voll) : null);
+    if (reset === null) {
+      ep.notiz = `wartet auf ${this.kontoName(konto)}: ${grund}`;
+      this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, der Lauf wartet, bis das Konto wieder Luft hat`);
+      return;
+    }
+    const bis = reset + LIMIT_NACHLAUF_MS;
+    ep.limitBis = new Date(bis).toISOString();
+    ep.notiz = `wartet bis ${uhr(bis)} (Reset des Limits + 2 min): ${grund}`;
+    this.ereignis(nr, `${grund} (${this.kontoName(konto)}) — kein Fehlstart, die Mission reiht sich um ${uhr(bis)} selbst wieder ein`);
+  }
+
+  /**
+   * #199: 429, the API throttles the account. Another free account of the list takes the mission over,
+   * with a fresh start (a session lives in its account); without one it waits DROSSEL_MS on its own.
+   */
+  async drossel(ep: FlottenEpic): Promise<void> {
+    const nr = ep.nr;
+    const konto = ep.konto ?? '';
+    // the throttled account is held DROSSEL_MS, so two throttled accounts never hand a mission back and forth
+    this.gedrosselt.set(konto, this.w.jetzt() + DROSSEL_MS);
+    this.bewertung.set(konto, this.bewerten(konto));
+    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && (this.gedrosselt.get(k) ?? 0) <= this.w.jetzt() && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    if (frei.length) {
+      const neu = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
+      await this.aufraeumen(nr);
+      ep.konto = neu;
+      ep.sitzung = null;
+      ep.auftrag = { resume: false, text: this.startText(nr) };
+      ep.notiz = '';
+      this.ereignis(nr, `429 (Anfragen gedrosselt) auf ${this.kontoName(konto)}: weiter auf ${this.kontoName(neu)}`);
+      return;
+    }
+    await this.wiederAufnehmen(ep, 'Die Anfragen des Kontos wurden gedrosselt (429). Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE.');
+    const bis = this.w.jetzt() + DROSSEL_MS;
+    ep.limitBis = new Date(bis).toISOString();
+    ep.notiz = `wartet bis ${uhr(bis)} (429 auf ${this.kontoName(konto)})`;
+    this.ereignis(nr, `429 (Anfragen gedrosselt) auf ${this.kontoName(konto)}, kein anderes Konto frei: die Mission wartet ${DROSSEL_MS / 60_000} min`);
+  }
+
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
     this.loslassen(ep.nr);
     ep.stufe = stufe;
     ep.notiz = grund.split('\n')[0];
+    ep.haltUrsache = null;
+    if (stufe === 'blockiert') {
+      // #199: the cause on the bridge (before the reason in the report) and in the logbook
+      ep.haltUrsache = ursache(grund);
+      if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${ep.haltUrsache}: ${grund.split('\n')[0]}.`);
+    }
     ep.haltGrund = grund.slice(0, 3000);
     ep.haltZeit = new Date(this.w.jetzt()).toISOString();
     ep.aufgegebenAm = null;
@@ -1268,6 +1415,7 @@ class Treiber {
     block.fragen = neu;
     // #54: the denials of the turn stand in the situation of each question, for the admiral and the person
     if (vermerk) for (const f of block.fragen) f.lage = f.lage ? `${f.lage}\n${vermerk}` : vermerk;
+    await this.vorDemFrageblock(ep);
     const konto = this.admiralKontoFuer(ep);
     if (!konto) {
       // #111: no account with room; the block waits in the state and goes to the admiral once one is
@@ -1530,7 +1678,7 @@ class Treiber {
     // einreihen: the counters start over; with a session the run continues where it stopped,
     // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
     // #135: a mission of an earlier deployment joins this one, so occupancy, order edges and the end count it
     if (!this.e.epics.includes(ep.nr)) {
       this.e.epics = [...this.e.epics, ep.nr];
@@ -2651,7 +2799,7 @@ class Treiber {
           schritt: ep.schritt ?? null,
           schrittZeit: ep.schrittZeit ?? null,
           prozess: this.laufend.has(ep.nr),
-          grund: halt ? (ep.haltGrund ?? ep.notiz) : '',
+          grund: halt ? `${ep.haltUrsache && ep.haltGrund ? `Ursache ${ep.haltUrsache}: ` : ''}${ep.haltGrund ?? ep.notiz}` : '',
           haltZeit: halt ? (ep.haltZeit ?? null) : null,
           // "Log ansehen" on the blockade card: the driver's last events of this epic
           log: halt ? this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => `${new Date(x.zeit).toTimeString().slice(0, 5)} ${x.text.slice(0, 300)}`) : [],
@@ -2869,9 +3017,9 @@ class Treiber {
     // follow-up check of #27: only a PR on the expected base is merged
     const basis = this.erwarteteBasis();
     if (info && info.baseRefName !== basis) return this.prBereit(ep, basis === null ? 'base_branch: from-issue, die erwartete Basis ist nicht lesbar' : `Basis des PRs ist ${info.baseRefName}, erwartet ${basis}`);
-    // acceptance 3, finding 2: a block the run only wrote is no gate. The last run of the gate
-    // section must appear in the run's log as the output of a gate call; else the driver gates.
-    const nachweis = info ? this.gateNachweis(ep, info.body) : 'PR nicht lesbar';
+    // #191: a green block on the PR's head and merge-base counts; else the last run of the gate section
+    // must appear in the run's log as the output of a gate call (acceptance 3, finding 2); else the driver gates.
+    const nachweis = info ? await this.gateNachweis(ep, info) : 'PR nicht lesbar';
     if (nachweis) {
       if (!this.adapter.gate_command) return this.prBereit(ep, `${nachweis}, und der Adapter hat kein gate_command`);
       this.ereignis(ep.nr, `${nachweis}: der Treiber fährt das Gate selbst`);
@@ -2926,14 +3074,27 @@ class Treiber {
   }
 
   /**
-   * null when the last run of the PR's gate section is green and appears, with the same base, head
-   * and kind, as the output of a Bash or PowerShell call of gate_command or gate_always_command in a
-   * log of this epic's runs; else why not.
+   * null when the last run of the PR's gate section is green and either names the PR's head and the
+   * merge-base of that head with the base (#191: the run's gate on this state counts, whatever form
+   * of the command ran it) or appears, with the same base, head and kind, as the output of a Bash or
+   * PowerShell call of gate_command or gate_always_command in a log of this epic's runs; else why not.
+   * A block on another head or against another base is never counted: the driver gates.
    */
-  gateNachweis(ep: FlottenEpic, body: string): string | null {
+  async gateNachweis(ep: FlottenEpic, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }): Promise<string | null> {
     const form = gateForm(this.adapter);
-    const letzter = gateLaeufe(body ?? '', form)?.at(-1);
+    const letzter = gateLaeufe(info.body ?? '', form)?.at(-1);
     if (!letzter || !letzter.gruen || !letzter.head) return 'kein grüner Gate-Lauf in der PR-Beschreibung';
+    if (!letzter.teil && info.headRefOid) {
+      if (!gleich(letzter.head, info.headRefOid)) return `Gate-Block auf HEAD ${letzter.head.slice(0, 8)}, der PR steht auf ${info.headRefOid.slice(0, 8)}`;
+      await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', info.baseRefName, info.headRefName], { timeoutMs: 5 * 60_000 });
+      const mb = this.w.aufrufer('git', ['-C', this.e.repo, 'merge-base', `origin/${info.baseRefName}`, info.headRefOid]);
+      const basis = mb.code ? '' : mb.stdout.trim();
+      if (basis && !gleich(letzter.base, basis)) return `Gate-Block gegen Basis ${letzter.base.slice(0, 7)}, die merge-base ist ${basis.slice(0, 7)}`;
+      if (basis) {
+        this.ereignis(ep.nr, `Gate-Block des Laufs angerechnet (Basis ${letzter.base.slice(0, 7)} = merge-base, HEAD ${letzter.head.slice(0, 8)} = Head des PR)`);
+        return null;
+      }
+    }
     const befehle = [this.adapter.gate_command, this.adapter.gate_always_command].filter((b): b is string => Boolean(b));
     const laeufe = join(this.dir, 'laeufe');
     const logs = existsSync(laeufe) ? readdirSync(laeufe).filter((d) => d.startsWith(`${ep.nr}-`) && d.endsWith('.jsonl')) : [];
@@ -3150,6 +3311,7 @@ class Treiber {
     }
     await this.aufraeumen(ep.nr);
     this.lokalerBranchWeg(ep);
+    await this.forgeBranchesWeg(ep);
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
     this.missionAbschliessen(ep);
@@ -3196,6 +3358,63 @@ class Treiber {
     if (git('merge-base', '--is-ancestor', `refs/heads/${kopf}`, `origin/${basis}`).code) return this.ereignis(ep.nr, `lokaler Branch ${kopf} bleibt: nicht ganz in origin/${basis}`);
     const d = git('branch', '-D', kopf);
     this.ereignis(ep.nr, d.code ? `lokaler Branch ${kopf} bleibt: ${d.stderr.trim().split('\n')[0]}` : `lokaler Branch ${kopf} gelöscht (liegt ganz in origin/${basis})`);
+  }
+
+  /**
+   * #203 (mission-aufraeumen, rule 5): the mission's branches on the forge, its own and its packages'
+   * (agent/<child>-…, in spec mode agent/<nr>-p<k>-…), go without asking once their commits are in the
+   * base on origin and their pull request is merged on the forge; a package branch without its own takes
+   * the mission's. Never before: GitHub closes a pull request as not merged when its branch goes first.
+   */
+  async forgeBranchesWeg(ep: FlottenEpic): Promise<void> {
+    if (!ep.pr) return;
+    const pz = prZustand(this.w.aufrufer, this.e.forge, ep.pr);
+    if (pz?.state !== 'MERGED') return this.ereignis(ep.nr, `Branches auf der Forge bleiben: PR #${ep.pr} ist dort ${pz?.state ?? 'nicht lesbar'}, nicht merged`);
+    let j: { headRefName?: string; baseRefName?: string } = {};
+    try {
+      j = JSON.parse(this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName']).stdout);
+    } catch {
+      j = {};
+    }
+    const { headRefName: kopf, baseRefName: basis } = j;
+    if (!kopf || !basis) return this.ereignis(ep.nr, `Branches auf der Forge bleiben: PR #${ep.pr} nicht lesbar`);
+    const git = (...a: string[]) => this.w.aufrufer('git', ['-C', this.e.repo, ...a]);
+    const ls = git('ls-remote', '--heads', 'origin');
+    if (ls.code) return this.ereignis(ep.nr, `Branches auf der Forge bleiben: git ls-remote scheiterte (${ls.stderr.trim().split('\n')[0].slice(0, 160)})`);
+    await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', basis], { timeoutMs: 5 * 60_000 });
+    const kinder = this.bilder.find((b) => b.nr === ep.nr)?.kinder ?? [];
+    const paket = new RegExp(`^agent/(?:${kinder.length ? `(?:${kinder.join('|')})-|` : ''}${ep.nr}-p\\d+-)`);
+    for (const zeile of ls.stdout.split(/\r?\n/)) {
+      const [sha, ref] = zeile.trim().split(/\s+/);
+      const name = ref?.replace(/^refs\/heads\//, '');
+      if (!sha || !name || (name !== kopf && !paket.test(name))) continue;
+      const bleibt = (warum: string) => this.ereignis(ep.nr, `Branch ${name} auf der Forge bleibt: ${warum}`);
+      if (git('merge-base', '--is-ancestor', sha, `origin/${basis}`).code) {
+        bleibt(`Commits nicht in origin/${basis}`);
+        continue;
+      }
+      const l = this.w.aufrufer('gh', ['pr', 'list', '--repo', this.e.forge, '--head', name, '--state', 'all', '--json', 'number,state']);
+      let eigene: { number: number; state: string }[];
+      try {
+        eigene = l.code ? [] : JSON.parse(l.stdout);
+      } catch {
+        eigene = [];
+      }
+      if (l.code) {
+        bleibt('seine Pull Requests sind nicht lesbar');
+        continue;
+      }
+      const offen = eigene.find((p) => p.state !== 'MERGED');
+      if (offen) {
+        bleibt(`PR #${offen.number} ist ${offen.state}`);
+        continue;
+      }
+      const pr = eigene[0]?.number ?? ep.pr;
+      // with a lease: a commit pushed since ls-remote keeps the branch
+      const d = await this.w.langsam('git', ['-C', this.e.repo, 'push', `--force-with-lease=refs/heads/${name}:${sha}`, 'origin', `:refs/heads/${name}`], { timeoutMs: 5 * 60_000 });
+      if (d.code) bleibt(`git push --delete scheiterte: ${d.stderr.trim().split('\n')[0]}`);
+      else this.ereignis(ep.nr, `Branch ${name} auf der Forge gelöscht (in origin/${basis}, PR #${pr} merged)`);
+    }
   }
 
   // ---- end of the deployment

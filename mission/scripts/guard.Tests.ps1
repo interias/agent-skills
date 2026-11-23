@@ -333,12 +333,9 @@ Describe 'guard.ps1 aufraeumen (story 6)' {
         Assert-Decision $null 'aufraeumen' 'deny' @('git worktree remove -f ../wt/1', 'git worktree remove ../wt/1 --force') $TestDrive
     }
 
-    It 'asks before deleting a remote branch' {
-        $r = Invoke-Guard 'aufraeumen' 'git push origin --delete epic/31-guard' $TestDrive
-        $r.Exit | Should Be 0
-        $r.Decision | Should Be 'ask'
-        $r.Reason | Should Match 'Skill mission-aufraeumen, Regel 5'
-        Assert-Decision $null 'aufraeumen' 'ask' @('git push origin -d epic/31-guard', 'git push origin :epic/31-guard', 'git status && git push origin --delete x') $TestDrive
+    It 'deletes a remote branch without asking (rule 5, #203), a forced delete stays denied' {
+        Assert-Decision $null 'aufraeumen' 'allow' @('git push origin --delete epic/31-guard', 'git push origin -d epic/31-guard', 'git push origin :epic/31-guard', 'git status && git push origin --delete x') $TestDrive
+        Assert-Decision $null 'aufraeumen' 'deny' @('git push --force origin --delete x', 'git push origin +:x') $TestDrive
     }
 
     It 'allows the safe forms' {
@@ -437,10 +434,9 @@ Describe 'guard.ps1 frontmatter hooks (stories 3, 5, 6)' {
         Assert-HookLine $line 'bash' 'allow' @('git log --oneline', 'cat a.txt') $TestDrive
     }
 
-    It 'mission-aufraeumen/SKILL.md: denies -D, asks before a remote delete, allows -d' {
+    It 'mission-aufraeumen/SKILL.md: denies -D, allows -d and a remote delete' {
         $line = (Get-HookEntry 'mission-aufraeumen/SKILL.md').Command.Replace($installedGuard, $worktreeGuard)
         Assert-HookLine $line 'bash' 'deny' @('git branch -D agent/31-p1', 'git worktree remove --force ../wt/1', 'git push --force origin x') $TestDrive
-        Assert-HookLine $line 'bash' 'ask' @('git push origin --delete epic/31-guard') $TestDrive
-        Assert-HookLine $line 'bash' 'allow' @('git branch -d agent/31-p1') $TestDrive
+        Assert-HookLine $line 'bash' 'allow' @('git branch -d agent/31-p1', 'git push origin --delete epic/31-guard') $TestDrive
     }
 }
