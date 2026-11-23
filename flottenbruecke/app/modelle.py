@@ -325,6 +325,9 @@ class TriageBeendet(BaseModel):
     zeit: str = Field(max_length=40)
     epics: int = Field(ge=0)
     fragen: int = Field(ge=0)
+    # the run failed, or its cut plan was invalid: the reason
+    gescheitert: bool = False
+    fehler: str | None = Field(None, max_length=1000)
 
 
 class Triage(BaseModel):

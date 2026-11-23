@@ -12,6 +12,7 @@
 .bereich[data-bereich="frachtraum"] .fr-kurz { margin: 6px 0; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; background: var(--flaeche); border-left: 8px solid var(--lila); border-radius: 0 14px 14px 0; font: 14px/1.4 var(--lesen); }
 .bereich[data-bereich="frachtraum"] .fr-kurz.laeuft { border-left-color: var(--orange); }
 .bereich[data-bereich="frachtraum"] .fr-kurz.beendet { border-left-color: var(--gruen); }
+.bereich[data-bereich="frachtraum"] .fr-kurz.still, .bereich[data-bereich="frachtraum"] .fr-kurz.gescheitert { border-left-color: var(--rot, var(--orange)); }
 .bereich[data-bereich="frachtraum"] .fr-fragen:focus { outline: none; }
 .bereich[data-bereich="frachtraum"] .knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .bereich[data-bereich="frachtraum"] .fr-start { margin: 6px 0 2px; }

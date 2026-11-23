@@ -1185,6 +1185,23 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   }, T);
 
+  it('#148: a failed triage run ends in the report as beendet with the error', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    const kaputt: typeof triagiere = async () => {
+      await new Promise((x) => setTimeout(x, 50));
+      throw new Error('kein Konto antwortet');
+    };
+    try {
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: kaputt });
+      const letzter = b.berichte.at(-1)!.triage;
+      expect(letzter.laeuft).toBe(false);
+      expect(letzter.beendet).toEqual({ zeit: expect.any(String), epics: 0, fragen: 0, gescheitert: true, fehler: expect.stringContaining('kein Konto antwortet') });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#146: notes closed by the cut plan count as closed, show as decisions and are revoked by reopening; an invalid plan counts as without result; #147: created missions and attached notes are counted', async () => {
     const t = aufbau();
     const zu = (notiz: number, art: string, mehr: object = {}) => ({ notiz, titel: `Notiz ${notiz}`, url: `https://github.com/o/r/issues/${notiz}`, art, grund: 'kein Nutzen', herkunft: 'Eigenes Urteil: x', geschrieben: true, kommentar: 'k', ...mehr });
@@ -1288,6 +1305,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // the mission number of an attached note stands at its decision, and the plan outlives a restart in the state
       expect(z.triage!.entscheidungen.filter((d) => d.ergebnis === 'klar').map((d) => [d.nr, d.mission])).toEqual([[30, 100], [31, 100], [32, 40], [33, 40]]);
       expect(z.triage!.schnittplan!.missionen.map((m) => m.nr)).toEqual([100, 40]);
+      // the short info counts the missions of the plan, the created and the existing one
+      expect(b.berichte.at(-1)!.triage.beendet).toMatchObject({ epics: 2 });
     } finally {
       await b.zu();
     }

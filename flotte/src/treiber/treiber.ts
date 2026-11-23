@@ -1650,9 +1650,10 @@ class Treiber {
       const angehaengt = entschieden.filter((t) => t.mission !== undefined).length;
       const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}`;
       this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
-      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length };
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length, ...(this.z.triage?.schnittplan?.fehler ? { fehler: this.z.triage.schnittplan.fehler } : {}) };
     } catch (err) {
       this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: 0, fragen: 0, gescheitert: true, fehler: String(err).slice(0, 300) };
     } finally {
       this.triageLaeuft = false;
       this.triageLesen(true);

@@ -136,17 +136,20 @@ def schnittplan(tr: dict, forge: str, link, offen_h: dict) -> dict | None:
     }
 
 
-def kurzinfo(tr: dict, handlung: dict | None, jetzt: datetime) -> dict | None:
+def kurzinfo(tr: dict, handlung: dict | None, jetzt: datetime, fragen: int, veraltet: bool) -> dict | None:
     """#148: the short info of a triage run: unterwegs (the action stands, the driver has not reported a run), laeuft
     (the report says so, with the start and, only if the driver knows it, note n of m), beendet (for BEENDET_MIN minutes)."""
     if tr.get('laeuft'):
-        return {'zustand': 'laeuft', 'seit': tr.get('seit') or (handlung or {}).get('zeit'), 'fortschritt': tr.get('fortschritt')}
+        # a silent driver: the report is old, the run may be long over
+        return {'zustand': 'laeuft', 'seit': tr.get('seit') or (handlung or {}).get('zeit'), 'fortschritt': tr.get('fortschritt'), 'still': veraltet}
     if handlung:
         return {'zustand': 'unterwegs', 'seit': handlung['zeit'], 'abgeholt': handlung['abgeholt'], 'fortschritt': None}
     e = tr.get('beendet')
     t = zeit(e['zeit']) if e else None
-    if t and timedelta(0) <= jetzt - t < timedelta(minutes=BEENDET_MIN):
-        return {'zustand': 'beendet', 'seit': e['zeit'], 'epics': e['epics'], 'fragen': e['fragen']}
+    # a little clock skew between driver and bridge is tolerated
+    if t and -timedelta(minutes=2) <= jetzt - t < timedelta(minutes=BEENDET_MIN):
+        # the questions the person sees now (still right after an answer), not the new ones of the run
+        return {'zustand': 'beendet', 'seit': e['zeit'], 'epics': e['epics'], 'fragen': fragen, 'gescheitert': bool(e.get('gescheitert')), 'fehler': e.get('fehler')}
     return None
 
 
@@ -186,7 +189,7 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
         'forge': forge, 'kurz': kurz, 'url': url, 'aktiv': aktiv, 'veraltet': veraltet,
         'gelesen': tr.get('gelesen'), 'laeuft': bool(tr.get('laeuft')), 'zahl': len(tr.get('tickets', [])),
         'handlung': _handlung(offen_h.get((0, 'triage', None, None))),
-        'kurzinfo': kurzinfo(tr, _handlung(offen_h.get((0, 'triage', None, None))), jetzt),
+        'kurzinfo': kurzinfo(tr, _handlung(offen_h.get((0, 'triage', None, None))), jetzt, len(fragen), veraltet),
         'fragen': fragen,
         'entscheidungen': entscheidungen,
         'schnittplan': schnittplan(tr, forge, link, offen_h),

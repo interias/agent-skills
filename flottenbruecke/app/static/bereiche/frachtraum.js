@@ -126,9 +126,13 @@
   function kurzHtml(p) {
     const k = p.kurzinfo;
     if (!k) return '';
-    const seit = `<span class="fr-klein">${k.zustand === 'beendet' ? 'beendet' : 'gestartet'} ${esc(wann(k.seit))}</span>`;
+    const zeit = wann(k.seit);
+    const seit = zeit ? `<span class="fr-klein">${k.zustand === 'beendet' ? 'beendet' : 'gestartet'} ${esc(zeit)}</span>` : '';
     if (k.zustand === 'unterwegs') return `<div class="fr-kurz" role="status"><b>Triage-Lauf gestartet — wartet auf den Treiber</b>${seit}${k.abgeholt ? '<span class="fr-klein">abgeholt, der Treiber startet ihn gleich</span>' : ''}</div>`;
+    if (k.zustand === 'laeuft' && k.still) return `<div class="fr-kurz still" role="status"><b>Triage-Lauf läuft laut letztem Bericht — der Treiber meldet sich nicht.</b>${seit}</div>`;
     if (k.zustand === 'laeuft') return `<div class="fr-kurz laeuft" role="status"><b>Triage-Lauf läuft — bitte warten.</b> <span>Danach erscheinen hier Fragen an dich, darunter die Entscheidungen und der Schnittplan.</span>${seit}${k.fortschritt ? `<span class="fr-klein">Notiz ${k.fortschritt.n} von ${k.fortschritt.m}</span>` : ''}</div>`;
+    if (k.gescheitert) return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf gescheitert</b>${k.fehler ? `<span>${esc(k.fehler)}</span>` : ''}${seit}</div>`;
+    if (k.fehler) return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf beendet — Schnittplan ungültig, nichts geschrieben</b><span>${esc(k.fehler)}</span>${seit}</div>`;
     const sprung = k.fragen && p.fragen.length ? '<button type="button" class="knopf zweit" data-zu-fragen>Zu den Fragen</button>' : '';
     return `<div class="fr-kurz beendet" role="status"><b>Triage-Lauf beendet: ${zahl(k.epics, 'Epic', 'Epics')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich</b>${seit}${sprung}</div>`;
   }
