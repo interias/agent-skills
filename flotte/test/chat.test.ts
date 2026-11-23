@@ -207,22 +207,23 @@ describe('flotte chat', () => {
   it(
     'an answer that does not fit the schema goes back as text with a message, never lost',
     async () => {
-      const b = await brueckenAttrappe([nachricht({ id: 1, chat: 1 }), nachricht({ id: 2, chat: 2 })]);
-      const d = drehbuch([
-        { schritte: [strukturiert({ text: 1, karten: 'keine' }, 'Roher Text der Antwort')] },
-        { schritte: [strukturiert({ text: 'x', karten: [{ frage: 'F', optionen: [1] }], entwurf: null })] },
-      ]);
-      const { dienst } = welt(b.bruecke, { '2': konto() }, d.datei);
-      await dienst.takt();
-      await dienst.fertig();
-      const bodies = posts(b, 'antwort').map((p) => p.body);
-      expect(bodies).toHaveLength(2);
-      for (const a of bodies) {
-        expect(a.fehler).toBe('Die Antwort hatte nicht die verlangte Form (text, karten, entwurf); ihr Text steht hier unverändert.');
-        expect(a.karten).toEqual([]);
-        expect(a.entwurf).toBeNull();
+      // one service and one script per wrong form: two chats in parallel would share the stand-in's counter
+      const faelle = [
+        { schritt: strukturiert({ text: 1, karten: 'keine' }, 'Roher Text der Antwort'), text: 'Roher Text der Antwort' },
+        { schritt: strukturiert({ text: 'x', karten: [{ frage: 'F', optionen: [1] }], entwurf: null }), text: JSON.stringify({ text: 'x', karten: [{ frage: 'F', optionen: [1] }], entwurf: null }) },
+      ];
+      for (const f of faelle) {
+        const b = await brueckenAttrappe([nachricht({ id: 1, chat: 1 })]);
+        const { dienst } = welt(b.bruecke, { '2': konto() }, drehbuch([{ schritte: [f.schritt] }]).datei);
+        await dienst.takt();
+        await dienst.fertig();
+        const bodies = posts(b, 'antwort').map((p) => p.body);
+        expect(bodies).toHaveLength(1);
+        expect(bodies[0].fehler).toBe('Die Antwort hatte nicht die verlangte Form (text, karten, entwurf); ihr Text steht hier unverändert.');
+        expect(bodies[0].karten).toEqual([]);
+        expect(bodies[0].entwurf).toBeNull();
+        expect(bodies[0].text).toBe(f.text);
       }
-      expect(bodies.map((a) => a.text).sort()).toEqual(['Roher Text der Antwort', JSON.stringify({ text: 'x', karten: [{ frage: 'F', optionen: [1] }], entwurf: null })].sort());
     },
     T,
   );
