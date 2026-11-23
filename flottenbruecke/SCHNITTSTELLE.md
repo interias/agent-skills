@@ -239,7 +239,7 @@ Aufruf zählt nicht. Ein `tool_result` ohne diesen Anfang ist das Ende eines Age
 
 | Feld | Bedeutung |
 |---|---|
-| `phase` | `implementer` (erste Runde läuft), `review` (Erster Offizier läuft), `nachbesserung` (Ingenieur ab Runde 2 nach einem Review), `merge` (Erster Offizier zurück, noch nicht im Missions-Branch: Host prüft und dockt an). Fehlt, sobald das Paket angedockt ist und solange die Mission nicht arbeitet (`pr`, Schlange) |
+| `phase` | `implementer` (erste Runde läuft), `review` (Erster Offizier läuft), `nachbesserung` (Ingenieur ab Runde 2 nach einem Review), `merge` (Erster Offizier zurück, noch nicht im Missions-Branch: Host prüft und dockt an), `abgebrochen` (Erster Offizier endete mit `failed`, `killed` oder `stopped`, ohne Urteil: nichts anzudocken, belegt keinen Platz). Fehlt, sobald das Paket angedockt ist und solange die Mission nicht arbeitet (`pr`, Schlange) |
 | `runde` | Zahl der Ingenieur-Runden des Pakets: der erste Aufruf und jeder erste nach einem Review (ein erneuter Aufruf ohne Review dazwischen, etwa nach einem Neustart des Laufs, bleibt dieselbe Runde) |
 | `stufe`, `stufeStart` | Klasse des letzten Ingenieur-Aufrufs (`mechanisch`, `standard`, `urteil`, `urteil-hoch`) und die des ersten, nur wenn sie abweicht |
 | `eskaliert` | die Stufe der letzten Runde liegt über der der vorigen (Standard → Urteil → Urteil hoch) |

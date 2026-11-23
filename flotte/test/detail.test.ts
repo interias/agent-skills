@@ -109,8 +109,24 @@ describe('Detailansicht: Agenten im Hintergrund (#51)', () => {
   });
 
   it('completed, failed, killed and stopped end the call; another status does not', () => {
-    for (const s of ['completed', 'failed', 'killed', 'stopped']) expect(eintraegeAus(meldung(s), 5)).toEqual([{ zeit: 5, art: 'rueckkehr', id: 'c1' }]);
+    expect(eintraegeAus(meldung('completed'), 5)).toEqual([{ zeit: 5, art: 'rueckkehr', id: 'c1' }]);
+    for (const s of ['failed', 'killed', 'stopped']) expect(eintraegeAus(meldung(s), 5)).toEqual([{ zeit: 5, art: 'rueckkehr', id: 'c1', abbruch: true }]);
     expect(eintraegeAus(meldung('running'), 5)).toEqual([]);
+  });
+
+  it('a reviewer that ends with failed, killed or stopped leaves the package in abgebrochen, not merge (#173)', () => {
+    const impl: AgentEintrag = { zeit: 1, art: 'aufruf', id: 'i1', rolle: 'implementer', klasse: 'standard', paket: 7 };
+    const rev: AgentEintrag = { zeit: 2, art: 'aufruf', id: 'c1', rolle: 'reviewer', paket: 7 };
+    for (const s of ['failed', 'killed', 'stopped']) {
+      const p = ableiten(fuegeAn([impl, rev], eintraegeAus(meldung(s), 9))).get(7)!;
+      expect(p).toMatchObject({ phase: 'abgebrochen', phaseSeit: new Date(9).toISOString() });
+      expect(belegt([p])).toBe(0);
+    }
+    expect(ableiten(fuegeAn([impl, rev], eintraegeAus(meldung('completed'), 9))).get(7)).toMatchObject({ phase: 'merge', phaseSeit: new Date(9).toISOString() });
+    // a reviewer in the foreground returns with its result: merge as before
+    expect(ableiten([impl, rev, { zeit: 9, art: 'rueckkehr', id: 'c1' }]).get(7)!.phase).toBe('merge');
+    // the reviewer dispatched again after the abort: review again
+    expect(ableiten(fuegeAn([impl, rev], [...eintraegeAus(meldung('failed'), 9), { zeit: 10, art: 'aufruf', id: 'c2', rolle: 'reviewer', paket: 7 }])).get(7)!.phase).toBe('review');
   });
 
   it('a second notification of the same call changes nothing, one of an unknown task is dropped', () => {

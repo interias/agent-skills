@@ -60,8 +60,8 @@ class Paket(BaseModel):
     beginn: str | None = Field(None, max_length=40)
     ende: str | None = Field(None, max_length=40)
     # detail view (#51), from the Agent calls in the run's log, spec packages too (#151); an older driver and a package
-    # without a call have none. phase: implementer, review, nachbesserung, merge (none once merged)
-    phase: Literal['implementer', 'review', 'nachbesserung', 'merge'] | None = None
+    # without a call have none. phase: implementer, review, nachbesserung, merge, abgebrochen (#173; none once merged)
+    phase: Literal['implementer', 'review', 'nachbesserung', 'merge', 'abgebrochen'] | None = None
     runde: int | None = Field(None, ge=1)
     # the class of the latest implementer call, `stufeStart` the one of the first call when it differs
     stufe: Literal['mechanisch', 'standard', 'urteil', 'urteil-hoch'] | None = None
