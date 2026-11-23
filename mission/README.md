@@ -131,5 +131,5 @@ Fable.
   ist, mit `needs-triage` und einem Satz zur Ursache; gefragt wirst du das nicht. Sind alle Missionsziele
   zu, schließt er die Mission.
 - **[`/mission-aufraeumen`](../mission-aufraeumen/SKILL.md)** läuft nach dem Andocken. Es löscht nur, was
-  nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`, und einen Remote-Branch nur nach
-  deiner Zustimmung. Was wann aufgeräumt wird: [`scripts/README.md`](scripts/README.md).
+  nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`, und einen Remote-Branch ohne
+  Rückfrage, sobald zudem sein Pull Request auf der Forge `merged` ist. Was wann aufgeräumt wird: [`scripts/README.md`](scripts/README.md).
