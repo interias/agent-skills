@@ -260,6 +260,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
     liste, rechner, konten, lager = [], {}, {}, []
     sitzungen = {}
+    kontenliste: dict[tuple[str, int], dict] = {}
+    anlegen: dict[str, dict] = {}
+    kontenliste_gemeldet = False
 
     for p in projekte:
         b, forge = p['bericht'], p['forge']
@@ -292,6 +295,17 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 offen_h[(h['epic'], HANDLUNG_GRUPPE[h['art']], h['nr'], h['seit'])] = h
         # #154: the update on its way to the driver (the button waits for it)
         liste[-1]['einspielen'] = _handlung(offen_h.get((0, 'einspielen', None, None)))
+        # #96: the accounts of the machine, the newest report wins; an action goes to the project that reported it
+        if b.get('kontenListe') is not None:
+            kontenliste_gemeldet = True
+            for k in b['kontenListe']:
+                schluessel = (b.get('rechner', ''), k['nr'])
+                if schluessel not in kontenliste or kontenliste[schluessel]['empfangen'] < p['empfangen']:
+                    h = offen_h.get((k['nr'], 'konto_aktiv', None, None)) or offen_h.get((k['nr'], 'konto_anmelden', None, None))
+                    kontenliste[schluessel] = {**k, 'rechner': b.get('rechner', ''), 'forge': forge, 'empfangen': p['empfangen'], 'veraltet': veraltet, 'handlung': _handlung(h)}
+            a = anlegen.get(b.get('rechner', ''))
+            if a is None or a['empfangen'] < p['empfangen']:
+                anlegen[b.get('rechner', '')] = {'rechner': b.get('rechner', ''), 'forge': forge, 'empfangen': p['empfangen'], 'handlung': _handlung(offen_h.get((0, 'konto_anlegen', None, None)))}
         epics = {ep['nr']: ep for ep in b.get('epics', [])}
         schwelle = schwelle_lang(b.get('epics', []))
         # #52: the decisions of each epic not merged, newest first; the rest stays in the logbook and at the issues
@@ -509,9 +523,17 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         ({**{k: s[k] for k in ('konto', 'projekt', 'name', 'status', 'kind', 'seit')}, 'forge': forge_von.get(s['projekt'].lower())} for _, s in sitzungen.values()),
         key=lambda s: (s['konto'], s['projekt'], s['seit'], s['name']),
     )
+    # #96: the sign-in fills the tank of the account by its short name
+    for k in kontenliste.values():
+        if f"Konto {k['nr']}" in konten:
+            konten[f"Konto {k['nr']}"]['anmeldung'] = k['anmeldung']
+    konten_liste = sorted(kontenliste.values(), key=lambda k: (k['rechner'], k['nr']))
     return {
         'jetzt': jetzt.isoformat(),
         'pin': pin_gesetzt,
+        'kontenListe': konten_liste,
+        'anlegen': sorted(anlegen.values(), key=lambda a: a['rechner']),
+        'einrichten': einrichten(konten_liste, list(anlegen.values()), bool(konten), kontenliste_gemeldet, bool(liste)),
         'herkunft': HERKUNFT,
         'projekte': liste,
         'rechner': sorted(rechner.values(), key=lambda r: r['name']),
@@ -526,6 +548,23 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'werft': werft_liste(werft, werft_h or [], jetzt),
         'prototypen': [{**p, 'kurz': p['forge'].split('/')[-1], 'url': f"/holodeck/{p['forge']}/{p['name']}"} for p in prototypen or []],
     }
+
+
+def einrichten(konten_liste: list[dict], anlegen: list[dict], tanks: bool, gemeldet: bool, projekte: bool) -> dict:
+    """#96: the guided start, in this order: account, sign-in at the machine, forge, project; each offen, wartet
+    (an action waits for the machine) or fertig. A driver that reports a project speaks with its forge; an older
+    driver without kontenListe that reports accounts counts as signed in (its runs work)."""
+    def stand(fertig: bool, wartet: bool) -> str:
+        return 'fertig' if fertig else 'wartet' if wartet else 'offen'
+
+    hat_konto = bool(konten_liste) or tanks
+    schritte = [
+        {'schritt': 'konto', 'stand': stand(hat_konto, any(a['handlung'] for a in anlegen))},
+        {'schritt': 'anmeldung', 'stand': stand(any(k['anmeldung'] == 'angemeldet' for k in konten_liste) or (tanks and not gemeldet), any((k['handlung'] or {}).get('art') == 'konto_anmelden' for k in konten_liste))},
+        {'schritt': 'forge', 'stand': stand(projekte, False)},
+        {'schritt': 'projekt', 'stand': stand(projekte, False)},
+    ]
+    return {'schritte': schritte, 'fertig': all(s['stand'] == 'fertig' for s in schritte)}
 
 
 def bereitschaftsraum(chats: list[dict], nachrichten: list[dict], rechner: list[dict], forges: list[str], pin_gesetzt: bool) -> dict:

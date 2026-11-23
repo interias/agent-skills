@@ -78,3 +78,10 @@
   .bereich[data-bereich="maschinenraum"] .mr-chip span { min-height: 48px; min-width: 48px; }
   .bereich[data-bereich="maschinenraum"] .mr-zahl { height: 48px; }
 }
+
+/* #96: accounts of konten.json and the guided start */
+.bereich[data-bereich="maschinenraum"] .mr-farbe { display: inline-block; width: 12px; height: 12px; margin-right: 8px; border-radius: 50%; vertical-align: baseline; }
+.bereich[data-bereich="maschinenraum"] .mr-konto.mr-aus { opacity: .7; }
+.bereich[data-bereich="maschinenraum"] .mr-schritte { margin: 0 0 16px; padding-left: 24px; display: grid; gap: 8px; }
+.bereich[data-bereich="maschinenraum"] .mr-schritt summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bereich[data-bereich="maschinenraum"] .mr-schritt.fertig summary { color: var(--matt); }

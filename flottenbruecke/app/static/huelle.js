@@ -97,6 +97,8 @@ const huelle = (() => {
   }
 
   function tafel(t) {
+    // #96: a bridge that is not set up yet opens the Maschinenraum with its steps; a link to an area stays where it points
+    if (stand === null && !location.hash && t.einrichten && !t.einrichten.fertig) gehe('maschinenraum');
     stand = t;
     id('nur-ansicht').hidden = !t.nurAnsicht;
     const n = t.braucht.length;
