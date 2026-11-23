@@ -370,7 +370,7 @@ Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
   (dann gehört er dem Rechner, der zuerst eine Sitzung brachte); das Modell lässt sich jederzeit ändern.
 - **Fragekarten** der letzten Antwort als Knöpfe; die Wahl geht mit dem Freitext als eine Nachricht
   zurück (`Q1 A`, bei Mehrfachwahl `Q2 A, C`).
-- **Entwurf** mit „Anlegen“ (Issues zur Triage) und „Anlegen und starten“ (dazu Warp frei), nach einer
+- **Entwurf** mit „Anlegen“ (als Sternzeit-Notiz, `needs-triage`) und „Anlegen und starten“ (dazu Warp frei), nach einer
   Rückfrage. Angelegt wird wörtlich der Entwurf der letzten Antwort, die ihn brachte; kam inzwischen ein
   neuerer oder wartet eine Nachricht noch, lehnt die Brücke ab.
 
