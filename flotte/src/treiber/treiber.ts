@@ -235,6 +235,10 @@ export interface FlottenEpic extends EpicZustand {
   mergeVersuche?: number;
   /** gate runs of the driver in this epic's worktree after it merged the base in (merge queue) */
   gateWiederholungen?: number;
+  /** #25: conflicts with the base in the merge queue (BASIS_GRENZE), apart from mergeVersuche */
+  basisKonflikte?: number;
+  /** #25: a red gate with a cause outside the diff was run once more already */
+  gateAussenWiederholt?: boolean;
   /** the driver laid out the epic worktree again (worktree.ps1 Up) and takes it down after the merge */
   worktreeSelbst?: boolean;
   /** the last step of the run from its log, for the board (#14, round 5, C4) */
@@ -315,7 +319,16 @@ export interface FlottenZustand extends Zustand {
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
-type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean };
+/** #25: basis: a conflict with the base (not the run's doing); aussen: a red gate whose output names a cause outside the diff */
+type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean; basis?: boolean; aussen?: string };
+
+/** #25: causes of a red gate outside the diff: a test lock held by another run, a time limit under load */
+const AUSSEN: [RegExp, string][] = [
+  [/testsperre|test lock|lock (is )?held|gesperrt/i, 'Testsperre'],
+  [/zeitgrenze|timed? ?out|timeout|ETIMEDOUT/i, 'Zeitgrenze'],
+];
+/** #25: conflicts with the base in the merge queue before the epic is blocked; they do not count against the run */
+const BASIS_GRENZE = 5;
 
 type PrInfo = { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
 
@@ -1470,7 +1483,7 @@ class Treiber {
     // einreihen: the counters start over; with a session the run continues where it stopped,
     // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
     const vor = this.offeneVorgaenger(ep.nr);
     if (vor.length) {
       amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
@@ -2710,9 +2723,10 @@ class Treiber {
     if (nachweis) {
       if (!this.adapter.gate_command) return this.prBereit(ep, `${nachweis}, und der Adapter hat kein gate_command`);
       this.ereignis(ep.nr, `${nachweis}: der Treiber fährt das Gate selbst`);
-      const g = await this.nachziehen(ep, nachweis);
+      let g = await this.nachziehen(ep, nachweis);
+      if (this.nochmal(ep, g)) g = await this.nachziehen(ep, nachweis);
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
-      if (g.art === 'zurueck') return this.zurueck(ep, g.text);
+      if (g.art === 'zurueck') return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
       selbst = 'voll';
     }
     for (;;) {
@@ -2737,8 +2751,17 @@ class Treiber {
         continue;
       }
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
-      return this.zurueck(ep, g.text);
+      if (this.nochmal(ep, g)) continue;
+      return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
     }
+  }
+
+  /** #25: a red gate with a cause outside the diff runs once more before it counts against the run */
+  nochmal(ep: FlottenEpic, g: GateErgebnis): boolean {
+    if (g.art !== 'zurueck' || !g.aussen || ep.gateAussenWiederholt) return false;
+    ep.gateAussenWiederholt = true;
+    this.ereignis(ep.nr, `Gate des Treibers rot, die Ursache liegt außerhalb des Diffs (${g.aussen}): einmal wiederholt`);
+    return true;
   }
 
   /** base_branch of the adapter, else main_branch, else the default branch of the forge; null for from-issue */
@@ -2768,13 +2791,25 @@ class Treiber {
     return `kein Gate-Aufruf im Log des Laufs zum Gate-Block (Basis ${letzter.base}, HEAD ${letzter.head})`;
   }
 
-  /** Back to the run with what failed; counts against the run (two, then blocked). */
-  zurueck(ep: FlottenEpic, text: string): void {
-    ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
-    if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter nicht möglich:\n\n${text}`);
+  /**
+   * Back to the run with what failed; counts against the run (two, then blocked). #25: a conflict with the
+   * base comes from another merge, not from the run: it counts apart (BASIS_GRENZE, then blocked).
+   */
+  zurueck(ep: FlottenEpic, text: string, art: 'lauf' | 'basis' = 'lauf'): void {
+    ep.gateAussenWiederholt = false;
+    let zaehler: string;
+    if (art === 'basis') {
+      ep.basisKonflikte = (ep.basisKonflikte ?? 0) + 1;
+      if (ep.basisKonflikte >= BASIS_GRENZE) return this.halt(ep, 'blockiert', `Nachziehen der Basis nach ${BASIS_GRENZE} Konflikten weiter nicht möglich:\n\n${text}`);
+      zaehler = `Konflikt mit der Basis ${ep.basisKonflikte} von ${BASIS_GRENZE}, zählt nicht gegen den Lauf`;
+    } else {
+      ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
+      if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Merge nach zwei Nachbesserungen weiter nicht möglich:\n\n${text}`);
+      zaehler = `${ep.mergeVersuche} von 2`;
+    }
     ep.stufe = 'laeuft';
     ep.auftrag = { resume: true, text: this.an(ep.nr, text) };
-    this.ereignis(ep.nr, `zurück an den Lauf (${ep.mergeVersuche} von 2), danach ans Ende der Schlange: ${text.split('\n')[0].slice(0, 160)}`);
+    this.ereignis(ep.nr, `zurück an den Lauf (${zaehler}), danach ans Ende der Schlange: ${text.split('\n')[0].slice(0, 160)}`);
   }
 
   /** The worktree that has the head branch checked out, or null. */
@@ -2846,7 +2881,7 @@ class Treiber {
       const konflikt = git('diff', '--name-only', '--diff-filter=U').stdout.split(/\r?\n/).filter(Boolean);
       git('merge', '--abort');
       this.ereignis(nr, `Nachziehen: Konflikt mit ${ziel} in ${konflikt.join(', ') || '?'}`);
-      return { art: 'zurueck', text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat \`git merge\` abgebrochen, nichts gepusht. ${auftrag}` };
+      return { art: 'zurueck', basis: true, text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat \`git merge\` abgebrochen, nichts gepusht. ${auftrag}` };
     }
     // from here the worktree holds the driver's merge commit; unless it is green and pushed, the
     // worktree goes back to the head the run left (checked clean above), so the run finds its state
@@ -2906,7 +2941,8 @@ class Treiber {
     if (!b) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` nennt keine Basis (gate_base); merge.ps1 kann sie nicht prüfen` };
     const gruen = b.gruen && r.code === 0;
     this.ereignis(nr, `Gate des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})`);
-    if (!gruen) return { art: 'zurueck', text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
+    const aussen = gruen ? undefined : AUSSEN.find(([re]) => re.test(ende))?.[1];
+    if (!gruen) return { art: 'zurueck', ...(aussen ? { aussen } : {}), text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
     if (b.teil !== teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ${b.teil ? '' : 'k'}ein Teil-Lauf (gate_partial); der Treiber schreibt sie nicht in den PR` };
     const [bBase, bHead] = [form.base.exec(b.block)?.[1] ?? '', form.head.exec(b.block)?.[1] ?? ''];
     if (!basis.startsWith(bBase) || !bHead || !kopf.startsWith(bHead)) return { art: 'mensch', text: `Die Gate-Ausgabe nennt Basis ${bBase} und HEAD ${bHead || '?'}, der Worktree steht auf ${basis.slice(0, 7)} und ${kopf.slice(0, 8)}` };

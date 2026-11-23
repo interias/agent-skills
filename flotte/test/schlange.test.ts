@@ -38,7 +38,7 @@ interface EpicGit {
  * A repository with origin, main (a/x.txt, b/y.txt) and per epic a branch in its own worktree with
  * one commit and a PR body that holds a full green gate run on that state.
  */
-function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; mergeImmerAbgelehnt?: number } = {}) {
+function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number } = {}) {
   const bodies = new Map<number, string>();
   const liste: EpicGit[] = [];
   const t = aufbau({
@@ -54,7 +54,7 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
       const kopf = git(cwd, 'rev-parse', 'HEAD');
       const basis = git(cwd, 'rev-parse', 'origin/main');
       const gruen = !o.rot?.(cwd, n);
-      return { code: gruen ? 0 : 1, stdout: `vorher\n== Gate: ${befehl === 'gate teil' ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n  wurzel ${gruen ? 'grün' : 'ROT'}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
+      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: ${befehl === 'gate teil' ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n  wurzel ${gruen ? 'grün' : 'ROT'}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
     },
     // merge.ps1: the last run must name the current base and head (merge.Tests.ps1 checks the areas)
     mergeEcht: (pr) => {
@@ -164,12 +164,25 @@ describe('A: die Merge-Schlange', () => {
     expect(z.statistik.gateWiederholungen).toBe(3);
   }, T);
 
-  it('a conflict when the base comes in goes back to the run; the worktree is left as it was; the third time blocks', async () => {
+  it('#25: a red gate with a cause outside the diff (a held test lock, a time limit) is run once more before it counts against the run', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }], { rot: (cwd, n) => n === 1 && cwd.endsWith('e4'), rotText: 'Testsperre belegt: ein anderer Lauf hält sie' });
+    const buch = drehbuch([lauf(3, [{ warte: 100 }, ...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, ...t.nachweis(4), { text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 40_000 }), t.welt);
+    expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
+    expect(z.epics['4'].mergeVersuche ?? 0).toBe(0);
+    expect(t.p.gates).toHaveLength(2);
+    expect(texte(z).some((x) => /^#4 Gate des Treibers rot, die Ursache liegt außerhalb des Diffs \(Testsperre\): einmal wiederholt$/.test(x))).toBe(true);
+    expect(buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe))).toHaveLength(1);
+  }, T);
+
+  it('#25: a conflict when the base comes in goes back to the run without counting against it; the worktree is left as it was; the fifth time blocks', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/x.txt', inhalt: 'drei\n' }, { nr: 5, datei: 'a/x.txt', inhalt: 'fünf\n' }]);
     const buch = drehbuch([lauf(3, [{ warte: 100 }, ...t.nachweis(3), { text: ende(3, 13) }]), lauf(5, [{ warte: 1500 }, ...t.nachweis(5), { text: ende(5, 15) }])]);
     const z = await fahre(t.einstellung(buch, [3, 5], { maxDauerMs: 40_000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
-    expect(z.epics['5']).toMatchObject({ stufe: 'blockiert', mergeVersuche: 3 });
+    expect(z.epics['5']).toMatchObject({ stufe: 'blockiert', basisKonflikte: 5 });
+    expect(z.epics['5'].mergeVersuche ?? 0).toBe(0);
+    expect(z.epics['5'].haltGrund).toMatch(/^Nachziehen der Basis nach 5 Konflikten weiter nicht möglich/);
     const zuege5 = buch.gesehen().filter((g) => /^Flotte, Mission #5\b/.test(g.eingabe));
     expect(zuege5[1].eingabe).toMatch(/Konflikt in a\/x\.txt\. Der Treiber hat `git merge` abgebrochen, nichts gepusht/);
     expect(t.p.gates).toHaveLength(0);
