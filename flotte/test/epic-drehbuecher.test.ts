@@ -523,8 +523,33 @@ describe('flotte mission, Drehbücher (#65)', () => {
     expect(z.offenePunkte?.filter((x) => x.startsWith('Abnahmestufe rot'))).toHaveLength(1);
   }, T);
 
-  it('P20: permission_denials block the package without a second try', async () => {
-    const { z, w } = await fahre(buch([paket('140'), paket('141', { nach: ['140'] }), paket('142')], { aufrufe: { 'implementer:140': [{ verweigert: [{ tool_name: 'Bash', tool_input: { command: 'git push' } }] }] } }));
+  it('P20: a single permission_denials with a finished result is an event, the package goes on (P8, #108)', async () => {
+    const push = { tool_name: 'Bash', tool_input: { command: 'git push' } };
+    const { z, w } = await fahre(buch([paket('140')], { aufrufe: { 'implementer:140': [{ verweigert: [push] }] } }));
+    expect(aufrufeVon(w, 'implementer', '140')).toHaveLength(1);
+    expect(z.pakete['140'].stufe).toBe('fertig');
+    const ev = z.ereignisse.filter((e) => e.art === 'verweigert');
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ paket: '140', rolle: 'implementer' });
+    expect(ev[0].text).toMatch(/Bash.*git push/);
+  }, T);
+
+  it('P20c: the same denial a third time leaves the package behind, even with finished results; different denials do not', async () => {
+    const push = { tool_name: 'Bash', tool_input: { command: 'git push' } };
+    const muss = { befunde: [{ gruppe: 'muss', fundstelle: 'x', text: 'noch nicht' }], strukturell: false };
+    const { z } = await fahre(buch([paket('145'), paket('146')], { aufrufe: { 'implementer:145': [{ verweigert: [push] }], 'reviewer:145': [{ ausgabe: muss }], 'implementer:146': [{ verweigert: [push, { ...push, tool_input: { command: 'git push -f' } }, { tool_name: 'Write', tool_input: {} }] }] } }));
+    expect(z.pakete['145'].stufe).toBe('zurueckgelassen');
+    expect(z.pakete['145'].grund).toMatch(/dieselbe Ablehnung zum dritten Mal: Bash/);
+    expect(z.pakete['145'].runde).toBe(3);
+    expect(z.ereignisse.filter((e) => e.art === 'verweigert' && e.paket === '145')).toHaveLength(3);
+    expect(z.pakete['146'].stufe).toBe('fertig');
+    // three times in one call counts the same
+    const { z: z2 } = await fahre(buch([paket('147')], { aufrufe: { 'implementer:147': [{ verweigert: [push, push, push] }] } }));
+    expect(z2.pakete['147'].stufe).toBe('zurueckgelassen');
+  }, T);
+
+  it('P20d: permission_denials and no finished result: left behind without a second try', async () => {
+    const { z, w } = await fahre(buch([paket('140'), paket('141', { nach: ['140'] }), paket('142')], { aufrufe: { 'implementer:140': [{ verweigert: [{ tool_name: 'Bash', tool_input: { command: 'git push' } }], ohneAusgabe: true }] } }));
     expect(aufrufeVon(w, 'implementer', '140')).toHaveLength(1);
     expect(z.pakete['140'].stufe).toBe('zurueckgelassen');
     expect(z.pakete['140'].grund).toMatch(/permission_denials/);

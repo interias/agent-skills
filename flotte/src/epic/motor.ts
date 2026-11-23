@@ -162,6 +162,8 @@ const SCHNITT = 'schnitt';
 const LAUFTAFEL = 'Lauftafel aus (Flotten-Treiber)';
 const FUENF_MIN = 5 * 60_000;
 const flach = (s: string) => s.replace(/\s+/g, ' ').trim();
+/** the same permission_denials this often in one package leaves it behind (P8, decided at #108) */
+const ABLEHNUNGEN_BIS_ZURUECK = 3;
 const FORTSETZEN = 'Setze deine Arbeit an der Stelle fort, an der du warst, und gib dein Ergebnis im Schema aus.';
 
 /** Runs one epic until FLOTTE-ENDE. A second program for the same epic is refused (P21). */
@@ -329,8 +331,9 @@ class EpicLauf {
   }
 
   /**
-   * A call without usable result: permission_denials block, an account limit waits, otherwise one
-   * --resume with the error (P8, P9); after that the call is used up and the caller starts anew.
+   * A call without usable result: permission_denials without a finished result block, an account
+   * limit waits, otherwise one --resume with the error (P8, P9); after that the call is used up and
+   * the caller starts anew.
    */
   private fehlschlag(stand: AufrufStand, b: { art: string; fehler: string }, paket: string | null, rolle: Rolle): 'fortsetzen' | 'verbraucht' | 'verweigert' | 'konto' {
     // every invalid output stands in the log (#68 counts them)
@@ -391,10 +394,15 @@ class EpicLauf {
   private async anwenden(x: Erledigt) {
     if (x.art === 'aufruf') {
       this.laufend.delete(x.schluessel);
-      if (x.schluessel === SCHNITT) return this.schnittZurueck(x.r);
+      if (x.schluessel === SCHNITT) {
+        this.ablehnungen(x.r, null, x.rolle);
+        return this.schnittZurueck(x.r);
+      }
       const p = this.z.pakete[x.schluessel];
       if (!p || p.stufe !== (x.rolle === 'konflikt' ? 'merge' : x.rolle)) return;
       p.sitzung = x.r.sitzung ?? p.sitzung;
+      const dritte = this.ablehnungen(x.r, p, x.rolle);
+      if (dritte) return this.zuruecklassen(p, `${x.rolle}: dieselbe Ablehnung zum dritten Mal: ${dritte}`);
       if (x.rolle === 'konflikt') return this.konfliktZurueck(p, x.r);
       return x.rolle === 'implementer' ? this.implementerZurueck(p, x.r) : this.reviewerZurueck(p, x.r);
     }
@@ -402,6 +410,24 @@ class EpicLauf {
     const p = this.z.pakete[x.nr];
     if (x.art === 'pruefung') return this.pruefungZurueck(p, x.n);
     return this.mergeZurueck(p, x.m);
+  }
+
+  /**
+   * P8 (#108): every permission_denials is an event; a single one does not leave a package behind.
+   * The same one (tool and input) a third time in a package does: the text of that denial.
+   */
+  private ablehnungen(r: LaufErgebnis, p: PaketZustand | null, rolle: Rolle): string | null {
+    let dritte: string | null = null;
+    for (const v of r.verweigert) {
+      const d = v as { tool_name?: string; tool_input?: unknown };
+      const text = `${d.tool_name ?? '?'} ${JSON.stringify(d.tool_input ?? {})}`.slice(0, 300);
+      this.ereignis('verweigert', p?.nr ?? null, `Erlaubnis verweigert: ${text}`, rolle);
+      if (!p) continue;
+      const n = ((p.ablehnungen ??= {})[text] = (p.ablehnungen[text] ?? 0) + 1);
+      if (n >= ABLEHNUNGEN_BIS_ZURUECK) dritte ??= text;
+    }
+    if (r.verweigert.length) this.speichere();
+    return dritte;
   }
 
   private async schnittZurueck(r: LaufErgebnis) {

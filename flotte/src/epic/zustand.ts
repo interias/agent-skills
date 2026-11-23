@@ -45,6 +45,8 @@ export interface AufrufStand {
 export interface PaketZustand extends AufrufStand {
   nr: string;
   stufe: PaketStufe;
+  /** permission_denials of the package's calls by tool and input: the same one a third time leaves it behind (P8, #108) */
+  ablehnungen?: Record<string, number>;
   /** current rung of the ladder; starts at the class of the cut */
   klasse: Stufe;
   /** implementer round, 1-based (max_rounds) */
@@ -104,7 +106,7 @@ export interface Ereignis {
   /** ISO time: stage 4 (#68) reads package starts, role calls and merges from here */
   zeit: string;
   paket: string | null;
-  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ungueltig' | 'neustart' | 'ende';
+  art: 'start' | 'aufruf' | 'zurueck' | 'abgenommen' | 'gemergt' | 'zurueckgelassen' | 'blockiert' | 'eskalation' | 'kante' | 'lastflake' | 'frage' | 'antwort' | 'ram' | 'slot' | 'konto' | 'aufraeumen' | 'glut' | 'ungueltig' | 'verweigert' | 'neustart' | 'ende';
   rolle?: Rolle;
   text: string;
 }
