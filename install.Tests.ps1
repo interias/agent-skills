@@ -196,7 +196,7 @@ Describe 'install.ps1 -Skill leaves retired copies alone' {
 Describe 'install.ps1 writes the stand of the source into each installed skill (#154)' {
     $repo = New-Repo
     $heim = New-Home
-    Add-Skill $heim 'epic' 'epic'
+    Add-Skill $heim 'mission' 'mission'
     $env:GIT_COMMITTER_DATE = '2026-11-20T10:00:00+01:00'
     try {
         & git -C $repo init -q
@@ -205,7 +205,7 @@ Describe 'install.ps1 writes the stand of the source into each installed skill (
     } finally { Remove-Item Env:GIT_COMMITTER_DATE }
     $commit = (& git -C $repo rev-parse HEAD).Trim()
     $out = Invoke-Install $repo $heim @()
-    $stand = Get-Content "$heim\.claude\skills\epic\stand.json" -Raw | ConvertFrom-Json
+    $stand = Get-Content "$heim\.claude\skills\mission\stand.json" -Raw | ConvertFrom-Json
 
     It 'names commit, its date, the time of the install and the source' {
         $stand.commit | Should Be $commit
@@ -221,7 +221,7 @@ Describe 'install.ps1 writes the stand of the source into each installed skill (
     It 'a dry run writes no stand' {
         $heim2 = New-Home
         $null = Invoke-Install $repo $heim2 @('-DryRun')
-        Test-Path "$heim2\.claude\skills\epic\stand.json" | Should Be $false
+        Test-Path "$heim2\.claude\skills\mission\stand.json" | Should Be $false
     }
 }
 
@@ -231,8 +231,8 @@ Describe 'install.ps1 from a folder that is no git repository (#154)' {
     $out = Invoke-Install $repo $heim @()
 
     It 'installs without a stand and says so' {
-        Test-Path "$heim\.claude\skills\epic\SKILL.md" | Should Be $true
-        Test-Path "$heim\.claude\skills\epic\stand.json" | Should Be $false
+        Test-Path "$heim\.claude\skills\mission\SKILL.md" | Should Be $true
+        Test-Path "$heim\.claude\skills\mission\stand.json" | Should Be $false
         ($out | Where-Object { $_ -like 'No stand*' }) | Should Not BeNullOrEmpty
     }
 }
