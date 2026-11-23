@@ -10,6 +10,7 @@ import { aufrufen, aufrufenAsync, type AsyncAufrufer, type Aufrufer } from '../a
 import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle } from '../werkzeuge/belegung.ts';
 import { aktiveAuswahl, KONTEN_DATEI, kontenTafel, kontoAus, kurzname, liesKonten } from '../werkzeuge/konten.ts';
 import { anmeldung, konten as kontenBefehl, type KontenWelt } from '../befehle/konten.ts';
+import { forgeStatus, type ForgeStatus, type ForgeWelt, verknuepfen } from '../befehle/forge.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -168,6 +169,8 @@ export interface Welt {
   stand?: () => SkillStand | null;
   /** #95: konten.json, the home folder of new accounts and the terminal for a sign-in; default the real ones */
   konten?: Partial<Pick<KontenWelt, 'datei' | 'heim' | 'terminal'>>;
+  /** #125: the Gitea API and the terminal for linking the forge; default the real ones */
+  forge?: Partial<Pick<ForgeWelt, 'abruf' | 'terminal'>>;
 }
 
 export const echteWelt: Welt = {
@@ -477,6 +480,11 @@ class Treiber {
   handlungenZuQuittieren: number[] = [];
   /** #95: account folder → when a run on it stopped at the sign-in */
   abgemeldet = new Map<string, number>();
+  /** #125: the state of the forge for the bridge, checked every 15 minutes, every minute for half an hour after a link was asked */
+  forgeStand: ForgeStatus | null = null;
+  forgeGeprueft = 0;
+  forgeSchnellBis = 0;
+  forgeLaeuft = false;
   freiGbWert: number | null = null;
   /** a report right after an event is on its way */
   meldungGeplant = false;
@@ -1675,6 +1683,7 @@ class Treiber {
     if (h.art === 'triage') return this.triageStarten();
     if (h.art === 'einspielen') return this.einspielenAnfordern(h);
     if (h.art.startsWith('konto_')) return this.kontoHandlung(h);
+    if (h.art === 'forge_verknuepfen') return this.forgeVerknuepfen();
     if (h.art === 'triage-antwort') return this.triageAntworten(h);
     if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
     if (h.art === 'schnitt-widerruf') return this.schnittWiderrufen(h);
@@ -1833,6 +1842,35 @@ class Treiber {
   imLogbuch(epic: number | null, text: string): void {
     this.ereignis(epic, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+  }
+
+  // ---- forge (#125): only state and account name, never a token
+
+  get forgeWelt(): ForgeWelt {
+    return { aufrufer: this.w.aufrufer, ...this.w.forge };
+  }
+
+  forgeLesen(): void {
+    const jetzt = this.w.jetzt();
+    if (this.forgeLaeuft || jetzt - this.forgeGeprueft < (jetzt < this.forgeSchnellBis ? 60_000 : 15 * 60_000)) return;
+    this.forgeLaeuft = true;
+    this.forgeGeprueft = jetzt;
+    forgeStatus(this.e.repo, this.forgeWelt, this.e.forge)
+      .then((s) => (this.forgeStand = s))
+      .catch(() => {})
+      .finally(() => (this.forgeLaeuft = false));
+  }
+
+  /** forge_verknuepfen over the bridge, with the PIN: a terminal at the machine; the person signs in there */
+  forgeVerknuepfen(): void {
+    try {
+      verknuepfen(this.e.repo, this.forgeWelt);
+      this.forgeSchnellBis = this.w.jetzt() + 30 * 60_000;
+      this.forgeGeprueft = 0;
+      this.imLogbuch(null, `Forge: Terminal zum Verknüpfen am Rechner geöffnet; ${HERKUNFT_BRUECKE}`);
+    } catch (e) {
+      this.ereignis(null, `Forge verknüpfen über die Brücke abgelehnt: ${(e as Error).message.slice(0, 200)}`);
+    }
   }
 
   // ---- accounts (#95)
@@ -2587,6 +2625,7 @@ class Treiber {
   async brueckeMelden(): Promise<void> {
     if (!this.bruecke) return;
     this.sitzungenLesen();
+    this.forgeLesen();
     const ok = await this.bruecke.melde(this.bericht());
     this.brueckeErreichbar(ok);
     if (!ok) return;
@@ -2920,6 +2959,7 @@ class Treiber {
       schlange: this.z.schlange,
       // usage per account (#28, v2): stage, both windows with reset; the logbook keeps the stage only
       kontenListe: this.kontenListe(),
+      forgeStatus: this.forgeStand,
       konten: this.alleKonten()
         .filter((k) => this.bewertung.has(k))
         .map((k) => {

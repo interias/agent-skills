@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden', 'forge_verknuepfen': 'forge_verknuepfen'}
 # #95: the account actions; epic is the account's number (konto_anlegen: 0)
 KONTO_HANDLUNGEN = ('konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden')
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
@@ -158,6 +158,18 @@ class KontoEintrag(BaseModel):
     aktiv: bool
     # from `flotte konten pruefen`; None: not checked yet
     anmeldung: Literal['angemeldet', 'nicht angemeldet', 'ordner fehlt', 'unklar'] | None = None
+
+
+class ForgeStatus(BaseModel):
+    """#125: the forge of the project linked at the driver's machine: state and account name, never a token."""
+
+    art: Literal['github', 'gitea']
+    forge: str = Field(max_length=200)
+    angemeldet: bool
+    konto: str | None = Field(None, max_length=100)
+    rechte: Literal['ok', 'fehlt'] | None = None
+    # whether the driver can run it: it speaks GitHub only (#127)
+    treiber: bool = True
 
 
 class Konto(BaseModel):
@@ -482,6 +494,8 @@ class Bericht(BaseModel):
     version: Version | None = None
     # #95: the accounts of the machine with aktiv and sign-in; an older driver has none (None)
     kontenListe: list[KontoEintrag] | None = Field(None, max_length=50)
+    # #125: the forge linked at the machine; None: an older driver or not checked yet
+    forgeStatus: ForgeStatus | None = None
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
@@ -656,7 +670,7 @@ class Handlung(BaseModel):
     forge: str = Field(max_length=200)
     # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen, triage and einspielen: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden', 'forge_verknuepfen']
     # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
@@ -695,6 +709,11 @@ class Handlung(BaseModel):
             if self.epic < 1 or not self.text:
                 raise ValueError('Widerruf einer Mission des Schnittplans: die Mission und der Einwand')
             self.nr, self.seit = None, None
+        elif self.art == 'forge_verknuepfen':
+            # #125: belongs to the project; the machine opens a terminal, no token comes here
+            if self.epic != 0:
+                raise ValueError('Forge verknüpfen: epic 0')
+            self.nr, self.seit, self.text = None, None, None
         elif self.art in KONTO_HANDLUNGEN:
             # #95: konto_anlegen: epic 0, text the name or nothing; the others: epic the account's number, no text
             if self.art == 'konto_anlegen' and (self.epic != 0 or len(self.text or '') > 60):

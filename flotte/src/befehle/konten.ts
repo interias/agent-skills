@@ -41,13 +41,22 @@ export function anmeldung(k: Konto, w: KontenWelt, aufruf = true): Anmeldung {
   return ABGELEHNT.test(`${r.stdout} ${r.stderr}`) ? 'nicht angemeldet' : 'unklar';
 }
 
-/** A new window at the machine with `claude` on the account, for its /login; nothing of it goes through the bridge (#95). */
-export function terminalMitClaude(dir: string): void {
-  if (process.platform !== 'win32') throw new Error('Ein Terminal öffnen kann flotte nur unter Windows; am Rechner: CLAUDE_CONFIG_DIR setzen, claude starten, /login.');
+/**
+ * A new pwsh window at the machine running `befehl` (#95, #125). The command goes as -EncodedCommand, so
+ * no quoting can break it; what the person types there stays at the machine.
+ */
+export function oeffneTerminal(befehl: string, env: Record<string, string> = {}): void {
+  if (process.platform !== 'win32') throw new Error(`Ein Terminal öffnen kann flotte nur unter Windows; am Rechner: ${befehl}`);
+  const kodiert = Buffer.from(befehl, 'utf16le').toString('base64');
   // the full path: a Store install puts only an app alias on PATH, which spawn cannot start (aufruf.ts)
-  const kind = spawn(pwshPfad(), ['-NoProfile', '-Command', "Start-Process pwsh -ArgumentList '-NoExit', '-Command', 'claude'"], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, detached: true, stdio: 'ignore', windowsHide: true });
+  const kind = spawn(pwshPfad(), ['-NoProfile', '-Command', `Start-Process pwsh -ArgumentList '-NoExit', '-EncodedCommand', '${kodiert}'`], { env: { ...process.env, ...env }, detached: true, stdio: 'ignore', windowsHide: true });
   kind.on('error', () => {});
   kind.unref();
+}
+
+/** A new window at the machine with `claude` on the account, for its /login; nothing of it goes through the bridge (#95). */
+export function terminalMitClaude(dir: string): void {
+  oeffneTerminal('claude', { CLAUDE_CONFIG_DIR: dir });
 }
 
 function finde(liste: Konto[], nr: string | undefined): Konto {

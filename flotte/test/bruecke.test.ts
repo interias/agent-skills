@@ -2327,3 +2327,44 @@ describe('Konten über die Brücke (#95)', () => {
     }
   }, T);
 });
+
+describe('Forge über die Brücke (#125)', () => {
+  it('the report carries the state of the forge, never a token; forge_verknuepfen opens the terminal once', async () => {
+    const t = aufbau();
+    const befehle: string[] = [];
+    t.welt.forge = { terminal: (b) => befehle.push(b) };
+    const roh = t.welt.aufrufer;
+    t.welt.aufrufer = (p, args, o) => {
+      if (p === 'gh' && args[0] === 'auth') return { code: 0, stdout: '', stderr: '✓ Logged in to github.com account octo\n  - Token: gho_geheim\n' };
+      if (p === 'gh' && args[0] === 'api' && args[1] === 'repos/o/r' && args.includes('.permissions.push')) return { code: 0, stdout: 'true\n', stderr: '' };
+      return roh(p, args, o);
+    };
+    const liste: Wunsch[] = [{ epic: 0, art: 'forge_verknuepfen' }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null, handlungDoppelt: true });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 2500 }), t.welt);
+      expect(befehle).toEqual(['gh auth login --hostname github.com']);
+      expect(z.ereignisse.filter((x) => x.text.startsWith('Forge: Terminal zum Verknüpfen'))).toHaveLength(1);
+      const letzter = b.berichte.at(-1)!;
+      expect(letzter.forgeStatus).toEqual({ art: 'github', forge: 'o/r', angemeldet: true, konto: 'octo', rechte: 'ok', treiber: true });
+      expect(JSON.stringify(b.berichte)).not.toContain('gho_');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('a terminal that cannot open is refused, nothing says it opened', async () => {
+    const t = aufbau();
+    t.welt.forge = { terminal: () => { throw new Error('kein Fenster'); } };
+    const liste: Wunsch[] = [{ epic: 0, art: 'forge_verknuepfen' }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 1500 }), t.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte).toContain('Forge verknüpfen über die Brücke abgelehnt: kein Fenster');
+      expect(texte.some((x) => x.startsWith('Forge: Terminal zum Verknüpfen'))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
