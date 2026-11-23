@@ -564,5 +564,14 @@ Werkzeug, bricht der Dienst den Aufruf ab. Kein Bash: Anlegen ist allein die Nac
 `GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]` und `sitzungen[]`), `GET /holodeck/…` (im
 abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
-(`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender
+(`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Für den Bereitschaftsraum (#85),
+alle mit `X-Bruecke-Pin`: `POST /api/chat` (`{forge, konto, modell, text}`, ein neuer Chat mit seiner
+ersten Nachricht; `konto` muss ein Rechner melden, sonst `409`), `POST /api/chat/{id}/nachricht`
+(`{text}`), `POST /api/chat/{id}/einstellung` (`{konto, modell}`; ein anderes Konto nach der ersten
+Sitzung oder während ein Rechner eine Nachricht des Chats bearbeitet `409`), `POST /api/chat/{id}/anlegen` (`{starten, von}`: `von` ist die Nachricht, deren Antwort
+den gezeigten Entwurf brachte; `409` ohne Entwurf, bei einem neueren, solange eine Nachricht wartet oder
+der Chat nicht offen ist) und `POST /api/chat/{id}/verwerfen`. In `GET /api/tafel` steht
+`bereitschaftsraum` `{pin, modell, konten[{konto, rechner[]}], rechner[], projekte[], chats[]}`, je Chat
+Stand, Verlauf, die Karten der letzten Antwort, der letzte Entwurf `{von, text}` und die angelegten
+`missionen`. Fünf falsche PINs je Absender
 sperren für fünf Minuten.

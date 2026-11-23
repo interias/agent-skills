@@ -86,7 +86,7 @@ export interface Karte {
 /** The structured answer when it fits the schema, else null. */
 export function chatErgebnisAus(roh: unknown): { text: string; karten: Karte[]; entwurf: string | null } | null {
   const o = roh as any;
-  if (!o || typeof o !== 'object' || typeof o.text !== 'string' || !Array.isArray(o.karten)) return null;
+  if (!o || typeof o !== 'object' || typeof o.text !== 'string' || !o.text.trim() || !Array.isArray(o.karten)) return null;
   if (!(o.entwurf === null || typeof o.entwurf === 'string')) return null;
   if (!o.karten.every((k: any) => k && typeof k.frage === 'string' && Array.isArray(k.optionen) && k.optionen.every((x: unknown) => typeof x === 'string'))) return null;
   return { text: o.text, karten: o.karten.map((k: Karte) => ({ frage: k.frage, optionen: k.optionen })), entwurf: o.entwurf?.trim() ? o.entwurf : null };

@@ -546,3 +546,85 @@ class Handlung(BaseModel):
         elif self.art not in BEZUG:
             self.nr, self.seit, self.text = None, None, None
         return self
+
+
+# ---- Bereitschaftsraum (#85, agent-skills/ADR-0004): the chat. SCHNITTSTELLE.md, section 6, and beispiel/chat.json.
+# Only texts and short names: never a path, an account folder or credentials.
+
+CHAT_FORGE = r'^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$'
+CHAT_KONTO = r'^\d{1,4}$'
+CHAT_MODELL = r'^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,80}$'
+CHAT_SITZUNG = r'^[A-Za-z0-9][A-Za-z0-9_-]{0,100}$'
+CHAT_STANDARD_MODELL = 'claude-opus-5-5'
+CHAT_TEXT_MAX = 20000
+# what the service sends back: a long answer or draft must not be refused, or the service delivers it forever
+CHAT_ANTWORT_MAX = 200000
+
+
+class ChatEinstellung(BaseModel):
+    """Account and model of a chat; the model None means the standard (claude-opus-5-5)."""
+
+    konto: str = Field(pattern=CHAT_KONTO)
+    modell: str | None = Field(None, pattern=CHAT_MODELL)
+
+
+class ChatText(BaseModel):
+    """What the person writes: free text or the choice of a question card (`Q1 A`)."""
+
+    text: str = Field(max_length=CHAT_TEXT_MAX)
+
+    @model_validator(mode='after')
+    def nicht_leer(self) -> 'ChatText':
+        self.text = self.text.strip()
+        if not self.text:
+            raise ValueError('Die Nachricht ist leer')
+        return self
+
+
+class ChatBeginn(ChatEinstellung, ChatText):
+    """A new chat for a repository with its first message."""
+
+    forge: str = Field(pattern=CHAT_FORGE, max_length=200)
+
+
+class ChatAnlegen(BaseModel):
+    """"anlegen" or "anlegen und starten" on the draft the person saw: `von` is the message whose answer
+    brought it. The draft itself never comes from the form: a field `entwurf` is ignored."""
+
+    starten: bool
+    von: int
+
+
+class ChatQuittung(BaseModel):
+    rechner: str = Field(min_length=1, max_length=200)
+
+
+class ChatKarte(BaseModel):
+    # the model's schema sets no limits (chat.ts, chatSchema): neither does the bridge, or the answer waits forever
+    frage: str = Field(max_length=CHAT_ANTWORT_MAX)
+    optionen: list[str] = []
+
+
+class ChatMission(BaseModel):
+    nummer: int
+    # shown as a link: only http(s), never javascript: or data:
+    url: str = Field(pattern=r'^https?://[^\s"<>]+$', max_length=500)
+    titel: str = Field(max_length=500)
+
+
+class ChatAntwort(BaseModel):
+    """The answer of the service to one message; at least text or fehler."""
+
+    text: str | None = Field(None, max_length=CHAT_ANTWORT_MAX)
+    sitzung: str | None = Field(None, pattern=CHAT_SITZUNG)
+    fehler: str | None = Field(None, max_length=CHAT_ANTWORT_MAX)
+    karten: list[ChatKarte] = []
+    entwurf: str | None = Field(None, max_length=CHAT_ANTWORT_MAX)
+    missionen: list[ChatMission] | None = None
+
+    @model_validator(mode='after')
+    def text_oder_fehler(self) -> 'ChatAntwort':
+        if not (self.text or self.fehler):
+            raise ValueError('Mindestens text oder fehler')
+        self.entwurf = self.entwurf if self.entwurf and self.entwurf.strip() else None
+        return self
