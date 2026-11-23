@@ -90,7 +90,7 @@ zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/READ
    `nach_gate` reiht er den PR in die Andock-Schlange und dockt mit `merge.ps1` an, nur mit
    Nachweis der Andockprüfung aus dem Log des Laufs (fehlt er, fährt er die Andockprüfung selbst).
    Konflikte mit der Basis zählen getrennt von Rückgaben an den Lauf; Rot von außen (Testsperre
-   belegt, Zeitgrenze des Gates) wiederholt er einmal selbst.
+   belegt, Zeitgrenze der Andockprüfung abgelaufen) wiederholt er einmal selbst.
 6. **Nach dem Andocken** schließt er die Mission, wenn alle Missionsziele zu sind; sonst nimmt er
    `ready_label` ab und sagt am Issue, was offen ist. Dann die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
    lokale Missions-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
