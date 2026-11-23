@@ -774,6 +774,18 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
     expect(mitMissionszielen('Text', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n');
     expect(mitMissionszielen('Text\n\n## Missionsziele\n\nmehr', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n\nmehr');
   });
+
+  it('a new line takes the line ending of the body: CRLF stays CRLF (no lone LF), LF stays LF, a new list too (#156)', () => {
+    const z = [{ nummer: 3, titel: 'T' }];
+    const crlf = 'Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A\r\n\r\nmehr\r\n';
+    const mit = mitMissionszielen(crlf, z);
+    expect(mit).toBe('Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A\r\n- [ ] #3 T\r\n\r\nmehr\r\n');
+    expect(mit).not.toMatch(/(?<!\r)\n/);
+    expect(mitMissionszielen('Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A', z)).toBe('Text\r\n\r\n## Missionsziele\r\n- [ ] #1 A\r\n- [ ] #3 T');
+    expect(mitMissionszielen('Text\r\n', z)).toBe('Text\r\n\r\n## Missionsziele\r\n- [ ] #3 T\r\n');
+    expect(mitMissionszielen('Text', z)).not.toContain('\r');
+    expect(mitMissionszielen('Text\n\n## Missionsziele\n- [ ] #1 A\n', z)).toBe('Text\n\n## Missionsziele\n- [ ] #1 A\n- [ ] #3 T\n');
+  });
 });
 
 describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubten Zustand', () => {
