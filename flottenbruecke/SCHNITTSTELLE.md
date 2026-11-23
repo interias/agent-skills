@@ -79,7 +79,10 @@ die dieser Treiber über die Brücke gestartet hat, neueste zuerst, höchstens 5
 (`triage`, überdauert einen Neustart): `{nr, titel, ergebnis, herkunft, grund, zeit, widerrufen}`,
 `ergebnis` `klar` (Warp frei) oder `ueberfluessig` (geschlossen), nur was geschrieben und ohne Fehler
 umgesetzt ist; (`nr`, `zeit`) ist der Schlüssel für den Widerruf. `laeuft` ist `true`, solange ein
-Triage-Lauf des Treibers läuft. Die Brücke baut die Links aus `url` des Projekts (`<url>/issues/<nr>`).
+Triage-Lauf des Treibers läuft. Dazu optional (#148, Kurzinfo im Kopf des Projekts): `seit` (Start des
+laufenden Laufs), `fortschritt` `{n, m}` (Notiz n von m, nur wenn der Treiber es kennt; sonst weglassen,
+die Brücke zeigt dann keinen Zähler) und `beendet` `{zeit, epics, fragen}` (Ende des letzten Laufs, die
+Missionen seines Schnittplans, die Fragen an den Menschen; der Treiber hält es nur im Speicher). Die Brücke baut die Links aus `url` des Projekts (`<url>/issues/<nr>`).
 Eine Entscheidung `klar`, deren Notiz der Schnittplan an eine Mission hängte, trägt beim Treiber dazu
 `mission` (die Brücke verwirft das Feld); ihr Widerruf löst die Notiz aus dieser Mission.
 
@@ -114,7 +117,11 @@ Vorschläge eines `lern_issue` mit „Frage“, sobald einer eine offene Frage h
 
 In `GET /api/tafel` steht `frachtraum[]`, ein Eintrag je Projekt mit `triage`, die mit offenen Fragen
 zuerst: `{forge, kurz, url, aktiv, veraltet, gelesen, laeuft, zahl, handlung, fragen[], entscheidungen[],
-themen[]}`. `handlung` ist ein noch nicht quittierter Triage-Lauf; jede Frage trägt dazu `id`, `issueUrl`,
+themen[]}`. `handlung` ist ein noch nicht quittierter Triage-Lauf; `kurzinfo` (#148) ist `null` oder
+`{zustand, seit, …}`: `unterwegs` (Handlung angenommen, kein laufender Lauf gemeldet; `abgeholt`, `seit` =
+Zeit der Handlung), `laeuft` (`laeuft` im Bericht; `seit` aus dem Bericht, sonst die Handlung;
+`fortschritt` `{n, m}` oder `null`) oder `beendet` (`beendet` im Bericht, höchstens 15 Minuten alt, kein
+neuer Lauf; `seit` = Ende, `epics`, `fragen`), in dieser Rangfolge `laeuft`, `unterwegs`, `beendet`; jede Frage trägt dazu `id`, `issueUrl`,
 `empfohlen` (die Buchstaben der Empfehlung, sonst die Option, deren Text der Empfehlung gleicht) und
 `handlung` (die Antwort unterwegs), jede Entscheidung `id`, `issueUrl`, `widerrufbar` und `handlung`.
 `schnittplan` (#148, sonst `null`) ist `{zeit, fehler, missionen[], notizen[]}` wie im Bericht; jede

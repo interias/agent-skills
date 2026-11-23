@@ -316,3 +316,64 @@ def test_bericht_ohne_schnittplan_bleibt_gueltig_und_ungueltiger_ist_422(client,
     zuviel = copy.deepcopy(bericht)
     zuviel['triage']['schnittplan']['missionen'] *= 7
     assert client.post('/api/bericht', json=zuviel).status_code == 422
+
+
+# ---- #148: the short info in the head of the project: started, running, ended
+
+def kurzinfo(c, forge=FORGE):
+    return next(p for p in frachtraum(c) if p['forge'] == forge)['kurzinfo']
+
+
+def melde(c, forge=FORGE, **triage):
+    b = copy.deepcopy(NOTIZEN)
+    b['forge'] = forge
+    b['triage'].update(triage)
+    assert c.post('/api/bericht', json=b).status_code == 200
+
+
+def test_kurzinfo_ohne_lauf_ist_leer(zwei):
+    assert kurzinfo(zwei, 'interias/notizen') is None
+
+
+def test_kurzinfo_gestartet_wartet_auf_den_treiber(zwei):
+    handlung(zwei, 'triage', forge='interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen') == {'zustand': 'unterwegs', 'seit': '2026-11-20T14:31:10+00:00', 'abgeholt': False, 'fortschritt': None}
+    # the driver fetched it, the report does not say "laeuft" yet: still the start, now "abgeholt"
+    offene(zwei, 'interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'unterwegs'
+    assert kurzinfo(zwei, 'interias/notizen')['abgeholt'] is True
+
+
+def test_kurzinfo_laeuft_mit_startzeit_und_fortschritt_nur_wenn_gemeldet(zwei):
+    melde(zwei, 'interias/notizen', laeuft=True, seit='2026-11-20T14:30:00Z')
+    assert kurzinfo(zwei, 'interias/notizen') == {'zustand': 'laeuft', 'seit': '2026-11-20T14:30:00Z', 'fortschritt': None}
+    melde(zwei, 'interias/notizen', laeuft=True, seit='2026-11-20T14:30:00Z', fortschritt={'n': 2, 'm': 5})
+    assert kurzinfo(zwei, 'interias/notizen')['fortschritt'] == {'n': 2, 'm': 5}
+    # a running report beats the action that started it
+    handlung(zwei, 'triage', forge='interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'laeuft'
+
+
+def test_kurzinfo_beendet_mit_zaehlern_und_ein_neuer_lauf_loest_es_ab(zwei):
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2})
+    assert kurzinfo(zwei, 'interias/notizen') == {'zustand': 'beendet', 'seit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2}
+    # a new run started: the old end is gone
+    handlung(zwei, 'triage', forge='interias/notizen')
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'unterwegs'
+
+
+def test_kurzinfo_beendet_verschwindet_nach_der_frist(zwei, uhr):
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2})
+    assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'beendet'
+    uhr.t = uhr.t.replace(minute=45, second=0)
+    melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:30:00Z', 'epics': 3, 'fragen': 2})
+    assert kurzinfo(zwei, 'interias/notizen') is None
+
+
+def test_kurzinfo_fortschritt_und_beendet_pruefen_die_form(zwei):
+    b = copy.deepcopy(NOTIZEN)
+    b['triage']['fortschritt'] = {'n': 0, 'm': 5}
+    assert zwei.post('/api/bericht', json=b).status_code == 422
+    b['triage']['fortschritt'] = None
+    b['triage']['beendet'] = {'zeit': 'x', 'epics': -1, 'fragen': 0}
+    assert zwei.post('/api/bericht', json=b).status_code == 422

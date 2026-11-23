@@ -236,6 +236,10 @@ export interface BerichtSchnittplan {
 export interface BerichtTriage {
   gelesen: string | null;
   laeuft: boolean;
+  /** #148: the start of the run under way, its progress (note n of m, only when known: left out otherwise), the end of the last run (missions of its cut plan, questions for the person) */
+  seit?: string;
+  fortschritt?: { n: number; m: number };
+  beendet?: { zeit: string; epics: number; fragen: number };
   tickets: { nr: number; titel: string; labels: string[] }[];
   entscheidungen: BerichtTriageEntscheidung[];
   /** #148: the cut plan of the last triage run; null before the first one or when it cut none */

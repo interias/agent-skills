@@ -312,12 +312,31 @@ class Schnittplan(BaseModel):
     notizen: list[SchnittNotiz] = Field([], max_length=200)
 
 
+class TriageFortschritt(BaseModel):
+    """#148: note n of m of the run under way; only a driver that knows it reports it."""
+
+    n: int = Field(ge=1)
+    m: int = Field(ge=1)
+
+
+class TriageBeendet(BaseModel):
+    """#148: the end of the driver's last triage run: when, the missions of its cut plan, the questions for the person."""
+
+    zeit: str = Field(max_length=40)
+    epics: int = Field(ge=0)
+    fragen: int = Field(ge=0)
+
+
 class Triage(BaseModel):
     """The triage state of a project (#116): the open Sternzeit-Notizen, the decisions of the driver's triage runs, the open questions."""
 
     # when the driver last read the forge; a triage run under way
     gelesen: str | None = Field(None, max_length=40)
     laeuft: bool = False
+    # #148: when the run under way started, how far it is (only if known), how the last one ended
+    seit: str | None = Field(None, max_length=40)
+    fortschritt: TriageFortschritt | None = None
+    beendet: TriageBeendet | None = None
     tickets: list[TriageTicket] = Field([], max_length=500)
     entscheidungen: list[TriageEntscheidung] = Field([], max_length=200)
     fragen: list[TriageFrage] = Field([], max_length=200)

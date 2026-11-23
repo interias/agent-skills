@@ -30,6 +30,8 @@ KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nachar
 # #116 Frachtraum: the labels of the workflow are no topic (besides status/*); a ticket without a topic
 OHNE_THEMA = ('needs-triage', 'needs-info', 'ready-for-agent', 'epic')
 OHNE = 'ohne Thema'
+# #148: how long "Triage-Lauf beendet" stays in the head of the project
+BEENDET_MIN = 15
 
 
 def zeit(text: str | None) -> datetime | None:
@@ -134,7 +136,21 @@ def schnittplan(tr: dict, forge: str, link, offen_h: dict) -> dict | None:
     }
 
 
-def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, veraltet: bool, offen_h: dict) -> dict:
+def kurzinfo(tr: dict, handlung: dict | None, jetzt: datetime) -> dict | None:
+    """#148: the short info of a triage run: unterwegs (the action stands, the driver has not reported a run), laeuft
+    (the report says so, with the start and, only if the driver knows it, note n of m), beendet (for BEENDET_MIN minutes)."""
+    if tr.get('laeuft'):
+        return {'zustand': 'laeuft', 'seit': tr.get('seit') or (handlung or {}).get('zeit'), 'fortschritt': tr.get('fortschritt')}
+    if handlung:
+        return {'zustand': 'unterwegs', 'seit': handlung['zeit'], 'abgeholt': handlung['abgeholt'], 'fortschritt': None}
+    e = tr.get('beendet')
+    t = zeit(e['zeit']) if e else None
+    if t and timedelta(0) <= jetzt - t < timedelta(minutes=BEENDET_MIN):
+        return {'zustand': 'beendet', 'seit': e['zeit'], 'epics': e['epics'], 'fragen': e['fragen']}
+    return None
+
+
+def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, veraltet: bool, offen_h: dict, jetzt: datetime) -> dict:
     """#116: the triage state of a project, bundled: the open questions, the decisions of the triage runs
     (newest first) and the Sternzeit-Notizen by topic; a topic with an open question first, "ohne Thema" last."""
     tr = b['triage']
@@ -170,6 +186,7 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
         'forge': forge, 'kurz': kurz, 'url': url, 'aktiv': aktiv, 'veraltet': veraltet,
         'gelesen': tr.get('gelesen'), 'laeuft': bool(tr.get('laeuft')), 'zahl': len(tr.get('tickets', [])),
         'handlung': _handlung(offen_h.get((0, 'triage', None, None))),
+        'kurzinfo': kurzinfo(tr, _handlung(offen_h.get((0, 'triage', None, None))), jetzt),
         'fragen': fragen,
         'entscheidungen': entscheidungen,
         'schnittplan': schnittplan(tr, forge, link, offen_h),
@@ -354,7 +371,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         liste[-1]['epics'] = karte
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
         if b.get('triage'):
-            lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h))
+            lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h, jetzt))
         liste[-1]['freigegeben'] = [{'nr': f['nr'], 'titel': f.get('titel', ''), 'issueUrl': f"{url}/issues/{f['nr']}" if url else None, 'handlung': _handlung(offen_h.get((f['nr'], 'aufnehmen', None, None)))} for f in b.get('freigegeben', [])]
 
         # ---- level 3: the admiral's decisions of today, revocable until the merge

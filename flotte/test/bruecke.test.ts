@@ -1164,8 +1164,15 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(b.berichte[0].triage).toMatchObject({ laeuft: false, tickets: [], fragen: [], entscheidungen: [] });
       expect(Date.parse(b.berichte[0].triage.gelesen!)).toBeGreaterThan(0);
       expect(b.berichte.some((x) => x.triage.laeuft)).toBe(true);
+      // #148: the running report names its start, no progress (the driver does not know it); the last one the end with the counters
+      const laufend = b.berichte.find((x) => x.triage.laeuft)!.triage;
+      expect(Date.parse(laufend.seit!)).toBeGreaterThan(0);
+      expect(laufend.fortschritt).toBeUndefined();
+      expect(b.berichte[0].triage.beendet).toBeUndefined();
       const letzter = b.berichte.at(-1)!.triage;
       expect(letzter.laeuft).toBe(false);
+      expect(letzter.seit).toBeUndefined();
+      expect(letzter.beendet).toEqual({ zeit: expect.any(String), epics: 0, fragen: 1 });
       expect(letzter.entscheidungen.map((d) => [d.nr, d.ergebnis, d.herkunft, d.grund, d.widerrufen])).toEqual([
         [7, 'klar', 'Skill-Empfehlung', 'Abschnitte nachgetragen', null],
         [8, 'ueberfluessig', 'Präzedenz: #3', 'schon erledigt', null],
