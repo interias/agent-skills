@@ -134,14 +134,23 @@ export interface WerftStand {
   stacks: Record<string, StackStand>;
   /** the bridge actions already applied: one that comes again is only acknowledged */
   handlungenErledigt: number[];
+  /** #90, set by the person over the bridge: the Werft of this repository is on (off: nothing fetched, pulled or migrated) */
+  an: boolean;
+  /** #90: the stacks switched off: never pulled, not even on request, no migration */
+  stacksAus: string[];
+  /** #90: stacks touched while they were off: pulled once they are on again */
+  nachholen: string[];
+  /** #90: the test migration runs by itself after nachziehen */
+  migrationTest: boolean;
 }
 
 const standDatei = (repo: string) => join(flotteDir(repo), 'werft.json');
 
 export function ladeStand(repo: string): WerftStand {
   const datei = standDatei(repo);
-  if (!existsSync(datei)) return { version: 1, stand: null, geprueft: null, abfrageS: null, fehler: null, stacks: {}, handlungenErledigt: [] };
-  return JSON.parse(readFileSync(datei, 'utf8')) as WerftStand;
+  const leer: WerftStand = { version: 1, stand: null, geprueft: null, abfrageS: null, fehler: null, stacks: {}, handlungenErledigt: [], an: true, stacksAus: [], nachholen: [], migrationTest: true };
+  // a stand written before #90 has no settings: the defaults
+  return existsSync(datei) ? { ...leer, ...(JSON.parse(readFileSync(datei, 'utf8')) as Partial<WerftStand>) } : leer;
 }
 
 /** Atomic as the driver's state: a crash leaves the old stand, never half of a new one. */
@@ -154,8 +163,9 @@ function schreibeStand(repo: string, s: WerftStand): void {
 
 /**
  * One action as GET /api/werft/handlungen delivers it (flottenbruecke/SCHNITTSTELLE.md, "Werft").
- * nachziehen: stack now, at the current stand, red or not. einstellen: stack null, text the JSON
- * `{"name": "abfrage_s", "wert": <seconds or null>}`. migration_freigeben: stack, text the JSON
+ * nachziehen: stack now, at the current stand, red or not. einstellen: text the JSON `{"name", "wert"}`,
+ * `abfrage_s` (seconds or null), `an` (true or false; stack null: the Werft of the repository, else
+ * that stack) or `migration_test` (true or false, stack null). migration_freigeben: stack, text the JSON
  * `{"commit": <sha>, "sicherung": <file name>, "pruefsumme": <sha256>}` of the waiting migration as
  * the report shows it. Other
  * arts are left at the bridge for a Werft that knows them.
@@ -193,6 +203,8 @@ export interface BerichtStack {
   migration: { test: boolean; arbeit: boolean; sicherung: boolean };
   /** the working migration as ArbeitsMigration, the backup by its file name only (never a path); null without one */
   arbeit: (Omit<ArbeitsMigration, 'sicherung' | 'befehl'> & { sicherung: string | null }) | null;
+  /** #90: false when the person switched the stack off */
+  an: boolean;
 }
 
 export interface BerichtRepo {
@@ -201,6 +213,11 @@ export interface BerichtRepo {
   stand: string | null;
   geprueft: string | null;
   abfrageS: number;
+  /** #90: the interval the person set over the bridge, null: deploy.abfrage_s */
+  abfrageGesetzt: number | null;
+  /** #90: the Werft of this repository is on; the test migrations run by themselves */
+  an: boolean;
+  migrationTest: boolean;
   fehler: string | null;
   stacks: BerichtStack[];
 }
@@ -312,6 +329,12 @@ async function ziehe(repo: string, forge: string, branch: string, s: WerftStand,
     let beruehrt = dateien === null || trifft(st, dateien);
     // pulled at a later commit than the stand (a crash between two stacks): only what came after counts
     if (beruehrt && dateien !== null && alt && alt.commit !== s.stand && alt.commit !== neu) beruehrt = trifft(st, (await geaendert(alt.commit)) ?? dateien);
+    // #90: a stack that is off is not pulled; what touched it meanwhile is caught up once it is on again
+    if (s.stacksAus.includes(st.name)) {
+      if (beruehrt && alt?.commit !== neu && !s.nachholen.includes(st.name)) s.nachholen = [...s.nachholen, st.name];
+      continue;
+    }
+    if (s.nachholen.includes(st.name)) beruehrt = true;
     if (!erzwungen.has(st.name)) {
       if (!beruehrt || alt?.commit === neu) continue;
       if (alt?.status === 'rot') {
@@ -324,7 +347,7 @@ async function ziehe(repo: string, forge: string, branch: string, s: WerftStand,
     // the test migration belongs to nachziehen: it runs by itself, and its failure holds the stack
     let schritt = 'nachziehen';
     let r = await lauf(st.nachziehen);
-    if (!r.code && st.migrationTest) {
+    if (!r.code && st.migrationTest && s.migrationTest) {
       schritt = 'migration_test';
       r = await lauf(st.migrationTest);
     }
@@ -344,6 +367,7 @@ async function ziehe(repo: string, forge: string, branch: string, s: WerftStand,
       }
     }
     s.stacks[st.name] = { status: protokoll ? 'rot' : 'gruen', commit: neu, zeit: new Date().toISOString(), protokoll, arbeit };
+    s.nachholen = s.nachholen.filter((x) => x !== st.name);
     schreibeStand(repo, s);
     if (r.code) melde(`${forge}: ${st.name} rot (${kurz(neu)}, ${schritt} Exit ${r.code}), angehalten`);
     else if (arbeit?.zustand === 'gesperrt') melde(`${forge}: ${st.name} nachgezogen (${kurz(neu)}), aber ${sicherung}: keine Freigabe der Migration möglich, angehalten`);
@@ -376,45 +400,69 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
     bekannt.add(forge);
     const branch = schluessel(text, 'main_branch') ?? 'main';
     const s = ladeStand(repo);
-    const erzwungen = new Set<string>();
-    // nachziehen counts as done only once ziehe got through (fetch, adapter, diff); until then it stays at the bridge
-    const nachziehen: number[] = [];
-    const freigaben: WerftHandlung[] = [];
-    const erledigt = (id: number) => (s.handlungenErledigt = [...s.handlungenErledigt, id].slice(-200));
-    for (const h of handlungen.filter((x) => x.forge === forge)) {
-      if (s.handlungenErledigt.includes(h.id)) {
-        quittieren.push(h.id);
-        continue;
-      }
-      if (h.art === 'nachziehen') {
-        erzwungen.add(h.stack!);
-        nachziehen.push(h.id);
-      } else if (h.art === 'migration_freigeben') freigaben.push(h);
-      else {
-        quittieren.push(h.id);
-        erledigt(h.id);
-        let e: { name?: unknown; wert?: unknown } = {};
-        try {
-          e = JSON.parse(h.text!);
-        } catch {
-          /* turned down below */
-        }
-        if (e.name === 'abfrage_s' && (e.wert === null || (typeof e.wert === 'number' && e.wert > 0))) {
-          melde(`${forge}: Einstellung Abfrageabstand von ${s.abfrageS ?? 'Adapter'} → auf ${e.wert ?? 'Adapter'}, ${h.herkunft}`);
-          s.abfrageS = e.wert as number | null;
-        } else melde(`${forge}: Einstellung über die Brücke abgelehnt: ${h.text}`);
-      }
-    }
-    schreibeStand(repo, s);
     let deploy: Deploy | null = null;
     try {
       deploy = deployAus(text);
     } catch {
       /* ziehe reads it again from origin and names the error */
     }
+    const erzwungen = new Set<string>();
+    // nachziehen counts as done only once ziehe got through (fetch, adapter, diff); until then it stays at the bridge
+    const nachziehen: number[] = [];
+    const gewuenscht: WerftHandlung[] = [];
+    const freigaben: WerftHandlung[] = [];
+    const erledigt = (id: number) => (s.handlungenErledigt = [...s.handlungenErledigt, id].slice(-200));
+    const wort = (an: boolean, ja = 'an', nein = 'aus') => (an ? ja : nein);
+    for (const h of handlungen.filter((x) => x.forge === forge)) {
+      if (s.handlungenErledigt.includes(h.id)) {
+        quittieren.push(h.id);
+        continue;
+      }
+      if (h.art === 'nachziehen') gewuenscht.push(h);
+      else if (h.art === 'migration_freigeben') freigaben.push(h);
+      else {
+        quittieren.push(h.id);
+        erledigt(h.id);
+        let e: { name?: unknown; wert?: unknown } = {};
+        try {
+          e = JSON.parse(h.text!) ?? {};
+        } catch {
+          /* turned down below */
+        }
+        const janein = typeof e.wert === 'boolean';
+        if (e.name === 'abfrage_s' && (e.wert === null || (typeof e.wert === 'number' && e.wert > 0))) {
+          melde(`${forge}: Einstellung Abfrageabstand von ${s.abfrageS ?? 'Adapter'} → auf ${e.wert ?? 'Adapter'}, ${h.herkunft}`);
+          s.abfrageS = e.wert as number | null;
+        } else if (e.name === 'an' && janein && h.stack == null) {
+          melde(`${forge}: Einstellung Werft von ${wort(s.an)} → auf ${wort(e.wert as boolean)}, ${h.herkunft}`);
+          s.an = e.wert as boolean;
+        } else if (e.name === 'an' && janein && deploy?.stacks.some((x) => x.name === h.stack)) {
+          melde(`${forge}: Einstellung Stack ${h.stack} von ${wort(!s.stacksAus.includes(h.stack!))} → auf ${wort(e.wert as boolean)}, ${h.herkunft}`);
+          s.stacksAus = e.wert ? s.stacksAus.filter((x) => x !== h.stack) : [...new Set([...s.stacksAus, h.stack!])];
+        } else if (e.name === 'migration_test' && janein && h.stack == null) {
+          melde(`${forge}: Einstellung Test-Migrationen selbst von ${wort(s.migrationTest, 'ja', 'nein')} → auf ${wort(e.wert as boolean, 'ja', 'nein')}, ${h.herkunft}`);
+          s.migrationTest = e.wert as boolean;
+        } else melde(`${forge}: Einstellung über die Brücke abgelehnt: ${h.stack ? `Stack ${h.stack}, ` : ''}${h.text}`);
+      }
+    }
+    // after every setting of this takt, whatever order they came in: off turns nachziehen down
+    const aus = (stack: string) => (!s.an ? `die Werft ist für ${forge} aus` : s.stacksAus.includes(stack) ? `der Stack ${stack} ist aus` : null);
+    for (const h of gewuenscht) {
+      const grund = aus(h.stack!);
+      if (grund) {
+        quittieren.push(h.id);
+        erledigt(h.id);
+        melde(`${forge}: Nachziehen über die Brücke abgelehnt: ${grund}`);
+      } else {
+        erzwungen.add(h.stack!);
+        nachziehen.push(h.id);
+      }
+    }
+    schreibeStand(repo, s);
     const abstand = s.abfrageS ?? deploy?.abfrageS ?? ABFRAGE_S;
     const faellig = !s.geprueft || jetzt.getTime() - Date.parse(s.geprueft) >= abstand * 1000 || erzwungen.size > 0;
-    if (faellig) {
+    // #90: a Werft that is off fetches nothing; switched on again, the diff since its stand catches up
+    if (faellig && s.an) {
       const gelesen = await ziehe(repo, forge, branch, s, erzwungen, a, jetzt, melde);
       if (gelesen) {
         for (const id of nachziehen) erledigt(id);
@@ -437,8 +485,11 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
       } catch {
         /* binds to nothing: turned down below */
       }
-      let grund: string | null = null;
-      if (!st?.migrationArbeit) grund = `kein ${h.stack}.migration_arbeit in deploy`;
+      // #90: off runs no migration: the release is turned down, nothing is locked, the migration keeps waiting
+      let grund: string | null = aus(h.stack!);
+      if (grund) {
+        /* turned down below */
+      } else if (!st?.migrationArbeit) grund = `kein ${h.stack}.migration_arbeit in deploy`;
       else if (!m || m.zustand === 'gesperrt') grund = `${h.stack} hat keine geprüfte Sicherung`;
       else if (m.zustand !== 'wartet') grund = `die Migration von ${h.stack} wartet nicht auf eine Freigabe (${m.zustand}, ${kurz(m.commit)})`;
       else if (f.commit !== m.commit || f.sicherung !== basename(m.sicherung!) || f.pruefsumme !== m.pruefsumme) grund = `sie gilt nicht der wartenden Migration von ${h.stack} (${kurz(m.commit)}, Sicherung ${basename(m.sicherung!)})`;
@@ -471,6 +522,9 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
       stand: s.stand,
       geprueft: s.geprueft,
       abfrageS: s.abfrageS ?? deploy?.abfrageS ?? ABFRAGE_S,
+      abfrageGesetzt: s.abfrageS,
+      an: s.an,
+      migrationTest: s.migrationTest,
       fehler: s.fehler,
       stacks: (deploy?.stacks ?? []).map((st) => {
         const x = s.stacks[st.name];
@@ -480,7 +534,7 @@ export async function takt(o: WerftOptionen): Promise<WerftBericht> {
           const { befehl: _, ...ohne } = x.arbeit;
           arbeit = { ...ohne, sicherung: ohne.sicherung && basename(ohne.sicherung) };
         }
-        return { name: st.name, status: x?.status ?? null, commit: x?.commit ?? null, zeit: x?.zeit ?? null, protokoll: x?.protokoll ?? null, migration: { test: Boolean(st.migrationTest), arbeit: Boolean(st.migrationArbeit), sicherung: Boolean(st.sicherung) }, arbeit };
+        return { name: st.name, status: x?.status ?? null, commit: x?.commit ?? null, zeit: x?.zeit ?? null, protokoll: x?.protokoll ?? null, migration: { test: Boolean(st.migrationTest), arbeit: Boolean(st.migrationArbeit), sicherung: Boolean(st.sicherung) }, arbeit, an: !s.stacksAus.includes(st.name) };
       }),
     });
   }

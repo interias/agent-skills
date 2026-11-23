@@ -341,6 +341,123 @@ class Bericht(BaseModel):
     triage: Triage | None = None
 
 
+# ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
+
+# owner/name of origin on GitHub, else the folder name: never a path
+WERFT_FORGE = r'^[\w.-]+(/[\w.-]+)?$'
+WERFT_MELDUNG_MAX = 4000
+# the interval of a repository the bridge takes: not below the takt of the Werft (15 s), at most a day
+ABFRAGE_MIN, ABFRAGE_MAX = 15, 86400
+
+
+class WerftMigrationen(BaseModel):
+    """Which commands of #89 the adapter names for a stack."""
+
+    test: bool = False
+    arbeit: bool = False
+    sicherung: bool = False
+
+
+class WerftArbeit(BaseModel):
+    """The working migration of a stack (#89): only `wartet` takes a release."""
+
+    zustand: Literal['wartet', 'gesperrt', 'laeuft', 'migriert', 'rot']
+    commit: str = Field(max_length=64)
+    # the backup by its file name, never a path
+    sicherung: str | None = Field(None, max_length=255, pattern=r'^[^/\\]+$')
+    pruefsumme: str | None = Field(None, max_length=64)
+    zeit: str = Field(max_length=40)
+
+
+class WerftStack(BaseModel):
+    name: str = Field(max_length=100)
+    # None: never pulled by the Werft yet
+    status: Literal['gruen', 'rot'] | None = None
+    commit: str | None = Field(None, max_length=64)
+    zeit: str | None = Field(None, max_length=40)
+    protokoll: str | None = Field(None, max_length=8000)
+    migration: WerftMigrationen = WerftMigrationen()
+    arbeit: WerftArbeit | None = None
+    # #90: an older Werft has no settings: on
+    an: bool = True
+
+
+class WerftRepo(BaseModel):
+    forge: str = Field(max_length=200, pattern=WERFT_FORGE)
+    branch: str = Field('main', max_length=200)
+    stand: str | None = Field(None, max_length=64)
+    geprueft: str | None = Field(None, max_length=40)
+    abfrageS: int | float = Field(gt=0)
+    # #90: the interval the person set, None: the adapter's; an older Werft reports neither these nor `an`, `migrationTest`
+    abfrageGesetzt: int | float | None = None
+    an: bool = True
+    migrationTest: bool = True
+    # git fetch names its own error: cut like a message
+    fehler: str | None = None
+    stacks: list[WerftStack] = Field([], max_length=50)
+
+
+class WerftBericht(BaseModel):
+    """POST /api/werft: the report of one machine's Werft; it replaces that machine's previous one."""
+
+    rechner: str = Field(max_length=100, pattern=r'^[^/\\]+$')
+    zeit: str = Field(max_length=40)
+    repos: list[WerftRepo] = Field([], max_length=200)
+    # what the takt did or turned down; a long one is cut, never the reason to refuse the report
+    meldungen: list[str] = Field([], max_length=200)
+
+    @model_validator(mode='after')
+    def meldungen_kuerzen(self) -> 'WerftBericht':
+        self.meldungen = [m[:WERFT_MELDUNG_MAX] for m in self.meldungen]
+        for r in self.repos:
+            r.fehler = r.fehler and r.fehler[:WERFT_MELDUNG_MAX]
+        return self
+
+
+class WerftHandlung(BaseModel):
+    """What the person asks the Werft of a machine to do (#90): pull a stack now, release its waiting working
+    migration, change a setting (`an` of the repository or a stack, `abfrage_s`, `migration_test`)."""
+
+    rechner: str = Field(max_length=100)
+    forge: str = Field(max_length=200)
+    stack: str | None = Field(None, max_length=100)
+    art: Literal['nachziehen', 'migration_freigeben', 'einstellen']
+    text: str | None = Field(None, max_length=4000)
+
+    @model_validator(mode='after')
+    def form(self) -> 'WerftHandlung':
+        try:
+            d = json.loads(self.text) if self.text else None
+        except ValueError:
+            d = None
+        if self.art == 'nachziehen':
+            if not self.stack:
+                raise ValueError('Nachziehen: ein Stack')
+            self.text = None
+        elif self.art == 'migration_freigeben':
+            felder = ('commit', 'sicherung', 'pruefsumme')
+            if not self.stack or not isinstance(d, dict) or not all(isinstance(d.get(k), str) and d[k] for k in felder):
+                raise ValueError('Freigabe: ein Stack und text {"commit", "sicherung", "pruefsumme"} der wartenden Migration')
+            self.text = json.dumps({k: d[k] for k in felder}, ensure_ascii=False)
+        else:
+            if not isinstance(d, dict) or 'wert' not in d:
+                raise ValueError('Einstellen: text {"name", "wert"}')
+            name, wert = d.get('name'), d['wert']
+            if name == 'an':
+                if not isinstance(wert, bool):
+                    raise ValueError('Werft und Stack: an (true) oder aus (false)')
+            elif name == 'migration_test':
+                if not isinstance(wert, bool) or self.stack:
+                    raise ValueError('Test-Migrationen selbst: true oder false, für das Repository')
+            elif name == 'abfrage_s':
+                if self.stack or (wert is not None and (isinstance(wert, bool) or not isinstance(wert, int) or not ABFRAGE_MIN <= wert <= ABFRAGE_MAX)):
+                    raise ValueError(f'Abfrageabstand: ganze Sekunden von {ABFRAGE_MIN} bis {ABFRAGE_MAX} oder null (der Adapter), für das Repository')
+            else:
+                raise ValueError('Diese Einstellung kennt die Werft nicht.')
+            self.text = json.dumps({'name': name, 'wert': wert}, ensure_ascii=False)
+        return self
+
+
 # Holodeck (#44): a file name only, never a path; the bridge resolves it against its own store
 PROTOTYP_NAME = r'^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.html$'
 PROTOTYPEN_MAX = 50

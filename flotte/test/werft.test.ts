@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { aufrufen } from '../src/aufruf.ts';
 import { Bruecke } from '../src/treiber/bruecke.ts';
-import { deployAus, ladeStand, musterRegex, takt, werft, type WerftBericht, type WerftHandlung } from '../src/befehle/werft.ts';
+import { deployAus, ladeStand, musterRegex, takt, werft, werftHandlungenAusJson, type WerftBericht, type WerftHandlung } from '../src/befehle/werft.ts';
 
 const T = 60_000;
 
@@ -379,6 +379,140 @@ describe('Werft (#88)', () => {
     T,
   );
 
+  describe('settings from the bridge (#90)', () => {
+    /** the fixture after its first look, a bridge, a takt against both, an action per call */
+    async function mitBruecke() {
+      const f = fixture();
+      const br = await brueckenAttrappe();
+      const lauf = () => takt({ ordner: [f.rechner], jetzt: f.jetzt, bruecke: new Bruecke(br.url, null), rechner: 'werft-test' });
+      const h = (id: number, art: WerftHandlung['art'], stack: string | null, text: unknown = null) => br.offen.set(id, { id, forge: 'repo', stack, art, text: text === null ? null : JSON.stringify(text), zeit: '2026-11-23T10:00:00Z', herkunft: 'Mensch über die Brücke' });
+      await lauf();
+      return { f, br, lauf, h };
+    }
+
+    it(
+      'Werft off: nothing is pulled, nachziehen is turned down; the setting outlasts a restart; on again it catches up',
+      async () => {
+        const { f, br, lauf, h } = await mitBruecke();
+        try {
+          h(1, 'einstellen', null, { name: 'an', wert: false });
+          const aus = await lauf();
+          expect(aus.repos[0]).toMatchObject({ an: false, migrationTest: true, abfrageS: 120, abfrageGesetzt: null });
+          expect(aus.meldungen.join('\n')).toMatch(/Einstellung Werft von an → auf aus, Mensch über die Brücke/);
+          expect(ladeStand(f.repo).an).toBe(false);
+
+          const neu = f.merge('apps/a/x.ts', 'apps/b/x.ts');
+          h(2, 'nachziehen', 'c');
+          const b = await lauf();
+          expect(f.aufrufe()).toEqual([]);
+          expect(b.meldungen.join('\n')).toMatch(/Nachziehen über die Brücke abgelehnt: die Werft ist für repo aus/);
+          expect(br.quittungen.sort()).toEqual([1, 2]);
+          // the stand stays where it was: nothing was looked at
+          expect(b.repos[0].stand).not.toBe(neu);
+
+          h(3, 'einstellen', null, { name: 'an', wert: true });
+          const an = await lauf();
+          expect(an.repos[0].an).toBe(true);
+          expect(f.aufrufe()).toEqual([`a ${neu}`, `b ${neu}`, `b-migration ${neu}`]);
+        } finally {
+          await br.zu();
+        }
+      },
+      T,
+    );
+
+    it(
+      'a stack off is not pulled, not even on request; on again it catches up on what it missed',
+      async () => {
+        const { f, br, lauf, h } = await mitBruecke();
+        try {
+          h(1, 'einstellen', 'b', { name: 'an', wert: false });
+          await lauf();
+          const neu = f.merge('apps/a/x.ts', 'apps/b/x.ts');
+          h(2, 'nachziehen', 'b');
+          const b = await lauf();
+          expect(f.aufrufe()).toEqual([`a ${neu}`]);
+          expect(b.meldungen.join('\n')).toMatch(/Nachziehen über die Brücke abgelehnt: der Stack b ist aus/);
+          expect(b.repos[0].stacks.map((x) => [x.name, x.an])).toEqual([
+            ['a', true],
+            ['b', false],
+            ['c', true],
+          ]);
+          expect(br.quittungen.sort()).toEqual([1, 2]);
+
+          // a commit that touches only c: b still has the earlier one to catch up on
+          f.leere();
+          const spaeter = f.merge('apps/c/x.ts');
+          h(3, 'einstellen', 'b', { name: 'an', wert: true });
+          await lauf();
+          expect(f.aufrufe()).toEqual([`b ${spaeter}`, `b-migration ${spaeter}`, `c ${spaeter}`]);
+          expect(ladeStand(f.repo).stacks.b).toMatchObject({ status: 'gruen', commit: spaeter });
+
+          // caught up: the next takt pulls nothing
+          f.leere();
+          await lauf();
+          expect(f.aufrufe()).toEqual([]);
+        } finally {
+          await br.zu();
+        }
+      },
+      T,
+    );
+
+    it(
+      'test migrations off: nachziehen runs without them; the report shows the effective values',
+      async () => {
+        const { f, br, lauf, h } = await mitBruecke();
+        try {
+          h(1, 'einstellen', null, { name: 'migration_test', wert: false });
+          h(2, 'einstellen', null, { name: 'abfrage_s', wert: 600 });
+          await lauf();
+          const neu = f.merge('apps/b/x.ts');
+          h(3, 'nachziehen', 'b');
+          const b = await lauf();
+          expect(f.aufrufe()).toEqual([`b ${neu}`]);
+          expect(b.repos[0]).toMatchObject({ an: true, migrationTest: false, abfrageS: 600, abfrageGesetzt: 600 });
+          const s = ladeStand(f.repo);
+          expect([s.migrationTest, s.abfrageS]).toEqual([false, 600]);
+        } finally {
+          await br.zu();
+        }
+      },
+      T,
+    );
+
+    it(
+      'a setting with another name, value or an unknown stack is turned down and acknowledged',
+      async () => {
+        const { f, br, lauf, h } = await mitBruecke();
+        try {
+          h(1, 'einstellen', null, { name: 'an', wert: 'aus' });
+          h(2, 'einstellen', 'gibtsnicht', { name: 'an', wert: false });
+          h(3, 'einstellen', null, { name: 'migration_test', wert: 1 });
+          h(4, 'einstellen', 'b', { name: 'migration_test', wert: false });
+          h(5, 'einstellen', null, { name: 'abfrage_s', wert: 0 });
+          h(6, 'einstellen', null, { name: 'gibtsnicht', wert: true });
+          const b = await lauf();
+          expect(br.quittungen.sort()).toEqual([1, 2, 3, 4, 5, 6]);
+          expect(b.meldungen.filter((x) => /Einstellung über die Brücke abgelehnt/.test(x))).toHaveLength(6);
+          const s = ladeStand(f.repo);
+          expect([s.an, s.stacksAus, s.migrationTest, s.abfrageS]).toEqual([true, [], true, null]);
+        } finally {
+          await br.zu();
+        }
+      },
+      T,
+    );
+
+    it('a stand written before #90 reads with the defaults: on, every stack on, test migrations on', () => {
+      const f = fixture();
+      const datei = join(f.repo, '.git', 'flotte', 'werft.json');
+      mkdirSync(join(datei, '..'), { recursive: true });
+      writeFileSync(datei, JSON.stringify({ version: 1, stand: null, geprueft: null, abfrageS: null, fehler: null, stacks: {}, handlungenErledigt: [] }));
+      expect(ladeStand(f.repo)).toMatchObject({ an: true, stacksAus: [], nachholen: [], migrationTest: true });
+    });
+  });
+
   it('one Werft per machine: a second start ends with an error, the lock goes with the first', async () => {
     const sperrDir = mkdtempSync(join(tmpdir(), 'flotte-werft-sperre-'));
     const leer = mkdtempSync(join(tmpdir(), 'flotte-werft-leer-'));
@@ -681,6 +815,66 @@ describe('Werft: Migrationen (#89)', () => {
         expect(g.meldungen.join('\n')).toMatch(/abgelehnt: .*Sicherung .*geändert/);
         expect(g.repos[0].stacks[0].arbeit?.zustand).toBe('gesperrt');
         expect(f.zeilen()).toEqual([]);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'the shared contract: the report has the fields of flottenbruecke/beispiel/werft.json, the example actions are read',
+    async () => {
+      const beispiel = (datei: string) => JSON.parse(readFileSync(new URL(`../../flottenbruecke/beispiel/${datei}`, import.meta.url), 'utf8'));
+      const { f, br, lauf } = await mitMigration();
+      try {
+        f.merge('apps/d/x.ts');
+        const b = await lauf();
+        const v = beispiel('werft.json');
+        const api = v.repos[0].stacks.find((s: { name: string }) => s.name === 'api');
+        expect(Object.keys(b).sort()).toEqual(Object.keys(v).sort());
+        expect(Object.keys(b.repos[0]).sort()).toEqual(Object.keys(v.repos[0]).sort());
+        expect(Object.keys(b.repos[0].stacks[0]).sort()).toEqual(Object.keys(api).sort());
+        expect(Object.keys(b.repos[0].stacks[0].arbeit!).sort()).toEqual(Object.keys(api.arbeit).sort());
+        const h = beispiel('werft-handlungen.json');
+        expect(werftHandlungenAusJson(h)).toHaveLength(h.length);
+      } finally {
+        await br.zu();
+      }
+    },
+    T,
+  );
+
+  it(
+    'a switched-off Werft or stack runs no released migration: the release is turned down, the migration keeps waiting',
+    async () => {
+      const { f, br, lauf, freigabe } = await mitMigration();
+      const einstellen = (id: number, name: string, wert: unknown, stack: string | null = null) => br.offen.set(id, { id, forge: 'repo', stack, art: 'einstellen', text: JSON.stringify({ name, wert }), zeit: '2026-11-23T10:00:00Z', herkunft: 'Mensch über die Brücke' });
+      try {
+        const x = f.merge('apps/d/x.ts');
+        const m = (await lauf()).repos[0].stacks[0].arbeit!;
+        expect(m).toMatchObject({ zustand: 'wartet', commit: x });
+
+        einstellen(60, 'an', false, 'd');
+        freigabe(61, bindung(m));
+        const aus = await lauf();
+        expect(aus.meldungen.join('\n')).toMatch(/Freigabe der Migration über die Brücke abgelehnt: der Stack d ist aus/);
+        expect(aus.repos[0].stacks[0].arbeit?.zustand).toBe('wartet');
+        expect(br.quittungen.sort()).toEqual([60, 61]);
+
+        einstellen(62, 'an', true, 'd');
+        einstellen(63, 'an', false);
+        freigabe(64, bindung(m));
+        const werftAus = await lauf();
+        expect(werftAus.meldungen.join('\n')).toMatch(/Freigabe der Migration über die Brücke abgelehnt: die Werft ist für repo aus/);
+        expect(werftAus.repos[0].stacks[0].arbeit?.zustand).toBe('wartet');
+        expect(f.zeilen()).toEqual([]);
+
+        // switched on again: the same waiting migration takes a new release
+        einstellen(65, 'an', true);
+        freigabe(66, bindung(m));
+        await lauf();
+        expect(f.zeilen()).toEqual([x]);
       } finally {
         await br.zu();
       }

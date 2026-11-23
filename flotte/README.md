@@ -293,6 +293,13 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" werft [<ordner>...] [--bruecke http
   (`arbeit` je Stack: `wartet`, `gesperrt`, `laeuft`, `migriert`, `rot`) wird vor dem Start
   geschrieben, auch nach einem Absturz startet dieselbe Freigabe sie nicht noch einmal. Ohne
   geprüfte Sicherung steht der Stack rot und jede Freigabe wird abgelehnt.
+- Einstellungen über die Brücke (Maschinenraum, mit PIN, #90), je Repository im Stand gespeichert:
+  Abfrageabstand (`abfrage_s`), **Werft an/aus** (aus: nichts geholt, nichts gezogen, keine Migration;
+  wieder an, zieht sie nach, was inzwischen kam), **Stack an/aus** (ein abgeschalteter Stack wird nie
+  gezogen, auch nicht auf Knopfdruck; was ihn berührte, holt er nach dem Einschalten nach) und
+  **Test-Migrationen selbst** ja/nein. Eine Freigabe für eine abgeschaltete Werft oder einen
+  abgeschalteten Stack wird abgelehnt, die Migration wartet weiter auf eine neue. Der Bericht zeigt
+  die wirksamen Werte (`flottenbruecke/SCHNITTSTELLE.md`, „Werft“).
 
 ## Prognose
 
