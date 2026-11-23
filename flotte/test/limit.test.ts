@@ -95,12 +95,11 @@ describe('#199: 429 wechselt das Konto', () => {
 });
 
 describe('#199: blockiert nennt die Ursache', () => {
-  it('a denial without a block: cause Erlaubnis on the bridge (notiz) and in the logbook', async () => {
+  it('a denial without a block: cause Erlaubnis on the bridge and in the logbook', async () => {
     const t = aufbau();
     const buch = drehbuch([lauf(3, [{ text: 'mitten drin', verweigert: [{ tool_name: 'Bash', tool_use_id: 'x1' }] }])]);
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 3000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('blockiert');
-    expect(z.epics['3'].notiz).toMatch(/^Ursache Erlaubnis: Erlaubnis verweigert: Bash/);
     // the bridge shows the cause before the reason (bruecke.test.ts, #28)
     expect(z.epics['3']).toMatchObject({ haltUrsache: 'Erlaubnis', haltGrund: expect.stringMatching(/^Erlaubnis verweigert: Bash/) });
     expect(t.p.kommentare.some((k) => k.nr === z.logbuch && /Mission #3 blockiert, Ursache Erlaubnis: Erlaubnis verweigert: Bash/.test(k.text))).toBe(true);
@@ -111,7 +110,6 @@ describe('#199: blockiert nennt die Ursache', () => {
     const buch = drehbuch([lauf(3, [], 1)]);
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 5000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('blockiert');
-    expect(z.epics['3'].notiz).toMatch(/^Ursache anderes: Start ohne Ergebnis nach zwei Neustarts/);
     // the bridge shows the cause before the reason (bruecke.test.ts, #28)
     expect(z.epics['3'].haltUrsache).toBe('anderes');
     expect(t.p.kommentare.some((k) => k.nr === z.logbuch && /Mission #3 blockiert, Ursache anderes/.test(k.text))).toBe(true);

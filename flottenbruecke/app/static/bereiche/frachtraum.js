@@ -31,7 +31,9 @@
     if (!d) return '';
     return d.toDateString() === new Date().toDateString() ? uhrzeit(iso) : `${d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' })} ${uhrzeit(iso)}`;
   };
-  const unterwegs = (h, was) => `<span class="status gut">${esc(was)} · ${uhrzeit(h.zeit)} · ${h.abgeholt ? 'abgeholt, der Treiber führt es aus' : 'angekommen, der Treiber holt es im nächsten Takt ab'}</span>`;
+  // #135: whether the driver of the project being drawn reports; set by projektHtml before its cards
+  let treiberAn = true;
+  const unterwegs = (h, was) => `<span class="status gut">${esc(was)} · ${uhrzeit(h.zeit)} · ${h.abgeholt ? 'abgeholt, der Treiber führt es aus' : treiberAn ? 'angekommen, der Treiber holt es im nächsten Takt ab' : 'angekommen, kein Treiber läuft, er holt es bei seinem nächsten Start ab'}</span>`;
   const zahl = (n, eins, mehr) => `${n} ${n === 1 ? eins : mehr}`;
 
   // ---- a critical question: one button per option, the recommendation marked, a free text always possible
@@ -155,6 +157,7 @@
   }
 
   function projektHtml(p, pin) {
+    treiberAn = p.aktiv;
     const still = p.veraltet ? ' · Treiber still' : p.aktiv ? '' : ' · beendet';
     const gelesen = p.gelesen ? `Stand der Forge ${esc(wann(p.gelesen))}` : 'Der Treiber hat die Forge noch nicht gelesen';
     const fragen = p.fragen.length ? `<h4 class="fr-unter fr-fragen" tabindex="-1">Fragen an dich</h4><div class="fr-reihe">${p.fragen.map((f) => `<article class="fr-karte fr-frage-karte" data-id="${esc(f.id)}">${frageHtml(f, pin)}</article>`).join('')}</div>` : '';

@@ -80,4 +80,46 @@ describe('leseBlock', () => {
     const b = leseBlock('FLOTTE-FRAGE 5 nacharbeit\n1. Lange Frage\n   — Betrifft: p3 — Empfehlung: B\nSTAND: x');
     expect(b?.art === 'frage' && b.fragen[0]).toMatchObject({ frage: 'Lange Frage', betrifft: ['p3'], empfehlung: 'B' });
   });
+
+  it('#152: reads questions under a ❓ Q<n> heading with fields on their own lines and options as a list', () => {
+    const text = [
+      'FLOTTE-FRAGE 124 tor',
+      '',
+      '❓ **Q1** — **Soll #124 erst starten, wenn #114 gemergt ist?**',
+      '**Betrifft:** Lauf',
+      '**Lage:** #121 verschiebt Dateien, die #114 gerade ändert.',
+      '**Optionen:**',
+      '- **A)** erst nach dem Merge von #114 starten',
+      '- B) sofort starten, Konflikte von Hand lösen',
+      '- C) nur #122 vorziehen',
+      '**Empfehlung:** A — keine inhaltlichen Konflikte',
+      '**Regel/Quelle:** epic/SKILL.md',
+      '',
+      '❓ Q2 — Port 5433 oder 5434?',
+      'Lage: beide frei',
+      'Optionen: A) 5433 B) 5434',
+      'Empfehlung: B',
+      '',
+      'STAND: Tor offen',
+    ].join('\n');
+    const b = leseBlock(text);
+    expect(b?.art).toBe('frage');
+    if (b?.art !== 'frage') return;
+    expect(b.stand).toBe('Tor offen');
+    expect(b.fragen.map((f) => f.nr)).toEqual([1, 2]);
+    expect(b.fragen[0]).toMatchObject({
+      frage: 'Soll #124 erst starten, wenn #114 gemergt ist?',
+      betrifft: 'Lauf',
+      lage: '#121 verschiebt Dateien, die #114 gerade ändert.',
+      optionen: [
+        { buchstabe: 'A', text: 'erst nach dem Merge von #114 starten' },
+        { buchstabe: 'B', text: 'sofort starten, Konflikte von Hand lösen' },
+        { buchstabe: 'C', text: 'nur #122 vorziehen' },
+      ],
+      empfehlung: 'A',
+      quelle: 'epic/SKILL.md',
+    });
+    expect(leseBlock('FLOTTE-FRAGE 5 tor\n1. Welche Zahlen?\nQ3-Zahlen fehlen noch.\nSTAND: x')).toMatchObject({ fragen: [{ nr: 1, frage: 'Welche Zahlen? Q3-Zahlen fehlen noch.' }] });
+    expect(b.fragen[1]).toMatchObject({ frage: 'Port 5433 oder 5434?', lage: 'beide frei', optionen: [{ buchstabe: 'A', text: '5433' }, { buchstabe: 'B', text: '5434' }], empfehlung: 'B' });
+  });
 });
