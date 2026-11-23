@@ -40,13 +40,9 @@ deinen Zug nur mit dem Bericht, nie während ein Befehl läuft — eine Benachri
 des Zugs erreicht dich nie (Lauf BRIQNET #574, 09.11.2026: ein Subagent stand so 248 Minuten).
 
 **Warm bleiben (#211):** Kann eigene Hintergrundarbeit (Volllauf, Andockprüfung, Subagent) länger
-als 50 Minuten dauern, startest du neben ihr einen Wecker als zweiten Hintergrundbefehl:
-`powershell -NoProfile -ExecutionPolicy Bypass -File <skill>/scripts/wecker.ps1 -Log <logdatei> -Muster '<Endzeile>' -Minuten 50`
-(`<skill>`: Ordner des installierten Skills `mission`; ohne Log nur `-Minuten 50`). Er endet,
-sobald die Endzeile im Log steht (Andockprüfung: ihre Endzeile im Projekt, hier `-Muster '^Gate '`), sonst nach 50 Minuten mit
-„Zeit um“. Dann liest du das Ende des Logs, meldest eine Zeile Stand und startest ihn erneut —
-kein `sleep`, keine Schleife. Ist die Arbeit vorher fertig, beendest du den Wecker. Sonst wartet dein Kontext über eine Stunde und wird beim nächsten
-Zug zum Vielfachen eines Lesezugriffs neu geschrieben.
+als 50 Minuten dauern, startest du daneben `<skill>/scripts/wecker.ps1` (Aufruf im Kopf des Skripts)
+als zweiten Hintergrundbefehl. Meldet er „Zeit um“, liest du das Log, meldest eine Zeile Stand und
+startest ihn neu; ist die Arbeit fertig, beendest du ihn — kein `sleep`, keine Schleife.
 
 **Tests:** `/mission`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
 Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/mission/SKILL.md`. Neues Verhalten setzt du mit

@@ -4,7 +4,7 @@
 # when the end line stands in the log or after -Minuten, whichever comes first. Its notification
 # wakes the run in time: it reads the log, reports one line and starts the clock again.
 #
-#   wecker.ps1 -Log <logfile> -Muster '^Gate ' -Minuten 50
+#   wecker.ps1 -Log <logfile> -Muster '<end line of the project gate, here ^Gate >' -Minuten 50
 #   wecker.ps1 -Minuten 50                       (no log: a subagent in the background)
 #
 # Exit 0: end line found (it is printed). Exit 3: time up ("Zeit um", last log line). Exit 2: usage.
