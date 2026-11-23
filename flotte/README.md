@@ -263,7 +263,13 @@ Mission für Mission geschrieben, je Notiz in dieser Reihenfolge:
    `ready_label`, die an keiner Mission hängt, wäre wieder ein eigener Einsatz. Eine **neue** Mission
    bekommt `ready_label` erst nach ihrem ersten so freigegebenen Missionsziel; scheitert vorher das
    Verknüpfen, ihr Kommentar oder jede Freigabe, bleibt sie ohne (der Treiber startete sonst einen
-   leeren Außeneinsatz), steht aber mit `nummer` und `url` in der Ausgabe.
+   leeren Außeneinsatz), steht aber mit `nummer` und `url` in der Ausgabe. Scheitert nur ihr eigenes
+   `--add-label`, holt es ein späterer Lauf nach (#149, vor den Notizen; `--trocken` meldet nur): an
+   einer offenen Mission ohne `ready_label`, an der der Kommentar `**Triage: Mission aus dem
+   Schnittplan**` einer berechtigten Rolle steht, ohne berechtigten Kommentar ohne Triage-Marke darunter
+   (Einwand, Widerruf), die nie `ready_label` trug (Ereignis `labeled`; wer es abnahm, hat widerrufen) und
+   mindestens ein offenes Sub-Issue mit `ready_label` hat. Erst der Kommentar `**Triage: Warp frei der
+   Mission nachgeholt**` mit Herkunft, dann das Label; Missionen eines Menschen tragen den Kommentar nie.
 
 Scheitert ein Schritt, bleibt die Notiz bei diesem Schritt stehen und ihr letzter Kommentar ist der der
 Triage: Der nächste Lauf überspringt sie (`wartet`), statt etwas doppelt anzulegen oder zu kommentieren,
@@ -357,7 +363,11 @@ sie im Frachtraum **widerrufen** (`schnitt-widerruf`, mit Einwand). Jede Änderu
   von einem Menschen gemergt; ein schon laufender Merge läuft zu Ende. Jede vom Lauf verknüpfte Notiz
   bekommt einen Kommentar, wird gelöst (`DELETE …/issues/<mission>/sub_issue`, Zeile aus der Liste) und
   bekommt `ready_label` ab, `needs-triage` an; zuletzt wird die Mission `not planned` geschlossen (nie
-  gelöscht, wieder zu öffnen; offen böte der nächste Schnittplan sie wieder an).
+  gelöscht, wieder zu öffnen; offen böte der nächste Schnittplan sie wieder an). Eine ausgetragene
+  Mission merkt sich der Zustand (`widerrufen`, #149): Das Einsammeln ohne `--epics` nimmt sie nicht wieder
+  auf, auch nach einem Neustart und wenn `ready_label` abnehmen und Schließen scheiterten (einmal je Prozess
+  eine Zeile im Flottenlogbuch); nur die Handlung `aufnehmen` holt sie bewusst zurück und hebt das auf.
+  Eine schon begonnene behält ihren Eintrag im Zustand (pausiert, später `fertig`) und startet nie neu.
 - **bestehende Mission:** nur die vom Lauf angehängten Notizen gehen so zurück; die Mission bleibt, wie
   ein Mensch sie freigegeben hat.
 
@@ -395,11 +405,14 @@ deren `neue_mission`, bei `zusammengefuehrt` der Verweis `in`, bei `ueberfluessi
 `fragen` der Fragerunde und, wo geschrieben, `abnahmekriterien` und `verifikationsweg`;
 bei den geschlossenen Arten dazu `geschrieben`, `kommentar` und gegebenenfalls `fehler`), bei einem
 ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschlossene Notizen stehen
-nur hier, nicht in `tickets`.
+nur hier, nicht in `tickets`. `nachgeholt` (#149): je Mission der Triage, deren `ready_label` der Lauf
+nachträglich setzte (oder bei `--trocken` setzen würde), `forge`, `nummer`, `titel`, `kinder` = ihre
+offenen Sub-Issues mit `ready_label`, `kommentar`, `geschrieben`, gegebenenfalls `fehler`.
 `--trocken` erstellt Plan und Entscheidungen und druckt sie, schreibt nichts; es zeigt die neuen
 Missionen samt Body, die Listen der offenen und die ergänzten Texte der Notizen. Im Logbuch der Brücke
 zählt der Lauf dazu die angehängten Notizen und die angelegten Missionen
-(`… Warp frei (2 an Missionen angehängt), 1 Mission angelegt, …`); ein gescheiterter Schritt an einer
+(`… Warp frei (2 an Missionen angehängt), 1 Mission angelegt, Warp frei nachgeholt für Mission #100, …`);
+ein gescheiterter Schritt an einer
 Mission zählt einmal als „ohne Ergebnis“, an ihren Notizen, nur ohne solche an der Mission selbst. Die
 Anzeige des Plans ist #148.
 

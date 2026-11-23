@@ -304,6 +304,9 @@ export interface FlottenZustand extends Zustand {
   /** #116: the decisions of the triage runs started on the bridge, newest first, revocable there; they outlive a restart.
    * #148: the cut plan of the last of them, its missions revocable there */
   triage?: { entscheidungen: BerichtTriageEntscheidung[]; schnittplan?: BerichtSchnittplan | null };
+  /** #149: missions revoked on the bridge before they started (austragen); never collected again, even when the
+   * forge still shows them released (removing ready_label and closing failed). aufnehmen takes one back on purpose. */
+  widerrufen?: number[];
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -390,6 +393,8 @@ class Treiber {
   standardZweig: string | null | undefined;
   /** issues with ready_label that are no epic and no child of one, already reported */
   ohneEpicGemeldet = new Set<number>();
+  /** #149: revoked missions the collecting skipped, already in the logbook in this process */
+  widerrufenGemeldet = new Set<number>();
   bruecke: Bruecke | null = null;
   /** null: not yet tried */
   brueckeDa: boolean | null = null;
@@ -423,6 +428,9 @@ class Treiber {
   triageStand: Pick<BerichtTriage, 'gelesen' | 'tickets' | 'fragen'> | null = null;
   triageZeit = 0;
   triageLaeuft = false;
+  /** #148: when the run under way started, how the last one ended (in memory only: a short info of the Frachtraum) */
+  triageSeit = '';
+  triageBeendet: BerichtTriage['beendet'];
 
   constructor(
     readonly e: Einstellung,
@@ -566,13 +574,21 @@ class Treiber {
     return true;
   }
 
-  /** The released epics; a released issue that is no epic and no child of one is reported once. */
+  /**
+   * The released epics; a released issue that is no epic and no child of one is reported once. #149: a mission
+   * revoked on the bridge stays out, said once per process in the logbook.
+   */
   einsammeln(adapter: Adapter): number[] {
     const f = freigegebene(this.w.aufrufer, this.e.forge, adapter);
     const neu = f.ohneEpic.filter((n) => !this.ohneEpicGemeldet.has(n));
     for (const n of neu) this.ohneEpicGemeldet.add(n);
     if (neu.length) this.ereignis(null, `freigegeben, aber kein Epic: ${neu.map((n) => `#${n}`).join(', ')} (ohne ${adapter.epic_label} und nicht Kind eines Epics; mit --epics fahren oder das Label setzen)`);
-    return f.epics;
+    const widerrufen = this.z.widerrufen ?? [];
+    for (const n of f.epics.filter((x) => widerrufen.includes(x) && !this.widerrufenGemeldet.has(x))) {
+      this.widerrufenGemeldet.add(n);
+      this.imLogbuch(n, `Mission #${n} nicht eingesammelt: über die Brücke widerrufen (wieder in den Einsatz nur mit der Handlung „aufnehmen“), ${HERKUNFT_BRUECKE}`);
+    }
+    return f.epics.filter((x) => !widerrufen.includes(x));
   }
 
   nebenbei(p: Promise<void>): void {
@@ -1446,7 +1462,10 @@ class Treiber {
     this.z.epics[nr] ??= neuesEpic(nr);
     (this.z.aufgenommen ??= []).push(nr);
     this.freigegeben = this.freigegeben.filter((n) => n !== nr);
-    this.imLogbuch(nr, `Epic #${nr} in den Einsatz aufgenommen, ${HERKUNFT_BRUECKE}`);
+    // #149: a person takes a revoked mission back on purpose
+    const widerrufen = (this.z.widerrufen ?? []).includes(nr);
+    if (widerrufen) this.z.widerrufen = this.z.widerrufen!.filter((n) => n !== nr);
+    this.imLogbuch(nr, `Epic #${nr} in den Einsatz aufgenommen${widerrufen ? ' (sein Widerruf über die Brücke ist damit aufgehoben)' : ''}, ${HERKUNFT_BRUECKE}`);
   }
 
   /**
@@ -1592,6 +1611,8 @@ class Treiber {
     const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
     if (!konto) return nein('kein Konto mit Luft');
     this.triageLaeuft = true;
+    this.triageSeit = new Date(this.w.jetzt()).toISOString();
+    this.triageBeendet = undefined;
     this.imLogbuch(null, `Triage-Lauf gestartet, ${HERKUNFT_BRUECKE}`);
     this.nebenbei(this.triageFahren(konto));
   }
@@ -1637,16 +1658,21 @@ class Treiber {
         r.tickets.filter((t) => t.fehler || t.ergebnis === 'ungueltig').length +
         r.fehler.length +
         // #147: a failed step of a mission shows at its notes already; a mission counts on its own only when none of them did
-        r.schnittplan.reduce((n, p) => n + (p.fehler ? 1 : 0) + p.zuordnungen.filter((x) => x.fehler).length + [...p.neue_missionen, ...(p.missionen ?? [])].filter((m) => m.fehler && !r.tickets.some((t) => t.forge === p.forge && t.fehler && m.kinder.includes(t.nummer))).length, 0);
+        r.schnittplan.reduce((n, p) => n + (p.fehler ? 1 : 0) + p.zuordnungen.filter((x) => x.fehler).length + [...p.neue_missionen, ...(p.missionen ?? [])].filter((m) => m.fehler && !r.tickets.some((t) => t.forge === p.forge && t.fehler && m.kinder.includes(t.nummer))).length, 0) +
+        (r.nachgeholt ?? []).filter((m) => m.fehler).length;
       // a superfluous proposal closes nothing
       const ueber = entschieden.filter((t) => t.ergebnis === 'ueberfluessig' && t.lernvorschlag).length;
       // #147: the missions created from the cut plan and the notes hung on a mission (the display of the plan is #148)
       const angelegt = r.schnittplan.reduce((n, p) => n + p.neue_missionen.filter((m) => m.nummer !== undefined).length, 0);
       const angehaengt = entschieden.filter((t) => t.mission !== undefined).length;
-      const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}`;
+      // #149: a mission of the triage whose own release failed earlier, released now
+      const nach = (r.nachgeholt ?? []).filter((m) => m.geschrieben && !m.fehler);
+      const missionen = `${angehaengt ? ` (${angehaengt} an Missionen angehängt)` : ''}${angelegt ? `, ${angelegt} ${angelegt === 1 ? 'Mission' : 'Missionen'} angelegt` : ''}${nach.length ? `, Warp frei nachgeholt für ${nach.map((m) => `Mission #${m.nummer}`).join(', ')}` : ''}`;
       this.imLogbuch(null, `Triage-Lauf beendet: ${zahl('klar')} Warp frei${missionen}, ${zahl('ueberfluessig') - ueber + geplant.length} geschlossen${ueber ? `, ${ueber} überflüssig` : ''}, ${r.fragen.length} ${r.fragen.length === 1 ? 'Frage' : 'Fragen'} an den Menschen${ohne ? `, ${ohne} ohne Ergebnis` : ''}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: this.z.triage?.schnittplan?.missionen.length ?? 0, fragen: r.fragen.length, ...(this.z.triage?.schnittplan?.fehler ? { fehler: this.z.triage.schnittplan.fehler } : {}) };
     } catch (err) {
       this.ereignis(null, `Triage-Lauf gescheitert: ${String(err).slice(0, 300)}`);
+      this.triageBeendet = { zeit: new Date(this.w.jetzt()).toISOString(), epics: 0, fragen: 0, gescheitert: true, fehler: String(err).slice(0, 300) };
     } finally {
       this.triageLaeuft = false;
       this.triageLesen(true);
@@ -1776,11 +1802,14 @@ class Treiber {
   /**
    * #148: a revoked mission that did not start yet leaves the deployment for good: out of the epics, the ones taken
    * in on the bridge and the state, so it neither starts nor holds the end of the deployment; its ready_label is off.
+   * #149: kept in widerrufen, so collecting never takes it again when taking ready_label off and closing failed. A
+   * revoked mission that started keeps its record in the state (paused, later fertig) and never starts anew.
    */
   austragen(ep: FlottenEpic): void {
     const nr = ep.nr;
     this.e.epics = this.e.epics.filter((n) => n !== nr);
     this.z.aufgenommen = (this.z.aufgenommen ?? []).filter((n) => n !== nr);
+    if (!(this.z.widerrufen ?? []).includes(nr)) (this.z.widerrufen ??= []).push(nr);
     this.bilder = this.bilder.filter((b) => b.nr !== nr);
     this.z.schlange = this.z.schlange.filter((n) => n !== nr);
     this.loslassen(nr);
@@ -2321,7 +2350,7 @@ class Treiber {
       sitzungen: this.sitzungen,
       einstellungen: this.einstellungenBericht(),
       freigegeben: this.freigegeben.filter((n) => !this.e.epics.includes(n)).map((nr) => ({ nr, titel: this.freiTitelVon(nr).slice(0, 300) })),
-      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, fragen: this.triageStand?.fragen ?? [] },
+      triage: { gelesen: this.triageStand?.gelesen ?? null, laeuft: this.triageLaeuft, ...(this.triageLaeuft ? { seit: this.triageSeit } : {}), ...(this.triageBeendet ? { beendet: this.triageBeendet } : {}), tickets: this.triageStand?.tickets ?? [], entscheidungen: this.z.triage?.entscheidungen ?? [], schnittplan: this.z.triage?.schnittplan ?? null, fragen: this.triageStand?.fragen ?? [] },
     };
   }
 

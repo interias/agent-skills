@@ -122,22 +122,37 @@
 
   const ticketHtml = (x, thema) => `<li class="fr-ticket${x.frage ? ' gefragt' : ''}">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span>${x.frage ? '<span class="fr-marke">Frage an dich</span>' : ''}${x.themen.filter((t) => t !== thema).map((t) => `<span class="fr-label">${esc(t)}</span>`).join('')}</li>`;
 
+  // #148: the short info in the head of the project: started (waits for the driver), running, ended; the board decides which
+  function kurzHtml(p) {
+    const k = p.kurzinfo;
+    if (!k) return '';
+    const zeit = wann(k.seit);
+    const seit = zeit ? `<span class="fr-klein">${k.zustand === 'beendet' ? 'beendet' : 'gestartet'} ${esc(zeit)}</span>` : '';
+    if (k.zustand === 'unterwegs') return `<div class="fr-kurz" role="status"><b>Triage-Lauf gestartet — wartet auf den Treiber</b>${seit}${k.abgeholt ? '<span class="fr-klein">abgeholt, der Treiber startet ihn gleich</span>' : ''}</div>`;
+    if (k.zustand === 'laeuft' && k.still) return `<div class="fr-kurz still" role="status"><b>Triage-Lauf läuft laut letztem Bericht — der Treiber meldet sich nicht.</b>${seit}</div>`;
+    if (k.zustand === 'laeuft') return `<div class="fr-kurz laeuft" role="status"><b>Triage-Lauf läuft — bitte warten.</b> <span>Danach erscheinen hier Fragen an dich, darunter die Entscheidungen und der Schnittplan.</span>${seit}${k.fortschritt ? `<span class="fr-klein">Notiz ${k.fortschritt.n} von ${k.fortschritt.m}</span>` : ''}</div>`;
+    if (k.gescheitert) return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf gescheitert</b>${k.fehler ? `<span>${esc(k.fehler)}</span>` : ''}${seit}</div>`;
+    if (k.fehler) return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf beendet — Schnittplan ungültig, nichts geschrieben</b><span>${esc(k.fehler)}</span>${seit}</div>`;
+    const sprung = k.fragen && p.fragen.length ? '<button type="button" class="knopf zweit" data-zu-fragen>Zu den Fragen</button>' : '';
+    return `<div class="fr-kurz beendet" role="status"><b>Triage-Lauf beendet: ${zahl(k.epics, 'Epic', 'Epics')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich</b>${seit}${sprung}</div>`;
+  }
+
   function startHtml(p, pin) {
-    if (p.laeuft) return '<span class="status gut">Triage-Lauf läuft</span>';
-    if (p.handlung) return unterwegs(p.handlung, 'Triage-Lauf');
+    if (p.laeuft || p.handlung) return '';
     return pin ? `<button type="button" class="knopf zweit" data-start="${esc(p.forge)}">Triage-Lauf starten</button>` : '';
   }
 
   function projektHtml(p, pin) {
     const still = p.veraltet ? ' · Treiber still' : p.aktiv ? '' : ' · beendet';
     const gelesen = p.gelesen ? `Stand der Forge ${esc(wann(p.gelesen))}` : 'Der Treiber hat die Forge noch nicht gelesen';
-    const fragen = p.fragen.length ? `<h4 class="fr-unter">Fragen an dich</h4><div class="fr-reihe">${p.fragen.map((f) => `<article class="fr-karte fr-frage-karte" data-id="${esc(f.id)}">${frageHtml(f, pin)}</article>`).join('')}</div>` : '';
+    const fragen = p.fragen.length ? `<h4 class="fr-unter fr-fragen" tabindex="-1">Fragen an dich</h4><div class="fr-reihe">${p.fragen.map((f) => `<article class="fr-karte fr-frage-karte" data-id="${esc(f.id)}">${frageHtml(f, pin)}</article>`).join('')}</div>` : '';
     const entsch = p.entscheidungen.length ? `<h4 class="fr-unter">Entscheidungen des Triage-Laufs</h4><ol class="fr-liste">${p.entscheidungen.map((d) => `<li class="fr-karte fr-entscheidung ${esc(d.ergebnis)}" data-id="${esc(d.id)}">${entscheidungHtml(d, pin)}</li>`).join('')}</ol>` : '';
     const themen = p.themen.length
       ? `<h4 class="fr-unter">Sternzeit-Notizen nach Thema</h4><div class="fr-themen">${p.themen.map((t) => `<section class="fr-thema"><h5>${esc(t.thema)} <span class="fr-anzahl">${t.tickets.length}</span></h5><ul class="fr-tickets">${t.tickets.map((x) => ticketHtml(x, t.thema)).join('')}</ul></section>`).join('')}</div>`
       : '<p class="bereich-leer">Keine offene Sternzeit-Notiz.</p>';
     return `<section class="fr-projekt${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}">
 <h3 class="fr-kopf">${link(p.url, esc(p.kurz), 'fr-name')}<span class="fr-zahl">${zahl(p.zahl, 'Sternzeit-Notiz', 'Sternzeit-Notizen')}${p.fragen.length ? ` · ${zahl(p.fragen.length, 'Frage', 'Fragen')} an dich` : ''}${still}</span></h3>
+${kurzHtml(p)}
 <div class="knoepfe fr-start">${startHtml(p, pin)}<span class="fr-klein">${gelesen}</span><span class="status" role="status"></span></div>
 ${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
   }
@@ -224,6 +239,11 @@ ${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
     if (!b || b.disabled) return;
     const karte = b.closest('[data-id]');
     if (b.dataset.start) return starten(b);
+    if (b.matches('[data-zu-fragen]')) {
+      const ziel = b.closest('.fr-projekt')?.querySelector('.fr-fragen');
+      ziel?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      return ziel?.focus({ preventScroll: true });
+    }
     if (!karte) return;
     const id = karte.dataset.id;
     if (b.dataset.option) {
