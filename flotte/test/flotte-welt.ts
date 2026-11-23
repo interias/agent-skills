@@ -49,6 +49,11 @@ export interface Optionen {
   gate?: (befehl: string, cwd: string, n: number) => { code: number; stdout: string };
   /** `gh pr view --json headRefName,...` of a PR; default: open, on epic/<pr - 10>-x, with GATE_BODY */
   prInfo?: (pr: number) => { state?: string; headRefName: string; baseRefName: string; headRefOid: string; body: string };
+  /**
+   * signals for the stand-in's step { signal: name }: once an entry of the timeline (an event of the driver,
+   * a merge, a gate) matches the pattern, the signal is set. Orders runs by events instead of the wall clock.
+   */
+  signale?: Record<string, RegExp>;
   /** #153: what worktree.ps1 -Action CleanupStale answers; default: exit 0, nothing to do */
   cleanup?: () => { code: number; stdout: string; stderr: string };
   /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
@@ -96,6 +101,14 @@ export function aufbau(o: Optionen = {}) {
     return k;
   });
   const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [], geschlossen: [], labelWeg: [] };
+  if (o.signale) {
+    const signale = o.signale;
+    const push = p.zeitleiste.push.bind(p.zeitleiste);
+    p.zeitleiste.push = (...xs: string[]) => {
+      for (const x of xs) for (const [name, muster] of Object.entries(signale)) if (muster.test(x)) writeFileSync(`${process.env.FLOTTE_DREHBUCH}.signal-${name}`, '');
+      return push(...xs);
+    };
+  }
   let gateN = 0;
   let ramN = 0;
   const prN = new Map<number, number>();

@@ -429,6 +429,8 @@ class Treiber {
   /** a report right after an event is on its way */
   meldungGeplant = false;
   haltGemeldet = false;
+  /** #133: the order edges were read from the forge in this tick already */
+  kantenFrisch = false;
   /** #150: running epics without a picture, reported once */
   ohneBildGemeldet = new Set<number>();
   /** #135: the missions the driver last said it stays for; empty when none */
@@ -536,6 +538,7 @@ class Treiber {
     this.optionenNachlesen();
 
     for (;;) {
+      this.kantenFrisch = false;
       const halt = this.anhaltenGewuenscht();
       this.nachsammeln(false);
       await this.brueckeHolen();
@@ -963,6 +966,14 @@ class Treiber {
     for (const ep of Object.values(this.z.epics)) {
       // #61: a paused epic keeps its next turn until the person continues it
       if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
+      // #133: an order edge added meanwhile (forge read once per tick); a run with a PR is past its start
+      if (ep.auftrag.resume && ep.sitzung && !ep.pr) {
+        const vor = this.offeneVorgaenger(ep.nr);
+        if (vor.length) {
+          this.wartenAuf(ep, vor, 'vor dem Fortsetzen');
+          continue;
+        }
+      }
       const a = ep.auftrag;
       ep.auftrag = null;
       const fortsetzen = a.resume && Boolean(ep.sitzung);
@@ -1147,7 +1158,7 @@ class Treiber {
     }
     ep.nachfragen = 0;
     if (block.art === 'frage') await this.frage(ep, block, vermerk);
-    else await this.ende(ep, block, r.text);
+    else await this.ende(ep, block);
   }
 
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
@@ -1510,10 +1521,13 @@ class Treiber {
    * the forge is unreadable the edges read so far count.
    */
   offeneVorgaenger(nr: number): number[] {
-    try {
-      this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
-    } catch (err) {
-      this.ereignis(nr, `Reihenfolge nicht neu gelesen: ${String(err).slice(0, 200)}`);
+    if (!this.kantenFrisch) {
+      this.kantenFrisch = true;
+      try {
+        this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+      } catch (err) {
+        this.ereignis(nr, `Reihenfolge nicht neu gelesen: ${String(err).slice(0, 200)}`);
+      }
     }
     return (this.bilder.find((b) => b.nr === nr)?.nach ?? []).filter((n) => !['gemergt', 'fertig'].includes(this.epic(n)?.stufe ?? ''));
   }
@@ -2564,7 +2578,7 @@ class Treiber {
 
   // ---- end blocks, merge (D10–D13, D21)
 
-  async ende(ep: FlottenEpic, block: EndeBlock, text = block.offen): Promise<void> {
+  async ende(ep: FlottenEpic, block: EndeBlock): Promise<void> {
     const nr = ep.nr;
     ep.pr = block.pr ?? ep.pr;
     ep.konfliktGemeldet = false;
@@ -2582,11 +2596,9 @@ class Treiber {
       return;
     }
     if (!ep.pr) {
-      // #133: a run that found an order edge added after its start ends without a PR. Narrow on
-      // purpose: only the block (from its head line on) counts, and only a `#<n>` that is an order
-      // predecessor of this epic in the deployment and not merged yet; anything else stays blocked.
-      const blocktext = text.slice(Math.max(0, text.lastIndexOf('FLOTTE-ENDE')));
-      const vor = this.offeneVorgaenger(nr).filter((n) => new RegExp(`#${n}(?!\\d)`).test(blocktext));
+      // #133: a run that found an order edge added after its start ends without a PR. The edge read
+      // anew decides, not the wording of the block: a predecessor not merged yet means waiting.
+      const vor = this.offeneVorgaenger(nr);
       if (vor.length) return this.wartenAuf(ep, vor, 'FLOTTE-ENDE ohne Pull Request');
     }
     const offen = block.offen.trim();
