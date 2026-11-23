@@ -30,6 +30,10 @@
     the install and the source folder. The fleet driver shows it on the bridge and updates itself from
     that source. Without a git repository at the top of the source, no stand.json is written.
 
+    When the Flottenbruecke is missing (flottenbruecke\einrichten.ps1 there, no flottenbruecke\.env), a full
+    install (not -DryRun, not -Skill) first runs flottenbruecke\einrichten.ps1 (#97); if that fails, the
+    skills are installed anyway.
+
     Agent definitions (agents/*.md) are copied file by file. An existing file that differs is
     first backed up to $env:USERPROFILE\.claude\skills-backup\agents-<yyyyMMdd-HHmmss>\.
 
@@ -155,6 +159,13 @@ if ($Skill) {
 
 if (-not $skillsToInstall) {
     throw "No skill folders (with SKILL.md) found in $repoRoot."
+}
+
+# #97: the bridge first, then the skills; only when it is missing (no .env), never on -DryRun or -Skill
+$brueckeEinrichten = Join-Path $repoRoot 'flottenbruecke\einrichten.ps1'
+if (-not $DryRun -and -not $Skill -and (Test-Path $brueckeEinrichten) -and -not (Test-Path (Join-Path $repoRoot 'flottenbruecke\.env'))) {
+    Write-Host "Flottenbruecke fehlt: richte sie zuerst ein ($brueckeEinrichten)."
+    try { & $brueckeEinrichten } catch { Write-Host "Bruecke nicht eingerichtet: $($_.Exception.Message) Die Skills werden trotzdem installiert; spaeter: flottenbruecke\einrichten.ps1." -ForegroundColor Yellow }
 }
 
 Write-Host "Skills to install: $($skillsToInstall.Name -join ', ')"

@@ -20,6 +20,7 @@ test_commands:
   sweep: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\sweep.Tests.ps1"
   merge: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\merge.Tests.ps1"
   install: powershell -NoProfile -Command "Invoke-Pester .\install.Tests.ps1"
+  bruecke_einrichten: powershell -NoProfile -Command "Invoke-Pester .\flottenbruecke\einrichten.Tests.ps1"
   flotte: cd flotte && bun test
   bruecke: cd flottenbruecke && python -m pytest -q
 isolation: none-needed

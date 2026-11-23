@@ -22,7 +22,7 @@ $modul = @(@($da | Where-Object { $_.Version.Major -lt 5 }) + $da)[0]
 if (-not $modul) { 'pester: kein Pester installiert, vorausgesetzt ist Pester 3.4 (INSTALL.md).'; exit 1 }
 Import-Module $modul.Path -Force
 if (-not (Test-Path -LiteralPath install.Tests.ps1)) { 'pester: install.Tests.ps1 fehlt.'; exit 1 }
-$dateien = @((Get-ChildItem mission\scripts\*.Tests.ps1, install.Tests.ps1).FullName)
+$dateien = @((Get-ChildItem mission\scripts\*.Tests.ps1, install.Tests.ps1, flottenbruecke\einrichten.Tests.ps1).FullName)
 $fuenf = $modul.Version.Major -ge 5
 $still = if ($fuenf) { @{ Output = 'None' } } else { @{ Quiet = $true } }
 $r = Invoke-Pester -Path $dateien -PassThru @still

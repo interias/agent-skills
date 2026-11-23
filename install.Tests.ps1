@@ -260,3 +260,30 @@ Describe 'install.ps1 from a folder that is no git repository (#154)' {
         ($out | Where-Object { $_ -like 'No stand*' }) | Should Not BeNullOrEmpty
     }
 }
+
+Describe 'install.ps1 sets up the Flottenbruecke first when it is missing (#97)' {
+    # a stand-in for flottenbruecke\einrichten.ps1 that only leaves a mark
+    function New-RepoMitBruecke([switch]$mitEnv) {
+        $repo = New-Repo
+        New-Item -ItemType Directory -Path "$repo\flottenbruecke" | Out-Null
+        Set-Content -Path "$repo\flottenbruecke\einrichten.ps1" -Value "Set-Content -Path '$repo\eingerichtet.txt' -Value ja"
+        if ($mitEnv) { Set-Content -Path "$repo\flottenbruecke\.env" -Value 'BRUECKE_PIN=' }
+        $repo
+    }
+
+    It 'runs einrichten.ps1 when the bridge has no .env' {
+        $repo = New-RepoMitBruecke
+        $null = Invoke-Install $repo (New-Home) @()
+        Test-Path "$repo\eingerichtet.txt" | Should Be $true
+    }
+
+    It 'leaves a bridge with .env alone, and runs nothing on -DryRun or -Skill' {
+        $repo = New-RepoMitBruecke -mitEnv
+        $null = Invoke-Install $repo (New-Home) @()
+        Test-Path "$repo\eingerichtet.txt" | Should Be $false
+        $ohne = New-RepoMitBruecke
+        $null = Invoke-Install $ohne (New-Home) @('-DryRun')
+        $null = Invoke-Install $ohne (New-Home) @('-Skill', 'mission')
+        Test-Path "$ohne\eingerichtet.txt" | Should Be $false
+    }
+}
