@@ -53,7 +53,7 @@ export interface BrueckenAntwort {
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf' | 'einspielen';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf' | 'einspielen' | 'konto_anlegen' | 'konto_deaktivieren' | 'konto_aktivieren' | 'konto_anmelden';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -187,6 +187,8 @@ export interface Bericht {
   epics: BerichtEpic[];
   schlange: number[];
   konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; alterMin: number | null; grund?: string }[];
+  /** #95: the accounts of konten.json with aktiv and sign-in, never a path; null when the file cannot be read */
+  kontenListe?: { nr: number; name: string; farbe: string; aktiv: boolean; anmeldung: string | null }[] | null;
   ram: { stufe: string; halt: boolean; prozent: number | null } | null;
   platte: { freiGb: number | null; genug: boolean } | null;
   obergrenze: number | null;
@@ -320,7 +322,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim())) || (h.art === 'einspielen' && h.epic === 0)),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim())) || (h.art === 'einspielen' && h.epic === 0) || (h.art === 'konto_anlegen' && h.epic === 0) || ((h.art === 'konto_deaktivieren' || h.art === 'konto_aktivieren' || h.art === 'konto_anmelden') && h.epic > 0)),
   );
 }
 

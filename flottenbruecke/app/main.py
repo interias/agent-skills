@@ -32,7 +32,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import CHAT_KONTO, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
+from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
@@ -265,6 +265,13 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(409, 'Diese Mission ist schon widerrufen.')
             if not m.get('neu') and not m.get('kinder'):
                 raise HTTPException(409, 'An dieser Mission hat der Triage-Lauf nichts angehängt.')
+        elif h.art in KONTO_HANDLUNGEN:
+            # #95: only accounts the driver reports; the driver checks against konten.json again
+            liste = b.get('kontenListe')
+            if liste is None:
+                raise HTTPException(409, 'Dieser Treiber meldet keine Konten.')
+            if h.art != 'konto_anlegen' and h.epic not in [k['nr'] for k in liste]:
+                raise HTTPException(404, 'Dieses Konto meldet der Treiber nicht.')
         elif h.art == 'einstellen':
             # belongs to the project: the bridge checks against the limits of the report, the driver checks again
             liste = b.get('einstellungen')

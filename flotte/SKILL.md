@@ -51,9 +51,10 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   Einsatz (Ereignis „bleibt im Einsatz“), bis der Mensch sie dort neu einreiht oder aufgibt. Ohne
   Brücke endet er wie bisher; blockierte Missionen früherer Einsätze halten ihn nicht.
 - **Konten** als Kurzname: `1`, `2`, `3` oder der Ordnername im Benutzerverzeichnis
-  (`.claude-arbeitspferd`), sonst ein Pfad. Die Nummern stehen in `konten.json` neben dem Skill
-  (`{ "1": "~/.claude", "2": "~/.claude-arbeitspferd" }`); ohne die Datei gelten `~/.claude`,
-  `~/.claude-arbeitspferd` und `~/.claude-arbeitspferd-3`. Die Konten aus `--konten` sind
+  (`.claude-arbeitspferd`), sonst ein Pfad. Die Nummern stehen in `~/.claude/flotte/konten.json`
+  (je Konto `nr`, `ordner`, `name`, `farbe`, `aktiv`; `install.ps1` schreibt sie nie); ohne die Datei
+  gelten `~/.claude`, `~/.claude-arbeitspferd` und `~/.claude-arbeitspferd-3`. Ein deaktiviertes
+  Konto fällt aus der Auswahl der Brücke, sein Ordner bleibt. Die Konten aus `--konten` sind
   gleichrangig; eine neue Mission geht auf das Konto mit den wenigsten laufenden Läufen.
 
 Mögliche Schalter:
@@ -104,6 +105,7 @@ Konto deshalb erst wieder aus `--konten` nehmen, wenn keine seiner Missionen meh
 
 Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
 
+- `flotte konten liste|anlegen [--name <n>] [--farbe <#rrggbb>]|deaktivieren <nr>|aktivieren <nr>|anmelden <nr>|pruefen [<nr>...]`: die Konten in `~/.claude/flotte/konten.json` (#94). `anmelden` öffnet ein Terminal mit `claude` auf dem Konto für `/login`. Über die Brücke dieselben Handlungen mit PIN (`konto_anlegen`, `konto_deaktivieren`, `konto_aktivieren`, `konto_anmelden`, #95); der Treiber holt sie ab, ein deaktiviertes Konto bekommt keine neue Mission, laufende laufen zu Ende. `anlegen` trägt das nächste Konto ein und legt nur seinen Ordner `~/.claude-arbeitspferd-<n>` an (nie einen vorhandenen); Profil und Anmeldung danach am Rechner mit `arbeitspferd/einrichten.ps1 -Konfig <ordner>` und `/login`. `deaktivieren` löscht nie einen Ordner. `pruefen` meldet je Konto `angemeldet`, `nicht angemeldet`, `ordner fehlt` oder `unklar`: ob `.credentials.json` da ist (der Inhalt wird nie gelesen), dann ein kurzer Haiku-Aufruf mit `CLAUDE_CONFIG_DIR`.
 - `flotte zustand <repo>`: Zustand und Sperre.
 - `flotte antworten <repo> <epic> <frage> <Antwort>`: eine Antwort des Menschen an den laufenden Treiber.
 - `flotte anhalten <repo>`: hält den Treiber sicher an, etwa zum Aktualisieren. Er startet nichts Neues mehr (kein Lauf, kein Zug, kein Andocken aus der Schlange), lässt ein begonnenes Andocken mit Andockprüfung und `nach_merge` zu Ende laufen und endet dann mit dem Ereignis „Angehalten auf Wunsch“. Läufe arbeiten in ihrer eigenen Prozessgruppe weiter, ein Neustart übernimmt sie. Strg+C beendet dagegen auch einen laufenden `merge.ps1`, eine Andockprüfung oder `nach_merge` mitten im Schritt. Über die Brücke hält die Handlung `einspielen` (#154) ebenso an, spielt danach `main` der Quelle ein und startet den Treiber mit derselben Kommandozeile neu (`README.md`, „Anhalten und neu starten“).

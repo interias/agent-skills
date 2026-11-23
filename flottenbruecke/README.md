@@ -315,10 +315,17 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 - **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (Hauptenergie und Reserveenergie, „… % übrig“, Reset-Zeit,
   mit Wochentag ab 20 h), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
   gleichzeitig) und der Takt der Treiber, die dort melden. Alles stammt aus dem Bericht. Was er nicht
-  trägt, steht als „… meldet der Treiber nicht“: heute die **Anmeldung** je Konto (der Treiber kennt sie
-  nur als Halt einer Mission, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
-  liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
-  Seite sie.
+  trägt, steht als „… meldet der Treiber nicht“. Die **Anmeldung** je Konto kommt aus `kontenListe`
+  des Berichts (#95). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
+  liefert der Treiber; bei `gruen` steht „keine“.
+  Über den Tanks (#96) je Konto aus `~/.claude/flotte/konten.json` Name, Farbe, Rechner, aktiv und
+  Anmeldung mit den Knöpfen **Am Rechner anmelden**, **Deaktivieren**/**Aktivieren** und je Rechner
+  **Konto anlegen**, jeweils mit PIN als Handlung an den Treiber; bis zur Quittung „wartet auf den
+  Rechner“. Fehlt noch ein Konto, eine Anmeldung, die Forge oder ein Projekt, öffnet die Brücke ohne
+  Anker in der Adresse den Maschinenraum mit den Schritten **Einrichten** (Konto anlegen → am Rechner
+  anmelden → Forge verknüpfen → Projekt hinzufügen, je offen / wartet auf den Rechner / fertig; fertige
+  klappen zu); ist alles da, startet sie auf der Brücke. Bilder:
+  `doku/v3-maschinenraum-einrichten-1440.png`, `-390.png`, `doku/v3-maschinenraum-konten-1440.png`, `-390.png`.
   Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die fünfzehn wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was

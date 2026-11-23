@@ -156,6 +156,25 @@ Describe 'einrichten.ps1 for the main account' {
     Remove-Heim $heim
 }
 
+Describe 'einrichten.ps1 reads the accounts from konten.json (#94)' {
+    $heim = New-Heim
+    $k4 = Join-Path $heim '.claude-arbeitspferd-4'
+    New-Item -ItemType Directory -Force "$heim\.claude\flotte" | Out-Null
+    Set-Content -LiteralPath "$heim\.claude\flotte\konten.json" -Encoding UTF8 -Value '[{"nr":"1","ordner":"~/.claude","name":"Hauptkonto","farbe":"#8FB573","aktiv":true},{"nr":"3","ordner":"~/.claude-arbeitspferd-3","name":"Drei","farbe":"#010203","aktiv":true},{"nr":"4","ordner":"~/.claude-arbeitspferd-4","name":"Vier","farbe":"#123456","aktiv":false}]'
+    $null = Invoke-Einrichten $heim @('-Konfig', $k4)
+    $drei = Invoke-Einrichten $heim @('-Konfig', "$heim\.claude-arbeitspferd-3", '-DryRun')
+    $p4 = (Get-Profile $heim).profiles.list | Where-Object name -eq 'Claude Vier'
+
+    It 'takes name and colour of the list, not of a fixed table' {
+        $p4 | Should Not BeNullOrEmpty
+        $p4.tabColor | Should Be '#123456'
+        $p4.icon | Should Be "$k4\arbeitspferd.ico"
+        ($drei | Where-Object { $_ -like "*Profil 'Claude Drei' und Schema eintragen*" }) | Should Not BeNullOrEmpty
+    }
+
+    Remove-Heim $heim
+}
+
 Describe 'einrichten.ps1 -Konfig' {
     It 'refuses a folder that is no account folder' {
         $heim = New-Heim

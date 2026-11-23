@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden'}
+# #95: the account actions; epic is the account's number (konto_anlegen: 0)
+KONTO_HANDLUNGEN = ('konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden')
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
 BEZUG = ('widerruf', 'triage-antwort', 'triage-widerruf')
 # #112: how an epic merges (Andocken): the driver after the gate, or a person looks at every PR
@@ -145,6 +147,17 @@ class Fenster(BaseModel):
     # used share in percent and the reset of the window
     verbraucht: float = Field(ge=0, le=1000)
     reset: str = Field(max_length=40)
+
+
+class KontoEintrag(BaseModel):
+    """#95: an account of konten.json on the driver's machine: never a path, never a credential."""
+
+    nr: int = Field(ge=1, le=999)
+    name: str = Field(max_length=60)
+    farbe: str = Field(pattern=r'^#[0-9A-Fa-f]{6}$')
+    aktiv: bool
+    # from `flotte konten pruefen`; None: not checked yet
+    anmeldung: Literal['angemeldet', 'nicht angemeldet', 'ordner fehlt', 'unklar'] | None = None
 
 
 class Konto(BaseModel):
@@ -467,6 +480,8 @@ class Bericht(BaseModel):
     triage: Triage | None = None
     # #154: the stand of the driver; an older driver has none
     version: Version | None = None
+    # #95: the accounts of the machine with aktiv and sign-in; an older driver has none (None)
+    kontenListe: list[KontoEintrag] | None = Field(None, max_length=50)
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
@@ -641,7 +656,7 @@ class Handlung(BaseModel):
     forge: str = Field(max_length=200)
     # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen, triage and einspielen: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden']
     # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
@@ -680,6 +695,15 @@ class Handlung(BaseModel):
             if self.epic < 1 or not self.text:
                 raise ValueError('Widerruf einer Mission des Schnittplans: die Mission und der Einwand')
             self.nr, self.seit = None, None
+        elif self.art in KONTO_HANDLUNGEN:
+            # #95: konto_anlegen: epic 0, text the name or nothing; the others: epic the account's number, no text
+            if self.art == 'konto_anlegen' and (self.epic != 0 or len(self.text or '') > 60):
+                raise ValueError('Konto anlegen: epic 0 und höchstens 60 Zeichen Name')
+            if self.art != 'konto_anlegen' and self.epic < 1:
+                raise ValueError('Diese Handlung braucht die Nummer eines Kontos')
+            self.nr, self.seit = None, None
+            if self.art != 'konto_anlegen':
+                self.text = None
         elif self.art == 'einstellen':
             # belongs to the project: epic 0; the text is read here once, so the store holds one form
             try:

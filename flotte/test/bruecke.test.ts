@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -2256,6 +2256,72 @@ describe('Stand und Einspielen über die Brücke (#154)', () => {
       const halt = t.p.zeitleiste.findIndex((x) => x.startsWith('Angehalten auf Wunsch'));
       expect(gemergt).toBeGreaterThanOrEqual(0);
       expect(halt).toBeGreaterThan(gemergt);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
+
+describe('Konten über die Brücke (#95)', () => {
+  /** konten.json of the test world: account 1 is its first account folder, new accounts go to their own home folder */
+  function kontenWelt(t: ReturnType<typeof aufbau>) {
+    const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));
+    const datei = join(heim, '.claude', 'flotte', 'konten.json');
+    mkdirSync(join(heim, '.claude', 'flotte'), { recursive: true });
+    writeFileSync(datei, JSON.stringify(t.konten.map((k, i) => ({ nr: String(i + 1), ordner: k, name: `Konto ${i + 1}`, farbe: '#112233', aktiv: true }))));
+    const terminal: string[] = [];
+    t.welt.konten = { datei, heim, terminal: (d) => terminal.push(d) };
+    return { heim, datei, terminal };
+  }
+
+  it('each action once, also when the acknowledgement is lost; the report carries aktiv and the sign-in, never a path', async () => {
+    const t = aufbau();
+    const k = kontenWelt(t);
+    writeFileSync(join(t.konten[0], '.credentials.json'), 'GEHEIM');
+    const liste: Wunsch[] = [{ epic: 0, art: 'konto_anlegen', text: 'Drei' }, { epic: 2, art: 'konto_deaktivieren' }, { epic: 1, art: 'konto_anmelden' }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null, handlungDoppelt: true });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 2500 }), t.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte.filter((x) => x === 'Konto 3 (Drei) angelegt, Anmeldung am Rechner; Mensch über die Brücke')).toHaveLength(1);
+      expect(texte.filter((x) => x.startsWith('Konto 2 deaktiviert'))).toHaveLength(1);
+      expect(k.terminal).toEqual([resolve(t.konten[0])]);
+      const gespeichert = JSON.parse(readFileSync(k.datei, 'utf8')) as { nr: string; aktiv: boolean }[];
+      expect(gespeichert.map((x) => [x.nr, x.aktiv])).toEqual([['1', true], ['2', false], ['3', true]]);
+      expect(existsSync(join(k.heim, '.claude-arbeitspferd-3'))).toBe(true);
+      expect(existsSync(t.konten[1])).toBe(true);
+      const letzter = b.berichte.at(-1)!;
+      expect(letzter.kontenListe).toEqual([
+        { nr: 1, name: 'Konto 1', farbe: '#112233', aktiv: true, anmeldung: 'angemeldet' },
+        { nr: 2, name: 'Konto 2', farbe: '#112233', aktiv: false, anmeldung: 'nicht angemeldet' },
+        { nr: 3, name: 'Drei', farbe: '#D97757', aktiv: true, anmeldung: 'nicht angemeldet' },
+      ]);
+      expect(JSON.stringify(letzter)).not.toContain('GEHEIM');
+      expect(JSON.stringify(letzter.kontenListe)).not.toContain(basename(t.konten[0]));
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('deaktivieren during a run does not end it, but starts no new one on the account', async () => {
+    const t = aufbau({ verbrauch: [0.1] });
+    kontenWelt(t);
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || !x.epics.some((e) => e.nr === 3 && e.prozess)) return null;
+        gesendet = true;
+        return { epic: 1, art: 'konto_deaktivieren' };
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, obergrenze: 1, maxDauerMs: 6000 }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(2);
+      expect(z.epics['4'].stufe).toBe('wartend');
+      expect(buch.gesehen().some((g) => /^Flotte, Mission #4\b/.test(g.eingabe))).toBe(false);
+      expect(z.ereignisse.some((x) => /abgebrochen|beendet den Zug/.test(x.text))).toBe(false);
     } finally {
       await b.zu();
     }
