@@ -52,19 +52,19 @@
 <body>
 <div class="kopf"><div class="ecke"></div><div class="titel"><h1>Wenn ein Lauf fragt</h1><div class="leiste"></div></div></div>
 <div class="ablauf" id="ablauf"></div>
-<p class="unten"><b>Jede Entscheidung</b>, ob vom Admiral oder von dir, steht danach als Kommentar am Issue. Bis zum Merge nimmst du jede davon in der Detailansicht des Epics auf der Brücke zurück.</p>
+<p class="unten"><b>Jede Entscheidung</b>, ob vom Admiral oder von dir, steht danach als Kommentar am Issue. Bis zum Andocken nimmst du jede davon in der Detailansicht der Mission auf der Brücke zurück.</p>
 <script>
   const WER = ['Lauf', 'Treiber', 'Admiral', 'Brücke', 'Mensch'];
   // [from, to, text, colour of the sender, dashed]
   const SCHRITTE = [
     [1, 2, '<code>FLOTTE-FRAGE</code>: der Frageblock'],
     [2, 3, 'der Frageblock, als eigener <code>claude -p</code>'],
-    [3, 2, 'entscheidet, was bis zum Merge <b>umkehrbar</b> ist, mit Grund und Marke'],
+    [3, 2, 'entscheidet, was bis zum Andocken <b>umkehrbar</b> ist, mit Grund und Marke'],
     [2, 4, 'der Rest als Fragekarte in „Braucht dich“'],
     [5, 4, 'Empfehlung mit einem Tipp, Option oder Freitext, mit PIN'],
     [4, 2, 'die Antwort, abgeholt im nächsten Takt und quittiert'],
     [2, 1, 'weiter mit den Antworten'],
-    [5, 2, '„Zurücknehmen“ bis zum Merge: die neue Entscheidung geht über Brücke und Treiber an den Lauf', true],
+    [5, 2, '„Zurücknehmen“ bis zum Andocken: die neue Entscheidung geht über Brücke und Treiber an den Lauf', true],
   ];
   if (location.hash === '#schmal') document.body.classList.add('schmal');
   const box = document.getElementById('ablauf');

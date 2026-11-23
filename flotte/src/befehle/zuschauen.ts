@@ -22,7 +22,7 @@ export async function zuschauen(argv: string[], schreib: (z: string) => void = (
   const logs: string[] = [];
   for (;;) {
     const ep = lies(dir, repo).epics[String(nr)] as { log?: string | null; stufe?: string } | undefined;
-    if (!ep) throw new Error(`Epic #${nr} steht nicht im Zustand des Treibers (${dir})`);
+    if (!ep) throw new Error(`Mission #${nr} steht nicht im Zustand des Treibers (${dir})`);
     if (ep.log && ep.log !== log) {
       log = ep.log;
       pos = 0;

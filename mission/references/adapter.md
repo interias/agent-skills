@@ -66,18 +66,18 @@ Frontmatter (Abschnitt „Form").
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `issue_form` | `tickets` (Mission mit Kind-Tickets) oder `spec` (ein Issue mit sieben Abschnitten, der Orchestrator zerlegt) | **aus der Form abgeleitet**: hat das Issue Kinder → `tickets`; sieben Abschnitte ohne Kinder → `spec`; sonst Vorab-Tor |
+| `issue_form` | `tickets` (Mission mit Missionsziele) oder `spec` (ein Issue mit sieben Abschnitten, der Orchestrator zerlegt) | **aus der Form abgeleitet**: hat das Issue Missionsziele → `tickets`; sieben Abschnitte ohne Missionsziele → `spec`; sonst Vorab-Tor |
 | `ready_label` | Freigabelabel: nur Tickets damit werden bearbeitet | `ready-for-agent` |
 | `prognose_ab` | Flotten-Treiber: so viele gemessene Missionen, bevor die Brücke eine Prognose zeigt | `5` |
-| `prio_label` | Vorrang unter dem Flotten-Treiber: eine startbereite Mission mit diesem Label (an der Mission oder an einem Kind) kommt in die nächste Belegung; harte Kanten und Kollisionsstufen gelten weiter | `prio/hoch` |
+| `prio_label` | Vorrang unter dem Flotten-Treiber: eine startbereite Mission mit diesem Label (an der Mission oder an einem Missionsziel) kommt in die nächste Belegung; harte Kanten und Kollisionsstufen gelten weiter | `prio/hoch` |
 | `prototype_dir` | Holodeck der Flottenbrücke: Ordner der Prototypen, relativ zur Repo-Wurzel. Der Flotten-Treiber schickt jede HTML-Datei direkt darin an die Brücke (keine Unterordner, keine Verknüpfungen, höchstens 50 zu je 2 MB); ein Wert mit `..` oder ein absoluter liest nichts | `prototypen/` |
 | `skip_labels` | Tickets damit werden übersprungen (mit Kommentar) | `needs-triage`, `needs-info`, `wontfix` |
-| `epic_label` | kennzeichnet Missionen. Eine Kante zwischen zwei Missionen heißt **Reihenfolge**, eine Kante von einer Mission zu einem Nicht-Missions-Issue heißt **Kind**. Der Lauf setzt es an ein Zielissue mit Kindern | `epic` |
+| `epic_label` | kennzeichnet Missionen. Eine Kante zwischen zwei Missionen heißt **Reihenfolge**, eine Kante von einer Mission zu einem Nicht-Missions-Issue heißt **Missionsziel**. Der Lauf setzt es an ein Zielissue mit Missionszielen | `epic` |
 | `dependency_source` | `api` (Gitea-Abhängigkeiten), `header` (Kopfzeile `> **Reihenfolge:** …`), `body` (Abschnitt `## Blocked by`). Mehrfachnennung erlaubt | `api` |
 | `write_back_dependencies` | Kanten, die aus `header` oder `body` gelesen wurden, trägt der Lauf in die Gitea-Abhängigkeiten nach | `true` für Kanten aus `header`; für Kanten aus `body` nur, wenn der Adapter es setzt, sonst ein Tor-Punkt |
-| `transitive` | hängen alle Kinder an Tickets einer anderen offenen Spec, werden diese im selben Lauf mitbearbeitet | `false` |
-| `acceptance_section` | Abschnitt mit der Abnahmeliste. Fehlt er an einem Kind, wird es übersprungen und kommentiert | `tickets`: der erste vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`; `spec`: `## User Stories` |
-| `verification_section` | Abschnitt mit dem Verifikationsweg. Fehlt er an einem Kind, wird es nicht bearbeitet | `tickets`: `## Verifikationsweg`; `spec`: `## Testing Decisions` |
+| `transitive` | hängen alle Missionsziele an Tickets einer anderen offenen Spec, werden diese im selben Lauf mitbearbeitet | `false` |
+| `acceptance_section` | Abschnitt mit der Abnahmeliste. Fehlt er an einem Missionsziel, wird es übersprungen und kommentiert | `tickets`: der erste vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`; `spec`: `## User Stories` |
+| `verification_section` | Abschnitt mit dem Verifikationsweg. Fehlt er an einem Missionsziel, wird es nicht bearbeitet | `tickets`: `## Verifikationsweg`; `spec`: `## Testing Decisions` |
 | `modules_section` | Abschnitt mit den berührten Modulen. Das Wort `Exklusiv` darin heißt: läuft allein | `## Betroffene Module` |
 | `base_branch` | Basis des Missions-Branches und Ziel des Pull Requests. `from-issue` = aus Kopfzeile oder Further Notes, sonst aus `git log --merges` | der Hauptzweig |
 | `main_branch` | **Hauptzweig** des Repositorys: nie Ziel eines Andockens durch den Lauf (alter Name, KOKOS) | `git symbolic-ref refs/remotes/<push_remote>/HEAD`, ersatzweise `main` |
@@ -261,11 +261,11 @@ alle drei Skills.
   Adapterschlüssel. Namen und Setzpunkte stehen im Skill („Die Statuslabels"), Farben und
   Beschreibungen in `forge.md` („Statuslabels"), damit KIBO sie in jedem Repository gleich liest. Ein Adapter kann sie weder umbenennen noch abschalten.
 - **Das Zielissue ist immer die Mission**, auch wenn es `epic_label` nicht trägt. Trägt im Repository
-  **kein** Issue das Label, gilt jede Kante vom Zielissue als Kind, so wie vor dieser Fassung.
-- **Kante Kind → fremde Mission** (ein Kind ist von einer Mission blockiert, die nicht das Zielissue ist):
+  **kein** Issue das Label, gilt jede Kante vom Zielissue als Missionsziel, so wie vor dieser Fassung.
+- **Kante Missionsziel → fremde Mission** (ein Missionsziel ist von einer Mission blockiert, die nicht das Zielissue ist):
   Das ist eine Kante aus der Mission hinaus. Aufgelöst wird nur mit `transitive: true` **und** wenn
-  alle Pakete daran hängen (`SKILL.md`, Phase 1). Sonst wird das Kind übersprungen und kommentiert.
-- **`ready_label`** prüft im Modus `tickets` nur die Kinder, im Modus `spec` die Spec.
+  alle Pakete daran hängen (`SKILL.md`, Phase 1). Sonst wird das Missionsziel übersprungen und kommentiert.
+- **`ready_label`** prüft im Modus `tickets` nur die Missionsziele, im Modus `spec` die Spec.
 - **`window` > 1 ohne `test_isolation_env` und ohne `isolation: none-needed`** lockert die Regel und
   ist ein Punkt fürs Vorab-Tor.
 - **`base_branch` nach einem Lauf:** Maßgeblich ist die `base` des Pull Requests, der Adapterwert
@@ -289,10 +289,10 @@ alle drei Skills.
 - **Zwei Tokens:** Liegt im Repository auch das Token eines Dienstes (etwa ein Lesetoken in
   `.env`), benutzt der Lauf ausschließlich `token_env`. Der Lauf braucht Schreibrecht, und das prüft
   er in Phase 0.
-- **Kinder aus der Kopfzeile** (`dependency_source: header`): In der Standardlesart sind die
-  Aufzählung `Kinder: #a, #b` in `> **Reihenfolge:**` Kanten Mission → Kind, alle übrigen Nummern der
+- **Missionsziele aus der Kopfzeile** (`dependency_source: header`): In der Standardlesart sind die
+  Aufzählung `Kinder: #a, #b` in `> **Reihenfolge:**` Kanten Mission → Missionsziel, alle übrigen Nummern der
   Zeile sind Reihenfolge. Ein Adapter darf in Prosa eine **eigene Lesart seiner Kopfzeilen**
-  festlegen: weitere Wörter für Kinder, harte Kanten in den Kopfzeilen der Kinder, Wörter, die keine
+  festlegen: weitere Wörter für Missionsziele, harte Kanten in den Kopfzeilen der Missionsziele, Wörter, die keine
   Kante sind. Das ist eine Lesart, keine Lockerung, und braucht keinen Schlüssel; der Plan legt sie
   offen. Mit `write_back_dependencies` gehen die Kanten in die API.
 - **Rot nach einem Sofort-Andocken:** `SKILL.md`, Phase 5, Punkt 2; der Branch bleibt

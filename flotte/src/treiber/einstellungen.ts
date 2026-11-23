@@ -22,6 +22,9 @@ interface Art {
   standard: Wert;
 }
 
+/** #166: the models the bridge offers for triage and admiral */
+export const MODELLE = ['opus', 'fable', 'sonnet'];
+
 export const EINSTELLUNGEN = {
   obergrenze: { titel: 'Missionen gleichzeitig', min: 1, max: 4, leer: true, standard: null },
   paketeJeEpic: { titel: 'Pakete je Mission gleichzeitig', min: 1, max: 3, leer: false, standard: 3 },
@@ -35,6 +38,11 @@ export const EINSTELLUNGEN = {
   leerlaufMin: { titel: 'Leerlauf (Minuten bis Nachfassen/Abbruch)', min: 5, max: 480, leer: false, standard: 60 },
   // #112: the standard is the adapter's (treiber.ts, standardWert); automatisch only with merge: nach_gate
   merge: { titel: 'Andocken', werte: ['automatisch', 'mensch'], leer: false, standard: 'mensch' },
+  // #166: from the next triage run or question block on; a running one keeps its model
+  triageModell: { titel: 'Modell der Triage', werte: MODELLE, leer: false, standard: 'opus' },
+  admiralModell: { titel: 'Modell des Admirals', werte: MODELLE, leer: false, standard: 'fable' },
+  // #167: file accesses the model of the triage may make per call; the program reads the common facts itself
+  triageLesenMax: { titel: 'Dateizugriffe der Triage je Aufruf', min: 0, max: 100, leer: false, standard: 15 },
   // #37: the Windows notification of "Braucht dich" on the driver's machine
   meldung: { titel: 'Windows-Meldung bei „Braucht dich“', werte: ['an', 'aus'], leer: false, standard: 'aus' },
 } satisfies Record<string, Art>;
@@ -51,6 +59,7 @@ export const START_PARAMETER: Partial<Record<EinstellungName, string>> = {
   ramWarn: '--ram-warn',
   platteMinGb: '--platte-min-gb',
   leerlaufMin: '--leerlauf-min',
+  admiralModell: '--admiral-modell',
   meldung: '--meldung',
 };
 
@@ -122,6 +131,12 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return Math.round(e.leerlaufMs / 60_000);
     case 'merge':
       return e.merge;
+    case 'triageModell':
+      return e.triageModell;
+    case 'admiralModell':
+      return e.admiralModell;
+    case 'triageLesenMax':
+      return e.triageLesenMax;
     case 'meldung':
       return e.meldung;
   }
@@ -182,6 +197,15 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'merge':
       e.merge = wert as Stellung;
+      break;
+    case 'triageModell':
+      e.triageModell = wert as string;
+      break;
+    case 'admiralModell':
+      e.admiralModell = wert as string;
+      break;
+    case 'triageLesenMax':
+      e.triageLesenMax = wert as number;
       break;
     case 'meldung':
       e.meldung = wert as 'an' | 'aus';

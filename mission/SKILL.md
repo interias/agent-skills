@@ -15,14 +15,14 @@ oder eine mit fremdem Präfix (`PRD 41`) ist eine **externe Nummer**, wenn `issu
 ist, und wird damit umgerechnet; ohne `issue_offset` ist die nackte Zahl die Issue-Nummer.
 
 **Zwei Modi** (`issue_form`), ein Ablauf. Überall, wo unten *Paket* steht, ist im Modus `tickets` ein
-Kind-Ticket gemeint, im Modus `spec` ein von dir geschnittenes Stück der Spec:
+Missionsziel gemeint, im Modus `spec` ein von dir geschnittenes Stück der Spec:
 
 | | `tickets` | `spec` |
 |---|---|---|
-| Form | Mission mit Kind-Tickets | ein Issue mit sieben Abschnitten, Kinder optional |
-| Pakete | die Kinder | ohne Kinder: dein Schnitt (Phase 2a); mit Kindern: die Kinder |
-| Abnahmeliste | `acceptance_section` des Kindes | die User Stories der Spec |
-| Freigabe (`ready_label`) | am Kind | an der Spec |
+| Form | Mission mit Missionsziele | ein Issue mit sieben Abschnitten, Missionsziele optional |
+| Pakete | die Missionsziele | ohne Missionsziele: dein Schnitt (Phase 2a); mit Missionszielen: die Missionsziele |
+| Abnahmeliste | `acceptance_section` des Missionsziels | die User Stories der Spec |
+| Freigabe (`ready_label`) | am Missionsziel | an der Spec |
 
 **Der Hauptzweig** ist `main_branch`. **Die Basis** ist `base_branch`, im Folgenden `<basis>`,
 Standard der Hauptzweig. Der Missions-Branch zweigt von ihr ab, der Pull Request geht auf sie zurück.
@@ -142,9 +142,9 @@ vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter (`r
   | Stelle | an | Label |
   |---|---|---|
   | Eröffnung (2d), in allen Modi | das Zielissue | `+ in-arbeit` |
-  | Übersprungenes Kind (2d), **wenn der Grund ein blockierendes Ticket ist** | das Kind | `+ blockiert` |
+  | Übersprungenes Missionsziel (2d), **wenn der Grund ein blockierendes Ticket ist** | das Missionsziel | `+ blockiert` |
   | Ingenieur startet (4a) — auch jeder Nachrücker (5, Punkt 3) | das Paket-Ticket | `+ in-arbeit` |
-  | Kommentar nach dem Andocken (5, Punkt 4) | das Kind | bleibt `in-arbeit`, bis der Pull Request angedockt ist und `Closes` es schließt |
+  | Kommentar nach dem Andocken (5, Punkt 4) | das Missionsziel | bleibt `in-arbeit`, bis der Pull Request angedockt ist und `Closes` es schließt |
   | Zurücklassen (5) | das Ticket | `+ haengt` |
   | Nachfolger eines zurückgelassenen Pakets (5) | der Nachfolger | `+ blockiert` |
   | Glut-Punkt der Lauftafel, der zu einem Ticket gehört | das Ticket | `+ haengt` |
@@ -155,11 +155,11 @@ vergessen werden kann. Die Namen sind fest und stehen hier, nicht im Adapter (`r
   sonst fällt ein still gescheiterter `POST` erst in Phase 6 auf oder nie. Fehlt das Label, noch
   einmal setzen; scheitert es wieder, ist das ein Glut-Punkt auf der Tafel.
 
-  Ein Kind, das wegen eines fehlenden Labels, einer fehlenden Abnahmeliste oder eines fehlenden
+  Ein Missionsziel, das wegen eines fehlenden Labels, einer fehlenden Abnahmeliste oder eines fehlenden
   Verifikationswegs übersprungen wird, bekommt **kein** Statuslabel: es wartet auf keinen anderen,
   sondern auf eine Klärung — das zeigt KIBO über das Freigabelabel.
 - **Beim Start (0a) aufräumen:** `status/in-arbeit` an Tickets dieser Mission, die ein früherer,
-  abgebrochener Lauf hinterlassen hat, nimmt der Lauf ab; `status/blockiert` an Kindern, deren
+  abgebrochener Lauf hinterlassen hat, nimmt der Lauf ab; `status/blockiert` an Missionszielen, deren
   Blocker inzwischen geschlossen ist, ebenso. Ein Ticket, das der Lauf wieder aufgreift, verliert
   `status/haengt` beim Start seines Ingenieurs.
 - **Fehlt ein Label im Repository**, legt der Lauf es an — mit den Farben und Beschreibungen aus
@@ -286,19 +286,19 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 - **Kanten lesen** nach `dependency_source` (`api`, `header`, `body`; mehrere möglich), Befehle in
   `references/forge.md`. `epic_label` trennt die Bedeutung: eine Kante vom Zielissue zu einem
   anderen **Mission** heißt *Reihenfolge* (Vorbedingung), eine Kante zu einem **Nicht-Missions-Issue** heißt
-  *Kind*. Das Zielissue gilt als Mission, auch wenn es das Label nicht trägt. Bei `header` nennt in
+  *Missionsziel*. Das Zielissue gilt als Mission, auch wenn es das Label nicht trägt. Bei `header` nennt in
   der Standardlesart die Aufzählung `Kinder: #a, #b` in der Kopfzeile `> **Reihenfolge:**` die
-  Kinder, alle übrigen Nummern dort sind Reihenfolge. Legt der Adapter eine eigene Lesart seiner
+  Missionsziele, alle übrigen Nummern dort sind Reihenfolge. Legt der Adapter eine eigene Lesart seiner
   Kopfzeilen fest, gilt sie (`references/adapter.md`, Auslegung); der Plan legt sie offen.
 - **Modus bestimmen:** `issue_form` aus dem Adapter; fehlt
-  er, aus der Form — Kinder → `tickets`, sieben Abschnitte ohne Kinder → `spec`, sonst Vorab-Tor. Die
+  er, aus der Form — Missionsziele → `tickets`, sieben Abschnitte ohne Missionsziele → `spec`, sonst Vorab-Tor. Die
   Ableitung steht im Plan.
 - **Vorbedingung prüfen:** Ist eine vorausgesetzte Mission offen, gilt:
   - Hängen **alle** Pakete an noch nicht angedockten Tickets dieser Mission und steht `transitive:
     true`, werden diese Tickets im selben Lauf mitbearbeitet — ein Missions-Branch, ein Pull Request.
     Die fremde Mission bekommt Eröffnungs- und Abschlusskommentar, wird aber **nie per `Closes`
     geschlossen**.
-  - Hängen nur **einzelne** Kinder daran, werden diese übersprungen (Phase 2d).
+  - Hängen nur **einzelne** Missionsziele daran, werden diese übersprungen (Phase 2d).
   - Sonst **parkt die Mission** (#169): kein Paket-Worktree, kein Pull Request (einen angelegten
     Missions-Worktree räumt `Down` ab); ein Kommentar an der Mission nennt den Grund (welche Mission
     offen ist) und die Wiederaufnahme (ihr Andocken). Unter dem Flotten-Treiber endet der Zug mit
@@ -307,8 +307,8 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 - **Basis bestimmen**, wenn `base_branch: from-issue`: aus der Kopfzeile oder den Further Notes,
   sonst der Branch, von dem die vorausgesetzten Missionen abgezweigt sind (`git log --merges`). Nicht
   raten.
-- **Kinder einsammeln** (Modus `tickets`, und `spec` mit Kindern): je Kind Body, Labels, State,
-  Kanten. Bearbeitet wird nur, was offen ist und die Freigabe trägt. Übersprungen wird ein Kind
+- **Missionsziele einsammeln** (Modus `tickets`, und `spec` mit Missionszielen): je Missionsziel Body, Labels, State,
+  Kanten. Bearbeitet wird nur, was offen ist und die Freigabe trägt. Übersprungen wird ein Missionsziel
   mit einem der `skip_labels`, ohne `ready_label`, mit Kante in eine fremde offene Mission (ohne
   transitive Auflösung) oder im Modus `tickets` ohne `acceptance_section` oder ohne
   `verification_section` — ohne Abnahmeliste gibt es keinen Scope, ohne Verifikationsweg ist der
@@ -324,10 +324,10 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
 
 ### 2a — Die Pakete
 
-**Modus `tickets`:** die bearbeitbaren Kinder. Berührte Module aus `modules_section`, sonst aus der
+**Modus `tickets`:** die bearbeitbaren Missionsziele. Berührte Module aus `modules_section`, sonst aus der
 Abnahmeliste erschlossen.
 
-**Modus `spec` ohne Kinder:** Du schneidest nach diesen Regeln:
+**Modus `spec` ohne Missionsziele:** Du schneidest nach diesen Regeln:
 
 - **Entlang der Implementation Decisions, nicht der Verzeichnisse.** Sind die Decisions eine Folge,
   ist die Folge der Schnitt und die Reihenfolge Teil der Vorgabe. **Schneide nicht für
@@ -347,8 +347,8 @@ Abnahmeliste erschlossen.
 - **Zuordnungstabelle Story → Paket:** jede User Story genau einem Paket. Eine Story ohne Paket ist
   eine Lücke im Plan, ein Paket ohne Story Arbeit, die niemand verlangt hat.
 
-**Modus `spec` mit Kindern:** die Kinder sind die Pakete; die Zuordnungstabelle ordnet jede Story
-einem Kind zu.
+**Modus `spec` mit Missionszielen:** die Missionsziele sind die Pakete; die Zuordnungstabelle ordnet jede Story
+einem Missionsziel zu.
 
 **In allen Modi** bekommt jedes Paket seine **Paketklasse** („Modelle, Paketklasse, Kundschafter"),
 mit einem Halbsatz Begründung.
@@ -427,10 +427,10 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   vor der Veröffentlichung in `references/lauftafel.md`. Bei `publish` bleibt ihre URL über den ganzen Lauf gleich: jede Fortschreibung auf denselben Dateipfad.
   **Sagt der Auftrag `Lauftafel aus`** (Flotten-Treiber), entfällt die Tafel in allen Phasen; was nur auf ihr
   stünde, geht in Forge-Kommentare und PR-Body (`references/lauftafel.md`, „Lauftafel aus").
-- **Übersprungene Kinder sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
+- **Übersprungene Missionsziele sofort kommentieren** — jetzt, vor dem ersten Paket: dass dieser Lauf es
   nicht bearbeitet, der genaue Grund (blockierendes Ticket mit Nummer, fehlendes Label, fehlende
   Abnahmeliste, fehlender Verifikationsweg) und **was es freischaltet**. Ist der Grund ein
-  blockierendes Ticket, bekommt das Kind im selben Zug `status/blockiert`.
+  blockierendes Ticket, bekommt das Missionsziel im selben Zug `status/blockiert`.
 - **Kanten nachtragen:** bei `write_back_dependencies` jede aus `header` gelesene Kante, aus `body`
   nur nach Adapter oder Antwort am Tor, in die Abhängigkeiten der Forge eintragen
   (`references/forge.md`), damit andere Werkzeuge sie sehen. Nur innerhalb desselben Repositorys,
@@ -438,7 +438,7 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
 - Das Zielissue bekommt mit dem Eröffnungskommentar `status/in-arbeit`, in allen Modi. Eine
   fremde Mission aus transitiver Auflösung nicht: es gehört nicht diesem Lauf.
 - **Das Zielissue bekommt `epic_label`**, falls es fehlt, in allen Modi — auch eine Spec ohne
-  Kinder ist eine Mission, und KIBO wie spätere Läufe lesen es daran.
+  Missionsziele ist eine Mission, und KIBO wie spätere Läufe lesen es daran.
 - **Eröffnungskommentar** am Zielissue (bei transitiver Auflösung auch an der fremden Mission): dass der
   Lauf beginnt, Modus, Basis, Missions-Branch, Paketliste, die geplante Belegung, im Modus `spec` die
   Zuordnungstabelle, der Link auf die Lauftafel (bei `file` ihr Pfad). Kommentare gehen **aus
@@ -461,7 +461,7 @@ warten. Ergeben die Antworten neue Punkte, werden nur diese in einer zweiten Run
   Branch neu an, falls er fehlt (#38).
 - Je laufendem Paket ein eigener Branch `agent/<nr>-<slug>` (Slug wie oben) in einem eigenen
   Worktree unter `worktree_root`, gezogen vom **aktuellen** Missions-Kopf: `Up -Package <nr> -Branch
-  agent/<nr>-<slug> -From epic/<nr>-<slug>`. `<nr>` ist die Kindnummer, im Modus `spec` ohne Kinder
+  agent/<nr>-<slug> -From epic/<nr>-<slug>`. `<nr>` ist die Nummer des Missionsziels, im Modus `spec` ohne Missionsziele
   `<spec>-p<k>` (Spec-Nummer und Paketnummer der Lauftafel). Dadurch enthält jedes spätere Paket
   alles Angedockte, und ein Konflikt kann nur noch von einem gleichzeitig laufenden Paket kommen.
 - **Rüsten und Abräumen nur mit `Up`, `Down` und `CleanupStale`**, nie von Hand. `Up` liest den
@@ -565,7 +565,7 @@ Läufe ab: offener Punkt (#38).
 Ein Subagent je Paket (`Agent`, `subagent_type` nach Paketklasse, `run_in_background: true`;
 mehrere Starts in **einer** Nachricht), davor die Messung
 der RAM-Bremse. Mit dem Start bekommt das Paket-Ticket `status/in-arbeit`
-und wird nachgelesen (im Modus `spec` ohne Kinder trägt es die Spec schon). Das gilt für jeden
+und wird nachgelesen (im Modus `spec` ohne Missionsziele trägt es die Spec schon). Das gilt für jeden
 Start, auch für den Nachrücker nach einem Andocken (5, Punkt 3) — dort, mitten in der
 Andock-Checkliste, fällt es am leichtesten aus. Er hat deinen Kontext nicht; sein Auftrag enthält
 alles **ausgeschrieben**:
@@ -573,7 +573,7 @@ alles **ausgeschrieben**:
 - Den absoluten Pfad seines Worktrees samt `port` und `isolation` aus dem JSON von `Up` und die
   Arbeitsweise darin nach „Der Subagent im Worktree" in `references/worktree.md` — einschließlich
   des Ergebnisses der dort beschriebenen `EnterWorktree`-Prüfung.
-- Paketnummer, Titel bzw. Zielsatz, die Abnahmeliste **im Wortlaut** (Kind-Body oder zugeordnete
+- Paketnummer, Titel bzw. Zielsatz, die Abnahmeliste **im Wortlaut** (Body des Missionsziels oder zugeordnete
   User Stories).
 - Die betreffenden Implementation Decisions **samt Begründung** — ohne sie wählt er die
   naheliegende Lösung, gegen die die Decision geschrieben wurde. Dazu die relevanten
@@ -745,14 +745,14 @@ damit jedes spätere Paket schon auf ihm beginnt.
    seinem Ticket und Nachlesen.
    `git branch -d` läuft im Missions-Worktree: Aus dem Hauptverzeichnis prüft Git gegen dessen Zweig
    und verweigert.
-4. **Kommentar an das angedockte Ticket** — im Modus `tickets` und `spec` mit Kindern das Kind, im Modus
-   `spec` ohne Kinder die Spec. Hinein: Paket, Andock-Commit und Branch, **je Abnahmepunkt die
+4. **Kommentar an das angedockte Ticket** — im Modus `tickets` und `spec` mit Missionszielen das Missionsziel, im Modus
+   `spec` ohne Missionsziele die Spec. Hinein: Paket, Andock-Commit und Branch, **je Abnahmepunkt die
    Fundstelle** (Datei, Zeile, Test) statt einer Behauptung, der gefahrene Verifikationsweg mit
    echter Ausgabe und den Zahlen gegen Phase 0, was der Erste Offizier selbst korrigiert hat, was das
    Issue vermerkt haben will, die offenen Punkte. Dazu eine Zeile **`Zeiten:`** mit den
    Uhrzeiten des Pakets — Start, Ingenieur zurück, Erster Offizier zurück, abgenommen, angedockt — und
    jeder Wartezeit über fünf Minuten samt Grund (Slot, Volllauf, Antwort, Bremse). Aus diesen
-   Zeilen wird der Lauf später ausgewertet, ohne die Transkripte zu lesen. Das Kind **behält** `status/in-arbeit`:
+   Zeilen wird der Lauf später ausgewertet, ohne die Transkripte zu lesen. Das Missionsziel **behält** `status/in-arbeit`:
    angedockt ist es erst im Missions-Branch, nicht auf der Basis.
 5. **Lauftafel fortschreiben** nach `references/lauftafel.md`: Zustand, Andock-Commit und Runden
    des Pakets, neu gestartete Pakete, Teststand, Abweichungen vom Plan, offene Punkte. Die
@@ -805,7 +805,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
     (`flotte/references/entscheidungsrecht.md`, „Was aufgeschrieben wird"); je Paket eine Zeile mit Ergebnis — hat
     ein Paket bestehende Arbeit übernommen, mit
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
-    Ersten Offiziers; die offenen Punkte; die angelegten Tickets (Regel 3); je Kind mit offenem Blocker der Satz aus `references/forge.md`,
+    Ersten Offiziers; die offenen Punkte; die angelegten Tickets (Regel 3); je Missionsziel mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
   - **Andockblock**, bei `merge: nach_gate`, auch in einem Repository mit Checks: Die Andockregel
     (`merge.ps1`, der Flotten-Treiber) dockt nur mit ihm an (`references/adapter.md`, „Andocken").
@@ -823,10 +823,10 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
     für die Andockprüfung. Unter dem Flotten-Treiber holt danach der Treiber die Basis nach und fährt die
     Andockprüfung selbst; ein Konflikt oder eine rote Andockprüfung kommt mit seiner Ausgabe zu dir zurück.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
-    Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Kind, in beiden Modi. **Ein
-    Zielissue mit Kindern nie** (Begründung ebenda). Die
-    Mission schließt `/mission-nacharbeit`, sobald alle Kinder zu und alle User Stories erfüllt sind.
-    `Closes #<spec>` nur bei einer Spec ohne Kinder, wenn **alle** User Stories abgenommen sind. Eine
+    Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Missionsziel, in beiden Modi. **Ein
+    Zielissue mit Missionszielen nie** (Begründung ebenda). Die
+    Mission schließt `/mission-nacharbeit`, sobald alle Missionsziele zu und alle User Stories erfüllt sind.
+    `Closes #<spec>` nur bei einer Spec ohne Missionsziele, wenn **alle** User Stories abgenommen sind. Eine
     fremde Mission aus transitiver Auflösung nie.
 - **Nicht andocken.**
 - **Verbrauch messen:** `scripts/usage.ps1 -RepoRoot <startverzeichnis der sitzung> -Contains
@@ -834,7 +834,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
   je Paket und je Agent. Hat die Sitzung mehr getan als diesen Lauf, grenzt `-Since` mit der Zeit
   des Eröffnungskommentars ein. Das Paket liest das Skript aus der `description` des
   `Agent`-Aufrufs — sie nennt deshalb immer die Paketnummer (`Implementer #588 …`, im Modus `spec`
-  ohne Kinder `Implementer #<spec>-p<k> …`; daran erkennt auch die Brücke das Paket, #151). Exit 1 ist ein offener Punkt im Bericht, kein Glut-Punkt.
+  ohne Missionsziele `Implementer #<spec>-p<k> …`; daran erkennt auch die Brücke das Paket, #151). Exit 1 ist ein offener Punkt im Bericht, kein Glut-Punkt.
 - **Abschlusskommentar am Zielissue** (und an der fremden Mission). Hinein: Link auf
   Pull Request und Lauftafel; je Paket Ergebnis, Andock-Commit, Runden, Paketklasse und
   Eskalationen; tatsächliche gegen geplante
@@ -845,7 +845,7 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
   Mission noch offen lässt.
 - Das Zielissue verliert mit dem Abschlusskommentar `status/in-arbeit`, in allen Modi.
 - **Nachzählen:** für **jede** berührte Nummer — Zielissue, fremde Mission samt mitbearbeiteten
-  Tickets, jedes Kind, jedes übersprungene und blockierte Ticket — prüfen, dass der Kommentar
+  Tickets, jedes Missionsziel, jedes übersprungene und blockierte Ticket — prüfen, dass der Kommentar
   wirklich steht (`references/forge.md`, „Nachzählen statt annehmen") **und das Statuslabel dem
   Endstand entspricht** (Tabelle „Was am Ende in der Forge stehen muss"; Befehle:
   `references/forge.md`, „Statuslabels"). Das Nachlesen geht an Kundschafter, je ein Bündel Nummern
@@ -881,7 +881,7 @@ lässt kein Paket zurück: was läuft, läuft weiter.
 wird **nichts weggeworfen**: der Missions-Branch bleibt, die fertigen Andockvorgänge bleiben, zurückgelassene
 Branches bleiben. Der Stand kommt in die Forge (Kommentar am Zielissue und an den laufenden Paketen)
 und auf die Tafel: laufende Pakete verlieren „in Arbeit" **auf der Tafel und als Label**; das
-Zielissue und die angedockten Kinder verlieren das Label ebenfalls, denn kein Pull Request trägt
+Zielissue und die angedockten Missionsziele verlieren das Label ebenfalls, denn kein Pull Request trägt
 ihren Stand. Der
 Abbruchgrund steht als Glut-Punkt beim Menschen. Eine Tafel, die drei Pakete als „in Arbeit"
 stehen lässt, behauptet, es liefe noch etwas.
@@ -892,11 +892,11 @@ stehen lässt, behauptet, es liefe noch etwas.
 
 | Issue | Kommentar | Zustand danach |
 |---|---|---|
-| jedes angedockte Paket-Ticket (Kind, in beiden Modi) | Andock-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen, `status/in-arbeit` — schließt über `Closes` |
+| jedes angedockte Paket-Ticket (Missionsziel, in beiden Modi) | Andock-Commit, Fundstelle je Abnahmepunkt, Verifikation, offene Punkte | offen, `status/in-arbeit` — schließt über `Closes` |
 | jedes zurückgelassene Ticket | was fehlt, wo sein Branch liegt | offen, `status/haengt` |
 | jedes blockierte Ticket | das blockierende Paket | offen, `status/blockiert` |
-| jedes übersprungene Kind | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
-| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Kinder je Andocken; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — Schließen: Phase 6, `Closes` |
+| jedes übersprungene Missionsziel | Grund und was es freischaltet | offen; `status/blockiert` nur, wenn ein Ticket der Grund ist |
+| das Zielissue | Eröffnung mit Tafel-Link; im Modus `spec` ohne Missionsziele je Andocken; Abschluss mit PR-Link | offen, ohne Statuslabel, mit `epic_label` — Schließen: Phase 6, `Closes` |
 | eine fremde Mission (transitiv) | Eröffnung und Abschluss mit Begründung | offen — schließt ein Mensch |
 
 Die Lauftafel steht auf dem Endstand.

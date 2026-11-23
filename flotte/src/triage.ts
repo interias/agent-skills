@@ -8,11 +8,13 @@
 // and changes the ticket only when the comment stands. Formats of the comments and the JSON:
 // flotte/README.md, "Triage".
 // #117: a proposal of the learning loop at lern_issue is no note but a comment at a collecting issue; each
-// gets its own call (Lernvorschlag below): clear becomes a Missionsziel through the order writer,
-// superfluous only a comment, critical one question.
+// gets its own call (Lernvorschlag below): clear becomes a Sternzeit-Notiz through the order writer that
+// goes into the cut plan of the same run (#170: never a loose Missionsziel), superfluous only a comment,
+// critical one question.
 
 import { abschnittInhalt, pruefen, TRIAGE_LABEL, type AuftragsRegeln } from './auftrag/auftrag.ts';
 import { LERN_MARKE } from './lernen.ts';
+import { lesenRegel } from './triage-fakten.ts';
 import { BEIM_MENSCHEN, HERKUNFT_REGEL, MERKMALE } from './treiber/admiral.ts';
 
 export const INFO_LABEL = 'needs-info';
@@ -264,15 +266,15 @@ const abschnitte = (r: AuftragsRegeln) =>
   `Fehlt ${r.acceptance_section.map((k) => `„${k}“`).join(' oder ')} oder ist leer, schreibst du abnahmekriterien (prüfbare Markdown-Liste); fehlt „${r.verification_section}“ oder ist leer, schreibst du verifikationsweg (ein fahrbarer Befehl oder Ablauf). Was schon dasteht, lässt du leer.`;
 
 /** #117: the order for the clearing of one proposal of the learning loop. */
-export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern: Lernvorschlag): string {
+export function triageAuftrag(t: Ticket, r: AuftragsRegeln, lern: Lernvorschlag, k?: Kontext): string {
   const fakten = faktenAus(t, TEXT_MAX);
   return `FLOTTE-TRIAGE
-Du bist der Admiral der Flotte und klärst einen Vorschlag der Lernschleife ohne Rückfrage. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm schreibt; aus einem klaren Vorschlag legt es über den Auftragsschreiber ein Missionsziel an (agent-skills/ADR-0002).
+Du bist der Admiral der Flotte und klärst einen Vorschlag der Lernschleife ohne Rückfrage. ${lesen(k)} Das Programm schreibt; aus einem klaren Vorschlag legt es über den Auftragsschreiber eine Sternzeit-Notiz an (agent-skills/ADR-0002), die der Schnittplan desselben Laufs einer Mission zuordnet.
 
 ${FRAGERUNDE}
 
 entscheidung:
-- klar: keine Frage liegt beim Menschen, das Ziel ist umsetzbar. ${abschnitte(r)} Der Vorschlag wird danach ein Missionsziel mit Warp frei.
+- klar: keine Frage liegt beim Menschen, das Ziel ist umsetzbar. ${abschnitte(r)} Der Vorschlag wird danach eine Sternzeit-Notiz im Schnittplan und von dort ein Missionsziel einer Mission.
 - ueberfluessig: schon erledigt, doppelt, überholt oder gegen eine bestehende Entscheidung; grund nennt die Fundstelle. Es wird nichts angelegt.
 - kritisch: mindestens eine Frage liegt beim Menschen. Nur diese gehen gebündelt an ihn, mit optionen und deiner Empfehlung.
 
@@ -282,8 +284,16 @@ Antworte nur über das Schema.
 
 # ${lern.kennung} (Sammel-Issue #${t.nummer}): ${t.titel}
 
-${fakten}`;
+${fakten}${k ? `\n\n${k.fakten}` : ''}`;
 }
+
+/** #167: the facts the program read for the orders of a run, and the file accesses left to the model per call. */
+export interface Kontext {
+  fakten: string;
+  lesenMax: number;
+}
+
+const lesen = (k?: Kontext) => (k ? `Du änderst nichts. ${lesenRegel(k.lesenMax)}` : 'Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen.');
 
 const kopf = (titel: string) => `${TRIAGE_MARKE}\n**Triage: ${titel}** — entschieden vom Admiral (\`flotte triage\`)`;
 
@@ -337,6 +347,8 @@ export interface OffeneMission {
   titel: string;
   body: string;
   kinder: number;
+  /** #170: its labels; a mission still carrying needs-triage loses it with its first released child */
+  labels?: string[];
 }
 
 export interface Zuordnung {
@@ -515,11 +527,11 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
   }
   for (const [nr, n] of neueKinder) {
     const m = missionen.find((m) => m.nummer === nr)!;
-    if (m.kinder + n > KINDER_MAX) return nein(`Mission #${nr} hätte mehr als ${KINDER_MAX} Kinder (${m.kinder} + ${n})`);
+    if (m.kinder + n > KINDER_MAX) return nein(`Mission #${nr} hätte mehr als ${KINDER_MAX} Missionsziele (${m.kinder} + ${n})`);
   }
   for (const m of neu) {
-    if (!m.kinder.length && !geleert.has(m.schluessel)) return nein(`neue Mission „${m.schluessel}“ ohne Kinder`);
-    if (m.kinder.length > KINDER_MAX) return nein(`neue Mission „${m.schluessel}“ hätte mehr als ${KINDER_MAX} Kinder (${m.kinder.length})`);
+    if (!m.kinder.length && !geleert.has(m.schluessel)) return nein(`neue Mission „${m.schluessel}“ ohne Missionsziele`);
+    if (m.kinder.length > KINDER_MAX) return nein(`neue Mission „${m.schluessel}“ hätte mehr als ${KINDER_MAX} Missionsziele (${m.kinder.length})`);
   }
   return { art: 'plan', neue_missionen: neu.filter((m) => m.kinder.length), zuordnungen };
 }
@@ -574,26 +586,26 @@ export function pakete(notizen: Ticket[], budget = NOTIZEN_GESAMT): Ticket[][] {
   return out.map((p) => p.sort((a, b) => a.nummer - b.nummer));
 }
 
-export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX): string {
+export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[], r: AuftragsRegeln, neuMax = NEUE_MISSIONEN_MAX, k?: Kontext): string {
   const jeNotiz = Math.min(NOTIZ_MAX, Math.floor(NOTIZEN_GESAMT / Math.max(1, notizen.length)));
   const jeMission = Math.min(MISSION_MAX, Math.floor(MISSIONEN_GESAMT / Math.max(1, missionen.length)));
   // #147: the free places spelled out; the limit alone in the text did not keep the model from overfilling
-  const plaetze = (m: OffeneMission) => (m.kinder >= KINDER_MAX ? `${m.kinder} Kinder, voll, keine neuen Kinder` : `${m.kinder} Kinder, noch ${KINDER_MAX - m.kinder} frei`);
+  const plaetze = (m: OffeneMission) => (m.kinder >= KINDER_MAX ? `${m.kinder} Missionsziele, voll, keine neuen Missionsziele` : `${m.kinder} Missionsziele, noch ${KINDER_MAX - m.kinder} frei`);
   const offen = missionen.length
     ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${plaetze(m)})\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
     : '(keine)';
   return `FLOTTE-SCHNITTPLAN
-Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen und klärst sie dabei ohne Rückfrage, alle in diesem einen Aufruf; eine Einzelklärung danach gibt es nicht. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs in docs/adr, Adapter .claude/epic.md, CONTEXT.md, Code), um die Fakten zu prüfen. Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002).
+Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen und klärst sie dabei ohne Rückfrage, alle in diesem einen Aufruf; eine Einzelklärung danach gibt es nicht. ${lesen(k)} Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002).
 
 Ordne jede Notiz unten genau einmal zu (art):
-- mission: Kind einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
-- neue_mission: Kind einer neuen Mission für ein Thema mit mehreren Notizen (neue_mission = schluessel aus neue_missionen, mit titel und begruendung). Eine einzelne Notiz wird nur dann eine eigene Mission, wenn sie nirgends passt und groß genug ist.
+- mission: Missionsziel einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
+- neue_mission: Missionsziel einer neuen Mission für ein Thema mit mehreren Notizen (neue_mission = schluessel aus neue_missionen, mit titel und begruendung). Eine einzelne Notiz wird nur dann eine eigene Mission, wenn sie nirgends passt und groß genug ist.
 - zusammengefuehrt: Duplikat oder Teilstück derselben Sache wie eine andere Notiz (in = die Notiz, die bleibt und selbst mission, neue_mission oder triage ist). Sie wird mit Verweis geschlossen.
 - ueberfluessig: schon erledigt, doppelt oder überholt; grund und fundstelle nennen wo. Sie wird geschlossen.
 - verworfen: lohnt sich nicht oder passt nicht zur Richtung; grund nennt warum. Sie wird als „not planned“ geschlossen, nicht gelöscht. verworfen ist der Regelfall für eine Notiz, die ein Lauf angelegt hat (Herkunft Nacharbeit oder Abschluss einer Mission) und die nur einen Wunsch ohne beobachteten Schaden trägt: Sicherheit und Zugänge, ein beobachteter Fehler, der Ablauf des Projekts oder eine Architekturentscheidung sind keine Wünsche (#185).
 - triage: bleibt in der Triage, nur mit mindestens einer Frage mit beim_menschen: true (in der Triage heißt immer: eine Frage wartet beim Menschen). Ist sie zu dünn, frage den Menschen, was fehlt; grund nennt was fehlt.
 
-Grenzen: höchstens ${neuMax} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
+Grenzen: höchstens ${neuMax} neue Missionen, eine Mission höchstens ${KINDER_MAX} Missionsziele (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Missionsziel. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
 
 Kläre jede Notiz in derselben Antwort. ${FRAGERUNDE}
 
@@ -611,7 +623,7 @@ ${offen}
 
 # Sternzeit-Notizen
 
-${notizen.map((t) => `## Sternzeit-Notiz #${t.nummer}: ${t.titel}\n${faktenAus(t, jeNotiz, '###')}`).join('\n\n')}`;
+${notizen.map((t) => `## Sternzeit-Notiz #${t.nummer}: ${t.titel}\n${faktenAus(t, jeNotiz, '###')}`).join('\n\n')}${k ? `\n\n${k.fakten}` : ''}`;
 }
 
 /** The comment that stands at a note before the triage closes it after the cut plan. */
@@ -699,11 +711,12 @@ export function nachfreigabeKommentar(kinder: number[], ready: string): string {
   ].join('\n');
 }
 
-/** #147: the comment at an open mission before notes join it. */
-export function missionAnhaengenKommentar(neu: { t: Ticket; zu: Zuordnung }[], ready: string): string {
+/** #147: the comment at an open mission before notes join it; #170: abnehmen, the triage labels it loses then. */
+export function missionAnhaengenKommentar(neu: { t: Ticket; zu: Zuordnung }[], ready: string, abnehmen: string[] = []): string {
   const zeilen = [kopf(`${neu.length === 1 ? 'ein neues Missionsziel' : `${neu.length} neue Missionsziele`} aus dem Schnittplan`), ''];
   for (const { t, zu: z } of neu) zeilen.push(`- #${t.nummer} ${t.titel}${z.grund ? ` — ${z.grund}` : ''}`, `  Herkunft: ${z.herkunft}`);
   zeilen.push('', `Sie werden als Sub-Issue verknüpft und in die Liste \`## Missionsziele\` eingetragen (\`- [ ] #<nr> <Titel>\`), danach bekommen sie \`${ready}\`.`);
+  if (abnehmen.length) zeilen.push('', `Die Mission trägt noch ${abnehmen.map((l) => `\`${l}\``).join(', ')}: Mit dem ersten freigegebenen Missionsziel nimmt die Triage es ab, sie ist dann keine offene Sternzeit-Notiz mehr.`);
   zeilen.push('', 'Widerrufbar: an der Notiz `needs-triage` wieder setzen und den Einwand dort als Kommentar schreiben.');
   return zeilen.join('\n');
 }
@@ -736,8 +749,10 @@ function gehoertZu(body: string, kennung: string): boolean {
   return nennt(body.split(/\r?\n/).slice(0, triage ? 2 : 1).join('\n'), kennung);
 }
 
-/** Heading of the clear decision about a proposal; the comment with the number of the Missionsziel follows it. */
-const MISSIONSZIEL_KOPF = 'wird Missionsziel, Warp frei';
+/** Heading of the clear decision about a proposal; the comment with the number of its note follows it. */
+const MISSIONSZIEL_KOPF = 'wird Sternzeit-Notiz für den Schnittplan';
+/** #170: the heading before, when a clear proposal became a loose Missionsziel; comments of earlier runs carry it. */
+const MISSIONSZIEL_KOPF_ALT = 'wird Missionsziel, Warp frei';
 
 /**
  * The proposal waits, and the last comment of the triage about it is the clear decision without the comment
@@ -748,7 +763,8 @@ export function missionszielFehlt(t: Ticket): boolean {
   if (missionszielAngelegt(t)) return false;
   if (!wartetAufAntwort(t)) return false;
   const k = t.kommentare.findLast((k) => berechtigt(k) && (k.body.includes(TRIAGE_MARKE) || k.body.includes(TRIAGE_FRAGE_MARKE)));
-  return Boolean(k?.body.split(/\r?\n/)[1]?.includes(` ${MISSIONSZIEL_KOPF}**`));
+  const zeile = k?.body.split(/\r?\n/)[1] ?? '';
+  return [MISSIONSZIEL_KOPF, MISSIONSZIEL_KOPF_ALT].some((x) => zeile.includes(` ${x}**`));
 }
 
 /**
@@ -812,18 +828,18 @@ export function lernTriageKommentar(e: Exclude<Entscheidung, { art: 'ungueltig' 
   else zeilen.push(`Herkunft: ${e.herkunft}${e.grund ? ` — ${e.grund}` : ''}`);
   if (e.fragen.length) zeilen.push('', 'Entscheidungen:', ...entscheidungsListe(e.fragen));
   if (klar && e.nachgetragen.length) zeilen.push('', `Nachgetragen: ${e.nachgetragen.map((k) => `\`${k}\``).join(', ')} (vom Admiral aus den Fakten des Vorschlags).`);
-  if (klar) zeilen.push('', `Der Auftragsschreiber (\`flotte auftrag\`, agent-skills/ADR-0002) legt das Missionsziel mit \`${ready}\` an; seine Nummer folgt im nächsten Kommentar.`);
+  if (klar) zeilen.push('', `Der Auftragsschreiber (\`flotte auftrag\`, agent-skills/ADR-0002) legt daraus eine Sternzeit-Notiz mit \`${TRIAGE_LABEL}\` an; der Schnittplan dieses Laufs ordnet sie einer Mission zu, erst dort bekommt sie \`${ready}\`. Ihre Nummer folgt im nächsten Kommentar.`);
   else zeilen.push('', `Widerrufbar: schreib den Einwand als Kommentar hier und nenne \`${v.kennung}\`; die nächste Triage nimmt ihn als Tatsache.`);
   return zeilen.join('\n');
 }
 
-/** The comment at the collecting issue after the Missionsziel exists. */
+/** The comment at the collecting issue after its Sternzeit-Notiz exists (#170; before: a Missionsziel). */
 export function lernAngelegtKommentar(v: Lernvorschlag, neu: { nummer: number; url: string }, ready: string): string {
   return [
     TRIAGE_MARKE,
     `Vorschlag ${v.n} aus ${v.quelle} → #${neu.nummer}, widerrufbar (${v.kennung})`,
     '',
-    `Widerruf: am Missionsziel #${neu.nummer} \`${ready}\` ab, \`needs-triage\` an und den Einwand dort als Kommentar; die nächste Triage nimmt ihn als Tatsache.`,
+    `Widerruf: an der Sternzeit-Notiz #${neu.nummer} den Einwand als Kommentar; hängt sie schon an einer Mission, dort \`${ready}\` ab und \`${TRIAGE_LABEL}\` an. Die nächste Triage nimmt ihn als Tatsache.`,
     `Herkunft: die Triage oben; angelegt vom Auftragsschreiber (agent-skills/ADR-0002), ${neu.url}`,
   ].join('\n');
 }

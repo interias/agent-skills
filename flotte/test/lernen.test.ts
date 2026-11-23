@@ -111,7 +111,7 @@ describe('driver: learning loop after the merge', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
     const k = t.p.kommentare.filter((x) => x.nr === 50);
     expect(k).toHaveLength(1);
-    expect(k[0].text).toContain('**Lernschleife** — PR #13, Epic #3');
+    expect(k[0].text).toContain('**Lernschleife** — PR #13, Mission #3');
     expect(t.p.meldungen.some((m) => /Lernschleife: 1 Vorschlag/.test(m))).toBe(true);
   }, 150_000);
 

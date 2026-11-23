@@ -468,7 +468,7 @@ describe('Fehler im Befehlskanal und an den Labels sind Paketsache (#66, Runde 2
     const z = await fahreEpic(einst(leeresRepo()), u);
     expect(z.phase).toBe('fertig');
     expect(z.pakete['1']).toMatchObject({ stufe: 'zurueckgelassen', mergeCommit: null });
-    expect(z.pakete['1'].grund).toMatch(/Merge-Schritt gescheitert: git merge --no-ff agent\/1-paket-1: Exit 128: kaputt/);
+    expect(z.pakete['1'].grund).toMatch(/Andock-Schritt gescheitert: git merge --no-ff agent\/1-paket-1: Exit 128: kaputt/);
     expect(u.welt.protokoll.some((x) => x.was.startsWith('merge --abort'))).toBe(true);
     expect(u.welt.status[1]).toBe('status/haengt');
     expect(z.pakete['2'].stufe).toBe('fertig');

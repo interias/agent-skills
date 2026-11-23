@@ -27,9 +27,12 @@ export interface Messung {
   /** first run started, last FLOTTE-ENDE (ISO) */
   start: string;
   ende: string;
-  /** end minus start minus the time the whole run waited for the person */
+  /** end minus start minus the time the whole run waited for the person, was paused or held by a brake (#202) */
   arbeitS: number;
   menschWartenS: number;
+  /** #202: its next turn held by the person's pause, by a brake (account limit, RAM); older lines have none */
+  pauseS?: number;
+  limitS?: number;
   /** the driver's own gate runs in the merge queue */
   gateS: number;
   pakete: MessPaket[];

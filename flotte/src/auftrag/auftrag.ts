@@ -130,7 +130,7 @@ export function labelsFuer(art: 'mission' | 'ziel', r: AuftragsRegeln, starten: 
 
 /** Colour and description of a label the writer creates when it is missing (mission/references/forge.md, "Statuslabels"); both layers take them from here. */
 export function labelArt(label: string, r: AuftragsRegeln): { farbe: string; beschreibung: string } | null {
-  return label === r.epic_label ? { farbe: 'ff2bd6', beschreibung: 'Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)' } : null;
+  return label === r.epic_label ? { farbe: 'ff2bd6', beschreibung: 'Mission: wartet auf ihre Missionsziele (gesetzt von /mission, gelesen von KIBO)' } : null;
 }
 
 const nr = (n: number | null) => (n === null ? '#?' : `#${n}`);

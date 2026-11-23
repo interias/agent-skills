@@ -172,7 +172,7 @@ export async function fahreEpic(e: EpicEinstellung, u: Umgebung): Promise<EpicLa
   const dir = epicDir(e.repo, e.epic);
   const pid = e.pid ?? process.pid;
   const sperre = sperren(dir, pid, e.istLebendig ?? lebt);
-  if (!sperre.ok) throw new Error(`flotte mission ${e.epic} läuft schon (PID ${sperre.pid} seit ${sperre.seit}); kein zweites Programm für dasselbe Epic`);
+  if (!sperre.ok) throw new Error(`flotte mission ${e.epic} läuft schon (PID ${sperre.pid} seit ${sperre.seit}); kein zweites Programm für dieselbe Mission`);
   try {
     return await new EpicLauf({ ...e, fenster: Math.min(3, Math.max(1, e.fenster)) }, u, dir).fahre();
   } finally {
@@ -256,7 +256,7 @@ class EpicLauf {
         z.epicWorktree = (await this.m.up(`epic-${this.e.epic}`, this.e.epicBranch, this.e.basis)).worktree;
       } catch (f) {
         // exit 1 of Up: the message word for word, nothing done by hand (mission/SKILL.md, Phase 3)
-        await this.abbrechen(`Epic-Worktree nicht gerüstet: ${(f as Error).message}`, false);
+        await this.abbrechen(`Missions-Worktree nicht gerüstet: ${(f as Error).message}`, false);
         return z;
       }
       this.speichere();
@@ -474,12 +474,12 @@ class EpicLauf {
       p.uebernehmen = false;
       p.befund = [];
       this.neuerAufruf(p);
-      this.ereignis('zurueck', p.nr, `Implementer zurück, Runde ${p.runde}`, 'implementer');
+      this.ereignis('zurueck', p.nr, `Ingenieur zurück, Runde ${p.runde}`, 'implementer');
       return this.speichere();
     }
     const folge = this.fehlschlag(p, b, p.nr, 'implementer');
-    if (folge === 'verweigert') return this.zuruecklassen(p, `Implementer: ${b.fehler}`);
-    if (folge === 'verbraucht') return this.neueRunde(p, [`Implementer ohne gültigen Bericht: ${b.fehler}`], false, 'implementer', true);
+    if (folge === 'verweigert') return this.zuruecklassen(p, `Ingenieur: ${b.fehler}`);
+    if (folge === 'verbraucht') return this.neueRunde(p, [`Ingenieur ohne gültigen Bericht: ${b.fehler}`], false, 'implementer', true);
     this.speichere();
   }
 
@@ -489,7 +489,7 @@ class EpicLauf {
       p.review = b.daten;
       p.zeiten.reviewerZurueck = this.zeit();
       this.neuerAufruf(p);
-      this.ereignis('zurueck', p.nr, `Reviewer zurück, Runde ${p.runde}, ${b.daten.befunde.length} Befunde${b.daten.strukturell ? ', strukturell' : ''}`, 'reviewer');
+      this.ereignis('zurueck', p.nr, `Erster Offizier zurück, Runde ${p.runde}, ${b.daten.befunde.length} Befunde${b.daten.strukturell ? ', strukturell' : ''}`, 'reviewer');
       // only a Muss finding starts a round (mission/SKILL.md, 4b); a structural one a rung higher
       const muss = b.daten.befunde.filter((f) => f.gruppe === 'muss');
       if (!muss.length) {
@@ -499,8 +499,8 @@ class EpicLauf {
       return this.neueRunde(p, muss.map((f) => `${f.fundstelle}: ${f.text}`), b.daten.strukturell, 'implementer', false);
     }
     const folge = this.fehlschlag(p, b, p.nr, 'reviewer');
-    if (folge === 'verweigert') return this.zuruecklassen(p, `Reviewer: ${b.fehler}`);
-    if (folge === 'verbraucht') return this.neueRunde(p, [`Reviewer ohne gültigen Bericht: ${b.fehler}`], false, 'reviewer', false);
+    if (folge === 'verweigert') return this.zuruecklassen(p, `Erster Offizier: ${b.fehler}`);
+    if (folge === 'verbraucht') return this.neueRunde(p, [`Erster Offizier ohne gültigen Bericht: ${b.fehler}`], false, 'reviewer', false);
     this.speichere();
   }
 
@@ -519,7 +519,7 @@ class EpicLauf {
       p.eskalationen.push({ runde: p.runde, von, nach: p.klasse, grund });
       this.ereignis('eskalation', p.nr, `${von} → ${p.klasse}: ${grund}`);
       this.speichere();
-      await this.kommentiere(p.nr, `eskalation-${p.runde}`, `**Eskalation** Paket ${p.nr}, Runde ${p.runde}: ${von} → ${p.klasse}, der Reviewer folgt (${REVIEWER[p.klasse].agent}). Die Paketklasse war falsch geschätzt.\nBefund: ${grund}`);
+      await this.kommentiere(p.nr, `eskalation-${p.runde}`, `**Eskalation** Paket ${p.nr}, Runde ${p.runde}: ${von} → ${p.klasse}, der Erste Offizier folgt (${REVIEWER[p.klasse].agent}). Die Paketklasse war falsch geschätzt.\nBefund: ${grund}`);
     }
     this.speichere();
   }
@@ -565,13 +565,13 @@ class EpicLauf {
     if (p.stufe !== 'merge') return;
     // the conflict call runs as a call of its own; the state already holds the conflict
     if (m.art === 'konflikt') return this.speichere();
-    if (m.art === 'rot') return this.zuruecklassen(p, `Epic-Branch nach dem Merge rot, zurückgenommen mit Revert ${p.revertCommit}`);
-    if (m.art === 'inhaltlich') return this.zuruecklassen(p, `Merge-Konflikt, inhaltlich: ${m.grund}`);
+    if (m.art === 'rot') return this.zuruecklassen(p, `Missions-Branch nach dem Andocken rot, zurückgenommen mit Revert ${p.revertCommit}`);
+    if (m.art === 'inhaltlich') return this.zuruecklassen(p, `Andock-Konflikt, inhaltlich: ${m.grund}`);
     if (m.art === 'fehler') return this.mergeFehler(p, m.grund);
     p.stufe = 'fertig';
     p.zeiten.gemergt = this.zeit();
     p.zeiten.ende = p.zeiten.gemergt;
-    this.ereignis('gemergt', p.nr, p.nichtsZuMergen ? `${p.branch}: nichts zu mergen` : `${p.branch} gemergt (${p.mergeCommit})`);
+    this.ereignis('gemergt', p.nr, p.nichtsZuMergen ? `${p.branch}: nichts anzudocken` : `${p.branch} angedockt (${p.mergeCommit})`);
     this.speichere();
     await this.kommentiere(p.nr, 'gemergt', this.gemergtText(p));
   }
@@ -583,10 +583,10 @@ class EpicLauf {
    */
   private async mergeFehler(p: PaketZustand, grund: string): Promise<void> {
     if (p.epicGeprueft) {
-      this.glut(`Paket ${p.nr}: Aufräumen nach dem Merge gescheitert: ${grund}`, p.nr);
+      this.glut(`Paket ${p.nr}: Aufräumen nach dem Andocken gescheitert: ${grund}`, p.nr);
       return this.mergeZurueck(p, { art: 'gemergt' });
     }
-    let text = `Merge-Schritt gescheitert: ${grund}`;
+    let text = `Andock-Schritt gescheitert: ${grund}`;
     try {
       await this.m.mergeAbbrechen();
       if (p.mergeCommit && !p.revertCommit) {
@@ -609,30 +609,30 @@ class EpicLauf {
     const ms = (x?: string) => (x ? Date.parse(x) : NaN);
     const warten = (
       [
-        [z.reviewerZurueck, z.pruefungBeginn, 'Nachprüfung wartete auf den Befehlskanal (Volllauf oder Merge eines anderen Pakets)'],
-        [z.abgenommen, z.mergeBeginn, 'Merge wartete auf den Befehlskanal'],
+        [z.reviewerZurueck, z.pruefungBeginn, 'Nachprüfung wartete auf den Befehlskanal (Volllauf oder Andocken eines anderen Pakets)'],
+        [z.abgenommen, z.mergeBeginn, 'Andocken wartete auf den Befehlskanal'],
       ] as [string | undefined, string | undefined, string][]
     )
       .filter(([von, bis]) => ms(bis) - ms(von) > FUENF_MIN)
       .map(([von, bis, grund]) => `${Math.round((ms(bis) - ms(von)) / 60_000)} min ${grund}`);
     const warn = this.z.ereignisse.filter((e) => e.art === 'ram' && e.text.startsWith('warn') && (e.text.split('Start: ')[1] ?? '').split(', ').includes(p.nr));
     const epicLauf = p.nichtsZuMergen
-      ? 'Lauf auf dem Epic-Branch entfällt: nichts gemergt'
+      ? 'Lauf auf dem Missions-Branch entfällt: nichts angedockt'
       : p.epicLauf
-        ? `Epic-Branch nach dem Merge: ${this.zahlen(p.epicLauf)}`
-        : `Lauf auf dem Epic-Branch entfällt: git diff --quiet ${p.branch} HEAD endete mit 0`;
+        ? `Missions-Branch nach dem Andocken: ${this.zahlen(p.epicLauf)}`
+        : `Lauf auf dem Missions-Branch entfällt: git diff --quiet ${p.branch} HEAD endete mit 0`;
     return [
       p.nichtsZuMergen
-        ? `**Gemergt** Paket ${p.nr}: nichts zu mergen, ${p.branch} hat keine eigenen Commits und liegt schon im Epic-Branch ${this.e.epicBranch}; kein Merge-Commit.`
-        : `**Gemergt** Paket ${p.nr}: ${p.branch} im Epic-Branch ${this.e.epicBranch}, Merge-Commit ${p.mergeCommit}.`,
+        ? `**Angedockt** Paket ${p.nr}: nichts anzudocken, ${p.branch} hat keine eigenen Commits und liegt schon im Missions-Branch ${this.e.epicBranch}; kein Andock-Commit.`
+        : `**Angedockt** Paket ${p.nr}: ${p.branch} im Missions-Branch ${this.e.epicBranch}, Andock-Commit ${p.mergeCommit}.`,
       ...(p.bericht?.abnahme.length ? ['Abnahme:', ...p.bericht.abnahme.map((x) => `- ${x.punkt}: ${x.satz}`)] : []),
       `Verifikation (4c, Volllauf im Paket-Worktree): ${p.testlauf ? this.zahlen(p.testlauf) : 'keine Zahlen'}; Ausgangszahlen: ${this.zahlen(this.z.basis ?? [])}.`,
       epicLauf,
-      ...(p.review?.selbstkorrekturen.length ? [`Vom Reviewer selbst korrigiert: ${p.review.selbstkorrekturen.join('; ')}`] : []),
+      ...(p.review?.selbstkorrekturen.length ? [`Vom Ersten Offizier selbst korrigiert: ${p.review.selbstkorrekturen.join('; ')}`] : []),
       ...(p.lastflakes.length ? [`Lastflakes: ${p.lastflakes.join('; ')}`] : []),
       ...(p.eskalationen.length ? [`Eskalationen: ${p.eskalationen.map((x) => `Runde ${x.runde} ${x.von} → ${x.nach}`).join('; ')}`] : []),
       ...warn.map((e) => `RAM beim Start: ${e.text}`),
-      `Zeiten: Start ${z.start}, Implementer zurück ${z.implementerZurueck}, Reviewer zurück ${z.reviewerZurueck}, abgenommen ${z.abgenommen}, gemergt ${z.gemergt}${warten.length ? `; Wartezeiten: ${warten.join('; ')}` : ''}`,
+      `Zeiten: Start ${z.start}, Ingenieur zurück ${z.implementerZurueck}, Erster Offizier zurück ${z.reviewerZurueck}, abgenommen ${z.abgenommen}, angedockt ${z.gemergt}${warten.length ? `; Wartezeiten: ${warten.join('; ')}` : ''}`,
     ].join('\n');
   }
 
@@ -880,8 +880,8 @@ class EpicLauf {
     // merged after this package started: its worktree did not contain them
     const start = this.z.ereignisse.findIndex((e) => e.paket === p.nr && e.art === 'start');
     const partner = Object.values(this.z.pakete).filter((q) => q.nr !== p.nr && q.stufe === 'fertig' && this.z.ereignisse.findIndex((e) => e.paket === q.nr && e.art === 'gemergt') > start);
-    for (const q of partner) if (!this.z.kanten.some((k) => (k.a === q.nr && k.b === p.nr) || (k.a === p.nr && k.b === q.nr))) this.z.kanten.push({ a: q.nr, b: p.nr, art: 'kollision', grund: `Merge-Konflikt in ${dateien.join(', ')}` });
-    this.ereignis('kante', p.nr, `Merge-Konflikt in ${dateien.join(', ')}; Kollisionskante nachgetragen zu ${partner.map((q) => q.nr).join(', ') || 'keinem bekannten Paket'}`);
+    for (const q of partner) if (!this.z.kanten.some((k) => (k.a === q.nr && k.b === p.nr) || (k.a === p.nr && k.b === q.nr))) this.z.kanten.push({ a: q.nr, b: p.nr, art: 'kollision', grund: `Andock-Konflikt in ${dateien.join(', ')}` });
+    this.ereignis('kante', p.nr, `Andock-Konflikt in ${dateien.join(', ')}; Kollisionskante nachgetragen zu ${partner.map((q) => q.nr).join(', ') || 'keinem bekannten Paket'}`);
     this.speichere();
   }
 
@@ -941,7 +941,7 @@ class EpicLauf {
   private async abbrechen(grund: string, abraeumen = true) {
     if (abraeumen) await this.m.down(`epic-${this.e.epic}`);
     this.z.phase = 'abgebrochen';
-    this.z.ende = endeBlock(this.e.epic, null, grund, `- ${grund}${abraeumen ? ` Der Epic-Worktree ist abgeräumt, der Epic-Branch ${this.e.epicBranch} bleibt.` : ''}`);
+    this.z.ende = endeBlock(this.e.epic, null, grund, `- ${grund}${abraeumen ? ` Der Missions-Worktree ist abgeräumt, der Missions-Branch ${this.e.epicBranch} bleibt.` : ''}`);
     this.ereignis('ende', null, grund);
     this.speichere();
     this.u.leitung.melde(this.z.ende);
@@ -959,10 +959,10 @@ class EpicLauf {
     for (const u of this.z.schnitt.ergebnis!.uebersprungen ?? []) {
       const nr = u.nr.replace(/^#/, '');
       if (!/^\d+$/.test(nr)) continue;
-      await this.kommentiere(nr, 'uebersprungen', `**Übersprungen** #${nr}: Der Lauf von Epic #${this.e.epic} (flotte mission) bearbeitet es nicht. Grund: ${u.grund}${u.blocker.length ? ` Blockiert durch ${u.blocker.map((x) => `#${x.replace(/^#/, '')}`).join(', ')}.` : ''}`);
+      await this.kommentiere(nr, 'uebersprungen', `**Übersprungen** #${nr}: Der Lauf von Mission #${this.e.epic} (flotte mission) bearbeitet es nicht. Grund: ${u.grund}${u.blocker.length ? ` Blockiert durch ${u.blocker.map((x) => `#${x.replace(/^#/, '')}`).join(', ')}.` : ''}`);
       if (u.blocker.length) await this.status(nr, 'status/blockiert');
     }
-    await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Epic #${this.e.epic} mit flotte mission: Basis ${this.e.basis}, Epic-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
+    await this.kommentiere(String(this.e.epic), 'eroeffnung', [`**Lauf beginnt** Mission #${this.e.epic} mit flotte mission: Basis ${this.e.basis}, Missions-Branch ${this.e.epicBranch}, Fenster ${this.e.fenster}.`, `Pakete: ${pakete.map((p) => `${p.nr} „${p.titel}“ (${p.klasse})`).join(', ')}`, LAUFTAFEL].join('\n'));
   }
 
   /**
@@ -1016,7 +1016,7 @@ class EpicLauf {
     ];
     // Phase 6: WIP while something lies with the person; Closes a fully accepted child, the target issue only in mode spec (no children) with every package done
     const wip = anzahl('zurueckgelassen') + anzahl('blockiert') > 0 || this.z.abnahme?.ok === false;
-    const zeile = (p: PaketZustand) => `- Paket ${p.nr}: ${p.stufe === 'fertig' ? `${p.nichtsZuMergen ? 'nichts zu mergen' : `gemergt (${p.mergeCommit})`}, Runde ${p.runde}, Klasse ${p.klasse}` : p.stufe === 'blockiert' ? `blockiert durch ${p.blockiertDurch}` : `zurückgelassen: ${p.grund} (Branch ${p.branch})`}`;
+    const zeile = (p: PaketZustand) => `- Paket ${p.nr}: ${p.stufe === 'fertig' ? `${p.nichtsZuMergen ? 'nichts anzudocken' : `angedockt (${p.mergeCommit})`}, Runde ${p.runde}, Klasse ${p.klasse}` : p.stufe === 'blockiert' ? `blockiert durch ${p.blockiertDurch}` : `zurückgelassen: ${p.grund} (Branch ${p.branch})`}`;
     const closes = pakete.filter((p) => p.stufe === 'fertig' && /^\d+$/.test(p.nr) && Number(p.nr) !== this.e.epic).map((p) => `Closes #${p.nr}`);
     if (this.z.schnitt.ergebnis?.modus === 'spec' && pakete.length && pakete.every((p) => p.stufe === 'fertig')) closes.push(`Closes #${this.e.epic}`);
     const teststand = `Ausgangszahlen: ${this.zahlen(this.z.basis ?? [])}`;
@@ -1026,10 +1026,10 @@ class EpicLauf {
       this.glut(fehler, null);
       offen.push(`- ${fehler}`);
     }
-    await this.kommentiere(String(this.e.epic), 'abschluss', [`**Abschluss** Epic #${this.e.epic}: Pull Request ${pr ?? 'keiner'}. ${LAUFTAFEL}.`, ...pakete.map(zeile), teststand, this.abnahmeZeile(), '', '### Was das Epic offen lässt', offen.join('\n') || 'nichts'].join('\n'));
+    await this.kommentiere(String(this.e.epic), 'abschluss', [`**Abschluss** Mission #${this.e.epic}: Pull Request ${pr ?? 'keiner'}. ${LAUFTAFEL}.`, ...pakete.map(zeile), teststand, this.abnahmeZeile(), '', '### Was das Epic offen lässt', offen.join('\n') || 'nichts'].join('\n'));
     this.z.phase = 'fertig';
-    this.z.ende = endeBlock(this.e.epic, pr, `Epic #${this.e.epic}: ${anzahl('fertig')} Pakete gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert. ${this.abnahmeZeile()}`, offen.join('\n'));
-    this.ereignis('ende', null, `${anzahl('fertig')} gemergt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert`);
+    this.z.ende = endeBlock(this.e.epic, pr, `Mission #${this.e.epic}: ${anzahl('fertig')} Pakete angedockt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert. ${this.abnahmeZeile()}`, offen.join('\n'));
+    this.ereignis('ende', null, `${anzahl('fertig')} angedockt, ${anzahl('zurueckgelassen')} zurückgelassen, ${anzahl('blockiert')} blockiert`);
     this.speichere();
     this.u.leitung.melde(this.z.ende);
   }

@@ -119,7 +119,7 @@ describe('B: freigegebene Epics', () => {
   it('nothing released: the driver ends at once; with --dauerhaft it waits for new epics', async () => {
     const leer = aufbau({ freigegeben: () => ({ bereit: [], epics: [] }) });
     const z = await fahre(leer.einstellung(drehbuch([]), [], { auto: true }), leer.welt);
-    expect(z.ereignisse[0].text).toBe('Einsatz gestartet: keine freigegebenen Epics (freigegeben mit ready-for-agent, neu eingesammelt alle 15 min)');
+    expect(z.ereignisse[0].text).toBe('Einsatz gestartet: keine freigegebenen Missionen (freigegeben mit ready-for-agent, neu eingesammelt alle 15 min)');
     expect(z.ereignisse.some((x) => /Zeitgrenze/.test(x.text))).toBe(false);
 
     const wartet = aufbau({ freigegeben: () => ({ bereit: [], epics: [] }) });
@@ -131,8 +131,8 @@ describe('B: freigegebene Epics', () => {
     const t = aufbau({ freigegeben: () => ({ bereit: [3, 8], epics: [{ number: 3 }] }) });
     const buch = drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [], { auto: true, sammelnMs: 150 }), t.welt);
-    const ohne = z.ereignisse.filter((x) => x.text.startsWith('freigegeben, aber kein Epic'));
-    expect(ohne.map((x) => x.text)).toEqual(['freigegeben, aber kein Epic: #8 (ohne epic und nicht Kind eines Epics; mit --epics fahren oder das Label setzen)']);
+    const ohne = z.ereignisse.filter((x) => x.text.startsWith('freigegeben, aber keine Mission'));
+    expect(ohne.map((x) => x.text)).toEqual(['freigegeben, aber keine Mission: #8 (ohne epic und nicht Missionsziel einer Mission; mit --epics fahren oder das Label setzen)']);
     expect(Object.keys(z.epics)).toEqual(['3']);
   }, T);
 

@@ -172,7 +172,7 @@ ${beleg}`;
 
 /** The comment for the collecting issue. New rules get the next free id; the person assigns it when adopting. */
 export function lernKommentar(e: LernErgebnis, pr: number, epic: number | null, datum: string, regeln: string[], streichen: string[]): string {
-  const zeilen = [LERN_MARKE, `**Lernschleife** — PR #${pr}${epic !== null ? `, Epic #${epic}` : ''}, ${datum}`, ''];
+  const zeilen = [LERN_MARKE, `**Lernschleife** — PR #${pr}${epic !== null ? `, Mission #${epic}` : ''}, ${datum}`, ''];
   if (!e.vorschlaege.length) zeilen.push('Keine Vorschläge: Der Lauf zeigt keinen Fehler, den eine dauerhafte Lehre verhindert hätte.');
   e.vorschlaege.slice(0, LERN_MAX).forEach((v, i) => {
     zeilen.push(`${i + 1}. **${v.titel}** — Form: ${v.form}`);

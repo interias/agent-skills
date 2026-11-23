@@ -16,7 +16,7 @@ Du fragst nie den Menschen und nutzt kein AskUserQuestion. **Jeder Zug endet mit
 
 ## Zug 1: Tor
 
-`gh issue view N --repo interias/flotte-probe` lesen, dazu die Kind-Issues aus der Liste `- [ ] #K`.
+`gh issue view N --repo interias/flotte-probe` lesen, dazu die Missionsziele aus der Liste `- [ ] #K`.
 Dann endet der Zug mit diesem Block (Zahlen und Titel einsetzen, sonst wörtlich):
 
 ```
@@ -37,7 +37,7 @@ Im Hauptverzeichnis (dein Arbeitsverzeichnis), mit Bash:
    Schritt 1 weiter.
 1. `git fetch -q origin`, dann den Worktree anlegen:
    `git worktree add ../flotte-probe-wt-N -B epic/N origin/main`
-2. In `../flotte-probe-wt-N` je Kind-Issue in der beantworteten Reihenfolge: die Datei genau wie im Kind-Issue beschrieben anlegen, `git add`, `git commit -m "feat: <Titel des Kinds> (#K)"`.
+2. In `../flotte-probe-wt-N` je Missionsziel in der beantworteten Reihenfolge: die Datei genau wie im Missionsziel beschrieben anlegen, `git add`, `git commit -m "feat: <Titel des Missionsziels> (#K)"`.
 3. In `CHANGELOG.md` am Ende eine Zeile `- Epic #N: <Titel des Epics>` anhängen und committen.
 4. **Andockprüfung** (immer genau so, auch bei jedem späteren Zug):
    - `git fetch -q origin` und `git merge --no-edit origin/main`. Konflikt in `CHANGELOG.md`: beide Zeilen behalten, Konfliktmarken entfernen, `git add CHANGELOG.md`, `git commit --no-edit`. Ein anderer Konflikt: Zug mit FLOTTE-FRAGE N abbruch beenden.

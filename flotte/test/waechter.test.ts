@@ -27,6 +27,10 @@ const ALTBEGRIFFE: { wort: string; muster: RegExp }[] = [
   { wort: 'Implementer', muster: /^implementer/i },
   { wort: 'Reviewer', muster: /^reviewer/i },
   { wort: 'Grilling', muster: /^grilling/i },
+  // Case matters: the German noun is capitalised; lowercase `kind`/`kinder` are English or keys,
+  // `KIND` is licence text. Not Kindprozess, Kindheit.
+  { wort: 'Kind', muster: /^Kind(er|ern|es|s)?$/ }, // Kind-Ticket, Kinder, Kindern
+  { wort: 'Kind', muster: /^Kind(er)?(ticket|issue|paket)/ }, // Kindticket, Kinderpakete
 ];
 // Old skill and agent names and the old command, checked on the whole hyphenated word.
 const ALTE_NAMEN: RegExp[] = [/^epic-nacharbeit$/, /^epic-aufraeumen$/, /^epic-implementer(-[\w-]+)?$/, /^epic-reviewer(-[\w-]+)?$/, /^epic-kundschafter$/];
@@ -52,12 +56,26 @@ const AUSNAHMEN = {
     { wort: 'implementer', grund: 'role key in the driver protocol' },
     { wort: 'reviewer', grund: 'role key in the driver protocol' },
     { wort: 'grilling', grund: 'name of the external skill `mattpocock-skills:grilling`' },
+    // names of git and gh, quoted in the driver source
+    { wort: 'merges', grund: 'git option `--merges`' },
+    { wort: 'MERGE_HEAD', grund: 'git file `MERGE_HEAD`' },
+    { wort: 'MERGED', grund: 'state of a pull request in the GitHub API' },
+    { wort: 'mergedAt', grund: 'JSON field of `gh pr`' },
+    { wort: 'mergeable', grund: 'JSON field of `gh pr`' },
+  ],
+  // Spots inside a text that are not checked, cut out before matching.
+  stellen: [
+    { muster: /\bKinder:(?=\s*(?:#|\{\{))/g, grund: 'parser word of the header line `> **Reihenfolge:** Kinder: #a, #b` (`dependency_source: header`); it stays as long as missions carry it' },
+    { muster: /### Was das Epic offen lässt/g, grund: 'fixed heading that runs write under FLOTTE-ENDE and the driver parses (werkzeuge/bloecke.ts); it stays as long as existing runs deliver it' },
+    { muster: /--(epics|gemergt)\b/g, grund: 'options `--epics` of `flotte fahren` and `--gemergt` of `flotte belegung`' },
+    { muster: /\bepics\//g, grund: 'folder `epics/` in the state of the driver' },
+    { muster: /## Gate\b|\bGate grün\./g, grund: 'defaults of the adapter keys `gate_heading` and `gate_green`: what gate.ps1 prints and runs copy into the pull request; the driver reads them' },
   ],
   // Parts of a file that are not checked.
   bereiche: [
     { art: 'markdown-code', grund: 'code identifiers: inline code (backticks) and code blocks (``` or ~~~) in Markdown' },
     { art: 'markdown-adresse', grund: 'link targets `](…)`, reference definitions and URLs are addresses, not text' },
-    { art: 'quelltext', grund: 'in .py/.js/.css/.webmanifest only string literals are text; comments, docstrings (triple quotes) and code are not, nor a literal that is one lowercase identifier (key, class, state such as \'gemergt\')' },
+    { art: 'quelltext', grund: 'in .py/.js/.ts/.css/.webmanifest only string literals are text; comments, docstrings (triple quotes) and code are not, nor a literal that is one lowercase identifier (key, class, state such as \'gemergt\')' },
     { art: 'html', grund: 'in .html/.svg only text between tags and the attributes title, alt, placeholder, aria-label, aria-description, content are text' },
   ],
   // Lines of CONTEXT.md that name the old terms to forbid them.
@@ -68,9 +86,11 @@ const AUSNAHMEN = {
 };
 
 // ---- Scope --------------------------------------------------------------------------------
-// Every Markdown file of the repository, plus the texts of the Brücke a person sees. The driver
-// source flotte/src is not in scope (#80: skill texts, Brücke, README, docs).
+// Every Markdown file of the repository, plus the texts of the Brücke a person sees and the string
+// literals of the driver source flotte/src (#183: log book, events, forge comments, Tafel, the
+// prompts it hands to runs).
 const BRUECKE = /^flottenbruecke\/app\/([^/]+\.py|static\/.+\.(html|js|css|svg|webmanifest))$/;
+const TREIBER = /^flotte\/src\/.+\.ts$/;
 
 function dateien(): string[] {
   const out: string[] = [];
@@ -80,7 +100,7 @@ function dateien(): string[] {
       const rel = relative(WURZEL, voll).replace(/\\/g, '/');
       if (AUSNAHMEN.pfade.some((a) => a.muster.test(rel) || a.muster.test(`${rel}/`))) continue;
       if (statSync(voll).isDirectory()) gehe(voll);
-      else if (rel.endsWith('.md') || BRUECKE.test(rel)) out.push(rel);
+      else if (rel.endsWith('.md') || BRUECKE.test(rel) || TREIBER.test(rel)) out.push(rel);
     }
   };
   gehe(WURZEL);
@@ -231,8 +251,9 @@ function stuecke(datei: string, inhalt: string): Stueck[] {
 // ---- Matching ---------------------------------------------------------------------------------
 const AUSGENOMMEN = new Set(AUSNAHMEN.woerter.map((w) => w.wort));
 
-function treffer(text: string): string[] {
+function treffer(roh: string): string[] {
   const out: string[] = [];
+  const text = AUSNAHMEN.stellen.reduce((t, s) => t.replace(s.muster, ' '), roh);
   for (const m of text.matchAll(/[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu)) {
     const wort = m[0];
     if (AUSGENOMMEN.has(wort)) continue;
@@ -270,6 +291,16 @@ describe('Wächter gegen Altbegriffe', () => {
     expect(treffer('nach dem Grilling gemergt, ein Sofortmerge, ein Haupt-Epic')).toEqual(['Grilling', 'gemergt', 'Sofortmerge', 'Haupt-Epic']);
     expect(treffer('mit epic-nacharbeit, epic-aufraeumen, epic-implementer-urteil, epic-reviewer-standard, epic-kundschafter und /epic 83')).toEqual(['epic-nacharbeit', 'epic-aufraeumen', 'epic-implementer-urteil', 'epic-reviewer-standard', 'epic-kundschafter', '/epic']);
     expect(treffer('eines /epic-Laufs, /epic-nacharbeit, .git/epic-graph')).toEqual(['epic-nacharbeit', '/epic']);
+    expect(treffer('ein Kind-Ticket, die Kinder, den Kindern, des Kindes, ein Kindticket')).toEqual(['Kind-Ticket', 'Kinder', 'Kindern', 'Kindes', 'Kindticket']);
+  });
+
+  it('leaves the parser word Kinder: and words that only start like Kind alone', () => {
+    expect(treffer('> **Reihenfolge:** Kinder: #4, #5 und Kinder: {{kinder}}; ein Kindprozess, Kindheit, kind of, KIND, === kind a1')).toEqual([]);
+    expect(treffer('die Kinder: alle')).toEqual(['Kinder']);
+  });
+
+  it('leaves names of git, gh and the command line alone', () => {
+    expect(treffer("flotte fahren --epics 3,4; git log --merges; MERGE_HEAD; state MERGED; --json mergedAt,mergeable")).toEqual([]);
   });
 
   it('leaves words without relation, labels, adapter keys, paths and identifiers alone', () => {
@@ -293,12 +324,12 @@ describe('Wächter gegen Altbegriffe', () => {
   });
 
   it('every exception names its reason', () => {
-    const alle = [...AUSNAHMEN.pfade, ...AUSNAHMEN.woerter, ...AUSNAHMEN.bereiche, ...AUSNAHMEN.zeilen];
+    const alle = [...AUSNAHMEN.pfade, ...AUSNAHMEN.woerter, ...AUSNAHMEN.bereiche, ...AUSNAHMEN.zeilen, ...AUSNAHMEN.stellen];
     expect(alle.filter((a) => !a.grund)).toEqual([]);
   });
 
-  // Red until the rename (#81, #82) is merged — on purpose, without skip or threshold.
-  it('skill texts, docs and the Brücke contain no old terms', () => {
+  // Red while an old term stands — on purpose, without skip or threshold.
+  it('skill texts, docs, the Brücke and the driver contain no old terms', () => {
     expect(bericht(funde())).toBe('keine Altbegriffe');
   });
 });

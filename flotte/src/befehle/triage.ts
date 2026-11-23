@@ -4,19 +4,20 @@
 // waits for a comment below it. So it can run on a schedule (flotte/README.md, "Triage"). Prints one
 // JSON object: per ticket what was decided and written, and the questions to the person.
 // #117: with lern_issue in the adapter also each proposal of the learning loop there, like a ticket;
-// a clear one becomes a Missionsziel through the order writer.
+// #170: a clear one becomes a Sternzeit-Notiz through the order writer, cut into a mission by the same plan.
 // #146: one admiral call per project cuts a plan over all its notes and clears them in it (schneide); only
 // notes over the size of one call are split into a few packages by topic.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
-import { auftragAusfuehren, missionAnlegen, missionszielAnhaengen, mitMissionszielen, TRIAGE_LABEL, type AuftragsRegeln } from '../auftrag/auftrag.ts';
+import { auftragAusfuehren, entwurfLesen, missionAnlegen, missionszielAnhaengen, mitMissionszielen, TRIAGE_LABEL, zielBody, type AuftragsRegeln } from '../auftrag/auftrag.ts';
 import { githubForge } from '../auftrag/github.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
-import { abschlusspruefung, type Abschluss } from '../triage-abschluss.ts';
+import { abschlusspruefung, loseFreigaben, type Abschluss } from '../triage-abschluss.ts';
+import { faktenpaket, LESEN_MAX, maxTurns } from '../triage-fakten.ts';
 import { kommentar } from '../treiber/forge.ts';
-import { BERECHTIGT, entscheidungAus, ergaenzt, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, NEUE_MISSIONEN_MAX, neueMissionKommentar, offeneFragen, pakete, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
+import { BERECHTIGT, entscheidungAus, ergaenzt, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, NEUE_MISSIONEN_MAX, neueMissionKommentar, offeneFragen, pakete, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Kontext, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
 import { kontoAus } from '../werkzeuge/konten.ts';
 import { starte, type LaufErgebnis, type Start } from '../werkzeuge/lauf.ts';
@@ -42,6 +43,8 @@ export interface TriageAuftrag {
   trocken: boolean;
   log?: string | null;
   programm?: Pick<Start, 'programm' | 'programmArgs'>;
+  /** #167: file accesses of the model per call (setting triageLesenMax), LESEN_MAX without */
+  lesenMax?: number;
 }
 
 export interface TriageWelt {
@@ -160,7 +163,7 @@ export function offeneMissionen(a: Aufrufer, forge: string, regeln: AuftragsRege
     const k = a('gh', ['api', `repos/${forge}/issues/${i.number}`, '--jq', '.sub_issues_summary.total']);
     const kinder = Number(k.stdout.trim());
     if (k.code || !k.stdout.trim() || !Number.isInteger(kinder)) continue;
-    out.push({ nummer: Number(i.number), titel: String(i.title ?? ''), body: String(i.body ?? ''), kinder });
+    out.push({ nummer: Number(i.number), titel: String(i.title ?? ''), body: String(i.body ?? ''), kinder, labels: (i.labels ?? []).map((l: { name: string }) => l.name) });
   }
   return out;
 }
@@ -184,7 +187,19 @@ export interface Nachgeholt {
  * abschluss (#147): the final check of every note of the input (the notes for the model and the waiting ones)
  * against the forge after writing; zustand: unvollstaendig when a note misses its end state.
  */
-export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
+export async function triagiere(o: TriageAuftrag, welt: TriageWelt) {
+  // #167: duration and tool calls (the file accesses) of every admiral call of the run, for the logbook
+  const messung = { aufrufe: 0, dauerMs: 0, zugriffe: 0 };
+  const w: TriageWelt = {
+    ...welt,
+    starte: async (s) => {
+      const r = await welt.starte(s);
+      messung.aufrufe++;
+      messung.dauerMs += r.dauerMs ?? 0;
+      messung.zugriffe += r.zugriffe ?? 0;
+      return r;
+    },
+  };
   const tickets: TicketErgebnis[] = [];
   const fragen: KritischeFrage[] = [];
   const offen: KritischeFrage[] = [];
@@ -228,7 +243,12 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
       }
       notizen.push(t);
     }
-    const plan = notizen.length ? await schneide(o, w, z, notizen, schnittplan) : null;
+    // #167: the facts of the project, read once before the first admiral call of the run
+    let gelesen: Kontext | undefined;
+    const kontext = () => (gelesen ??= { fakten: faktenpaket(z.repo, z.forge, w.aufrufer, notizen), lesenMax: o.lesenMax ?? LESEN_MAX });
+    // #170: before the plan, so a clear proposal joins it as a note and never stands loose with ready_label
+    if (z.lernIssue && !ab()) notizen.push(...(await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler }, kontext)));
+    const plan = notizen.length && !ab() ? await schneide(o, w, z, notizen, schnittplan, kontext) : null;
     // #146: the plan has cleared every note that stays (no call per note); #147: the clear ones per mission of the
     // plan, written mission by mission below
     const klare = new Map<string, Klar[]>();
@@ -260,20 +280,26 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     }
     // #147: before each block that writes: after an abort nothing more
     if (plan && klare.size && !ab()) await freigeben(o, w, z, plan, klare);
-    if (z.lernIssue && !ab()) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
     if (!o.trocken && !ab()) {
-      // #147: a mission and a stranger's ticket are no notes the run works off (README, "Triage")
-      const eingabe = liste.filter((t) => notizen.includes(t) || (!t.labels.includes(z.regeln.epic_label) && wartetAufAntwort(t)));
+      // #147: a mission and a stranger's ticket are no notes the run works off (README, "Triage"); #170: the notes
+      // of the learning loop are
+      const eingabe = [...liste, ...notizen.filter((t) => !liste.includes(t))].filter((t) => notizen.includes(t) || (!t.labels.includes(z.regeln.epic_label) && wartetAufAntwort(t)));
       const neu = schnittplan.filter((p) => p.forge === z.forge).flatMap((p) => p.neue_missionen.flatMap((m) => (m.nummer === undefined ? [] : [m.nummer])));
       const abw = abschlusspruefung(w.aufrufer, z.forge, z.regeln, eingabe, neu);
       abschluss.geprueft += eingabe.length;
       abschluss.sauber += eingabe.length - abw.length;
       abschluss.abweichungen.push(...abw);
+      // #170: and every other open ticket with ready_label that hangs on no open mission: no run would start it
+      try {
+        abschluss.abweichungen.push(...loseFreigaben(w.aufrufer, z.forge, z.regeln, new Set(eingabe.map((t) => t.nummer))));
+      } catch (err) {
+        fehler.push({ forge: z.forge, fehler: (err as Error).message });
+      }
     }
   }
   if (ab()) Object.assign(abschluss, { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'abgebrochen: nach dem Abbruch nichts mehr geschrieben, keine Abschlussprüfung' });
   const zustand: 'beendet' | 'unvollstaendig' | 'abgebrochen' = ab() ? 'abgebrochen' : abschluss.abweichungen.length ? 'unvollstaendig' : 'beendet';
-  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand };
+  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand, messung };
 }
 
 /**
@@ -284,7 +310,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
  * merged, superfluous and rejected notes (the comment with origin first, then `not planned`, never deleted) and
  * returns the notes that stay.
  */
-async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen: Ticket[], out: SchnittplanErgebnis[]): Promise<Geplant | null> {
+async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen: Ticket[], out: SchnittplanErgebnis[], kontext: () => Kontext): Promise<Geplant | null> {
   let missionen: OffeneMission[];
   try {
     missionen = offeneMissionen(w.aufrufer, z.forge, z.regeln);
@@ -299,8 +325,8 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
       konto: o.konto,
       auftrag,
       modell: o.modell,
-      // read only, like the admiral: ADRs and code are facts
-      extraArgs: ['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob'],
+      // read only, like the admiral: ADRs and code are facts; #167: most of them come with the order, the rest is capped
+      extraArgs: ['--json-schema', JSON.stringify(schnittplanSchema()), '--tools', 'Read,Grep,Glob', '--max-turns', maxTurns(kontext().lesenMax)],
       werkzeuge: admiralWerkzeuge,
       leerlaufMs: 10 * 60_000,
       log: o.log ?? null,
@@ -312,7 +338,7 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
   const frei = missionen.map((m) => ({ ...m }));
   let neuMax = NEUE_MISSIONEN_MAX;
   for (const [i, teil] of teile.entries()) {
-    const auftrag = schnittplanAuftrag(teil, frei, z.regeln, neuMax);
+    const auftrag = schnittplanAuftrag(teil, frei, z.regeln, neuMax, kontext());
     let r = await fahre(auftrag);
     ergebnis.aufrufe++;
     let p = schnittplanAus(r.strukturiert, teil, frei, z.regeln, neuMax);
@@ -441,6 +467,8 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
     const ziele = bereit.map((k) => ({ titel: k.t.titel, nummer: k.t.nummer }));
     const haengen: Klar[] = [];
     let neuNummer: number | undefined;
+    // #170: the triage labels an open mission still carries; its comment names them, they go with its first released child
+    let abnehmen: string[] = [];
     if (neu) {
       const spaeter = neu.kinder.filter((n) => !bereit.some((k) => k.t.nummer === n)).map((n) => plan.bleiben.find((b) => b.t.nummer === n)?.t).filter((t): t is Ticket => Boolean(t));
       const text = neueMissionKommentar(neu, bereit.map((k) => k.t), spaeter, ready);
@@ -474,7 +502,8 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
       }
     } else {
       const m = alt!;
-      const text = missionAnhaengenKommentar(bereit.map((k) => ({ t: k.t, zu: k.zu })), ready);
+      abnehmen = LABELS.filter((l) => m.labels?.includes(l));
+      const text = missionAnhaengenKommentar(bereit.map((k) => ({ t: k.t, zu: k.zu })), ready, abnehmen);
       const eintrag: NonNullable<SchnittplanErgebnis['missionen']>[number] = { nummer: m.nummer, titel: m.titel, kinder: ziele.map((x) => x.nummer), angehaengt: [], kommentar: text, geschrieben: false };
       (plan.ergebnis.missionen ??= []).push(eintrag);
       if (o.trocken) {
@@ -517,6 +546,13 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
         if (y.code) neu.fehler = `Freigabe der Mission #${neuNummer} gescheitert: ${(y.stderr || y.stdout).trim().slice(0, 300)}`;
         else neu.labels = [...(neu.labels ?? []), ready];
         neuNummer = undefined;
+      }
+      if (alt && abnehmen.length) {
+        const y = w.aufrufer('gh', ['issue', 'edit', String(alt.nummer), '--repo', z.forge, '--remove-label', abnehmen.join(',')]);
+        const eintrag = plan.ergebnis.missionen?.find((x) => x.nummer === alt.nummer);
+        if (y.code && eintrag) eintrag.fehler = `${abnehmen.join(', ')} an der Mission nicht abgenommen: ${(y.stderr || y.stdout).trim().slice(0, 300)}`;
+        else alt.labels = alt.labels?.filter((l) => !abnehmen.includes(l));
+        abnehmen = [];
       }
     }
   }
@@ -568,18 +604,22 @@ function nachfreigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel): Nachgeho
 /**
  * #117: each proposal of the learning loop at the collecting issue through the same procedure as a
  * ticket. All comments go to the collecting issue and name the kennung of the proposal; clear: the
- * decision first, then the Missionsziel through the order writer (with ready_label), then its number.
- * Decided proposals and open questions wait for an answer naming the kennung in its first line.
+ * decision first, then the note through the order writer, then its number. #170: the note carries
+ * needs-triage, not ready_label; returned, it joins the cut plan of the same run like any note, so a
+ * proposal never becomes a loose Missionsziel. Decided proposals and open questions wait for an answer
+ * naming the kennung in its first line.
  */
-async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue: number, out: { tickets: TicketErgebnis[]; fragen: KritischeFrage[]; offen: KritischeFrage[]; fehler: { forge: string; fehler: string }[] }) {
+async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue: number, out: { tickets: TicketErgebnis[]; fragen: KritischeFrage[]; offen: KritischeFrage[]; fehler: { forge: string; fehler: string }[] }, kontext: () => Kontext): Promise<Ticket[]> {
   let liste: Lernvorschlag[];
   try {
     liste = lernTickets(w.aufrufer, z.forge, issue);
   } catch (err) {
     out.fehler.push({ forge: z.forge, fehler: (err as Error).message });
-    return;
+    return [];
   }
+  const notizen: Ticket[] = [];
   for (const v of liste) {
+    if (w.abgebrochen?.()) break;
     const t = v.ticket;
     // its Missionsziel exists: decided for good, a later comment naming the kennung starts nothing (no second Missionsziel)
     if (missionszielAngelegt(t)) continue;
@@ -596,13 +636,15 @@ async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue:
       ...(o.programm ?? {}),
       repo: z.repo,
       konto: o.konto,
-      auftrag: triageAuftrag(t, z.regeln, v),
+      auftrag: triageAuftrag(t, z.regeln, v, kontext()),
       modell: o.modell,
-      extraArgs: ['--json-schema', JSON.stringify(triageSchema()), '--tools', 'Read,Grep,Glob'],
+      extraArgs: ['--json-schema', JSON.stringify(triageSchema()), '--tools', 'Read,Grep,Glob', '--max-turns', maxTurns(kontext().lesenMax)],
       werkzeuge: admiralWerkzeuge,
       leerlaufMs: 10 * 60_000,
       log: o.log ?? null,
     });
+    // #147: aborted during the call: nothing is written for it
+    if (w.abgebrochen?.()) break;
     const e = entscheidungAus(r.strukturiert, t.titel, t.body, z.regeln);
     if (e.art === 'ungueltig') {
       out.tickets.push({ ...basis, ergebnis: 'ungueltig', geschrieben: false, kommentar: null, fehler: r.strukturiert ? e.fehler : `${e.fehler} (${r.fehler ?? `Exit ${r.code}`})`, sitzung: r.sitzung });
@@ -626,16 +668,20 @@ async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue:
     let gescheitert: string | undefined;
     if (e.art === 'klar') {
       try {
-        const a = await auftragAusfuehren(`# Missionsziel: ${t.titel}\n\n${e.body}`, z.regeln, githubForge(w.aufrufer, z.forge, z.regeln), { starten: true, trocken: false });
+        const entwurf = `# Missionsziel: ${t.titel}\n\n${e.body}`;
+        const a = await auftragAusfuehren(entwurf, z.regeln, githubForge(w.aufrufer, z.forge, z.regeln), { starten: false, trocken: false });
         neu = a.trocken ? undefined : a.ziele[0];
-        if (!neu) throw new Error('kein Missionsziel angelegt');
-        if (!kommentar(w.aufrufer, z.forge, issue, lernAngelegtKommentar(v, neu, z.regeln.ready_label))) gescheitert = `Missionsziel #${neu.nummer} angelegt, Kommentar mit seiner Nummer gescheitert`;
+        if (!neu) throw new Error('keine Sternzeit-Notiz angelegt');
+        if (!kommentar(w.aufrufer, z.forge, issue, lernAngelegtKommentar(v, neu, z.regeln.ready_label))) gescheitert = `Sternzeit-Notiz #${neu.nummer} angelegt, Kommentar mit ihrer Nummer gescheitert`;
+        // the body as the order writer wrote it, so the plan appends nothing that is there already
+        notizen.push({ nummer: neu.nummer, titel: t.titel, body: zielBody(entwurfLesen(entwurf).ziele[0], undefined), url: neu.url, labels: [TRIAGE_LABEL], kommentare: [] });
       } catch (err) {
         gescheitert = `Kommentar steht, Missionsziel gescheitert: ${(err as Error).message.slice(0, 300)}`;
       }
     }
     out.tickets.push({ ...basis, ergebnis: e.art, geschrieben: true, kommentar: text, ...(neu ? { missionsziel: neu.nummer } : {}), ...(gescheitert ? { fehler: gescheitert } : {}), sitzung: r.sitzung, ...warum });
   }
+  return notizen;
 }
 
 function wert(argv: string[], name: string): string | undefined {

@@ -124,7 +124,7 @@ einem Ort nachlesbar bleiben. Einflussreich ist eine Entscheidung, die
 Im Zweifel gehört sie hinein. Der Eintrag soll ohne den Chat verständlich sein:
 
 ```
-**Protokoll Flotte (Admiral <Name>)** — Epic #<nr>, <Datum>
+**Protokoll Flotte (Admiral <Name>)** — Mission #<nr>, <Datum>
 Frage: <ein Satz>
 Lage: <was vorlag, mit Fundstellen>
 Optionen: <die des Laufs, mit seiner Empfehlung>

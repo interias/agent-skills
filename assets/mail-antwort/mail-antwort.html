@@ -32,7 +32,7 @@
   el('path', { d: `M60 ${Y} H560`, stroke: '#3949ab', 'stroke-width': 10, fill: 'none', 'stroke-linecap': 'round' });
   el('path', { d: `M870 ${Y} H1120`, stroke: '#3949ab', 'stroke-width': 10, fill: 'none', 'stroke-linecap': 'round' });
   const ways = [
-    [80, 'B', 'Spec-Issue + /epic → PR'],
+    [80, 'B', 'Spec + /mission → PR'],
     [135, 'C', 'Kommentar am Issue'],
     [205, 'A', 'nur Antwort'],
     [260, 'D', 'Issue needs-triage'],
@@ -70,7 +70,7 @@
   el('rect', { x: 30, y: 484, width: 1140, height: 110, rx: 8, fill: '#fff', stroke: '#c9ced8' }, box);
   el('text', { x: 48, y: 510, 'font-family': 'JetBrains Mono', 'font-size': 12, 'letter-spacing': 1.5, fill: '#7c8699' }, box, 'ART DER MAIL → WEG');
   const kinds = [
-    ['Fehler', 'tut nicht, was zugesagt ist', 'B: Issue + /epic'],
+    ['Fehler', 'tut nicht, was zugesagt ist', 'B: Issue + /mission'],
     ['Wunsch', 'will mehr oder anders', 'B wenn klein, sonst D'],
     ['Bedienung', 'anders benutzt', 'A: nur Antwort'],
     ['Daten', 'Code richtig, Datensatz nicht', 'A: Stammdaten ändert ein Mensch'],
