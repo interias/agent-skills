@@ -61,3 +61,25 @@ Seit agent-skills/ADR-0003 gilt dieser Wortschatz überall außer in Labels und 
 
 _Avoid_: Epic, Gate, Merge, Implementer, Reviewer, Grilling, Kind (für ein Missionsziel) in Oberfläche und Texten.
 
+### Wer handelt
+
+**Orchestrator**:
+Die Sitzung, die `/mission` fährt; schneidet die Mission in Pakete, prüft nach und dockt Pakete an den Missions-Branch an.
+
+**Vorab-Tor**:
+Die eine Fragerunde zu Beginn eines Außeneinsatzes (in Texten: Lagebesprechung).
+
+**Treiber**:
+`flotte fahren`, das Programm, das mehrere Außeneinsätze als `claude -p` auf mehreren Konten führt, bremst und andockt.
+
+**Admiral**:
+Das Sprachmodell, das unter dem Treiber die Fragen der Läufe im Rahmen seines Entscheidungsrechts beantwortet (`docs/befugnisse.md`).
+
+**Adapter**:
+`.claude/epic.md` eines Projekts; darf die Regeln der Skills verschärfen, nie lockern.
+
+**Andockblock**:
+Die Ausgabe der Andockprüfung in der PR-Beschreibung, mit Basis- und Head-SHA. Der **Nachweis der Andockprüfung** ist die Prüfung des Treibers, dass dieser Block aus einem echten Aufruf im Log des Laufs stammt.
+
+**Konto**:
+Ein Claude-Konfigordner (`~/.claude`, `~/.claude-arbeitspferd`, …); eine Mission bleibt bei ihrem Konto.
