@@ -1,5 +1,5 @@
 // The Gitea side of the order writer's forge layer (agent-skills/ADR-0002), straight against the API
-// (epic/references/forge.md). It carries no rule: it only turns the three methods into API calls.
+// (mission/references/forge.md). It carries no rule: it only turns the three methods into API calls.
 
 import { labelArt, type AngelegtesIssue, type AuftragsRegeln, type Forge } from './auftrag.ts';
 

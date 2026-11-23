@@ -51,8 +51,8 @@ describe('messeEinsatz', () => {
     ]);
     sitzung(k2, 'C--r-korb', 'bbbb2222-admiral', [mensch(0, 'Admiral-Chat'), assistent(1, 'los')]);
     subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x1', 'epic-lauf', [mensch(2, 'Lauf #1'), assistent(3, 'FLOTTE-FRAGE 1 tor', { stop: 'end_turn' }), nachricht(43), assistent(44, 'weiter')]);
-    subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x2', 'epic-implementer-standard', [mensch(2, 'Paket'), assistent(3, 'fertig', { stop: 'end_turn' }), nachricht(100)]);
-    sitzung(k1, 'C--r-korb', 'cccc3333-lauf', [mensch(10, 'Background (from the session that started this one): /epic #1'), assistent(11, 'FLOTTE-ENDE 1 https://x/pull/10', { stop: 'end_turn' }), nachricht(26), assistent(27, 'ok')]);
+    subagent(k2, 'C--r-korb', 'bbbb2222-admiral', 'x2', 'ingenieur-standard', [mensch(2, 'Paket'), assistent(3, 'fertig', { stop: 'end_turn' }), nachricht(100)]);
+    sitzung(k1, 'C--r-korb', 'cccc3333-lauf', [mensch(10, 'Background (from the session that started this one): /mission #1'), assistent(11, 'FLOTTE-ENDE 1 https://x/pull/10', { stop: 'end_turn' }), nachricht(26), assistent(27, 'ok')]);
     sitzung(k2, 'C--r-korb', 'dddd4444-leer', [mensch(12, '<system-reminder>hook</system-reminder>')]);
     sitzung(k1, 'C--r-korb', 'eeee5555-fremd', [mensch(13, 'RAM-Upgrade?'), assistent(14, 'x')]);
     sitzung(k1, 'C--r-korb', 'ffff6666-vorher', [mensch(-500, 'alt'), assistent(-499, 'x')]);
@@ -161,14 +161,14 @@ describe('messeEinsatz', () => {
       ergebnis(15, 'm1', 'Merge made'),
       assistent(30, 'FLOTTE-ENDE'),
     ]);
-    subagent(k3, 'C--p', 'aaaa1111-orch', 'i1', 'epic-implementer-standard', [mensch(2, 'Paket'), assistent(8, 'fertig')]);
-    subagent(k3, 'C--p', 'aaaa1111-orch', 'r1', 'epic-reviewer-standard', [mensch(9, 'Review'), assistent(12, 'ok')]);
+    subagent(k3, 'C--p', 'aaaa1111-orch', 'i1', 'ingenieur-standard', [mensch(2, 'Paket'), assistent(8, 'fertig')]);
+    subagent(k3, 'C--p', 'aaaa1111-orch', 'r1', 'erster-offizier-standard', [mensch(9, 'Review'), assistent(12, 'ok')]);
     sitzung(k3, 'C--p', 'bbbb2222-adm', [mensch(1, 'Frageblock'), assistent(1.5, '{}')]);
-    // a session of `flotte epic`: claude -p --agent writes agentSetting into its lines
-    sitzung(k3, 'C--p', 'cccc3333-impl', [JSON.stringify({ type: 'user', timestamp: min(16), agentSetting: 'epic-implementer-urteil', message: { content: 'Paket 10' } }), assistent(20, 'fertig')]);
+    // a session of `flotte mission`: claude -p --agent writes agentSetting into its lines
+    sitzung(k3, 'C--p', 'cccc3333-impl', [JSON.stringify({ type: 'user', timestamp: min(16), agentSetting: 'ingenieur-urteil', message: { content: 'Paket 10' } }), assistent(20, 'fertig')]);
 
     const gewichte: Record<string, unknown> = {
-      aaaa1111: { agents: [{ id: 'host', role: 'host', package: null, weighted: 600 }, { id: 'i1', role: 'epic-implementer-standard', package: '9', weighted: 200 }, { id: 'r1', role: 'epic-reviewer-standard', package: '9', weighted: 100 }] },
+      aaaa1111: { agents: [{ id: 'host', role: 'host', package: null, weighted: 600 }, { id: 'i1', role: 'ingenieur-standard', package: '9', weighted: 200 }, { id: 'r1', role: 'erster-offizier-standard', package: '9', weighted: 100 }] },
       bbbb2222: { agents: [{ id: 'host', role: 'host', package: null, weighted: 20 }] },
       cccc3333: { agents: [{ id: 'host', role: 'host', package: null, weighted: 80 }] },
     };
@@ -203,7 +203,7 @@ describe('messeEinsatz', () => {
     expect(usage.some((a) => a.some((x) => x.includes('ffff0000')))).toBe(false);
   });
 
-  it('measures a run of flotte epic from its state and call logs: roles by file name, merges and restarts from its events (#68)', () => {
+  it('measures a run of flotte mission from its state and call logs: roles by file name, merges and restarts from its events (#68)', () => {
     const k2 = konto();
     const treiber = konto();
     const init = (id: string) => JSON.stringify({ type: 'system', subtype: 'init', cwd: 'C:/p', session_id: id });
@@ -224,8 +224,8 @@ describe('messeEinsatz', () => {
     writeFileSync(join(treiber, 'messungen.jsonl'), JSON.stringify({ epic: 7, titel: '', konto: null, start: '', ende: '', arbeitS: 1200, menschWartenS: 0, gateS: 0, pakete: [], prognose: null, treffer: null }) + '\n');
     sitzung(k2, 'C--p', 'aaaa0001-huelle', [mensch(0, 'Rufe den Skill epic-stapel mit #7 auf'), assistent(20, 'FLOTTE-ENDE')]);
     sitzung(k2, 'C--p', 'bbbb0002-schnitt', [mensch(1, 'Schnitt'), assistent(2, '{}')]);
-    sitzung(k2, 'C--p-wt-9', 'cccc0003-impl', [JSON.stringify({ type: 'user', timestamp: min(3), agentSetting: 'epic-implementer-standard', message: { content: 'Paket 9' } }), assistent(9, 'fertig')]);
-    sitzung(k2, 'C--p-wt-9', 'dddd0004-rev', [JSON.stringify({ type: 'user', timestamp: min(10), agentSetting: 'epic-reviewer-standard', message: { content: 'Review' } }), assistent(12, 'ok')]);
+    sitzung(k2, 'C--p-wt-9', 'cccc0003-impl', [JSON.stringify({ type: 'user', timestamp: min(3), agentSetting: 'ingenieur-standard', message: { content: 'Paket 9' } }), assistent(9, 'fertig')]);
+    sitzung(k2, 'C--p-wt-9', 'dddd0004-rev', [JSON.stringify({ type: 'user', timestamp: min(10), agentSetting: 'erster-offizier-standard', message: { content: 'Review' } }), assistent(12, 'ok')]);
     sitzung(k2, 'C--p-wt-epic', 'eeee0005-konf', [mensch(13, 'Konflikt'), assistent(14.5, '{}')]);
     const gewichte: Record<string, number> = { aaaa0001: 50, bbbb0002: 30, cccc0003: 100, dddd0004: 40, eeee0005: 20 };
     const usage: string[][] = [];

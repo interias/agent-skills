@@ -40,16 +40,16 @@ Lizenzhinweis, den die MIT-Lizenz für wesentliche Teile verlangt:
 
 - **Link:** <https://github.com/DietrichGebert/ponytail>
 - **Lizenz:** MIT. Copyright (c) 2026 DietrichGebert.
-- **Übernommen:** die Leiter „kleinste vollständige Änderung“ in den Implementer-Agenten
-  (`agents/epic-implementer-*.md`) und die Befundform Muss, Sollte, Kann (nach `ponytail-review`)
-  in den Reviewer-Agenten (`agents/epic-reviewer-*.md`).
+- **Übernommen:** die Leiter „kleinste vollständige Änderung“ in den Ingenieur-Agenten
+  (`agents/ingenieur-*.md`) und die Befundform Muss, Sollte, Kann (nach `ponytail-review`)
+  in den Agenten des Ersten Offiziers (`agents/erster-offizier-*.md`).
 
 ## Graphify-Labs/graphify
 
 - **Link:** <https://github.com/Graphify-Labs/graphify>
 - **Lizenz:** Apache-2.0.
 - **Genutzt, nicht übernommen:** ein lokal installiertes Werkzeug (`uv tool install graphifyy`),
-  das `epic/scripts/graph.ps1` aufruft, um den Code-Graphen eines Laufs zu bauen. Kein Code aus
+  das `mission/scripts/graph.ps1` aufruft, um den Code-Graphen eines Laufs zu bauen. Kein Code aus
   dem Repository liegt hier.
 
 ## Noch nachzutragen

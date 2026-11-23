@@ -51,7 +51,7 @@ export interface Adapter {
   /** the base of the epic PRs (from-issue: per epic); null: main_branch, else the default branch */
   base_branch: string | null;
   main_branch: string | null;
-  /** who merges (references/adapter.md, "Merge"): only nach_gate lets the driver call merge.ps1 */
+  /** who merges (references/adapter.md, "Andocken"): only nach_gate lets the driver call merge.ps1 */
   merge: 'mensch' | 'nach_gate';
   /** commands after a merge, run in the main checkout (#14, stage 3) */
   nach_merge: string[];

@@ -33,13 +33,13 @@ Pull Request ins Skill-Repository.
 ## RAM-Bremse
 
 Bricht der Speicher des Windows-Rechners ein, stürzt er mit allen Läufen ab. Gemessen wird mit dem
-Skript von `/epic`:
+Skript von `/mission`:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/skills/epic/scripts/ram.ps1 -RepoRoot <repo>
+powershell -NoProfile -ExecutionPolicy Bypass -File ~/.claude/skills/mission/scripts/ram.ps1 -RepoRoot <repo>
 ```
 
-Stufen, Standards und die Schlüssel im Adapter: `epic/SKILL.md`, „Die RAM-Bremse". Laufende Pakete
+Stufen, Standards und die Schlüssel im Adapter: `mission/SKILL.md`, „Die RAM-Bremse". Laufende Pakete
 laufen in jeder Stufe weiter; die Bremse hält nur Neues zurück.
 
 - Ein Frageblock der Phase `ram` (ein Lauf hat selbst `hold` gemessen, `bloecke.md`) wird mit

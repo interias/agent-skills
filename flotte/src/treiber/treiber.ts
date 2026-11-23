@@ -1,5 +1,5 @@
 // flotte fahren: the driver (#14, stage 3). A loop over the tools; language models are only the
-// content of a state: the runs (/epic unchanged, ending every turn with a block) and one admiral
+// content of a state: the runs (/mission unchanged, ending every turn with a block) and one admiral
 // call per question block. Everything the driver decides is in this file and tested by the
 // scripts D1–D21 (test/drehbuecher.test.ts).
 
@@ -58,7 +58,7 @@ export interface Einstellung {
   ramWarn: number | null;
   /** --obergrenze: a fixed fleet limit instead of the one from the 7-day projection (dress rehearsals) */
   obergrenze: number | null;
-  /** #58: packages per epic at the same time; kept and reported only, /epic takes it from the order (#60) */
+  /** #58: packages per epic at the same time; kept and reported only, /mission takes it from the order (#60) */
   paketeJeEpic: number;
   /** #58: the 5-hour thresholds of the usage brake in percent used */
   verbrauchGelb: number;
@@ -72,7 +72,7 @@ export interface Einstellung {
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
   kontoMax: Record<string, number>;
   verbrauchMaxAlterMin: number;
-  /** /epic-nacharbeit while the PR is open when FLOTTE-ENDE names open points (Phase 4.1) */
+  /** /mission-nacharbeit while the PR is open when FLOTTE-ENDE names open points (Phase 4.1) */
   nacharbeit: boolean;
   sweepRoot: string | null;
   sweepDocker: boolean;
@@ -104,7 +104,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     // a second ~ in "~/.claude,~/.claude-arbeitspferd" reaches us unexpanded (acceptance finding 5);
     // short names 1, 2, 3 or a folder name in the home directory (acceptance 3, decision D)
     konten: konten.map((k) => kontoAus(k)),
-    skill: 'epic',
+    skill: 'mission',
     modell: null,
     admiralModell: 'fable',
     admiralKonto: null,
@@ -328,7 +328,7 @@ export const GATE_GRENZE = 3;
 const GATE_MAX_MS = 90 * 60_000;
 
 /**
- * guard.ps1 as a hook of the session, not only of the skill: the hook in the frontmatter of /epic
+ * guard.ps1 as a hook of the session, not only of the skill: the hook in the frontmatter of /mission
  * holds in the turn that calls the skill and is gone after --resume (dress rehearsal 2, 19.11.2026:
  * `gh pr merge` passed in the second turn). Every answer of the driver is a --resume.
  */
@@ -354,8 +354,8 @@ export const TRIAGE_ENTSCHEIDUNGEN_MAX = 50;
 /** hook refusals an epic may collect before it is blocked (acceptance finding B) */
 export const SPERREN_GRENZE = 3;
 
-/** Under the driver the bridge shows the state of a run; the run board (Lauftafel) of /epic is off. */
-export const TAFEL_AUS = 'Lauftafel aus: Baue und pflege keine Lauftafel, die Flottenbrücke zeigt den Stand (epic/references/lauftafel.md, „Lauftafel aus").';
+/** Under the driver the bridge shows the state of a run; the run board (Lauftafel) of /mission is off. */
+export const TAFEL_AUS = 'Lauftafel aus: Baue und pflege keine Lauftafel, die Flottenbrücke zeigt den Stand (mission/references/lauftafel.md, „Lauftafel aus").';
 
 const BELEGT = new Set(['laeuft', 'frage', 'nacharbeit']);
 const ENDE = new Set(['fertig', 'blockiert', 'abgebrochen']);
@@ -799,10 +799,10 @@ class Treiber {
   // ---- starting and continuing runs
 
   startText(nr: number): string {
-    return `Flotte, Epic #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (flotte/references/bloecke.md). ${this.blockForm(nr)} Mergen ist nicht deine Aufgabe. ${this.grenzText()} ${TAFEL_AUS}`;
+    return `Flotte, Mission #${nr}: Rufe den Skill ${this.e.skill} mit #${nr} auf. Du läufst unter dem Flotten-Treiber ohne Fenster: Frag nie den Menschen direkt und warte nicht auf ihn. Beende jeden Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE (flotte/references/bloecke.md). ${this.blockForm(nr)} Andocken ist nicht deine Aufgabe. ${this.grenzText()} ${TAFEL_AUS}`;
   }
 
-  /** The limit of packages at once for /epic (epic/SKILL.md, Phase 4, "Das Fenster"). */
+  /** The limit of packages at once for /mission (mission/SKILL.md, Phase 4, "Das Fenster"). */
   grenzText(): string {
     return `Auftrag: höchstens ${this.e.paketeJeEpic} Pakete gleichzeitig.`;
   }
@@ -813,7 +813,7 @@ class Treiber {
   }
 
   an(nr: number, text: string): string {
-    return `Flotte, Epic #${nr}: ${text}`;
+    return `Flotte, Mission #${nr}: ${text}`;
   }
 
   starteLauf(ep: FlottenEpic, text: string, resume: boolean): void {
@@ -1218,7 +1218,7 @@ class Treiber {
     this.z.statistik.admiral++;
     // the admiral's own, as before #52: the person's answers are no precedent of his
     const frueher = this.z.entscheidungen.filter((d) => d.epic === nr && d.von !== 'mensch').map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
-    const kontext = `Epic #${nr} in ${this.e.forge}, Repository ${this.e.repo}.${frueher.length ? `\nFrühere Entscheidungen zu diesem Epic:\n${frueher.join('\n')}` : ''}`;
+    const kontext = `Mission #${nr} in ${this.e.forge}, Repository ${this.e.repo}.${frueher.length ? `\nFrühere Entscheidungen zu dieser Mission:\n${frueher.join('\n')}` : ''}`;
     const r = await this.w.starte({
       ...this.programm(),
       repo: this.e.repo,
@@ -1409,7 +1409,7 @@ class Treiber {
       amIssue(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — ${d.frage}\nwiderrufen vom Menschen: ${text}\nVorher: ${d.antwort} (${d.herkunft})`);
       if (d.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte** — Epic #${h.epic}, Frage: ${d.frage}\nwiderrufen vom Menschen: ${text}`);
       if (['gemergt', 'fertig'].includes(ep.stufe) || this.mergesOffen.has(ep.nr)) {
-        return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Merge: daraus wird nur ein Ticket, wenn es nötig ist (epic/SKILL.md, Regel 3)`);
+        return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Merge: daraus wird nur ein Ticket, wenn es nötig ist (mission/SKILL.md, Regel 3)`);
       }
       ep.widerrufe = [...(ep.widerrufe ?? []), `widerruf: ${d.frage} → ${text}`];
       if (ep.stufe === 'pr' && !this.laufend.has(ep.nr) && !ep.auftrag) {
@@ -1440,7 +1440,7 @@ class Treiber {
       // #54: questions of the run still without an answer are said to be open, never decided by the run
       const offen = this.z.fragen.filter((f) => f.epic === ep.nr && !f.beantwortet).map((f) => `${f.nr}. ${f.frage || 'Block nicht zerlegbar'}`);
       const fragen = offen.length ? `\nOffen und ohne Antwort des Menschen:\n${offen.join('\n')}\nEntscheide sie nicht selbst. Stelle sie im nächsten FLOTTE-FRAGE erneut.` : '';
-      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Mensch hat dein Epic nach der Blockade neu eingereiht. Grund der Blockade war: ${grund}. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE. ${this.blockForm(ep.nr)}${fragen}`) };
+      ep.auftrag = { resume: true, text: this.an(ep.nr, `Der Mensch hat deine Mission nach der Blockade neu eingereiht. Grund der Blockade war: ${grund}. Setze an derselben Stelle fort und beende den Zug mit FLOTTE-FRAGE oder FLOTTE-ENDE. ${this.blockForm(ep.nr)}${fragen}`) };
     } else {
       ep.stufe = 'wartend';
       ep.konto = null;
@@ -2509,7 +2509,7 @@ class Treiber {
     if (this.e.nacharbeit && !ep.nacharbeitGemacht && offen && !/^[-–—]?\s*(keine|nichts)?\.?$/i.test(offen)) {
       ep.nacharbeitGemacht = true;
       ep.stufe = 'nacharbeit';
-      ep.auftrag = { resume: true, text: this.an(nr, `Rufe den Skill epic-nacharbeit mit #${nr} auf. Fragerunden kommen als FLOTTE-FRAGE nacharbeit, am Ende FLOTTE-ENDE. ${TAFEL_AUS}`) };
+      ep.auftrag = { resume: true, text: this.an(nr, `Rufe den Skill mission-nacharbeit mit #${nr} auf. Fragerunden kommen als FLOTTE-FRAGE nacharbeit, am Ende FLOTTE-ENDE. ${TAFEL_AUS}`) };
       this.ereignis(nr, `FLOTTE-ENDE mit PR #${ep.pr}, offene Punkte: Nacharbeit`);
       return;
     }
@@ -2558,7 +2558,7 @@ class Treiber {
 
   /**
    * Acceptance 3, finding 4: the PR of FLOTTE-ENDE must be the open PR of this epic's branch
-   * (epic/<nr>-<slug>, epic/SKILL.md, Phase 3); a foreign one is never watched or merged.
+   * (epic/<nr>-<slug>, mission/SKILL.md, Phase 3); a foreign one is never watched or merged.
    */
   fremderPr(ep: FlottenEpic): string | null {
     const info = this.prInfo(ep.pr!);
@@ -2579,7 +2579,7 @@ class Treiber {
     ep.pr = null;
     ep.stufe = 'frage';
     ep.notiz = 'wartet auf den Menschen (PR gehört nicht zum Epic)';
-    ep.festgehalten = this.an(nr, `${grund}. Der Treiber hat ihn nicht übernommen. Prüfe, welcher Pull Request zu deinem Epic-Branch gehört, und beende den Zug mit FLOTTE-ENDE und diesem PR. ${this.blockForm(nr)}`);
+    ep.festgehalten = this.an(nr, `${grund}. Der Treiber hat ihn nicht übernommen. Prüfe, welcher Pull Request zu deinem Missions-Branch gehört, und beende den Zug mit FLOTTE-ENDE und diesem PR. ${this.blockForm(nr)}`);
   }
 
   /** Starts the head of the merge queue when nothing works on it; an epic that left 'pr' drops out. */
@@ -2649,7 +2649,7 @@ class Treiber {
       if (/^GEMERGT/.test(zeile)) return this.nachMerge(ep);
       if (/^NICHT GEMERGT.*Zustand MERGED/.test(zeile)) return this.nachMerge(ep);
       if (/^NICHT GEMERGT.*merge:/.test(zeile)) return this.prBereit(ep, 'Adapter auf der Basis sagt merge: mensch');
-      if (/^CHECKS ROT/.test(zeile)) return this.zurueck(ep, `Der Merge wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung, dann FLOTTE-ENDE.`);
+      if (/^CHECKS ROT/.test(zeile)) return this.zurueck(ep, `Das Andocken wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung, dann FLOTTE-ENDE.`);
       if (!/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT)/.test(zeile)) return this.prBereit(ep, zeile);
       const basisWeg = /Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile);
       let voll = false;
@@ -2719,8 +2719,8 @@ class Treiber {
   }
 
   /**
-   * The epic worktree goes with the run's session (epic/SKILL.md, Phase 3), so after the run's last
-   * turn it may be gone (probe 3). Like /epic-nacharbeit the driver lays it out again with `Up` on
+   * The epic worktree goes with the run's session (mission/SKILL.md, Phase 3), so after the run's last
+   * turn it may be gone (probe 3). Like /mission-nacharbeit the driver lays it out again with `Up` on
    * the existing branch, fast-forwarded to the remote branch. The lock names the driver (Up wants a
    * living PID) and the epic's holder file; CleanupStale spares it while the driver lives, so the
    * driver takes it down itself with `Down` after the merge.
@@ -2759,12 +2759,12 @@ class Treiber {
     } catch {
       return { art: 'mensch', text: `PR #${ep.pr} nicht lesbar: ${v.stderr.trim().slice(0, 200)}` };
     }
-    const auftrag = 'Bring den Pull Request in Ordnung: Basis in den Epic-Branch mergen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), Suiten und Gate neu, Gate-Block in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.';
+    const auftrag = 'Bring den Pull Request in Ordnung: Basis per `git merge` in den Missions-Branch holen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), Suiten und Andockprüfung neu, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.';
     const wt = this.epicWorktree(info.headRefName) ?? (await this.epicWorktreeAnlegen(ep, info.headRefName));
     if (!wt) return { art: 'zurueck', text: `Die Basis zog davon, und der Treiber konnte keinen Worktree für ${info.headRefName} anlegen; er kann nicht nachziehen. ${auftrag}` };
     const git = (...a: string[]) => this.w.aufrufer('git', ['-C', wt, ...a]);
-    if (git('status', '--porcelain').stdout.trim()) return { art: 'zurueck', text: `Die Basis zog davon, aber der Epic-Worktree ${wt} ist nicht sauber; der Treiber zieht nicht nach. ${auftrag}` };
-    if (!git('rev-parse', 'HEAD').stdout.trim().startsWith(info.headRefOid)) return { art: 'zurueck', text: `Der Epic-Worktree steht nicht auf dem Head des PR (${info.headRefOid.slice(0, 8)}); der Treiber zieht nicht nach. ${auftrag}` };
+    if (git('status', '--porcelain').stdout.trim()) return { art: 'zurueck', text: `Die Basis zog davon, aber der Missions-Worktree ${wt} ist nicht sauber; der Treiber zieht nicht nach. ${auftrag}` };
+    if (!git('rev-parse', 'HEAD').stdout.trim().startsWith(info.headRefOid)) return { art: 'zurueck', text: `Der Missions-Worktree steht nicht auf dem Head des PR (${info.headRefOid.slice(0, 8)}); der Treiber zieht nicht nach. ${auftrag}` };
     // a gate is a heavy step: never while the RAM brake holds
     while (this.ramBremse.halt) await pause(this.e.taktMs);
     const f = await this.w.langsam('git', ['-C', wt, 'fetch', 'origin', info.baseRefName], { timeoutMs: 5 * 60_000 });
@@ -2775,7 +2775,7 @@ class Treiber {
       const konflikt = git('diff', '--name-only', '--diff-filter=U').stdout.split(/\r?\n/).filter(Boolean);
       git('merge', '--abort');
       this.ereignis(nr, `Nachziehen: Konflikt mit ${ziel} in ${konflikt.join(', ') || '?'}`);
-      return { art: 'zurueck', text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat den Merge abgebrochen, nichts gepusht. ${auftrag}` };
+      return { art: 'zurueck', text: `Beim Nachziehen von ${ziel} gab es einen Konflikt${konflikt.length ? ` in ${konflikt.join(', ')}` : `: ${(m.stdout + m.stderr).trim().slice(-400)}`}. Der Treiber hat \`git merge\` abgebrochen, nichts gepusht. ${auftrag}` };
     }
     // from here the worktree holds the driver's merge commit; unless it is green and pushed, the
     // worktree goes back to the head the run left (checked clean above), so the run finds its state
@@ -2835,7 +2835,7 @@ class Treiber {
     if (!b) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` nennt keine Basis (gate_base); merge.ps1 kann sie nicht prüfen` };
     const gruen = b.gruen && r.code === 0;
     this.ereignis(nr, `Gate des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})`);
-    if (!gruen) return { art: 'zurueck', text: `Die Basis zog davon. Der Treiber hat ${ziel} in den Epic-Branch gemergt und das Gate gefahren (\`${befehl}\`): rot. Nichts gepusht, der Epic-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst in den Epic-Branch mergen, das Gate grün machen, Gate-Block in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
+    if (!gruen) return { art: 'zurueck', text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
     if (b.teil !== teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ${b.teil ? '' : 'k'}ein Teil-Lauf (gate_partial); der Treiber schreibt sie nicht in den PR` };
     const [bBase, bHead] = [form.base.exec(b.block)?.[1] ?? '', form.head.exec(b.block)?.[1] ?? ''];
     if (!basis.startsWith(bBase) || !bHead || !kopf.startsWith(bHead)) return { art: 'mensch', text: `Die Gate-Ausgabe nennt Basis ${bBase} und HEAD ${bHead || '?'}, der Worktree steht auf ${basis.slice(0, 7)} und ${kopf.slice(0, 8)}` };
@@ -2870,7 +2870,7 @@ class Treiber {
         ep.konfliktGemeldet = true;
         ep.stufe = 'laeuft';
         ep.prBereitGemeldet = false;
-        ep.auftrag = { resume: true, text: this.an(ep.nr, `Dein Pull Request #${ep.pr} hat nach einem Merge in die Basis einen Konflikt. Basis in den Epic-Worktree mergen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), alle Suiten und das Gate neu, Gate-Block in der PR-Beschreibung ersetzen. Dann FLOTTE-ENDE.`) };
+        ep.auftrag = { resume: true, text: this.an(ep.nr, `Dein Pull Request #${ep.pr} hat nach einem Andocken in die Basis einen Konflikt. Basis per \`git merge\` in den Missions-Worktree holen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), alle Suiten und die Andockprüfung neu, Andockblock in der PR-Beschreibung ersetzen. Dann FLOTTE-ENDE.`) };
         this.ereignis(ep.nr, `PR #${ep.pr} hat einen Konflikt: Auftrag an den Lauf`);
       }
     }

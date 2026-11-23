@@ -2,8 +2,8 @@
 
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
-Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen).
-Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
+Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Missionen im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen).
+Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und dockt nichts selbst an.
 
 ## Start
 
@@ -21,7 +21,7 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 | `BRUECKE_BIND` | `0.0.0.0` | `127.0.0.1`: nur am Rechner |
 | `BRUECKE_PIN` | leer | PIN fürs Antworten und für Handlungen; leer schaltet beides ab |
 | `BRUECKE_TOKEN` | leer | optional: Treiber muss ihn als `X-Bruecke-Token` schicken |
-| `BRUECKE_TZ` | `Europe/Berlin` | Zeitzone für „Gemergt (heute)“ |
+| `BRUECKE_TZ` | `Europe/Berlin` | Zeitzone für „Angedockt (heute)“ |
 
 Unter Windows muss die Firewall den Port im privaten Netz zulassen, damit das Handy ihn erreicht.
 
@@ -40,8 +40,8 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 Bilder aller Bereiche mit den Beispieldaten aus `beispiel/`, je 1440 und 390 px breit: `doku/`.
 
 Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
-Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Epics der
-Tafel (Nummer oder Titel), mit Pfeiltasten, Enter und Esc. Ein Epic öffnet seine Ebene und markiert
+Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Missionen der
+Tafel (Nummer oder Titel), mit Pfeiltasten, Enter und Esc. Eine Mission öffnet ihre Ebene und markiert
 die Karte kurz. Sie führt nichts aus.
 
 Für Entwickler: Ein Bereich liegt in `app/static/bereiche/<bereich>.js` (und `.css`) und meldet sich
@@ -54,26 +54,26 @@ Inhalts-Hash ein.
 
 ## Sternenkarte
 
-Der Überblick über die Projekte und die Steuerung ihrer Epics. Je Projekt (Forge-Repo des Treibers) ein Block mit dem
-Kürzel, der Zahl offener Epics und der Prognose „Backlog leer etwa …“ (ab 5 gemessenen Epics, sonst
-der Hinweis, wie auf der Brücke). Darunter jedes offene Epic als Zeile: Nummer (Link aufs Issue),
+Der Überblick über die Projekte und die Steuerung ihrer Missionen. Je Projekt (Forge-Repo des Treibers) ein Block mit dem
+Kürzel, der Zahl offener Missionen und der Prognose „Backlog leer etwa …“ (ab 5 gemessenen Missionen, sonst
+der Hinweis, wie auf der Brücke). Darunter jede offene Mission als Zeile: Nummer (Link aufs Issue),
 Titel, die Stufe (läuft, wartet, Frage, blockiert, PR), `prio` bei `prio/hoch`, warum es wartet oder
 hält, die Reihenfolge („nach #38“ springt zur Zeile des Vorgängers, „danach #41“ zeigt die wartenden
 Nachfolger; ein erledigter Vorgänger ist ein Link aufs Issue) und eine aufklappbare Liste seiner
-Kind-Tickets mit Stand und Links. Ein Klick auf die Stufe führt zur Karte des Epics auf der Brücke.
-Gemergte und aufgegebene Epics gehören nicht in den Backlog. Die Daten stehen im Bericht des Treibers
-(`nach[]` je Epic ist neu, siehe `SCHNITTSTELLE.md`); die Brücke fragt keine Forge. Ein älterer Treiber
-ohne `nach[]` zeigt die Epics ohne Kanten.
+Missionsziel-Tickets mit Stand und Links. Ein Klick auf die Stufe führt zur Karte der Mission auf der Brücke.
+Angedockte und aufgegebene Missionen gehören nicht in den Backlog. Die Daten stehen im Bericht des Treibers
+(`nach[]` je Mission ist neu, siehe `SCHNITTSTELLE.md`); die Brücke fragt keine Forge. Ein älterer Treiber
+ohne `nach[]` zeigt die Missionen ohne Kanten.
 
-**Steuern (#61), nur mit PIN:** Unter jedem Epic im Einsatz **Pausieren** oder **Fortsetzen** und
-**Priorität hoch** oder **Priorität normal**; unter „Freigegeben, nicht im Einsatz“ (offene Epics mit
+**Steuern (#61), nur mit PIN:** Unter jeder Mission im Einsatz **Pausieren** oder **Fortsetzen** und
+**Priorität hoch** oder **Priorität normal**; unter „Freigegeben, nicht im Einsatz“ (offene Missionen mit
 `ready_label`, die der Treiber nicht fährt, etwa neben `--epics`) **Aufnehmen**, nach einer Rückfrage.
 Der Treiber holt die Handlung im nächsten Takt ab; bis zur Quittung steht an ihrer Stelle, dass sie
-unterwegs ist. Eine Pause bricht nichts ab: Ein wartendes Epic startet nicht; ein laufender Lauf erfährt
+unterwegs ist. Eine Pause bricht nichts ab: Eine wartende Mission startet nicht; ein laufender Lauf erfährt
 sie vor seinem nächsten Paketstart über die RAM-Messung (`ram.ps1` liest sie aus seiner Haltedatei und
-meldet `hold`), startet kein weiteres Paket und lässt die laufenden zu Ende laufen; danach wartet das
-Epic samt der Antwort des Admirals, bis es fortgesetzt wird. **Andocken (#112):** Jedes Epic zeigt,
-wie es andockt (automatisch nach Andockprüfung oder Mensch prüft), woher das kommt (Einstellung des
+meldet `hold`), startet kein weiteres Paket und lässt die laufenden zu Ende laufen; danach wartet die
+Mission samt der Antwort des Admirals, bis sie fortgesetzt wird. **Andocken (#112):** Jede Mission zeigt,
+wie sie andockt (automatisch nach Andockprüfung oder Mensch prüft), woher das kommt (Einstellung des
 Projekts, Vorschlag mit Grund, Schalter an der Mission) und bietet „Mensch prüft“, „Automatisch
 andocken“ (nur wenn der Treiber es anbietet, also bei `merge: nach_gate`) und „Zurück zum Vorschlag“.
 „Priorität hoch“
@@ -118,21 +118,21 @@ Bilder: `doku/v3-frachtraum-1440.png`, `-390.png`; Schnittplan: `doku/v3-frachtr
 
 Die Seitenleiste links auf jeder Seite (auf dem Handy eine Schublade von links, geöffnet über den
 Knopf neben dem Logo; sie schließt mit Esc, mit Tippen daneben und nach einem Sprung). Sie zeigt je
-Projekt alle Läufe (Epics mit Nummer, Titel, Konto) und die Sitzungen aller Konten, jeweils mit einem
+Projekt alle Läufe (Missionen mit Nummer, Titel, Konto) und die Sitzungen aller Konten, jeweils mit einem
 Punkt nach Ebene. Eingeklappt (Knopf oben links in der Leiste, gemerkt je Gerät) bleibt eine schmale
-Spalte, in der nur die Punkte stehen. Ein pausiertes Epic trägt „pausiert“ neben seiner Ebene, ein
-Epic mit hoher Priorität `prio` vor der Nummer (#61); die Farbe bleibt die der Ebene. Ein Klick auf einen Lauf springt zu seiner Karte auf der Brücke;
+Spalte, in der nur die Punkte stehen. Eine pausierte Mission trägt „pausiert“ neben ihrer Ebene, eine
+Mission mit hoher Priorität `prio` vor der Nummer (#61); die Farbe bleibt die der Ebene. Ein Klick auf einen Lauf springt zu seiner Karte auf der Brücke;
 eine Sitzung klappt ihre Angaben auf (Konto, Ordner, Status, seit). Die Leiste liest nur und tut
 nichts. Chips über der Liste filtern (Alle, Braucht dich, Freigabe, Läuft, Sitzungen, Ruht); ab 12
 Einträgen sind die ruhenden eingeklappt („+ N ruhende“).
 
 | Punkt | Bedeutung | Woher |
 |---|---|---|
-| blau | Freigabe | Epic in der Merge-Schlange (Stufe `pr`) |
+| blau | Freigabe | Mission in der Andock-Schlange (Stufe `pr`) |
 | lila | Frage | offene Frage, `blockiert`, `abgebrochen` (die Ebene „Braucht dich“) |
 | grün | läuft | `laeuft`, `nacharbeit`, `frage` mit Prozess; Sitzung `busy` |
 | gelb | neuer Prototyp | am Projektkopf, wenn das Holodeck dort einen Prototyp als neu seit dem letzten Besuch dieses Geräts zählt |
-| grau | ruht | `wartend`, heute gemergt; Sitzung `idle` |
+| grau | ruht | `wartend`, heute angedockt; Sitzung `idle` |
 
 Die Zuordnung steht als Tabelle `ZUORDNUNG` in `app/static/schiffsliste.js`. Kein Punkt blinkt: Rot
 und Bewegung gehören allein zu „Braucht dich“.
@@ -147,40 +147,40 @@ steht unter „Sonstige“. Fehlt das Kommando oder schlägt es fehl, bleibt die
 
 Drei Ebenen, sortiert danach, was du tun musst:
 
-1. **Braucht dich** — offene Fragen und blockierte Epics, oben das, dessen Warten am meisten kostet
-   (hält den ganzen Lauf oder das ganze Epic, dann die längste Wartezeit). Ist etwas offen, pulst
+1. **Braucht dich** — offene Fragen und blockierte Missionen, oben das, dessen Warten am meisten kostet
+   (hält den ganzen Lauf oder die ganze Mission, dann die längste Wartezeit). Ist etwas offen, pulst
    der Kopf langsam rot, der Tab-Titel trägt die Zahl und das Icon einen roten Punkt; bei null ist
    die Ebene grau und still.
-2. **Unterwegs** — Läufe und Merge-Schlange als Karten. Je Lauf ein Lebenszeichen: Puls, „letzter
+2. **Unterwegs** — Läufe und Andock-Schlange als Karten. Je Lauf ein Lebenszeichen: Puls, „letzter
    Schritt vor N min“ und eine Leiste bis zur Leerlauf-Grenze (gelb ab der Hälfte, rot kurz davor,
-   dann stoppt der Puls). Je Epic eine Segmentleiste der Kind-Tickets mit „3 von 5 fertig“;
+   dann stoppt der Puls). Je Mission eine Segmentleiste der Missionsziel-Tickets mit „3 von 5 fertig“;
    antippen zeigt `#nr Titel · Stand`, jede Zeile verlinkt aufs Issue (im spec-Modus die Pakete des
    Laufs, `P1`, `P2` …, ohne Link). Läuft eine Andockprüfung, steht im Kopf des Laufs **Andockprüfung n**
-   mit Start und Dauer, in der Merge-Schlange die des Treibers ebenso. Darunter eine Zeile **Bereit**,
-   Epics mit `prio/hoch` zuerst, mit dem Grund, wenn sie warten, und ab fünf gemessenen Epics mit
-   „voraussichtlich 3–5 h“. Je Epic dort „N Tickets“ mit derselben Segmentleiste; antippen klappt die Tickets mit Links auf (im spec-Modus vor dem
-   Start keine).
+   mit Start und Dauer, in der Andock-Schlange die des Treibers ebenso. Darunter eine Zeile **Bereit**,
+   Missionen mit `prio/hoch` zuerst, mit dem Grund, wenn sie warten, und ab fünf gemessenen Missionen
+   mit „voraussichtlich 3–5 h“. Je Mission dort „N Tickets“ mit derselben Segmentleiste; antippen klappt
+   die Tickets mit Links auf (im spec-Modus vor dem Start keine).
 3. **Erledigt heute** (eingeklappt) — oben die Prognose „Backlog leer etwa …“ mit Trefferquote
-   (Rechnung in `flotte/README.md`, „Prognose“), dann Gemergtes, Entscheidungen des Admirals mit „Zurücknehmen“,
-   deine Antworten und Handlungen. Ein neuer Merge leuchtet einmal grün auf.
+   (Rechnung in `flotte/README.md`, „Prognose“), dann Angedocktes, Entscheidungen des Admirals mit „Zurücknehmen“,
+   deine Antworten und Handlungen. Ein neues Andocken leuchtet einmal grün auf.
 
-**Detailansicht eines Epics** (#51): Unter der Segmentleiste eines Laufs stehen **Plätze 3/3** (Pakete
-in Implementer, Review oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
+**Detailansicht einer Mission** (#51): Unter der Segmentleiste eines Laufs stehen **Plätze 3/3** (Pakete
+in Ingenieur, Review oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
 **Neustarts** des Laufs; die Laufzeit ist der Knopf „läuft seit …“. In der aufgeklappten Paketliste
 hat jedes Paket, zu dem der Treiber Agent-Aufrufe im Protokoll des Laufs sah, eine zweite Zeile:
-Phase (Implementer, Review, Nachbesserung, Merge) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
+Phase (Ingenieur, Review, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
 (eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
 (ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
 (älterer Treiber, Paket ohne Aufruf), bleibt es weg; spec-Pakete haben sie wie Kind-Tickets (#151).
 Felder: `SCHNITTSTELLE.md`.
 
-Unter den Paketen stehen die **Entscheidungen bis zum Merge** (#52), neueste zuerst, von jedem Tag:
+Unter den Paketen stehen die **Entscheidungen bis zum Andocken** (#52), neueste zuerst, von jedem Tag:
 deine Antworten (Mensch) und die einflussreichen Entscheidungen von Admiral und Lauf, je mit Frage,
-Antwort, Herkunft und Zeit. Bis zum Merge lässt sich jede mit „› Zurücknehmen“ widerrufen (nur mit
-PIN); nach dem Merge verschwinden sie hier, sie stehen weiter im Flottenlogbuch und an den Issues.
+Antwort, Herkunft und Zeit. Bis zum Andocken lässt sich jede mit „› Zurücknehmen“ widerrufen (nur mit
+PIN); nach dem Andocken verschwinden sie hier, sie stehen weiter im Flottenlogbuch und an den Issues.
 
-Im Kopf je Konto ein Tank mit dem Rest im 5-h- und im Wochenfenster samt Reset-Zeit, RAM und
+Im Kopf je Konto ein Tank mit dem Rest der Hauptenergie (5 h) und der Reserveenergie (Woche) samt Reset-Zeit, RAM und
 Platte je Rechner. Der Takt im Ellbogen füllt sich bis zum nächsten Bericht und wird rot, wenn er
 ausbleibt. Unten läuft das Logbuch als Laufband; antippen hält es an und klappt die Liste auf.
 Karten, die die Ebene wechseln, wandern dorthin. `prefers-reduced-motion` schaltet alle Bewegung
@@ -221,7 +221,7 @@ Regel.
 ## Antworten
 
 Eine Fragekarte zeigt die Frage als Überschrift, die Lage kurz, „wartet seit N min · hält X von Y
-Paketen“, eine Marke (`umkehrbar bis Merge` oder warum es bleibt) und den Grund, warum die Frage
+Paketen“, eine Marke (`umkehrbar bis zum Andocken` oder warum es bleibt) und den Grund, warum die Frage
 bei dir liegt. Je Option steht die Folge darunter. Ein Tipp auf „A nehmen · Empfehlung“ sendet die
 Empfehlung; Optionen und Freitext gehen immer, der Freitext erreicht den Lauf unverändert. Ließ
 sich ein Block nicht in Fragen zerlegen, steht sein Wortlaut selbst auf der Karte. Beim ersten
@@ -233,16 +233,16 @@ fort“. Der Treiber behandelt sie wie `flotte antworten`, kommentiert am Issue 
 
 ## Handlungen
 
-Eine Blockadekarte zeigt Grund, Lage und auf Wunsch das Log des Epics. Dazu zwei Handlungen mit
+Eine Blockadekarte zeigt Grund, Lage und auf Wunsch das Log der Mission. Dazu zwei Handlungen mit
 PIN, die der Treiber im nächsten Takt abholt und ausführt:
 
 - **Neu einreihen** — Zähler zurück; der Lauf setzt fort und erfährt den Grund der Blockade.
-- **Aufgeben** — nach einer Rückfrage: Das Epic wird `abgebrochen` und nicht mehr gestartet.
+- **Aufgeben** — nach einer Rückfrage: Die Mission wird `abgebrochen` und nicht mehr gestartet.
   Branch, Pull Request und Issue bleiben.
 
-**Zurücknehmen** in der Detailansicht des Epics (und für die Entscheidungen des Admirals von heute
+**Zurücknehmen** in der Detailansicht der Mission (und für die Entscheidungen des Admirals von heute
 auch in „Erledigt heute“) widerruft eine Entscheidung des Admirals oder deine eigene Antwort bis zum
-Merge: Du schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt sie dem Lauf.
+Andocken: Du schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt sie dem Lauf.
 Beide Stellen teilen sich Formular und Entwurf.
 
 Ansehen ist im LAN frei, Antworten und Handlungen nur mit PIN. Fünf falsche PINs sperren für fünf
@@ -250,11 +250,11 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
 
 ## Maschinenraum und Logbuch
 
-- **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (5 h und Woche, „… % übrig“, Reset-Zeit,
+- **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (Hauptenergie und Reserveenergie, „… % übrig“, Reset-Zeit,
   mit Wochentag ab 20 h), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
   gleichzeitig) und der Takt der Treiber, die dort melden. Alles stammt aus dem Bericht. Was er nicht
   trägt, steht als „… meldet der Treiber nicht“: heute die **Anmeldung** je Konto (der Treiber kennt sie
-  nur als Halt eines Epics, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
+  nur als Halt einer Mission, nicht je Konto). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“. Kommt `anmeldung` je Konto in die Tafel, zeigt die
   Seite sie.
   Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die elf wirksamen Werte
@@ -265,9 +265,9 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne
   `einstellungen` im Bericht: nur lesend mit Hinweis. Andocken (#112) verschärft nur: „automatisch“
   steht nur zur Wahl, wenn der Adapter `merge: nach_gate` sagt, sonst nennt die Zeile den Grund. Die
-  Merge-Regel des Adapters, Rechte, Geheimnisse und Updates gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
+  Andock-Regel des Adapters, Rechte, Geheimnisse und Updates gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
-  Menschen in einer Liste, neueste oben, filterbar nach Epic und Art (Ereignis, Admiral, Mensch). Die
+  Menschen in einer Liste, neueste oben, filterbar nach Mission und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das
   Feld „Logbuch“ im Fuß und „Alle im Logbuch“ unter dem Laufband führen hierher.
 

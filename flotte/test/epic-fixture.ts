@@ -1,6 +1,6 @@
-// A fixture for the real Mechanik of `flotte epic` (#66): a git repository in a temp folder with its
+// A fixture for the real Mechanik of `flotte mission` (#66): a git repository in a temp folder with its
 // own bare remote as origin and its own adapter, and a forge that records gh instead of calling it.
-// git and the scripts of epic/scripts run for real against it; nothing reaches GitHub.
+// git and the scripts of mission/scripts run for real against it; nothing reaches GitHub.
 
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

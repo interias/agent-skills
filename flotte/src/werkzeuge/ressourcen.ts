@@ -1,5 +1,5 @@
 // flotte ressourcen <repo> [--platte-min-gb 20]
-// RAM through epic/scripts/ram.ps1 (a failed measurement counts as hold), free disk space of the
+// RAM through mission/scripts/ram.ps1 (a failed measurement counts as hold), free disk space of the
 // repository's drive, docker reachable. The RAM brake with hysteresis lives in naechsteBremse().
 
 import { statfsSync } from 'node:fs';
@@ -21,7 +21,7 @@ export interface Ressourcen {
   docker: boolean;
 }
 
-export const SKRIPTE = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../../../epic/scripts');
+export const SKRIPTE = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../../../mission/scripts');
 
 /**
  * warnPercent: --ram-warn of the driver, handed to ram.ps1; null leaves the adapter's or its default.

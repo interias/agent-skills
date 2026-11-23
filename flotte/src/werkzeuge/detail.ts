@@ -1,7 +1,7 @@
 /**
  * Detail view of an epic (#51): phase, round and class of each package, derived from what the driver
- * already reads, the stream-json of the runs. Each Agent call of an epic-implementer or epic-reviewer
- * names its package in the description (`Implementer #588 …`, `Reviewer #588 …`, epic/SKILL.md, phase 6).
+ * already reads, the stream-json of the runs. Each Agent call of an ingenieur or erster-offizier
+ * names its package in the description (`Implementer #588 …`, `Reviewer #588 …`, mission/SKILL.md, phase 6).
  *
  * Two pure steps: `eintraegeAus` turns one log line into entries, `ableiten` turns the entries of a
  * run into the fields per package. Nothing is guessed: a package without a call has no fields, an
@@ -47,7 +47,8 @@ export interface PaketDetail {
   lebenszeichen?: string;
 }
 
-const REVIEWER = /^epic-reviewer-(standard|urteil)$/;
+// transcripts before the Sprachraum (ADR-0003) carry the old agent names
+const REVIEWER = /^(?:erster-offizier|epic-reviewer)-(standard|urteil)$/;
 const AGENT = new Set(['Agent', 'Task']);
 const SHELL = new Set(['Bash', 'PowerShell']);
 /** the package in a description: a child `#588`, a spec package `#45-p2` */
@@ -103,7 +104,7 @@ export function eintraegeAus(roh: string, zeit: number | null = null, gate: stri
 const ENDE = new Set(['completed', 'failed', 'killed', 'stopped']);
 
 /**
- * A background agent (`/epic` starts implementer and reviewer so) answers its call at once with
+ * A background agent (`/mission` starts implementer and reviewer so) answers its call at once with
  * "Async agent launched …"; that is its start, not its return. Its end comes later as a `system`
  * line `task_notification` with the id of the call and no `timestamp`. A plain result is the end of
  * an agent in the foreground. A command in the background (a gate) answers "Command running in

@@ -195,14 +195,14 @@ describe('Detailansicht im Bericht (#51)', () => {
     try {
       const t = aufbau({ adapter: 'merge: mensch\nwindow: 3', bodies: { 3: '## Betroffene Module\n- m3\n\n- [ ] #11\n- [ ] #12\n- [ ] #13' }, titel: { 11: 'A', 12: 'B', 13: 'C' }, labels: { 11: ['status/in-arbeit'], 12: ['status/in-arbeit'], 13: ['status/in-arbeit'] } });
       const agent = (typ: string, beschreibung: string) => werkzeug('Agent', { subagent_type: typ, description: beschreibung, prompt: 'x' }, 'ok');
-      const offen = { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_offen', name: 'Agent', input: { subagent_type: 'epic-implementer-standard', description: 'Implementer #12 B', prompt: 'x' } }] } } };
+      const offen = { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_offen', name: 'Agent', input: { subagent_type: 'ingenieur-standard', description: 'Implementer #12 B', prompt: 'x' } }] } } };
       // the reviewer of #11 runs in the background: its end is the task_notification, which must pass the driver's quick test
       const hintergrund = [
-        { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_rev11', name: 'Agent', input: { subagent_type: 'epic-reviewer-standard', description: 'Reviewer #11 A', prompt: 'x', run_in_background: true } }] } } },
+        { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_rev11', name: 'Agent', input: { subagent_type: 'erster-offizier-standard', description: 'Reviewer #11 A', prompt: 'x', run_in_background: true } }] } } },
         { zeile: { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_rev11', content: [{ type: 'text', text: 'Async agent launched successfully.' }] }] } } },
         { zeile: { type: 'system', subtype: 'task_notification', task_id: 't11', tool_use_id: 'toolu_rev11', status: 'completed' } },
       ];
-      const buch = drehbuch([lauf(3, [...agent('epic-implementer-standard', 'Implementer #11 A'), ...hintergrund, offen, { zeile: { type: 'assistant', parent_tool_use_id: 'toolu_offen', message: { role: 'assistant', content: [{ type: 'text', text: 'arbeitet' }] } } }, { warte: 700 }, { text: ende(3, 13) }])]);
+      const buch = drehbuch([lauf(3, [...agent('ingenieur-standard', 'Implementer #11 A'), ...hintergrund, offen, { zeile: { type: 'assistant', parent_tool_use_id: 'toolu_offen', message: { role: 'assistant', content: [{ type: 'text', text: 'arbeitet' }] } } }, { warte: 700 }, { text: ende(3, 13) }])]);
       await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       const e = b.berichte.map((x) => x.epics[0]).find((x) => x.prozess && x.pakete.some((p) => p.phase) && x.plaetze)!;
       const [a, zwei, drei] = e.pakete;

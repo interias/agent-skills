@@ -16,7 +16,7 @@ import { schluessel } from './adapter.ts';
 const AUFRUF = 'Aufruf: flotte auftrag <repo> <entwurf.md> [--starten] [--trocken]';
 const ABNAHME_STANDARD = ['## Abnahmekriterien', '## Akzeptanzkriterien', '## Acceptance criteria'];
 
-/** The issue keys of the adapter with their defaults (epic/references/adapter.md, "Issues", form tickets). */
+/** The issue keys of the adapter with their defaults (mission/references/adapter.md, "Issues", form tickets). */
 export function regelnAus(adapterText: string): AuftragsRegeln {
   const a = liesAdapter(adapterText);
   const abnahme = schluessel(adapterText, 'acceptance_section');
@@ -50,7 +50,7 @@ export function giteaRepoAus(adapterText: string): string {
 }
 
 /**
- * The Authorization header for Gitea (epic/references/forge.md): the token from the variable token_env
+ * The Authorization header for Gitea (mission/references/forge.md): the token from the variable token_env
  * (default GITEA_TOKEN) or from the file token_file, else Basic Auth from the Git credential store.
  * Nothing of it is printed.
  */

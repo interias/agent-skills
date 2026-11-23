@@ -12,7 +12,7 @@ import { flotteDir } from '../src/werkzeuge/zustand.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf, ping } from './flotte-welt.ts';
 
 const T = 30_000;
-const fuer = <G extends { eingabe: string }>(gesehen: G[], nr: number): G[] => gesehen.filter((g) => new RegExp(`^Flotte, Epic #${nr}\\b`).test(g.eingabe));
+const fuer = <G extends { eingabe: string }>(gesehen: G[], nr: number): G[] => gesehen.filter((g) => new RegExp(`^Flotte, Mission #${nr}\\b`).test(g.eingabe));
 const index = (liste: string[], muster: RegExp) => liste.findIndex((z) => muster.test(z));
 const block = (nr: number, n: number) => leseBlock(frage(nr, 'tor', Array.from({ length: n }, () => ({ betrifft: 'Lauf' })))) as FrageBlock;
 
@@ -142,9 +142,9 @@ describe('Befund 5: Konten mit ~', () => {
 });
 
 describe('Befund 7: eine alte merge.ps1 mergt nicht', () => {
-  it('the default merge script is epic/scripts/merge.ps1 and passes the check of the driver: it exists and knows the key merge', () => {
+  it('the default merge script is mission/scripts/merge.ps1 and passes the check of the driver: it exists and knows the key merge', () => {
     const skript = standard('.', 'o/r', [1], ['~/.claude']).mergeSkript;
-    expect(skript.replaceAll('\\', '/')).toMatch(/\/epic\/scripts\/merge\.ps1$/);
+    expect(skript.replaceAll('\\', '/')).toMatch(/\/mission\/scripts\/merge\.ps1$/);
     expect(existsSync(skript)).toBe(true);
     const text = readFileSync(skript, 'utf8');
     expect(text).toMatch(/nach_gate/);
@@ -210,7 +210,7 @@ describe('Befund 15: guard.ps1 auch nach --resume', () => {
       expect(hook.matcher).toBe('Bash|PowerShell');
       expect(hook.hooks[0].command).toContain(join(t.repo, 'skripte', 'guard.ps1'));
       expect(hook.hooks[0].command).toMatch(/-Profile epic$/);
-      // like the hook in the head of epic/SKILL.md: a hook that fails refuses, it never lets through (Nachprüfung A)
+      // like the hook in the head of mission/SKILL.md: a hook that fails refuses, it never lets through (Nachprüfung A)
       expect(hook.hooks[0].onFailure).toBe('block');
     }
   }, T);
@@ -241,23 +241,23 @@ function sperre(regel: string, befehl: string) {
 
 describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () => {
   it('reads the rule from the text of guard.ps1', () => {
-    expect(hookRegel("PreToolUse:Bash hook error: Gesperrt durch Hook (Skill epic, Regel 1: Ein Lauf mergt nie): 'gh pr merge 1'.")).toBe('Skill epic, Regel 1');
+    expect(hookRegel("PreToolUse:Bash hook error: Gesperrt durch Hook (Skill mission, Regel 1: Der Lauf dockt nie an): 'gh pr merge 1'.")).toBe('Skill mission, Regel 1');
   });
 
   it('a run that changes its way after a refusal goes on; the refusal is on the board', async () => {
     const t = aufbau();
-    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const a = sperre('Skill mission, Regel 1', 'gh pr merge 13');
     const buch = drehbuch([lauf(3, [a.zeile, { text: ende(3, 13), verweigert: [a.verweigert] }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
-    expect(z.epics['3'].sperren).toEqual(['Skill epic, Regel 1']);
-    expect(index(t.p.zeitleiste, /Hook-Sperre: Skill epic, Regel 1/)).toBeGreaterThanOrEqual(0);
+    expect(z.epics['3'].sperren).toEqual(['Skill mission, Regel 1']);
+    expect(index(t.p.zeitleiste, /Hook-Sperre: Skill mission, Regel 1/)).toBeGreaterThanOrEqual(0);
   }, T);
 
   it('the same rule a second time blocks the epic: the run tried again in another form', async () => {
     const t = aufbau();
-    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
-    const b = sperre('Skill epic, Regel 1', 'gh api -X PUT repos/x/y/pulls/13/merge');
+    const a = sperre('Skill mission, Regel 1', 'gh pr merge 13');
+    const b = sperre('Skill mission, Regel 1', 'gh api -X PUT repos/x/y/pulls/13/merge');
     const buch = drehbuch([
       lauf(3, [a.zeile, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]), verweigert: [a.verweigert] }]),
       admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
@@ -266,13 +266,13 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(fuer(buch.gesehen(), 3)).toHaveLength(2);
     expect(z.epics['3'].stufe).toBe('blockiert');
-    expect(z.epics['3'].notiz).toMatch(/Regel „Skill epic, Regel 1" sperrte zweimal/);
+    expect(z.epics['3'].notiz).toMatch(/Regel „Skill mission, Regel 1" sperrte zweimal/);
     expect(t.p.kommentare.some((k) => k.text.includes('gh api -X PUT'))).toBe(true);
   }, T);
 
   it(`blocks at the ${SPERREN_GRENZE}rd refusal of an epic, even by different rules`, async () => {
     const t = aufbau();
-    const s = ['Skill epic, Regel 1', 'Skill epic, Regel 2', 'Skill epic, Regel 11'].map((r, i) => sperre(r, `befehl ${i}`));
+    const s = ['Skill mission, Regel 1', 'Skill mission, Regel 2', 'Skill mission, Regel 11'].map((r, i) => sperre(r, `befehl ${i}`));
     const buch = drehbuch([lauf(3, [...s.map((x) => x.zeile), { text: ende(3, 13), verweigert: s.map((x) => x.verweigert) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('blockiert');
@@ -281,7 +281,7 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
 
   it('a turn that fails at the refusal (no block) blocks at once, without asking again', async () => {
     const t = aufbau();
-    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const a = sperre('Skill mission, Regel 1', 'gh pr merge 13');
     const buch = drehbuch([lauf(3, [a.zeile, { text: 'Gesperrt, ich weiß nicht weiter.', verweigert: [a.verweigert] }]), lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(fuer(buch.gesehen(), 3)).toHaveLength(1);
@@ -291,7 +291,7 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
 
   it('a refusal that is not the hook\'s still blocks at once (D19), also next to a hook refusal, when the turn ends without a block (#54)', async () => {
     const t = aufbau();
-    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const a = sperre('Skill mission, Regel 1', 'gh pr merge 13');
     const buch = drehbuch([lauf(3, [a.zeile, { text: 'Gesperrt, ich weiß nicht weiter.', verweigert: [a.verweigert, { tool_name: 'Write', tool_use_id: 'toolu_auto', tool_input: {} }] }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('blockiert');
@@ -300,11 +300,11 @@ describe('Nachprüfung B: eine Hook-Sperre blockiert das Epic nicht sofort', () 
 
   it('#54: a turn ending with FLOTTE-ENDE goes on despite a refusal that is not the hook\'s, also next to a hook refusal; the refusal is an event', async () => {
     const t = aufbau();
-    const a = sperre('Skill epic, Regel 1', 'gh pr merge 13');
+    const a = sperre('Skill mission, Regel 1', 'gh pr merge 13');
     const buch = drehbuch([lauf(3, [a.zeile, { text: ende(3, 13), verweigert: [a.verweigert, { tool_name: 'Write', tool_use_id: 'toolu_auto', tool_input: {} }] }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
-    expect(z.epics['3'].sperren).toEqual(['Skill epic, Regel 1']);
+    expect(z.epics['3'].sperren).toEqual(['Skill mission, Regel 1']);
     expect(index(t.p.zeitleiste, /Erlaubnis verweigert: Write; der Zug endete mit FLOTTE-ENDE, nicht blockiert/)).toBeGreaterThanOrEqual(0);
   }, T);
 });
@@ -321,7 +321,7 @@ describe('Runde 6: Zuständigkeit und Empfehlung des Laufs im Auftrag des Admira
   });
 
   it('follows a clear, local, reversible recommendation of the run; waiting needs a reason from the repository', () => {
-    expect(text).toMatch(/Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Merge umkehren lässt/);
+    expect(text).toMatch(/Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Andocken umkehren lässt/);
     expect(text).toMatch(/Warten, Aufschieben oder Weglassen ist keine neutrale Wahl/);
     expect(text.indexOf('Folge der Empfehlung')).toBeLessThan(text.indexOf('Im Zweifel, ohne begründete Empfehlung'));
   });
