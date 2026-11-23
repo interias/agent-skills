@@ -1985,7 +1985,7 @@ describe('Stand und Einspielen über die Brücke (#154)', () => {
       // the new driver: same settings, the new stand; the run is watched, not started again
       const weiter = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), { ...t.welt, stand: () => stand(B) });
       expect(weiter.epics['3'].stufe).toBe('fertig');
-      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
       expect(t.p.meldungen).toContain('Neuer Stand eingespielt: aaaaaaa → bbbbbbb (2026-11-23T09:00:00+01:00), Brücke neu gebaut; Treiber mit derselben Kommandozeile neu gestartet, Mensch über die Brücke');
       expect(b.berichte.at(-1)!.version).toMatchObject({ commit: B, einspielen: null });
       expect(weiter.einspielen).toBeUndefined();
