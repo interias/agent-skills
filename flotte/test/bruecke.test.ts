@@ -1114,6 +1114,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     offen: [],
     fehler: [],
     schnittplan: [],
+    nachgeholt: [],
   });
   const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
 
@@ -1210,6 +1211,20 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       expect(stelle('gh', 'issue', 'comment', '20')).toBeLessThan(stelle('gh', 'issue', 'reopen', '20'));
       expect(texte(z)).toContain('Triage-Entscheidung „geschlossen“ zu #20 widerrufen (wieder geöffnet), Mensch über die Brücke');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#149: a mission whose Warp frei the triage run set later stands in the logbook; one that failed counts as without result', async () => {
+    const t = aufbau();
+    const nach = (nummer: number, mehr: object = {}) => ({ forge: 'o/r', nummer, titel: `Mission ${nummer}`, kinder: [30], kommentar: 'k', geschrieben: true, ...mehr });
+    const tr = triageAttrappe({ ...ergebnis([]), nachgeholt: [nach(100), nach(101, { geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })] }, 50);
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage' }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      expect(texte(z)).toContain('Triage-Lauf beendet: 0 Warp frei, Warp frei nachgeholt für Mission #100, 0 geschlossen, 0 Fragen an den Menschen, 1 ohne Ergebnis');
+      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text.includes('Warp frei nachgeholt für Mission #100'))).toBe(true);
     } finally {
       await b.zu();
     }
@@ -1423,6 +1438,59 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(t.p.aufrufe.some((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'close' && a[3] === '4')).toBe(true);
     } finally {
       await b.zu();
+    }
+  }, T);
+
+  it('#149 a revoked mission whose label and close both failed is not collected again, also after a restart; aufnehmen takes it back on purpose', async () => {
+    // without --epics: #3 and the new mission #4 released; one place, #3 runs first, #4 waits
+    const freigegeben = () => ({ bereit: [3, 4], epics: [{ number: 3 }, { number: 4 }] });
+    const t = aufbau({ freigegeben });
+    const tr = triageAttrappe(plan(4), 50);
+    const aufrufer = schnittForge(t, { 4: '## Missionsziele\n- [ ] #30 Notiz 30\n- [ ] #31 Notiz 31\n' }, (a) => a[0] === 'issue' && a[2] === '4' && (a[1] === 'close' || (a[1] === 'edit' && a.includes('--remove-label'))));
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (!x.triage.schnittplan) return { epic: 0, art: 'triage' };
+        if (x.epics.find((e) => e.nr === 4)?.stufe === 'wartend' && !x.triage.schnittplan.missionen[0].widerrufen) return { epic: 4, art: 'schnitt-widerruf', text: 'Doch nicht.' };
+        return null;
+      },
+    });
+    const uebersprungen = (z: { ereignisse: { text: string }[] }) => texte(z).filter((x) => x.startsWith('Mission #4 nicht eingesammelt'));
+    try {
+      // no turn for #4 in the script: a start would fail the test
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [], { bruecke: b.url, obergrenze: 1, auto: true, sammelnMs: 100 }), { ...t.welt, aufrufer, triagiere: tr.f });
+      expect(texte(z)).toContain('Mission #4 aus dem Einsatz genommen (widerrufen, nicht gestartet), Mensch über die Brücke');
+      expect(texte(z)).toContain('Mission #4 aus dem Schnittplan widerrufen (ready-for-agent ab, #30, #31 zurück in die Triage, geschlossen); gescheitert: ready-for-agent an Mission #4 abnehmen gescheitert: HTTP 502; Mission #4 schließen gescheitert: HTTP 502, Mensch über die Brücke');
+      expect(z.widerrufen).toEqual([4]);
+      expect(z.epics['4']).toBeUndefined();
+      expect(t.p.meldungen.some((m) => /^#4 Lauf gestartet/.test(m))).toBe(false);
+      // collected every 100 ms, said once, in the fleet logbook too
+      expect(uebersprungen(z)).toEqual(['Mission #4 nicht eingesammelt: über die Brücke widerrufen (wieder in den Einsatz nur mit der Handlung „aufnehmen“), Mensch über die Brücke']);
+      expect(t.p.kommentare.filter((k) => k.nr === 99 && k.text.includes('Mission #4 nicht eingesammelt'))).toHaveLength(1);
+    } finally {
+      await b.zu();
+    }
+
+    // restart with the saved state: still out
+    const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten }, freigegeben });
+    const z2 = await fahre(t2.einstellung(drehbuch([]), [], { auto: true }), t2.welt);
+    expect(z2.epics['4']).toBeUndefined();
+    // the events of the state go on: the second start, and one line more for the new process
+    expect(texte(z2).findLast((x) => x.startsWith('Einsatz gestartet'))).toMatch(/^Einsatz gestartet: #3 /);
+    expect(uebersprungen(z2)).toHaveLength(2);
+    expect(z2.widerrufen).toEqual([4]);
+
+    // a person released it again and takes it in on the bridge: it runs, the mark is gone
+    const t3 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten }, freigegeben });
+    // the ids 101 and 102 of a fresh stand-in bridge count as carried out in the saved state: two fillers first
+    const vorab: Wunsch[] = [{ epic: 4, art: 'pausieren' }, { epic: 4, art: 'fortsetzen' }];
+    const b3 = await attrappe(() => null, { handlung: (x) => vorab.shift() ?? (x.freigegeben?.some((f) => f.nr === 4) ? { epic: 4, art: 'aufnehmen' } : null) });
+    try {
+      const z3 = await fahre(t3.einstellung(drehbuch([lauf(4, [{ text: ende(4, 14) }])]), [], { auto: true, bruecke: b3.url, dauerhaft: true, maxDauerMs: 2500 }), t3.welt);
+      expect(texte(z3)).toContain('Epic #4 in den Einsatz aufgenommen (sein Widerruf über die Brücke ist damit aufgehoben), Mensch über die Brücke');
+      expect(z3.epics['4'].stufe).toBe('fertig');
+      expect(z3.widerrufen).toEqual([]);
+    } finally {
+      await b3.zu();
     }
   }, T);
 

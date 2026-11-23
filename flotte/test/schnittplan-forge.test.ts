@@ -29,6 +29,8 @@ interface Issue {
   state: 'open' | 'closed';
   comments: { body: string; login: string; rolle: string }[];
   kinder: number[];
+  /** #149: the labels that were ever set on it (the `labeled` events of the forge) */
+  markiert?: string[];
 }
 interface Aufruf {
   args: string[];
@@ -60,6 +62,13 @@ function forge(issues: Issue[]) {
           finde(m).kinder.push(Number(wert('-F').split('=')[1]) - 1000);
           return ok('{}');
         }
+        // #149: the jq of the run applied here: the `labeled` events of ready_label, the open children with it
+        const lesen = /issues\/(\d+)\/(events|sub_issues)$/.exec(args[1] ?? '');
+        if (args[0] === 'api' && lesen) {
+          const i = finde(Number(lesen[1]));
+          if (lesen[2] === 'events') return ok((i.markiert ?? []).filter((l) => l === 'ready-for-agent').map(() => '1\n').join(''));
+          return ok(i.kinder.map((k) => issues.find((x) => x.number === k)).filter((k) => k && k.state === 'open' && k.labels.includes('ready-for-agent')).map((k) => `${k!.number}\n`).join(''));
+        }
         if (args[0] === 'api') {
           const nr = Number(/issues\/(\d+)$/.exec(args[1])![1]);
           const jq = wert('--jq');
@@ -71,7 +80,10 @@ function forge(issues: Issue[]) {
         if (args[0] === 'issue' && args[1] === 'edit') {
           const i = finde(Number(args[2]));
           if (args.includes('--body-file')) i.body = opt!.eingabe!;
-          if (args.includes('--add-label')) i.labels.push(wert('--add-label'));
+          if (args.includes('--add-label')) {
+            i.labels.push(wert('--add-label'));
+            i.markiert = [...(i.markiert ?? []), wert('--add-label')];
+          }
           if (args.includes('--remove-label')) i.labels = i.labels.filter((l) => !wert('--remove-label').split(',').includes(l));
         }
         if (args[0] === 'issue' && args[1] === 'close') finde(Number(args[2])).state = 'closed';
@@ -365,6 +377,71 @@ describe('#147 Schnittplan in der Forge', () => {
     const t1 = r.tickets.find((t) => t.nummer === 1)!;
     expect(t1.body?.startsWith(ORIGINAL_1)).toBe(true);
     expect(t1.kommentar).toContain('Portprüfung');
+  });
+
+  it('#149 a new mission whose own release failed is released by a later run: comment with origin first, then ready_label, once; --trocken only reports', async () => {
+    const f = welt();
+    const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'edit' && a[2] === '100' && a.includes('--add-label') });
+    expect(f.finde(100).labels).toEqual(['epic']);
+    expect(f.finde(1).labels).toEqual(['ready-for-agent']);
+    expect(r.schnittplan[0].neue_missionen[0].fehler).toContain('Freigabe der Mission #100 gescheitert');
+    expect(r.nachgeholt).toEqual([]);
+
+    // --trocken: named in the output, nothing written
+    const vorher = JSON.stringify(f.issues);
+    const t = await lauf(f, PLAN, ANTWORTEN, { trocken: true });
+    expect(schreibend(t.aufrufe)).toEqual([]);
+    expect(JSON.stringify(f.issues)).toBe(vorher);
+    expect(t.r.nachgeholt).toEqual([expect.objectContaining({ forge: 'o/r', nummer: 100, titel: 'Portprüfung', kinder: [1, 2], geschrieben: false, kommentar: expect.stringContaining('Herkunft: ') })]);
+
+    const { r: r2, aufrufe } = await lauf(f, PLAN, ANTWORTEN);
+    expect(f.finde(100).labels).toEqual(['epic', 'ready-for-agent']);
+    expect(schreibend(aufrufe).map((x) => x.args.slice(0, 3))).toEqual([['issue', 'comment', '100'], ['issue', 'edit', '100']]);
+    jedeAenderungMitKommentar(aufrufe, new Set());
+    const [k] = f.finde(100).comments.slice(1);
+    expect(k.body.split('\n')[0]).toBe(TRIAGE_MARKE);
+    expect(k.body).toContain('#1, #2');
+    expect(r2.nachgeholt).toEqual([expect.objectContaining({ nummer: 100, kinder: [1, 2], geschrieben: true })]);
+    expect(r2.nachgeholt[0].fehler).toBeUndefined();
+
+    // idempotent: the next run writes nothing
+    const danach = JSON.stringify(f.issues);
+    const r3 = await lauf(f, PLAN, ANTWORTEN);
+    expect(schreibend(r3.aufrufe)).toEqual([]);
+    expect(JSON.stringify(f.issues)).toBe(danach);
+    expect(r3.r.nachgeholt).toEqual([]);
+  });
+
+  it('#149 the later release leaves alone: a mission of a person, one with an objection below, one that had ready_label once, one without a released child; a failed comment changes nothing', async () => {
+    const mission = (number: number, mehr: Partial<Issue> = {}): Issue => ({ number, title: `Mission ${number}`, body: '## Missionsziele\n', labels: ['epic'], state: 'open', comments: [], kinder: [], ...mehr });
+    const triage = { body: `${TRIAGE_MARKE}\n**Triage: Mission aus dem Schnittplan** — entschieden vom Admiral (\`flotte triage\`)\n\nHerkunft: x`, login: 'flotte', rolle: 'OWNER' };
+    const frei = (number: number): Issue => ({ ...notiz(number, `Kind ${number}`, 'x'), labels: ['ready-for-agent'] });
+    const f = forge([
+      frei(1), frei(2), frei(3), frei(4), frei(5),
+      { ...notiz(6, 'Kind 6', 'x'), labels: [] },
+      // a person's mission: no comment of the triage, or only a stranger's copy of it
+      mission(50, { kinder: [1] }),
+      mission(51, { kinder: [2], comments: [{ ...triage, login: 'fremder', rolle: 'NONE' }] }),
+      // an objection below the comment of the triage
+      mission(52, { kinder: [3], comments: [triage, { body: 'Erst nach dem Release.', login: 'mensch', rolle: 'OWNER' }] }),
+      // released once, a person took ready_label off
+      mission(53, { kinder: [4], comments: [triage], markiert: ['ready-for-agent'] }),
+      // no released open child
+      mission(54, { kinder: [6], comments: [triage] }),
+      // closed: revoked
+      mission(55, { kinder: [5], comments: [triage], state: 'closed' }),
+    ]);
+    const vorher = JSON.stringify(f.issues);
+    const { r, aufrufe } = await lauf(f, PLAN, {});
+    expect(schreibend(aufrufe)).toEqual([]);
+    expect(JSON.stringify(f.issues)).toBe(vorher);
+    expect(r.nachgeholt).toEqual([]);
+
+    // the comment fails: no label
+    const g = forge([frei(1), mission(56, { kinder: [1], comments: [triage] })]);
+    const { r: r2 } = await lauf(g, PLAN, {}, { scheitert: (a) => a[1] === 'comment' });
+    expect(g.finde(56).labels).toEqual(['epic']);
+    expect(r2.nachgeholt).toEqual([expect.objectContaining({ nummer: 56, geschrieben: false, fehler: 'Kommentar gescheitert, nichts geändert' })]);
   });
 });
 
