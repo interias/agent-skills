@@ -2,7 +2,7 @@
 // reads them from the forge, the bridge bundles them by project and topic). Per project: the critical
 // questions of the triage with a button per option (the recommendation marked) and a free text, the
 // decisions of the triage runs to read and revoke, (#148) the cut plan of the last run with "Widerrufen" per
-// mission, the notes by topic, and "Triage-Lauf starten" (also for all projects). Every action needs the PIN; the driver carries it out from its next turn on, always
+// mission, (#147) how the last run ended, the notes by topic, and "Triage-Lauf starten" (also for all projects). Every action needs the PIN; the driver carries it out from its next turn on, always
 // as a comment at the ticket. The shell (huelle.js) calls zeichne(t, el) on every load while the area is
 // visible; t is null before the first load, then the helpers of app.js do not exist yet. All scripts of
 // the page share one scope: keep every name inside this call.
@@ -118,6 +118,15 @@
     return `${kopf}${fehler}${missionen}${notizen}`;
   }
 
+  // ---- #147: how the last triage run ended: the notes not cleanly worked off, or why it was aborted
+
+  function abschlussHtml(a) {
+    if (!a || a.zustand === 'beendet') return '';
+    if (a.zustand === 'abgebrochen') return `<p class="warum fr-fehler"><b>Triage-Lauf abgebrochen</b> · ${esc(wann(a.zeit))}${a.grund ? `: ${esc(a.grund)}` : ''}</p>`;
+    const liste = a.abweichungen.map((x) => `<li class="fr-ticket">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span><span class="fr-label">${esc(x.zustand)}</span><span class="fr-grund fr-fehler">${esc(x.grund)}</span></li>`).join('');
+    return `<section class="fr-thema fr-unsauber"><h5 class="fr-fehler">${zahl(a.abweichungen.length, 'Notiz', 'Notizen')} nicht sauber abgearbeitet <span class="fr-klein">Triage-Lauf unvollständig · ${esc(wann(a.zeit))}</span></h5><ul class="fr-tickets">${liste}</ul></section>`;
+  }
+
   // ---- the Sternzeit-Notizen by topic; a ticket with two topics stands in both
 
   const ticketHtml = (x, thema) => `<li class="fr-ticket${x.frage ? ' gefragt' : ''}">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span>${x.frage ? '<span class="fr-marke">Frage an dich</span>' : ''}${x.themen.filter((t) => t !== thema).map((t) => `<span class="fr-label">${esc(t)}</span>`).join('')}</li>`;
@@ -134,6 +143,9 @@
     if (k.gescheitert) return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf gescheitert</b>${k.fehler ? `<span>${esc(k.fehler)}</span>` : ''}${seit}</div>`;
     if (k.fehler) return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf beendet — Schnittplan ungültig, nichts geschrieben</b><span>${esc(k.fehler)}</span>${seit}</div>`;
     const sprung = k.fragen && p.fragen.length ? '<button type="button" class="knopf zweit" data-zu-fragen>Zu den Fragen</button>' : '';
+    // #147: the same run ended aborted or incomplete: the line says so, the list of the notes stands below it
+    if (k.abschluss?.zustand === 'abgebrochen') return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf abgebrochen${k.abschluss.grund ? `: ${esc(k.abschluss.grund)}` : ''}</b><span>Was bis dahin geschrieben war, steht unten.</span>${seit}${sprung}</div>`;
+    if (k.abschluss?.zustand === 'unvollstaendig') return `<div class="fr-kurz gescheitert" role="status"><b>Triage-Lauf unvollständig: ${zahl(k.epics, 'Epic', 'Epics')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich — ${zahl(k.abschluss.unsauber, 'Notiz', 'Notizen')} nicht sauber abgearbeitet</b><span>Liste unten.</span>${seit}${sprung}</div>`;
     return `<div class="fr-kurz beendet" role="status"><b>Triage-Lauf beendet: ${zahl(k.epics, 'Epic', 'Epics')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich</b>${seit}${sprung}</div>`;
   }
 
@@ -154,7 +166,7 @@
 <h3 class="fr-kopf">${link(p.url, esc(p.kurz), 'fr-name')}<span class="fr-zahl">${zahl(p.zahl, 'Sternzeit-Notiz', 'Sternzeit-Notizen')}${p.fragen.length ? ` · ${zahl(p.fragen.length, 'Frage', 'Fragen')} an dich` : ''}${still}</span></h3>
 ${kurzHtml(p)}
 <div class="knoepfe fr-start">${startHtml(p, pin)}<span class="fr-klein">${gelesen}</span><span class="status" role="status"></span></div>
-${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
+${abschlussHtml(p.abschluss)}${fragen}${schnittHtml(p.schnittplan, pin)}${entsch}${themen}</section>`;
   }
 
   function html(t) {

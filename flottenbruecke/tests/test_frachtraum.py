@@ -318,6 +318,38 @@ def test_bericht_ohne_schnittplan_bleibt_gueltig_und_ungueltiger_ist_422(client,
     assert client.post('/api/bericht', json=zuviel).status_code == 422
 
 
+# ---- #147: how the last triage run ended
+
+ABSCHLUSS = {
+    'zeit': '2026-11-22T10:15:00Z', 'zustand': 'unvollstaendig', 'geprueft': 5, 'sauber': 3, 'grund': None,
+    'abweichungen': [
+        {'nr': 57, 'titel': 'Logbuch nach Mission filtern', 'zustand': 'offen, needs-triage', 'grund': 'in der Triage ohne offene Frage an den Menschen'},
+        {'nr': 65, 'titel': 'Volltextsuche im Logbuch', 'zustand': 'offen, ready-for-agent', 'grund': 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)'},
+    ],
+}
+
+
+def test_abschluss_des_triage_laufs_im_frachtraum(client, bericht):
+    bericht['triage']['abschluss'] = ABSCHLUSS
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    a = frachtraum(client)[0]['abschluss']
+    assert (a['zustand'], a['geprueft'], a['sauber'], a['zeit']) == ('unvollstaendig', 5, 3, '2026-11-22T10:15:00Z')
+    assert [(x['nr'], x['grund'], x['issueUrl']) for x in a['abweichungen']] == [
+        (57, 'in der Triage ohne offene Frage an den Menschen', 'https://github.com/interias/flotte-probe/issues/57'),
+        (65, 'ready-for-agent ohne Mission (kein Sub-Issue einer Mission)', 'https://github.com/interias/flotte-probe/issues/65'),
+    ]
+    # aborted: the reason, no list
+    bericht['triage']['abschluss'] = {**ABSCHLUSS, 'zustand': 'abgebrochen', 'abweichungen': [], 'geprueft': 0, 'sauber': 0, 'grund': 'Neustart des Treibers'}
+    client.post('/api/bericht', json=bericht)
+    assert frachtraum(client)[0]['abschluss']['grund'] == 'Neustart des Treibers'
+    # an unknown end state is refused; an older driver has none
+    bericht['triage']['abschluss'] = {**ABSCHLUSS, 'zustand': 'halb'}
+    assert client.post('/api/bericht', json=bericht).status_code == 422
+    del bericht['triage']['abschluss']
+    client.post('/api/bericht', json=bericht)
+    assert frachtraum(client)[0]['abschluss'] is None
+
+
 # ---- #148: the short info in the head of the project: started, running, ended
 
 def kurzinfo(c, forge=FORGE):
@@ -409,3 +441,16 @@ def test_kurzinfo_beendet_vertraegt_kleinen_uhrversatz(zwei):
     # the driver's clock runs a minute ahead of the bridge
     melde(zwei, 'interias/notizen', beendet={'zeit': '2026-11-20T14:32:10Z', 'epics': 1, 'fragen': 0})
     assert kurzinfo(zwei, 'interias/notizen')['zustand'] == 'beendet'
+
+
+def test_kurzinfo_beendet_traegt_den_abschluss_mit(zwei):
+    # #147: the end of the same run: an incomplete or aborted run says so in the short info, the list stands below
+    beendet = {'zeit': '2026-11-20T14:30:00Z', 'epics': 1, 'fragen': 0}
+    melde(zwei, 'interias/notizen', beendet=beendet, abschluss={**ABSCHLUSS, 'zeit': '2026-11-20T14:30:00Z'})
+    k = kurzinfo(zwei, 'interias/notizen')
+    assert (k['zustand'], k['abschluss']) == ('beendet', {'zustand': 'unvollstaendig', 'unsauber': 2, 'grund': None})
+    melde(zwei, 'interias/notizen', beendet=beendet, abschluss={**ABSCHLUSS, 'zustand': 'abgebrochen', 'abweichungen': [], 'grund': 'Treiber angehalten'})
+    assert kurzinfo(zwei, 'interias/notizen')['abschluss'] == {'zustand': 'abgebrochen', 'unsauber': 0, 'grund': 'Treiber angehalten'}
+    # a clean end adds nothing
+    melde(zwei, 'interias/notizen', beendet=beendet, abschluss={**ABSCHLUSS, 'zustand': 'beendet', 'abweichungen': []})
+    assert 'abschluss' not in kurzinfo(zwei, 'interias/notizen')

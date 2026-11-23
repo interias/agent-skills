@@ -230,6 +230,20 @@ export interface BerichtSchnittplan {
 }
 
 /**
+ * #147: how the last triage run of the driver ended: beendet (every note of its input in an allowed end state),
+ * unvollstaendig (the notes that are not, from the final check), abgebrochen (stopped driver, or still under way
+ * at a restart; grund says which).
+ */
+export interface BerichtTriageAbschluss {
+  zeit: string;
+  zustand: 'beendet' | 'unvollstaendig' | 'abgebrochen';
+  geprueft: number;
+  sauber: number;
+  abweichungen: { nr: number; titel: string; zustand: string; grund: string }[];
+  grund: string | null;
+}
+
+/**
  * #116: the triage state of the project for the Frachtraum: the open Sternzeit-Notizen and the open
  * critical questions from the forge (gelesen: when), the decisions of the driver's triage runs, a run under way.
  */
@@ -244,6 +258,8 @@ export interface BerichtTriage {
   entscheidungen: BerichtTriageEntscheidung[];
   /** #148: the cut plan of the last triage run; null before the first one or when it cut none */
   schnittplan: BerichtSchnittplan | null;
+  /** #147: how the last triage run ended; null before the first one (an older bridge ignores it) */
+  abschluss?: BerichtTriageAbschluss | null;
   /** #117: lernvorschlag (the kennung) for a question about a proposal of the learning loop; the bridge ignores it */
   fragen: { ticket: number; nr: number; titel: string; frage: string; optionen: Option[]; empfehlung: string; grund: string; herkunft: string; marke: string; seit: string; lernvorschlag?: string }[];
 }

@@ -149,7 +149,12 @@ def kurzinfo(tr: dict, handlung: dict | None, jetzt: datetime, fragen: int, vera
     # a little clock skew between driver and bridge is tolerated
     if t and -timedelta(minutes=2) <= jetzt - t < timedelta(minutes=BEENDET_MIN):
         # the questions the person sees now (still right after an answer), not the new ones of the run
-        return {'zustand': 'beendet', 'seit': e['zeit'], 'epics': e['epics'], 'fragen': fragen, 'gescheitert': bool(e.get('gescheitert')), 'fehler': e.get('fehler')}
+        k = {'zustand': 'beendet', 'seit': e['zeit'], 'epics': e['epics'], 'fragen': fragen, 'gescheitert': bool(e.get('gescheitert')), 'fehler': e.get('fehler')}
+        # #147: the run ended incomplete or aborted: said in the same line, the list stands below (abschluss)
+        a = tr.get('abschluss')
+        if a and a['zustand'] != 'beendet' and not k['gescheitert']:
+            k['abschluss'] = {'zustand': a['zustand'], 'unsauber': len(a.get('abweichungen', [])), 'grund': a.get('grund')}
+        return k
     return None
 
 
@@ -193,6 +198,8 @@ def frachtraum(b: dict, forge: str, kurz: str, url: str | None, aktiv: bool, ver
         'fragen': fragen,
         'entscheidungen': entscheidungen,
         'schnittplan': schnittplan(tr, forge, link, offen_h),
+        # #147: the end of the last triage run, each note not cleanly worked off with its link
+        'abschluss': {**a, 'abweichungen': [{**x, 'issueUrl': link(x['nr'])} for x in a.get('abweichungen', [])]} if (a := tr.get('abschluss')) else None,
         'themen': [{'thema': th, 'tickets': themen[th]} for th in reihe],
     }
 

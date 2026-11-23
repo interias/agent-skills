@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { mitMissionszielen } from '../src/auftrag/auftrag.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
+import { lernKommentar } from '../src/lernen.ts';
+import { abschlusspruefung } from '../src/triage-abschluss.ts';
 import { entscheidungAus, offeneFragen, schnittplanAuftrag, type Ticket, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort } from '../src/triage.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
 
@@ -69,9 +71,18 @@ function forge(issues: Issue[]) {
           if (lesen[2] === 'events') return ok((i.markiert ?? []).filter((l) => l === 'ready-for-agent').map(() => '1\n').join(''));
           return ok(i.kinder.map((k) => issues.find((x) => x.number === k)).filter((k) => k && k.state === 'open' && k.labels.includes('ready-for-agent')).map((k) => `${k!.number}\n`).join(''));
         }
+        // #147: the final check reads each note again: state, labels, comments, and its parent mission
+        if (args[0] === 'issue' && args[1] === 'view') {
+          const i = finde(Number(args[2]));
+          return ok(JSON.stringify({ number: i.number, title: i.title, state: i.state.toUpperCase(), labels: i.labels.map((name) => ({ name })), comments: i.comments.map((c, j) => ({ body: c.body, author: { login: c.login }, authorAssociation: c.rolle, createdAt: `2026-11-22T11:0${j}:00Z`, url: `https://github.com/o/r/issues/${i.number}#issuecomment-${i.number * 10 + j}` })) }));
+        }
         if (args[0] === 'api') {
           const nr = Number(/issues\/(\d+)$/.exec(args[1])![1]);
           const jq = wert('--jq');
+          if (jq === '.parent_issue_url') {
+            const eltern = issues.find((x) => x.kinder.includes(nr));
+            return ok(eltern ? `https://api.github.com/repos/o/r/issues/${eltern.number}\n` : 'null\n');
+          }
           if (jq === '.id') return ok(`${1000 + nr}\n`);
           if (jq === '.sub_issues_summary.total') return ok(`${finde(nr).kinder.length}\n`);
           return ok('OWNER\n');
@@ -104,15 +115,20 @@ type Antworten = Record<number, unknown>;
 /**
  * One run; the admiral answers each call with the plan, every note's place in it carrying the clearing of
  * antworten (fragen, abnahmekriterien, verifikationsweg). #146: geplant counts every start, no other call exists.
+ * #147: abbrechen aborts during a call: that call and every later one end without an answer, like the real starte.
  */
-async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworten, o: { trocken?: boolean; scheitert?: (args: string[]) => boolean } = {}) {
+async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworten, o: { trocken?: boolean; scheitert?: (args: string[]) => boolean; abbrechen?: (s: Start) => boolean; lernIssue?: number } = {}) {
   const aufrufe: Aufruf[] = [];
   const geplant: Start[] = [];
+  let abgebrochen = -1;
   const r = await triagiere(
-    { ziele: [{ repo: '.', forge: 'o/r', regeln: REGELN }], konto: 'k', modell: 'fable', trocken: o.trocken ?? false },
+    { ziele: [{ repo: '.', forge: 'o/r', regeln: REGELN, lernIssue: o.lernIssue ?? null }], konto: 'k', modell: 'fable', trocken: o.trocken ?? false },
     {
       aufrufer: f.aufrufer(aufrufe, o.scheitert),
+      abgebrochen: () => abgebrochen >= 0,
       starte: async (s: Start): Promise<LaufErgebnis> => {
+        if (abgebrochen < 0 && o.abbrechen?.(s)) abgebrochen = aufrufe.length;
+        if (abgebrochen >= 0) return { code: null, sitzung: null, dauerMs: 0, fehler: 'abbruch' } as unknown as LaufErgebnis;
         geplant.push(s);
         expect(s.auftrag.startsWith('FLOTTE-SCHNITTPLAN')).toBe(true);
         const nummern = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((m) => Number(m[1]));
@@ -126,7 +142,7 @@ async function lauf(f: ReturnType<typeof forge>, plan: Plan, antworten: Antworte
       },
     },
   );
-  return { r, aufrufe, geplant };
+  return { r, aufrufe, geplant, abgebrochen };
 }
 
 const schreibend = (a: Aufruf[]) => a.filter((x) => (x.args[0] === 'issue' && ['edit', 'close', 'comment', 'create', 'delete'].includes(x.args[1])) || (x.args[0] === 'api' && x.args.includes('--method')) || x.args[0] === 'label');
@@ -565,6 +581,8 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
       expect(offeneFragen(t)).toEqual([expect.objectContaining({ nr: 1, frage: expect.stringContaining('Verifikationsweg'), optionen: [expect.stringContaining('Abschnitte ergänzen'), 'verwerfen'], marke: 'Prüfung nicht bestanden' })]);
     }
     expect(f.finde(2).comments[0].body).toContain('war für neue Mission „port“ vorgesehen');
+    // #147: the final check counts them clean (in triage with an open question)
+    expect(r.abschluss.abweichungen.map((a) => a.nr).filter((n) => [2, 3, 4].includes(n))).toEqual([]);
     // the next run waits for the answer: no call for these notes, nothing written
     const zwei = await lauf(f, plan, { 1: KLAR, 2: OHNE, 3: OHNE, 4: OHNE, 5: KLAR });
     expect(zwei.geplant).toEqual([]);
@@ -720,5 +738,102 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
     expect(mitMissionszielen(MISSION_40, [{ nummer: 30, titel: 'Alte Tafel' }])).toBe(MISSION_40);
     expect(mitMissionszielen('Text', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n');
     expect(mitMissionszielen('Text\n\n## Missionsziele\n\nmehr', [{ nummer: 3, titel: 'T' }])).toBe('Text\n\n## Missionsziele\n- [ ] #3 T\n\nmehr');
+  });
+});
+
+describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubten Zustand', () => {
+  const READY = 'ready-for-agent';
+  const nr = (r: { abschluss: { abweichungen: { nr: number }[] } }) => r.abschluss.abweichungen.map((a) => a.nr);
+
+  it('after the run no note carries ready_label without hanging on a mission; every child and every new mission carries it', async () => {
+    const f = welt();
+    const { r, aufrufe } = await lauf(f, PLAN, ANTWORTEN);
+    // the forge is read again after writing, per note of the input
+    expect(aufrufe.filter((x) => x.args[0] === 'issue' && x.args[1] === 'view').map((x) => x.args[2])).toEqual(['1', '100', '2', '3', '40', '4', '5']);
+    for (const n of [1, 2, 3]) expect(f.finde(n).labels).toContain(READY);
+    expect(f.finde(100).labels).toContain(READY);
+    const freigegeben = f.issues.filter((i) => i.state === 'open' && i.labels.includes(READY) && !i.labels.includes('epic'));
+    for (const i of freigegeben) expect(f.issues.some((m) => m.labels.includes('epic') && m.state === 'open' && m.kinder.includes(i.number))).toBe(true);
+    // 1, 2 (new mission 100), 3 (mission 40) released, 5 asked: clean; 4 left in triage by the plan without a question
+    expect(r.abschluss).toMatchObject({ geprueft: 5, sauber: 4 });
+    expect(r.abschluss.abweichungen).toEqual([{ forge: 'o/r', nr: 4, titel: 'Logbuch-Idee', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }]);
+    expect(r.zustand).toBe('unvollstaendig');
+  });
+
+  it('reports a note without an allowed end state as an error: ready without mission, child of a new mission without ready, closed without reason', async () => {
+    // the mission's own release fails: its released children hang on a mission without Warp frei
+    const f = welt();
+    const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'edit' && a[2] === '100' && a.includes('--add-label') });
+    expect(nr(r)).toEqual([1, 2, 4]);
+    expect(r.abschluss.abweichungen[0]).toMatchObject({ zustand: `offen, ${READY}, Kind von #100`, grund: `Mission #100 ist neu und trägt kein ${READY}` });
+
+    // a lost link and a closing without reason, read by the check itself
+    const g = welt();
+    await lauf(g, PLAN, ANTWORTEN);
+    g.finde(40).kinder = [30];
+    g.finde(5).state = 'closed';
+    g.finde(5).comments = [];
+    const abw = abschlusspruefung(g.aufrufer([]), 'o/r', REGELN, [g.finde(3), g.finde(5)].map((i) => ({ nummer: i.number, titel: i.title })), []);
+    expect(abw).toEqual([
+      { forge: 'o/r', nr: 3, titel: 'Tafel zeigt den Port', zustand: `offen, ${READY}`, grund: `${READY} ohne Mission (kein Sub-Issue einer Mission)` },
+      { forge: 'o/r', nr: 5, titel: 'Newsletter zum Port', zustand: 'geschlossen', grund: 'geschlossen ohne Grund im letzten Kommentar der Triage' },
+    ]);
+  });
+
+  it('closed with a reason (merged, superfluous, rejected) and asked notes are clean; a clean run is beendet', async () => {
+    const f = forge([notiz(1, 'A', 'a'), notiz(2, 'B', 'b'), notiz(3, 'C', 'c'), notiz(4, 'D', 'd')]);
+    const plan: Plan = () => ({
+      neue_missionen: [],
+      zuordnungen: [
+        { notiz: 1, art: 'zusammengefuehrt', in: 4, grund: 'dasselbe', herkunft: 'h' },
+        { notiz: 2, art: 'ueberfluessig', grund: 'erledigt', fundstelle: '#9', herkunft: 'h' },
+        { notiz: 3, art: 'verworfen', grund: 'passt nicht', herkunft: 'h' },
+        { notiz: 4, art: 'triage', grund: 'Frage', herkunft: 'h' },
+      ],
+    });
+    const { r } = await lauf(f, plan, { 4: KRITISCH });
+    expect(r.abschluss).toEqual({ geprueft: 4, sauber: 4, abweichungen: [] });
+    expect(r.zustand).toBe('beendet');
+  });
+
+  it('--trocken: no final check against the forge, the output says it is left out', async () => {
+    const { r, aufrufe } = await lauf(welt(), PLAN, ANTWORTEN, { trocken: true });
+    expect(aufrufe.some((x) => x.args[1] === 'view' || x.args.includes('.parent_issue_url'))).toBe(false);
+    expect(r.abschluss).toEqual({ geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'trocken: nichts geschrieben, keine Abschlussprüfung' });
+    expect(r.zustand).toBe('beendet');
+  });
+});
+
+describe('#147 Abbruch mitten im Lauf: danach schreibt triagiere nichts mehr, das bis dahin Geschriebene steht im Ergebnis', () => {
+  const PLAN_MIT_ZU: Plan = (nummern) => ({ ...(PLAN(nummern, '') as object), zuordnungen: (PLAN(nummern, '') as { zuordnungen: { notiz: number }[] }).zuordnungen.map((z) => (z.notiz === 4 ? { notiz: 4, art: 'verworfen', grund: 'passt nicht', herkunft: 'h' } : z)) });
+
+  it('aborted after the one admiral call, in the call for a learning proposal: what the plan wrote stands in the output, nothing is written after it, no final check', async () => {
+    const f = welt();
+    const lern = lernKommentar({ vorschlaege: [{ titel: 'Typprüfung im Gate', beleg: 'PR #10', form: 'test', umsetzung: 'tsc im Gate', wegfallen: 'nichts' }], gegriffen: [] }, 10, 9, '2026-11-22', [], []);
+    f.issues.push({ number: 119, title: 'Lernschleife', body: '', labels: [], state: 'open', comments: [{ body: lern, login: 'flotte', rolle: 'OWNER' }], kinder: [] });
+    const { r, aufrufe, abgebrochen, geplant } = await lauf(f, PLAN_MIT_ZU, ANTWORTEN, { lernIssue: 119, abbrechen: (s) => !s.auftrag.startsWith('FLOTTE-SCHNITTPLAN') });
+    expect(geplant).toHaveLength(1);
+    expect(abgebrochen).toBeGreaterThan(0);
+    expect(schreibend(aufrufe.slice(abgebrochen))).toEqual([]);
+    expect(aufrufe.slice(abgebrochen).some((x) => x.args[1] === 'view' && x.args[2] !== '119')).toBe(false);
+    // written before the abort: #4 closed, the new mission with its released children, all in the output
+    expect(f.finde(4).state).toBe('closed');
+    expect(r.schnittplan[0].zuordnungen.find((z) => z.notiz === 4)).toMatchObject({ geschrieben: true });
+    expect(f.finde(100).labels).toContain('ready-for-agent');
+    expect(r.schnittplan[0].neue_missionen[0]).toMatchObject({ nummer: 100, geschrieben: true });
+    expect(r.tickets.filter((t) => t.mission === 100).map((t) => t.nummer)).toEqual([1, 2]);
+    // the proposal: no comment at the collecting issue
+    expect(f.finde(119).comments).toHaveLength(1);
+    expect(r.zustand).toBe('abgebrochen');
+    expect(r.abschluss).toMatchObject({ geprueft: 0, abweichungen: [], entfaellt: expect.stringContaining('abgebrochen') });
+  });
+
+  it('aborted in the cut plan call: nothing written at all', async () => {
+    const f = welt();
+    const vorher = JSON.stringify(f.issues);
+    const { r, aufrufe } = await lauf(f, PLAN_MIT_ZU, ANTWORTEN, { abbrechen: (s) => s.auftrag.startsWith('FLOTTE-SCHNITTPLAN') });
+    expect(schreibend(aufrufe)).toEqual([]);
+    expect(JSON.stringify(f.issues)).toBe(vorher);
+    expect(r.zustand).toBe('abgebrochen');
   });
 });

@@ -342,6 +342,34 @@ Kennung davor.
 einem Lernvorschlag am `lern_issue`) und im Frachtraum der Brücke. Einen Chat, der sie sammelt, gibt
 es nicht; das Entscheidungsrecht steht in `references/entscheidungsrecht.md`.
 
+**Abschlussprüfung** (#147): Nach dem Schreiben liest der Lauf jede Notiz seiner Eingabe (die Notizen fürs
+Modell und die wartenden; Missionen und `fremd` nicht) neu aus der Forge (`gh issue view` mit Kommentaren,
+`gh api …/issues/<nr>` Feld `parent_issue_url`, die Mission einmal je Lauf). Erlaubt sind nur drei
+Endzustände: **geschlossen mit Grund** (der letzte Triage-Kommentar nennt `Grund:` oder `Zusammengeführt in
+#<nr>`); **Kind einer Mission mit `ready_label`** (offen, Sub-Issue einer offenen Mission mit `epic_label`;
+eine in diesem Lauf angelegte Mission trägt `ready_label` ebenfalls); **in der Triage mit offener Frage**
+(`needs-triage`/`needs-info`, der letzte Triage-Kommentar ist eine Frage ohne Antwort darunter). Alles
+andere ist eine Abweichung, auch eine klare Notiz, die der Plan auf `triage` ließ, und eine wartende
+Notiz, deren letzter Triage-Kommentar keine Frage ist (gescheiterte Freigabe): Der Lauf ist dann
+`unvollstaendig`, nicht beendet. Ausgabe `abschluss` = `{geprueft, sauber, abweichungen[] {forge, nr,
+titel, zustand, grund}}` und `zustand` = `beendet` | `unvollstaendig` | `abgebrochen`; bei `--trocken`
+und nach einem Abbruch entfällt die Prüfung (`entfaellt` nennt warum). Über die Brücke steht die Zeile dann als
+`Triage-Lauf unvollständig: …; N Notizen nicht sauber abgearbeitet: #a (<grund>), …` im Flottenlogbuch und
+`triage.abschluss` im Frachtraum.
+
+**Sauberes Ende** (#147): Jeder `claude -p` des Laufs endet mit ihm. Bei Leerlauf (`leerlaufMs`) beendet
+`starte` den ganzen Prozessbaum (Windows `taskkill /T /F`, sonst die Prozessgruppe); über `abbruch`
+(ein `AbortSignal`) ebenso sofort, Ergebnis `fehler: 'abbruch'`, danach startet kein Aufruf mehr.
+`triagiere` prüft den Abbruch (`TriageWelt.abgebrochen`) vor jedem Block, der schreibt (Nachfreigabe,
+Schnittplan, Missionen, Lernvorschläge, Abschlussprüfung): Danach wird nichts mehr geschrieben, was bis
+dahin geschrieben ist, steht in der Ausgabe. `flotte triage` bricht so bei Ctrl+C ab (Exit-Code 130,
+die Ausgabe mit `zustand: abgebrochen`). Der Treiber bricht einen Triage-Lauf ab, wenn er anhält
+(`flotte anhalten`, die Logbuchzeile `Triage-Lauf abgebrochen: Treiber angehalten; bis dahin …`, die
+Entscheidungen und der Schnittplan bis dahin bleiben widerrufbar) oder Ctrl+C bekommt (Logbuch und
+Zustand noch vor dem Ende); anders als ein Epic-Lauf übernimmt ihn kein Neustart. Er steht mit `seit` und den pids seiner Aufrufe im Zustand
+(`triageLauf`); steht er dort beim Start noch, meldet der Treiber ihn als abgebrochen (Logbuch und
+`triage.abschluss`) und beendet einen noch lebenden Aufruf, wenn Startzeit und pid passen (D16).
+
 **Planen:** Der Befehl hält keinen eigenen Zustand und lässt sich beliebig oft wiederholen, etwa
 stündlich über die Aufgabenplanung: `schtasks /Create /SC HOURLY /TN flotte-triage /TR "bun <skills>\flotte\src\cli.ts triage <repo>"`.
 
@@ -416,6 +444,7 @@ ungültigen Plan oder nicht lesbaren Missionen `fehler` und leere Listen. Geschl
 nur hier, nicht in `tickets`. `nachgeholt` (#149): je Mission der Triage, deren `ready_label` der Lauf
 nachträglich setzte (oder bei `--trocken` setzen würde), `forge`, `nummer`, `titel`, `kinder` = ihre
 offenen Sub-Issues mit `ready_label`, `kommentar`, `geschrieben`, gegebenenfalls `fehler`.
+`abschluss` und `zustand` (#147): oben, **Abschlussprüfung**.
 `--trocken` erstellt Plan und Entscheidungen und druckt sie, schreibt nichts; es zeigt die neuen
 Missionen samt Body, die Listen der offenen und die ergänzten Texte der Notizen. Im Logbuch der Brücke
 zählt der Lauf dazu die angehängten Notizen und die angelegten Missionen

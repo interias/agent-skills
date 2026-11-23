@@ -14,6 +14,7 @@ import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { auftragAusfuehren, missionAnlegen, missionszielAnhaengen, mitMissionszielen, TRIAGE_LABEL, type AuftragsRegeln } from '../auftrag/auftrag.ts';
 import { githubForge } from '../auftrag/github.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
+import { abschlusspruefung, type Abschluss } from '../triage-abschluss.ts';
 import { kommentar } from '../treiber/forge.ts';
 import { BERECHTIGT, entscheidungAus, ergaenzt, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, NEUE_MISSIONEN_MAX, neueMissionKommentar, offeneFragen, pakete, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
 import { liesAdapter } from '../werkzeuge/belegung.ts';
@@ -46,6 +47,8 @@ export interface TriageAuftrag {
 export interface TriageWelt {
   aufrufer: Aufrufer;
   starte: (s: Start) => Promise<LaufErgebnis>;
+  /** #147: the run was aborted (Ctrl+C, a stopping driver): from then on nothing is written, no final check */
+  abgebrochen?: () => boolean;
 }
 
 export interface TicketErgebnis {
@@ -176,6 +179,8 @@ export interface Nachgeholt {
  * fragen: the questions to the person asked in this run; offen (#117): those of earlier runs still without
  * an answer, so a reader of the output needs no comment of the forge. schnittplan (#146): per project the
  * cut plan that cleared its notes. nachgeholt (#149): the missions of the triage released later.
+ * abschluss (#147): the final check of every note of the input (the notes for the model and the waiting ones)
+ * against the forge after writing; zustand: unvollstaendig when a note misses its end state.
  */
 export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const tickets: TicketErgebnis[] = [];
@@ -184,6 +189,8 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
   const fehler: { forge: string; fehler: string }[] = [];
   const schnittplan: SchnittplanErgebnis[] = [];
   const nachgeholt: Nachgeholt[] = [];
+  const ab = () => w.abgebrochen?.() ?? false;
+  const abschluss: Abschluss = o.trocken ? { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'trocken: nichts geschrieben, keine Abschlussprüfung' } : { geprueft: 0, sauber: 0, abweichungen: [] };
   for (const z of o.ziele) {
     let liste: Ticket[];
     try {
@@ -194,7 +201,7 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     }
     // before the notes: only what an earlier run left; a release failing in this run waits for the next one
     try {
-      nachgeholt.push(...nachfreigeben(o, w, z));
+      if (!ab()) nachgeholt.push(...nachfreigeben(o, w, z));
     } catch (err) {
       fehler.push({ forge: z.forge, fehler: (err as Error).message });
     }
@@ -223,7 +230,8 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
     // #146: the plan has cleared every note that stays (no call per note); #147: the clear ones per mission of the
     // plan, written mission by mission below
     const klare = new Map<string, Klar[]>();
-    for (const { t, zu, sitzung } of plan?.bleiben ?? []) {
+    // #147: aborted after the plan: its questions are not written either
+    for (const { t, zu, sitzung } of ab() ? [] : (plan?.bleiben ?? [])) {
       const basis = { forge: z.forge, nummer: t.nummer, titel: t.titel, url: t.url, zuordnung: zu.art, sitzung, herkunft: zu.herkunft, grund: zu.grund, ...(zu.herabgestuft ? { herabgestuft: zu.herabgestuft } : {}) };
       const offen = zu.fragen.filter((f) => f.beim_menschen);
       if (!offen.length) {
@@ -249,10 +257,22 @@ export async function triagiere(o: TriageAuftrag, w: TriageWelt) {
       const steht = kommentar(w.aufrufer, z.forge, t.nummer, text);
       tickets.push({ ...basis, ergebnis: 'kritisch', geschrieben: steht, kommentar: text, ...(steht ? {} : { fehler: 'Kommentar gescheitert, nichts geändert' }) });
     }
-    if (plan && klare.size) await freigeben(o, w, z, plan, klare);
-    if (z.lernIssue) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
+    // #147: before each block that writes: after an abort nothing more
+    if (plan && klare.size && !ab()) await freigeben(o, w, z, plan, klare);
+    if (z.lernIssue && !ab()) await lernTriage(o, w, z, z.lernIssue, { tickets, fragen, offen, fehler });
+    if (!o.trocken && !ab()) {
+      // #147: a mission and a stranger's ticket are no notes the run works off (README, "Triage")
+      const eingabe = liste.filter((t) => notizen.includes(t) || (!t.labels.includes(z.regeln.epic_label) && wartetAufAntwort(t)));
+      const neu = schnittplan.filter((p) => p.forge === z.forge).flatMap((p) => p.neue_missionen.flatMap((m) => (m.nummer === undefined ? [] : [m.nummer])));
+      const abw = abschlusspruefung(w.aufrufer, z.forge, z.regeln, eingabe, neu);
+      abschluss.geprueft += eingabe.length;
+      abschluss.sauber += eingabe.length - abw.length;
+      abschluss.abweichungen.push(...abw);
+    }
   }
-  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt };
+  if (ab()) Object.assign(abschluss, { geprueft: 0, sauber: 0, abweichungen: [], entfaellt: 'abgebrochen: nach dem Abbruch nichts mehr geschrieben, keine Abschlussprüfung' });
+  const zustand: 'beendet' | 'unvollstaendig' | 'abgebrochen' = ab() ? 'abgebrochen' : abschluss.abweichungen.length ? 'unvollstaendig' : 'beendet';
+  return { trocken: o.trocken, tickets, fragen, offen, fehler, schnittplan, nachgeholt, abschluss, zustand };
 }
 
 /**
@@ -328,6 +348,11 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
       if (x.art === 'mission') frei.find((m) => m.nummer === x.mission)!.kinder++;
       geplant.push({ zu: x, sitzung: r.sitzung });
     }
+  }
+  // #147: aborted meanwhile: the plan is not written
+  if (w.abgebrochen?.()) {
+    out.push({ ...ergebnis, neue_missionen: [], zuordnungen: [], fehler: 'abgebrochen, nichts geschrieben' });
+    return null;
   }
   out.push(ergebnis);
   const bleiben: Geplant['bleiben'] = [];
@@ -637,9 +662,20 @@ export async function triage(argv: string[], aufrufer: Aufrufer = aufrufen): Pro
       fehler.push({ repo, fehler: (e as Error).message });
     }
   }
-  const r = await triagiere(
-    { ziele, konto: kontoAus(wert(argv, '--konto') ?? '1'), modell: wert(argv, '--modell') ?? 'fable', trocken: argv.includes('--trocken') },
-    { aufrufer, starte },
-  );
+  // #147: Ctrl+C ends the admiral call under way with its whole process tree (it runs detached), then the run
+  // writes nothing more and prints what it wrote so far
+  const abbruch = new AbortController();
+  const stopp = () => abbruch.abort('Ctrl+C');
+  process.once('SIGINT', stopp);
+  let r: Awaited<ReturnType<typeof triagiere>>;
+  try {
+    r = await triagiere(
+      { ziele, konto: kontoAus(wert(argv, '--konto') ?? '1'), modell: wert(argv, '--modell') ?? 'fable', trocken: argv.includes('--trocken') },
+      { aufrufer, starte: (s) => starte({ ...s, abbruch: abbruch.signal }), abgebrochen: () => abbruch.signal.aborted },
+    );
+  } finally {
+    process.off('SIGINT', stopp);
+  }
+  if (abbruch.signal.aborted) process.exitCode = 130;
   return { ...r, repos: ziele.map((z) => ({ repo: z.repo, forge: z.forge })), fehler: [...fehler, ...r.fehler] };
 }
