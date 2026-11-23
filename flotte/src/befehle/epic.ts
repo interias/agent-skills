@@ -1,4 +1,4 @@
-// flotte epic <nr> [<repo>] [--drehbuch <datei>] [--branch epic/<nr>-<slug>] [--basis origin/main]
+// flotte mission <nr> [<repo>] [--drehbuch <datei>] [--branch epic/<nr>-<slug>] [--basis origin/main]
 //                            [--fenster 3] [--max-runden 3] [--konto <CLAUDE_CONFIG_DIR>]
 //                            [--mechanik echt [--forge <owner/repo>]]
 //                            [--aufrufe echt [--antworten <datei>] [--max-min 120] [--leerlauf-min 20]]
@@ -71,7 +71,7 @@ export function wartetNurAufAntwort(dir: string, epic: number): string | null {
 
 export async function epic(argv: string[]): Promise<unknown> {
   const nr = Number(argv[0]);
-  if (!Number.isInteger(nr) || nr <= 0) throw new Error('Aufruf: flotte epic <nr> [<repo>] [--drehbuch <datei>] [--branch <epic-branch>] [--basis <remote/basis>] [--fenster 3] [--max-runden 3] [--konto <dir>] [--mechanik echt [--forge <owner/repo>]] [--aufrufe echt [--antworten <datei>] [--max-min 120] [--leerlauf-min 20]]');
+  if (!Number.isInteger(nr) || nr <= 0) throw new Error('Aufruf: flotte mission <nr> [<repo>] [--drehbuch <datei>] [--branch <epic-branch>] [--basis <remote/basis>] [--fenster 3] [--max-runden 3] [--konto <dir>] [--mechanik echt [--forge <owner/repo>]] [--aufrufe echt [--antworten <datei>] [--max-min 120] [--leerlauf-min 20]]');
   const mechanik = wert(argv, '--mechanik');
   if (mechanik && mechanik !== 'echt') throw new Error(`--mechanik kennt nur echt (ohne den Schalter spielt die Mechanik das Drehbuch), nicht ${mechanik}`);
   const aufrufe = wert(argv, '--aufrufe');
@@ -79,7 +79,7 @@ export async function epic(argv: string[]): Promise<unknown> {
   // real calls work in real worktrees: --aufrufe echt only with --mechanik echt
   if (aufrufe && !mechanik) throw new Error('--aufrufe echt nur zusammen mit --mechanik echt: die Aufrufe arbeiten in echten Worktrees');
   const datei = wert(argv, '--drehbuch');
-  if (!datei && !aufrufe) throw new Error('flotte epic läuft nur mit --drehbuch <datei>, außer Mechanik und Aufrufe sind beide echt (--mechanik echt --aufrufe echt)');
+  if (!datei && !aufrufe) throw new Error('flotte mission läuft nur mit --drehbuch <datei>, außer Mechanik und Aufrufe sind beide echt (--mechanik echt --aufrufe echt)');
   const werte = new Set(SCHALTER.map((n) => wert(argv, n)));
   const repo = argv.slice(1).find((a) => !a.startsWith('--') && !werte.has(a)) ?? process.cwd();
   const epicBranch = wert(argv, '--branch') ?? `epic/${nr}`;

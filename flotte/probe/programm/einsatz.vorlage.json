@@ -12,7 +12,7 @@
       "treiberZustand": "<Kopie von <flotte-probe>/.git/flotte nach dem Lauf>/zustand.json",
       "fenster": 3,
       "epicLaeufe": [{ "epic": 0 }, { "epic": 0, "kanten": { "<b2>": ["<b1>"] } }, { "epic": 0 }],
-      "quelle": "Probe Epic-Programm (agent-skills#69), Nummern aus vorbereiten.ps1"
+      "quelle": "Probe Missions-Programm (agent-skills#69), Nummern aus vorbereiten.ps1"
     }
   ]
 }

@@ -50,7 +50,7 @@ class Frage(BaseModel):
 
 
 class Paket(BaseModel):
-    # a child ticket (nr and title, the board links it) or, in spec mode, a package by name
+    # a child ticket (nr and title, the board links it) or, in spec mode, a package of the run by name (P<k>, #151)
     name: str = Field(max_length=200)
     stand: Literal['offen', 'laeuft', 'fertig', 'geparkt', 'blockiert', 'zurueckgelassen'] = 'offen'
     nr: int | None = None
@@ -58,7 +58,7 @@ class Paket(BaseModel):
     # first seen working and closed (ISO): the board counts the duration itself
     beginn: str | None = Field(None, max_length=40)
     ende: str | None = Field(None, max_length=40)
-    # detail view (#51), from the Agent calls in the run's log; an older driver, spec mode and a package
+    # detail view (#51), from the Agent calls in the run's log, spec packages too (#151); an older driver and a package
     # without a call have none. phase: implementer, review, nachbesserung, merge (none once merged)
     phase: Literal['implementer', 'review', 'nachbesserung', 'merge'] | None = None
     runde: int | None = Field(None, ge=1)
@@ -76,6 +76,12 @@ class Plaetze(BaseModel):
     # packages in implementer, review or nachbesserung; `von` the window of the project adapter (at most 3), None: unknown
     belegt: int = Field(ge=0)
     von: int | None = Field(None, ge=1)
+
+
+class GateLauf(BaseModel):
+    # #151, only while a gate runs: the n-th gate run of the run (its call of the gate command) or of the driver, its start (ISO)
+    n: int = Field(ge=1)
+    seit: str | None = Field(None, max_length=40)
 
 
 class Spanne(BaseModel):
@@ -125,6 +131,7 @@ class Epic(BaseModel):
     # detail view (#51): how often the driver started or continued a process after the first start; places in use
     neustarts: int | None = Field(None, ge=0)
     plaetze: Plaetze | None = None
+    gateLauf: GateLauf | None = None
     # #61: in the driver's deployment (an older driver: always); paused by the person since; the priority set on the bridge, None: the label's
     imEinsatz: bool = True
     pausiert: str | None = Field(None, max_length=40)
@@ -566,14 +573,14 @@ class Handlung(BaseModel):
             self.nr, self.seit, self.text = None, None, json.dumps({'name': d['name'], 'wert': d['wert']}, ensure_ascii=False)
         elif self.art == 'prioritaet':
             if self.epic < 1 or self.text not in ('hoch', 'normal'):
-                raise ValueError('Priorität: ein Epic und hoch oder normal')
+                raise ValueError('Priorität: eine Mission und hoch oder normal')
             self.nr, self.seit = None, None
         elif self.art == 'merge':
             if self.epic < 1 or (self.text is not None and self.text not in STELLUNGEN):
-                raise ValueError('Andocken: ein Epic und automatisch, mensch oder nichts (zurück zum Vorschlag)')
+                raise ValueError('Andocken: eine Mission und automatisch, mensch oder nichts (zurück zum Vorschlag)')
             self.nr, self.seit = None, None
         elif self.art in ('aufnehmen', 'pausieren', 'fortsetzen') and self.epic < 1:
-            raise ValueError('Diese Handlung braucht ein Epic')
+            raise ValueError('Diese Handlung braucht eine Mission')
         elif self.art not in BEZUG:
             self.nr, self.seit, self.text = None, None, None
         return self

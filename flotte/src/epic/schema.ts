@@ -1,4 +1,4 @@
-// The outputs of the language-model points of `flotte epic` (#69, decision 4), version 1: cut,
+// The outputs of the language-model points of `flotte mission` (#69, decision 4), version 1: cut,
 // implementer, reviewer, conflict. The JSON schemata handed to `claude -p --json-schema` are built
 // from these types (schemata.ts); the orders are written from the fields of the cut (auftraege.ts).
 // pruefeAusgabe names what is wrong with an output, null when it can be used; for the cut it checks
@@ -60,7 +60,7 @@ export interface Zuordnung {
   paket: string;
 }
 
-/** a child this run does not work on (epic/SKILL.md, Phase 1 and 2d): it gets a comment with the reason */
+/** a child this run does not work on (mission/SKILL.md, Phase 1 and 2d): it gets a comment with the reason */
 export interface Uebersprungen {
   nr: string;
   /** the exact reason and what unlocks it */
@@ -73,7 +73,7 @@ export interface Schnitt {
   version: 1;
   modus: 'tickets' | 'spec';
   pakete: Paket[];
-  /** epic/SKILL.md 2a, the table story → package: every story exactly one package */
+  /** mission/SKILL.md 2a, the table story → package: every story exactly one package */
   zuordnung: Zuordnung[];
   /** children of the epic that are no package, with their reason */
   uebersprungen: Uebersprungen[];
@@ -113,7 +113,7 @@ export interface ReviewerBericht {
   version: 1;
   befunde: Befund[];
   strukturell: boolean;
-  /** what actually stands at the interface, for the successor's order (epic/SKILL.md, 4b) */
+  /** what actually stands at the interface, for the successor's order (mission/SKILL.md, 4b) */
   schnittstelle: string;
   selbstkorrekturen: string[];
 }
@@ -184,7 +184,7 @@ function graphFehler(pakete: Paket[]): string | null {
 }
 
 /**
- * epic/SKILL.md 2a: every story goes to exactly one package of the cut, and every package has a
+ * mission/SKILL.md 2a: every story goes to exactly one package of the cut, and every package has a
  * story (a package without one is work nobody asked for). In mode tickets the stories are the
  * workable children: each one is its own package.
  */

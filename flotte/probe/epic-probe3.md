@@ -27,10 +27,10 @@ nach_merge:
 ---
 # Adapter flotte-probe
 
-Probe-Repository ohne CI. Der Gate-Block in der PR-Beschreibung ersetzt die Checks
-(`epic/references/adapter.md`, „Merge“).
+Probe-Repository ohne CI. Der Andockblock in der PR-Beschreibung ersetzt die Checks
+(`mission/references/adapter.md`, „Andocken“).
 
-- **Merge-Gate:** `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Epic-Worktree, nach dem
+- **Andockprüfung:** `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` im Missions-Worktree, nach dem
   letzten Commit. Seine Zusammenfassung (ab der letzten Zeile `== Gate: …Basis…`) gehört als
   Codeblock unter `## Gate` in die PR-Beschreibung.
 - **Je Paket** reicht `pwsh -NoProfile -File werkzeug/gate.ps1` (nur die berührten Bereiche).

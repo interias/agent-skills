@@ -9,10 +9,10 @@ import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { aufrufen } from '../src/aufruf.ts';
 import { liesAdapter } from '../src/werkzeuge/belegung.ts';
-import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, kinderAusBetreff } from '../src/werkzeuge/detail.ts';
+import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../src/werkzeuge/detail.ts';
 import { fahre } from '../src/treiber/treiber.ts';
 import type { Bericht } from '../src/treiber/bruecke.ts';
-import { aufbau, drehbuch, ende, lauf, werkzeug } from './flotte-welt.ts';
+import { admiral, aufbau, drehbuch, ende, frage, lauf, werkzeug } from './flotte-welt.ts';
 
 const T = 30_000;
 const zeilen = readFileSync(fileURLToPath(new URL('./protokoll-detail.jsonl', import.meta.url)), 'utf8').split('\n').filter(Boolean);
@@ -195,14 +195,14 @@ describe('Detailansicht im Bericht (#51)', () => {
     try {
       const t = aufbau({ adapter: 'merge: mensch\nwindow: 3', bodies: { 3: '## Betroffene Module\n- m3\n\n- [ ] #11\n- [ ] #12\n- [ ] #13' }, titel: { 11: 'A', 12: 'B', 13: 'C' }, labels: { 11: ['status/in-arbeit'], 12: ['status/in-arbeit'], 13: ['status/in-arbeit'] } });
       const agent = (typ: string, beschreibung: string) => werkzeug('Agent', { subagent_type: typ, description: beschreibung, prompt: 'x' }, 'ok');
-      const offen = { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_offen', name: 'Agent', input: { subagent_type: 'epic-implementer-standard', description: 'Implementer #12 B', prompt: 'x' } }] } } };
+      const offen = { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_offen', name: 'Agent', input: { subagent_type: 'ingenieur-standard', description: 'Implementer #12 B', prompt: 'x' } }] } } };
       // the reviewer of #11 runs in the background: its end is the task_notification, which must pass the driver's quick test
       const hintergrund = [
-        { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_rev11', name: 'Agent', input: { subagent_type: 'epic-reviewer-standard', description: 'Reviewer #11 A', prompt: 'x', run_in_background: true } }] } } },
+        { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_rev11', name: 'Agent', input: { subagent_type: 'erster-offizier-standard', description: 'Reviewer #11 A', prompt: 'x', run_in_background: true } }] } } },
         { zeile: { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_rev11', content: [{ type: 'text', text: 'Async agent launched successfully.' }] }] } } },
         { zeile: { type: 'system', subtype: 'task_notification', task_id: 't11', tool_use_id: 'toolu_rev11', status: 'completed' } },
       ];
-      const buch = drehbuch([lauf(3, [...agent('epic-implementer-standard', 'Implementer #11 A'), ...hintergrund, offen, { zeile: { type: 'assistant', parent_tool_use_id: 'toolu_offen', message: { role: 'assistant', content: [{ type: 'text', text: 'arbeitet' }] } } }, { warte: 700 }, { text: ende(3, 13) }])]);
+      const buch = drehbuch([lauf(3, [...agent('ingenieur-standard', 'Implementer #11 A'), ...hintergrund, offen, { zeile: { type: 'assistant', parent_tool_use_id: 'toolu_offen', message: { role: 'assistant', content: [{ type: 'text', text: 'arbeitet' }] } } }, { warte: 700 }, { text: ende(3, 13) }])]);
       await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       const e = b.berichte.map((x) => x.epics[0]).find((x) => x.prozess && x.pakete.some((p) => p.phase) && x.plaetze)!;
       const [a, zwei, drei] = e.pakete;
@@ -239,6 +239,105 @@ describe('Detailansicht im Bericht (#51)', () => {
         expect(e.plaetze).toBeUndefined();
         for (const p of e.pakete) expect(Object.keys(p).sort()).toEqual(['beginn', 'ende', 'name', 'nr', 'stand', 'titel']);
       }
+    } finally {
+      await b.zu();
+    }
+  }, T);
+});
+
+describe('Spec-Modus und Gate-Lauf (#151)', () => {
+  const aufruf = (id: string, name: string, input: Record<string, unknown>) => JSON.stringify({ type: 'assistant', timestamp: '2026-11-20T12:00:00Z', message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } });
+  const ergebnis = (id: string, text: string) => JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: text }] } });
+  const meldung = (id: string) => JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 't', tool_use_id: id, status: 'completed' });
+
+  it('a spec package <spec>-p<k> is its own package with the title of the call, not the spec number', () => {
+    const [e] = eintraegeAus(aufruf('i1', 'Agent', { subagent_type: 'epic-implementer-urteil', description: 'Implementer #45-P2 Paketleiste' }));
+    expect(e).toMatchObject({ art: 'aufruf', rolle: 'implementer', klasse: 'urteil', paket: '45-p2', titel: 'Paketleiste' });
+    const r = eintraegeAus(aufruf('r1', 'Agent', { subagent_type: 'epic-reviewer-urteil', description: 'Reviewer #45-p2 Paketleiste' }))[0];
+    const d = ableiten([e, r]);
+    expect([...d.keys()]).toEqual(['45-p2']);
+    expect(d.get('45-p2')).toMatchObject({ phase: 'review', runde: 1, stufe: 'urteil' });
+    expect(ableiten([e, r], new Set(['45-p2'])).get('45-p2')!.phase).toBeUndefined();
+    // a child keeps its number and carries no title
+    expect(eintraegeAus(aufruf('i2', 'Agent', { subagent_type: 'epic-implementer-standard', description: 'Implementer #588 Schema' }))[0]).toEqual({ zeit: Date.parse('2026-11-20T12:00:00Z'), art: 'aufruf', id: 'i2', rolle: 'implementer', klasse: 'standard', paket: 588 });
+  });
+
+  it('merged spec packages: Merge … agent/<spec>-p<k>-…, (#<spec>-p<k>) and Merge #<spec>-p<k>: …', () => {
+    expect(specAusBetreff("Merge branch 'agent/45-p1-schema' into epic/45-x")).toEqual(['45-p1']);
+    expect(specAusBetreff('feat: Schema (#45-P3)')).toEqual(['45-p3']);
+    expect(specAusBetreff('Merge #45-p2: Schema in den Epic-Branch')).toEqual(['45-p2']);
+    for (const s of ['Merge agent/409-fach into epic/400-x (#409)', 'Refs #45-p1', 'Merge branch agent/45-px']) expect(specAusBetreff(s)).toEqual([]);
+  });
+
+  it('a gate run: a Bash or PowerShell call of a gate command; it runs until its return, the count goes on', () => {
+    const kerne = ['gate voll'];
+    const alle = fuegeAn(
+      [],
+      [
+        aufruf('g1', 'Bash', { command: 'cd /x && gate voll > gate.log 2>&1' }),
+        ergebnis('g1', 'rot'),
+        aufruf('n1', 'Bash', { command: 'cat gate.log' }),
+        aufruf('g2', 'PowerShell', { command: 'gate voll' }),
+        ergebnis('g2', 'Command running in background with ID: b1. Output is being written to: x'),
+      ].flatMap((z) => eintraegeAus(z, null, kerne)),
+    );
+    expect(gateLauf(alle)).toEqual({ n: 2, seit: '2026-11-20T12:00:00.000Z' });
+    expect(ableiten(alle).size).toBe(0);
+    expect(belegt(ableiten(alle).values())).toBe(0);
+    fuegeAn(alle, eintraegeAus(meldung('g2'), 5, kerne));
+    expect(gateLauf(alle)).toBeNull();
+    expect(eintraegeAus(aufruf('g3', 'Bash', { command: 'gate voll' }))).toEqual([]);
+  });
+
+  it('a spec epic without children: packages, their phase and round and the gate run in the report', async () => {
+    const b = await attrappe();
+    try {
+      const t = aufbau({ adapter: 'merge: mensch\nwindow: 3\ngate_command: gate voll', bodies: { 3: '## Betroffene Module\n- m3' } });
+      const git = (datum: string, ...a: string[]) => aufrufen('git', ['-C', t.repo, '-c', 'user.name=t', '-c', 'user.email=t@example.org', ...a], { env: { ...process.env, GIT_COMMITTER_DATE: datum, GIT_AUTHOR_DATE: datum } });
+      git('2026-01-01T08:00:00Z', 'commit', '-q', '--allow-empty', '-m', 'Start');
+      git('2026-01-01T08:00:00Z', 'branch', 'epic/3-x');
+      git('2026-01-01T08:00:00Z', 'checkout', '-q', 'epic/3-x');
+      git('2026-01-02T09:00:00Z', 'commit', '-q', '--allow-empty', '-m', "Merge branch 'agent/3-p1-schema' into epic/3-x");
+      git('2026-01-02T09:00:00Z', 'checkout', '-q', '-');
+      const agent = (typ: string, beschreibung: string) => werkzeug('Agent', { subagent_type: typ, description: beschreibung, prompt: 'x' }, 'ok');
+      const offen = { zeile: { type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_p2', name: 'Agent', input: { subagent_type: 'epic-implementer-urteil', description: 'Implementer #3-p2 Oberfläche', prompt: 'x' } }] } } };
+      const gate = werkzeug('Bash', { command: 'gate voll > gate.log 2>&1', run_in_background: true }, 'Command running in background with ID: b1. Output is being written to: x');
+      const buch = drehbuch([lauf(3, [...agent('epic-implementer-standard', 'Implementer #3-p1 Schema'), ...agent('epic-reviewer-standard', 'Reviewer #3-p1 Schema'), offen, ...gate, { warte: 700 }, { text: ende(3, 13) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const e = b.berichte.map((x) => x.epics[0]).find((x) => x.prozess && x.gateLauf && x.pakete.some((p) => p.stand === 'fertig'))!;
+      expect(e.pakete.map((p) => [p.name, p.nr, p.titel, p.stand, p.phase, p.runde, p.stufe])).toEqual([
+        ['P1', null, 'Schema', 'fertig', undefined, 1, 'standard'],
+        ['P2', null, 'Oberfläche', 'laeuft', 'implementer', 1, 'urteil'],
+      ]);
+      expect(e.pakete[0].ende).toBe('2026-01-02T09:00:00.000Z');
+      expect(e.pakete[1].beginn).toEqual(expect.any(String));
+      expect(e.gateLauf).toEqual({ n: 1, seit: expect.any(String) });
+      expect(e.plaetze).toEqual({ belegt: 1, von: 3 });
+      // the run is over: no gate runs any more
+      expect(b.berichte.at(-1)!.epics[0].gateLauf).toBeUndefined();
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('a gate in the background whose process ended before its return does not run in the next process; the count goes on', async () => {
+    const b = await attrappe();
+    try {
+      const t = aufbau({ adapter: 'merge: mensch\nwindow: 3\ngate_command: gate voll', bodies: { 3: '## Betroffene Module\n- m3' } });
+      const hintergrund = (befehl: string) => werkzeug('Bash', { command: befehl, run_in_background: true }, 'Command running in background with ID: b1. Output is being written to: x');
+      const buch = drehbuch([
+        lauf(3, [...hintergrund('gate voll > gate.log 2>&1'), { warte: 500 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]),
+        admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]),
+        lauf(3, [{ warte: 500 }, ...hintergrund('gate voll > gate2.log 2>&1'), { warte: 500 }, { text: ende(3, 13) }]),
+      ]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const e = b.berichte.map((x) => x.epics[0]);
+      const erster = e.findIndex((x) => x.gateLauf?.n === 1);
+      expect(erster).toBeGreaterThanOrEqual(0);
+      // the continuation runs (neustarts 1) and has not called the gate yet: none runs
+      expect(e.some((x) => x.prozess && x.neustarts === 1 && x.stufe === 'laeuft' && !x.gateLauf)).toBe(true);
+      expect(e.slice(erster).filter((x) => x.gateLauf).every((x) => x.gateLauf!.n === 1 ? x.neustarts !== 1 : x.gateLauf!.n === 2)).toBe(true);
+      expect(e.some((x) => x.gateLauf?.n === 2)).toBe(true);
     } finally {
       await b.zu();
     }

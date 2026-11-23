@@ -37,7 +37,7 @@ Zahl und dem Ticket, das es erklärt.
 1. **<Befund>** (<Personas>):
    - **Ursache im Code:** `<datei:zeile>`, <Mechanismus>.
    - **Folge:** <was die Persona erlebt hat>.
-   - **Vorschlag:** <kleinste Behebung>; vor dem Merge beheben? <ja/nein>
+   - **Vorschlag:** <kleinste Behebung>; vor dem Andocken beheben? <ja/nein>
 
 ## B. Fehler laut Berichten, nicht im Code bestätigt
 

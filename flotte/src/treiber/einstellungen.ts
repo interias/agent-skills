@@ -23,12 +23,12 @@ interface Art {
 }
 
 export const EINSTELLUNGEN = {
-  obergrenze: { titel: 'Epics gleichzeitig', min: 1, max: 4, leer: true, standard: null },
-  paketeJeEpic: { titel: 'Pakete je Epic gleichzeitig', min: 1, max: 3, leer: false, standard: 3 },
+  obergrenze: { titel: 'Missionen gleichzeitig', min: 1, max: 4, leer: true, standard: null },
+  paketeJeEpic: { titel: 'Pakete je Mission gleichzeitig', min: 1, max: 3, leer: false, standard: 3 },
   konten: { titel: 'Konten der Läufe', konto: 'liste', leer: false, standard: null },
   admiral: { titel: 'Admiral-Konto', konto: 'eins', leer: true, standard: null },
-  verbrauchGelb: { titel: 'Verbrauch 5 h gelb über (%)', min: 1, max: 98, leer: false, standard: 60 },
-  verbrauchRot: { titel: 'Verbrauch 5 h rot über (%)', min: 2, max: 99, leer: false, standard: 85 },
+  verbrauchGelb: { titel: 'Verbrauch Hauptenergie gelb über (%)', min: 1, max: 98, leer: false, standard: 60 },
+  verbrauchRot: { titel: 'Verbrauch Hauptenergie rot über (%)', min: 2, max: 99, leer: false, standard: 85 },
   leerfahren: { titel: 'Bis 100 % leerfahren', konto: 'liste', leer: false, standard: [] },
   ramWarn: { titel: 'RAM-Schwelle (%)', min: 50, max: 84, leer: true, standard: null },
   platteMinGb: { titel: 'Plattenminimum (GB)', min: 1, max: 1000, leer: false, standard: 20 },

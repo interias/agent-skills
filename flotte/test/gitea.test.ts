@@ -153,7 +153,7 @@ describe('auftrag: shared cases, Gitea layer against a throwaway Gitea', () => {
     const mission = (await p.issues()).find((i) => i.nummer === r.mission!.nummer)!;
     expect(mission.verknuepft).toEqual(r.ziele.map((z) => z.nummer));
     const epic = (await alle(`/repos/${ADMIN}/${name}/labels`)).find((l) => l.name === 'epic');
-    expect(epic).toMatchObject({ color: 'ff2bd6', description: 'Epic: wartet auf seine Kinder (gesetzt von /epic, gelesen von KIBO)' });
+    expect(epic).toMatchObject({ color: 'ff2bd6', description: 'Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)' });
   }, 60_000);
 
   it('flotte auftrag with forge: gitea writes through the adapter, token from token_env', async () => {

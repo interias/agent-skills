@@ -154,8 +154,8 @@ describe('A: die Merge-Schlange', () => {
     const buch = drehbuch([lauf(3, [{ warte: 100 }, ...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ warte: 1200 }, ...t.nachweis(4), { text: ende(4, 14) }]), lauf(5, [{ warte: 2400 }, ...t.nachweis(5), { text: ende(5, 15) }]), lauf(4, [{ warte: 3000 }, ...t.nachweis(4), { text: ende(4, 14) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4, 5], { maxDauerMs: 45_000 }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig', 'fertig']);
-    const zuege4 = buch.gesehen().filter((g) => /^Flotte, Epic #4\b/.test(g.eingabe));
-    expect(zuege4[1].eingabe).toMatch(/das Gate gefahren \(`gate teil`\): rot\. Nichts gepusht[\s\S]*wurzel ROT/);
+    const zuege4 = buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe));
+    expect(zuege4[1].eingabe).toMatch(/die Andockprüfung gefahren \(`gate teil`\): rot\. Nichts gepusht[\s\S]*wurzel ROT/);
     const e = texte(z);
     // #5 was merged while #4 was back at its run, then #4 at the end
     const merges = e.filter((x) => /merge\.ps1: GEMERGT/.test(x)).map((x) => x.slice(0, 2));
@@ -170,8 +170,8 @@ describe('A: die Merge-Schlange', () => {
     const z = await fahre(t.einstellung(buch, [3, 5], { maxDauerMs: 40_000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(z.epics['5']).toMatchObject({ stufe: 'blockiert', mergeVersuche: 3 });
-    const zuege5 = buch.gesehen().filter((g) => /^Flotte, Epic #5\b/.test(g.eingabe));
-    expect(zuege5[1].eingabe).toMatch(/Konflikt in a\/x\.txt\. Der Treiber hat den Merge abgebrochen, nichts gepusht/);
+    const zuege5 = buch.gesehen().filter((g) => /^Flotte, Mission #5\b/.test(g.eingabe));
+    expect(zuege5[1].eingabe).toMatch(/Konflikt in a\/x\.txt\. Der Treiber hat `git merge` abgebrochen, nichts gepusht/);
     expect(t.p.gates).toHaveLength(0);
     expect(git(t.epics[1].wt, 'status', '--porcelain')).toBe('');
     expect(git(t.epics[1].wt, 'rev-parse', 'HEAD')).toBe(git(t.repo, 'rev-parse', 'origin/epic/5-x'));
@@ -348,7 +348,7 @@ describe('C4: der letzte Schritt eines Laufs', () => {
 
   it('the board shows the last step; flotte zuschauen prints the steps of the log', async () => {
     const t = aufbau();
-    const buch = drehbuch([lauf(3, [werkzeug('Skill', { skill: 'epic' }), werkzeug('Bash', { command: 'pwsh worktree.ps1 -Action Up' }), { text: ende(3, 13) }])]);
+    const buch = drehbuch([lauf(3, [werkzeug('Skill', { skill: 'mission' }), werkzeug('Bash', { command: 'pwsh worktree.ps1 -Action Up' }), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].schritt).toMatch(/^Zugende: Fertig\./);
     const tafel = readFileSync(join(flotteDir(t.repo), 'tafel.html'), 'utf8');
@@ -357,7 +357,7 @@ describe('C4: der letzte Schritt eines Laufs', () => {
     const zeilen: string[] = [];
     const r = (await zuschauen([t.repo, '3', '--einmal'], (x) => zeilen.push(x))) as { schritte: number; logs: string[] };
     expect(r.schritte).toBe(4);
-    expect(zeilen.slice(1).map((x) => x.slice(10))).toEqual(['Skill: epic', 'Bash: pwsh worktree.ps1 -Action Up', 'Fertig.', 'Zugende: Fertig.']);
+    expect(zeilen.slice(1).map((x) => x.slice(10))).toEqual(['Skill: mission', 'Bash: pwsh worktree.ps1 -Action Up', 'Fertig.', 'Zugende: Fertig.']);
     expect(existsSync(r.logs[0])).toBe(true);
   }, T);
 });

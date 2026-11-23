@@ -9,7 +9,7 @@
 
 (() => {
   const KOPF = '<h2 class="ek bereich-kopf">Sternenkarte</h2>';
-  const STUFE = { laeuft: 'läuft', nacharbeit: 'Nacharbeit', frage: 'Frage', pr: 'PR', wartend: 'wartet', blockiert: 'blockiert', abgebrochen: 'abgebrochen' };
+  const STUFE = { laeuft: 'läuft', nacharbeit: 'Nacharbeit', frage: 'Frage', pr: 'PR', wartend: 'wartet', blockiert: 'blockiert', abgebrochen: 'abgebrochen', gemergt: 'angedockt' };
   // where the card of an epic stands on the Brücke: box and id
   const KARTE = { laeuft: 'e2-liste', nacharbeit: 'e2-liste', frage: 'e2-liste', pr: 'e2-liste', wartend: 'bereit', blockiert: 'e1-liste', abgebrochen: 'e1-liste' };
   const offen = new Set(); // the opened ticket lists survive the redrawing
@@ -76,7 +76,7 @@
       e.folgen.length ? `<span class="sk-kanten"><span class="sk-eti">danach</span> ${e.folgen.map((n) => `<button type="button" class="sk-kante" data-sprung="${esc(`${p.forge}#${n}`)}">#${n}</button>`).join(' ')}</span>` : '',
     ].join('');
     const pr = e.pr ? link(e.prUrl, `PR #${e.pr}`) : '';
-    const prognose = e.prognose ? `<span class="sk-prog" title="Prognose aus den gemessenen Epics dieses Projekts, ohne Wartezeit auf Fragen">voraussichtlich ${esc(spanne(e.prognose))}</span>` : '';
+    const prognose = e.prognose ? `<span class="sk-prog" title="Prognose aus den gemessenen Missionen dieses Projekts, ohne Wartezeit auf Fragen">voraussichtlich ${esc(spanne(e.prognose))}</span>` : '';
     return `<li class="sk-epic ${esc(e.stufe)}${e.prio ? ' prio-hoch' : ''}${e.pausiert ? ' pausiert' : ''}" data-k="${esc(k)}">
 <div class="sk-zeile">${link(e.issueUrl, `#${e.nr}`, 'nr')}<span class="sk-titel">${esc(e.titel)}</span><span class="sk-marken">${markenHtml(e)}<button type="button" class="sk-stufe ${esc(e.stufe)}" data-karte="${esc(k)}" title="Karte auf der Brücke zeigen">${esc(STUFE[e.stufe] ?? e.stufe)}</button></span></div>
 ${warum || pause || e.konto || pr || prognose ? `<div class="sk-warum">${[warum ? esc(warum) : '', pause ? esc(pause) : '', e.konto && e.stufe !== 'wartend' ? esc(e.konto) : '', pr, prognose].filter(Boolean).join(' · ')}</div>` : ''}
@@ -92,7 +92,7 @@ ${pin ? `<div class="knoepfe sk-steuern">${f.handlung ? unterwegsHtml(f.handlung
     const epics = p.epics ?? [];
     const frei = p.freigegeben ?? [];
     const prognose = p.prognose ? `<p class="sk-prognose">${prognoseHtml({ ...p.prognose, kurz: p.kurz, mehrere: false })}</p>` : '';
-    const zahl = `${epics.length ? `${epics.length} ${epics.length === 1 ? 'offenes Epic' : 'offene Epics'}` : 'keine offenen Epics'}${frei.length ? ` · ${frei.length} freigegeben, nicht im Einsatz` : ''}`;
+    const zahl = `${epics.length ? `${epics.length} ${epics.length === 1 ? 'offene Mission' : 'offene Missionen'}` : 'keine offenen Missionen'}${frei.length ? ` · ${frei.length} freigegeben, nicht im Einsatz` : ''}`;
     const still = p.veraltet ? ' · Treiber still' : p.aktiv ? '' : ' · beendet';
     const freiListe = frei.length ? `<h4 class="sk-unter">Freigegeben, nicht im Einsatz</h4><ol class="sk-liste">${frei.map((f) => freiHtml(f, p, pin)).join('')}</ol>` : '';
     return `<section class="sk-projekt${p.veraltet ? ' veraltet' : ''}"><h3 class="sk-kopf">${link(p.url, esc(p.kurz), 'sk-name')}<span class="sk-zahl">${zahl}${still}</span></h3>${prognose}${epics.length ? `<ol class="sk-liste">${epics.map((e) => epicHtml(e, p, pin)).join('')}</ol>` : ''}${freiListe}</section>`;
@@ -102,7 +102,7 @@ ${pin ? `<div class="knoepfe sk-steuern">${f.handlung ? unterwegsHtml(f.handlung
   async function steuern(b) {
     const { steuern: art, forge, epic, text } = b.dataset;
     const zeile = b.closest('.sk-steuern');
-    if (art === 'aufnehmen' && !(await bestaetigen(`Epic #${epic} in den Einsatz aufnehmen? Der Treiber prüft Freigabe und Label selbst und startet es, sobald die Belegung einen Platz hat.`, 'Aufnehmen'))) return;
+    if (art === 'aufnehmen' && !(await bestaetigen(`Mission #${epic} in den Einsatz aufnehmen? Der Treiber prüft Freigabe und Label selbst und startet sie, sobald die Belegung einen Platz hat.`, 'Aufnehmen'))) return;
     if (await senden('/api/handlung', { forge, epic: Number(epic), art, nr: null, seit: null, text: text ?? null }, zeile, zeile.querySelector('.status'))) await laden();
   }
 

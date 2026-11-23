@@ -128,7 +128,7 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau();
       const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/Antworten des Menschen[\s\S]*\n1\. B — Antwort: mit Testdaten, siehe #5$/);
       const kommentare = t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Antwort des Menschen'));
@@ -222,7 +222,7 @@ describe('Flottenbrücke (#28)', () => {
       // a turn of a minute: only the report on the event and the short polling bring the answer in time
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, taktMs: 60_000, brueckeAbfrageMs: 100 }), t.welt);
       expect(Date.now() - anfang).toBeLessThan(20_000);
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe[1].eingabe).toMatch(/\n1\. A, C, E$/);
       expect(z.fragen[0]).toMatchObject({ mehrfach: true, empfehlung: 'A, B', beantwortet: 'A, C, E' });
       const mitFrage = b.berichte.find((x) => x.fragen.length)!;
@@ -248,7 +248,7 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau();
       const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(buch.gesehen().some((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))).toBe(false);
       expect(laeufe[1].eingabe).toMatch(/nicht in Fragen zerlegen[\s\S]*\n1\. Antwort: Leg sie an\.$/);
       expect(t.p.kommentare.some((k) => k.nr === 3 && k.text.includes('Ich weiß nicht weiter'))).toBe(true);
@@ -335,7 +335,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(blockiert.grund).toMatch(/nicht angemeldet/);
       expect(blockiert.haltZeit).toBeTruthy();
       expect(blockiert.log.some((l) => /blockiert/.test(l))).toBe(true);
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/neu eingereiht\. Grund der Blockade war: Konto .* ist nicht angemeldet/);
       expect(z.epics['3'].stufe).toBe('fertig');
@@ -357,7 +357,7 @@ describe('Flottenbrücke (#28)', () => {
         lauf(3, [{ text: ende(3, 13) }]),
       ]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(3);
       expect(laeufe[2].eingabe).toMatch(/neu eingereiht\. Grund der Blockade war: Erlaubnis verweigert: Bash/);
       expect(laeufe[2].eingabe).toContain('\nOffen und ohne Antwort des Menschen:\n1. Frage 1 zu #3?\nEntscheide sie nicht selbst. Stelle sie im nächsten FLOTTE-FRAGE erneut.');
@@ -377,7 +377,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(z.epics['3']).toMatchObject({ stufe: 'abgebrochen', notiz: 'aufgegeben vom Menschen' });
       expect(z.epics['3'].aufgegebenAm).toBeTruthy();
       expect(b.berichte.at(-1)!.epics[0].aufgegebenAm).toBe(z.epics['3'].aufgegebenAm);
-      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
     } finally {
       await b.zu();
     }
@@ -390,7 +390,7 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau();
       const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ warte: 600 }, { text: ende(3, 13) }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(3);
       expect(laeufe[2].eingabe).toMatch(/Setze den Widerruf um[\s\S]*\nwiderruf: Frage 1 zu #3\? → B, mit Testdaten$/);
       expect(z.entscheidungen[0]).toMatchObject({ antwort: 'A', grund: 'vorsichtig', widerrufen: neu });
@@ -411,7 +411,7 @@ describe('Flottenbrücke (#28)', () => {
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       const gemeldet = b.berichte.map(mensch).find(Boolean)!;
       expect(gemeldet).toMatchObject({ epic: 3, nr: 1, frage: 'Frage 1 zu #3?', antwort: 'B', herkunft: 'Mensch über die Brücke', einflussreich: false, widerrufen: null, von: 'mensch' });
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(3);
       expect(laeufe[2].eingabe).toMatch(/Setze den Widerruf um[\s\S]*\nwiderruf: Frage 1 zu #3\? → A, doch vorsichtig$/);
       expect(z.entscheidungen).toEqual([expect.objectContaining({ von: 'mensch', antwort: 'B', zeit: gemeldet.zeit, widerrufen: neu })]);
@@ -435,7 +435,7 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau();
       const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
-      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(2);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(2);
       expect(z.epics['3']).toMatchObject({ stufe: 'fertig' });
       expect(z.epics['3'].widerrufe ?? []).toEqual([]);
       expect(z.entscheidungen[0].widerrufen).toBe('zu spät');
@@ -454,7 +454,7 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau({ bodies: { 3: body, 4: body }, labels: { 4: ['prio/hoch'] } });
       const buch = drehbuch([lauf(4, [{ warte: 300 }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
-      const starts = buch.gesehen().filter((g) => /^Flotte, Epic #\d+\b/.test(g.eingabe)).map((g) => Number(/#(\d+)/.exec(g.eingabe)![1]));
+      const starts = buch.gesehen().filter((g) => /^Flotte, Mission #\d+\b/.test(g.eingabe)).map((g) => Number(/#(\d+)/.exec(g.eingabe)![1]));
       expect(starts).toEqual([4, 3]);
       expect(t.p.meldungen.some((m) => /^#4 Belegung: prio\/hoch: in dieser Belegung zuerst/.test(m))).toBe(true);
       const bericht = b.berichte.find((x) => x.epics.some((e) => e.nr === 4 && e.stufe === 'laeuft'))!;
@@ -498,7 +498,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(datei && !existsSync(datei)).toBe(true);
       const weiter = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       expect(weiter.epics['3'].stufe).toBe('fertig');
-      expect(buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
     } finally {
       await b.zu();
     }
@@ -608,10 +608,10 @@ describe('Einstellungen über die Brücke (#58)', () => {
       const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
       const texte = z.ereignisse.map((x) => x.text);
       expect(texte.filter((x) => /^Einstellung .* von .* → auf .*, Mensch über die Brücke$/.test(x))).toHaveLength(gueltig.length);
-      expect(texte).toContain('Einstellung Epics gleichzeitig von automatisch → auf 2, Mensch über die Brücke');
+      expect(texte).toContain('Einstellung Missionen gleichzeitig von automatisch → auf 2, Mensch über die Brücke');
       expect(texte).toContain(`Einstellung Konten der Läufe von ${k1}, ${k2} → auf ${k2}, Mensch über die Brücke`);
       expect(texte.filter((x) => /über die Brücke abgelehnt/.test(x))).toHaveLength(ungueltig.length);
-      expect(texte).toContain('Einstellung Verbrauch 5 h gelb über (%) über die Brücke abgelehnt: gelb (80) muss unter rot (70) liegen');
+      expect(texte).toContain('Einstellung Verbrauch Hauptenergie gelb über (%) über die Brücke abgelehnt: gelb (80) muss unter rot (70) liegen');
       expect(texte.some((x) => /unbekannte Einstellung "rechte"/.test(x))).toBe(true);
       // #112: the adapter of this world says merge: mensch, so the bridge cannot loosen it
       expect(texte).toContain('Einstellung Andocken über die Brücke abgelehnt: der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate');
@@ -681,7 +681,7 @@ describe('Einstellungen über die Brücke (#58)', () => {
       const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url }), t.welt);
       expect(z.epics['3'].stufe).toBe('fertig');
       expect(z.epics['4'].stufe).toBe('fertig');
-      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe3).toHaveLength(2);
       // epic 3 started on the account taken off; its continuation after the change runs there too
       expect(laeufe3[0].konto).toBe(t.konten[0]);
@@ -707,7 +707,7 @@ describe('Einstellungen über die Brücke (#58)', () => {
       const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'B', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       expect(z.epics['3'].stufe).toBe('fertig');
-      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe3).toHaveLength(3);
       expect(laeufe3[0].eingabe).toContain('Auftrag: höchstens 3 Pakete gleichzeitig.');
       expect(laeufe3[1].eingabe).toMatch(/Geänderter Auftrag: höchstens 2 Pakete gleichzeitig\. Gilt ab dem nächsten frei werdenden Platz/);
@@ -731,7 +731,7 @@ describe('Einstellungen über die Brücke (#58)', () => {
       const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       expect(z.epics['3'].stufe).toBe('fertig');
-      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe3 = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe3).toHaveLength(2);
       expect(laeufe3[1].eingabe).not.toContain('Geänderter Auftrag');
     } finally {
@@ -852,7 +852,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
       const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pausiert: null });
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/Antwort des Admirals auf FLOTTE-FRAGE tor:\n1\. A/);
       const m = t.p.meldungen;
@@ -908,7 +908,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
         expect(j).not.toHaveProperty('pausiert');
       }
       expect(notiz).toBe('pausiert vom Menschen');
-      const laeufe = buch.gesehen().filter((g) => /^Flotte, Epic #3\b/.test(g.eingabe));
+      const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toContain('Antwort auf FLOTTE-FRAGE ram: A) warten bis ok. Der Mensch hat die Pause aufgehoben, weiter.');
       const m = t.p.meldungen;
@@ -957,7 +957,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
     try {
       const buch = drehbuch([lauf(2, [{ warte: 600 }, { text: ende(2, 12) }]), lauf(4, [{ warte: 300 }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [2, 3, 4], { bruecke: b.url }), t.welt);
-      const starts = buch.gesehen().filter((g) => /^Flotte, Epic #\d+\b/.test(g.eingabe)).map((g) => Number(/#(\d+)/.exec(g.eingabe)![1]));
+      const starts = buch.gesehen().filter((g) => /^Flotte, Mission #\d+\b/.test(g.eingabe)).map((g) => Number(/#(\d+)/.exec(g.eingabe)![1]));
       // #2 first: the order edge holds both until its merge, whatever the priority
       expect(starts).toEqual([2, 4, 3]);
       expect(texte(z)).toContain('Priorität von #3 von hoch → auf normal, Mensch über die Brücke');

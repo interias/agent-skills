@@ -1,6 +1,6 @@
 // flotte lernen [<repo>] --pr <n> [--epic <n>] [--forge <owner/name>] [--konto <k>] [--modell <m>] [--trocken]
 // The learning loop after a merged epic (src/lernen.ts). The driver calls lerne() after each merge
-// when the adapter names lern_issue; /epic-aufraeumen calls the command by hand. Prints one JSON
+// when the adapter names lern_issue; /mission-aufraeumen calls the command by hand. Prints one JSON
 // object: the comment, whether it was posted, the proposals and the tokens of the call.
 
 import { resolve } from 'node:path';

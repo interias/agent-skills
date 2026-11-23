@@ -15,9 +15,9 @@
     clearing, the script checks whether the target itself is a reparse point (junction/symlink),
     and whether it contains any; if either is true, it aborts without touching the folder.
 
-    Skills that were renamed (prd -> epic, 2026-10) are retired: an installed folder under an
-    old name is backed up the same way and then removed, so the old and the new name do not
-    both trigger.
+    Skills that were renamed (prd -> epic, 2026-10; epic -> mission, 2026-11) are retired: an
+    installed folder under an old name is backed up the same way and then removed, so the old and
+    the new name do not both trigger.
 
     Skills and agent definitions this repository no longer has are retired on a full install
     (without -Skill): an installed copy under a name on the fixed list ($retiredSkills,
@@ -44,7 +44,7 @@
     powershell -File install.ps1 -DryRun
 
 .EXAMPLE
-    powershell -File install.ps1 -Skill epic
+    powershell -File install.ps1 -Skill mission
 #>
 [CmdletBinding()]
 param(
@@ -61,16 +61,21 @@ $agentsTarget = Join-Path $env:USERPROFILE '.claude\agents'
 
 # Old skill name -> new name. An installed old folder is backed up and removed.
 $renamedSkills = [ordered]@{
-    'prd'            = 'epic'
-    'prd-nacharbeit' = 'epic-nacharbeit'
-    'prd-aufraeumen' = 'epic-aufraeumen'
+    'prd'             = 'mission'
+    'prd-nacharbeit'  = 'mission-nacharbeit'
+    'prd-aufraeumen'  = 'mission-aufraeumen'
+    'epic'            = 'mission'
+    'epic-nacharbeit' = 'mission-nacharbeit'
+    'epic-aufraeumen' = 'mission-aufraeumen'
 }
 
 # Skills and agents this repository installed once and no longer has (prd-flotte was the old name
 # of epic-flotte). An installed copy is backed up and removed only when its frontmatter name: is
 # the same name, so a folder of someone else's under that name stays.
 $retiredSkills = @('prd-flotte', 'epic-flotte', 'epic-lagebesprechung', 'leitstand')
-$retiredAgents = @('epic-lauf')
+# The agents before the Sprachraum (ADR-0003) are retired with the same guard.
+$retiredAgents = @('epic-lauf', 'epic-implementer-mechanisch', 'epic-implementer-standard', 'epic-implementer-urteil',
+    'epic-implementer-urteil-hoch', 'epic-reviewer-standard', 'epic-reviewer-urteil', 'epic-kundschafter')
 
 # The name: field of the YAML frontmatter of $file, or $null when the file or the field is missing.
 function Get-FrontmatterName([string]$file) {

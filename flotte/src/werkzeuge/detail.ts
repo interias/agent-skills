@@ -1,12 +1,15 @@
 /**
  * Detail view of an epic (#51): phase, round and class of each package, derived from what the driver
- * already reads, the stream-json of the runs. Each Agent call of an epic-implementer or epic-reviewer
- * names its package in the description (`Implementer #588 …`, `Reviewer #588 …`, epic/SKILL.md, phase 6).
+ * already reads, the stream-json of the runs. Each Agent call of an ingenieur or erster-offizier
+ * names its package in the description (`Implementer #588 …`, `Reviewer #588 …`, mission/SKILL.md, phase 6).
  *
  * Two pure steps: `eintraegeAus` turns one log line into entries, `ableiten` turns the entries of a
  * run into the fields per package. Nothing is guessed: a package without a call has no fields, an
- * entry without a time gives no time. Spec mode (packages `P2`) has no child number to attach to.
+ * entry without a time gives no time. Spec mode has no child number: its packages are named
+ * `<spec>-p<k>` (`Implementer #45-p2 …`, epic/SKILL.md, phase 3), the key is that name (#151).
+ * A Bash or PowerShell call of the adapter's gate command is a gate run of the run (#151).
  */
+import { gateKern } from '../treiber/gate.ts';
 import { KLASSE, type Klasse, RANG } from './prognose.ts';
 
 export type Phase = 'implementer' | 'review' | 'nachbesserung' | 'merge';
@@ -18,11 +21,13 @@ export interface AgentEintrag {
   art: 'aufruf' | 'rueckkehr' | 'unter';
   /** tool_use id of the Agent call */
   id: string;
-  /** aufruf only */
-  rolle?: 'implementer' | 'reviewer';
+  /** aufruf only; gate: a call of the gate command, no package */
+  rolle?: 'implementer' | 'reviewer' | 'gate';
   klasse?: Klasse;
-  /** aufruf only: the child ticket */
-  paket?: number;
+  /** aufruf only: the child ticket, in spec mode the package `<spec>-p<k>` */
+  paket?: number | string;
+  /** aufruf of a spec package only: the description after the package, its only title */
+  titel?: string;
 }
 
 export interface PaketDetail {
@@ -42,16 +47,21 @@ export interface PaketDetail {
   lebenszeichen?: string;
 }
 
-const REVIEWER = /^epic-reviewer-(standard|urteil)$/;
+// transcripts before the Sprachraum (ADR-0003) carry the old agent names
+const REVIEWER = /^(?:erster-offizier|epic-reviewer)-(standard|urteil)$/;
 const AGENT = new Set(['Agent', 'Task']);
+const SHELL = new Set(['Bash', 'PowerShell']);
+/** the package in a description: a child `#588`, a spec package `#45-p2` */
+const PAKET = /#(\d+)(?:-p(\d+))?/i;
 const iso = (ms: number | null | undefined) => (ms == null ? undefined : new Date(ms).toISOString());
 
 /**
  * The entries of one stream-json line. The time is the line's own `timestamp` when it has one, else
  * `zeit` (the moment the driver read it); null stays null. Returns every return and every line of a
- * sub-agent: the caller keeps those whose call it knows (`fuegeAn`).
+ * sub-agent: the caller keeps those whose call it knows (`fuegeAn`). `gate`: the gate commands of
+ * the adapter; a call whose command holds the core of one is a gate run (as gateLaeufeImLog).
  */
-export function eintraegeAus(roh: string, zeit: number | null = null): AgentEintrag[] {
+export function eintraegeAus(roh: string, zeit: number | null = null, gate: string[] = []): AgentEintrag[] {
   let d: any;
   try {
     d = JSON.parse(roh);
@@ -64,14 +74,23 @@ export function eintraegeAus(roh: string, zeit: number | null = null): AgentEint
   const inhalt: any[] = Array.isArray(d?.message?.content) ? d.message.content : [];
   if (d?.parent_tool_use_id) return [{ zeit: z, art: 'unter', id: String(d.parent_tool_use_id) }];
   if (d?.type === 'assistant') {
+    const kerne = gate.map(gateKern).filter(Boolean);
     for (const c of inhalt) {
-      if (c?.type !== 'tool_use' || !AGENT.has(c.name)) continue;
+      if (c?.type !== 'tool_use') continue;
+      if (SHELL.has(c.name) && typeof c.input?.command === 'string' && kerne.some((k) => c.input.command.includes(k))) {
+        out.push({ zeit: z, art: 'aufruf', id: String(c.id), rolle: 'gate' });
+        continue;
+      }
+      if (!AGENT.has(c.name)) continue;
       const typ = String(c.input?.subagent_type ?? '');
-      const nr = /#(\d+)/.exec(String(c.input?.description ?? ''))?.[1];
+      const beschreibung = String(c.input?.description ?? '');
+      const m = PAKET.exec(beschreibung);
       const impl = KLASSE.exec(typ)?.[1] as Klasse | undefined;
       const rev = REVIEWER.test(typ);
-      if (!nr || (!impl && !rev)) continue;
-      out.push({ zeit: z, art: 'aufruf', id: String(c.id), rolle: impl ? 'implementer' : 'reviewer', klasse: impl, paket: Number(nr) });
+      if (!m || (!impl && !rev)) continue;
+      const e: AgentEintrag = { zeit: z, art: 'aufruf', id: String(c.id), rolle: impl ? 'implementer' : 'reviewer', klasse: impl, paket: m[2] ? `${m[1]}-p${m[2]}` : Number(m[1]) };
+      if (m[2]) e.titel = beschreibung.slice(m.index + m[0].length).trim();
+      out.push(e);
     }
   } else if (d?.type === 'user') {
     for (const c of inhalt) if (c?.type === 'tool_result' && c.tool_use_id && !gestartet(c.content)) out.push({ zeit: z, art: 'rueckkehr', id: String(c.tool_use_id) });
@@ -85,14 +104,15 @@ export function eintraegeAus(roh: string, zeit: number | null = null): AgentEint
 const ENDE = new Set(['completed', 'failed', 'killed', 'stopped']);
 
 /**
- * A background agent (`/epic` starts implementer and reviewer so) answers its call at once with
+ * A background agent (`/mission` starts implementer and reviewer so) answers its call at once with
  * "Async agent launched …"; that is its start, not its return. Its end comes later as a `system`
  * line `task_notification` with the id of the call and no `timestamp`. A plain result is the end of
- * an agent in the foreground.
+ * an agent in the foreground. A command in the background (a gate) answers "Command running in
+ * background …" and ends the same way.
  */
 function gestartet(inhalt: unknown): boolean {
   const text = typeof inhalt === 'string' ? inhalt : Array.isArray(inhalt) ? inhalt[0]?.text : undefined;
-  return typeof text === 'string' && text.startsWith('Async agent launched');
+  return typeof text === 'string' && (text.startsWith('Async agent launched') || text.startsWith('Command running in background'));
 }
 
 /**
@@ -117,12 +137,12 @@ export function fuegeAn(liste: AgentEintrag[], neu: AgentEintrag[], maximal = 60
   return liste;
 }
 
-/** The fields per package, by child number. `fertig`: the packages merged into the epic branch have no phase. */
-export function ableiten(eintraege: AgentEintrag[], fertig: ReadonlySet<number> = new Set()): Map<number, PaketDetail> {
+/** The fields per package, by child number or spec package. `fertig`: the packages merged into the epic branch have no phase. */
+export function ableiten(eintraege: AgentEintrag[], fertig: ReadonlySet<number | string> = new Set()): Map<number | string, PaketDetail> {
   const aufrufe = eintraege.filter((e) => e.art === 'aufruf' && e.paket !== undefined && e.rolle);
-  const je = new Map<number, AgentEintrag[]>();
+  const je = new Map<number | string, AgentEintrag[]>();
   for (const a of aufrufe) je.set(a.paket!, [...(je.get(a.paket!) ?? []), a]);
-  const out = new Map<number, PaketDetail>();
+  const out = new Map<number | string, PaketDetail>();
   for (const [nr, calls] of je) {
     const impl = calls.filter((c) => c.rolle === 'implementer');
     if (!impl.length) continue;
@@ -173,6 +193,25 @@ export function belegt(details: Iterable<PaketDetail>): number {
   let n = 0;
   for (const d of details) if (d.phase === 'implementer' || d.phase === 'review' || d.phase === 'nachbesserung') n++;
   return n;
+}
+
+/**
+ * The gate run under way: how many gate calls the entries hold and the start of the latest, while it
+ * has not returned; else null. Entries cut off by `fuegeAn` (`maximal`) are not counted.
+ */
+export function gateLauf(eintraege: AgentEintrag[]): { n: number; seit: string | null } | null {
+  const gates = eintraege.filter((e) => e.art === 'aufruf' && e.rolle === 'gate');
+  const letzter = gates.at(-1);
+  if (!letzter || eintraege.some((e) => e.art === 'rueckkehr' && e.id === letzter.id)) return null;
+  return { n: gates.length, seit: iso(letzter.zeit) ?? null };
+}
+
+/**
+ * The spec packages a commit subject says are merged, as `<spec>-p<k>`: `Merge … agent/<spec>-p<k>-…`,
+ * `… (#<spec>-p<k>)` and `Merge #<spec>-p<k>: …`.
+ */
+export function specAusBetreff(betreff: string): string[] {
+  return [...betreff.matchAll(/^Merge\b.*?\bagent\/(\d+-[pP]\d+)(?:-|\b)/g), ...betreff.matchAll(/\(#(\d+-[pP]\d+)\)/g), ...betreff.matchAll(/^Merge #(\d+-[pP]\d+):/g)].map((m) => m[1].toLowerCase());
 }
 
 /**

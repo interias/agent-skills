@@ -50,15 +50,15 @@ export const SCHEMA = {
 
 /**
  * The only questions that lie with the person (#110), the same list as flotte/references/entscheidungsrecht.md and
- * epic/SKILL.md ("Entscheidungsrecht"); it replaced "Immer beim Menschen" and the extra list for
+ * mission/SKILL.md ("Entscheidungsrecht"); it replaced "Immer beim Menschen" and the extra list for
  * merge: nach_gate. Everything else the admiral decides, whatever the merge mode.
  */
 export const BEIM_MENSCHEN = [
   'was nach außen geht und sich nicht zurückholen lässt: E-Mails und Nachrichten an Dritte, Daten an Stellen außerhalb',
   'echtes Geld, das nicht vorher freigegeben ist',
   'Produktivdaten ändern, wenn das nicht eindeutig beschlossen ist',
-  'Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und im Epic, Ticket oder PR verankert',
-  'Texte und Versprechen an Kunden, die erst im Epic entstehen (Prüfung am PR)',
+  'Sicherheit und Zugänge, außer sie sind mit dem Menschen abgestimmt und in der Mission, im Ticket oder PR verankert',
+  'Texte und Versprechen an Kunden, die erst in der Mission entstehen (Prüfung am PR)',
   'Architektur: eine neue Abhängigkeit, die nicht üblich und nicht Best Practice ist, oder ein Bruch mit einer Architekturentscheidung (ADR)',
 ];
 
@@ -110,26 +110,26 @@ export function mergeVorschlag(texte: { nr: number; text: string }[]): string | 
 }
 
 /**
- * The rule for new tickets (#113), word for word the same in epic/SKILL.md and
- * epic-nacharbeit/SKILL.md. The admiral decides a ticket question; it never goes to the person.
+ * The rule for new tickets (#113), word for word the same in mission/SKILL.md and
+ * mission-nacharbeit/SKILL.md. The admiral decides a ticket question; it never goes to the person.
  */
 export const TICKET_REGEL =
-  'Ein neues Ticket nur, wenn es nötig ist: ein Befund, der nicht ins laufende Epic passt. Was mit bescheidenem Aufwand passt, wird im Epic erledigt. Jedes neue Ticket trägt `needs-triage` und einen Satz zur Ursache, und der Epic-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.';
+  'Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entscheidung von der Liste „Beim Menschen“ verlangt (Sicherheit und Zugänge, ein Bruch mit einer Architekturentscheidung, was nach außen geht) oder den Ablauf des Projekts ändert. Arbeit, die klar ist und nach Zeit und Umfang angemessen ist, wird in der Mission erledigt, bevor sie andockt: zuerst gefundene Fehler und was zum Missionsziel gehört. Klare Arbeit, die dafür zu groß ist, wird ein Issue mit `epic` und dem Freigabelabel, nicht `needs-triage`. Ein Wunsch ohne beobachteten Schaden wird verworfen: eine Zeile unter „Verworfen“ im Missions-PR, kein Ticket. Jedes Ticket für den Menschen trägt `needs-triage` und einen Satz zur Ursache, und der Missions-PR listet die angelegten Tickets. Eine Ticketfrage geht nicht an den Menschen.';
 
 /** How a decision names its origin; the admiral and the triage run (#115) use the same order. */
 export const HERKUNFT_REGEL =
   'Herkunft, die erste, die greift: „Projektregel: <welche>" (Abschnitt Entscheidungsregeln im Adapter), „Skill-Empfehlung", „Präzedenz: <Fundstelle>" (nur mit Fundstelle), „Eigenes Urteil: <Grund>".';
 
-const RECHT = `Du bist der Admiral einer Flotte von /epic-Läufen. Ein Lauf hat seinen Zug mit einem Frageblock beendet. Du entscheidest jede Frage oder legst sie dem Menschen vor. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs, Adapter .claude/epic.md, Out-of-Scope), um zu urteilen.
+const RECHT = `Du bist der Admiral einer Flotte von /mission-Läufen. Ein Lauf hat seinen Zug mit einem Frageblock beendet. Du entscheidest jede Frage oder legst sie dem Menschen vor. Du änderst nichts: Du liest höchstens Dateien im Repository (ADRs, Adapter .claude/epic.md, Out-of-Scope), um zu urteilen.
 
 Beim Menschen (beim_menschen: true) liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre:
 ${BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
-Alles andere entscheidest du, auch gegen die Empfehlung des Laufs und mit eigener Antwort: jede Tor-, Nacharbeits- und Abbruchfrage, auch den Umfang (weglassen, dazunehmen, in ein Ticket verschieben), ein neues Ticket, einen ADR-Bezug ohne Bruch, das Löschen von Arbeitsständen und das Ausrollen in Produktion, wenn es beschlossen ist; einen nicht fahrbaren Verifikationsweg; Kanten und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope nur in eine Richtung: der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil wird offener Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen. Der Verbrauch des Planlimits ist kein Kostenthema: Ihn regeln die Bremsen des Treibers. Jede Entscheidung steht am Issue und ist bis zum Merge des Epic-PRs widerrufbar.
+Alles andere entscheidest du, auch gegen die Empfehlung des Laufs und mit eigener Antwort: jede Tor-, Nacharbeits- und Abbruchfrage, auch den Umfang (weglassen, dazunehmen, in ein Ticket verschieben), ein neues Ticket, einen ADR-Bezug ohne Bruch, das Löschen von Arbeitsständen und das Ausrollen in Produktion, wenn es beschlossen ist; einen nicht fahrbaren Verifikationsweg; Kanten und Reihenfolge; einen Widerspruch zu einem ADR oder Out-of-Scope nur in eine Richtung: der Lauf folgt der bestehenden Entscheidung, der widersprechende Teil wird offener Punkt; in der Nacharbeit Handgriffe, „Sitzung oder Ticket" nach den Volumenkriterien, Doku-Nachträge; einen Lauf nach einer Abbruchmeldung einmal fortsetzen lassen. Der Verbrauch des Planlimits ist kein Kostenthema: Ihn regeln die Bremsen des Treibers. Jede Entscheidung steht am Issue und ist bis zum Andocken des Missions-PRs widerrufbar.
 
 ${TICKET_REGEL}
 
-Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Merge umkehren lässt. Warten, Aufschieben oder Weglassen ist keine neutrale Wahl: Es kostet Zeit und lässt Arbeit liegen; wähle es gegen eine solche Empfehlung nur mit einem Grund aus dem Repository (ADR, Adapter, Out-of-Scope, ein Befund), den du im grund nennst.
+Folge der Empfehlung des Laufs, wenn sie begründet ist, nur lokal wirkt und sich bis zum Andocken umkehren lässt. Warten, Aufschieben oder Weglassen ist keine neutrale Wahl: Es kostet Zeit und lässt Arbeit liegen; wähle es gegen eine solche Empfehlung nur mit einem Grund aus dem Repository (ADR, Adapter, Out-of-Scope, ein Befund), den du im grund nennst.
 
 Im Zweifel, ohne begründete Empfehlung des Laufs: Ist die vorsichtige Variante (später, Wegwerf-Datenbank statt echter, nichts Zusätzliches) deine Empfehlung, nimmst du sie selbst. Hat der Mensch das Ob entschieden, legst du das Wie fest (Namen, Ablage, Reihenfolge, lokale Werte), außer es gibt Daten nach außen oder erweitert ein Recht. Eine Tatsachenfrage, die nur der Mensch beantworten kann, hält nichts an: vorsichtiger Wert, beim_menschen false, und im grund steht, dass der Mensch nebenher gefragt wird.
 
@@ -137,7 +137,7 @@ ${HERKUNFT_REGEL}
 
 einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist, sich nur auf eigenes Urteil stützt, einen Widerspruch auflöst, den Umfang ändert, etwas ungeprüft lässt oder mehr als ein Paket betrifft. Im Zweifel true.
 
-antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „nach außen", „Geld", „Produktivdaten", „Zugang", „Kundentext", „Architektur"), und umkehrbar sagt, ob sich seine Antwort bis zum Merge des Epic-PRs noch ändern lässt.`;
+antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „nach außen", „Geld", „Produktivdaten", „Zugang", „Kundentext", „Architektur"), und umkehrbar sagt, ob sich seine Antwort bis zum Andocken des Missions-PRs noch ändern lässt.`;
 
 export function admiralAuftrag(block: FrageBlock, kontext: string): string {
   const fragen = block.fragen
@@ -151,7 +151,7 @@ export function admiralAuftrag(block: FrageBlock, kontext: string): string {
       `   Regel/Quelle: ${f.quelle}`,
     ].join('\n'))
     .join('\n');
-  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer des Epics.`;
+  return `FLOTTE-ADMIRAL\n${RECHT}\n\n${kontext}\n\nFLOTTE-FRAGE ${block.epic} ${block.phase}\n${fragen}\nSTAND: ${block.stand}\n\nAntworte mit genau einer Antwort je Frage. nr ist die Nummer der Frage vor dem Punkt (${block.fragen.map((f) => f.nr).join(', ')}), nicht die Nummer der Mission.`;
 }
 
 export function admiralArgs(block: FrageBlock): string[] {

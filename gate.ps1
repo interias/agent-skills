@@ -1,5 +1,5 @@
 # Merge gate of agent-skills: runs every suite of the repository and prints the gate block the
-# flotte driver and merge.ps1 read (epic/references/adapter.md, "Der Gate-Block").
+# flotte driver and merge.ps1 read (mission/references/adapter.md, "Der Andockblock").
 # Usage (in a worktree): pwsh -NoProfile -File gate.ps1
 $ErrorActionPreference = 'Continue'
 # the driver reads stdout as UTF-8; without this "Gate grün." arrives mangled and counts as red
@@ -11,7 +11,7 @@ $kopf = (git rev-parse HEAD).Trim()
 $teile = [ordered]@{
     flotte  = { Push-Location flotte; bun test; $c = $LASTEXITCODE; Pop-Location; $c }
     bruecke = { Push-Location flottenbruecke; python -m pytest -q -p no:cacheprovider "--basetemp=$(Join-Path $env:TEMP agent-skills-gate-$PID)"; $c = $LASTEXITCODE; Pop-Location; $c }
-    pester  = { $r = Invoke-Pester -Path (Get-ChildItem epic\scripts\*.Tests.ps1, install.Tests.ps1).FullName -PassThru -Output None; [int]($r.FailedCount -gt 0) }
+    pester  = { $r = Invoke-Pester -Path (Get-ChildItem mission\scripts\*.Tests.ps1, install.Tests.ps1).FullName -PassThru -Output None; [int]($r.FailedCount -gt 0) }
 }
 $zeilen = @(); $gruen = $true
 foreach ($n in $teile.Keys) {

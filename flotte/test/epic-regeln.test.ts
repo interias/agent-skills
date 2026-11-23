@@ -1,4 +1,4 @@
-// The pure rules of `flotte epic` (src/epic/regeln.ts) that no script of #65 pins on its own.
+// The pure rules of `flotte mission` (src/epic/regeln.ts) that no script of #65 pins on its own.
 
 import { describe, expect, it } from 'vitest';
 import { bewerteAufruf, endeBlock, hoeher, nachpruefung, wahl } from '../src/epic/regeln.ts';
@@ -18,7 +18,7 @@ function lauf(pakete: Paket[]) {
 
 const ergebnis = (o: Partial<LaufErgebnis>): LaufErgebnis => ({ sitzung: 's', code: 0, leerlauf: false, ergebnisse: [{ text: 'fertig', istFehler: false, grund: null, verweigert: [] }], text: 'fertig', verweigert: [], sperren: [], verbrauch: null, strukturiert: null, fehler: null, dauerMs: 0, stderr: '', ...o });
 
-describe('flotte epic, Regeln', () => {
+describe('flotte mission, Regeln', () => {
   it('the window: most unlocked successors first, a tie goes to the smaller number', () => {
     const z = lauf([paket('7'), paket('3'), paket('5'), paket('8', { nach: ['7'] }), paket('9', { nach: ['7'] }), paket('6', { nach: ['5'] })]);
     expect(wahl(z, 1)).toEqual(['7']);

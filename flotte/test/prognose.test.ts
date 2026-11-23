@@ -26,7 +26,7 @@ describe('Prognose: records', () => {
   it('reads class and escalations of each package from the implementer calls of all turns', () => {
     const pakete = paketeAusLogs([
       log(agent('standard', 'Implementer #11 Schema'), agent('mechanisch', 'Implementer #12 Umbenennung'), { type: 'result', result: 'x' }),
-      log(agent('urteil', 'Implementer #11 zweite Runde'), agent('urteil-hoch', 'Implementer #11 dritte Runde'), { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { subagent_type: 'epic-reviewer-standard', description: 'Reviewer #12' } }] } }, agent('standard', 'Implementer P3')),
+      log(agent('urteil', 'Implementer #11 zweite Runde'), agent('urteil-hoch', 'Implementer #11 dritte Runde'), { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Agent', input: { subagent_type: 'erster-offizier-standard', description: 'Reviewer #12' } }] } }, agent('standard', 'Implementer P3')),
     ]);
     expect(pakete).toEqual([
       { name: '#11', klasse: 'standard', eskalationen: 2 },
@@ -120,7 +120,7 @@ describe('Prognose: the driver', () => {
       // five finished epics of earlier deployments in this repository
       writeFileSync(join(dir, 'messungen.jsonl'), [1, 2, 3, 4, 5].map((e) => JSON.stringify(messung(100 + e, 'standard', 2, 3600))).join('\n') + '\n');
       const buch = drehbuch([
-        lauf(3, [...werkzeug('Agent', { subagent_type: 'epic-implementer-standard', description: 'Implementer #31 Schema' }, 'ok'), ...werkzeug('Agent', { subagent_type: 'epic-implementer-urteil', description: 'Implementer #32 API' }, 'ok'), { text: ende(3, 13) }]),
+        lauf(3, [...werkzeug('Agent', { subagent_type: 'ingenieur-standard', description: 'Implementer #31 Schema' }, 'ok'), ...werkzeug('Agent', { subagent_type: 'ingenieur-urteil', description: 'Implementer #32 API' }, 'ok'), { text: ende(3, 13) }]),
         lauf(4, [{ text: ende(4, 14) }]),
       ]);
       await fahre(t.einstellung(buch, [3, 4], { bruecke: url, obergrenze: 1, maxDauerMs: 6000 }), t.welt);

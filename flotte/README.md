@@ -1,7 +1,7 @@
 # `flotte` für Menschen
 
-Der Flotten-Treiber: ein Programm (TypeScript, läuft mit Bun), das mehrere `/epic`-Läufe
-gleichzeitig als `claude -p` auf einem oder mehreren Konten fährt. Belegung, Bremsen, Merge,
+Der Flotten-Treiber: ein Programm (TypeScript, läuft mit Bun), das mehrere `/mission`-Läufe
+gleichzeitig als `claude -p` auf einem oder mehreren Konten fährt. Belegung, Bremsen, Andocken,
 Aufräumen, Tafel und Logbuch macht das Programm; ein Sprachmodell, der Admiral, entscheidet nur je
 Frageblock. Die vollständige Beschreibung mit allen Schaltern steht in [`SKILL.md`](SKILL.md).
 
@@ -15,19 +15,19 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 
 | Schalter | Wirkung |
 |---|---|
-| `--konten 1,2` | Konten, auf die neue Epics verteilt werden; ein Epic bleibt bei seinem Konto |
-| `--epics 15,21` | nur diese Epics; ohne Angabe alle freigegebenen, alle 15 Minuten neu eingesammelt |
-| `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Epics warten |
-| `--konto-max 3=1` | höchstens so viele Epics gleichzeitig auf diesem Konto |
+| `--konten 1,2` | Konten, auf die neue Missionen verteilt werden; eine Mission bleibt bei ihrem Konto |
+| `--epics 15,21` | nur diese Missionen; ohne Angabe alle freigegebenen, alle 15 Minuten neu eingesammelt |
+| `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Missionen warten |
+| `--konto-max 3=1` | höchstens so viele Missionen gleichzeitig auf diesem Konto |
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
-| `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/epic-nacharbeit` abarbeiten |
+| `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/mission-nacharbeit` abarbeiten |
 | `--meldung an` | je neuer Frage an dich und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), mehrere eines Takts als eine mit der Zahl; Standard `aus`, auch im Maschinenraum schaltbar. Inhalt nur Projektkürzel, Nummer, Art und Titel |
 
 ## Einstellungen ohne Neustart
 
 Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brücke (Maschinenraum,
-mit PIN) lassen sich ändern: Epics gleichzeitig (1–4), Pakete je Epic gleichzeitig (1–3), die Konten
+mit PIN) lassen sich ändern: Missionen gleichzeitig (1–4), Pakete je Mission gleichzeitig (1–3), die Konten
 der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
 100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
 Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#37) die Windows-Meldung
@@ -36,19 +36,19 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
   startet nur weniger, ein entferntes Konto startet nichts Neues, seine Läufe bleiben dort. Die
-  Pakete je Epic stehen im Auftrag an `/epic` („höchstens N Pakete gleichzeitig“); eine Änderung
+  Pakete je Mission stehen im Auftrag an `/mission` („höchstens N Pakete gleichzeitig“); eine Änderung
   erreicht laufende Läufe mit dem nächsten Fortsetzen.
 - **Jede Änderung** steht als Ereignis und im Flottenlogbuch („Einstellung … von … → auf …, Mensch
   über die Brücke“). Die Brücke zeigt je Einstellung den Wert und woher er kommt (Start, Brücke,
   Standard).
 - **Neustart:** Die Werte der Brücke stehen in `zustand.json` und gelten weiter. Ein Startparameter,
   der ausdrücklich gesetzt ist, gewinnt beim Start; das Ereignis nennt beide Werte.
-- **Andocken je Projekt und Epic (#112):** Startwert ist `merge` des Adapters. Die Brücke verschärft nur:
-  „automatisch“ gibt es nur bei `merge: nach_gate`, `merge.ps1` bleibt die harte Grenze. Je Epic
-  schlägt der Treiber „Mensch prüft“ vor, wenn Body des Epics oder Titel/Body eines Kindes ein
+- **Andocken je Projekt und Mission (#112):** Startwert ist `merge` des Adapters. Die Brücke verschärft nur:
+  „automatisch“ gibt es nur bei `merge: nach_gate`, `merge.ps1` bleibt die harte Grenze. Je Mission
+  schlägt der Treiber „Mensch prüft“ vor, wenn Body der Mission oder Titel/Body eines Missionsziels ein
   Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`), und
-  zeigt den Grund; ein Schalter am Epic (Sternenkarte) überstimmt Vorschlag und Projekt.
-- **Nicht einstellbar:** die Merge-Regel des Adapters, Rechte, Geheimnisse. Ein Update ist keine
+  zeigt den Grund; ein Schalter an der Mission (Sternenkarte) überstimmt Vorschlag und Projekt.
+- **Nicht einstellbar:** die Andock-Regel des Adapters, Rechte, Geheimnisse. Ein Update ist keine
   Einstellung, sondern die Handlung „Einspielen“ (unten, „Anhalten und neu starten“).
 
 Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „Einstellungen“.
@@ -57,17 +57,17 @@ Grenzen und Form: [`SCHNITTSTELLE.md`](../flottenbruecke/SCHNITTSTELLE.md), „E
 
 Ein Lauf ist ein eigener `claude -p` in einer eigenen Prozessgruppe. Er schreibt sein Log selbst
 und überlebt den Treiber; der Zustand steht nach jedem Takt in `zustand.json`. Ein Neustart prüft
-je Epic PID und Startzeit: Ein Lauf, der noch lebt, wird nur beobachtet; einer, der inzwischen
+je Mission PID und Startzeit: Ein Lauf, der noch lebt, wird nur beobachtet; einer, der inzwischen
 endete, wird aus seinem Log ausgewertet. Nichts startet doppelt.
 
-Anders der Merge: `merge.ps1`, das Gate des Treibers und die `nach_merge`-Befehle sind Kinder des
+Anders das Andocken: `merge.ps1`, die Andockprüfung des Treibers und die `nach_merge`-Befehle sind Kindprozesse des
 Treibers und sterben mit Strg+C mitten im Schritt. Deshalb zum Aktualisieren:
 
 ```powershell
 bun "$HOME\.claude\skills\flotte\src\cli.ts" anhalten .
 ```
 
-Der Treiber startet dann nichts Neues mehr, lässt einen begonnenen Merge zu Ende laufen und endet
+Der Treiber startet dann nichts Neues mehr, lässt ein begonnenes Andocken zu Ende laufen und endet
 mit dem Ereignis „Angehalten auf Wunsch“. Danach aktualisieren und mit demselben Aufruf neu
 starten. Läuft kein Treiber, wirkt die Datei `anhalten` beim nächsten Start sofort; löschen, wenn
 das nicht gewollt ist.
@@ -85,8 +85,8 @@ Der Knopf „Einspielen und Treiber neu starten“ im Maschinenraum (PIN, je Tre
 die Handlung `einspielen` ab. Der Treiber holt sie ab und geht den Weg von Hand
 (`src/treiber/stand.ts`):
 
-1. **Anhalten** wie `flotte anhalten`: nichts Neues mehr; ein offenes Andocken (Merge-Schlange mit
-   Gate, `merge.ps1` und `nach_merge`) läuft zu Ende, bis dahin meldet die Brücke „Wartet auf das
+1. **Anhalten** wie `flotte anhalten`: nichts Neues mehr; ein offenes Andocken (Andock-Schlange mit
+   Andockprüfung, `merge.ps1` und `nach_merge`) läuft zu Ende, bis dahin meldet die Brücke „Wartet auf das
    Andocken von #…“. Laufende Läufe arbeiten weiter.
 2. **Einspielen** in der Quelle: nur sauber und auf `main`, dann `git pull --ff-only origin main` und
    `install.ps1`. Ist die Quelle nicht sauber, steht sie nicht auf `main` oder scheitert ein Schritt,
@@ -111,20 +111,20 @@ zuschalten“, eingerichtet nach [`arbeitspferd/README.md`](../arbeitspferd/READ
 ## Was der Treiber tut
 
 1. **Belegen:** Kollisionsstufen und Reihenfolge-Kanten aus Adapter und Issues bestimmen, wie
-   viele Epics gleichzeitig laufen (nie mehr als vier). Ein Epic mit dem Label `prio/hoch` (am Epic
-   oder an einem Kind) kommt als erstes in die nächste Belegung; kollidiert es mit einem laufenden,
-   wartet es, und nichts Kollidierendes überholt es. Laufende Epics werden nie abgebrochen.
+   viele Missionen gleichzeitig laufen (nie mehr als vier). Eine Mission mit dem Label `prio/hoch` (an der Mission
+   oder an einem Missionsziel) kommt als erstes in die nächste Belegung; kollidiert sie mit einer laufenden,
+   wartet sie, und nichts Kollidierendes überholt sie. Laufende Missionen werden nie abgebrochen.
 2. **Bremsen** in jedem Takt: RAM, Plattenplatz und Verbrauch je Konto. Gelb startet nichts Neues,
    Rot hält auch Fortsetzungen an.
-3. **Fragen** eines Laufs gehen an den Admiral. Er entscheidet, was sich bis zum Merge widerrufen
+3. **Fragen** eines Laufs gehen an den Admiral. Er entscheidet, was sich bis zum Andocken widerrufen
    lässt; der Rest geht an dich, auf Tafel, Issue und Brücke.
 4. **Nacharbeit:** Nennt das Ende eines Laufs offene Punkte, setzt der Treiber ihn einmal mit
-   `/epic-nacharbeit` fort, solange der PR offen ist.
-5. **Mergen** nur nach dem Adapterschlüssel `merge`: bei `mensch` meldet er „PR bereit“, bei
-   `nach_gate` reiht er den PR in die Merge-Schlange und mergt mit `merge.ps1`, nur mit
-   Gate-Nachweis aus dem Log des Laufs (fehlt er, fährt er das Gate selbst).
-6. **Nach dem Merge** die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
-   lokale Epic-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
+   `/mission-nacharbeit` fort, solange der PR offen ist.
+5. **Andocken** nur nach dem Adapterschlüssel `merge`: bei `mensch` meldet er „PR bereit“, bei
+   `nach_gate` reiht er den PR in die Andock-Schlange und dockt mit `merge.ps1` an, nur mit
+   Nachweis der Andockprüfung aus dem Log des Laufs (fehlt er, fährt er die Andockprüfung selbst).
+6. **Nach dem Andocken** die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
+   lokale Missions-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
    nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
    in dieses Issue. Umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet die
    [Triage](#triage) wie eine Sternzeit-Notiz.
@@ -145,7 +145,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" auftrag <repo> <entwurf.md> [--star
 `<repo>` ist der Checkout des Ziel-Repositorys. Aus seinem Adapter (`.claude/epic.md`) liest der
 Befehl `forge` und `api` (ohne `api`: das GitHub-Repository von `origin`), `epic_label`,
 `ready_label` und die Abschnitte `acceptance_section`, `verification_section` und
-`modules_section` mit ihren Standards (`epic/references/adapter.md`, „Issues“). Er spricht GitHub
+`modules_section` mit ihren Standards (`mission/references/adapter.md`, „Issues“). Er spricht GitHub
 (über `gh`) und Gitea (über die API: `forge: gitea` und `api: <host>/api/v1/repos/<owner>/<repo>`,
 Anmeldung mit `token_env`/`token_file` oder Basic Auth aus dem Git-Credential-Speicher). Gitea kennt
 keine Sub-Issues: die Mission ist dort von ihren Missionszielen blockiert (Abhängigkeit), die Liste
@@ -179,7 +179,7 @@ Ein, zwei Absätze, worum es geht.
 **Prüfung:** Jedes Missionsziel braucht einen nicht leeren Abnahmeabschnitt (Standard: der erste
 vorhandene von `## Abnahmekriterien`, `## Akzeptanzkriterien`, `## Acceptance criteria`) und
 `## Verifikationsweg`; ohne sie überspringt ein Außeneinsatz das Ziel. Fehlt einer, bricht der
-Befehl mit allen Lücken ab, bevor er irgendetwas anlegt. `## Betroffene Module` ist wie bei `/epic`
+Befehl mit allen Lücken ab, bevor er irgendetwas anlegt. `## Betroffene Module` ist wie bei `/mission`
 freiwillig; fehlt er, steht ein Hinweis in `hinweise`.
 
 **Was entsteht:** Zuerst die Mission mit `epic_label`, dann die Missionsziele in der Reihenfolge des
@@ -198,7 +198,7 @@ in `src/auftrag/auftrag.ts` legt eine Mission an, deren Missionsziele schon exis
 Sternzeit-Notizen selbst): Body wie oben (`## Missionsziele` mit den Nummern), nur `epic_label`,
 danach jedes Missionsziel als Sub-Issue verknüpft; an den Missionszielen ändert sich dabei nichts.
 `ready_label` setzt der Aufrufer erst, wenn ein Missionsziel freigegeben ist, damit nie eine Mission
-ohne freigegebenes Kind Warp frei hat. Scheitert ein Verknüpfen, nennt der Fehler die schon angelegte
+ohne freigegebenes Missionsziel Warp frei hat. Scheitert ein Verknüpfen, nennt der Fehler die schon angelegte
 Mission. `missionszielAnhaengen` hängt ein vorhandenes Missionsziel an eine offene Mission:
 verknüpfen, dann `- [ ] #<nr> <Titel>` unter den letzten Eintrag ihrer Liste (fehlt die Liste, kommt
 sie ans Ende), der übrige Text bleibt. Nennt die Liste es schon (etwa eine widerrufene Notiz, die
@@ -215,15 +215,15 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/
 **Ein Aufruf je Projekt** (#146): Ein einziger `claude -p` je Projekt (Werkzeuge nur
 `Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) liest alle Notizen, die ins Modell gehen
 (Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
-(Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Kinder aus
-`sub_issues_summary`, im Auftrag als `(<n> Kinder, noch <m> frei)` bzw. `(8 Kinder, voll, keine neuen
-Kinder)`; eine, deren Kinder nicht lesbar sind, kommt nicht in Frage). Passende offene Missionen haben
+(Label `epic_label`, offen, ohne `status/in-arbeit`, mit der Zahl ihrer Missionsziele aus
+`sub_issues_summary`, im Auftrag als `(<n> Kinder, noch <m> frei)` bzw. `(8 Kinder, voll, keine neuen Kinder)`;
+eine, deren Missionsziele nicht lesbar sind, kommt nicht in Frage). Passende offene Missionen haben
 ausdrücklich Vorrang vor neuen, so gehen Notizen eines späteren Laufs in die Missionen früherer. Er liefert in
 einer strukturierten Antwort den Schnittplan und die Klärung jeder Notiz; eine Einzelklärung je Notiz gibt es
-nicht. Er ordnet jede Notiz genau einmal zu: `mission` (Kind einer offenen Mission), `neue_mission` (Kind einer neuen
+nicht. Er ordnet jede Notiz genau einmal zu: `mission` (Missionsziel einer offenen Mission), `neue_mission` (Missionsziel einer neuen
 Mission für ein Thema), `zusammengefuehrt` (Duplikat oder Teilstück; `in` = die Notiz, die bleibt),
 `ueberfluessig` (mit Grund und Fundstelle), `verworfen` (mit Grund) oder `triage` (bleibt in der
-Triage). Grenzen: höchstens 4 neue Missionen je Lauf, eine Mission höchstens 8 Kinder, vorhandene
+Triage). Grenzen: höchstens 4 neue Missionen je Lauf, eine Mission höchstens 8 Missionsziele, vorhandene
 zählen mit. Aus einer Notiz entsteht nie ein neues Ticket. Je Zuordnung klärt er die Notiz wie in einer
 Fragerunde: Er stellt sich die Fragen, beantwortet sie aus Text, Kommentaren, ADRs und Code (`fragen`,
 je mit Antwort, Herkunft und Grund) und entscheidet nach der Liste „beim Menschen“
@@ -241,7 +241,7 @@ Aufruf: Der Normalfall ist genau ein Aufruf je Projekt, die Zahl steht in der Au
 im Plan nach der Reparaturrunde nur noch einzelne Notizen mit `mission` oder `neue_mission` durch die
 Prüfung ihrer Abschnitte, hält das den Plan nicht auf: Das Programm stuft jede solche Notiz auf `triage`
 herab (`herabgestuft` nennt Fehler und vorgesehene Mission), der Rest gilt; eine neue Mission, der so alle
-Kinder fehlen, wird nicht angelegt. Text und Label der Notiz bleiben; sie bekommt eine Frage an den Menschen
+Missionsziele fehlen, wird nicht angelegt. Text und Label der Notiz bleiben; sie bekommt eine Frage an den Menschen
 in der Form der Triage (Punkt `Prüfung nicht bestanden`, Optionen „Abschnitte ergänzen, dann <Mission>
 zuordnen“ als Empfehlung oder „verwerfen“) und wartet auf seine Antwort, wie jede gefragte Notiz. Ist
 auch der zweite Plan sonst ungültig, oder kam gar keine Antwort im Schema (der Aufruf selbst scheiterte;
@@ -295,15 +295,15 @@ Mission für Mission geschrieben, je Notiz in dieser Reihenfolge:
 2. der Text der Notiz wird **ergänzt, nicht ersetzt**: ein fehlender Abschnitt kommt ans Ende, ein
    leerer bekommt seinen Inhalt unter die Überschrift; der bisherige Text bleibt Zeichen für Zeichen
    stehen (auch Zeilenenden und Leerzeichen). Ist nichts zu ergänzen, wird er nicht angefasst;
-3. die Mission: eine **neue** entsteht nur, wenn mindestens eines ihrer Kinder in diesem Lauf klar
+3. die Mission: eine **neue** entsteht nur, wenn mindestens eines ihrer Missionsziele in diesem Lauf klar
    ist, über den Auftragsschreiber (`missionAnlegen`, oben) mit `epic_label`, der Begründung des Plans
-   als Text und den klaren Kindern; danach der Kommentar `**Triage: Mission aus dem Schnittplan**` mit
-   Titel, Begründung, Missionszielen, den Kindern, die nach ihrer Antwort später dazukommen, dem
+   als Text und den klaren Missionszielen; danach der Kommentar `**Triage: Mission aus dem Schnittplan**` mit
+   Titel, Begründung, Missionszielen, den Missionszielen, die nach ihrer Antwort später dazukommen, dem
    Hinweis, wann sie Warp frei bekommt, und dem Widerruf (`ready_label` an der Mission ab). An eine
    **offene** Mission kommt zuerst ein Kommentar mit den neuen Missionszielen und ihrer Herkunft, dann
    wird jede Notiz verknüpft und in ihre Liste `## Missionsziele` eingetragen (`missionszielAnhaengen`;
    steht sie dort schon, etwa nach einem Widerruf, wird nichts doppelt verknüpft); die Grenze von
-   8 Kindern prüft schon der Plan;
+   8 Missionszielen prüft schon der Plan;
 4. zuletzt `ready_label` dazu, `needs-triage`/`needs-info` ab. Erst jetzt, denn eine Notiz mit
    `ready_label`, die an keiner Mission hängt, wäre wieder ein eigener Einsatz. Eine **neue** Mission
    bekommt `ready_label` erst nach ihrem ersten so freigegebenen Missionsziel; scheitert vorher das
@@ -384,7 +384,7 @@ es nicht; das Entscheidungsrecht steht in `references/entscheidungsrecht.md`.
 Modell und die wartenden; Missionen und `fremd` nicht) neu aus der Forge (`gh issue view` mit Kommentaren,
 `gh api …/issues/<nr>` Feld `parent_issue_url`, die Mission einmal je Lauf). Erlaubt sind nur drei
 Endzustände: **geschlossen mit Grund** (der letzte Triage-Kommentar nennt `Grund:` oder `Zusammengeführt in
-#<nr>`); **Kind einer Mission mit `ready_label`** (offen, Sub-Issue einer offenen Mission mit `epic_label`;
+#<nr>`); **Missionsziel einer Mission mit `ready_label`** (offen, Sub-Issue einer offenen Mission mit `epic_label`;
 eine in diesem Lauf angelegte Mission trägt `ready_label` ebenfalls); **in der Triage mit offener Frage**
 (`needs-triage`/`needs-info`, der letzte Triage-Kommentar ist eine Frage ohne Antwort darunter). Alles
 andere ist eine Abweichung, auch eine klare Notiz, die der Plan auf `triage` ließ, und eine wartende
@@ -404,7 +404,7 @@ dahin geschrieben ist, steht in der Ausgabe. `flotte triage` bricht so bei Ctrl+
 die Ausgabe mit `zustand: abgebrochen`). Der Treiber bricht einen Triage-Lauf ab, wenn er anhält
 (`flotte anhalten`, die Logbuchzeile `Triage-Lauf abgebrochen: Treiber angehalten; bis dahin …`, die
 Entscheidungen und der Schnittplan bis dahin bleiben widerrufbar) oder Ctrl+C bekommt (Logbuch und
-Zustand noch vor dem Ende); anders als ein Epic-Lauf übernimmt ihn kein Neustart. Er steht mit `seit` und den pids seiner Aufrufe im Zustand
+Zustand noch vor dem Ende); anders als ein Missions-Lauf übernimmt ihn kein Neustart. Er steht mit `seit` und den pids seiner Aufrufe im Zustand
 (`triageLauf`); steht er dort beim Start noch, meldet der Treiber ihn als abgebrochen (Logbuch und
 `triage.abschluss`) und beendet einen noch lebenden Aufruf, wenn Startzeit und pid passen (D16).
 
@@ -432,8 +432,8 @@ sie im Frachtraum **widerrufen** (`schnitt-widerruf`, mit Einwand). Jede Änderu
   (kein Zug, kein Auftrag), wird sie ausgetragen (aus dem Einsatz, aus `aufgenommen` und aus dem Zustand;
   sie startet nicht und hält das Ende des Einsatzes nicht auf). Hat sie schon begonnen, wird sie pausiert
   (der laufende Zug läuft zu Ende, keine Arbeit geht verloren, wie `pausieren`) und ihr Schalter fürs
-  Andocken auf `mensch` gestellt (#112): Ihr PR, auch einer noch vor dem Kopf der Merge-Schlange, wird nur
-  von einem Menschen gemergt; ein schon laufender Merge läuft zu Ende. Jede vom Lauf verknüpfte Notiz
+  Andocken auf `mensch` gestellt (#112): Ihr PR, auch einer noch vor dem Kopf der Andock-Schlange, wird nur
+  von einem Menschen angedockt; ein schon laufendes Andocken läuft zu Ende. Jede vom Lauf verknüpfte Notiz
   bekommt einen Kommentar, wird gelöst (`DELETE …/issues/<mission>/sub_issue`, Zeile aus der Liste) und
   bekommt `ready_label` ab, `needs-triage` an; zuletzt wird die Mission `not planned` geschlossen (nie
   gelöscht, wieder zu öffnen; offen böte der nächste Schnittplan sie wieder an). Eine ausgetragene
@@ -467,7 +467,7 @@ in derselben Form mit den Fragen früherer Läufe, die unter einem `wartet` noch
 bei Paketen die des letzten), nach einer Reparaturrunde `reparatur` (`sitzung` und `fehler` des ersten
 Plans), `aufrufe` (die Admiral-Aufrufe für die Notizen dieses Projekts: 1, je Reparatur und je weiterem
 Paket einer mehr), nur bei einer Teilung `pakete` (je `notizen`, `sitzung`, gegebenenfalls `reparatur`), `neue_missionen` (je
-`schluessel`, `titel`, `begruendung`, `kinder` = Nummern der Notizen; #147, wenn ein Kind klar war,
+`schluessel`, `titel`, `begruendung`, `kinder` = Nummern der Notizen; #147, wenn ein Missionsziel klar war,
 dazu `labels` (mit `ready_label` erst nach der ersten Freigabe), `body`, `kommentar`, `angehaengt` =
 die Notizen in ihr, `geschrieben`, angelegt `nummer` und `url` (auch wenn danach ein Schritt
 scheiterte), gegebenenfalls `fehler`), `missionen` (#147, die offenen Missionen, an die
@@ -494,31 +494,31 @@ Anzeige des Plans ist #148.
 
 ## Prognose
 
-Die Brücke sagt je wartendem Epic „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
+Die Brücke sagt je wartender Mission „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
 Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dort gemessen hat:
 
-- **Messen:** Je fertigem Epic schreibt der Treiber eine Zeile in
+- **Messen:** Je fertiger Mission schreibt der Treiber eine Zeile in
   `<git common dir>/flotte/messungen.jsonl`. Sie überdauert Einsätze. In der Zeile stehen:
   - die Arbeitszeit vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der der ganze
     Lauf auf dich wartete;
-  - die Gate-Zeit des Treibers und das Konto;
+  - die Andockprüfungs-Zeit des Treibers und das Konto;
   - je Paket die Klasse (mechanisch, Standard, Urteil, Urteil-hoch) und die Eskalationen, gelesen
-    aus den Implementer-Aufrufen im Log des Laufs.
+    aus den Ingenieur-Aufrufen im Log des Laufs.
 - **Rechnen:** Monte-Carlo über die gemessenen Verteilungen statt eines Mittelwerts, 2000 Züge mit
   festem Seed. Je Zug kommen aus den Messungen:
-  - ein Tempo (Arbeitszeit je gewichtetem Paket eines fertigen Epics);
-  - die Pakete des neuen Epics mit Klasse und Eskalationen;
-  - eine Gate-Zeit.
+  - ein Tempo (Arbeitszeit je gewichtetem Paket einer fertigen Mission);
+  - die Pakete der neuen Mission mit Klasse und Eskalationen;
+  - eine Andockprüfungs-Zeit.
 
   Die Komplexität zählt über die Klasse (Gewicht 0,5 / 1 / 2 / 3, je Eskalation +1), verteilt auf
   bis zu drei Pakete gleichzeitig, nicht über die bloße Zahl der Tickets. Für den Backlog verteilt
-  die Rechnung alle freigegebenen, noch offenen Epics auf die Plätze der Obergrenze. Ein laufendes
-  Epic braucht dabei nur noch seinen Rest. Angezeigt wird die Spanne P50–P90.
-- **Schwelle:** erst ab 5 gemessenen Epics (Adapter `prognose_ab`). Vorher zeigt die Brücke
-  „Prognose ab 5 Epics · bisher N“. Jedes weitere Epic rechnet sie von selbst mit.
-- **Selbstprüfung:** Beim ersten Start eines Epics merkt sich der Treiber die Prognose; am Ende hält
-  er fest, ob die echte Dauer samt Gate zwischen P10 und P90 lag. Die Brücke zeigt „traf 7 von 10“.
-  Liegt die Quote ab 5 geprüften Epics unter 60 %, blendet sie die Prognose aus: „zu ungenau für
+  die Rechnung alle freigegebenen, noch offenen Missionen auf die Plätze der Obergrenze. Eine laufende
+  Mission braucht dabei nur noch ihren Rest. Angezeigt wird die Spanne P50–P90.
+- **Schwelle:** erst ab 5 gemessenen Missionen (Adapter `prognose_ab`). Vorher zeigt die Brücke
+  „Prognose ab 5 Missionen · bisher N“. Jede weitere Mission rechnet sie von selbst mit.
+- **Selbstprüfung:** Beim ersten Start einer Mission merkt sich der Treiber die Prognose; am Ende hält
+  er fest, ob die echte Dauer samt Andockprüfung zwischen P10 und P90 lag. Die Brücke zeigt „traf 7 von 10“.
+  Liegt die Quote ab 5 geprüften Missionen unter 60 %, blendet sie die Prognose aus: „zu ungenau für
   dieses Projekt“.
 - **Wartezeit auf dich** ist nirgends eingerechnet; die Brücke sagt das dazu.
 
@@ -530,29 +530,35 @@ und Trefferquote.
 `flotte messen <einsaetze.json>` (Form: `messung/einsaetze.beispiel.json`) liest die Transkripte
 der Läufe samt ihrer Subagenten und gibt je Einsatz unter anderem aus:
 
-- **`tokens`:** Eingabe, Cache-Schreiben, Cache-Lesen und Ausgabe, je Agent-Typ, je Epic und je
+- **`tokens`:** Eingabe, Cache-Schreiben, Cache-Lesen und Ausgabe, je Agent-Typ, je Mission und je
   Paket, jeweils mit **Cache-Quote** (Lesen durch alles, was hineinging). Je Paket die Zahl der
-  Implementer- und Reviewer-Läufe, also die **Review-Runden**.
+  Ingenieur- und Erster-Offizier-Läufe, also die **Review-Runden**.
 - **`kontext_anteil`** je Agent-Typ: welcher Anteil seiner gewichteten Tokens auf Werkzeugergebnisse
-  einer Art fällt — Test, Gate, Diff (`git diff/show/log`), Lesen, übrige Shell. Ein Ergebnis kostet
+  einer Art fällt — Test, Andockprüfung, Diff (`git diff/show/log`), Lesen, übrige Shell. Ein Ergebnis kostet
   einmal das Schreiben in den Cache und danach bei jedem weiteren Modellaufruf das Lesen. Der Anteil
   ist die **Obergrenze** dessen, was eine Maßnahme sparen kann, die diese Ergebnisse kürzt.
-- **`verlauf`** (unter dem Treiber): Durchlaufzeit je Epic ohne Warten auf dich und die
+- **`verlauf`** (unter dem Treiber): Durchlaufzeit je Mission ohne Warten auf dich und die
   Fehlerquote (Rückgabe an den Lauf, blockiert, abgebrochen).
 
 **Was das schon entschieden hat (21.11.2026).** Für das „Sparpaket“ aus der Skill-Recherche lief
-`flotte messen` über alle Läufe der drei Konten vom 1. bis 21.11.2026 (448 Implementer und
-Reviewer, 195 Pakete). Je Agent-Typ kosteten Testausgaben 0,4–0,5 % der Tokens, Diffs im Review
+`flotte messen` über alle Läufe der drei Konten vom 1. bis 21.11.2026 (448 Aufrufe von Ingenieuren und
+Ersten Offizieren, 195 Pakete). Je Agent-Typ kosteten Testausgaben 0,4–0,5 % der Tokens, Diffs im Review
 4,2–4,5 %, Lesen 5–10 %, übrige Shell 5–17 %; die Cache-Quote lag bei 96–98 %. 13 von 195 Paketen
 brauchten eine zweite Review-Runde. Ein Hook, der Testausgabe kürzt, ein enger Nach-Review und ein
 Review-Paket als Datei hätten höchstens diese Anteile treffen können; sie wurden deshalb nicht
 übernommen (Begründung im Pull Request des Sparpakets).
 
+## Prüfen
+
+`bun test` braucht keine Installation und läuft in der Andockprüfung (`gate.ps1`). Die Typprüfung
+(`bun run typecheck`, `tsc -p .`) braucht die `devDependencies` und damit vorher `bun install` in
+`flotte/`; ein Worktree von `Up` hat kein `node_modules`, und die Andockprüfung fährt sie nicht.
+
 ## Bei dir
 
-Fragen, die der Admiral nicht entscheiden darf; das Mergen bei `merge: mensch`; eine Anmeldung,
+Fragen, die der Admiral nicht entscheiden darf; das Andocken bei `merge: mensch`; eine Anmeldung,
 wenn ein Konto abgemeldet ist; Widerruf einer Entscheidung als Kommentar am Issue oder auf der
-Brücke; ein blockiertes Epic neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
-der Brücke; ein freigegebenes Epic aufnehmen, ein Epic pausieren und fortsetzen, sein Andocken stellen
+Brücke; eine blockierte Mission neu einreihen oder aufgeben (Brücke); Vorrang mit `prio/hoch` oder auf
+der Brücke; eine freigegebene Mission aufnehmen, eine Mission pausieren und fortsetzen, ihr Andocken stellen
 (Brücke, Sternenkarte); einen Triage-Lauf starten, eine Frage der Triage beantworten, eine Entscheidung
 der Triage widerrufen (Brücke, Frachtraum).

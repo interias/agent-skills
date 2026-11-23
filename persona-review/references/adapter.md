@@ -6,7 +6,7 @@ lokalen Instanz). Der Adapter darf den Skill verschärfen, nie lockern; eine Bas
 lokalen Host nimmt das Kit nicht an.
 
 Forge, Labels und Ticketform liest der Skill aus `.claude/epic.md` (Vertrag:
-`references/adapter.md` des Skills `epic`).
+`references/adapter.md` des Skills `mission`).
 
 ## Schlüssel
 
