@@ -219,9 +219,11 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau();
       const buch = drehbuch([lauf(3, [{ text: block }]), admiral(3, [{ nr: 1, antwort: 'A, B', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
       const anfang = Date.now();
-      // a turn of a minute: only the report on the event and the short polling bring the answer in time
-      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, taktMs: 60_000, brueckeAbfrageMs: 100 }), t.welt);
-      expect(Date.now() - anfang).toBeLessThan(20_000);
+      // a tick of ten minutes: only the report on the event and the short polling bring the answer before it
+      // (#164: the bound is the tick itself, far from the few seconds this takes; the test's own limit guards a hang)
+      const TAKT = 600_000;
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, taktMs: TAKT, brueckeAbfrageMs: 100 }), t.welt);
+      expect(Date.now() - anfang).toBeLessThan(TAKT);
       const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe[1].eingabe).toMatch(/\n1\. A, C, E$/);
       expect(z.fragen[0]).toMatchObject({ mehrfach: true, empfehlung: 'A, B', beantwortet: 'A, C, E' });
@@ -231,7 +233,7 @@ describe('Flottenbrücke (#28)', () => {
     } finally {
       await b.zu();
     }
-  }, T);
+  }, 120_000);
 
   it('a bridge that is off: the driver works on, one event', async () => {
     const t = aufbau();
@@ -241,16 +243,31 @@ describe('Flottenbrücke (#28)', () => {
     expect(t.p.meldungen.filter((m) => /Flottenbrücke nicht erreichbar/.test(m))).toHaveLength(1);
   }, T);
 
-  it('a block that does not parse: the wording goes to the person, a free-text answer reaches the run unchanged', async () => {
+  it('#152: a block that does not parse goes to the admiral first; he decides, the person is not asked', async () => {
+    const roh = 'FLOTTE-FRAGE 3 tor\nIch weiß nicht weiter: Datei anlegen oder nicht?\nSTAND: Tor';
+    const t = aufbau();
+    const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), admiral(3, [{ nr: 1, antwort: 'Leg sie an.', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    const an = buch.gesehen().find((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))!;
+    expect(an.eingabe).toContain('Ich weiß nicht weiter: Datei anlegen oder nicht?');
+    // the order of the run names the question line in its wording
+    expect(buch.gesehen()[0].eingabe).toContain('jede in einer Zeile: `1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe>');
+    expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))[1].eingabe).toMatch(/Antwort des Admirals auf FLOTTE-FRAGE tor:\n1\. Antwort: Leg sie an\./);
+    expect(z.fragen).toEqual([]);
+    expect(t.p.kommentare.some((k) => k.nr === 3 && /FRAGE AN DEN MENSCHEN/.test(k.text))).toBe(false);
+    expect(z.epics['3'].stufe).toBe('fertig');
+  }, T);
+
+  it('a block that does not parse and the admiral names a point for the person: the wording goes to the person, a free-text answer reaches the run unchanged', async () => {
     const roh = 'FLOTTE-FRAGE 3 tor\nIch weiß nicht weiter: Datei anlegen oder nicht?\nSTAND: Tor';
     const b = await attrappe((f) => (f.frage === '' && f.roh.includes('Ich weiß nicht weiter') ? { option: null, text: 'Leg sie an.' } : null));
     try {
       const t = aufbau();
-      const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const buch = drehbuch([lauf(3, [{ text: `Bericht.\n\n${roh}` }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
-      expect(buch.gesehen().some((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))).toBe(false);
-      expect(laeufe[1].eingabe).toMatch(/nicht in Fragen zerlegen[\s\S]*\n1\. Antwort: Leg sie an\.$/);
+      expect(buch.gesehen().filter((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL'))).toHaveLength(1);
+      expect(laeufe[1].eingabe).toMatch(/1\. liegt beim Menschen[\s\S]*\n1\. Antwort: Leg sie an\.$/);
       expect(t.p.kommentare.some((k) => k.nr === 3 && k.text.includes('Ich weiß nicht weiter'))).toBe(true);
       expect(z.fragen[0]).toMatchObject({ frage: '', roh, beantwortet: 'Antwort: Leg sie an.' });
       expect(z.epics['3'].stufe).toBe('fertig');
@@ -362,6 +379,106 @@ describe('Flottenbrücke (#28)', () => {
       expect(laeufe[2].eingabe).toMatch(/neu eingereiht\. Grund der Blockade war: Erlaubnis verweigert: Bash/);
       expect(laeufe[2].eingabe).toContain('\nOffen und ohne Antwort des Menschen:\n1. Frage 1 zu #3?\nEntscheide sie nicht selbst. Stelle sie im nächsten FLOTTE-FRAGE erneut.');
       expect(z.fragen.filter((f) => f.epic === 3 && !f.beantwortet)).toHaveLength(1);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#135: every mission blocked, no --dauerhaft: the driver stays in the deployment, a later requeue continues the run', async () => {
+    let berichteBlockiert = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (x.epics.find((e) => e.nr === 3)?.stufe !== 'blockiert') return null;
+        // the person comes back later: after three more reports of the blocked mission, counted, not timed
+        return ++berichteBlockiert > 3 ? { epic: 3, art: 'einreihen' } : null;
+      },
+    });
+    try {
+      const t = aufbau();
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const buch = drehbuch([lauf(3, [abgemeldet], 1), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, maxDauerMs: 120_000 }), t.welt);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(2);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.ereignisse.filter((e) => /bleibt im Einsatz: #3 blockiert/.test(e.text))).toHaveLength(1);
+      expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#135: a blocked mission given up on the bridge: then the deployment ends', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.epics[0]?.stufe === 'blockiert' ? { epic: 3, art: 'aufgeben' } : null) });
+    try {
+      const t = aufbau();
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [abgemeldet], 1)]), [3], { bruecke: b.url, maxDauerMs: 120_000 }), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'abgebrochen' });
+      expect(z.ereignisse.some((e) => /^Einsatz beendet/.test(e.text))).toBe(true);
+      expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#135: a blocked mission of an earlier deployment in zustand.json keeps no driver in this one', async () => {
+    const b = await attrappe(() => null);
+    try {
+      const t = aufbau();
+      const z0 = leer(t.repo);
+      z0.epics['7'] = { ...neuesEpic(7), stufe: 'blockiert', notiz: 'alt' } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3], { bruecke: b.url, maxDauerMs: 60_000 }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.ereignisse.some((e) => /bleibt im Einsatz/.test(e.text))).toBe(false);
+      expect(z.ereignisse.some((e) => /^Einsatz beendet/.test(e.text))).toBe(true);
+      expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#135: a blocked mission of an earlier deployment, requeued on the bridge, joins this deployment and runs', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.epics.find((e) => e.nr === 7)?.stufe === 'blockiert' ? { epic: 7, art: 'einreihen' } : null) });
+    try {
+      // #3 ends only once #7 runs (an event), so the deployment is still alive for the requeue
+      const t = aufbau({ signale: { 'laeuft-7': /^#7 Lauf gestartet/ } });
+      const z0 = leer(t.repo);
+      z0.epics['7'] = { ...neuesEpic(7), stufe: 'blockiert', notiz: 'alt' } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const buch = drehbuch([lauf(3, [{ signal: 'laeuft-7' }, { text: ende(3, 13) }]), lauf(7, [{ text: ende(7, 17) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, maxDauerMs: 120_000 }), t.welt);
+      expect(z.epics['7'].stufe).toBe('fertig');
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.ereignisse.some((e) => /^Einsatz beendet: .*#7 fertig/.test(e.text))).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#133: requeued after an order edge to an open epic was added: waiting with the session dropped; after the merge of #4 a new start without --resume', async () => {
+    const bodies: Record<number, string> = { 3: '## Betroffene Module\n- a', 4: '## Betroffene Module\n- b' };
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (x.epics.find((e) => e.nr === 3)?.stufe !== 'blockiert') return null;
+        // the person adds the edge to the blocked epic, then requeues it
+        bodies[3] = '> **Reihenfolge:** nach #4\n\n## Betroffene Module\n- a';
+        return { epic: 3, art: 'einreihen' };
+      },
+    });
+    try {
+      // #4 ends only once #3 waits for it (an event), so the requeue meets an open predecessor
+      const t = aufbau({ bodies, signale: { 'wartet-3': /^#3 neu eingereiht .*Vorgänger #4 noch nicht gemergt, wartet/ } });
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const buch = drehbuch([lauf(3, [abgemeldet], 1), lauf(4, [{ signal: 'wartet-3' }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, maxDauerMs: 120_000 }), t.welt);
+      const starts = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
+      expect(starts).toHaveLength(2);
+      expect(starts[1].args).not.toContain('--resume');
+      expect(t.p.zeitleiste.indexOf('gemergt 14')).toBeLessThan(t.p.zeitleiste.indexOf('gemergt 13'));
+      expect(t.p.zeitleiste.indexOf('gemergt 14')).toBeGreaterThan(-1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.ereignisse.some((e) => e.epic === 3 && /neu eingereiht vom Menschen \(über die Brücke\), Vorgänger #4 noch nicht gemergt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
     } finally {
       await b.zu();
     }
@@ -486,12 +603,16 @@ describe('Flottenbrücke (#28)', () => {
     const b = await attrappe(() => null);
     try {
       const t = aufbau();
-      const buch = drehbuch([lauf(3, [{ warte: 2500 }, { text: ende(3, 13) }])]);
-      const anfang = Date.now();
+      // #164: by events, not by the clock: anhalten once the run has started; the run ends only on a signal
+      // the test gives after the driver ended, so a driver that waited for the run would hang here
+      const buch = drehbuch([lauf(3, [{ signal: 'weiter' }, { text: ende(3, 13) }])]);
       let datei = '';
-      setTimeout(() => (datei = (anhalten([t.repo]) as { datei: string }).datei), 500);
+      void (async () => {
+        while (!buch.gesehen().length) await new Promise((r) => setTimeout(r, 25));
+        datei = (anhalten([t.repo]) as { datei: string }).datei;
+      })();
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
-      expect(Date.now() - anfang).toBeLessThan(2400);
+      writeFileSync(`${buch.datei}.signal-weiter`, '');
       expect(z.epics['3'].stufe).toBe('laeuft');
       expect(t.p.meldungen.some((m) => /^Angehalten auf Wunsch: kein Merge offen, 1 Lauf/.test(m))).toBe(true);
       // the request is used up: the next start runs normally
@@ -1120,6 +1241,9 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     fehler: [],
     schnittplan: [],
     nachgeholt: [],
+    // the final check of a clean run; the driver reads it like a missing one (#163: the type wants it)
+    abschluss: { geprueft: 0, sauber: 0, abweichungen: [] },
+    zustand: 'beendet',
   });
   const zwei = () => ergebnis([{ nummer: 7, ergebnis: 'klar', herkunft: 'Skill-Empfehlung', grund: 'Abschnitte nachgetragen' }, { nummer: 8, ergebnis: 'ueberfluessig', herkunft: 'Präzedenz: #3', grund: 'schon erledigt' }, { nummer: 9, ergebnis: 'kritisch', herkunft: 'h', grund: 'g' }], 1);
 
@@ -1522,7 +1646,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(t.p.aufrufe.filter((a) => a[1] === 'api' && a[3] === 'DELETE')).toHaveLength(2);
       expect(bodies[40]).toBe('Tafel\n\n## Missionsziele\n- [x] #12 Alt\n');
       // the mission itself: no label, no close
-      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && ['close', 'reopen'].includes(a[2]))).toEqual([]);
+      // (#145: the run's own mission #3 is closed after its merge)
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && ['close', 'reopen'].includes(a[2]) && a[3] !== '3')).toEqual([]);
       expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'edit' && a[3] === '40' && !a.includes('--body-file'))).toEqual([]);
       expect(texte(z)).toContain('Missionsziele #32 aus Mission #40 widerrufen (zurück in die Triage, die Mission bleibt), Mensch über die Brücke');
       const m = b.berichte.at(-1)!.triage.schnittplan!.missionen[1];
@@ -1624,7 +1749,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
       expect(texte(z)).toContain('Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: Mission #77 steht nicht im Schnittplan des letzten Triage-Laufs');
       expect(texte(z)).toContain('Widerruf einer Mission des Schnittplans über die Brücke abgelehnt: Kommentar an Mission #100 gescheitert, nichts geändert');
-      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[1] === 'api' || ['edit', 'close'].includes(a[2])) && a[3] !== '99')).toEqual([]);
+      // (#145: the run's own mission #3 is closed after its merge)
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[1] === 'api' || ['edit', 'close'].includes(a[2])) && a[3] !== '99' && a[3] !== '3')).toEqual([]);
       expect(z.triage!.schnittplan!.missionen[0].widerrufen).toBeNull();
     } finally {
       await b.zu();
@@ -1734,7 +1860,8 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(texte(z)).toContain('Triage-Antwort über die Brücke abgelehnt: Option C gibt es bei Frage 1 an #61 nicht');
       expect(texte(z)).toContain('Widerruf einer Triage-Entscheidung über die Brücke abgelehnt: keine solche Entscheidung zu #7');
       expect(t.p.kommentare.filter((k) => k.nr === 61 || k.nr === 7)).toEqual([]);
-      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && ['edit', 'reopen', 'close'].includes(a[2] ?? '') && a[3] !== '99')).toEqual([]);
+      // (#145: the run's own mission #3 is closed after its merge)
+      expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && ['edit', 'reopen', 'close'].includes(a[2] ?? '') && a[3] !== '99' && a[3] !== '3')).toEqual([]);
       expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && (a[3] === '61' || a[3] === '7'))).toEqual([]);
       expect(b.hQuittungen.filter((x) => x > 0)).toHaveLength(5);
     } finally {

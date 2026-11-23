@@ -11,8 +11,10 @@
 #   probe-rot-paket  a branch prefix (agent/<nr>-): from the second gate run on that branch, thema
 #                    is red until thema/KONTRAST.md has the line "- nacht" (a red test in the
 #                    package that only a new round fixes, P10)
-#   probe-rot-epic   a branch prefix (epic/<nr>-): the first HEAD on that branch that merges a
-#                    package branch makes verse red, on every run at that HEAD (P13)
+#   probe-rot-epic   a branch prefix (epic/<nr>-): the first HEAD on that branch that merges package
+#                    b3 (the merge adds verse/fruehling.txt) makes verse red, on every run at that
+#                    HEAD (P13). Fixed on b3 so that before (/mission) and after (flotte mission) the
+#                    trigger hits the same package, not b1 with b2 hanging on it
 
 function Test-ProbeRegel([string]$bereich) {
     if ($bereich -eq 'obst') {
@@ -47,7 +49,7 @@ function Test-ProbeRegel([string]$bereich) {
             if ($branch.StartsWith($teile[0])) {
                 if ($teile.Count -eq 1) {
                     $eltern = @((git rev-list --parents -n 1 HEAD).Trim() -split ' ')
-                    if ($eltern.Count -eq 3 -and @(git branch --list 'agent/*' --contains $eltern[2]).Count) {
+                    if ($eltern.Count -eq 3 -and @(git branch --list 'agent/*' --contains $eltern[2]).Count -and @(git diff --name-only $eltern[1] $kopf) -contains 'verse/fruehling.txt') {
                         Set-Content $epic "$($teile[0]) $kopf"
                         $teile += $kopf
                     }

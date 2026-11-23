@@ -12,14 +12,18 @@ Verifikationsweg, Berichtsform. Halte dich wörtlich daran.
 Mechanisch heißt: Die Änderung ist als Verschiebung lesbar. Stößt du auf eine Stelle, die eine
 inhaltliche Entscheidung verlangt, entscheide sie nicht, sondern nenne sie im Bericht.
 
-**Kein Zug endet wartend.** Jeder Befehl läuft im Vordergrund und endet unter zehn Minuten, der
-Grenze des Shell-Werkzeugs; dauert eine Suite länger, fährst du sie in Teilen. Du legst keinen
-Befehl in den Hintergrund, auf dessen Ergebnis du wartest, und beendest deinen Zug nur mit dem
-Bericht — eine Benachrichtigung, auf die du wartest, erreicht dich nie (Lauf BRIQNET #574,
-09.11.2026: ein Subagent stand so 248 Minuten).
+**Kein Zug endet wartend.** Kein Befehl läuft länger als zehn Minuten im Vordergrund, der Grenze
+des Shell-Werkzeugs. Den einen Volllauf am Ende startest du als Hintergrundbefehl mit Logdatei
+und liest deren Ende, wenn die Meldung über sein Ende kommt — kein `sleep`, keine Schleife, kein
+zweiter Volllauf, kein Zerlegen. Bis dahin arbeitest du weiter (Bericht vorbereiten) und beendest
+deinen Zug nur mit dem Bericht, nie während ein Befehl läuft — eine Benachrichtigung nach dem Ende
+des Zugs erreicht dich nie (Lauf BRIQNET #574, 09.11.2026: ein Subagent stand so 248 Minuten).
 
 **Tests:** `/mission`, Phase 4a, „Gezielt iterieren, einmal voll" — steht ausgeschrieben in deinem
 Auftrag; fehlt er dort, lies ihn in `~/.claude/skills/mission/SKILL.md`.
+
+**Vor dem Bericht** prüfst du jeden Abnahmepunkt deines Pakets selbst und nennst je Punkt den
+Beleg: Test, `Datei:Zeile` oder Befehl mit Ausgabe. Ein Punkt ohne Beleg gilt als nicht erfüllt.
 
 **Der Bericht endet** mit ein bis zwei Zeilen: was du ausgelassen oder nicht geprüft hast, und
 jedes Risiko, das der Erste Offizier kennen muss.

@@ -37,12 +37,12 @@ describe('lauf', () => {
   });
 
   it('kills a run that prints nothing for too long (D5)', async () => {
+    // #164: the run hangs for a day; that starte returns at all, with leerlauf, shows the kill. The test's own
+    // limit is only the guard against that hang, wide enough for a loaded machine.
     const d = drehbuch([{ schritte: [{ text: 'los' }, { haenge: true }] }]);
-    const anfang = Date.now();
     const r = await starte({ repo: tmp(), konto: tmp(), auftrag: 'x', leerlaufMs: 400, ...mitAttrappe(d.datei) });
     expect(r).toMatchObject({ leerlauf: true, fehler: 'leerlauf', code: null });
-    expect(Date.now() - anfang).toBeLessThan(10_000);
-  });
+  }, 60_000);
 
   // #147: a run ends with its whole process tree; the stand-in's child stands for a tool call claude started
   const kinder = (datei: string) => (existsSync(`${datei}.kinder`) ? readFileSync(`${datei}.kinder`, 'utf8').split('\n').filter(Boolean).map(Number) : []);
@@ -62,7 +62,8 @@ describe('lauf', () => {
   }, 20_000);
 
   it('#147 an abort ends the whole process tree at once; aborted before the start, nothing is spawned', async () => {
-    const d = drehbuch([{ schritte: [{ text: 'los' }, { kind: 120_000 }] }]);
+    const KIND_MS = 120_000;
+    const d = drehbuch([{ schritte: [{ text: 'los' }, { kind: KIND_MS }] }]);
     const abbruch = new AbortController();
     let pid = 0;
     const lauf = starte({ repo: tmp(), konto: tmp(), auftrag: 'x', leerlaufMs: 60_000, abbruch: abbruch.signal, beimStart: (p) => (pid = p), ...mitAttrappe(d.datei) });
@@ -73,12 +74,13 @@ describe('lauf', () => {
     abbruch.abort('Treiber angehalten');
     const r = await lauf;
     expect(r.fehler).toBe('abbruch');
-    expect(Date.now() - anfang).toBeLessThan(5000);
+    // #164: "at once" against the setup: without the abort the run would live as long as its child (KIND_MS)
+    expect(Date.now() - anfang).toBeLessThan(KIND_MS / 2);
     expect(await tot([pid, ...kinder(d.datei)])).toEqual([]);
     const vorher = d.gesehen().length;
     expect((await starte({ repo: tmp(), konto: tmp(), auftrag: 'x', abbruch: abbruch.signal, ...mitAttrappe(d.datei) })).fehler).toBe('abbruch');
     expect(d.gesehen()).toHaveLength(vorher);
-  }, 20_000);
+  }, 90_000);
 
   it('reports exit codes, missing results, network and login errors (D1, D18)', async () => {
     const ohne = drehbuch([{ schritte: [], exit: 1 }]);

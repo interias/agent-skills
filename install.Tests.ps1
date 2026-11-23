@@ -123,6 +123,30 @@ Describe 'install.ps1 keeps a folder under a retired name it did not install' {
     }
 }
 
+Describe 'install.ps1 keeps a folder under a renamed skill name it did not install' {
+    $repo = New-Repo
+    $heim = New-Home
+    New-Item -ItemType Directory -Path "$repo\mission-nacharbeit" | Out-Null
+    Set-Content -Path "$repo\mission-nacharbeit\SKILL.md" -Value (New-Front 'mission-nacharbeit')
+    Add-Skill $heim 'epic' 'etwas-anderes'
+    Add-Skill $heim 'prd-nacharbeit' $null
+    Add-Skill $heim 'prd' 'prd'
+    $out = Invoke-Install $repo $heim @()
+
+    It 'keeps a folder whose SKILL.md names something else, and one without SKILL.md' {
+        Test-Path "$heim\.claude\skills\epic\SKILL.md" | Should Be $true
+        Test-Path "$heim\.claude\skills\prd-nacharbeit\notes.txt" | Should Be $true
+        (Get-Backups $heim 'epic-2*').Count | Should Be 0
+        (Get-Backups $heim 'prd-nacharbeit-*').Count | Should Be 0
+        @($out | Where-Object { $_ -like 'Kept *' }).Count | Should Be 2
+    }
+
+    It 'still removes the old folder this repository installed (its name: matches)' {
+        Test-Path "$heim\.claude\skills\prd" | Should Be $false
+        (Get-Backups $heim 'prd-2*').Count | Should Be 1
+    }
+}
+
 function New-Linked {
     $linked = Join-Path $TestDrive "linked-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     New-Item -ItemType Directory -Path $linked | Out-Null

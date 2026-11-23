@@ -35,11 +35,14 @@
 param(
     [Parameter(Mandatory)][string]$Session,
     [string]$ConfigDir,
-    [string]$Guard = (Join-Path $PSScriptRoot 'guard.ps1'),
+    [string]$Guard,
     [string]$Claude = 'claude',
     [switch]$DryRun
 )
 $ErrorActionPreference = 'Stop'
+# Resolved here, not as a parameter default: Windows PowerShell 5.1 leaves $PSScriptRoot empty
+# there when the script runs with -File (#26).
+if (-not $Guard) { $Guard = Join-Path $PSScriptRoot 'guard.ps1' }
 
 if (-not (Test-Path -LiteralPath $Guard -PathType Leaf)) {
     [Console]::Error.WriteLine("fortsetzen.ps1: guard.ps1 not found at $Guard. Not continuing without the hook.")

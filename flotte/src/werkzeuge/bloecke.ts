@@ -50,7 +50,7 @@ const KOPF = /^\s*(?:\*\*)?FLOTTE-(FRAGE|ENDE)(?:\*\*)?\s+#?(\d+)\b(.*)$/;
 function felder(zeile: string): Map<string, string> {
   const out = new Map<string, string>();
   const teile = zeile.split(/\s+[—–]\s+/);
-  out.set('Frage', teile[0].replace(/^\s*\d+[.)]\s*/, '').trim());
+  out.set('Frage', teile[0].replace(/^\s*\d+[.)]\s*/, '').trim().replace(/^\*\*(.+)\*\*$/, '$1'));
   for (const t of teile.slice(1)) {
     const m = /^([A-Za-zÄÖÜäöüß/]+):\s*(.*)$/s.exec(t.trim());
     if (m) out.set(m[1], m[2].trim());
@@ -139,6 +139,20 @@ function frageAus(nr: number, zeile: string): Frage {
   };
 }
 
+const FELD = /^(Betrifft|Lage|Optionen|Auswahl|Empfehlung|Grund|Regel\/Quelle|Quelle):/;
+
+/**
+ * A line that continues a question. #152: a field on its own line (`Lage: …`, also `**Lage:** …`)
+ * starts a field as ` — Lage: …` would; an option as a list item (`- **A)** …`) joins as `A) …`.
+ */
+function folgeZeile(z: string): string {
+  const t = z.trim().replace(/^\*\*([^*:]+):\*\*/, '$1:');
+  if (FELD.test(t)) return ` — ${t}`;
+  const option = /^[-*]\s+(?:\*\*)?([A-Z])\)(?:\*\*)?\s*(.*)$/.exec(t);
+  if (option) return ` ${option[1]}) ${option[2]}`;
+  return ` ${t}`;
+}
+
 /** The last block in the text, or null when the run ended without one. */
 export function leseBlock(text: string): Block | null {
   const zeilen = text.split(/\r?\n/);
@@ -168,7 +182,11 @@ export function leseBlock(text: string): Block | null {
     aktuell = null;
   };
   for (const z of rest) {
-    const nummer = /^\s*(\d+)[.)]\s+(.*)$/.exec(z);
+    // #152: `❓ **Q1** — **Frage**` starts a question like `1. Frage`
+    // (with the ❓, in bold, or followed by a dash or colon: not a line that merely starts with `Q3-…`)
+    const q = /^\s*(?:❓\s*(?:\*\*)?Q(\d+)(?:\*\*)?|\*\*Q(\d+)\*\*|Q(\d+)(?=\s+[—–]|:))\s*(?:[—–:.)-]\s*)?(.*)$/.exec(z);
+    const qNr = q ? (q[1] ?? q[2] ?? q[3]) : null;
+    const nummer = /^\s*(\d+)[.)]\s+(.*)$/.exec(z) ?? (q ? [z, qNr!, `${qNr}. ${q[4]}`] : null);
     const st = /^\s*STAND:\s*(.*?)(?:\s+TAFEL:\s*(\S+))?\s*$/.exec(z);
     if (st) {
       abschliessen();
@@ -178,10 +196,10 @@ export function leseBlock(text: string): Block | null {
     }
     if (nummer) {
       abschliessen();
-      aktuell = { nr: Number(nummer[1]), text: z };
+      aktuell = { nr: Number(nummer[1]), text: q && !/^\s*\d+[.)]\s/.test(z) ? nummer[2] : z };
       continue;
     }
-    if (aktuell && z.trim()) aktuell.text += ' ' + z.trim();
+    if (aktuell && z.trim()) aktuell.text += folgeZeile(z);
   }
   abschliessen();
   return { art: 'frage', epic, phase, fragen, stand, tafel, roh: zeilen.slice(start).join('\n').trim() };

@@ -32,7 +32,7 @@ sie in der Git-Ablage.
 | Mini-Mission | Pakete | Kante | gedacht für |
 |---|---|---|---|
 | A Obstkorb | a1, a2, a3: je eine Datei in `obst/` | keine | volles Fenster; verdeckt muss jede Datei in `obst/REGISTER.md` stehen, parallele Pakete fügen an derselben Stelle ein: **P14** Konflikt mechanisch |
-| B Verse mit Wächter | b1 Wächter in der Andockprüfung (*Urteil*), b2 Vierzeiler, b3 Zweizeiler | b2 nach b1 | harte Kante, eine Urteil-Klasse (Opus); Auslöser `probe-rot-epic`: der erste Kopf des Missions-Branches mit einem angedockten Paket macht `verse` rot, bis zum Revert: **P13** |
+| B Verse mit Wächter | b1 Wächter in der Andockprüfung (*Urteil*), b2 Vierzeiler, b3 Zweizeiler | b2 nach b1 | harte Kante, eine Urteil-Klasse (Opus); Auslöser `probe-rot-epic`: der erste Kopf des Missions-Branches, der b3 angedockt hat (das Andocken bringt `verse/fruehling.txt`), macht `verse` rot, bis zum Revert; fest an b3, in beiden Motoren gleich: **P13** |
 | C Themen | c1 Thema nacht, c2 Thema sommer | keine | verdeckt verlangt `thema/STAND.md` eine höhere Version und einen Grund, beide Pakete schreiben verschiedene Gründe in dieselben Zeilen: **P15** Konflikt inhaltlich; Auslöser `probe-rot-paket` an c1: ab dem zweiten Lauf der Andockprüfung ist `thema` rot, bis `thema/KONTRAST.md` die Zeile `- nacht` hat: **P10** |
 
 Ob ein Fall eintritt, entscheidet der Lauf: Erkennt der Orchestrator die Kopplung vorher, legt er
@@ -278,6 +278,29 @@ P14. Verfehlt: Anteil der Orchestrierung (42,4 % statt ≤ 6 %), Ingenieur und E
 ≤ 5 %, obere Schranke), P15 nicht ausgelöst; Ingenieur-Aufträge nur im Mittel. „Angedockt bis
 nächster Start“ hatte keine Stichprobe. Tabelle und Befunde: Abschnitt „Läufe nachher“. Über das
 Umschalten entscheidet der Mensch.
+
+## Verfehlte Ziele: was vor dem Umschalten gilt
+
+Festgeschrieben nach der Triage von #108 und dem Vorab-Tor von Mission #161. Der Auslöser von P13 ist
+seitdem fest an b3 (`regeln.ps1`), und P8 ist geändert; die Zahlen oben stammen noch aus der Zeit davor.
+
+| Ziel | nachher (Mittel) | vor dem Umschalten |
+|---|---|---|
+| Pakete im PR | 5 von 8 je Lauf | **verlangt:** mindestens 7 von 8 je Lauf, nach der P8-Änderung und mit dem festen P13-Auslöser |
+| Anteil Orchestrierung (≤ 6 %) | 42,4 % | nicht verlangt, nur ausgewiesen |
+| Ingenieur und Erster Offizier je Paket (≤ 110) | Index 151 | nicht verlangt, nur ausgewiesen |
+| Sprachmodell-Anteil der Prüfzeit (0) | 18 % | nicht verlangt, nur ausgewiesen |
+| Fensterverlust (≤ 5 %) | 25,5 % | nicht verlangt, nur ausgewiesen |
+| P15 Konflikt inhaltlich | nicht ausgelöst | nicht verlangt |
+
+Die vier ausgewiesenen Ziele sind Anteile am Gesamtverbrauch. Der Verbrauch je Mission liegt schon bei
+Index 40 (Ziel ≤ 80); bei so kleinem Gesamtverbrauch sind die Anteile zwangsläufig größer. P15 tritt
+nicht ein, weil beide Motoren die Kollisionskante legen.
+
+Gemessen wird mit `flotte messen`, Abschnitt `epic_laeufe`, an denselben drei Mini-Missionen in zwei
+Läufen. Die Neumessung ist ausgelagert in Ticket #194: Die Probe braucht einen eigenen Treiber auf
+Konto 2 und kann nicht unter einem laufenden Treiber starten. Ob ein verfehltes Ziel das Umschalten
+aufhält, entscheidet der Mensch mit dem Umschalten selbst.
 
 ## Methode von `epic_laeufe`
 

@@ -12,7 +12,7 @@ ready_label: ready-for-agent
 skip_labels: [needs-triage, needs-info, wontfix, ready-for-human]
 epic_label: epic
 glossary: CONTEXT.md
-must_read: [CONTEXT.md, README.md]
+must_read: [CONTEXT.md, AGENTS.md]
 test_commands:
   worktree: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\worktree.Tests.ps1"
   guard: powershell -NoProfile -Command "Invoke-Pester .\mission\scripts\guard.Tests.ps1"
@@ -53,5 +53,5 @@ laufende Stack `flottenbruecke` (4747) und ein laufender Treiber werden nie ange
   liest seine Regeln aus der installierten Fassung unter `~/.claude/skills`, nicht aus dem
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
 - `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
-- Angedockt wird nach grüner Andockprüfung (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
+- Angedockt wird nach grüner Andockprüfung (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Der Pester-Teil fährt die Suiten in Windows PowerShell 5.1 mit Pester 3.4 und ist nur grün, wenn `Invoke-Pester` ein Ergebnis mit einer Testzahl über 0 und ohne roten Test liefert; die Zeile `pester: Pester <version>, … Tests, … rot` im Log belegt die Zahl (#129, #165). Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
 - Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(flotte): …`), PR-Titel deutsch.

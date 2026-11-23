@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- Source of befugnisse.png (880 px wide) and befugnisse-schmal.png (400 px wide), both at twice the resolution, in the README. Render: see README.md in this folder. The wording follows BEIM_MENSCHEN and TICKET_REGEL in flotte/src/treiber/admiral.ts. -->
+<meta charset="utf-8">
+<title>Befugnisse: wer entscheidet</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@500;700&family=Figtree:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  :root {
+    --orange: #ff9c33; --pfirsich: #ffcc99; --lila: #cc99cc; --violett: #9977cc; --blau: #8899ff;
+    --himmel: #99ccff; --gruen: #66cc99; --rot: #e0605a; --text: #f2e6d9; --matt: #c9bfb4; --flaeche: #15151f;
+  }
+  html, body { margin: 0; background: #000; color: var(--text); }
+  body { width: 880px; padding: 20px; box-sizing: border-box; font: 17px/1.35 Figtree, system-ui, sans-serif; }
+  .kopf { display: grid; grid-template-columns: 90px 1fr; gap: 8px; margin: 0 0 12px; }
+  .ecke { background: var(--f, var(--lila)); border-radius: 40px 0 0 0; min-height: 54px; }
+  .titel { display: flex; align-items: center; gap: 14px; }
+  .titel h1 { margin: 0; font: 700 32px/1 Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--f, var(--lila)); }
+  .titel .leiste { flex: 1; height: 24px; background: var(--orange); border-radius: 0 12px 12px 0; }
+  code { font: 500 16px "JetBrains Mono", monospace; color: var(--pfirsich); }
+  b { color: var(--pfirsich); font-weight: 600; }
+
+  .feld { background: var(--flaeche); border-radius: 18px; padding: 12px 14px; margin-bottom: 16px; }
+  .zeile { display: grid; grid-template-columns: 34px 1fr 150px; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid #2a2a36; }
+  .zeile:last-child { border-bottom: 0; }
+  .nr { font: 700 22px Antonio, sans-serif; color: var(--matt); text-align: center; }
+  .wer { text-align: center; padding: 6px 4px; border-radius: 20px; color: #000; font: 700 18px Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; background: var(--w); }
+  .mensch { --w: var(--orange); } .admiral { --w: var(--gruen); } .mission { --w: var(--himmel); } .issue { --w: var(--blau); } .weg { --w: var(--lila); }
+  .sonst { display: grid; grid-template-columns: 34px 1fr 150px; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 0 2px; border-top: 4px solid var(--gruen); }
+  .sonst .nr { color: var(--gruen); }
+  .klein { color: var(--matt); font-size: 16px; }
+  .nie { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .nie span { flex: 1 1 0; min-width: 0; background: var(--flaeche); border-left: 8px solid var(--rot); border-radius: 0 12px 12px 0; padding: 8px 12px; }
+
+  .karten { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+  .karte { background: var(--flaeche); border-top: 8px solid var(--k); border-radius: 0 0 14px 14px; padding: 10px 12px; }
+  .karte h2 { margin: 0 0 4px; font: 700 20px Antonio, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--k); }
+  .marken { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .marke { padding: 5px 14px; border-radius: 18px; background: var(--flaeche); border: 2px solid var(--violett); }
+  .marke b { color: var(--lila); }
+  .ampel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .ampel span { background: var(--flaeche); border-left: 8px solid var(--pfirsich); border-radius: 0 12px 12px 0; padding: 8px 12px; }
+  .schmal .karten, .schmal .ampel { grid-template-columns: 1fr; }
+
+  /* narrow version for phones */
+  body.schmal { width: 400px; padding: 12px; font-size: 18px; }
+  .schmal .kopf { grid-template-columns: 18px 1fr; }
+  .schmal .ecke { border-radius: 26px 0 0 0; }
+  .schmal .titel h1 { font-size: 26px; }
+  .schmal .zeile, .schmal .sonst { grid-template-columns: 26px 1fr; }
+  .schmal .wer { grid-column: 2; justify-self: start; padding: 4px 16px; }
+  .schmal .nie { flex-direction: column; }
+  .schmal code { font-size: 17px; }
+</style>
+<body>
+<div class="kopf"><div class="ecke"></div><div class="titel"><h1>Wer entscheidet?</h1><div class="leiste"></div></div></div>
+<div class="feld" id="fragen"></div>
+
+<div class="kopf" style="--f: var(--himmel)"><div class="ecke"></div><div class="titel"><h1>Wird aus einem Punkt ein Ticket?</h1><div class="leiste"></div></div></div>
+<div class="feld" id="tickets"></div>
+
+<div class="kopf" style="--f: var(--rot)"><div class="ecke"></div><div class="titel"><h1>Gilt immer</h1><div class="leiste"></div></div></div>
+<div class="nie">
+  <span>Admiral und Läufe <b>docken nie an</b>. Wer andockt, sagt der Adapterschlüssel <code>merge</code>.</span>
+  <span><b>Keine Antwort lockert eine Regel</b> der Skills.</span>
+  <span>Jede Entscheidung <b>steht am Issue</b> und ist bis zum Andocken widerrufbar.</span>
+</div>
+<div class="kopf" style="--f: var(--himmel)"><div class="ecke"></div><div class="titel"><h1>Wo du es siehst</h1><div class="leiste"></div></div></div>
+<div class="karten">
+  <div class="karte" style="--k: var(--orange)"><h2>Braucht dich</h2>Fragen an dich stehen auf der Brücke, mit Optionen und der <b>Empfehlung</b> des Admirals.</div>
+  <div class="karte" style="--k: var(--himmel)"><h2>Am Issue</h2>Jede Entscheidung steht als <b>Kommentar</b> am Issue, mit Grund und Herkunft.</div>
+  <div class="karte" style="--k: var(--gruen)"><h2>Zurücknehmen</h2>Bis zum Andocken nimmst du jede in der <b>Detailansicht</b> der Mission zurück.</div>
+</div>
+<div class="marken"><span class="klein">Herkunft:</span><span class="marke"><b>Projektregel</b></span><span class="marke"><b>Skill-Empfehlung</b></span><span class="marke"><b>Präzedenz</b> mit Fundstelle</span><span class="marke"><b>Eigenes Urteil</b> mit Grund</span></div>
+
+<div class="kopf" style="--f: var(--pfirsich)"><div class="ecke"></div><div class="titel"><h1>Regelt die Mechanik</h1><div class="leiste"></div></div></div>
+<div class="ampel">
+  <span><b>Limit</b> je Konto: gelb startet nichts Neues, rot hält auch Fortsetzungen an.</span>
+  <span><b>Speicher</b> über der Schwelle: kein neues Paket.</span>
+  <span><b>Platte</b> unter dem Minimum: gelb und rot wie beim Limit.</span>
+</div>
+<p class="klein" style="margin:8px 4px 0">Die Bremsen sind keine Frage an den Admiral und keine an dich: Der Treiber misst in jedem Takt und hält an.</p>
+<script>
+  const FRAGEN = [
+    'Geht etwas <b>nach außen</b>, das sich nicht zurückholen lässt? Mails, Nachrichten an Dritte, Daten nach außerhalb.',
+    'Kostet es <b>echtes Geld</b>, das nicht vorher freigegeben ist?',
+    'Ändert es <b>Produktivdaten</b>, ohne dass das eindeutig beschlossen ist?',
+    'Berührt es <b>Sicherheit oder Zugänge</b>, die nicht mit dir abgestimmt und festgehalten sind?',
+    'Entsteht ein <b>Text oder Versprechen an Kunden</b>? (geprüft am PR)',
+    'Bricht es eine <b>Architekturentscheidung</b> oder bringt eine unübliche neue Abhängigkeit?',
+  ];
+  const TICKETS = [
+    ['?', 'Braucht es <b>dich</b>? Eine der sechs Fragen oben, oder eine Änderung am <b>Ablauf des Projekts</b>.', 'mensch', 'needs-triage'],
+    ['?', 'Ist die Arbeit <b>klar und angemessen</b> nach Zeit und Umfang? Zuerst Fehler, dann das Missionsziel.', 'mission', 'in der Mission'],
+    ['?', 'Klar, aber <b>zu groß</b> für diese Mission?', 'issue', 'Issue, frei'],
+    ['?', 'Ein <b>Wunsch ohne beobachteten Schaden</b>?', 'weg', 'verworfen'],
+  ];
+  if (location.hash === '#schmal') document.body.classList.add('schmal');
+  const f = document.getElementById('fragen');
+  FRAGEN.forEach((t, i) => f.insertAdjacentHTML('beforeend', `<div class="zeile"><div class="nr">${i + 1}</div><div>${t}</div><div class="wer mensch">Ja: Mensch</div></div>`));
+  f.insertAdjacentHTML('beforeend', '<div class="sonst"><div class="nr">✓</div><div><b>Sechsmal nein:</b> der Admiral entscheidet selbst, auch Umfang, Reihenfolge, Tickets und ADR-Bezug ohne Bruch.<br><span class="klein">Eine Tatsache, die nur du kennst, hält nichts an: vorsichtiger Wert, du wirst nebenher gefragt.</span></div><div class="wer admiral">Admiral</div></div>');
+  const t = document.getElementById('tickets');
+  TICKETS.forEach(([nr, text, art, ziel], i) => t.insertAdjacentHTML('beforeend', `<div class="zeile"><div class="nr">${i + 1}</div><div>${text}</div><div class="wer ${art}">${ziel}</div></div>`));
+  t.insertAdjacentHTML('beforeend', '<div class="klein" style="padding:6px 0 2px 46px">Die erste Frage, die mit Ja beantwortet wird, entscheidet. Gilt in der Nacharbeit, im Missions-PR und in der Triage.</div>');
+</script>
