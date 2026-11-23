@@ -272,7 +272,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         takt = b.get('taktS', 60)
         veraltet = empfangen is None or jetzt - empfangen > timedelta(seconds=max(3 * takt, 180))
         aktiv = b.get('aktiv', True) and not veraltet
-        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen), 'version': b.get('version'), 'kontenListe': b.get('kontenListe')})
+        liste.append({'forge': forge, 'kurz': kurz, 'url': url, 'empfangen': p['empfangen'], 'aktiv': aktiv, 'veraltet': veraltet, 'rechner': b.get('rechner', ''), 'taktS': takt, 'leerlaufS': b.get('leerlaufS'), 'prognose': b.get('prognose'), 'einstellungen': _einstellungen(b, forge, handlungen), 'version': b.get('version'), 'kontenListe': b.get('kontenListe'), 'forgeStatus': b.get('forgeStatus'), 'meldetForge': b.get('forgeStatus') is not None})
         # the newest report of a machine speaks for its RAM and disk, of an account for its usage
         r = rechner.get(b.get('rechner', ''))
         if r is None or r['empfangen'] < p['empfangen']:
@@ -295,6 +295,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 offen_h[(h['epic'], HANDLUNG_GRUPPE[h['art']], h['nr'], h['seit'])] = h
         # #154: the update on its way to the driver (the button waits for it)
         liste[-1]['einspielen'] = _handlung(offen_h.get((0, 'einspielen', None, None)))
+        # #125: linking the forge on its way to the machine
+        liste[-1]['verknuepfen'] = _handlung(offen_h.get((0, 'forge_verknuepfen', None, None)))
         # #96: the accounts of the machine, the newest report wins; an action goes to the project that reported it
         if b.get('kontenListe') is not None:
             kontenliste_gemeldet = True
@@ -482,6 +484,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 z = json.loads(h['text'])
                 titel = next((e['titel'] for p in projekte if p['forge'] == h['forge'] for e in p['bericht'].get('einstellungen') or [] if e['name'] == z['name']), z['name'])
                 x = {**x, 'epic': None, 'titel': titel, 'wert': z['wert']}
+            elif h['art'] == 'forge_verknuepfen':
+                x = {**x, 'epic': None}
             elif h['art'].startswith('konto_'):
                 # #95: an account of the machine, no epic
                 x = {**x, 'epic': None, 'konto': h['epic'] or None}
@@ -536,7 +540,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'pin': pin_gesetzt,
         'kontenListe': konten_liste,
         'anlegen': sorted(anlegen.values(), key=lambda a: a['rechner']),
-        'einrichten': einrichten(konten_liste, list(anlegen.values()), bool(konten), kontenliste_gemeldet, bool(liste)),
+        'einrichten': einrichten(konten_liste, list(anlegen.values()), bool(konten), kontenliste_gemeldet, liste),
         'herkunft': HERKUNFT,
         'projekte': liste,
         'rechner': sorted(rechner.values(), key=lambda r: r['name']),
@@ -553,9 +557,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     }
 
 
-def einrichten(konten_liste: list[dict], anlegen: list[dict], tanks: bool, gemeldet: bool, projekte: bool) -> dict:
+def einrichten(konten_liste: list[dict], anlegen: list[dict], tanks: bool, gemeldet: bool, projekte: list[dict]) -> dict:
     """#96: the guided start, in this order: account, sign-in at the machine, forge, project; each offen, wartet
-    (an action waits for the machine) or fertig. A driver that reports a project speaks with its forge; an older
+    (an action waits for the machine) or fertig. The forge is done when a driver reports it signed in with push rights (#125); an older
     driver without kontenListe that reports accounts counts as signed in (its runs work)."""
     def stand(fertig: bool, wartet: bool) -> str:
         return 'fertig' if fertig else 'wartet' if wartet else 'offen'
@@ -564,8 +568,9 @@ def einrichten(konten_liste: list[dict], anlegen: list[dict], tanks: bool, gemel
     schritte = [
         {'schritt': 'konto', 'stand': stand(hat_konto, any(a['handlung'] for a in anlegen))},
         {'schritt': 'anmeldung', 'stand': stand(any(k['anmeldung'] == 'angemeldet' for k in konten_liste) or (tanks and not gemeldet), any((k['handlung'] or {}).get('art') == 'konto_anmelden' for k in konten_liste))},
-        {'schritt': 'forge', 'stand': stand(projekte, False)},
-        {'schritt': 'projekt', 'stand': stand(projekte, False)},
+        # #125: a project whose driver reports its forge signed in with push rights; an older driver without forgeStatus (or one before its first check) works, so it counts
+        {'schritt': 'forge', 'stand': stand(any(not p['meldetForge'] or (p['forgeStatus'] and p['forgeStatus']['angemeldet'] and p['forgeStatus']['rechte'] == 'ok') for p in projekte), any(p['verknuepfen'] for p in projekte))},
+        {'schritt': 'projekt', 'stand': stand(bool(projekte), False)},
     ]
     return {'schritte': schritte, 'fertig': all(s['stand'] == 'fertig' for s in schritte)}
 

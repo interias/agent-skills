@@ -265,6 +265,10 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(409, 'Diese Mission ist schon widerrufen.')
             if not m.get('neu') and not m.get('kinder'):
                 raise HTTPException(409, 'An dieser Mission hat der Triage-Lauf nichts angehängt.')
+        elif h.art == 'forge_verknuepfen':
+            # #125: only a driver that reports its forge fetches it
+            if b.get('forgeStatus') is None:
+                raise HTTPException(409, 'Dieser Treiber meldet keine Forge.')
         elif h.art in KONTO_HANDLUNGEN:
             # #95: only accounts the driver reports; the driver checks against konten.json again
             liste = b.get('kontenListe')
