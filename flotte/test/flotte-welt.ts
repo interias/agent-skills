@@ -60,6 +60,8 @@ export interface Optionen {
   cleanup?: () => { code: number; stdout: string; stderr: string };
   /** worktree.ps1 -Action Up/Down: stdout; without it Up and Down count as CleanupStale */
   worktree?: (aktion: string, args: string[], env: Record<string, string> | undefined) => string;
+  /** #203: `gh pr list --head <branch>` per branch; default: no pull request */
+  prListe?: (branch: string) => { number: number; state: string }[] | null;
   /** the forge's open issues with ready-for-agent and with epic, per call (without --epics) */
   freigegeben?: () => { bereit: number[]; epics: { number: number; body?: string }[] };
 }
@@ -155,6 +157,10 @@ export function aufbau(o: Optionen = {}) {
       return ok();
     }
     if (a === 'pr' && b === 'view' && args.join(' ').includes('headRefName')) return ok(JSON.stringify({ state: 'OPEN', ...(o.prInfo?.(nr) ?? { headRefName: `epic/${nr - 10}-x`, baseRefName: 'main', headRefOid: `bbbbbbbb${'2'.repeat(32)}`, body: GATE_BODY }) }));
+    if (a === 'pr' && b === 'list' && args.includes('--head')) {
+      const l = o.prListe?.(args[args.indexOf('--head') + 1]);
+      return l === null ? { code: 1, stdout: '', stderr: 'nicht lesbar' } : ok(JSON.stringify(l ?? []));
+    }
     if (a === 'pr' && b === 'edit') {
       p.prEdits.push({ pr: nr, body: opts?.eingabe ?? '' });
       return ok();

@@ -36,7 +36,7 @@ describe('Drehbücher (#14)', () => {
 
   it('D1b (#132): an account limit is no failed start; the run continues once the account has room', async () => {
     const t = aufbau();
-    const limit = "You've hit your weekly limit · resets Nov 24, 3am (Europe/Berlin)";
+    const limit = "You've hit your weekly limit"; // without a reset time (with one: limit.test.ts, #199)
     const buch = drehbuch([lauf(3, [{ text: limit, fehler: true }], 1), lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     const laeufe = fuer(buch.gesehen(), 3);
@@ -242,7 +242,7 @@ describe('Drehbücher (#14)', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
-  it('D11: green gate with merge: nach_gate: merge.ps1 merges; the driver never merges or deletes a branch itself', async () => {
+  it('D11: green gate with merge: nach_gate: merge.ps1 merges; the driver never merges itself, and without an origin it deletes no branch', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });
     const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3], { sweepRoot: t.repo }), t.welt);
@@ -356,7 +356,8 @@ describe('Drehbücher (#14)', () => {
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(t.p.merges).toEqual([]);
     expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**PR bereit'))).toHaveLength(1);
-    expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'pr' && a[2] === 'view' && !a.join(' ').includes('headRefName')).length).toBe(4);
+    // four polls until the merge, then one more before the branches on the forge go (#203)
+    expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'pr' && a[2] === 'view' && !a.join(' ').includes('headRefName')).length).toBe(5);
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pr: 13 });
   }, T);
 
@@ -395,7 +396,8 @@ describe('Drehbücher (#14)', () => {
     // the edge comes after the start: the first read of #3 has none, every later one has it
     const spaeteKante = () => {
       let gelesen = 0;
-      return { get 3() { return gelesen++ ? kante : '## Betroffene Module\n- a'; }, 4: '## Betroffene Module\n- b' } as Record<number, string>;
+      // the edge comes after the start: the driver reads #3 at the collection and again right before the start (#198)
+      return { get 3() { return gelesen++ > 1 ? kante : '## Betroffene Module\n- a'; }, 4: '## Betroffene Module\n- b' } as Record<number, string>;
     };
     const ohnePr = (offen: string) => `Nicht weiter.\n\nFLOTTE-ENDE 3\n\n### Was das Epic offen lässt\n${offen}`;
     // #4 ends once #3 waits for it; #3 starts again only after #4 is merged

@@ -22,5 +22,6 @@ Agenten stehen in [`SKILL.md`](SKILL.md), was wann aufgeräumt wird in
   revertiertem Andocken, ein Branch, den `-d` verweigert (etwa nach einem Squash-Andocken). Sie werden
   gemeldet, nie mit `-D` oder `--force` entfernt. Laufende Läufe anderer Missionen fasst der Skill nicht
   an.
-- **Bei dir:** jeder Remote-Branch. Vor `git push --delete` fragt der Berechtigungsdialog; ohne Ja
-  bleibt er stehen.
+- **Remote-Branches:** gelöscht ohne Rückfrage, wenn ihre Commits im Basiszweig liegen und ihr Pull
+  Request auf der Forge `merged` ist (ein Paket-Branch ohne eigenen: der der Mission). Fehlt ein
+  Nachweis, bleibt der Branch stehen und wird gemeldet.

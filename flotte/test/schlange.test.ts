@@ -105,7 +105,7 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
   }
   /** the run ran the gate of its PR body (acceptance 3, finding 2) */
   const nachweis = (nr: number) => gateAufruf(/```\n([\s\S]*?)\n```/.exec(bodies.get(10 + nr)!)![1]);
-  return { ...t, epics: liste, origin, nachweis };
+  return { ...t, epics: liste, origin, nachweis, bodies };
 }
 
 const texte = (z: { ereignisse: { epic: number | null; text: string }[] }) => z.ereignisse.map((e) => `${e.epic ? `#${e.epic} ` : ''}${e.text}`);
@@ -138,20 +138,49 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['4'].mergeVersuche ?? 0).toBe(0);
   }, T);
 
-  it('without a gate call in the run\'s log the driver runs the full gate on the head before merge.ps1 (acceptance 3, finding 2)', async () => {
+  it('a green block on the PR\'s head and merge-base counts without a gate call in the log; the driver runs no gate (#191)', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
-    // the run wrote a valid block into the PR but never ran the gate
+    // the run's gate call is not in its log (another form of the command), the block fits the state
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates).toEqual([]);
+    expect(z.statistik.gateWiederholungen ?? 0).toBe(0);
+    const e = texte(z);
+    const an = index(e, /^#3 Gate-Block des Laufs angerechnet \(Basis [0-9a-f]{7} = merge-base, HEAD [0-9a-f]{8} = Head des PR\)$/);
+    expect(an).toBeGreaterThanOrEqual(0);
+    expect(an).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+  }, T);
+
+  it('a block on another head than the PR\'s is not counted: the driver runs the full gate before merge.ps1 (#191)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
+    // the run committed after its gate
+    writeFileSync(join(t.epics[0].wt, 'a', 'nach.txt'), 'nach dem Gate\n');
+    git(t.epics[0].wt, 'add', '-A');
+    git(t.epics[0].wt, 'commit', '-q', '-m', 'nach dem Gate');
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', t.epics[0].wt]]);
     const e = texte(z);
-    const ohne = index(e, /^#3 kein Gate-Aufruf im Log des Laufs zum Gate-Block .*: der Treiber fährt das Gate selbst$/);
+    const ohne = index(e, /^#3 Gate-Block auf HEAD [0-9a-f]{8}, der PR steht auf [0-9a-f]{8}: der Treiber fährt das Gate selbst$/);
     expect(ohne).toBeGreaterThanOrEqual(0);
     expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
-    expect(e.some((x) => /^#3 Gate des Treibers \(voll, kein Gate-Aufruf im Log/.test(x))).toBe(true);
     // the driver's block is the last run of the PR, and merge.ps1 merged on it
     expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [false, true]]);
+  }, T);
+
+  it('a block against another base than the merge-base is not counted, even with a gate call in the log (#191)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
+    // the gate ran against a base the branch does not hold
+    const fremd = 'abcdef1';
+    t.bodies.set(13, t.bodies.get(13)!.replace(/@ [0-9a-f]{7}/, `@ ${fremd}`));
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
+    expect(texte(z).some((x) => /^#3 Gate-Block gegen Basis abcdef1, die merge-base ist [0-9a-f]{7}: der Treiber fährt das Gate selbst$/.test(x))).toBe(true);
   }, T);
 
   it('a red gate goes back to its run with the output, the queue goes on, the epic queues up again at the end', async () => {
@@ -226,6 +255,40 @@ describe('A: die Merge-Schlange', () => {
     expect(e).toContain('#3 lokaler Branch epic/3-x gelöscht (liegt ganz in origin/main)');
     expect(e.some((x) => /^#4 lokaler Branch epic\/4-x bleibt: .*(checked out|ausgecheckt|used by worktree)/.test(x))).toBe(true);
     expect(aufrufen('git', ['-C', t.repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/epic/3-x']).code).not.toBe(0);
+  }, T);
+
+  it('after the merge the driver deletes the mission\'s branches on the forge whose commits are in the base and whose PR is merged (#203)', async () => {
+    const prs: Record<string, { number: number; state: string }[]> = { 'agent/3-p3-offen': [{ number: 40, state: 'OPEN' }], 'agent/3-p4-gemergt': [{ number: 41, state: 'MERGED' }] };
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { bodies: { 3: '## Betroffene Module\n- m3\n\nKinder: #31\n' }, zu: [31], prListe: (b) => prs[b] ?? [] });
+    const wt = t.epics[0].wt;
+    // packages of the mission: three on the mission's head (in the base after the merge), one with its own commit
+    for (const b of ['agent/31-kind', 'agent/3-p1-eins', 'agent/3-p3-offen', 'agent/3-p4-gemergt', 'agent/4-p1-fremd']) git(wt, 'push', '-q', 'origin', `HEAD:refs/heads/${b}`);
+    git(wt, 'checkout', '-q', '-b', 'agent/3-p2-eigen');
+    writeFileSync(join(wt, 'a', 'eigen.txt'), 'eigen\n');
+    git(wt, 'add', '-A');
+    git(wt, 'commit', '-q', '-m', 'eigen');
+    git(wt, 'push', '-q', 'origin', 'agent/3-p2-eigen');
+    git(wt, 'checkout', '-q', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    const koepfe = git(t.repo, 'ls-remote', '--heads', 'origin').split('\n').map((z) => z.split('refs/heads/')[1]).sort();
+    expect(koepfe).toEqual(['agent/3-p2-eigen', 'agent/3-p3-offen', 'agent/4-p1-fremd', 'main']);
+    const e = texte(z);
+    expect(e).toContain('#3 Branch epic/3-x auf der Forge gelöscht (in origin/main, PR #13 merged)');
+    expect(e).toContain('#3 Branch agent/3-p4-gemergt auf der Forge gelöscht (in origin/main, PR #41 merged)');
+    expect(e).toContain('#3 Branch agent/3-p2-eigen auf der Forge bleibt: Commits nicht in origin/main');
+    expect(e).toContain('#3 Branch agent/3-p3-offen auf der Forge bleibt: PR #40 ist OPEN');
+  }, T);
+
+  it('a mission PR the forge does not yet show as merged leaves every branch on the forge (#203)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { pr: () => ({ state: 'OPEN' }) });
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'HEAD:refs/heads/agent/3-p1-eins');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 8000 }), t.welt);
+    const koepfe = git(t.repo, 'ls-remote', '--heads', 'origin').split('\n').map((z) => z.split('refs/heads/')[1]).sort();
+    expect(koepfe).toEqual(['agent/3-p1-eins', 'epic/3-x', 'main']);
+    expect(texte(z)).toContain('#3 Branches auf der Forge bleiben: PR #13 ist dort OPEN, nicht merged');
   }, T);
 
   it('--konto-max keeps an account to its share of the epics', async () => {
