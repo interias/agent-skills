@@ -30,6 +30,32 @@ export const aufrufen: Aufrufer = (programm, args, opts = {}) => {
   return { code: r.status ?? (r.error ? 127 : 1), stdout: r.stdout ?? '', stderr: (r.stderr ?? '') + (r.error ? String(r.error.message) : '') };
 };
 
+/** Ends a process and everything it started: taskkill /T on Windows, the process group on POSIX (the child must have been started `detached`). */
+export function beende(pid: number): void {
+  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+  else {
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        /* already gone */
+      }
+    }
+  }
+}
+
+/** POSIX: the process groups of the shell calls still running; the program ends them when it exits (Ctrl+C, SIGTERM, a stop after catch), so no test run outlives it */
+const gruppen = new Set<number>();
+
+export function beendeGruppen(): void {
+  for (const pid of gruppen) beende(pid);
+  gruppen.clear();
+}
+
+let beiEnde = false;
+
 let pwshCache: string | null = null;
 
 /**
@@ -93,13 +119,24 @@ export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: st
 /** For the slow scripts (merge.ps1 waits for checks): the event loop keeps reading the runs meanwhile. */
 export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
   new Promise((fertig) => {
-    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, env: opts.env ? { ...process.env, ...opts.env } : process.env, shell: opts.shell, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true });
+    // a shell command line starts children of its own: on POSIX the shell leads a process group, so the time limit can end all of them
+    const gruppe = process.platform !== 'win32' && opts.shell === true && Boolean(opts.timeoutMs);
+    const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, env: opts.env ? { ...process.env, ...opts.env } : process.env, shell: opts.shell, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true, detached: gruppe });
+    if (gruppe && kind.pid) {
+      gruppen.add(kind.pid);
+      if (!beiEnde) {
+        beiEnde = true;
+        process.on('exit', beendeGruppen);
+      }
+    }
     let stdout = '';
     let stderr = '';
     const uhr = opts.timeoutMs
       ? setTimeout(() => {
           stderr += `Zeitgrenze ${opts.timeoutMs} ms`;
-          kind.kill();
+          // with a shell, kill() ends only the shell; its children keep running and hold the pipes open
+          if (opts.shell && kind.pid) beende(kind.pid);
+          else kind.kill();
         }, opts.timeoutMs)
       : null;
     kind.stdout?.setEncoding('utf8').on('data', (x: string) => (stdout += x));
@@ -107,6 +144,7 @@ export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
     kind.on('error', (e) => (stderr += e.message));
     kind.on('close', (code) => {
       if (uhr) clearTimeout(uhr);
+      if (kind.pid) gruppen.delete(kind.pid);
       fertig({ code: code ?? 1, stdout, stderr });
     });
     if (opts.eingabe !== undefined) kind.stdin?.end(opts.eingabe);

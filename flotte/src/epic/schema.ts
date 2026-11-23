@@ -223,15 +223,16 @@ const ohneRaute = (s: string) => s.trim().replace(/^#/, '').split(/\s/)[0];
 /**
  * The cut against the body of the target issue, so that a story or a child the model left out of
  * its own lists is noticed. tickets: every child the body names (Kinder: in the header line or a
- * checklist) stands in zuordnung or in uebersprungen, not in both. spec: the section
+ * checklist) or links as a sub-issue (`unterIssues`, from the API; always in addition to the body)
+ * stands in zuordnung or in uebersprungen, not in both. spec: the section
  * `## User Stories` has as many top-level entries as zuordnung has distinct stories. A body that
  * names no child or has no such section gives nothing to check.
  */
-export function abdeckungFehler(s: Schnitt, body: string): string | null {
+export function abdeckungFehler(s: Schnitt, body: string, unterIssues: number[] = []): string | null {
   if (s.modus === 'tickets') {
     const zugeordnet = new Set(s.zuordnung.map((z) => ohneRaute(z.story)));
     const weg = new Set(s.uebersprungen.map((u) => ohneRaute(u.nr)));
-    for (const k of kinderAus(body).map(String)) {
+    for (const k of new Set([...kinderAus(body), ...unterIssues].map(String))) {
       if (zugeordnet.has(k) && weg.has(k)) return `Missionsziel #${k} steht in zuordnung und in uebersprungen`;
       if (!zugeordnet.has(k) && !weg.has(k)) return `Missionsziel #${k} der Mission steht weder in zuordnung noch in uebersprungen`;
     }
