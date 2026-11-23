@@ -26,8 +26,8 @@ Der Projektadapter ist derselbe wie bei `/mission`: **`.claude/epic.md`** — er
 die `base` des Pull Requests (Regel 1), nie der Adapter-Wert.
 
 Jede Rückfrage — Bestätigung des gefundenen Pull Requests, jede Abbruchbedingung — stellst du nach
-`mission/SKILL.md` („Wie gefragt wird"). Die Zustimmung zum Löschen eines Remote-Branches holt der
-Hook (Regel 5).
+`mission/SKILL.md` („Wie gefragt wird"). Einen Remote-Branch löschst du ohne Rückfrage, sobald
+beide Nachweise aus Regel 5 stehen.
 
 ---
 
@@ -47,9 +47,14 @@ Hook (Regel 5).
    und `git push` durch Hook durchgesetzt; `--force` anderer Befehle sperrt er nicht.
 4. **Ein schmutziger Worktree wird nicht entfernt** — Arbeit darin gehört einem Menschen. Das
    `--force` an `git worktree remove` ist durch Hook gesperrt.
-5. **Remote-Branches nur nach ausdrücklicher Zustimmung** — `git push <push_remote> --delete` ist
-   für andere sichtbar und nicht ohne Weiteres umkehrbar. Durch Hook durchgesetzt: Vor
-   `git push --delete` fragt der Berechtigungsdialog; ohne Ja bleibt der Branch stehen.
+5. **Remote-Branches ohne Rückfrage, aber nur mit zwei Nachweisen** — `git push <push_remote>
+   --delete <branch>`, wenn die Commits des Branches nachweislich im Basiszweig liegen (Regel 2)
+   **und** sein Pull Request auf der Forge `merged` ist (`gh pr list --head <branch> --state all
+   --json number,state`). Nie vorher: Löschst du den Branch eines lokal angedockten Pull Requests,
+   bevor die Forge ihn als `merged` führt, schließt GitHub ihn als verworfen. Ein Paket-Branch ohne
+   eigenen Pull Request braucht stattdessen den angedockten Pull Request der Mission. Fehlt ein
+   Nachweis, bleibt der Branch stehen und wird gemeldet. Der Hook fragt vor `git push --delete` nicht
+   mehr; Pushes mit Gewalt sperrt er weiter (Regel 3).
 6. **Die Junctions unter den Worktrees werden nie rekursiv gelöscht.** Das ist die eine Stelle,
    an der ein Aufräumbefehl echten Schaden anrichtet — `mission/references/worktree.md`,
    „Abräumen".
@@ -179,9 +184,10 @@ In dieser Reihenfolge, weil ein Branch mit angehängtem Worktree sich nicht lös
 4. **Lokale Branches** mit `git branch -d`. Ein Branch mit revertiertem Andocken (siehe Andock-Nachweis
    oben) wird übersprungen und gemeldet, nicht gelöscht. Der Missions-Branch zuletzt, nachdem alles
    andere weg ist.
-5. **Remote-Branches** nur nach Zustimmung (Regel 5), und nur den Missions-Branch des angedockten
-   Laufs: `git push <push_remote> --delete <branch>`. Viele Forges tun das beim Andocken selbst;
-   prüfe erst, ob überhaupt noch etwas da ist.
+5. **Remote-Branches** ohne Rückfrage nach Regel 5: der Missions-Branch des angedockten Laufs und
+   die Paket-Branches, deren Commits im Basiszweig liegen, je mit
+   `git push <push_remote> --delete <branch>`. Viele Forges tun das beim Andocken selbst; prüfe erst,
+   ob überhaupt noch etwas da ist.
 
 Nach jedem Schritt den Erfolg prüfen, nicht annehmen. Ein `Remove-Item` auf einen offenen Pfad
 scheitert still genug, um übersehen zu werden.

@@ -3023,6 +3023,7 @@ class Treiber {
     }
     await this.aufraeumen(ep.nr);
     this.lokalerBranchWeg(ep);
+    await this.forgeBranchesWeg(ep);
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
     this.epicMessen(ep);
@@ -3058,6 +3059,62 @@ class Treiber {
     if (git('merge-base', '--is-ancestor', `refs/heads/${kopf}`, `origin/${basis}`).code) return this.ereignis(ep.nr, `lokaler Branch ${kopf} bleibt: nicht ganz in origin/${basis}`);
     const d = git('branch', '-D', kopf);
     this.ereignis(ep.nr, d.code ? `lokaler Branch ${kopf} bleibt: ${d.stderr.trim().split('\n')[0]}` : `lokaler Branch ${kopf} gelöscht (liegt ganz in origin/${basis})`);
+  }
+
+  /**
+   * #203 (mission-aufraeumen, rule 5): the mission's branches on the forge, its own and its packages'
+   * (agent/<child>-…, in spec mode agent/<nr>-p<k>-…), go without asking once their commits are in the
+   * base on origin and their pull request is merged on the forge; a package branch without its own takes
+   * the mission's. Never before: GitHub closes a pull request as not merged when its branch goes first.
+   */
+  async forgeBranchesWeg(ep: FlottenEpic): Promise<void> {
+    if (!ep.pr) return;
+    const pz = prZustand(this.w.aufrufer, this.e.forge, ep.pr);
+    if (pz?.state !== 'MERGED') return this.ereignis(ep.nr, `Branches auf der Forge bleiben: PR #${ep.pr} ist dort ${pz?.state ?? 'nicht lesbar'}, nicht merged`);
+    let j: { headRefName?: string; baseRefName?: string } = {};
+    try {
+      j = JSON.parse(this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName']).stdout);
+    } catch {
+      return;
+    }
+    const { headRefName: kopf, baseRefName: basis } = j;
+    if (!kopf || !basis) return;
+    const git = (...a: string[]) => this.w.aufrufer('git', ['-C', this.e.repo, ...a]);
+    const ls = git('ls-remote', '--heads', 'origin');
+    if (ls.code) return;
+    await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', basis], { timeoutMs: 5 * 60_000 });
+    const kinder = this.bilder.find((b) => b.nr === ep.nr)?.kinder ?? [];
+    const paket = new RegExp(`^agent/(?:${kinder.length ? `(?:${kinder.join('|')})-|` : ''}${ep.nr}-p\\d+-)`);
+    for (const zeile of ls.stdout.split(/\r?\n/)) {
+      const [sha, ref] = zeile.trim().split(/\s+/);
+      const name = ref?.replace(/^refs\/heads\//, '');
+      if (!sha || !name || (name !== kopf && !paket.test(name))) continue;
+      const bleibt = (warum: string) => this.ereignis(ep.nr, `Branch ${name} auf der Forge bleibt: ${warum}`);
+      if (git('merge-base', '--is-ancestor', sha, `origin/${basis}`).code) {
+        bleibt(`Commits nicht in origin/${basis}`);
+        continue;
+      }
+      const l = this.w.aufrufer('gh', ['pr', 'list', '--repo', this.e.forge, '--head', name, '--state', 'all', '--json', 'number,state']);
+      let eigene: { number: number; state: string }[];
+      try {
+        eigene = l.code ? [] : JSON.parse(l.stdout);
+      } catch {
+        eigene = [];
+      }
+      if (l.code) {
+        bleibt('seine Pull Requests sind nicht lesbar');
+        continue;
+      }
+      const offen = eigene.find((p) => p.state !== 'MERGED');
+      if (offen) {
+        bleibt(`PR #${offen.number} ist ${offen.state}`);
+        continue;
+      }
+      const pr = eigene[0]?.number ?? ep.pr;
+      const d = await this.w.langsam('git', ['-C', this.e.repo, 'push', 'origin', '--delete', name], { timeoutMs: 5 * 60_000 });
+      if (d.code) bleibt(`git push --delete scheiterte: ${d.stderr.trim().split('\n')[0]}`);
+      else this.ereignis(ep.nr, `Branch ${name} auf der Forge gelöscht (in origin/${basis}, PR #${pr} merged)`);
+    }
   }
 
   // ---- end of the deployment

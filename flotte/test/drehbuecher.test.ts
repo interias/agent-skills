@@ -242,7 +242,7 @@ describe('Drehbücher (#14)', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
-  it('D11: green gate with merge: nach_gate: merge.ps1 merges; the driver never merges or deletes a branch itself', async () => {
+  it('D11: green gate with merge: nach_gate: merge.ps1 merges; the driver never merges itself, and without an origin it deletes no branch', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });
     const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3], { sweepRoot: t.repo }), t.welt);
@@ -262,7 +262,8 @@ describe('Drehbücher (#14)', () => {
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(t.p.merges).toEqual([]);
     expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**PR bereit'))).toHaveLength(1);
-    expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'pr' && a[2] === 'view' && !a.join(' ').includes('headRefName')).length).toBe(4);
+    // four polls until the merge, then one more before the branches on the forge go (#203)
+    expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'pr' && a[2] === 'view' && !a.join(' ').includes('headRefName')).length).toBe(5);
     expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pr: 13 });
   }, T);
 

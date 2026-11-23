@@ -217,6 +217,40 @@ describe('A: die Merge-Schlange', () => {
     expect(aufrufen('git', ['-C', t.repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/epic/3-x']).code).not.toBe(0);
   }, T);
 
+  it('after the merge the driver deletes the mission\'s branches on the forge whose commits are in the base and whose PR is merged (#203)', async () => {
+    const prs: Record<string, { number: number; state: string }[]> = { 'agent/3-p3-offen': [{ number: 40, state: 'OPEN' }], 'agent/3-p4-gemergt': [{ number: 41, state: 'MERGED' }] };
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { bodies: { 3: '## Betroffene Module\n- m3\n\nKinder: #31\n' }, zu: [31], prListe: (b) => prs[b] ?? [] });
+    const wt = t.epics[0].wt;
+    // packages of the mission: three on the mission's head (in the base after the merge), one with its own commit
+    for (const b of ['agent/31-kind', 'agent/3-p1-eins', 'agent/3-p3-offen', 'agent/3-p4-gemergt', 'agent/4-p1-fremd']) git(wt, 'push', '-q', 'origin', `HEAD:refs/heads/${b}`);
+    git(wt, 'checkout', '-q', '-b', 'agent/3-p2-eigen');
+    writeFileSync(join(wt, 'a', 'eigen.txt'), 'eigen\n');
+    git(wt, 'add', '-A');
+    git(wt, 'commit', '-q', '-m', 'eigen');
+    git(wt, 'push', '-q', 'origin', 'agent/3-p2-eigen');
+    git(wt, 'checkout', '-q', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    const koepfe = git(t.repo, 'ls-remote', '--heads', 'origin').split('\n').map((z) => z.split('refs/heads/')[1]).sort();
+    expect(koepfe).toEqual(['agent/3-p2-eigen', 'agent/3-p3-offen', 'agent/4-p1-fremd', 'main']);
+    const e = texte(z);
+    expect(e).toContain('#3 Branch epic/3-x auf der Forge gelöscht (in origin/main, PR #13 merged)');
+    expect(e).toContain('#3 Branch agent/3-p4-gemergt auf der Forge gelöscht (in origin/main, PR #41 merged)');
+    expect(e).toContain('#3 Branch agent/3-p2-eigen auf der Forge bleibt: Commits nicht in origin/main');
+    expect(e).toContain('#3 Branch agent/3-p3-offen auf der Forge bleibt: PR #40 ist OPEN');
+  }, T);
+
+  it('a mission PR the forge does not yet show as merged leaves every branch on the forge (#203)', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { pr: () => ({ state: 'OPEN' }) });
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'HEAD:refs/heads/agent/3-p1-eins');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 8000 }), t.welt);
+    const koepfe = git(t.repo, 'ls-remote', '--heads', 'origin').split('\n').map((z) => z.split('refs/heads/')[1]).sort();
+    expect(koepfe).toEqual(['agent/3-p1-eins', 'epic/3-x', 'main']);
+    expect(texte(z)).toContain('#3 Branches auf der Forge bleiben: PR #13 ist dort OPEN, nicht merged');
+  }, T);
+
   it('--konto-max keeps an account to its share of the epics', async () => {
     const t = aufbau();
     const buch = drehbuch([3, 4, 5].map((n) => lauf(n, [{ warte: 300 }, { text: ende(n, 10 + n) }])));
