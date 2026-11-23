@@ -416,6 +416,8 @@ class Treiber {
   /** a report right after an event is on its way */
   meldungGeplant = false;
   haltGemeldet = false;
+  /** #150: running epics without a picture, reported once */
+  ohneBildGemeldet = new Set<number>();
   /** #135: the missions the driver last said it stays for; empty when none */
   bleibtGemeldet = '';
   /** the finished epics of this repository (messungen.jsonl), the forecast reads them */
@@ -482,7 +484,8 @@ class Treiber {
     this.e.merge = this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
     this.einstellungenLaden(new Date(anfang).toISOString());
     if (this.e.auto) {
-      this.e.epics = this.einsammeln(this.adapter);
+      // #150: with --epics and --dauerhaft the fixed list stays, the released ones join it
+      this.e.epics = [...new Set([...this.e.epics, ...this.einsammeln(this.adapter)])];
       this.gesammelt = this.w.jetzt();
     }
     // #61: taken in on the bridge, the epic stays in the deployment until it is done
@@ -491,6 +494,12 @@ class Treiber {
     if (wieder.length) {
       this.e.epics = [...this.e.epics, ...wieder];
       this.ereignis(null, `Über die Brücke aufgenommen, bleibt im Einsatz: ${wieder.map((n) => `#${n}`).join(', ')}`);
+    }
+    // #150: a run of an earlier deployment the collection misses (no epic label, driven with --epics) is still at work
+    const uebernommen = Object.values(this.z.epics).filter((ep) => (BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt') && !this.e.epics.includes(ep.nr)).map((ep) => ep.nr);
+    if (uebernommen.length) {
+      this.e.epics = [...this.e.epics, ...uebernommen];
+      this.ereignis(null, `Übernommen aus einem früheren Einsatz: ${uebernommen.map((n) => `#${n}`).join(', ')} (nicht eingesammelt, aber noch in Arbeit)`);
     }
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
     const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
@@ -979,6 +988,9 @@ class Treiber {
     }
     // #144: why a startable one is left out (a collision or no free place) stands on the board and the bridge
     for (const w of plan.zurueck) this.epic(w.nr).notiz = w.grund;
+    const ohneBild = plan.ohneBild.filter((n) => !this.ohneBildGemeldet.has(n));
+    for (const n of ohneBild) this.ohneBildGemeldet.add(n);
+    if (ohneBild.length) this.ereignis(null, `Belegung ohne Bild von ${ohneBild.map((n) => `#${n}`).join(', ')}: zählt als große Kollision mit allen`);
     // the priority label: why a startable one waits stands on the board and the bridge
     for (const v of plan.vorrang) {
       if (v.startet) continue;
@@ -3055,7 +3067,8 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   const konten = (wert(argv, '--konten') ?? '').split(',').filter(Boolean);
   if (!konten.length) throw new Error(AUFRUF);
   const e = standard(repo, forge, epics, konten);
-  e.auto = !epics.length;
+  // #150: --dauerhaft with --epics collects the released ones in addition to the fixed list
+  e.auto = !epics.length || argv.includes('--dauerhaft');
   e.dauerhaft = argv.includes('--dauerhaft');
   e.skill = wert(argv, '--skill') ?? e.skill;
   e.modell = wert(argv, '--modell') ?? e.modell;

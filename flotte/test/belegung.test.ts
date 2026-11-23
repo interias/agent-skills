@@ -76,6 +76,15 @@ describe('belege', () => {
   });
 });
 
+describe('#150: a running epic without a picture', () => {
+  it('counts as a large collision instead of crashing, and is named', () => {
+    const plan = belege([bild(3, { module: ['web'] }), bild(4, { module: ['api'] })], adapter, { laufend: [5], gemergt: [] });
+    expect(plan.ohneBild).toEqual([5]);
+    expect(plan.neu).toEqual([]);
+    expect(plan.zurueck.map((z) => z.grund)).toEqual(['wartet auf #5: Kollision gross (kein Bild der Mission: nicht eingesammelt)', 'wartet auf #5: Kollision gross (kein Bild der Mission: nicht eingesammelt)']);
+  });
+});
+
 describe('#144: why a startable epic waits', () => {
   it('left out because of a collision: names the epic it waits for, level and evidence', () => {
     const bilder = [bild(1, { migration: true }), bild(2, { migration: true }), bild(3, { module: ['web'] })];
