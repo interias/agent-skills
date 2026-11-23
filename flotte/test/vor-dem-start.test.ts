@@ -23,7 +23,7 @@ describe('#198: vor dem Start prüfen', () => {
     const z = await fahre(t.einstellung(buch, [3, 4], { obergrenze: 1, maxDauerMs: 3000 }), t.welt);
     expect(z.epics['3'].stufe).toBe('pr');
     expect(fuer(buch.gesehen(), 4)).toHaveLength(0);
-    expect(z.epics['4']).toMatchObject({ stufe: 'wartend', notiz: 'wartet auf den Merge von #3' });
+    expect(z.epics['4']).toMatchObject({ stufe: 'wartend', notiz: 'wartet auf das Andocken von #3' });
   }, T);
 
   it('the predecessor merged: the mission starts after it', async () => {
