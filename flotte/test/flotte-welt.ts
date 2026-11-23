@@ -68,6 +68,9 @@ export interface Protokoll {
   /** bodies written with `gh pr edit` */
   prEdits: { pr: number; body: string }[];
   gates: { befehl: string; cwd: string }[];
+  /** #145: issues closed with `gh issue close`, with their comment; labels removed with `gh issue edit --remove-label` */
+  geschlossen: { nr: number; text: string }[];
+  labelWeg: { nr: number; label: string }[];
 }
 
 export function aufbau(o: Optionen = {}) {
@@ -90,7 +93,7 @@ export function aufbau(o: Optionen = {}) {
     }
     return k;
   });
-  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [] };
+  const p: Protokoll = { aufrufe: [], kommentare: [], logbuch: [], merges: [], aufraeumen: 0, sweeps: 0, nachMerge: [], meldungen: [], zeitleiste: [], prEdits: [], gates: [], geschlossen: [], labelWeg: [] };
   let gateN = 0;
   let ramN = 0;
   const prN = new Map<number, number>();
@@ -119,6 +122,14 @@ export function aufbau(o: Optionen = {}) {
     if (a === 'label') return ok();
     if (a === 'repo' && b === 'view') return ok('main\n');
     if (a === 'issue' && b === 'create') return ok('https://github.com/o/r/issues/99\n');
+    if (a === 'issue' && b === 'close') {
+      p.geschlossen.push({ nr, text: args[args.indexOf('--comment') + 1] ?? '' });
+      return ok();
+    }
+    if (a === 'issue' && b === 'edit' && args.includes('--remove-label')) {
+      p.labelWeg.push({ nr, label: args[args.indexOf('--remove-label') + 1] });
+      return ok();
+    }
     if (a === 'issue' && b === 'edit') {
       p.logbuch.push(opts?.eingabe ?? '');
       return ok();

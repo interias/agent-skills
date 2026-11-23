@@ -256,6 +256,44 @@ describe('Drehbücher (#14)', () => {
     expect(z.aktiv).toBe(false);
   }, T);
 
+  describe('#145: the mission issue after the merge of its PR', () => {
+    const mitZielen = '## Missionsziele\n- [ ] #21 a\n- [x] #22 b\n\n## Betroffene Module\n- m3';
+
+    it('every Missionsziel closed: the driver closes the mission with a comment linking the PR', async () => {
+      const t = aufbau({ bodies: { 3: mitZielen }, zu: [21, 22] });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(t.p.geschlossen).toHaveLength(1);
+      expect(t.p.geschlossen[0].nr).toBe(3);
+      expect(t.p.geschlossen[0].text).toMatch(/Mission abgeschlossen/);
+      expect(t.p.geschlossen[0].text).toContain('https://github.com/o/r/pull/13');
+      expect(t.p.labelWeg).toEqual([]);
+    }, T);
+
+    it('a Missionsziel still open: the mission stays open, loses ready-for-agent, a comment names what is open', async () => {
+      const t = aufbau({ bodies: { 3: mitZielen }, zu: [22] });
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3]), t.welt);
+      expect(t.p.geschlossen).toEqual([]);
+      expect(t.p.labelWeg).toEqual([{ nr: 3, label: 'ready-for-agent' }]);
+      const k = t.p.kommentare.filter((x) => x.nr === 3 && /Mission bleibt offen/.test(x.text));
+      expect(k).toHaveLength(1);
+      expect(k[0].text).toMatch(/#21/);
+      expect(k[0].text).not.toMatch(/#22/);
+    }, T);
+
+    it('a mission merged before but still open is closed at the next start, once', async () => {
+      const t = aufbau({ bodies: { 3: mitZielen }, zu: [21, 22] });
+      const z0 = leer(t.repo);
+      z0.epics['3'] = { ...neuesEpic(3), stufe: 'fertig', pr: 13 } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const z = await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen.map((g) => g.nr)).toEqual([3]);
+      await fahre(t.einstellung(drehbuch([]), [3]), t.welt);
+      expect(t.p.geschlossen).toHaveLength(1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+    }, T);
+  });
+
   it('D12: merge: mensch waits, reports "PR bereit", notices the merge later', async () => {
     const t = aufbau({ adapter: 'merge: mensch', pr: (_nr, n) => ({ state: n < 4 ? 'OPEN' : 'MERGED' }) });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);

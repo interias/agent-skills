@@ -21,7 +21,7 @@ import { ohneMissionsziel, TRIAGE_LABEL } from '../auftrag/auftrag.ts';
 import { LERN_MARKE } from '../lernen.ts';
 import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
-import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, prZustand } from './forge.ts';
+import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
@@ -253,6 +253,8 @@ export interface FlottenEpic extends EpicZustand {
   haltZeit?: string | null;
   /** the person gave the epic up on the bridge */
   aufgegebenAm?: string | null;
+  /** #145: the mission issue was closed or lost its ready label after the merge */
+  abgeschlossen?: boolean;
   /** revocations of the person for the next turn: `widerruf: <Frage> → <neue Entscheidung>` */
   widerrufe?: string[];
   /** the limit of packages at once changed on the bridge (#60), handed to the run when it is continued */
@@ -502,6 +504,8 @@ class Treiber {
     }
     this.messungen = liesMessungen(this.dir);
     this.wiederaufnehmen();
+    // #145: missions merged before whose issue was left open
+    for (const ep of Object.values(this.z.epics)) if (ep.stufe === 'fertig') this.missionAbschliessen(ep);
     this.triageNachNeustart();
     // #61: a pause outlives the restart in the holder file as well; a field the state no longer carries goes
     for (const ep of Object.values(this.z.epics)) this.pauseVermerken(ep);
@@ -2933,8 +2937,17 @@ class Treiber {
     this.lokalerBranchWeg(ep);
     ep.stufe = 'fertig';
     ep.notiz = `PR #${ep.pr} gemergt`;
+    this.missionAbschliessen(ep);
     this.epicMessen(ep);
     if (this.adapter.lern_issue && ep.pr) this.nebenbei(this.lernschleife(ep, ep.pr, this.adapter.lern_issue));
+  }
+
+  /** #145: close the mission issue (or take its ready label) once; a forge that fails is tried again at the next start */
+  missionAbschliessen(ep: FlottenEpic): void {
+    if (!ep.pr || ep.abgeschlossen) return;
+    const was = missionAbschliessen(this.w.aufrufer, this.e.forge, ep.nr, ep.pr, this.adapter.ready_label);
+    ep.abgeschlossen = was !== null;
+    this.ereignis(ep.nr, was ?? 'Mission nach dem Andocken nicht abgeschlossen: Forge nicht lesbar oder nicht schreibbar, nächster Versuch beim nächsten Start');
   }
 
   /** Sparpaket, package 6: proposals from the merged run as one comment to lern_issue, applied by nobody. */
