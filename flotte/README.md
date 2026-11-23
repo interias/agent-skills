@@ -29,7 +29,8 @@ Die Startparameter und die festen Schwellen sind nur Anfangswerte. Auf der Brüc
 mit PIN) lassen sich ändern: Missionen gleichzeitig (1–4), Pakete je Mission gleichzeitig (1–3), die Konten
 der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot) und je Konto „bis
 100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
-Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR). Der Treiber prüft die
+Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#166) das Modell der Triage
+(Standard `opus`) und des Admirals (Startwert `--admiral-modell`), ab dem nächsten Aufruf. Der Treiber prüft die
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
@@ -521,8 +522,10 @@ Backlog etwa leer ist. Gerechnet wird je Repository aus dem, was der Treiber dor
 
 - **Messen:** Je fertiger Mission schreibt der Treiber eine Zeile in
   `<git common dir>/flotte/messungen.jsonl`. Sie überdauert Einsätze. In der Zeile stehen:
-  - die Arbeitszeit vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der der ganze
-    Lauf auf dich wartete;
+  - die Arbeitszeit (`arbeitS`) vom ersten Start bis zum letzten `FLOTTE-ENDE`, ohne die Zeit, in der
+    der ganze Lauf auf dich wartete (`menschWartenS`), pausiert war (`pauseS`) oder sein nächster Zug
+    an einer Bremse hing, am Limit des Kontos oder am RAM (`limitS`, #202); die drei stehen als eigene
+    Felder daneben, ältere Zeilen haben `pauseS` und `limitS` nicht;
   - die Andockprüfungs-Zeit des Treibers und das Konto;
   - je Paket die Klasse (mechanisch, Standard, Urteil, Urteil-hoch) und die Eskalationen, gelesen
     aus den Ingenieur-Aufrufen im Log des Laufs.

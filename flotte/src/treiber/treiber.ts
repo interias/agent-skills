@@ -45,6 +45,8 @@ export interface Einstellung {
   skill: string;
   modell: string | null;
   admiralModell: string | null;
+  /** #166: model of a triage run (and its cut plan); set on the bridge, opus by default */
+  triageModell: string;
   /** --admiral: CLAUDE_CONFIG_DIR of the admiral calls; null: the account of the epic (acceptance 3, decision D) */
   admiralKonto: string | null;
   admiralEffort: string | null;
@@ -107,6 +109,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     skill: 'mission',
     modell: null,
     admiralModell: 'fable',
+    triageModell: 'opus',
     admiralKonto: null,
     admiralEffort: 'high',
     pingModell: 'haiku',
@@ -280,6 +283,8 @@ export interface FlottenEpic extends EpicZustand {
   endeAm?: string | null;
   gateS?: number;
   prognose?: Spanne | null;
+  /** #202: spans its next turn was held after the first start: paused by the person, or a brake (account limit, RAM) */
+  halte?: { art: 'pause' | 'limit'; von: string; bis: string | null }[];
 }
 
 export interface FlottenZustand extends Zustand {
@@ -933,6 +938,7 @@ class Treiber {
 
   verteile(): void {
     for (const ep of Object.values(this.z.epics)) {
+      this.haltVermerken(ep, !ep.auftrag || this.laufend.has(ep.nr) ? null : ep.pausiert ? 'pause' : this.darfFortsetzen(ep.konto) ? null : 'limit');
       // #61: a paused epic keeps its next turn until the person continues it
       if (!ep.auftrag || ep.pausiert || this.laufend.has(ep.nr) || !this.darfFortsetzen(ep.konto)) continue;
       const a = ep.auftrag;
@@ -940,6 +946,23 @@ class Treiber {
       const fortsetzen = a.resume && Boolean(ep.sitzung);
       this.starteLauf(ep, fortsetzen ? a.text : this.startText(ep.nr), fortsetzen);
     }
+  }
+
+  /** #202: opens or closes the span a started epic's turn is held; a held turn is no work */
+  haltVermerken(ep: FlottenEpic, art: 'pause' | 'limit' | null): void {
+    const offen = ep.halte?.at(-1)?.bis === null ? ep.halte.at(-1)! : null;
+    if (offen?.art === art || (!offen && !art)) return;
+    const jetzt = new Date(this.w.jetzt()).toISOString();
+    if (offen) offen.bis = jetzt;
+    if (art && ep.gestartetAm) (ep.halte ??= []).push({ art, von: jetzt, bis: null });
+  }
+
+  /** #202: seconds of the held spans of an epic between its first start and bis */
+  stillstandS(ep: FlottenEpic, bis: number): { pauseS: number; limitS: number } {
+    const von = ep.gestartetAm ? Date.parse(ep.gestartetAm) : bis;
+    const ms = { pause: 0, limit: 0 };
+    for (const h of ep.halte ?? []) ms[h.art] += Math.max(0, Math.min(h.bis ? Date.parse(h.bis) : bis, bis) - Math.max(Date.parse(h.von), von));
+    return { pauseS: Math.round(ms.pause / 1000), limitS: Math.round(ms.limit / 1000) };
   }
 
   belege(): void {
@@ -1664,7 +1687,7 @@ class Treiber {
       const datei = join(this.e.repo, '.claude', 'epic.md');
       const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
       const r = await (this.w.triagiere ?? triagiere)(
-        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.admiralModell ?? 'fable', trocken: false, programm: this.programm() },
+        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.triageModell, trocken: false, programm: this.programm() },
         { aufrufer: this.w.aufrufer, starte: starteTriage, abgebrochen: () => abbruch.signal.aborted },
       );
       // #147: aborted, what the run wrote until then still counts (decisions, cut plan), only its end differs
@@ -2300,7 +2323,7 @@ class Treiber {
   }
 
   /**
-   * One record per finished epic (Prognose): work time without the waits for the person, the
+   * One record per finished epic (Prognose): work time without the waits for the person, pauses and brakes (#202), the
    * driver's gate time, the packages with class and escalations from all logs of its runs, and
    * whether it fell into the span shown at its start.
    */
@@ -2319,7 +2342,8 @@ class Treiber {
           })
       : [];
     const warten = this.menschWartenS(ep.nr);
-    const arbeitS = Math.max(0, Math.round((Date.parse(ep.endeAm) - Date.parse(ep.gestartetAm)) / 1000) - warten);
+    const { pauseS, limitS } = this.stillstandS(ep, Date.parse(ep.endeAm));
+    const arbeitS = Math.max(0, Math.round((Date.parse(ep.endeAm) - Date.parse(ep.gestartetAm)) / 1000) - warten - pauseS - limitS);
     const m: Messung = {
       epic: ep.nr,
       titel: ep.titel ?? '',
@@ -2328,6 +2352,8 @@ class Treiber {
       ende: ep.endeAm,
       arbeitS,
       menschWartenS: warten,
+      pauseS,
+      limitS,
       gateS: ep.gateS ?? 0,
       pakete: paketeAusLogs(logs),
       prognose: ep.prognose ?? null,
@@ -2353,7 +2379,7 @@ class Treiber {
     const jetzt = this.w.jetzt();
     // running ones first, they hold their places; then the waiting ones in the order of the occupancy
     const reihe = [...offen.filter((ep) => ep.stufe !== 'wartend'), ...offen.filter((ep) => ep.stufe === 'wartend')];
-    const backlog = st.status === 'ok' ? prognoseBacklog(this.messungen, reihe.map((ep) => ({ n: this.kinderZahl(ep.nr), bisherS: ep.gestartetAm ? Math.max(0, (jetzt - Date.parse(ep.gestartetAm)) / 1000 - this.menschWartenS(ep.nr)) : 0 })), this.z.bremse?.obergrenze ?? 1, ab) : null;
+    const backlog = st.status === 'ok' ? prognoseBacklog(this.messungen, reihe.map((ep) => ({ n: this.kinderZahl(ep.nr), bisherS: ep.gestartetAm ? Math.max(0, (jetzt - Date.parse(ep.gestartetAm)) / 1000 - this.menschWartenS(ep.nr) - Object.values(this.stillstandS(ep, jetzt)).reduce((a, b) => a + b, 0)) : 0 })), this.z.bremse?.obergrenze ?? 1, ab) : null;
     const wert = { ...st, backlog: backlog ? { p50: Math.round(backlog.p50), p90: Math.round(backlog.p90) } : null, berechnet: new Date(jetzt).toISOString() };
     this.prognoseCache = { schluessel, wert };
     return wert;

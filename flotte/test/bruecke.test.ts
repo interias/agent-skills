@@ -12,6 +12,7 @@ import { anhalten, einstellungAus, fahre } from '../src/treiber/treiber.ts';
 import { existsSync, rmSync } from 'node:fs';
 import { kurzname } from '../src/werkzeuge/konten.ts';
 import { flotteDir, leer, lebt, neuesEpic, schreibe as schreibeZustand, startZeit } from '../src/werkzeuge/zustand.ts';
+import { liesMessungen } from '../src/werkzeuge/prognose.ts';
 import { spawn } from 'node:child_process';
 import { antwortenAusJson, antwortZeile, type Bericht, type BrueckenAntwort, type BrueckenHandlung, handlungenAusJson } from '../src/treiber/bruecke.ts';
 import { admiral, aufbau, drehbuch, ende, frage, gateGefahren, lauf } from './flotte-welt.ts';
@@ -597,8 +598,8 @@ describe('Einstellungen über die Brücke (#58)', () => {
   it('every setting: a valid value holds from the next turn, as event and in the logbook; an invalid one is refused with an event; the report names value and origin', async () => {
     const t = aufbau();
     const [k1, k2] = t.konten.map((k) => basename(k));
-    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch']];
-    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['rechte', 'alle']];
+    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['triageModell', 'sonnet'], ['admiralModell', 'opus']];
+    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['triageModell', 'haiku'], ['admiralModell', 'claude-opus-5-5'], ['admiralModell', null], ['rechte', 'alle']];
     const b = await attrappe(() => null, { handlung: nacheinander([...gueltig, ...ungueltig].map(([n, w]) => einstellen(n, w))) });
     try {
       const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
@@ -620,6 +621,10 @@ describe('Einstellungen über die Brücke (#58)', () => {
       expect(letzter.einstellungen.find((x) => x.name === 'konten')).toMatchObject({ standard: [k1, k2], leer: false, auswahl: expect.arrayContaining([k1, k2]) });
       expect(letzter.einstellungen.find((x) => x.name === 'obergrenze')).toMatchObject({ min: 1, max: 4, leer: true, standard: null });
       expect(letzter.einstellungen.find((x) => x.name === 'merge')).toMatchObject({ titel: 'Andocken', standard: 'mensch', leer: false, werte: ['mensch'], hinweis: expect.stringContaining('merge: nach_gate') });
+      // #166: the models of triage and admiral, a choice of three words
+      expect(letzter.einstellungen.find((x) => x.name === 'triageModell')).toMatchObject({ standard: 'opus', leer: false, werte: ['opus', 'fable', 'sonnet'], hinweis: null });
+      expect(letzter.einstellungen.find((x) => x.name === 'admiralModell')).toMatchObject({ standard: 'fable', leer: false, werte: ['opus', 'fable', 'sonnet'] });
+      expect(texte).toContain('Einstellung Modell der Triage über die Brücke abgelehnt: "haiku" ist nicht opus oder fable oder sonnet');
       // in effect: limit and idle limit; still no account path in the report
       expect(letzter.obergrenze).toBe(2);
       expect(letzter.leerlaufS).toBe(1800);
@@ -708,6 +713,29 @@ describe('Einstellungen über die Brücke (#58)', () => {
       expect(laeufe3[0].eingabe).toContain('Auftrag: höchstens 3 Pakete gleichzeitig.');
       expect(laeufe3[1].eingabe).toMatch(/Geänderter Auftrag: höchstens 2 Pakete gleichzeitig\. Gilt ab dem nächsten frei werdenden Platz/);
       expect(laeufe3[2].eingabe).not.toContain('höchstens 2 Pakete');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#166: the admiral model of the bridge holds for the next question block', async () => {
+    const t = aufbau({});
+    let gesendet = false;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (gesendet || x.epics.filter((e) => e.prozess).length < 1) return null;
+        gesendet = true;
+        return einstellen('admiralModell', 'opus');
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      // the stand-in world starts the admiral without --model; the setting of the bridge gives it one
+      const modelle = buch.gesehen().filter((g) => g.eingabe.startsWith('FLOTTE-ADMIRAL')).map((g) => (g.args.includes('--model') ? g.args[g.args.indexOf('--model') + 1] : null));
+      expect(modelle).toEqual(['opus']);
+      expect(z.einstellungen).toMatchObject({ admiralModell: { wert: 'opus' } });
     } finally {
       await b.zu();
     }
@@ -859,6 +887,34 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(index(m, /^#3 Epic #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
       expect(z.ereignisse.some((x) => /abgebrochen|Leerlauf|beendet den Zug/.test(x.text))).toBe(false);
       expect(gestoppt).toBeGreaterThan(5);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#202: a pause is no work: the measurement takes it off arbeitS and keeps it as pauseS', async () => {
+    const t = aufbau();
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const e = x.epics[0];
+        if (e?.prozess && !e.pausiert) return { epic: 3, art: 'pausieren' };
+        // the held turn waits at least 3 s for the person
+        if (e?.pausiert && !e.prozess && e.stufe === 'laeuft' && Date.now() - Date.parse(e.pausiert) > 3000) return { epic: 3, art: 'fortsetzen' };
+        return null;
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 900 }, { text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pausiert: null });
+      const [m] = liesMessungen(flotteDir(t.repo)).filter((x) => x.epic === 3);
+      const gesamt = Math.round((Date.parse(m.ende) - Date.parse(m.start)) / 1000);
+      expect(m.pauseS).toBeGreaterThanOrEqual(1);
+      expect(m.limitS).toBe(0);
+      expect(m.menschWartenS).toBe(0);
+      expect(m.arbeitS).toBe(Math.max(0, gesamt - m.pauseS! - m.limitS! - m.menschWartenS));
+      expect(m.arbeitS).toBeLessThan(gesamt);
+      expect(z.ereignisse.some((x) => x.text.startsWith(`Gemessen für die Prognose: ${Math.round(m.arbeitS / 60)} min Arbeit`))).toBe(true);
     } finally {
       await b.zu();
     }
@@ -1182,6 +1238,27 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // they outlive a restart in the state
       expect(z.triage!.entscheidungen.map((d) => d.nr)).toEqual([7, 8]);
       expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#166: the triage runs with triageModell, opus without a setting; a change holds from the next run, the running one keeps its model', async () => {
+    const t = aufbau();
+    const tr = triageAttrappe(zwei(), 1200);
+    let schritt = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (schritt === 0) return (schritt++, { epic: 0, art: 'triage' });
+        if (schritt === 1 && x.triage.laeuft) return (schritt++, { epic: 0, art: 'einstellen', text: JSON.stringify({ name: 'triageModell', wert: 'sonnet' }) });
+        if (schritt === 2 && !x.triage.laeuft && x.einstellungen.find((e) => e.name === 'triageModell')?.wert === 'sonnet') return (schritt++, { epic: 0, art: 'triage', text: 'zweiter Lauf' }); // the stand-in offers an equal action once
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 6000 }), { ...t.welt, triagiere: tr.f });
+      expect(tr.aufrufe.map((a) => a.modell)).toEqual(['opus', 'sonnet']);
+      expect(texte(z)).toContain('Einstellung Modell der Triage von opus → auf sonnet, Mensch über die Brücke');
     } finally {
       await b.zu();
     }
