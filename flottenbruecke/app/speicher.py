@@ -1,5 +1,6 @@
 # SQLite: the last report per project, when an epic reached its stage, the answers and actions of
-# the person until the driver acknowledges them, and the prototypes of each project (Holodeck).
+# the person until the driver acknowledges them, the prototypes of each project (Holodeck), and
+# (#37) the push subscriptions of the devices and the events of "Braucht dich" already reported.
 
 import json
 import sqlite3
@@ -54,6 +55,17 @@ create table if not exists prototypen (
   geaendert text not null,
   inhalt text not null,
   primary key (forge, name)
+);
+create table if not exists push_abos (
+  endpoint text primary key,
+  p256dh text not null,
+  auth text not null,
+  angelegt text not null
+);
+create table if not exists gemeldet (
+  forge text not null,
+  schluessel text not null,
+  primary key (forge, schluessel)
 );
 create table if not exists werft (
   rechner text primary key,
@@ -263,3 +275,25 @@ class Speicher:
         with self.lock:
             z = self.db.execute('select inhalt from prototypen where forge = ? and name = ?', (forge, name)).fetchone()
         return None if z is None else z['inhalt']
+
+    # ---- Web-Push (#37): the subscriptions, and the events of level 1 already reported per project
+
+    def abo_setzen(self, endpoint: str, p256dh: str, auth: str, jetzt: str) -> None:
+        with self.lock, self.db:
+            self.db.execute('insert or replace into push_abos values (?, ?, ?, ?)', (endpoint, p256dh, auth, jetzt))
+
+    def abo_loeschen(self, endpoint: str) -> bool:
+        with self.lock, self.db:
+            return self.db.execute('delete from push_abos where endpoint = ?', (endpoint,)).rowcount > 0
+
+    def abos(self) -> list[dict]:
+        with self.lock:
+            return [dict(z) for z in self.db.execute('select * from push_abos order by angelegt')]
+
+    def neu_gemeldet(self, forge: str, schluessel: list[str]) -> set[str]:
+        """The keys not reported before; afterwards the project's reported ones are exactly these (an event gone is forgotten)."""
+        with self.lock, self.db:
+            alt = {z['schluessel'] for z in self.db.execute('select schluessel from gemeldet where forge = ?', (forge,))}
+            self.db.execute('delete from gemeldet where forge = ?', (forge,))
+            self.db.executemany('insert or ignore into gemeldet values (?, ?)', [(forge, s) for s in schluessel])
+            return set(schluessel) - alt

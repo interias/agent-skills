@@ -12,7 +12,7 @@
 import { gateKern } from '../treiber/gate.ts';
 import { KLASSE, type Klasse, RANG } from './prognose.ts';
 
-export type Phase = 'implementer' | 'review' | 'nachbesserung' | 'merge';
+export type Phase = 'implementer' | 'review' | 'nachbesserung' | 'merge' | 'abgebrochen';
 
 /** What one log line says about a package: a call, the return of the call, or work below the call. */
 export interface AgentEintrag {
@@ -28,6 +28,8 @@ export interface AgentEintrag {
   paket?: number | string;
   /** aufruf of a spec package only: the description after the package, its only title */
   titel?: string;
+  /** rueckkehr only: the agent ended with failed, killed or stopped (#173) */
+  abbruch?: true;
 }
 
 export interface PaketDetail {
@@ -95,7 +97,7 @@ export function eintraegeAus(roh: string, zeit: number | null = null, gate: stri
   } else if (d?.type === 'user') {
     for (const c of inhalt) if (c?.type === 'tool_result' && c.tool_use_id && !gestartet(c.content)) out.push({ zeit: z, art: 'rueckkehr', id: String(c.tool_use_id) });
   } else if (d?.type === 'system' && d.subtype === 'task_notification' && d.tool_use_id && ENDE.has(d.status)) {
-    out.push({ zeit: z, art: 'rueckkehr', id: String(d.tool_use_id) });
+    out.push(d.status === 'completed' ? { zeit: z, art: 'rueckkehr', id: String(d.tool_use_id) } : { zeit: z, art: 'rueckkehr', id: String(d.tool_use_id), abbruch: true });
   }
   return out;
 }
@@ -175,7 +177,8 @@ export function ableiten(eintraege: AgentEintrag[], fertig: ReadonlySet<number |
         d.phase = nachReview ? 'nachbesserung' : 'implementer';
         d.phaseSeit = iso(letzter.zeit);
       } else if (zurueck(letzter)) {
-        d.phase = 'merge';
+        // a reviewer that ended with failed, killed or stopped gave no verdict: nothing to dock (#173)
+        d.phase = zurueck(letzter)!.abbruch ? 'abgebrochen' : 'merge';
         d.phaseSeit = iso(zurueck(letzter)!.zeit);
       } else {
         d.phase = 'review';
@@ -188,7 +191,7 @@ export function ableiten(eintraege: AgentEintrag[], fertig: ReadonlySet<number |
   return out;
 }
 
-/** Places in use: packages in implementer, review or nachbesserung (merge is the host's, no place). */
+/** Places in use: packages in implementer, review or nachbesserung (merge is the host's, abgebrochen runs nothing: no place). */
 export function belegt(details: Iterable<PaketDetail>): number {
   let n = 0;
   for (const d of details) if (d.phase === 'implementer' || d.phase === 'review' || d.phase === 'nachbesserung') n++;

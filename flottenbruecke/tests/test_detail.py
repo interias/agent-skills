@@ -100,6 +100,13 @@ def test_ungueltige_werte_werden_abgelehnt(client, bericht):
     assert client.post('/api/bericht', json=bericht).status_code == 422
 
 
+def test_abgebrochener_review_wird_angenommen_und_weitergegeben(client, bericht):
+    # #173: a reviewer that ended with failed, killed or stopped is no merge
+    bericht['epics'][1]['pakete'][1]['phase'] = 'abgebrochen'
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    assert pakete(client, 38)[47]['phase'] == 'abgebrochen'
+
+
 def test_sternenkarte_bekommt_die_felder_der_pakete_mit(client, bericht):
     client.post('/api/bericht', json=bericht)
     p = next(p for p in client.get('/api/tafel').json()['projekte'] if p['forge'] == 'interias/flotte-probe')

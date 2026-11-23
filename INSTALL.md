@@ -51,6 +51,11 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   Namen (`prd`, `prd-nacharbeit`, `prd-aufraeumen`, `epic`, `epic-nacharbeit`, `epic-aufraeumen`)
   werden gesichert und entfernt, sobald ihr neuer Name installiert wird. Wer von den alten Namen
   umsteigt, liest [`docs/UMSTELLUNG.md`](docs/UMSTELLUNG.md).
+- **Stand (#154):** schreibt in jeden installierten Skill-Ordner `stand.json` mit Commit und Datum des
+  ausgecheckten Stands, dem Zeitpunkt und dem Ordner der Quelle. Die Flottenbrücke zeigt ihn; der
+  Treiber spielt über ihren Knopf „Einspielen und Treiber neu starten“ von dieser Quelle aus ein
+  (`flotte/README.md`, „Anhalten und neu starten“). Liegt die Quelle nicht oben in einem Git-Repository,
+  entsteht keine Datei (Zeile `No stand: …`).
 - **Agent-Typen:** kopiert `agents/*.md` nach `~/.claude/agents/`; eine abweichende vorhandene Datei
   wird vorher gesichert.
 - **Entfernte Skills und Agent-Typen abräumen** (nur ohne `-Skill`): Installierte Kopien von
@@ -68,6 +73,51 @@ Quelle mit — passiert am 18.09.2026 in KOKOS mit `node_modules`-Junctions. Fin
 Ziel einen Reparse-Point, meldet es `ABORT`, lässt diesen Skill-Ordner oder diese Agent-Datei
 unberührt und macht mit den übrigen weiter; am Ende steht trotzdem `Done.`. Jedes `ABORT` meldest
 du, statt es zu umgehen.
+
+## Optional: Meldungen bei „Braucht dich“
+
+Zwei getrennte Schritte, jeder für sich abschaltbar (#37); was sie melden, steht in
+[`flottenbruecke/README.md`](flottenbruecke/README.md), „Meldungen“.
+
+### Windows-Meldung am Rechner
+
+1. Den Treiber mit `--meldung an` starten (`flotte/README.md`, „Starten“) oder im Maschinenraum der
+   Brücke „Windows-Meldung bei „Braucht dich““ auf `an` stellen. Er ruft `powershell` (Windows
+   PowerShell 5.1, liegt Windows bei) ohne zusätzliches Modul auf.
+2. In den Windows-Einstellungen unter System → Benachrichtigungen Meldungen von „Windows PowerShell“
+   zulassen.
+
+### Push auf das Android-Handy
+
+Nur im LAN: kein Tunnel, keine Portfreigabe im Router. Im Ordner `flottenbruecke/`:
+
+1. **Zertifikat mit mkcert erzeugen** (`winget install FiloSottile.mkcert`, einmal `mkcert -install`):
+
+   ```powershell
+   mkdir zert
+   mkcert -cert-file zert/bruecke.pem -key-file zert/bruecke-key.pem <rechnername> localhost 127.0.0.1 <ip-des-rechners-im-lan>
+   ```
+
+   In `.env`: `BRUECKE_ZERT=/zert/bruecke.pem` und `BRUECKE_ZERT_SCHLUESSEL=/zert/bruecke-key.pem`
+   (`./zert` ist im Container `/zert`; der Ordner ist von Git ausgenommen).
+2. **Stammzertifikat auf dem Android-Gerät vertrauen:** `rootCA.pem` aus dem Ordner, den
+   `mkcert -CAROOT` nennt, aufs Handy kopieren (nie `rootCA-key.pem`) und unter Einstellungen →
+   Sicherheit → Verschlüsselung und Anmeldedaten → Zertifikat installieren → CA-Zertifikat
+   installieren (Wortlaut je nach Hersteller).
+3. **VAPID-Schlüssel erzeugen:** `docker compose run --rm bruecke python -m app.meldung` gibt die Zeile
+   `BRUECKE_VAPID_SCHLUESSEL=…` aus; sie kommt in `.env` (geheim wie die PIN). Dann
+   `docker compose up -d --build`.
+4. **Treiber umstellen:** Die Brücke spricht auf ihrem Port jetzt nur HTTPS. Der Treiber meldet sich mit
+   `--bruecke https://127.0.0.1:4747` und braucht die Umgebung
+   `NODE_EXTRA_CA_CERTS` auf `rootCA.pem` im Ordner von `mkcert -CAROOT`, sonst lehnt er das
+   Zertifikat ab.
+5. **Web-App installieren und Meldungen erlauben:** Auf dem Handy in Chrome
+   `https://<rechnername>:4747/` öffnen, im Menü „App installieren“ (oder „Zum Startbildschirm
+   hinzufügen“), die App öffnen, Maschinenraum → „Meldungen auf diesem Gerät“ → **Einschalten**, PIN
+   eingeben und Benachrichtigungen erlauben. **Abschalten** an derselben Stelle beendet das Abo.
+
+Zurück auf HTTP: `BRUECKE_ZERT`, `BRUECKE_ZERT_SCHLUESSEL` und `BRUECKE_VAPID_SCHLUESSEL` leeren,
+`docker compose up -d`, Treiber wieder mit `http://`. iOS ist nicht geprüft.
 
 ## Ändern
 
