@@ -422,6 +422,45 @@ offen ist (sonst erledigt oder dem Bericht unbekannt, `stufe` dann `null`); `fol
 der offenen Epics, die nach diesem kommen. Das Projekt trägt wie bisher `prognose`. Alles stammt aus
 dem Bericht, die Brücke fragt keine Forge.
 
+## 6. Werft: `POST /api/werft`, `GET /api/werft/handlungen`
+
+Die Werft (`flotte werft`, #88, agent-skills/ADR-0005) ist ein eigener Dienst je Rechner, umgesetzt
+in `flotte/src/befehle/werft.ts`, getestet gegen eine Attrappe in `flotte/test/werft.test.ts`. Wie
+der Treiber **ruft nur sie**: Die Brücke befiehlt nichts, sie hält Stand, Einstellungen und
+Handlungen. Basis-URL, Token und Zeitgrenze wie in den Grundregeln (`--bruecke`, `FLOTTE_BRUECKE`,
+`FLOTTE_BRUECKE_TOKEN`, 3 s); ist die Brücke aus, zieht die Werft weiter nach. Die Gegenseite der
+Brücke (Annahme, Stände, Knöpfe) baut #90.
+
+**Takt** (alle 15 s): `GET /api/werft/handlungen?rechner=<os.hostname()>`, dann die fälligen
+Repositorys, dann `POST /api/werft`; nur wenn die Brücke den Bericht angenommen hat,
+`POST /api/werft/handlungen/{id}/quittung` je Handlung, die gewirkt hat oder abgelehnt wurde. Ein
+`nachziehen`, das nicht wirken konnte (Fetch, Adapter oder Diff gescheitert, `fehler` im Bericht),
+bleibt unquittiert und wirkt im nächsten Takt.
+
+**Bericht** `POST /api/werft`, Antwort `{"ok": true}`; der Bericht eines Rechners ersetzt seinen
+vorigen.
+
+| Feld | Bedeutung |
+|---|---|
+| `rechner` | `os.hostname()`; je Rechner eine Werft |
+| `zeit` | ISO-Zeit des Takts |
+| `repos[]` | je Repository mit `deploy`: `{forge, branch, stand, geprueft, abfrageS, fehler, stacks[]}`. `forge` ist `owner/name` von `origin` auf GitHub, sonst der Ordnername (nie ein Pfad), und mit `rechner` der Schlüssel des Repositorys; `branch` der `main_branch`; `stand` der zuletzt abgearbeitete Commit von `origin/<branch>` (`null` vor dem ersten Blick); `geprueft` ISO; `abfrageS` der wirksame Abstand; `fehler` Text, wenn das Repository nicht geprüft werden konnte (Fetch, Adapter, Diff), sonst `null` |
+| `repos[].stacks[]` | `{name, status, commit, zeit, protokoll, migration}`, in der Reihenfolge des Adapters. `status` `gruen`, `rot` oder `null` (noch nie von der Werft gezogen); `commit` der Stand, bei dem der Stack zuletzt gezogen wurde; `protokoll` bei `rot` das Ende der Ausgabe (höchstens 4000 Zeichen), sonst `null`; `migration` `{test, arbeit, sicherung}`: welche Befehle von #89 der Adapter nennt |
+| `meldungen[]` | was dieser Takt getan oder abgelehnt hat, als Text (Laufband) |
+
+**Handlungen** `GET /api/werft/handlungen?rechner=<name>` liefert die noch nicht quittierten
+Handlungen des Rechners: `{id, forge, stack, art, text, zeit, herkunft}`.
+
+| `art` | Felder | was die Werft tut |
+|---|---|---|
+| `nachziehen` | `stack` ein Stack aus `stacks[]` | holt `origin/<branch>` sofort und zieht den Stack beim aktuellen Stand nach, auch wenn er `rot` steht; grün hebt den Halt auf. Ein unbekannter Stack wird eine Meldung `Nachziehen über die Brücke abgelehnt` |
+| `einstellen` | `stack` `null`, `text` = `{"name": "abfrage_s", "wert": <Sekunden > 0 oder null>}` | setzt den Abfrageabstand des Repositorys (gespeichert im Stand, überdauert einen Neustart); `null` zurück auf `deploy.abfrage_s`. Ein anderer Name oder Wert wird eine Meldung `Einstellung über die Brücke abgelehnt` |
+
+Eine Handlung für ein Repository, das auf diesem Rechner keine Werft führt, wird abgelehnt und
+quittiert. Eine `art`, die die Werft nicht kennt (etwa `migration_freigeben` aus #89 bei einer älteren
+Werft), bleibt unquittiert liegen. Kommt eine Handlung ein zweites Mal (die Quittung ging verloren),
+erkennt die Werft sie an `handlungenErledigt` im Stand und quittiert nur. Jede wirkt genau einmal.
+
 ## Was die Seite selbst nutzt
 
 `GET /api/tafel` (das Board in drei Ebenen, dazu `prototypen[]` und `sitzungen[]`), `GET /holodeck/…` (im

@@ -253,6 +253,38 @@ bei einem Lernvorschlag `lernvorschlag`) mit den in diesem Lauf neu gestellten F
 in derselben Form mit den Fragen früherer Läufe, die unter einem `wartet` noch ohne Antwort stehen.
 `--trocken` entscheidet und druckt, schreibt nichts.
 
+## Werft
+
+Nach einem Merge auf `main` zieht die Werft die berührten Stacks nach, auf dem Rechner und nicht im
+Brücken-Container (agent-skills/ADR-0005). Einmal je Rechner aus einem Terminal starten (Sperre
+`~/.flotte/werft.lock`; ein zweiter Start endet mit Exit 1, die Sperre eines toten Prozesses wird
+übernommen):
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" werft [<ordner>...] [--bruecke http://127.0.0.1:4747] [--einmal]
+```
+
+- Sie nimmt jedes Repository in den Ordnern (Standard `~/git`, nur Hauptverzeichnisse) mit dem
+  Adapterschlüssel `deploy` (`epic/references/adapter.md`, „Werft“). Alle 15 s schaut sie, welches
+  fällig ist (`deploy.abfrage_s`, Standard 120 s), holt `origin/<main_branch>` und liest den Adapter
+  von dort.
+- Gezogen wird jeder Stack, dessen `pfade` eine Datei im Diff seit dem letzten Stand trifft, in der
+  Reihenfolge des Adapters: `<stack>.nachziehen` in der Wurzel des Repositorys, mit `WERFT_COMMIT`
+  und `WERFT_STACK` in der Umgebung, höchstens 30 min. Die Arbeitskopie fasst die Werft nicht an; wer
+  den neuen Stand braucht, holt ihn im Befehl.
+- Der Stand steht je Repository in `.git/flotte/werft.json`: `stand` (zuletzt abgearbeiteter Commit)
+  und je Stack `status`, `commit`, `protokoll`. Geschrieben wird nach jedem Stack; ein Neustart setzt
+  dort fort und zieht nichts doppelt: Ein Stack, der schon bei einem späteren Commit gezogen wurde,
+  zählt nur, was danach kam. Beim ersten Blick merkt sie sich nur den Stand. Fehlt der alte Stand
+  lokal (Force-Push und gc), gelten alle Stacks als berührt, mit einer Meldung.
+- Ein Fehler (Exit ≠ 0) stellt nur diesen Stack auf `rot`, mit dem Ende der Ausgabe als Protokoll;
+  die übrigen laufen weiter. Ein roter Stack wird nicht mehr von selbst gezogen, bis der Mensch auf
+  der Brücke „nachziehen“ wählt.
+- Mit `--bruecke` (oder `FLOTTE_BRUECKE`, Token `FLOTTE_BRUECKE_TOKEN`) meldet sie je Takt den
+  Stand und holt Handlungen ab (`flottenbruecke/SCHNITTSTELLE.md`, „Werft“); ist die Brücke aus,
+  zieht sie weiter nach.
+- Migrationen, Sicherung und deren Freigabe (#89) liest sie aus dem Adapter, fährt sie aber noch nicht.
+
 ## Prognose
 
 Die Brücke sagt je wartendem Epic „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der

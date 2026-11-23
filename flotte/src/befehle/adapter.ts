@@ -33,22 +33,29 @@ export function adapterStand(repo: string, a: Aufrufer = aufrufen): AdapterStand
   return { repo, quelle: 'Arbeitskopie', merge: schluessel(readFileSync(datei, 'utf8'), 'merge') };
 }
 
-export function adapter(argv: string[], a: Aufrufer = aufrufen): unknown {
+/** The repositories in the given folders, default ~/git: main checkouts only (.git is a folder); a worktree carries the same adapter. */
+export function repositorys(argv: string[]): string[] {
   const ordner = (argv.length ? argv : [join(homedir(), 'git')]).map((o) => resolve(o));
-  const staende: AdapterStand[] = [];
+  const repos: string[] = [];
   for (const o of ordner) {
     if (!existsSync(o)) throw new Error(`Ordner fehlt: ${o}`);
-    // main checkouts only (.git is a folder); a worktree carries the same adapter
     for (const n of readdirSync(o)) {
       const repo = join(o, n);
       try {
-        if (!statSync(join(repo, '.git')).isDirectory()) continue;
+        if (statSync(join(repo, '.git')).isDirectory()) repos.push(repo);
       } catch {
         continue;
       }
-      const s = adapterStand(repo, a);
-      if (s) staende.push(s);
     }
+  }
+  return repos;
+}
+
+export function adapter(argv: string[], a: Aufrufer = aufrufen): unknown {
+  const staende: AdapterStand[] = [];
+  for (const repo of repositorys(argv)) {
+    const s = adapterStand(repo, a);
+    if (s) staende.push(s);
   }
   const ohne = staende.filter((s) => !s.merge);
   return {
