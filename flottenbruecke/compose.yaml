@@ -1,4 +1,7 @@
 # Flottenbrücke (#28): docker compose up -d in this folder. Port and bind address from .env.
+# #48 (ADR-0006), optional: remote access over Tailscale, view only. Off unless switched on:
+#   on:  docker compose --profile fernzugriff up -d
+#   off: docker compose --profile fernzugriff rm -sf tailscale
 name: flottenbruecke
 services:
   bruecke:
@@ -20,5 +23,21 @@ services:
       - daten:/data
       # #37, optional: the mkcert certificate for HTTPS in the LAN (BRUECKE_ZERT in .env); empty: HTTP
       - ./zert:/zert:ro
+  # #48: joins the tailnet and serves the bridge's remote entry (port 8001 in the container, published nowhere) over
+  # HTTPS in the tailnet only, no Funnel. Over that entry the bridge is view only (app/main.py, nur_ansicht).
+  tailscale:
+    image: tailscale/tailscale:v1.104.7
+    profiles: [fernzugriff]
+    restart: unless-stopped
+    environment:
+      # the auth key only from .env (BRUECKE_TS_SCHLUESSEL); needed once, the state volume keeps the device
+      TS_AUTHKEY: ${BRUECKE_TS_SCHLUESSEL:-}
+      TS_HOSTNAME: ${BRUECKE_TS_NAME:-flottenbruecke}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ./tailscale:/config:ro
 volumes:
   daten:
+  tailscale:

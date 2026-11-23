@@ -3,7 +3,7 @@
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
 Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Epics im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen) und (#154) das Einspielen eines neuen Stands (Maschinenraum).
-Nur im LAN, kein Tunnel. Die Brücke startet, stoppt und mergt nichts selbst.
+Im LAN, unterwegs optional über Tailscale und dort nur zur Ansicht (unten „Fernzugriff“, agent-skills/ADR-0006). Die Brücke startet, stoppt und mergt nichts selbst.
 
 ## Start
 
@@ -25,6 +25,8 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 | `BRUECKE_ZERT`, `BRUECKE_ZERT_SCHLUESSEL` | leer | optional (#37): Zertifikat und Schlüssel im Container (`/zert/…`, aus `./zert`); beide gesetzt: HTTPS, beide leer: HTTP |
 | `BRUECKE_VAPID_SCHLUESSEL` | leer | optional (#37): privater VAPID-Schlüssel; gesetzt: Web-Push an, leer: aus |
 | `BRUECKE_VAPID_KONTAKT` | `mailto:flottenbruecke@localhost` | optional: Kontakt, den der Push-Dienst sieht |
+| `BRUECKE_TS_SCHLUESSEL` | leer | optional (#48): Auth-Key von Tailscale für den Fernzugriff |
+| `BRUECKE_TS_NAME` | `flottenbruecke` | optional: Name der Brücke im Tailnet |
 
 Unter Windows muss die Firewall den Port im privaten Netz zulassen, damit das Handy ihn erreicht.
 
@@ -42,11 +44,47 @@ gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht 
 - **Auf dem Handy (Android):** Web-Push an die installierte Web-App, auch wenn sie geschlossen ist. Die
   Brücke braucht dafür HTTPS (Zertifikat aus mkcert) und einen VAPID-Schlüssel; ohne beide läuft sie
   unverändert über HTTP und spricht mit keinem Push-Dienst. Die Brücke schickt ausgehend an den
-  Push-Dienst des Browsers (bei Chrome der von Google), Ende-zu-Ende verschlüsselt. **Nur LAN:** kein
-  Tunnel, keine öffentliche Adresse; das Handy erreicht die Brücke im WLAN. Ein Gerät meldet sich im
+  Push-Dienst des Browsers (bei Chrome der von Google), Ende-zu-Ende verschlüsselt. **Anmelden nur im
+  LAN:** keine öffentliche Adresse; das Handy erreicht die Brücke dazu im WLAN, über den Fernzugriff ist
+  sie nur Ansicht. Ein Gerät meldet sich im
   Maschinenraum unter „Meldungen auf diesem Gerät“ mit **Einschalten** an und mit **Abschalten** ab,
   beides mit PIN. Ein Abo, das der Push-Dienst als abgelaufen meldet, löscht die Brücke selbst.
   Einrichten: [`INSTALL.md`](../INSTALL.md), „Optional: Meldungen“. iOS ist nicht geprüft.
+
+## Fernzugriff (optional, nur Ansicht)
+
+Unterwegs zeigt die Brücke die Lage über [Tailscale](https://tailscale.com) (#48, agent-skills/ADR-0006):
+nur für Geräte im eigenen Tailnet, keine öffentliche Adresse, kein Port im Router. Der Zusatz ist ein
+eigener Container im Compose-Profil `fernzugriff` und standardmäßig aus; `docker compose up -d` startet
+wie bisher nur die Brücke.
+
+**Einschalten** (einmal, im Ordner `flottenbruecke/`):
+
+1. Im Tailscale-Admin unter DNS die HTTPS-Zertifikate einschalten (MagicDNS an), unter Settings → Keys
+   einen Auth-Key erzeugen.
+2. In `.env` eintragen (Vorlage in `.env.example`, auskommentiert): `BRUECKE_TS_SCHLUESSEL=<auth-key>`,
+   wahlweise `BRUECKE_TS_NAME=<name>`. Der Schlüssel steht nur dort, nie im Repository.
+3. `docker compose --profile fernzugriff up -d`
+
+Die Brücke im LAN läuft dabei unverändert weiter. Der Container meldet sich mit dem Schlüssel einmal im
+Tailnet an und merkt sich das Gerät im Volume `flottenbruecke_tailscale`; er startet mit dem Rechner
+neu, bis er abgeschaltet ist. Die Seite liegt dann unter `https://<name>.<tailnet>.ts.net/`.
+
+**Abschalten:** `docker compose --profile fernzugriff rm -sf tailscale`. Die Brücke im LAN bleibt.
+Wer das Gerät ganz vergessen will: zusätzlich `docker volume rm flottenbruecke_tailscale` und das Gerät
+im Tailscale-Admin entfernen.
+
+**Nur Ansicht über den Fernweg:** Tailscale reicht an einen eigenen Eingang der Brücke weiter (Port 8001
+im Container, auf dem Rechner nirgends veröffentlicht). Dort liefert die Brücke die Seite und alles
+Lesende wie im LAN und lehnt jede schreibende Anfrage mit `403` ab, auch mit richtiger PIN: Antworten,
+Handlungen, PIN-Prüfung, Web-Push-Anmeldung und alle Endpunkte des Treibers. Die Seite trägt oben
+„Nur Ansicht“, ihre Knöpfe zum Handeln sind aus, und sie fragt keine PIN ab. Die Brücke erkennt den
+Fernweg am Eingang, nicht an Absenderadresse oder Kopfzeilen; ein Gerät im LAN kann ihn nicht
+vortäuschen. Antworten und Handlungen gehen weiter im LAN mit PIN oder über `flotte antworten`.
+
+**Probe vom Handy:** WLAN aus, im Mobilfunknetz die Tailscale-App verbinden und
+`https://<name>.<tailnet>.ts.net/` öffnen. Die Brücke erscheint mit „Nur Ansicht“, alle Bereiche zeigen
+dieselben Daten wie im LAN, „Senden“ und die Handlungen sind gesperrt.
 
 ## Bereiche und Navigation
 
@@ -265,7 +303,7 @@ auch in „Erledigt heute“) widerruft eine Entscheidung des Admirals oder dein
 Merge: Du schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt sie dem Lauf.
 Beide Stellen teilen sich Formular und Entwurf.
 
-Ansehen ist im LAN frei, Antworten und Handlungen nur mit PIN. Fünf falsche PINs sperren für fünf
+Ansehen ist im LAN (und über den Fernzugriff) frei, Antworten und Handlungen nur im LAN mit PIN. Fünf falsche PINs sperren für fünf
 Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte eine).
 
 ## Maschinenraum und Logbuch
@@ -339,5 +377,5 @@ python -m venv .venv
 ```
 
 Backend: FastAPI (`app/main.py`), Board-Logik `app/tafel.py`, Speicher `app/speicher.py`, Web-Push
-`app/meldung.py`, Start mit HTTP oder HTTPS `app/start.py`.
+`app/meldung.py`, Start mit HTTP oder HTTPS samt dem Eingang für den Fernzugriff `app/start.py`.
 Frontend ohne Build: `app/static/`.

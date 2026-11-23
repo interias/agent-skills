@@ -207,7 +207,7 @@ function frageHtml(x, t) {
   const empf = !x.empfohlen.length && x.empfehlung ? `<p class="warum"><b>Empfehlung:</b> ${esc(x.empfehlung)}</p>` : '';
   return `${vorne}${x.mehrfach && x.optionen.length ? '<span class="hinweis">mehrere möglich</span>' : ''}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
 ${frei ? `<textarea placeholder="${x.optionen.length ? 'Freitext, erreicht den Lauf unverändert (optional)' : 'Deine Antwort, erreicht den Lauf unverändert'}" aria-label="Freitext"${zu}>${esc(e.text || '')}</textarea>` : ''}
-<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Freitext</button>` : ''}<span class="status">${t.pin ? '' : 'Antworten abgeschaltet: keine PIN gesetzt'}</span></div>${wortlaut}`;
+<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Freitext</button>` : ''}<span class="status">${t.pin ? '' : `Antworten abgeschaltet: ${huelle.ohnePin(t)}`}</span></div>${wortlaut}`;
 }
 
 function sendeText(x, e) {
@@ -595,6 +595,8 @@ function widerrufVerdrahten(wo, d, neu) {
 // ---- sending with the PIN
 
 async function senden(pfad, body, el, status) {
+  // #48: over the remote entry the bridge refuses it anyway; no PIN dialog there
+  if (stand?.nurAnsicht) return false;
   for (let versuch = 0; versuch < 2; versuch++) {
     const pin = lager.get(PIN_KEY) || (await pinFragen());
     if (!pin) return false;
@@ -820,6 +822,8 @@ async function laden() {
     const r = await fetch('/api/tafel', { cache: 'no-store' });
     if (!r.ok) throw new Error(String(r.status));
     const t = await r.json();
+    // #48: over the remote entry only viewing: every area draws itself as without a PIN
+    if (t.nurAnsicht) t.pin = false;
     versatz = Date.parse(t.jetzt) - Date.now();
     const vorher = positionen();
     const vorherErledigt = new Set((stand?.erledigt ?? []).map((x) => x.id));

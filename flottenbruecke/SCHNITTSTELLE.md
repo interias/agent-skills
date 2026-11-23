@@ -17,6 +17,9 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
 - **Kurze Zeitgrenze** (3 s) je Aufruf. Fehler, Zeitüberschreitung oder ein Status ≠ 2xx sind kein
   Fehler des Treibers: ein Ereignis beim Wechsel (erreichbar ↔ nicht erreichbar), sonst still
   weiter. Ist die Brücke aus, bleiben `flotte antworten` und das Issue als Weg.
+- **Nur über den LAN-Eingang:** Über den Fernzugriff (Tailscale, #48, agent-skills/ADR-0006) antwortet die
+  Brücke auf Bericht, Abholen, Quittieren und Holodeck mit `403`; der Treiber meldet sich wie bisher am
+  Rechner.
 - **Token (optional):** Setzt die Brücke `BRUECKE_TOKEN`, schickt der Treiber den Wert aus
   `FLOTTE_BRUECKE_TOKEN` als Kopf `X-Bruecke-Token` bei allen Aufrufen.
 - **Alt und neu passen zusammen:** Alle Felder, die v2 dazugebracht hat, sind im Bericht
@@ -507,4 +510,5 @@ mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` 
 abgeschotteten Rahmen), `POST /api/pin` (PIN prüfen, Kopf `X-Bruecke-Pin`),
 `POST /api/antwort` (`{forge, epic, nr, seit, option, text}`) und `POST /api/handlung`
 (`{forge, epic, art, nr, seit, text}`), beide mit `X-Bruecke-Pin`. Fünf falsche PINs je Absender
-sperren für fünf Minuten.
+sperren für fünf Minuten. Über den Fernzugriff (#48) trägt `GET /api/tafel` `nurAnsicht: true` (im LAN
+`false`), und jede Anfrage außer GET und HEAD bekommt `403`, auch mit richtiger PIN.

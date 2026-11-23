@@ -7,7 +7,9 @@
 # shows the prototypes each driver sends, sealed off from the bridge. With a VAPID key (#37) each new
 # event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN. #154: it shows the stand of
 # itself (BRUECKE_COMMIT, BRUECKE_DATUM, build arguments of its image) and of each driver, and carries the update
-# the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again.
+# the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again. #48 (ADR-0006):
+# a second entry, FERNPORT, which only the optional Tailscale add-on reaches, is view only: the page and every reading
+# endpoint as in the LAN, every request that writes refused, whatever PIN it carries.
 
 import hashlib
 import hmac
@@ -22,7 +24,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
@@ -33,6 +35,10 @@ from .tafel import HERKUNFT, tafel
 STATIC = Path(__file__).parent / 'static'
 FEHLVERSUCHE = 5
 SPERRE_S = 300
+# #48: the remote entry in the container (app/start.py), never published on the machine; the Tailscale add-on proxies to it
+FERNPORT = 8001
+# GETs that write: fetching marks answers and actions as fetched. Only the driver fetches, and only in the LAN.
+ABHOLEN = ('/api/antworten', '/api/handlungen')
 
 # A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
 # bridge's localStorage (the PIN) nor its cookies nor the answers of its API. Static resources from
@@ -79,6 +85,12 @@ class Einstellung:
         return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt, commit=os.environ.get('BRUECKE_COMMIT', ''), datum=os.environ.get('BRUECKE_DATUM', ''))
 
 
+def fernweg(request: Request) -> bool:
+    """The entry is the socket the request came in on (uvicorn: its local address), not a sender or a header a client sets."""
+    server = request.scope.get('server')
+    return bool(server) and server[1] == FERNPORT
+
+
 class Pinwache:
     """At most FEHLVERSUCHE wrong PINs per client, then SPERRE_S seconds nothing."""
 
@@ -109,6 +121,13 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     wache = Pinwache()
     push = Push(e.vapid, e.vapid_kontakt, e.push_senden) if e.vapid else None
     app = FastAPI(title='Flottenbrücke', docs_url=None, redoc_url=None, openapi_url=None)
+
+    # #48: over the remote entry only viewing; a principle, not a list of endpoints, so every later one is covered
+    @app.middleware('http')
+    async def nur_ansicht(request: Request, weiter):
+        if fernweg(request) and (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN):
+            return JSONResponse({'detail': 'Über den Fernweg nur Ansicht: Antworten und Handlungen gehen nur im LAN.'}, status_code=403)
+        return await weiter(request)
 
     def jetzt() -> datetime:
         return e.uhr()
@@ -168,10 +187,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # ---- page
 
     @app.get('/api/tafel')
-    def board() -> dict:
+    def board(request: Request) -> dict:
         # push: the public VAPID key when Web-Push is on (#37), else None
         # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
-        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}}
+        # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
+        return {**tafel(speicher.projekte(), speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')
