@@ -363,6 +363,29 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('#133: requeued after an order edge to an open epic was added: waiting with the session dropped, no resume', async () => {
+    const bodies: Record<number, string> = { 3: '## Betroffene Module\n- a', 4: '## Betroffene Module\n- b' };
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        if (x.epics.find((e) => e.nr === 3)?.stufe !== 'blockiert') return null;
+        // the person adds the edge to the blocked epic, then requeues it
+        bodies[3] = '> **Reihenfolge:** nach #4\n\n## Betroffene Module\n- a';
+        return { epic: 3, art: 'einreihen' };
+      },
+    });
+    try {
+      const t = aufbau({ bodies, pr: () => ({ state: 'OPEN' }) });
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const buch = drehbuch([lauf(3, [abgemeldet], 1), lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(z.epics['3']).toMatchObject({ stufe: 'wartend', sitzung: null, konto: null, notiz: 'wartet auf den Merge von #4' });
+      expect(z.ereignisse.some((e) => e.epic === 3 && /neu eingereiht vom Menschen \(über die Brücke\), Vorgänger #4 noch nicht gemergt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('a blocked epic given up on the bridge: aborted, marked, no further run', async () => {
     const b = await attrappe(() => null, { handlung: (x) => (x.epics[0]?.stufe === 'blockiert' ? { epic: 3, art: 'aufgeben' } : null) });
     try {

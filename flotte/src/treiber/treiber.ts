@@ -1113,7 +1113,7 @@ class Treiber {
     }
     ep.nachfragen = 0;
     if (block.art === 'frage') await this.frage(ep, block, vermerk);
-    else await this.ende(ep, block);
+    else await this.ende(ep, block, r.text);
   }
 
   halt(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string, amIssue = false): void {
@@ -1432,9 +1432,15 @@ class Treiber {
       amIssue(`**Epic aufgegeben vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${ep.haltGrund?.split('\n')[0] ?? ep.notiz}`);
       return this.ereignis(h.epic, 'aufgegeben vom Menschen (über die Brücke)');
     }
-    // einreihen: the counters start over; with a session the run continues where it stopped
+    // einreihen: the counters start over; with a session the run continues where it stopped,
+    // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
     Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    const vor = this.offeneVorgaenger(ep.nr);
+    if (vor.length) {
+      amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
+      return this.wartenAuf(ep, vor, 'neu eingereiht vom Menschen (über die Brücke)');
+    }
     if (ep.sitzung && ep.konto) {
       ep.stufe = 'laeuft';
       // #54: questions of the run still without an answer are said to be open, never decided by the run
@@ -1448,6 +1454,28 @@ class Treiber {
     }
     amIssue(`**Epic neu eingereiht vom Menschen (${HERKUNFT_BRUECKE})**\nGrund der Blockade war: ${grund}`);
     this.ereignis(h.epic, `neu eingereiht vom Menschen (über die Brücke)${ep.stufe === 'wartend' ? ', wartet auf einen Platz' : ', der Lauf setzt fort'}`);
+  }
+
+  /**
+   * #133: the predecessors of an epic not merged yet, by its order edges read anew from the forge
+   * (sammle, like at the start): an edge can be added to an epic that has a session already. When
+   * the forge is unreadable the edges read so far count.
+   */
+  offeneVorgaenger(nr: number): number[] {
+    try {
+      this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+    } catch (err) {
+      this.ereignis(nr, `Reihenfolge nicht neu gelesen: ${String(err).slice(0, 200)}`);
+    }
+    return (this.bilder.find((b) => b.nr === nr)?.nach ?? []).filter((n) => !['gemergt', 'fertig'].includes(this.epic(n)?.stufe ?? ''));
+  }
+
+  /** #133: back to waiting for its predecessors; the session is dropped, so the later start is a new one, no --resume */
+  wartenAuf(ep: FlottenEpic, vor: number[], anlass: string): void {
+    this.loslassen(ep.nr);
+    const liste = vor.map((n) => `#${n}`).join(', ');
+    Object.assign(ep, { stufe: 'wartend', konto: null, auftrag: null, sitzung: null, notiz: `wartet auf den Merge von ${liste}` });
+    this.ereignis(ep.nr, `${anlass}, Vorgänger ${liste} noch nicht gemergt, wartet; die Sitzung ist verworfen`);
   }
 
   // ---- steering epics (#61)
@@ -2488,7 +2516,7 @@ class Treiber {
 
   // ---- end blocks, merge (D10–D13, D21)
 
-  async ende(ep: FlottenEpic, block: EndeBlock): Promise<void> {
+  async ende(ep: FlottenEpic, block: EndeBlock, text = block.offen): Promise<void> {
     const nr = ep.nr;
     ep.pr = block.pr ?? ep.pr;
     ep.konfliktGemeldet = false;
@@ -2504,6 +2532,14 @@ class Treiber {
       ep.auftrag = { resume: true, text: this.an(nr, `Setze den Widerruf um, dann FLOTTE-ENDE. ${this.blockForm(nr)}`) };
       this.ereignis(nr, `FLOTTE-ENDE mit PR #${ep.pr}, aber ein Widerruf des Menschen ist da`);
       return;
+    }
+    if (!ep.pr) {
+      // #133: a run that found an order edge added after its start ends without a PR. Narrow on
+      // purpose: only the block (from its head line on) counts, and only a `#<n>` that is an order
+      // predecessor of this epic in the deployment and not merged yet; anything else stays blocked.
+      const blocktext = text.slice(Math.max(0, text.lastIndexOf('FLOTTE-ENDE')));
+      const vor = this.offeneVorgaenger(nr).filter((n) => new RegExp(`#${n}(?!\\d)`).test(blocktext));
+      if (vor.length) return this.wartenAuf(ep, vor, 'FLOTTE-ENDE ohne Pull Request');
     }
     const offen = block.offen.trim();
     if (this.e.nacharbeit && !ep.nacharbeitGemacht && offen && !/^[-–—]?\s*(keine|nichts)?\.?$/i.test(offen)) {

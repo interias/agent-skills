@@ -296,6 +296,54 @@ describe('Drehbücher (#14)', () => {
     expect(z.statistik.maxLaeufe).toBe(1);
   }, T);
 
+  describe('#133: an order edge added to a running epic, FLOTTE-ENDE without a PR', () => {
+    const kante = '> **Reihenfolge:** nach #4\n\n## Betroffene Module\n- a';
+    // the edge comes after the start: the first read of #3 has none, every later one has it
+    const spaeteKante = () => {
+      let gelesen = 0;
+      return { get 3() { return gelesen++ ? kante : '## Betroffene Module\n- a'; }, 4: '## Betroffene Module\n- b' } as Record<number, string>;
+    };
+    const ohnePr = (kopf: string, offen: string) => `Nicht weiter.\n\nFLOTTE-ENDE 3${kopf}\n\n### Was das Epic offen lässt\n${offen}`;
+
+    it('naming the predecessor still open: waiting, the session dropped, not blocked; it does not start before #4 is merged', async () => {
+      const t = aufbau({ bodies: spaeteKante(), pr: () => ({ state: 'OPEN' }) });
+      const buch = drehbuch([lauf(3, [{ warte: 300 }, { text: ohnePr('', 'Die Reihenfolge verlangt erst #4, das ist noch offen.') }]), lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 3000 }), t.welt);
+      expect(fuer(buch.gesehen(), 3)).toHaveLength(1);
+      expect(z.epics['3']).toMatchObject({ stufe: 'wartend', sitzung: null, konto: null, notiz: 'wartet auf den Merge von #4' });
+      expect(z.ereignisse.some((e) => e.epic === 3 && /FLOTTE-ENDE ohne Pull Request, Vorgänger #4 noch nicht gemergt, wartet; die Sitzung ist verworfen/.test(e.text))).toBe(true);
+      expect(t.p.kommentare.some((k) => k.nr === 3 && /blockiert/.test(k.text))).toBe(false);
+    }, T);
+
+    it('once the predecessor is merged the epic starts anew, without --resume', async () => {
+      const t = aufbau({ bodies: spaeteKante() });
+      const buch = drehbuch([lauf(3, [{ text: ohnePr('', 'Die Reihenfolge verlangt erst #4, das ist noch offen.') }]), lauf(4, [{ warte: 1500 }, { text: ende(4, 14) }]), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
+      const starts = fuer(buch.gesehen(), 3);
+      expect(starts).toHaveLength(2);
+      expect(starts[1].args).not.toContain('--resume');
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+      expect(z.epics['3'].stufe).toBe('fertig');
+    }, T);
+
+    it('no reference to an open predecessor: blocked as before', async () => {
+      const t = aufbau({ bodies: spaeteKante(), pr: () => ({ state: 'OPEN' }) });
+      const buch = drehbuch([lauf(3, [{ warte: 300 }, { text: ohnePr('', 'keine') }]), lauf(4, [{ text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 3000 }), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', notiz: 'FLOTTE-ENDE ohne Pull Request' });
+    }, T);
+
+    it('the named predecessor is merged already: blocked as before', async () => {
+      const t = aufbau({ bodies: spaeteKante() });
+      const buch = drehbuch([lauf(3, [{ warte: 2500 }, { text: ohnePr(' kein PR, #4 ist schon gemergt', 'keine') }]), lauf(4, [{ text: ende(4, 14) }])]);
+      const z = await fahre(t.einstellung(buch, [3, 4]), t.welt);
+      expect(z.epics['4'].stufe).toBe('fertig');
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeGreaterThanOrEqual(0);
+      expect(index(t.p.zeitleiste, /^gemergt 14$/)).toBeLessThan(index(t.p.zeitleiste, /^#3 blockiert: FLOTTE-ENDE ohne Pull Request/));
+      expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', notiz: 'FLOTTE-ENDE ohne Pull Request' });
+    }, T);
+  });
+
   it('D15: a large collision and five startable epics run one after another; never more than four at once', async () => {
     const nrs = [3, 4, 5, 6, 7];
     const gross = aufbau({ bodies: Object.fromEntries(nrs.map((n) => [n, 'Ändert `core/a.ts`.'])) });
