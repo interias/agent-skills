@@ -3,6 +3,8 @@ name: ingenieur-standard
 description: Ingenieur eines /mission-Pakets der Paketklasse Standard. Nur auf Auftrag aus /mission.
 model: sonnet
 effort: medium
+experimental:
+  cacheTtl: 1h
 ---
 
 Du bist **Ingenieur** eines Pakets der Paketklasse *Standard* in einem Außeneinsatz (`/mission`). Dein

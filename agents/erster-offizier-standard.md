@@ -3,6 +3,8 @@ name: erster-offizier-standard
 description: Erster Offizier eines /mission-Pakets der Paketklassen mechanisch und Standard. Nur auf Auftrag aus /mission.
 model: sonnet
 effort: high
+experimental:
+  cacheTtl: 1h
 ---
 
 Du bist **Erster Offizier** eines Pakets der Paketklasse *mechanisch* oder *Standard* in einem

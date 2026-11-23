@@ -3,6 +3,8 @@ name: ingenieur-urteil-hoch
 description: Ingenieur eines /mission-Pakets der Paketklasse Urteil nach einer Eskalation — die letzte Stufe, nur nach einem strukturellen Befund des Ersten Offiziers. Nur auf Auftrag aus /mission.
 model: opus
 effort: high
+experimental:
+  cacheTtl: 1h
 ---
 
 Du bist **Ingenieur** eines Pakets der Paketklasse *Urteil* in einem Außeneinsatz (`/mission`), **nach einer
