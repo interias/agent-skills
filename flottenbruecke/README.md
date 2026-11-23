@@ -154,10 +154,12 @@ Drei Ebenen, sortiert danach, was du tun musst:
 2. **Unterwegs** — Läufe und Andock-Schlange als Karten. Je Lauf ein Lebenszeichen: Puls, „letzter
    Schritt vor N min“ und eine Leiste bis zur Leerlauf-Grenze (gelb ab der Hälfte, rot kurz davor,
    dann stoppt der Puls). Je Mission eine Segmentleiste der Missionsziel-Tickets mit „3 von 5 fertig“;
-   antippen zeigt `#nr Titel · Stand`, jede Zeile verlinkt aufs Issue (im spec-Modus nur der
-   Paketname). Darunter eine Zeile **Bereit**, Missionen mit `prio/hoch` zuerst, mit dem Grund, wenn
-   sie warten, und ab fünf gemessenen Missionen mit „voraussichtlich 3–5 h“. Je Mission dort „N Tickets“
-   mit derselben Segmentleiste; antippen klappt die Tickets mit Links auf (im spec-Modus keine).
+   antippen zeigt `#nr Titel · Stand`, jede Zeile verlinkt aufs Issue (im spec-Modus die Pakete des
+   Laufs, `P1`, `P2` …, ohne Link). Läuft eine Andockprüfung, steht im Kopf des Laufs **Andockprüfung n**
+   mit Start und Dauer, in der Andock-Schlange die des Treibers ebenso. Darunter eine Zeile **Bereit**,
+   Missionen mit `prio/hoch` zuerst, mit dem Grund, wenn sie warten, und ab fünf gemessenen Missionen
+   mit „voraussichtlich 3–5 h“. Je Mission dort „N Tickets“ mit derselben Segmentleiste; antippen klappt
+   die Tickets mit Links auf (im spec-Modus vor dem Start keine).
 3. **Erledigt heute** (eingeklappt) — oben die Prognose „Backlog leer etwa …“ mit Trefferquote
    (Rechnung in `flotte/README.md`, „Prognose“), dann Angedocktes, Entscheidungen des Admirals mit „Zurücknehmen“,
    deine Antworten und Handlungen. Ein neues Andocken leuchtet einmal grün auf.
@@ -170,7 +172,8 @@ Phase (Ingenieur, Review, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer
 (eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
 (ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
-(älterer Treiber, spec-Modus, Paket ohne Aufruf), bleibt es weg. Felder: `SCHNITTSTELLE.md`.
+(älterer Treiber, Paket ohne Aufruf), bleibt es weg; spec-Pakete haben sie wie Kind-Tickets (#151).
+Felder: `SCHNITTSTELLE.md`.
 
 Unter den Paketen stehen die **Entscheidungen bis zum Andocken** (#52), neueste zuerst, von jedem Tag:
 deine Antworten (Mensch) und die einflussreichen Entscheidungen von Admiral und Lauf, je mit Frage,
@@ -296,12 +299,15 @@ Zum Ausprobieren ohne Treiber:
 ```
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht.json http://127.0.0.1:4747/api/bericht
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht-notizen.json http://127.0.0.1:4747/api/bericht
+curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/bericht-spec.json http://127.0.0.1:4747/api/bericht
 curl -X POST -H "Content-Type: application/json" --data-binary @beispiel/werft.json http://127.0.0.1:4747/api/werft
 python -c "import json,urllib.request as u;[u.urlopen(u.Request('http://127.0.0.1:4747/api/holodeck',json.dumps(b).encode(),{'Content-Type':'application/json'})) for b in json.load(open('beispiel/holodeck.json',encoding='utf-8'))]"
 ```
 
 `beispiel/holodeck.json` ist eine Liste mit einem Body je Projekt; die Zeile schickt jeden.
 `beispiel/bericht-notizen.json` ist ein zweites, kleines Projekt (der Frachtraum mit zwei Projekten);
+`beispiel/bericht-spec.json` ein drittes mit drei Missionen im spec-Modus (Pakete des Laufs, eine Andockprüfung
+des Laufs, eine des Treibers in der Andock-Schlange, #151);
 `beispiel/bericht.json` trägt den Schnittplan eines Triage-Laufs (zwei neue Missionen, eine bestehende,
 drei geschlossene Notizen).
 

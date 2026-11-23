@@ -353,6 +353,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
                 'neustarts': ep.get('neustarts'),
                 'plaetze': ep.get('plaetze'),
+                'gateLauf': ep.get('gateLauf'),
                 'schritt': ep.get('schritt'),
                 'schrittZeit': ep.get('schrittZeit'),
                 'gestartetAm': ep.get('gestartetAm'),

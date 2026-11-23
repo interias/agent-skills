@@ -2,6 +2,9 @@
 epic head, the hint "longer than usual". The fields come from the driver; the bridge passes them on,
 computes the hint itself and leaves out what an older report does not have."""
 
+import json
+from pathlib import Path
+
 DETAIL = ('phase', 'runde', 'stufe', 'stufeStart', 'eskaliert', 'erstAufruf', 'phaseSeit', 'lebenszeichen')
 
 
@@ -102,3 +105,26 @@ def test_sternenkarte_bekommt_die_felder_der_pakete_mit(client, bericht):
     p = next(p for p in client.get('/api/tafel').json()['projekte'] if p['forge'] == 'interias/flotte-probe')
     e38 = next(e for e in p['epics'] if e['nr'] == 38)
     assert {x['nr']: x['phase'] for x in e38['pakete']}[54] == 'review'
+
+
+def test_spec_epic_zeigt_die_pakete_des_laufs_und_den_gate_lauf(client):
+    # #151: beispiel/bericht-spec.json, three spec epics without children
+    spec = json.loads((Path(__file__).parent.parent / 'beispiel' / 'bericht-spec.json').read_text(encoding='utf-8'))
+    assert client.post('/api/bericht', json=spec).status_code == 200
+    p = pakete(client, 72)
+    assert {k: (v['nr'], v['url'], v['stand'], v['phase'], v['runde']) for k, v in p.items()} == {
+        'P1': (None, None, 'fertig', None, 1),
+        'P2': (None, None, 'laeuft', 'nachbesserung', 2),
+        'P3': (None, None, 'laeuft', 'review', 1),
+        'P4': (None, None, 'laeuft', 'implementer', 1),
+    }
+    assert p['P2']['stufe'] == 'urteil' and p['P2']['eskaliert'] is True
+    assert laeufe(client)[75]['gateLauf'] == {'n': 2, 'seit': '2026-11-20T14:18:00Z'}
+    assert laeufe(client)[72]['gateLauf'] is None
+    schlange = {e['nr']: e for e in client.get('/api/tafel').json()['unterwegs']['schlange']}
+    assert schlange[70]['gateLauf'] == {'n': 1, 'seit': '2026-11-20T14:22:00Z'}
+
+
+def test_gate_lauf_ungueltig_wird_abgelehnt(client, bericht):
+    bericht['epics'][1]['gateLauf'] = {'n': 0, 'seit': None}
+    assert client.post('/api/bericht', json=bericht).status_code == 422
