@@ -217,9 +217,11 @@ describe('Flottenbrücke (#28)', () => {
       const t = aufbau();
       const buch = drehbuch([lauf(3, [{ text: block }]), admiral(3, [{ nr: 1, antwort: 'A, B', beim_menschen: true }]), lauf(3, [{ text: ende(3, 13) }])]);
       const anfang = Date.now();
-      // a turn of a minute: only the report on the event and the short polling bring the answer in time
-      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, taktMs: 60_000, brueckeAbfrageMs: 100 }), t.welt);
-      expect(Date.now() - anfang).toBeLessThan(20_000);
+      // a tick of ten minutes: only the report on the event and the short polling bring the answer before it
+      // (#164: the bound is the tick itself, far from the few seconds this takes; the test's own limit guards a hang)
+      const TAKT = 600_000;
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, taktMs: TAKT, brueckeAbfrageMs: 100 }), t.welt);
+      expect(Date.now() - anfang).toBeLessThan(TAKT);
       const laeufe = buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe));
       expect(laeufe[1].eingabe).toMatch(/\n1\. A, C, E$/);
       expect(z.fragen[0]).toMatchObject({ mehrfach: true, empfehlung: 'A, B', beantwortet: 'A, C, E' });
@@ -229,7 +231,7 @@ describe('Flottenbrücke (#28)', () => {
     } finally {
       await b.zu();
     }
-  }, T);
+  }, 120_000);
 
   it('a bridge that is off: the driver works on, one event', async () => {
     const t = aufbau();
@@ -558,12 +560,16 @@ describe('Flottenbrücke (#28)', () => {
     const b = await attrappe(() => null);
     try {
       const t = aufbau();
-      const buch = drehbuch([lauf(3, [{ warte: 2500 }, { text: ende(3, 13) }])]);
-      const anfang = Date.now();
+      // #164: by events, not by the clock: anhalten once the run has started; the run ends only on a signal
+      // the test gives after the driver ended, so a driver that waited for the run would hang here
+      const buch = drehbuch([lauf(3, [{ signal: 'weiter' }, { text: ende(3, 13) }])]);
       let datei = '';
-      setTimeout(() => (datei = (anhalten([t.repo]) as { datei: string }).datei), 500);
+      void (async () => {
+        while (!buch.gesehen().length) await new Promise((r) => setTimeout(r, 25));
+        datei = (anhalten([t.repo]) as { datei: string }).datei;
+      })();
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
-      expect(Date.now() - anfang).toBeLessThan(2400);
+      writeFileSync(`${buch.datei}.signal-weiter`, '');
       expect(z.epics['3'].stufe).toBe('laeuft');
       expect(t.p.meldungen.some((m) => /^Angehalten auf Wunsch: kein Merge offen, 1 Lauf/.test(m))).toBe(true);
       // the request is used up: the next start runs normally

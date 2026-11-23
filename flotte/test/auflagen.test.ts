@@ -74,9 +74,10 @@ describe('Befund 2: keine Konnektoren und MCP-Werkzeuge', () => {
   it('a run that sees an MCP tool is killed before it works; the epic is blocked', async () => {
     const t = aufbau();
     const buch = drehbuch([{ ...lauf(3, [{ warte: 5000 }, { text: ende(3, 13) }]), werkzeuge: ['Bash', 'mcp__claude_ai_Gmail__send_message'] }]);
-    const anfang = Date.now();
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
-    expect(Date.now() - anfang).toBeLessThan(4000);
+    // #164: killed before it works, by state instead of a duration: its FLOTTE-ENDE never arrived
+    expect(z.epics['3'].pr ?? null).toBeNull();
+    expect(t.p.zeitleiste.some((x) => /gemergt 13/.test(x))).toBe(false);
     expect(z.epics['3'].stufe).toBe('blockiert');
     expect(z.epics['3'].notiz).toMatch(/Lauf mit verbotenen Werkzeugen: mcp__claude_ai_Gmail__send_message/);
   }, T);
