@@ -444,10 +444,13 @@ describe('Drehbücher (#14)', () => {
   });
 
   it('#144: an epic left out because of a collision carries the reason as its note', async () => {
-    const t = aufbau({ bodies: { 3: 'Ändert `core/a.ts`.', 4: 'Ändert `core/a.ts`.' } });
-    const buch = drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
-    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 500 }), t.welt);
-    expect(z.epics['4']).toMatchObject({ stufe: 'wartend', notiz: 'wartet auf #3: Kollision gross (dieselben Dateien: core/a.ts)' });
+    // #3 ends only once the reason of #4 is said (an event); then #4 runs after it
+    const t = aufbau({ bodies: { 3: 'Ändert `core/a.ts`.', 4: 'Ändert `core/a.ts`.' }, signale: { grund: /^#4 wartet auf #3/ } });
+    const buch = drehbuch([lauf(3, [{ signal: 'grund' }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.filter((e) => e.epic === 4 && e.text === 'wartet auf #3: Kollision gross (dieselben Dateien: core/a.ts)')).toHaveLength(1);
+    expect(index(t.p.zeitleiste, /^#4 wartet auf #3/)).toBeLessThan(index(t.p.zeitleiste, /^gemergt 13$/));
+    expect(z.epics['4'].stufe).toBe('fertig');
   }, T);
 
   it('D15: a large collision and five startable epics run one after another; never more than four at once', async () => {

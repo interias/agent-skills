@@ -1015,7 +1015,11 @@ class Treiber {
       if (this.epic(w.nr).notiz !== notiz) this.epic(w.nr).notiz = notiz;
     }
     // #144: why a startable one is left out (a collision or no free place) stands on the board and the bridge
-    for (const w of plan.zurueck) this.epic(w.nr).notiz = w.grund;
+    for (const w of plan.zurueck) {
+      if (this.epic(w.nr).notiz === w.grund) continue;
+      this.epic(w.nr).notiz = w.grund;
+      this.ereignis(w.nr, w.grund);
+    }
     const ohneBild = plan.ohneBild.filter((n) => !this.ohneBildGemeldet.has(n));
     for (const n of ohneBild) this.ohneBildGemeldet.add(n);
     if (ohneBild.length) this.ereignis(null, `Belegung ohne Bild von ${ohneBild.map((n) => `#${n}`).join(', ')}: zählt als große Kollision mit allen`);

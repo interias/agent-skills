@@ -136,10 +136,12 @@ describe('B: freigegebene Epics', () => {
     expect(Object.keys(z.epics)).toEqual(['3']);
   }, T);
 
-  it('#150: --epics with --dauerhaft: the fixed list plus the released ones', async () => {
+  it('#150: --epics with --dauerhaft (auto with a fixed list): the fixed list plus the released ones', async () => {
     const t = aufbau({ freigegeben: () => ({ bereit: [4], epics: [{ number: 4 }] }) });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
-    const z = await fahre(t.einstellung(buch, [3], { auto: true, dauerhaft: true, maxDauerMs: 1500 }), t.welt);
+    // without --dauerhaft the driver ends once both are done; the limit only guards a hang
+    const z = await fahre(t.einstellung(buch, [3], { auto: true, maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
     expect(Object.values(z.epics).map((e) => [e.nr, e.stufe])).toEqual([
       [3, 'fertig'],
       [4, 'fertig'],
@@ -153,7 +155,8 @@ describe('B: freigegebene Epics', () => {
     z0.epics['5'] = { ...neuesEpic(5), stufe: 'laeuft', konto: t.konten[0], sitzung: 's5', pid: 2 ** 22 + 7, pidSeit: Date.now() } as never;
     schreibeZustand(flotteDir(t.repo), z0);
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }]), lauf(5, [{ text: ende(5, 15) }])]);
-    const z = await fahre(t.einstellung(buch, [], { auto: true, dauerhaft: true, maxDauerMs: 2000 }), t.welt);
+    const z = await fahre(t.einstellung(buch, [], { auto: true, maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.some((e) => /Zeitgrenze/.test(e.text))).toBe(false);
     expect(z.ereignisse.some((e) => e.epic === null && /^Übernommen aus einem früheren Einsatz: #5/.test(e.text))).toBe(true);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(z.epics['5'].stufe).toBe('fertig');
