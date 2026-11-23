@@ -18,9 +18,26 @@ function New-TestRepo {
     @{ Repo = $repo; Worktree = (Join-Path $root 'wt\1') }
 }
 
-function Invoke-Worktree([string[]]$arguments) {
-    $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $script @arguments 2>&1
-    @{ Exit = $LASTEXITCODE; Output = ($output | Out-String) }
+# Runs the script as its own process. The flotte driver sets EPIC_LOCK_HOLDER for its runs; Up
+# writes it into the lock and CleanupStale keeps a held lock, so an inherited value turned the
+# CleanupStale tests red (#142). The test names the holder, none by default, and the variable of the
+# calling session comes back afterwards. stderr is taken line by line: Out-String would wrap its
+# records at the console width and split a message mid-word (#142).
+function Invoke-Worktree([string[]]$arguments, [string]$holder) {
+    $saved = $env:EPIC_LOCK_HOLDER
+    try {
+        $env:EPIC_LOCK_HOLDER = $holder
+        $lines = @(& powershell -NoProfile -ExecutionPolicy Bypass -File $script @arguments 2>&1 | ForEach-Object {
+                [pscustomobject]@{ Err = $_ -is [System.Management.Automation.ErrorRecord]; Text = "$_" }
+            })
+        $code = $LASTEXITCODE
+    } finally { $env:EPIC_LOCK_HOLDER = $saved }
+    @{
+        Exit   = $code
+        Out    = @($lines | Where-Object { -not $_.Err } | ForEach-Object { $_.Text })
+        Err    = (@($lines | Where-Object { $_.Err } | ForEach-Object { $_.Text }) -join ' ') -replace '\s+', ' '
+        Output = @($lines | ForEach-Object { $_.Text }) -join "`n"
+    }
 }
 
 $fullAdapter = @'
@@ -52,13 +69,9 @@ function New-AdapterRepo([string]$adapter = $fullAdapter) {
     $t
 }
 
-# stdout and stderr apart: Up promises exactly one JSON object on stdout. The stderr file is
-# wrapped at the console width, so whitespace is folded.
-function Invoke-Up($t, [int]$sessionPid = $PID) {
-    $errFile = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.err')
-    $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Action Up -RepoRoot $t.Repo -Package 1 `
-        -Branch agent/1-test -From main -SessionPid $sessionPid 2>$errFile
-    @{ Exit = $LASTEXITCODE; Out = @($out | Where-Object { $_ -ne $null }); Err = ((Get-Content $errFile -Raw) -replace '\s+', ' ') }
+# stdout and stderr apart: Up promises exactly one JSON object on stdout.
+function Invoke-Up($t, [int]$sessionPid = $PID, [string]$holder) {
+    Invoke-Worktree @('-Action', 'Up', '-RepoRoot', $t.Repo, '-Package', '1', '-Branch', 'agent/1-test', '-From', 'main', '-SessionPid', $sessionPid) $holder
 }
 
 function Invoke-Down($t) {
@@ -319,6 +332,68 @@ Describe 'worktree.ps1 Down' {
         (Get-Item (Join-Path $t.Worktree 'server\node_modules') -Force).LinkType | Should Be 'Junction'
     }
 
+    # #106: git removed the worktree (or its entry), but the lock and maybe an empty folder are left,
+    # e.g. after `Down` from a shell that stood in the worktree. Down for the package clears them.
+    function Remove-WorktreeBehindDown($t) {
+        [IO.Directory]::Delete((Join-Path $t.Worktree 'server\node_modules'), $false)
+        git -C $t.Repo worktree remove --force $t.Worktree 2>$null
+        $null = $LASTEXITCODE | Should Be 0
+        Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+    }
+
+    It 'clears the lock of a worktree git no longer knows, with its empty folder or without one' {
+        foreach ($folder in 'empty', 'gone') {
+            $t = New-AdapterRepo
+            (Invoke-Up $t).Exit | Should Be 0
+            Remove-WorktreeBehindDown $t
+            if ($folder -eq 'empty') { New-Item -ItemType Directory -Path $t.Worktree | Out-Null }
+            $r = Invoke-DownWithPath $t (Get-PathWithoutDocker)
+            $r.Exit | Should Be 0
+            $r.Output | Should Match 'Lock removed'
+            Test-Path $t.Worktree | Should Be $false
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $false
+            Test-Path (Join-Path $t.Repo 'server\node_modules\dep\index.js') | Should Be $true
+        }
+    }
+
+    It 'prunes the entry of a worktree whose folder is gone and clears its lock' {
+        $t = New-AdapterRepo
+        (Invoke-Up $t).Exit | Should Be 0
+        [IO.Directory]::Delete((Join-Path $t.Worktree 'server\node_modules'), $false)
+        Remove-Item -LiteralPath $t.Worktree -Recurse -Force
+        $entry = [regex]::Escape(($t.Worktree -replace '\\', '/'))
+        (git -C $t.Repo worktree list --porcelain) -join "`n" | Should Match $entry
+        $r = Invoke-DownWithPath $t (Get-PathWithoutDocker)
+        $r.Exit | Should Be 0
+        $r.Output | Should Match 'Lock removed'
+        (git -C $t.Repo worktree list --porcelain) -join "`n" | Should Not Match $entry
+        Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $false
+        Test-Path (Join-Path $t.Repo 'server\node_modules\dep\index.js') | Should Be $true
+    }
+
+    It 'leaves a folder git no longer knows in place with its lock when it is not empty or a link' {
+        $target = Join-Path $TestDrive 'link-target'
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+        Set-Content -Path (Join-Path $target 'keep.txt') -Value 'kept'
+        foreach ($folder in 'file', 'link') {
+            $t = New-AdapterRepo
+            (Invoke-Up $t).Exit | Should Be 0
+            Remove-WorktreeBehindDown $t
+            if ($folder -eq 'file') {
+                New-Item -ItemType Directory -Path $t.Worktree | Out-Null
+                Set-Content -Path (Join-Path $t.Worktree 'rest.txt') -Value 'work'
+            } else {
+                New-Item -ItemType Junction -Path $t.Worktree -Value $target | Out-Null
+            }
+            $r = Invoke-DownWithPath $t (Get-PathWithoutDocker)
+            $r.Exit | Should Be 1
+            $r.Output | Should Match ([regex]::Escape($t.Worktree))
+            Test-Path (Join-Path $t.Repo '.git\epic-locks\1.json') | Should Be $true
+            Test-Path $t.Worktree | Should Be $true
+            Test-Path (Join-Path $target 'keep.txt') | Should Be $true
+        }
+    }
+
     It 'brings down the compose project named <repo>-<nr>' {
         $t = New-AdapterRepo
         (Invoke-Up $t).Exit | Should Be 0
@@ -451,13 +526,10 @@ function Invoke-Cleanup($t, $containers = $null, [switch]$Wsl) {
     $saved = $env:PATH
     $stub = $null
     if ($null -ne $containers) { $stub = New-DockerStub $containers -Wsl:$Wsl; $env:PATH = "$stub;$(Get-PathWithoutDocker)" } else { $env:PATH = Get-PathWithoutDocker }
-    $errFile = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.err')
     try {
-        $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Action CleanupStale -RepoRoot $t.Repo 2>$errFile
+        $r = Invoke-Worktree @('-Action', 'CleanupStale', '-RepoRoot', $t.Repo)
     } finally { $env:PATH = $saved }
-    $out = @($out | Where-Object { $_ -ne $null })
-    $r = @{ Exit = $LASTEXITCODE; Out = $out; Err = ((Get-Content $errFile -Raw) -replace '\s+', ' ') }
-    $r.Entries = if ($out.Count -eq 1) { @($out[0] | ConvertFrom-Json) } else { $null }
+    $r.Entries = if ($r.Out.Count -eq 1) { @($r.Out[0] | ConvertFrom-Json) } else { $null }
     if ($stub) { $r.Calls = Get-StubCalls $stub }
     $r
 }
@@ -568,11 +640,7 @@ Describe 'worktree.ps1 CleanupStale' {
         $holder = Join-Path $TestDrive 'halten-1.json'
         Set-Content -Path $holder -Value '{"epic":1}'
         $session = Start-Session
-        $saved = $env:EPIC_LOCK_HOLDER
-        try {
-            $env:EPIC_LOCK_HOLDER = $holder
-            (Invoke-Up $t $session.Id).Exit | Should Be 0
-        } finally { $env:EPIC_LOCK_HOLDER = $saved }
+        (Invoke-Up $t $session.Id $holder).Exit | Should Be 0
         # claude -p ended its turn: the process of the lock is gone
         Stop-Session $session
         $lockPath = Join-Path $t.Repo '.git\epic-locks\1.json'

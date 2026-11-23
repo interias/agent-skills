@@ -17,7 +17,7 @@
 
     Skills that were renamed (prd -> epic, 2026-10; epic -> mission, 2026-11) are retired: an
     installed folder under an old name is backed up the same way and then removed, so the old and
-    the new name do not both trigger.
+    the new name do not both trigger — but only when its SKILL.md carries that old name in name:.
 
     Skills and agent definitions this repository no longer has are retired on a full install
     (without -Skill): an installed copy under a name on the fixed list ($retiredSkills,
@@ -55,7 +55,8 @@ $skillsTarget = Join-Path $env:USERPROFILE '.claude\skills'
 $backupRoot = Join-Path $env:USERPROFILE '.claude\skills-backup'
 $agentsTarget = Join-Path $env:USERPROFILE '.claude\agents'
 
-# Old skill name -> new name. An installed old folder is backed up and removed.
+# Old skill name -> new name. An installed old folder is backed up and removed when its SKILL.md
+# carries the old name in name:, the same guard as for retired skills (#182).
 $renamedSkills = [ordered]@{
     'prd'             = 'mission'
     'prd-nacharbeit'  = 'mission-nacharbeit'
@@ -190,6 +191,10 @@ foreach ($oldName in $renamedSkills.Keys) {
 
     Write-Host ""
     Write-Host "== $oldName (renamed to $($renamedSkills[$oldName])) =="
+    if ((Get-FrontmatterName (Join-Path $oldTarget 'SKILL.md')) -ne $oldName) {
+        Write-Host "Kept $oldTarget — no SKILL.md with name: $oldName, so this repository did not install it."
+        continue
+    }
     if (-not (Test-SafeToClear $oldTarget)) { continue }
     if ($DryRun) {
         Write-Host "[DryRun] Would back up $oldTarget to $backupRoot\$oldName-<timestamp>, then remove it"
