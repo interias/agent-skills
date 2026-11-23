@@ -21,7 +21,7 @@ export const LABELS: Record<StatusLabel, { farbe: string; text: string }> = {
   'status/blockiert': { farbe: 'ff3b5c', text: 'Zustand für KIBO: das Ticket wartet auf ein anderes Ticket. Steuert nichts.' },
   'status/haengt': { farbe: 'fcee0a', text: 'Zustand für KIBO: ein Lauf hat das Ticket aufgegeben, ohne einen Menschen geht es nicht weiter. Steuert nichts.' },
 };
-const EPIC_LABEL = { farbe: 'ff2bd6', text: 'Mission: wartet auf ihre Kinder (gesetzt von /mission, gelesen von KIBO)' };
+const EPIC_LABEL = { farbe: 'ff2bd6', text: 'Mission: wartet auf ihre Missionsziele (gesetzt von /mission, gelesen von KIBO)' };
 
 export interface MechanikEinstellung {
   /** main checkout */
@@ -168,7 +168,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       const pfad = /^worktree (.+)$/m.exec(block)?.[1];
       if (pfad && new RegExp(`^branch refs/heads/${e.epicBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm').test(block)) return (epicPfad = resolve(pfad));
     }
-    throw new Error(`kein Epic-Worktree auf ${e.epicBranch} (git worktree list)`);
+    throw new Error(`kein Missions-Worktree auf ${e.epicBranch} (git worktree list)`);
   }
 
   const worktreeRoot = () => {
@@ -348,7 +348,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
     async mergeAbschliessen() {
       const wt = await epicWt();
       const offen = (await git(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim();
-      if (offen) throw new Error(`Merge nicht abschließbar, noch ungelöst: ${offen.split(/\r?\n/).join(', ')}`);
+      if (offen) throw new Error(`Andocken nicht abschließbar, noch ungelöst: ${offen.split(/\r?\n/).join(', ')}`);
       // strip: the "# Conflicts:" lines of the prepared message stay out of the merge commit
       await gitOk(wt, ['commit', '-q', '--no-edit', '--cleanup=strip']);
       return gitOk(wt, ['rev-parse', 'HEAD']);
@@ -403,7 +403,7 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
       const offen = JSON.parse((await gh(['pr', 'list', '--repo', e.forge, '--head', e.epicBranch, '--state', 'open', '--json', 'url'])) || '[]') as { url: string }[];
       let pr: string | null = offen[0]?.url ?? null;
       if (!pr) {
-        const titel = String(JSON.parse(await gh(['issue', 'view', String(e.epic), '--repo', e.forge, '--json', 'title'])).title ?? `Epic #${e.epic}`);
+        const titel = String(JSON.parse(await gh(['issue', 'view', String(e.epic), '--repo', e.forge, '--json', 'title'])).title ?? `Mission #${e.epic}`);
         const aus = await gh(['pr', 'create', '--repo', e.forge, '--base', basisBranch, '--head', e.epicBranch, '--title', `${wip ? 'WIP: ' : ''}${titel}`, '--body-file', '-'], body);
         pr = /https?:\/\/\S+/.exec(aus)?.[0] ?? null;
       }

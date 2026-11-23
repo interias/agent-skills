@@ -527,11 +527,11 @@ export function schnittplanAus(x: unknown, notizen: Ticket[], missionen: OffeneM
   }
   for (const [nr, n] of neueKinder) {
     const m = missionen.find((m) => m.nummer === nr)!;
-    if (m.kinder + n > KINDER_MAX) return nein(`Mission #${nr} hätte mehr als ${KINDER_MAX} Kinder (${m.kinder} + ${n})`);
+    if (m.kinder + n > KINDER_MAX) return nein(`Mission #${nr} hätte mehr als ${KINDER_MAX} Missionsziele (${m.kinder} + ${n})`);
   }
   for (const m of neu) {
-    if (!m.kinder.length && !geleert.has(m.schluessel)) return nein(`neue Mission „${m.schluessel}“ ohne Kinder`);
-    if (m.kinder.length > KINDER_MAX) return nein(`neue Mission „${m.schluessel}“ hätte mehr als ${KINDER_MAX} Kinder (${m.kinder.length})`);
+    if (!m.kinder.length && !geleert.has(m.schluessel)) return nein(`neue Mission „${m.schluessel}“ ohne Missionsziele`);
+    if (m.kinder.length > KINDER_MAX) return nein(`neue Mission „${m.schluessel}“ hätte mehr als ${KINDER_MAX} Missionsziele (${m.kinder.length})`);
   }
   return { art: 'plan', neue_missionen: neu.filter((m) => m.kinder.length), zuordnungen };
 }
@@ -590,7 +590,7 @@ export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]
   const jeNotiz = Math.min(NOTIZ_MAX, Math.floor(NOTIZEN_GESAMT / Math.max(1, notizen.length)));
   const jeMission = Math.min(MISSION_MAX, Math.floor(MISSIONEN_GESAMT / Math.max(1, missionen.length)));
   // #147: the free places spelled out; the limit alone in the text did not keep the model from overfilling
-  const plaetze = (m: OffeneMission) => (m.kinder >= KINDER_MAX ? `${m.kinder} Kinder, voll, keine neuen Kinder` : `${m.kinder} Kinder, noch ${KINDER_MAX - m.kinder} frei`);
+  const plaetze = (m: OffeneMission) => (m.kinder >= KINDER_MAX ? `${m.kinder} Missionsziele, voll, keine neuen Missionsziele` : `${m.kinder} Missionsziele, noch ${KINDER_MAX - m.kinder} frei`);
   const offen = missionen.length
     ? missionen.map((m) => `## Mission #${m.nummer}: ${m.titel} (${plaetze(m)})\n${m.body.trim().slice(0, jeMission) || '(leer)'}`).join('\n\n')
     : '(keine)';
@@ -598,14 +598,14 @@ export function schnittplanAuftrag(notizen: Ticket[], missionen: OffeneMission[]
 Du bist der Admiral der Flotte und schneidest alle offenen Sternzeit-Notizen eines Projekts zusammen und klärst sie dabei ohne Rückfrage, alle in diesem einen Aufruf; eine Einzelklärung danach gibt es nicht. ${lesen(k)} Das Programm prüft deinen Plan und schreibt; Tickets legt niemand an (agent-skills/ADR-0002).
 
 Ordne jede Notiz unten genau einmal zu (art):
-- mission: Kind einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
-- neue_mission: Kind einer neuen Mission für ein Thema mit mehreren Notizen (neue_mission = schluessel aus neue_missionen, mit titel und begruendung). Eine einzelne Notiz wird nur dann eine eigene Mission, wenn sie nirgends passt und groß genug ist.
+- mission: Missionsziel einer offenen Mission unten, wenn sie thematisch passt und noch Plätze frei hat (mission = deren Nummer). Vorrang vor einer neuen Mission: Die offenen Missionen stammen oft aus früheren Läufen, neue Notizen gehören bevorzugt dorthin; eine neue Mission nur, wenn keine offene passt oder frei ist.
+- neue_mission: Missionsziel einer neuen Mission für ein Thema mit mehreren Notizen (neue_mission = schluessel aus neue_missionen, mit titel und begruendung). Eine einzelne Notiz wird nur dann eine eigene Mission, wenn sie nirgends passt und groß genug ist.
 - zusammengefuehrt: Duplikat oder Teilstück derselben Sache wie eine andere Notiz (in = die Notiz, die bleibt und selbst mission, neue_mission oder triage ist). Sie wird mit Verweis geschlossen.
 - ueberfluessig: schon erledigt, doppelt oder überholt; grund und fundstelle nennen wo. Sie wird geschlossen.
 - verworfen: lohnt sich nicht oder passt nicht zur Richtung; grund nennt warum. Sie wird als „not planned“ geschlossen, nicht gelöscht. verworfen ist der Regelfall für eine Notiz, die ein Lauf angelegt hat (Herkunft Nacharbeit oder Abschluss einer Mission) und die nur einen Wunsch ohne beobachteten Schaden trägt: Sicherheit und Zugänge, ein beobachteter Fehler, der Ablauf des Projekts oder eine Architekturentscheidung sind keine Wünsche (#185).
 - triage: bleibt in der Triage, nur mit mindestens einer Frage mit beim_menschen: true (in der Triage heißt immer: eine Frage wartet beim Menschen). Ist sie zu dünn, frage den Menschen, was fehlt; grund nennt was fehlt.
 
-Grenzen: höchstens ${neuMax} neue Missionen, eine Mission höchstens ${KINDER_MAX} Kinder (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Kind. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
+Grenzen: höchstens ${neuMax} neue Missionen, eine Mission höchstens ${KINDER_MAX} Missionsziele (vorhandene zählen mit; die freien Plätze stehen bei jeder offenen Mission, alle Notizen dieses Plans zusammen dürfen sie nicht überschreiten). Aus einer Notiz entsteht nie ein neues Ticket; die Notiz selbst wird das Missionsziel. Fehlt eine Notiz, steht eine doppelt oder ist eine Grenze überschritten, verwirft das Programm den ganzen Plan.
 
 Kläre jede Notiz in derselben Antwort. ${FRAGERUNDE}
 

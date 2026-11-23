@@ -62,7 +62,7 @@ describe('Befund 2: Gate-Nachweis im Log des Laufs', () => {
     const buch = drehbuch([lauf(3, [{ text: `${GATE_BLOCK}\n\n${ende(3, 13)}` }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(t.p.merges).toEqual([]);
-    expect(t.p.kommentare.find((k) => k.text.startsWith('**PR bereit'))?.text).toMatch(/kein Gate-Aufruf im Log des Laufs zum Gate-Block \(Basis aaaaaaa, HEAD bbbbbbbb\), und der Adapter hat kein gate_command/);
+    expect(t.p.kommentare.find((k) => k.text.startsWith('**PR bereit'))?.text).toMatch(/kein Aufruf der Andockprüfung im Log des Laufs zum Andockblock \(Basis aaaaaaa, HEAD bbbbbbbb\), und der Adapter hat kein gate_command/);
     expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
@@ -121,7 +121,7 @@ describe('Befund 4: der PR aus FLOTTE-ENDE gehört zum Epic', () => {
       expect(t.p.merges).toEqual([]);
       expect(z.epics['3']).toMatchObject({ stufe: 'frage', pr: null });
       expect(z.fragen).toEqual([expect.objectContaining({ epic: 3, nr: PR_FRAGE, ganzerLauf: true })]);
-      expect(t.p.kommentare.find((k) => k.nr === 3 && k.text.startsWith('**FRAGE AN DEN MENSCHEN'))?.text).toMatch(/PR #49 aus FLOTTE-ENDE .*Welcher Pull Request gehört zu Epic #3\?/);
+      expect(t.p.kommentare.find((k) => k.nr === 3 && k.text.startsWith('**FRAGE AN DEN MENSCHEN'))?.text).toMatch(/PR #49 aus FLOTTE-ENDE .*Welcher Pull Request gehört zu Mission #3\?/);
       expect(texte(z).some((x) => /PR #49 gemergt/.test(x))).toBe(false);
     }, T);
   }

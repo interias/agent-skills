@@ -348,9 +348,9 @@ wird ein Ereignis `<Handlung> über die Brücke abgelehnt: <Grund>` (`Aufnehmen`
 `Fortsetzen`, `Priorität`, `Andocken`); quittiert wird beides. Wirkung ab dem Takt, in dem der Treiber sie abholt;
 nichts Laufendes wird abgebrochen. `aufnehmen` umgeht weder `ready_label` noch die Andock-Regel noch
 ein Tor. Ereignis und Kommentar im Flottenlogbuch:
-`Epic #<nr> in den Einsatz aufgenommen, Mensch über die Brücke`,
-`Epic #<nr> pausiert, <Lage>; Mensch über die Brücke`,
-`Epic #<nr> fortgesetzt[, der zurückgehaltene Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt> → auf <neu>, Mensch
+`Mission #<nr> in den Einsatz aufgenommen, Mensch über die Brücke`,
+`Mission #<nr> pausiert, <Lage>; Mensch über die Brücke`,
+`Mission #<nr> fortgesetzt[, der zurückgehaltene Zug geht an den Lauf]; Mensch über die Brücke`, `Priorität von #<nr> von <alt> → auf <neu>, Mensch
 über die Brücke`, `Andocken von #<nr> von <alt> → auf <neu>, Mensch über die Brücke` (`null`: `auf den
 Vorschlag (<Stellung>)` oder `auf die Einstellung des Projekts (<Stellung>)`). Beispiel beim Abholen:
 

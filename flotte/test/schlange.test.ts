@@ -121,8 +121,8 @@ describe('A: die Merge-Schlange', () => {
     ]);
     const e = texte(z);
     expect(e.filter((x) => /Kopf der Schlange/.test(x)).map((x) => x.slice(0, 2))).toEqual(['#3', '#4', '#5']);
-    expect(e.some((x) => /^#4 Gate des Treibers \(Immer-Teil, Basis bewegte sich nur in fremden Bereichen\)/.test(x))).toBe(true);
-    expect(e.some((x) => /^#5 Gate des Treibers \(voll, Basis bewegte sich in Bereichen des Epics: A\)/.test(x))).toBe(true);
+    expect(e.some((x) => /^#4 Andockprüfung des Treibers \(Immer-Teil, Basis bewegte sich nur in fremden Bereichen\)/.test(x))).toBe(true);
+    expect(e.some((x) => /^#5 Andockprüfung des Treibers \(voll, Basis bewegte sich in Bereichen der Mission: A\)/.test(x))).toBe(true);
     // the driver pushed its merge of the base and wrote the block below the run's block
     const body4 = t.p.prEdits.find((x) => x.pr === 14)!.body;
     expect(gateLaeufe(body4, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [true, true]]);
@@ -141,10 +141,10 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', t.epics[0].wt]]);
     const e = texte(z);
-    const ohne = index(e, /^#3 kein Gate-Aufruf im Log des Laufs zum Gate-Block .*: der Treiber fährt das Gate selbst$/);
+    const ohne = index(e, /^#3 kein Aufruf der Andockprüfung im Log des Laufs zum Andockblock .*: der Treiber fährt die Andockprüfung selbst$/);
     expect(ohne).toBeGreaterThanOrEqual(0);
     expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
-    expect(e.some((x) => /^#3 Gate des Treibers \(voll, kein Gate-Aufruf im Log/.test(x))).toBe(true);
+    expect(e.some((x) => /^#3 Andockprüfung des Treibers \(voll, kein Aufruf der Andockprüfung im Log/.test(x))).toBe(true);
     // the driver's block is the last run of the PR, and merge.ps1 merged on it
     expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [false, true]]);
   }, T);
@@ -228,7 +228,7 @@ describe('A: die Merge-Schlange', () => {
     expect(aufrufe.map((a) => a.aktion)).toEqual(['Up', 'Down']);
     expect(aufrufe[0].holder).toMatch(/halten[\\/]4\.json$/);
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate teil', resolve(neu)]]);
-    expect(texte(z).some((x) => /#4 Epic-Worktree neu angelegt/.test(x))).toBe(true);
+    expect(texte(z).some((x) => /#4 Missions-Worktree neu angelegt/.test(x))).toBe(true);
     expect(git(t.repo, 'worktree', 'list')).not.toContain('epic-4');
   }, T);
 
@@ -237,7 +237,7 @@ describe('A: die Merge-Schlange', () => {
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', gateWiederholungen: 3 });
-    expect(z.epics['3'].notiz).toMatch(/3 Gate-Läufe des Treibers, die Basis zog jedes Mal davon/);
+    expect(z.epics['3'].notiz).toMatch(/3 Andockprüfungen des Treibers, die Basis zog jedes Mal davon/);
   }, T);
 });
 
@@ -329,7 +329,7 @@ describe('C3: Adapter ohne merge', () => {
     const r = adapter([wurzel]) as { adapter: { repo: string; merge: string | null; quelle: string }[]; ohneMerge: string[]; folge: string };
     expect(r.adapter.map((a) => [a.repo.endsWith('mit') ? 'mit' : 'ohne', a.merge, a.quelle]).sort()).toEqual([['mit', 'nach_gate', 'Arbeitskopie'], ['ohne', null, 'Arbeitskopie']]);
     expect(r.ohneMerge).toEqual([join(wurzel, 'ohne')]);
-    expect(r.folge).toMatch(/mergt nur ein Mensch in 1 Projekt\(en\)/);
+    expect(r.folge).toMatch(/Nur ein Mensch dockt an in 1 Projekt\(en\)/);
     expect(schluessel('---\nmerge: "mensch"\n---', 'merge')).toBe('mensch');
     expect(schluessel('kein Frontmatter\nmerge: x', 'merge')).toBeNull();
   });

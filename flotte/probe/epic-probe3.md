@@ -38,4 +38,4 @@ Probe-Repository ohne CI. Der Andockblock in der PR-Beschreibung ersetzt die Che
   Compose-Dienst in `gamma` hat keinen Zustand und je Worktree einen eigenen Projektnamen.
 - **Bereiche:** `alpha/`, `beta/`, `gamma/`. Dateien dort sind kurze Textdateien; eine Datei darf
   nicht leer sein und nicht `ROT` enthalten.
-- **Spec-Modus ohne Kinder:** Der Pull Request schließt die Spec mit `Closes #<spec>`.
+- **Spec-Modus ohne Missionsziele:** Der Pull Request schließt die Spec mit `Closes #<spec>`.

@@ -2,11 +2,11 @@
 > **Reihenfolge:** Kinder: {{kinder}}
 
 ## Was
-Drei Obstsorten bekommen je eine Datei im Bereich `obst/`. Die drei Kinder sind voneinander
+Drei Obstsorten bekommen je eine Datei im Bereich `obst/`. Die drei Missionsziele sind voneinander
 unabhängig.
 
 ## Abnahmekriterien
-- Alle Kinder sind angedockt.
+- Alle Missionsziele sind angedockt.
 - `pwsh -NoProfile -File werkzeug/gate.ps1 -Alle` ist grün.
 
 ## Verifikationsweg

@@ -336,7 +336,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/neu eingereiht\. Grund der Blockade war: Konto .* ist nicht angemeldet/);
       expect(z.epics['3'].stufe).toBe('fertig');
-      expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Epic neu eingereiht vom Menschen'))).toHaveLength(1);
+      expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Mission neu eingereiht vom Menschen'))).toHaveLength(1);
       expect(b.hQuittungen.filter((x) => x > 0)).toEqual([101]);
     } finally {
       await b.zu();
@@ -437,7 +437,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(z.epics['3'].widerrufe ?? []).toEqual([]);
       expect(z.entscheidungen[0].widerrufen).toBe('zu spät');
       const texte = z.ereignisse.filter((e) => e.epic === 3).map((e) => e.text);
-      expect(texte.some((x) => /Widerruf zu Frage 1 kam nach dem Merge/.test(x))).toBe(true);
+      expect(texte.some((x) => /Widerruf zu Frage 1 kam nach dem Andocken/.test(x))).toBe(true);
       expect(texte.some((x) => /Widerruf über die Brücke zu Frage 1: schon widerrufen/.test(x))).toBe(true);
     } finally {
       await b.zu();
@@ -490,7 +490,7 @@ describe('Flottenbrücke (#28)', () => {
       const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
       expect(Date.now() - anfang).toBeLessThan(2400);
       expect(z.epics['3'].stufe).toBe('laeuft');
-      expect(t.p.meldungen.some((m) => /^Angehalten auf Wunsch: kein Merge offen, 1 Lauf/.test(m))).toBe(true);
+      expect(t.p.meldungen.some((m) => /^Angehalten auf Wunsch: kein Andocken offen, 1 Lauf/.test(m))).toBe(true);
       // the request is used up: the next start runs normally
       expect(datei && !existsSync(datei)).toBe(true);
       const weiter = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
@@ -784,8 +784,8 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(b.berichte[0].epics.map((e) => [e.nr, e.imEinsatz])).toEqual([[3, true]]);
       expect(z.epics['4'].stufe).toBe('fertig');
       expect(z.aufgenommen).toEqual([4]);
-      expect(texte(z)).toContain('Epic #4 in den Einsatz aufgenommen, Mensch über die Brücke');
-      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text === '**Flotte (Treiber)** — Epic #4 in den Einsatz aufgenommen, Mensch über die Brücke.')).toBe(true);
+      expect(texte(z)).toContain('Mission #4 in den Einsatz aufgenommen, Mensch über die Brücke');
+      expect(t.p.kommentare.some((k) => k.nr === 99 && k.text === '**Flotte (Treiber)** — Mission #4 in den Einsatz aufgenommen, Mensch über die Brücke.')).toBe(true);
       const danach = b.berichte.find((x) => x.epics.some((e) => e.nr === 4))!;
       expect(danach.freigegeben).toEqual([]);
       expect(danach.epics.find((e) => e.nr === 4)!.imEinsatz).toBe(true);
@@ -822,7 +822,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
     const b = await attrappe(() => null, { handlung: nacheinander([{ epic: 5, art: 'aufnehmen' }, { epic: 3, art: 'aufnehmen' }]) });
     try {
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 400 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), t.welt);
-      expect(texte(z)).toContain('Aufnehmen über die Brücke abgelehnt: kein offenes Epic mit epic und ready-for-agent');
+      expect(texte(z)).toContain('Aufnehmen über die Brücke abgelehnt: keine offene Mission mit epic und ready-for-agent');
       expect(texte(z)).toContain('Aufnehmen über die Brücke abgelehnt: schon im Einsatz');
       expect(z.epics['5']).toBeUndefined();
       expect(z.aufgenommen ?? []).toEqual([]);
@@ -848,13 +848,13 @@ describe('Epics steuern über die Brücke (#61)', () => {
       const z = await fahre(t.einstellung(buch, [3, 4], { bruecke: b.url, obergrenze: 1 }), t.welt);
       expect(z.epics['4']).toMatchObject({ stufe: 'fertig', pausiert: null });
       const m = t.p.meldungen;
-      expect(index(m, /^#4 Epic #4 pausiert, startet nicht; Mensch über die Brücke$/)).toBeGreaterThanOrEqual(0);
-      expect(index(m, /^#4 Epic #4 pausiert/)).toBeLessThan(index(m, /^#3 Zug zu Ende/));
-      expect(index(m, /^#4 Epic #4 fortgesetzt; Mensch über die Brücke$/)).toBeLessThan(index(m, /^#4 Lauf gestartet/));
+      expect(index(m, /^#4 Mission #4 pausiert, startet nicht; Mensch über die Brücke$/)).toBeGreaterThanOrEqual(0);
+      expect(index(m, /^#4 Mission #4 pausiert/)).toBeLessThan(index(m, /^#3 Zug zu Ende/));
+      expect(index(m, /^#4 Mission #4 fortgesetzt; Mensch über die Brücke$/)).toBeLessThan(index(m, /^#4 Lauf gestartet/));
       const pausiert = b.berichte.find((x) => x.epics.find((e) => e.nr === 4)?.pausiert)!.epics.find((e) => e.nr === 4)!;
       expect(pausiert).toMatchObject({ stufe: 'wartend', notiz: 'pausiert vom Menschen' });
       expect(Date.parse(pausiert.pausiert!)).toBeGreaterThan(0);
-      expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Epic #4 (pausiert|fortgesetzt)/.test(k.text))).toHaveLength(2);
+      expect(t.p.kommentare.filter((k) => k.nr === 99 && /^\*\*Flotte \(Treiber\)\*\* — Mission #4 (pausiert|fortgesetzt)/.test(k.text))).toHaveLength(2);
     } finally {
       await b.zu();
     }
@@ -880,11 +880,11 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(laeufe).toHaveLength(2);
       expect(laeufe[1].eingabe).toMatch(/Antwort des Admirals auf FLOTTE-FRAGE tor:\n1\. A/);
       const m = t.p.meldungen;
-      const pause = index(m, /^#3 Epic #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/);
+      const pause = index(m, /^#3 Mission #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/);
       expect(pause).toBeGreaterThanOrEqual(0);
       expect(pause).toBeLessThan(index(m, /^#3 Zug zu Ende/));
-      expect(index(m, /^#3 Zug zu Ende/)).toBeLessThan(index(m, /^#3 Epic #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
-      expect(index(m, /^#3 Epic #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
+      expect(index(m, /^#3 Zug zu Ende/)).toBeLessThan(index(m, /^#3 Mission #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
+      expect(index(m, /^#3 Mission #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
       expect(z.ereignisse.some((x) => /abgebrochen|Leerlauf|beendet den Zug/.test(x.text))).toBe(false);
       expect(gestoppt).toBeGreaterThan(5);
     } finally {
@@ -966,8 +966,8 @@ describe('Epics steuern über die Brücke (#61)', () => {
       const m = t.p.meldungen;
       const frageWeg = index(m, /^#3 RAM-Frage wegen der Pause: weiter nach fortsetzen$/);
       expect(frageWeg).toBeGreaterThanOrEqual(0);
-      expect(frageWeg).toBeLessThan(index(m, /^#3 Epic #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
-      expect(index(m, /^#3 Epic #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
+      expect(frageWeg).toBeLessThan(index(m, /^#3 Mission #3 fortgesetzt, der zurückgehaltene Zug geht an den Lauf; Mensch über die Brücke$/));
+      expect(index(m, /^#3 Mission #3 fortgesetzt/)).toBeLessThan(index(m, /^#3 Lauf fortgesetzt/));
       // the driver's own brake stays free: the pause is no memory reading
       expect(m.some((x) => /RAM (hold|warn)|wartet auf RAM|RAM-Frage: weiter, sobald/.test(x))).toBe(false);
     } finally {
@@ -993,7 +993,7 @@ describe('Epics steuern über die Brücke (#61)', () => {
       expect(x).toContain('Fortsetzen über die Brücke abgelehnt: nicht pausiert');
       expect(x).toContain('Pausieren über die Brücke abgelehnt: schon pausiert');
       expect(x).toContain('Priorität über die Brücke abgelehnt: unbekannte Priorität "dringend"');
-      expect(x).toContain('Handlung pausieren über die Brücke: Epic gehört nicht zu diesem Einsatz');
+      expect(x).toContain('Handlung pausieren über die Brücke: Mission gehört nicht zu diesem Einsatz');
       expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pausiert: null });
       expect(z.epics['3'].prioritaet).toBeUndefined();
       expect(b.hQuittungen.filter((n) => n > 0)).toHaveLength(6);
@@ -1103,7 +1103,7 @@ describe('Andocken je Projekt und Epic (#112)', () => {
       expect(x).toContain('Andocken über die Brücke abgelehnt: unbekannte Stellung "irgendwie"');
       expect(x).toContain('Andocken von #3 von mensch → auf mensch, Mensch über die Brücke');
       expect(x).toContain('Andocken von #3 von mensch → auf den Vorschlag (mensch), Mensch über die Brücke');
-      expect(x).toContain('Handlung merge über die Brücke: Epic gehört nicht zu diesem Einsatz');
+      expect(x).toContain('Handlung merge über die Brücke: Mission gehört nicht zu diesem Einsatz');
       expect(z.epics['3'].merge).toBeNull();
       expect(b.berichte.at(-1)!.epics.find((e) => e.nr === 3)!.merge).toEqual({ stellung: 'mensch', herkunft: 'vorschlag', grund: 'Geld: „Preis“ in #3' });
       expect(b.hQuittungen.filter((n) => n > 0)).toHaveLength(5);
@@ -1154,7 +1154,7 @@ describe('Andocken je Projekt und Epic (#112)', () => {
       expect(t.p.merges).toEqual([13]);
       expect(z.epics['3'].stufe).toBe('fertig');
       expect(z.epics['4']).toMatchObject({ stufe: 'pr', merge: 'mensch' });
-      expect(t.p.kommentare.filter((k) => k.nr === 4 && k.text.startsWith('**PR bereit') && k.text.includes('Andocken: Mensch prüft, Schalter am Epic'))).toHaveLength(1);
+      expect(t.p.kommentare.filter((k) => k.nr === 4 && k.text.startsWith('**PR bereit') && k.text.includes('Andocken: Mensch prüft, Schalter an der Mission'))).toHaveLength(1);
     } finally {
       await b.zu();
     }
@@ -1528,7 +1528,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       const am3 = t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Widerruf'));
       expect(am3).toHaveLength(1);
-      expect(am3[0].text).toBe('**Widerruf des Menschen (Mensch über die Brücke)** — Mission #3 „Portprüfung“ aus dem Schnittplan zurückgenommen\nEinwand: Port gehört in die Tafel-Mission.\nDanach: `ready-for-agent` ab, ein laufender Außeneinsatz angehalten (pausiert, gemergt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele #30, #31 gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).\nHerkunft: Mensch über die Brücke');
+      expect(am3[0].text).toBe('**Widerruf des Menschen (Mensch über die Brücke)** — Mission #3 „Portprüfung“ aus dem Schnittplan zurückgenommen\nEinwand: Port gehört in die Tafel-Mission.\nDanach: `ready-for-agent` ab, ein laufender Außeneinsatz angehalten (pausiert, angedockt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele #30, #31 gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).\nHerkunft: Mensch über die Brücke');
       // the comment before every change
       const an3 = t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'comment' && a[3] === '3');
       const kommentar3 = t.p.aufrufe.indexOf(an3[t.p.kommentare.filter((k) => k.nr === 3).indexOf(am3[0])]);
@@ -1536,7 +1536,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(kommentar3).toBeLessThan(stelle('gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label'));
       expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label')]).toEqual(['gh', 'issue', 'edit', '3', '--repo', 'o/r', '--remove-label', 'ready-for-agent']);
       // the run on it is paused, never aborted
-      expect(t.p.meldungen.some((m) => /^#3 Epic #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/.test(m))).toBe(true);
+      expect(t.p.meldungen.some((m) => /^#3 Mission #3 pausiert, der laufende Zug läuft zu Ende, danach wartet es; Mensch über die Brücke$/.test(m))).toBe(true);
       expect(z.epics['3'].pausiert).toBeTruthy();
       expect(z.ereignisse.some((x) => /abgebrochen|aufgegeben/.test(x.text))).toBe(false);
       // the PR the turn ended with waits for a person: the switch of the epic says mensch, merge.ps1 never ran
@@ -1638,7 +1638,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(texte(z)).toContain('Mission #4 aus dem Einsatz genommen (widerrufen, nicht gestartet), Mensch über die Brücke');
       expect(z.epics['4']).toBeUndefined();
       expect(z.aufgenommen ?? []).not.toContain(4);
-      expect(texte(z).some((x) => /Epic #4 pausiert|#4 Lauf gestartet|Andocken von #4/.test(x))).toBe(false);
+      expect(texte(z).some((x) => /Mission #4 pausiert|#4 Lauf gestartet|Andocken von #4/.test(x))).toBe(false);
       expect(t.p.meldungen.some((m) => /^#4 Lauf gestartet/.test(m))).toBe(false);
       expect(b.berichte.at(-1)!.epics.map((e) => e.nr)).toEqual([3]);
       expect(z.epics['3'].stufe).toBe('fertig');
@@ -1693,7 +1693,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     const b3 = await attrappe(() => null, { handlung: (x) => vorab.shift() ?? (x.freigegeben?.some((f) => f.nr === 4) ? { epic: 4, art: 'aufnehmen' } : null) });
     try {
       const z3 = await fahre(t3.einstellung(drehbuch([lauf(4, [{ text: ende(4, 14) }])]), [], { auto: true, bruecke: b3.url, dauerhaft: true, maxDauerMs: 2500 }), t3.welt);
-      expect(texte(z3)).toContain('Epic #4 in den Einsatz aufgenommen (sein Widerruf über die Brücke ist damit aufgehoben), Mensch über die Brücke');
+      expect(texte(z3)).toContain('Mission #4 in den Einsatz aufgenommen (sein Widerruf über die Brücke ist damit aufgehoben), Mensch über die Brücke');
       expect(z3.epics['4'].stufe).toBe('fertig');
       expect(z3.widerrufen).toEqual([]);
     } finally {

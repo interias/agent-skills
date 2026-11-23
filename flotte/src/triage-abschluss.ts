@@ -75,7 +75,7 @@ export function loseFreigaben(a: Aufrufer, forge: string, r: AuftragsRegeln, sch
     if (p.code) continue;
     const m = /\/issues\/(\d+)\s*$/.exec(p.stdout.trim());
     if (m && missionen.has(Number(m[1]))) continue;
-    out.push({ forge, nr, titel: String(i.title ?? ''), zustand: ['offen', ...labels, ...(m ? [`Kind von #${m[1]}`] : [])].join(', '), grund: m ? `${r.ready_label} an #${m[1]}, die keine offene Mission (${r.epic_label}) ist` : `${r.ready_label} ohne Mission (kein Sub-Issue einer Mission)` });
+    out.push({ forge, nr, titel: String(i.title ?? ''), zustand: ['offen', ...labels, ...(m ? [`Missionsziel von #${m[1]}`] : [])].join(', '), grund: m ? `${r.ready_label} an #${m[1]}, die keine offene Mission (${r.epic_label}) ist` : `${r.ready_label} ohne Mission (kein Sub-Issue einer Mission)` });
   }
   return out;
 }
@@ -120,7 +120,7 @@ export function abschlusspruefung(a: Aufrufer, forge: string, r: AuftragsRegeln,
         }
       }
       const grund = endzustandFehlt(t, mission, r);
-      if (grund) abweichung(t.offen ? ['offen', ...t.labels, ...(mission ? [`Kind von #${mission.nummer}`] : [])].join(', ') : 'geschlossen', grund);
+      if (grund) abweichung(t.offen ? ['offen', ...t.labels, ...(mission ? [`Missionsziel von #${mission.nummer}`] : [])].join(', ') : 'geschlossen', grund);
     } catch (err) {
       abweichung('nicht lesbar', (err as Error).message.slice(0, 300));
     }

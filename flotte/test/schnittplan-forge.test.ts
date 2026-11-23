@@ -305,7 +305,7 @@ describe('#147 Schnittplan in der Forge', () => {
     f.finde(5).comments.push({ body: 'Nur an die Testliste.', login: 'mensch', rolle: 'OWNER' });
     const plan2: Plan = (nummern) => ({ neue_missionen: [], zuordnungen: nummern.map((n) => (n === 5 ? { notiz: 5, art: 'mission', mission: 100, grund: 'Port', herkunft: 'Eigenes Urteil: Thema' } : { notiz: n, art: 'triage', grund: 'dünn', herkunft: 'x' })) });
     const { geplant, aufrufe } = await lauf(f, plan2, { ...ANTWORTEN, 5: KLAR });
-    expect(geplant[0].auftrag).toContain('## Mission #100: Portprüfung (2 Kinder, noch 6 frei)');
+    expect(geplant[0].auftrag).toContain('## Mission #100: Portprüfung (2 Missionsziele, noch 6 frei)');
     expect(geplant[0].auftrag).toMatch(/Vorrang/);
     expect(aufrufe.filter((x) => x.args[0] === 'issue' && x.args[1] === 'create')).toEqual([]);
     expect(f.finde(100).kinder).toEqual([1, 2, 5]);
@@ -690,7 +690,7 @@ describe('#146 Ein Admiral-Aufruf je Projekt', () => {
     const allein = notizenIn(geplant[1])[0];
     expect(notizenIn(geplant[1])).toEqual(Array(10).fill(allein));
     // the second package gets what the first left: #40 full, two of four new missions
-    expect(geplant[1].auftrag).toContain('## Mission #40: Tafel (8 Kinder, voll, keine neuen Kinder)');
+    expect(geplant[1].auftrag).toContain('## Mission #40: Tafel (8 Missionsziele, voll, keine neuen Missionsziele)');
     expect(geplant[1].auftrag).toContain('höchstens 2 neue Missionen');
     const [p] = r.schnittplan;
     expect(p.fehler).toBeUndefined();
@@ -733,8 +733,8 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
   it('names the free places of every open mission, a full one as full', () => {
     const t = (n: number) => ({ nummer: n, titel: 'N', body: '', url: '', labels: [], kommentare: [] });
     const a = schnittplanAuftrag([t(1)], [{ nummer: 40, titel: 'Tafel', body: '', kinder: 7 }, { nummer: 41, titel: 'Voll', body: '', kinder: 8 }], REGELN);
-    expect(a).toContain('## Mission #40: Tafel (7 Kinder, noch 1 frei)');
-    expect(a).toContain('## Mission #41: Voll (8 Kinder, voll, keine neuen Kinder)');
+    expect(a).toContain('## Mission #40: Tafel (7 Missionsziele, noch 1 frei)');
+    expect(a).toContain('## Mission #41: Voll (8 Missionsziele, voll, keine neuen Missionsziele)');
   });
 
   it('an invalid plan gets exactly one repair call with the error and the answer; a valid repair counts', async () => {
@@ -742,13 +742,13 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
     const { r, geplant } = await lauf(f, (_n, auftrag) => (auftrag.includes('Korrektur') ? RICHTIG : ZU_VIEL), { 1: KLAR, 2: KLAR });
     expect(geplant).toHaveLength(2);
     expect(geplant[1].auftrag.startsWith(geplant[0].auftrag)).toBe(true);
-    expect(geplant[1].auftrag).toContain('Mission #40 hätte mehr als 8 Kinder (7 + 2)');
+    expect(geplant[1].auftrag).toContain('Mission #40 hätte mehr als 8 Missionsziele (7 + 2)');
     expect(geplant[1].auftrag).toContain('Deine Antwort war:\n{"neue_missionen":[],"zuordnungen":[{');
     expect(geplant[1].auftrag).toContain('"notiz":2,"art":"mission","mission":40');
     const [p] = r.schnittplan;
     expect(p.fehler).toBeUndefined();
     expect(p.sitzung).toBe('plan-2');
-    expect(p.reparatur).toEqual({ sitzung: 'plan-1', fehler: 'Mission #40 hätte mehr als 8 Kinder (7 + 2)' });
+    expect(p.reparatur).toEqual({ sitzung: 'plan-1', fehler: 'Mission #40 hätte mehr als 8 Missionsziele (7 + 2)' });
     expect(f.finde(40).kinder).toHaveLength(8);
   });
 
@@ -760,7 +760,7 @@ describe('#147 Schnittplan: freie Plätze und Reparaturrunde', () => {
     expect(r.schnittplan[0].aufrufe).toBe(2);
     expect(schreibend(aufrufe)).toEqual([]);
     expect(JSON.stringify(f.issues)).toBe(vorher);
-    expect(r.schnittplan[0].fehler).toContain('hätte mehr als 8 Kinder');
+    expect(r.schnittplan[0].fehler).toContain('hätte mehr als 8 Missionsziele');
     expect(r.schnittplan[0].reparatur?.sitzung).toBe('plan-1');
   });
 
@@ -804,7 +804,7 @@ describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubte
     const f = welt();
     const { r } = await lauf(f, PLAN, ANTWORTEN, { scheitert: (a) => a[1] === 'edit' && a[2] === '100' && a.includes('--add-label') });
     expect(nr(r)).toEqual([1, 2]);
-    expect(r.abschluss.abweichungen[0]).toMatchObject({ zustand: `offen, ${READY}, Kind von #100`, grund: `Mission #100 ist neu und trägt kein ${READY}` });
+    expect(r.abschluss.abweichungen[0]).toMatchObject({ zustand: `offen, ${READY}, Missionsziel von #100`, grund: `Mission #100 ist neu und trägt kein ${READY}` });
 
     // a lost link and a closing without reason, read by the check itself
     const g = welt();

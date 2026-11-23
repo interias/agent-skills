@@ -48,7 +48,7 @@ describe('Schnittprüfung durch das Programm (#67)', () => {
     expect(pruefeAusgabe('schnitt', { ...schnitt({ pakete }), zuordnung: [{ story: '#1', paket: '1' }] })).toBe('Paket 2 hat keine Story in der Zuordnung');
     expect(pruefeAusgabe('schnitt', { ...schnitt({ pakete }), zuordnung: [...zu(pakete), { story: '#3', paket: '3' }] })).toBe('zuordnung: #3 geht an das unbekannte Paket 3');
     // mode tickets: each workable child is its own package
-    expect(pruefeAusgabe('schnitt', { ...schnitt({ pakete }), zuordnung: [{ story: '#1', paket: '2' }, { story: '#2', paket: '1' }] })).toBe('zuordnung: im Modus tickets ist jedes Kind sein eigenes Paket, #1 geht an 2');
+    expect(pruefeAusgabe('schnitt', { ...schnitt({ pakete }), zuordnung: [{ story: '#1', paket: '2' }, { story: '#2', paket: '1' }] })).toBe('zuordnung: im Modus tickets ist jedes Missionsziel sein eigenes Paket, #1 geht an 2');
     // mode spec: several stories may go to one package
     const spec = [paket('69-p1'), paket('69-p2', { nach: ['69-p1'] })];
     expect(pruefeAusgabe('schnitt', { ...schnitt({ pakete: spec, modus: 'spec' }), zuordnung: [{ story: 'Als Admiral sehe ich …', paket: '69-p1' }, { story: 'Als Mensch prüfe ich …', paket: '69-p1' }, { story: 'Als Treiber lese ich …', paket: '69-p2' }] })).toBeNull();
@@ -81,9 +81,9 @@ describe('Schnittprüfung durch das Programm (#67)', () => {
   it('against the issue, mode tickets: every child of the epic is a package or skipped with its reason, never neither, never both', () => {
     const body = '> **Reihenfolge:** Kinder: #301, #302, #303\n\n## Was\nx';
     const pakete = [paket('301'), paket('302')];
-    expect(abdeckungFehler(schnitt({ pakete }), body)).toBe('Kind #303 des Epics steht weder in zuordnung noch in uebersprungen');
+    expect(abdeckungFehler(schnitt({ pakete }), body)).toBe('Missionsziel #303 der Mission steht weder in zuordnung noch in uebersprungen');
     expect(abdeckungFehler(schnitt({ pakete, uebersprungen: [{ nr: '303', grund: 'blockiert durch #9', blocker: ['9'] }] }), body)).toBeNull();
-    expect(abdeckungFehler(schnitt({ pakete, uebersprungen: [{ nr: '#302', grund: 'g', blocker: [] }, { nr: '303', grund: 'g', blocker: [] }] }), body)).toBe('Kind #302 steht in zuordnung und in uebersprungen');
+    expect(abdeckungFehler(schnitt({ pakete, uebersprungen: [{ nr: '#302', grund: 'g', blocker: [] }, { nr: '303', grund: 'g', blocker: [] }] }), body)).toBe('Missionsziel #302 steht in zuordnung und in uebersprungen');
     // a body that names no child gives nothing to check
     expect(abdeckungFehler(schnitt({ pakete }), '## Was\nx')).toBeNull();
     // the form of uebersprungen
@@ -105,7 +105,7 @@ describe('Schnittprüfung durch das Programm (#67)', () => {
     const pakete = [paket('311')];
     const fehlt = attrappe({ schnitt: { version: 1, pakete, tor: [], uebersprungen: [{ nr: '312', grund: 'ohne ready-for-agent', blocker: [] }] }, bodies: { 69: body } });
     expect((await fahreEpic(einstellung(neuesRepo()), fehlt)).phase).toBe('abgebrochen');
-    expect(fehlt.welt.aufrufe[1].auftrag).toMatch(/Kind #313 des Epics steht weder in zuordnung noch in uebersprungen/);
+    expect(fehlt.welt.aufrufe[1].auftrag).toMatch(/Missionsziel #313 der Mission steht weder in zuordnung noch in uebersprungen/);
     const ganz = attrappe({ schnitt: { version: 1, pakete, tor: [], uebersprungen: [{ nr: '312', grund: 'ohne ready-for-agent; das Label schaltet es frei', blocker: [] }, { nr: '#313', grund: 'wartet auf #9', blocker: ['9'] }] }, bodies: { 69: body } });
     const z = await fahreEpic(einstellung(neuesRepo()), ganz);
     expect(z.phase).toBe('fertig');
