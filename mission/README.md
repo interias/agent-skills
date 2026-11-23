@@ -123,6 +123,11 @@ Der Erste Offizier ist nie schwächer als der Ingenieur. Der Admiral hat wenige,
 Masse der Arbeit machen die Orchestratoren der Läufe und die Ingenieure. Deshalb läuft nur er auf
 Fable.
 
+**Warmer Speicher:** Ingenieure und Erste Offiziere tragen `experimental.cacheTtl: 1h`. Ein Subagent
+hält seinen Kontext sonst nur fünf Minuten im Zwischenspeicher und schreibt ihn nach jedem längeren
+Testlauf neu; mit einer Stunde liest er ihn zum Zehntel des Preises. Sitzungen und Läufe des Treibers
+halten ihn ohnehin eine Stunde. Kundschafter arbeiten in einem Zug und brauchen das nicht.
+
 ## Nach dem Lauf
 
 - **[`/mission-nacharbeit`](../mission-nacharbeit/SKILL.md)** arbeitet ab, was der Lauf offen gelassen

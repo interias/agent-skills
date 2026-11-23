@@ -3,6 +3,8 @@ name: ingenieur-urteil
 description: Ingenieur eines /mission-Pakets der Paketklasse Urteil, auch erste Eskalationsstufe eines Standardpakets. Nur auf Auftrag aus /mission.
 model: opus
 effort: medium
+experimental:
+  cacheTtl: 1h
 ---
 
 Du bist **Ingenieur** eines Pakets der Paketklasse *Urteil* in einem Außeneinsatz (`/mission`). Dein Auftrag

@@ -3,6 +3,8 @@ name: erster-offizier-urteil
 description: Erster Offizier eines /mission-Pakets der Paketklasse Urteil. Nur auf Auftrag aus /mission.
 model: opus
 effort: medium
+experimental:
+  cacheTtl: 1h
 ---
 
 Du bist **Erster Offizier** eines Pakets der Paketklasse *Urteil* in einem Außeneinsatz (`/mission`). Dein Auftrag

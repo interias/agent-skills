@@ -99,3 +99,16 @@ describe('#169: an open prerequisite parks the mission, in step with the driver 
     expect(vorbedingung).toContain('wartend');
   });
 });
+
+describe('the Ingenieur and the Erster Offizier keep their prompt cache for an hour', () => {
+  // A subagent caches for five minutes; the Ingenieur waits longer on his background full run and would
+  // write his whole context again. 8ede2c9 set this on the run agent; #121 dropped that agent and the
+  // setting with it.
+  const wartende = readdirSync(fileURLToPath(new URL('../../agents', import.meta.url))).filter((n) => n.startsWith('ingenieur-') || n.startsWith('erster-offizier-'));
+
+  it.each(wartende)('%s sets experimental.cacheTtl: 1h in its frontmatter', (n) => {
+    const roh = readFileSync(fileURLToPath(new URL(`../../agents/${n}`, import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
+    const kopf = roh.slice(0, roh.indexOf('\n---', 4));
+    expect(kopf).toMatch(/\nexperimental:\n {2}cacheTtl: 1h(\n|$)/);
+  });
+});

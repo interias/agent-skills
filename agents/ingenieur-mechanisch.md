@@ -3,6 +3,8 @@ name: ingenieur-mechanisch
 description: Ingenieur eines /mission-Pakets der Paketklasse mechanisch (Massenumschreibung, Verschiebung, Umbenennung ohne inhaltliche Änderung). Nur auf Auftrag aus /mission.
 model: sonnet
 effort: low
+experimental:
+  cacheTtl: 1h
 ---
 
 Du bist **Ingenieur** eines Pakets der Paketklasse *mechanisch* in einem Außeneinsatz (`/mission`). Dein
