@@ -325,6 +325,21 @@ def test_stoppen_haelt_den_chat_an_fortsetzen_gibt_die_nachricht_frei(bekannt):
     assert bekannt.post(f"/api/chat/{r['chat']}/fortsetzen", headers=PIN).status_code == 409
 
 
+def test_stoppen_waehrend_anlegen_macht_den_chat_trotzdem_angelegt(bekannt):
+    chat_id, id_ = einmal_beantwortet(bekannt, mit_entwurf())
+    bekannt.post(f'/api/chat/{chat_id}/anlegen', json={'starten': True, 'von': id_}, headers=PIN)
+    n = holen(bekannt).json()[0]
+    quittung(bekannt, n['id'])
+    # the service is creating already; the person stops the chat, the answer still comes
+    assert bekannt.post(f'/api/chat/{chat_id}/stoppen', headers=PIN).status_code == 200
+    assert antwort(bekannt, n['id'], BEISPIEL['antworten'][1]).status_code == 200
+    c = chat(bekannt, chat_id)
+    assert c['stand'] == 'angelegt' and c['missionen'] == BEISPIEL['antworten'][1]['missionen']
+    # no second creation of the same draft
+    assert bekannt.post(f'/api/chat/{chat_id}/fortsetzen', headers=PIN).status_code == 409
+    assert bekannt.post(f'/api/chat/{chat_id}/anlegen', json={'starten': True, 'von': id_}, headers=PIN).status_code == 409
+
+
 def test_gestoppter_chat_laesst_sich_verwerfen(bekannt):
     r = beginnen(bekannt).json()
     bekannt.post(f"/api/chat/{r['chat']}/stoppen", headers=PIN)
@@ -397,3 +412,16 @@ def test_gestoppt_und_archiviert_ueberstehen_einen_neustart(tmp_path, uhr):
     # still stopped after the restart: no service gets its message
     assert holen(d).json() == []
 
+
+
+BEREITSCHAFTSRAUM_JS = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'bereitschaftsraum.js').read_text(encoding='utf-8')
+
+
+def test_befehl_chat_anlegen_nur_ueber_beginnen():
+    # #47: the command of the command line sends like the button (beginnen -> senden with device and PIN), nothing else
+    teil = BEREITSCHAFTSRAUM_JS[BEREITSCHAFTSRAUM_JS.index('function chatAnlegen'):BEREITSCHAFTSRAUM_JS.index('huelle.bereich(')]
+    assert 'ausfuehren: () => (text && formular() ? beginnen(formular())' in teil
+    assert 'fetch(' not in teil and 'senden(' not in teil
+    # off without a PIN or over the remote entry, and only for the whole word "chat"
+    assert 'if (!r?.pin || t.nurAnsicht' in teil
+    assert "klein(worte[0]) !== 'chat'" in teil

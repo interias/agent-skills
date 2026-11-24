@@ -315,10 +315,13 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     if (!r?.pin || t.nurAnsicht || !r.konten.length || !r.projekte.length) return [];
     const worte = String(eingabe ?? '').trim().split(/\s+/).filter(Boolean);
     const klein = (w) => w.toLocaleLowerCase('de-DE');
-    if (worte.length < 2 || !'chat'.startsWith(klein(worte[0])) || !'anlegen'.startsWith(klein(worte[1]))) return [];
+    // the whole word "chat" and at least "anl": a command that sends must not be hit by chance
+    if (worte.length < 2 || klein(worte[0]) !== 'chat' || worte[1].length < 3 || !'anlegen'.startsWith(klein(worte[1]))) return [];
     let rest = worte.slice(2);
     const genannt = rest.length && r.projekte.find((f) => [klein(f), klein(f.split('/').pop())].includes(klein(rest[0])));
     if (genannt) rest = rest.slice(1);
+    // owner/name that is no project of the bridge: no chat to a wrong repository
+    else if (rest.length && /^[\w.-]+\/[\w.-]+$/.test(rest[0])) return [];
     const forge = genannt || r.projekte[0];
     const text = rest.join(' ');
     const formular = () => flaeche?.querySelector('[data-form="neu"]');

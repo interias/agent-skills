@@ -103,14 +103,16 @@ Seite, rot pulsierend, solange etwas offen ist) und die Bereiche als Pillen. Auf
 Bilder aller Bereiche mit den Beispieldaten aus `beispiel/`, je 1440 und 390 px breit: `doku/`.
 
 Jeder Bereich hat eine Adresse zum Merken, die Zurück-Taste geht zum vorigen; eine unbekannte
-Adresse zeigt die Brücke. Die Befehlszeile sucht und springt nur: Bereiche, Projekte und Missionen der
+Adresse zeigt die Brücke. Die Befehlszeile sucht und springt: Bereiche, Projekte und Missionen der
 Tafel (Nummer oder Titel), mit Pfeiltasten, Enter und Esc. Eine Mission öffnet ihre Ebene und markiert
-die Karte kurz. Sie führt nichts aus.
+die Karte kurz. Ausführen kann sie nur Befehle der Bereiche (#47: `chat anlegen …`, unten
+„Bereitschaftsraum“), und die gehen über dieselbe Anfrage wie ihr Knopf, mit Gerät und PIN.
 
 Für Entwickler: Ein Bereich liegt in `app/static/bereiche/<bereich>.js` (und `.css`) und meldet sich
-mit `huelle.bereich({ name, titel, zeichne(t, el), treffer(t) })` an der Hülle (`huelle.js`) an.
+mit `huelle.bereich({ name, titel, zeichne(t, el), treffer(t, eingabe) })` an der Hülle (`huelle.js`) an.
 `zeichne` läuft bei jedem Laden der Tafel, solange der Bereich sichtbar ist, `treffer` liefert
-Einträge für die Befehlszeile. `huelle.springe(bereich, ziel)` springt wie ein Treffer der Befehlszeile
+Einträge für die Befehlszeile; ein Eintrag mit `ausfuehren()` ist ein Befehl, prüft die `eingabe` selbst
+und läuft nach dem Sprung. `huelle.springe(bereich, ziel)` springt wie ein Treffer der Befehlszeile
 zu einem Element, `huelle.beiTafel(f)` ruft `f(t)` nach jedem Laden der Tafel (so zeichnet sich die
 Schiffsliste). Alle Skripte und Stile, die `index.html` nennt, bindet die Brücke mit
 Inhalts-Hash ein.
@@ -434,7 +436,7 @@ Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
   bis er fortgesetzt ist. Archivieren blendet einen Chat aus der Liste aus (ein offener wird dabei
   gestoppt); „Archiv (n)“ zeigt sie wieder, „Aus dem Archiv“ holt einen zurück. Stand und Archiv
   überstehen einen Neustart der Brücke.
-- **Befehlszeile:** `chat anlegen [repo] <text>` (Wortanfänge genügen) füllt „Neuer Chat“ und schickt
+- **Befehlszeile:** `chat anlegen [repo] <text>` („chat“ ganz, von „anlegen“ genügen drei Buchstaben; ein `owner/name`, das kein Projekt der Brücke ist, ergibt keinen Befehl) füllt „Neuer Chat“ und schickt
   ihn mit Text gleich ab, wie der Knopf mit Gerät und PIN; ohne Text landet der Cursor im Feld.
 - **Neuer Chat**: Repository (`owner/name`), Konto aus den Konten, die die Dienste melden, Modell
   (Standard `claude-opus-5-5`), erste Nachricht. Das Konto steht fest, sobald der Chat eine Sitzung hat

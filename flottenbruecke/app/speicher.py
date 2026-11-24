@@ -531,7 +531,8 @@ class Speicher:
             if antwort['sitzung']:
                 self.db.execute('update chats set sitzung = ?, rechner = coalesce(rechner, ?) where id = ?', (antwort['sitzung'], n['rechner'], n['chat']))
             if n['art'] == 'anlegen' and antwort['fehler'] is None and antwort.get('missionen'):
-                self.db.execute("update chats set stand = 'angelegt' where id = ? and stand = 'offen'", (n['chat'],))
+                # #47: stopped while the service was creating: the missions exist, so the chat is angelegt all the same
+                self.db.execute("update chats set stand = 'angelegt' where id = ? and stand in ('offen', 'gestoppt')", (n['chat'],))
             self.db.execute('update chats set geaendert = ? where id = ?', (jetzt, n['chat']))
             return True
 

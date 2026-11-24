@@ -203,3 +203,10 @@ create table handlungen (id integer primary key autoincrement, forge text not nu
     # and after a restart
     c = TestClient(erzeuge(Einstellung(db=str(db), pin='4711', uhr=uhr)))
     assert c.get('/holodeck/interias/sternwarte/sternkarte.html').status_code == 200
+
+
+def test_rueckmeldung_geht_ueber_senden_in_einen_offenen_chat():
+    # #47: the feedback is a message of the Bereitschaftsraum, with device and PIN like writing there, never a request of its own
+    assert re.search(r"senden\(`/api/chat/\$\{rueckChat\}/nachricht`, \{ text: `Rückmeldung zu Prototyp \$\{p\.forge\}/\$\{p\.name\}: \$\{text\}` \}", HOLODECK_JS)
+    assert "c.stand === 'offen' && !c.archiviert" in HOLODECK_JS
+    assert 'fetch(' not in HOLODECK_JS
