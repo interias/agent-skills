@@ -383,6 +383,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'schrittZeit': ep.get('schrittZeit'),
                 'gestartetAm': ep.get('gestartetAm'),
                 'entscheidungen': entscheidungen.get(nr, []),
+                # the line of the card from the driver; None from an older one: the card as before
+                'lage': ep.get('lage'),
             }
             if stufe in HALT and ep.get('aufgegebenAm'):
                 t = zeit(ep['aufgegebenAm'])
@@ -408,7 +410,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     erledigt.append({**karte, 'art': 'gemergt', 'zeit': t.isoformat()})
                 continue
             if stufe == 'wartend':
-                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert')})
+                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert'), 'lage': ep.get('lage')})
                 continue
             if stufe == 'pr':
                 rein = zeit(ep.get('schlangeSeit')) or seit_stufe
@@ -450,6 +452,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 # #112: how it merges now (an older driver: None, no switch) and the switch on its way
                 'merge': ep.get('merge'),
                 'andocken': _handlung(offen_h.get((nr, 'merge', None, None))),
+                'lage': ep.get('lage'),
             })
         karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte
