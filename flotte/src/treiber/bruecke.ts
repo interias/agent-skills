@@ -59,6 +59,8 @@ export interface BrueckenHandlung {
   text: string | null;
   zeit: string;
   herkunft: string;
+  /** #46: the paired device that sent it; missing from an older bridge */
+  geraet?: string | null;
 }
 
 export interface BerichtFrage {

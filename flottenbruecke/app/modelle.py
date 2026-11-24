@@ -798,6 +798,18 @@ class PushAbmeldung(BaseModel):
     endpoint: str = Field(max_length=2000)
 
 
+# ---- devices (#46): paired once with the PIN; the rights are given only on the machine itself
+
+
+class GeraetKoppeln(BaseModel):
+    name: str = Field(min_length=1, max_length=60, pattern=r'\S')
+
+
+class GeraetRechte(BaseModel):
+    antworten: bool
+    handeln: bool
+
+
 # ---- Bereitschaftsraum (#85, agent-skills/ADR-0004): the chat. SCHNITTSTELLE.md, section 8, and beispiel/chat.json.
 # Only texts and short names: never a path, an account folder or credentials.
 

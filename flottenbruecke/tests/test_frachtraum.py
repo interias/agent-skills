@@ -49,8 +49,8 @@ def zwei(client, bericht):
 
 @pytest.mark.parametrize('art, felder', GUELTIG)
 def test_jede_handlung_braucht_die_pin(zwei, art, felder):
-    assert handlung(zwei, art, pin=None, **felder).status_code == 401
-    assert handlung(zwei, art, pin='0000', **felder).status_code == 401
+    assert handlung(zwei, art, pin=None, **felder).status_code == 403
+    assert handlung(zwei, art, pin='0000', **felder).status_code == 403
     assert offene(zwei) == []
     # the counter test: the right PIN is taken
     assert handlung(zwei, art, **felder).status_code == 200
@@ -226,7 +226,7 @@ SCHNITT = {'epic': 70, 'text': 'Suche und Filter sind zwei Dinge; erst den Filte
 
 @pytest.mark.parametrize('pin', [None, '0000'])
 def test_schnitt_widerruf_braucht_die_pin(zwei, pin):
-    assert handlung(zwei, 'schnitt-widerruf', pin=pin, **SCHNITT).status_code == 401
+    assert handlung(zwei, 'schnitt-widerruf', pin=pin, **SCHNITT).status_code == 403
     assert offene(zwei) == []
 
 

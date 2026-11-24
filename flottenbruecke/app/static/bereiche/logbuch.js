@@ -6,7 +6,7 @@
 'use strict';
 
 (() => {
-  const ARTEN = ['Ereignis', 'Admiral', 'Mensch'];
+  const ARTEN = ['Ereignis', 'Admiral', 'Mensch', 'Gerät'];
   const filter = { epic: '', art: '' };
   let letzte = null;
   let el = null;
@@ -26,6 +26,8 @@
       else if (x.art === 'handlung') liste.push(e(x, 'Mensch', x.handlung === 'widerruf' ? `Widerruf Frage ${x.nr} → <b>${esc(x.text)}</b>` : `<b>${handlungWort(x)}</b>`));
       else if (x.art === 'aufgegeben') liste.push(e(x, 'Mensch', `<b>aufgegeben</b> · ${esc(x.titel)}`));
     }
+    // #46: what each device did, with the command as sent
+    for (const x of t.geraeteLogbuch ?? []) liste.push({ zeit: x.zeit, forge: '', kurz: '', epic: null, art: 'Gerät', html: `<b>${esc(x.geraet)}</b> <code>${esc(x.befehl)}</code>`, url: null });
     return liste.sort((a, b) => (a.zeit < b.zeit ? 1 : a.zeit > b.zeit ? -1 : 0));
   }
 

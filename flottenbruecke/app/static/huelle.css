@@ -59,6 +59,14 @@
   text-transform: uppercase; white-space: nowrap;
 }
 .nur-ansicht[hidden] { display: none; }
+/* #46: the emergency stop, red until the machine releases it */
+.notaus-marke {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 12px; flex: none; border-radius: var(--rund);
+  background: var(--rot); color: #000; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.notaus-marke:hover { text-decoration: none; }
+.notaus-marke[hidden] { display: none; }
 
 /* ---- the areas as pills */
 .pillen { display: flex; gap: 4px; flex: none; }

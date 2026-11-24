@@ -3,6 +3,8 @@ import re
 from datetime import timedelta
 from pathlib import Path
 
+from conftest import koppeln
+
 FORGE = {'forge': 'interias/flotte-probe'}
 SEIT = '2026-11-20T13:52:30Z'
 BEISPIEL = Path(__file__).parent.parent / 'beispiel'
@@ -237,8 +239,8 @@ def test_ansehen_ohne_pin_antworten_nicht(client, bericht):
     client.post('/api/bericht', json=bericht)
     assert client.get('/api/tafel').status_code == 200
     assert client.get('/').status_code == 200
-    assert antwort(client, pin=None).status_code == 401
-    assert antwort(client, pin='0000').status_code == 401
+    assert antwort(client, pin=None).status_code == 403
+    assert antwort(client, pin='0000').status_code == 403
     assert abholen(client) == []
 
 
@@ -253,12 +255,12 @@ def test_ohne_gesetzte_pin_ist_antworten_aus(bruecke, bericht):
 
 def test_pin_pruefen(client):
     assert client.post('/api/pin', headers={'X-Bruecke-Pin': '4711'}).status_code == 204
-    assert client.post('/api/pin', headers={'X-Bruecke-Pin': '1234'}).status_code == 401
+    assert client.post('/api/pin', headers={'X-Bruecke-Pin': '1234'}).status_code == 403
 
 
 def test_pin_sperre_nach_fuenf_fehlern(client):
     for _ in range(5):
-        assert client.post('/api/pin', headers={'X-Bruecke-Pin': 'falsch'}).status_code == 401
+        assert client.post('/api/pin', headers={'X-Bruecke-Pin': 'falsch'}).status_code == 403
     assert client.post('/api/pin', headers={'X-Bruecke-Pin': '4711'}).status_code == 429
 
 
@@ -400,6 +402,7 @@ def test_alte_datenbank_ohne_optionsspalte(tmp_path, uhr, bericht):
       seit text not null, text text not null, zeit text not null, abgeholt text, quittiert text, unique (forge, epic, nr, seit));""")
     con.close()
     c = TestClient(erzeuge(Einstellung(db=str(db), pin='4711', uhr=uhr)))
+    koppeln(c)
     c.post('/api/bericht', json=bericht)
     assert antwort(c, 'x', option='A').status_code == 200
     assert abholen(c)[0]['option'] == 'A'
@@ -447,8 +450,8 @@ def test_icons_und_manifest(client):
 
 def test_handlung_braucht_pin(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert handlung(client, pin=None).status_code == 401
-    assert handlung(client, pin='0000').status_code == 401
+    assert handlung(client, pin=None).status_code == 403
+    assert handlung(client, pin='0000').status_code == 403
     assert abholen(client, 'handlungen') == []
 
 
@@ -568,6 +571,7 @@ create table antworten (id integer primary key autoincrement, forge text not nul
     con.commit()
     con.close()
     c = TestClient(erzeuge(Einstellung(db=str(db), pin='4711', uhr=uhr)))
+    koppeln(c)
     t = tafel(c)
     assert [(x['art'], x['epic']) for x in t['braucht']] == [('blockade', 40), ('frage', 39)]
     assert frage39(t)['antwort']['option'] == 'A' and frage39(t)['marke'] == ''

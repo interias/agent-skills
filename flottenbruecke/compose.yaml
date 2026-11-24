@@ -19,6 +19,8 @@ services:
       BRUECKE_DB: /data/bruecke.db
     ports:
       - "${BRUECKE_BIND:-0.0.0.0}:${BRUECKE_PORT:-4747}:8000"
+      # #46: the entry of the machine itself, only on 127.0.0.1: device rights, unpairing, releasing the emergency stop
+      - "127.0.0.1:${BRUECKE_RECHNER_PORT:-4748}:8002"
     volumes:
       - daten:/data
       # #37, optional: the mkcert certificate for HTTPS in the LAN (BRUECKE_ZERT in .env); empty: HTTP

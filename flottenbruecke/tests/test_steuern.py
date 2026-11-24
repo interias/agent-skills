@@ -32,8 +32,8 @@ def karte(c):
 @pytest.mark.parametrize('epic, art, text', GUELTIG)
 def test_jede_handlung_braucht_die_pin(client, bericht, epic, art, text):
     client.post('/api/bericht', json=bericht)
-    assert steuern(client, epic, art, text, pin=None).status_code == 401
-    assert steuern(client, epic, art, text, pin='0000').status_code == 401
+    assert steuern(client, epic, art, text, pin=None).status_code == 403
+    assert steuern(client, epic, art, text, pin='0000').status_code == 403
     assert offene(client) == []
 
 

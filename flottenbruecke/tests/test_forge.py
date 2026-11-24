@@ -35,7 +35,7 @@ def test_status_je_projekt_ohne_token(client, bericht, tmp_path):
 def test_handlung_nur_mit_pin(client, bericht):
     client.post('/api/bericht', json=mit_forge(bericht, angemeldet=False, konto=None, rechte=None))
     assert schritt(client) == 'offen'
-    assert verknuepfen(client, pin=None).status_code == 401
+    assert verknuepfen(client, pin=None).status_code == 403
     assert verknuepfen(client).json()['ok']
     assert schritt(client) == 'wartet'
     geholt = client.get('/api/handlungen', params={'forge': FORGE}).json()

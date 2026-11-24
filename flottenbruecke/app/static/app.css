@@ -321,6 +321,7 @@ dialog p { font: 14px/1.45 var(--lesen); }
 .dialog-balken { background: var(--orange); color: #000; font-weight: 700; margin: 0 -16px 8px; padding: 4px 16px; text-transform: uppercase; letter-spacing: .08em; }
 .dialog-balken.rot { background: var(--rot); color: #fff; }
 #ja-dialog { border-left-color: var(--rot); }
+#koppeln-name, #koppeln-pin { display: block; width: 100%; height: 44px; margin-top: 8px; font: inherit; font-size: 17px; background: #05050a; color: var(--text); border: 2px solid var(--blau); border-radius: 6px; padding: 0 10px; }
 #pin-feld { width: 100%; height: 44px; font: inherit; font-size: 20px; letter-spacing: .3em; background: #05050a; color: var(--text); border: 2px solid var(--blau); border-radius: 6px; padding: 0 10px; }
 .fehler { color: var(--rot); min-height: 1.3em; margin: 6px 0; font-size: 13px; }
 .dialog-knoepfe { display: flex; justify-content: flex-end; gap: 8px; }

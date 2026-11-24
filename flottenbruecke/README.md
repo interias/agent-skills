@@ -19,7 +19,8 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 |---|---|---|
 | `BRUECKE_PORT` | `4747` | Port auf dem Rechner |
 | `BRUECKE_BIND` | `0.0.0.0` | `127.0.0.1`: nur am Rechner |
-| `BRUECKE_PIN` | leer | PIN fürs Antworten und für Handlungen; leer schaltet beides ab |
+| `BRUECKE_RECHNER_PORT` | `4748` | Eingang des Rechners (#46), nur auf `127.0.0.1`: Rechte der Geräte, Not-Aus lösen |
+| `BRUECKE_PIN` | leer | PIN zum Koppeln eines Geräts und, mit gekoppeltem Gerät, für jede Antwort und Handlung; leer schaltet Schreiben ab |
 | `BRUECKE_TOKEN` | leer | optional: Treiber muss ihn als `X-Bruecke-Token` schicken |
 | `BRUECKE_TZ` | `Europe/Berlin` | Zeitzone für „Angedockt (heute)“ |
 | `BRUECKE_ZERT`, `BRUECKE_ZERT_SCHLUESSEL` | leer | optional (#37): Zertifikat und Schlüssel im Container (`/zert/…`, aus `./zert`); beide gesetzt: HTTPS, beide leer: HTTP |
@@ -269,8 +270,8 @@ erst per Skript zeichnet, bleibt in der Vorschau leer und läuft erst in der Ans
 Verknüpfungen, kein Weg hinaus) und schickt nur Dateinamen und Inhalte, keine Pfade; die Brücke
 liefert nur, was sie gespeichert hat, und kennt kein Dateisystem der Projekte. Jeder Prototyp läuft
 in einem opaken Ursprung (`Content-Security-Policy: sandbox allow-scripts` und
-`<iframe sandbox="allow-scripts">`, beide ohne `allow-same-origin`): Er sieht weder die PIN im
-localStorage noch Cookies und kann die Brücken-API weder lesen noch, ohne PIN, etwas auslösen;
+`<iframe sandbox="allow-scripts">`, beide ohne `allow-same-origin`): Er sieht weder den localStorage
+noch Cookies und kann die Brücken-API weder lesen noch, ohne PIN, etwas auslösen;
 Verbindungen und Formulare sind gesperrt, Schriften und Skripte von `https:` laden.
 
 **Neu seit dem letzten Besuch:** ein gelber Punkt (blinkt nicht). Der localStorage-Schlüssel
@@ -287,7 +288,7 @@ Paketen“, eine Marke (`umkehrbar bis zum Andocken` oder warum es bleibt) und d
 bei dir liegt. Je Option steht die Folge darunter. Ein Tipp auf „A nehmen · Empfehlung“ sendet die
 Empfehlung; Optionen und Freitext gehen immer, der Freitext erreicht den Lauf unverändert. Ließ
 sich ein Block nicht in Fragen zerlegen, steht sein Wortlaut selbst auf der Karte. Beim ersten
-Senden fragt die Seite die PIN ab und merkt sie sich auf dem Gerät.
+Senden fragt die Seite die PIN ab; das Gerät behält sie nicht (#46, unten „Geräte“).
 
 Bis der Treiber die Antwort abholt, lässt sie sich ändern; danach steht „Angekommen, Lauf setzt
 fort“. Der Treiber behandelt sie wie `flotte antworten`, kommentiert am Issue mit der Herkunft
@@ -307,8 +308,47 @@ auch in „Erledigt heute“) widerruft eine Entscheidung des Admirals oder dein
 Andocken: Du schreibst die neue Entscheidung, der Treiber kommentiert sie am Issue und gibt sie dem Lauf.
 Beide Stellen teilen sich Formular und Entwurf.
 
-Ansehen ist im LAN (und über den Fernzugriff) frei, Antworten und Handlungen nur im LAN mit PIN. Fünf falsche PINs sperren für fünf
+Ansehen ist im LAN (und über den Fernzugriff) frei, Antworten und Handlungen nur im LAN von einem
+gekoppelten Gerät mit PIN (unten „Geräte“). Fünf falsche PINs sperren für fünf
 Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte eine).
+
+## Geräte, Rechte und Not-Aus (#46)
+
+Zwei Schlüssel für alles, was du schreibst: ein **gekoppeltes Gerät** mit dem passenden Recht **und die
+PIN**. Die PIN allein reicht nicht mehr, das Gerät allein auch nicht.
+
+- **Koppeln:** Beim ersten Senden fragt ein unbekanntes Gerät nach Namen und PIN (oder Maschinenraum,
+  „Geräte“, **Dieses Gerät koppeln**). Die Brücke gibt ihm einen zufälligen Schlüssel als Cookie
+  (HttpOnly, Secure, SameSite=Strict, 400 Tage) und speichert nur dessen Hash. Weil das Cookie `Secure`
+  ist, geht Koppeln nur über HTTPS (Zertifikat aus mkcert, oben) oder am Rechner über `localhost`.
+- **Rechte je Gerät:** ansehen (immer), **Antworten** (Fragen, Bereitschaftsraum, Web-Push), **Handeln**
+  (alle Handlungen, Werft, Missionen aus dem Bereitschaftsraum anlegen). Ein neues Gerät darf ansehen und
+  antworten, nicht handeln.
+- **Nur der Rechner vergibt Rechte:** Die Brücke hat dafür einen eigenen Eingang, den compose nur auf
+  `127.0.0.1` veröffentlicht (`http://localhost:4748/`, Port aus `BRUECKE_RECHNER_PORT`). Dort zeigt der
+  Maschinenraum je Gerät **Antworten geben/nehmen**, **Handeln geben/nehmen** und **Entkoppeln**, jeweils
+  mit PIN. Aus dem LAN lehnt die Brücke das mit `403` ab; sie erkennt den Rechner am Eingang, nicht an
+  der Absenderadresse, und nimmt dort nur den Namen `localhost`, `127.0.0.1` oder `[::1]` an (keine fremde
+  Seite, die ihren Namen auf den Rechner umbiegt). Ein entkoppeltes Gerät ist sofort unbekannt (`401`) und muss neu koppeln.
+- **Not-Aus:** Jedes gekoppelte Gerät löst ihn im Maschinenraum aus, ohne PIN und ohne Recht. Danach
+  lehnt die Brücke jede Antwort, Handlung und Kopplung ab (`423`), auch nach einem Neustart, bis der
+  Rechner ihn über seinen Eingang mit PIN löst. Oben steht solange rot „Not-Aus“. Die Treiber laufen
+  weiter, bekommen aber nichts mehr ausgeliefert, auch nicht, was vor dem Not-Aus abgeschickt war; das
+  geht erst nach dem Lösen hinaus.
+- **Origin:** Eine schreibende Anfrage, deren `Origin` nicht die Brücke selbst ist (eine fremde Seite,
+  ein Prototyp im Holodeck), bekommt `403`. Der Treiber schickt keinen `Origin` und weist sich weiter mit
+  `X-Bruecke-Token` aus.
+- **Logbuch:** Jede Antwort und Handlung steht mit Gerät, Zeit und dem Befehl, wie er ankam, im Logbuch
+  der Brücke (Art „Gerät“), ebenso Koppeln, Rechte, Entkoppeln und Not-Aus. Jede Handlung, die der
+  Treiber ausführt, steht dazu mit Gerät und Zeit im Flottenlogbuch.
+- **PIN je Handlung:** Die Seite behält die PIN nicht auf dem Gerät, nur eine halbe Minute im Speicher der
+  offenen Seite, damit eine Handlung aus mehreren Anfragen nicht mehrmals fragt.
+- **Fernweg:** Über Tailscale (unten) bleibt alles Ansicht: dort lässt sich weder koppeln noch handeln.
+
+Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-maschinenraum-geraete-390.png)),
+[am Rechner](doku/v3-maschinenraum-geraete-rechner-1440.png) ([390](doku/v3-maschinenraum-geraete-rechner-390.png)),
+[Koppeln](doku/v3-geraet-koppeln-390.png), [Not-Aus](doku/v3-maschinenraum-notaus-1440.png)
+([390](doku/v3-maschinenraum-notaus-390.png)), [Logbuch](doku/v3-logbuch-geraete-1440.png).
 
 ## Maschinenraum und Logbuch
 
@@ -397,7 +437,8 @@ Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
   Rückfrage. Angelegt wird wörtlich der Entwurf der letzten Antwort, die ihn brachte; kam inzwischen ein
   neuerer oder wartet eine Nachricht noch, lehnt die Brücke ab.
 
-Jede Handlung braucht die PIN; ohne gesetzte PIN ist Schreiben abgeschaltet. Ansehen ist frei im LAN.
+Schreiben braucht ein gekoppeltes Gerät und die PIN, „Anlegen“ das Recht Handeln (oben „Geräte“); ohne
+gesetzte PIN ist Schreiben abgeschaltet. Ansehen ist frei im LAN.
 
 ## Aktualisieren
 
@@ -441,5 +482,5 @@ python -m venv .venv
 ```
 
 Backend: FastAPI (`app/main.py`), Board-Logik `app/tafel.py`, Speicher `app/speicher.py`, Web-Push
-`app/meldung.py`, Start mit HTTP oder HTTPS samt dem Eingang für den Fernzugriff `app/start.py`.
+`app/meldung.py`, Start mit HTTP oder HTTPS samt den Eingängen für den Fernzugriff und den Rechner (#46) `app/start.py`.
 Frontend ohne Build: `app/static/`.
