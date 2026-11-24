@@ -14,7 +14,7 @@
         { "name": "P3", "stand": "laeuft", "nr": null, "titel": "Exportknopf", "beginn": "2026-11-20T13:22:00Z", "ende": null, "phase": "review", "runde": 1, "stufe": "standard", "eskaliert": false, "erstAufruf": "2026-11-20T13:22:00Z", "phaseSeit": "2026-11-20T14:12:00Z", "lebenszeichen": "2026-11-20T14:29:00Z" },
         { "name": "P4", "stand": "laeuft", "nr": null, "titel": "Hilfetext", "beginn": "2026-11-20T14:15:00Z", "ende": null, "phase": "implementer", "runde": 1, "stufe": "mechanisch", "eskaliert": false, "erstAufruf": "2026-11-20T14:15:00Z", "phaseSeit": "2026-11-20T14:15:00Z", "lebenszeichen": "2026-11-20T14:30:50Z" }
       ],
-      "schritt": "Paket P3: Review läuft", "schrittZeit": "2026-11-20T14:30:50Z", "prozess": true, "grund": "", "haltZeit": null, "log": [], "aufgegebenAm": null,
+      "schritt": "Paket P3: Erster Offizier prüft", "schrittZeit": "2026-11-20T14:30:50Z", "prozess": true, "grund": "", "haltZeit": null, "log": [], "aufgegebenAm": null,
       "prio": false, "imEinsatz": true, "pausiert": null, "prioritaet": null, "merge": { "stellung": "automatisch", "herkunft": "projekt", "grund": null },
       "gestartetAm": "2026-11-20T12:40:00Z", "schlangeSeit": null, "gateSeit": null, "prognose": null, "nach": [],
       "neustarts": 0, "plaetze": { "belegt": 3, "von": 3 }
@@ -26,13 +26,13 @@
         { "name": "P2", "stand": "fertig", "nr": null, "titel": "Mailvorlage", "beginn": "2026-11-20T11:12:00Z", "ende": "2026-11-20T12:30:00Z", "runde": 2, "stufe": "standard", "eskaliert": false, "erstAufruf": "2026-11-20T11:12:00Z", "lebenszeichen": "2026-11-20T12:28:00Z" },
         { "name": "P3", "stand": "fertig", "nr": null, "titel": "Abmeldelink", "beginn": "2026-11-20T11:55:00Z", "ende": "2026-11-20T13:05:00Z", "runde": 1, "stufe": "urteil", "eskaliert": false, "erstAufruf": "2026-11-20T11:55:00Z", "lebenszeichen": "2026-11-20T13:02:00Z" }
       ],
-      "schritt": "Gate auf dem Epic-Branch", "schrittZeit": "2026-11-20T14:18:00Z", "prozess": true, "grund": "", "haltZeit": null, "log": [], "aufgegebenAm": null,
+      "schritt": "Andockprüfung auf dem Missions-Branch", "schrittZeit": "2026-11-20T14:18:00Z", "prozess": true, "grund": "", "haltZeit": null, "log": [], "aufgegebenAm": null,
       "prio": false, "imEinsatz": true, "pausiert": null, "prioritaet": null, "merge": { "stellung": "automatisch", "herkunft": "projekt", "grund": null },
       "gestartetAm": "2026-11-20T11:05:00Z", "schlangeSeit": null, "gateSeit": null, "prognose": null, "nach": [],
       "neustarts": 1, "plaetze": { "belegt": 0, "von": 3 }, "gateLauf": { "n": 2, "seit": "2026-11-20T14:18:00Z" }
     },
     {
-      "nr": 70, "titel": "Spec: Feiertage je Land", "stufe": "pr", "konto": "Konto 1", "pr": 81, "notiz": "PR #81 in der Merge-Schlange", "geparkt": [],
+      "nr": 70, "titel": "Spec: Feiertage je Land", "stufe": "pr", "konto": "Konto 1", "pr": 81, "notiz": "PR #81 in der Andock-Schlange", "geparkt": [],
       "pakete": [
         { "name": "P1", "stand": "fertig", "nr": null, "titel": "Feiertagsliste", "beginn": "2026-11-20T09:00:00Z", "ende": "2026-11-20T09:40:00Z", "runde": 1, "stufe": "standard", "eskaliert": false, "erstAufruf": "2026-11-20T09:00:00Z", "lebenszeichen": "2026-11-20T09:38:00Z" },
         { "name": "P2", "stand": "fertig", "nr": null, "titel": "Länderwahl", "beginn": "2026-11-20T09:02:00Z", "ende": "2026-11-20T10:15:00Z", "runde": 1, "stufe": "standard", "eskaliert": false, "erstAufruf": "2026-11-20T09:02:00Z", "lebenszeichen": "2026-11-20T10:12:00Z" }

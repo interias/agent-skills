@@ -127,7 +127,7 @@ def test_einmal_je_ereignis_gebuendelt_und_nach_neustart_still(baue, bericht, di
     c.post('/api/bericht', json=bericht)
     assert [g['daten']['titel'] for g in dienst.gesendet] == ['Braucht dich: 2 neue Meldungen']
     # in the order of level 1: the longest wait first
-    assert dienst.gesendet[0]['daten']['text'] == 'flotte-probe #40 Blockade · Mini-Epic: Startskript\nflotte-probe #39 Frage · Mini-Epic: Konfigurationsdatei'
+    assert dienst.gesendet[0]['daten']['text'] == 'flotte-probe #40 Blockade · Mini-Mission: Startskript\nflotte-probe #39 Frage · Mini-Mission: Konfigurationsdatei'
     c.post('/api/bericht', json=bericht)
     # a restart of the bridge on the same database
     baue().post('/api/bericht', json=bericht)
@@ -135,7 +135,7 @@ def test_einmal_je_ereignis_gebuendelt_und_nach_neustart_still(baue, bericht, di
     # a new question rings alone
     bericht['fragen'].append({**bericht['fragen'][0], 'nr': 2, 'seit': '2026-11-20T14:30:00Z'})
     c.post('/api/bericht', json=bericht)
-    assert dienst.gesendet[1]['daten'] == {'titel': 'Braucht dich: flotte-probe #39', 'text': 'Frage · Mini-Epic: Konfigurationsdatei'}
+    assert dienst.gesendet[1]['daten'] == {'titel': 'Braucht dich: flotte-probe #39', 'text': 'Frage · Mini-Mission: Konfigurationsdatei'}
     assert dienst.gesendet[1]['claims']['sub'].startswith('mailto:')
 
 
