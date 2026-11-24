@@ -27,6 +27,8 @@ Sammelaktion über andere.
 Der Fließtext des Adapters sind **Projektregeln**, zum Beispiel Doku-Pflicht, Migrationsverbote
 oder Fachsprache. Sie gelten wie Regeln des Skills. Der Adapter darf den Skill **verschärfen, nie
 lockern**. Ein Eintrag, der eine Regel des Skills aufheben würde, ist ein Punkt für das Vorab-Tor.
+So kann ein Projekt auch Regel 14 („nur Software“, `SKILL.md`) schärfen, etwa mit Beispielen, was
+dort als Inhalt gilt.
 
 Ein Abschnitt **`## Entscheidungsregeln`** im Fließtext legt fest, wie der Admiral
 der Flotte wiederkehrende Fragen in diesem Projekt entscheidet: je Regel ein Satz, mit Datum

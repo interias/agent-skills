@@ -312,3 +312,24 @@ describe('#146 Schnittplan: offene Mission, verworfen, Duplikate', () => {
     expect(r.schnittplan[0].fehler).toContain('offene Missionen nicht lesbar');
   });
 });
+
+describe('only software (24.11.2026): a content goal is no work for the fleet', () => {
+  const n = ZWOELF.map(ticket);
+  const frage = { frage: 'Das Ergebnis ist ein Konzept, kein Code. Herauslösen?', optionen: ['herauslösen', 'trotzdem bauen'], antwort: 'herauslösen', herkunft: 'Skill-Empfehlung', grund: 'nur Software', beim_menschen: true, marke: 'Inhalt' };
+
+  it('the order says it: a content goal stays in the triage with one question, recommendation ready-for-human', () => {
+    const a = schnittplanAuftrag(n, [], REGELN);
+    expect(a).toContain('Ein Inhaltsziel ist keine Arbeit der Flotte');
+    expect(a).toContain('(marke: Inhalt)');
+    expect(a).toContain('`ready-for-human` statt `ready-for-agent`, das Label setzt der Mensch');
+    expect(a).toContain('und ein Inhaltsziel (unten)');
+  });
+
+  it('the mark Inhalt is allowed and kept, the note waits in the triage without a question added by the program', () => {
+    expect((schnittplanSchema() as any).properties.zuordnungen.items.properties.fragen.items.properties.marke.enum).toContain('Inhalt');
+    const plan = { ...DREI_THEMEN, zuordnungen: DREI_THEMEN.zuordnungen.map((y, j) => (j === 0 ? { ...y, art: 'triage', fragen: [frage] } : y)) };
+    const p = schnittplanAus(plan, n, [], REGELN);
+    expect(p.art === 'plan' && p.zuordnungen[0]).toMatchObject({ art: 'triage', fragen: [expect.objectContaining({ beim_menschen: true, marke: 'Inhalt' })] });
+    expect(p.art === 'plan' && p.zuordnungen[0].fragenErgaenzt).toBeUndefined();
+  });
+});

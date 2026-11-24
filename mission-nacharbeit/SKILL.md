@@ -165,6 +165,10 @@ hast: welche Dateien, wie viele Zeilen, ob Code oder nur Text, ob ein Test dazuk
   Ablauf des Projekts. Mit `epic` und dem Freigabelabel, wenn die Arbeit klar ist, aber für diese
   Sitzung zu groß (ein eigener Umbau, mehr als ein Subagent trüge) oder ihr Verifikationsweg hier
   nicht fahrbar ist; dann nimmt die Flotte sie ohne Triage.
+- **Inhalt** ist nie Sitzung (`mission/SKILL.md`, Regel 14): Ein offener Punkt, dessen Ergebnis ein
+  Konzept, eine Konstruktion, eine Recherche oder gestaltete Motive oder Texte sind, wird nicht
+  ausgearbeitet. Gehört er zu einem Ticket, bekommt es `ready-for-human` statt des Freigabelabels;
+  sonst bleibt er offener Punkt im Missions-PR.
 
 Der häufigste Fall ist der Fund, für den ein datierter Nachtrag und ein Querverweis die ganze
 Lösung sind: er hält die Erkenntnis fest, kostet eine Viertelstunde und erzeugt keine Arbeit, die

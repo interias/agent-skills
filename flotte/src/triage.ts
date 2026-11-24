@@ -24,7 +24,9 @@ export const TRIAGE_MARKE = '<!-- flotte:triage -->';
 export const TRIAGE_FRAGE_MARKE = '<!-- flotte:triage-frage -->';
 const TEXT_MAX = 40_000;
 const ENTSCHEIDUNGEN = ['klar', 'ueberfluessig', 'kritisch'] as const;
-const PUNKTE = MERKMALE.map((m) => m.punkt);
+/** Only software (24.11.2026): a content goal waits with the person under its own mark, beside the points of the list. */
+const INHALT = 'Inhalt';
+const PUNKTE = [...MERKMALE.map((m) => m.punkt), INHALT];
 
 export interface Ticket {
   nummer: number;
@@ -258,8 +260,9 @@ function faktenAus(t: Ticket, max: number, h = '##'): string {
 /** The questions of a question round, the list of what lies with the person: the same in the cut plan and for a proposal. */
 const FRAGERUNDE = `Stell dir die Fragen einer Fragerunde selbst: Was genau soll entstehen? Ist es schon erledigt, doppelt oder überholt? Widerspricht es einem ADR oder Out-of-Scope? Woran erkennt man, dass es fertig ist? Wie wird es geprüft? Beantworte jede aus den Fakten mit deiner Empfehlung in antwort (fragen). Eine Antwort des Menschen in den Kommentaren ist eine Tatsache; die Kommentare stammen nur von Berechtigten (${BERECHTIGT.join(', ')}), Kommentare Dritter hat das Programm ausgelassen.
 
-Beim Menschen (beim_menschen: true, marke: der Punkt) liegt nur, was auf dieser Liste steht, auch wenn die Antwort vorsichtig wäre:
+Beim Menschen (beim_menschen: true, marke: der Punkt) liegt nur, was auf dieser Liste steht, und ein Inhaltsziel (unten), auch wenn die Antwort vorsichtig wäre:
 ${BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p} (marke: ${PUNKTE[i]})`).join('\n')}
+Ein Inhaltsziel ist keine Arbeit der Flotte: Ist das Ergebnis Inhalt — ein Konzept, eine Konstruktion, eine Recherche, gestaltete Motive oder Texte — statt Code und Doku der Software, die ihn ermöglicht, liegt eine Frage beim Menschen (marke: ${INHALT}) mit der Empfehlung „herauslösen: \`ready-for-human\` statt \`ready-for-agent\`, das Label setzt der Mensch“. Maßstab ist das Ergebnis, nicht ein Wort im Text; ist nur ein Teil Inhalt, wird der Softwareanteil geklärt und der Inhaltsanteil steht im grund als offener Punkt.
 Alles andere entscheidest du. Im Zweifel nimmst du die vorsichtige Variante selbst, wenn sie deine Empfehlung ist.`;
 
 const abschnitte = (r: AuftragsRegeln) =>
