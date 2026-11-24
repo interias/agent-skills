@@ -228,10 +228,10 @@ Drei Ebenen, sortiert danach, was du tun musst:
    deine Antworten und Handlungen. Ein neues Andocken leuchtet einmal grün auf.
 
 **Detailansicht einer Mission** (#51): Unter der Segmentleiste eines Laufs stehen **Plätze 3/3** (Pakete
-in Ingenieur, Review oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
+in Ingenieur, Erster Offizier oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
 **Neustarts** des Laufs; die Laufzeit ist der Knopf „läuft seit …“. In der aufgeklappten Paketliste
 hat jedes Paket, zu dem der Treiber Agent-Aufrufe im Protokoll des Laufs sah, eine zweite Zeile:
-Phase (Ingenieur, Review, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
+Phase (Ingenieur, Erster Offizier, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
 (eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
 (ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld
@@ -377,9 +377,11 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
   legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
   was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.
   Meldet sich kein Treiber, nennt die Seite den Weg am Rechner (`flotte projekt hinzufuegen`).
+  Bilder: `doku/v3-maschinenraum-projekte-1440.png`, `-390.png`.
   Darunter **Automatik je Projekt** (#193): eine Zeile je Projekt mit dem Schalter „Missionen automatisch
   einsammeln“ (an/aus, Umschalten mit PIN als `einstellen`, wirksam ab dem nächsten Takt) und der Zahl laufender,
   wartender und freigegebener, noch nicht eingesammelter Missionen. Ausschalten hält nichts an.
+  Bilder: `doku/v3-maschinenraum-automatik-1440.png`, `-390.png`.
   Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die übrigen fünfzehn wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was

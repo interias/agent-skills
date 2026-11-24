@@ -99,7 +99,7 @@ def test_sternenkarte_zeigt_einsatz_pause_prioritaet_und_freigegebene(client, be
     assert (k[41]['prio'], k[41]['prioritaet']) == (True, 'hoch')
     assert all(e['imEinsatz'] for e in k.values())
     assert projekt(client)['freigegeben'] == [
-        {'nr': 43, 'titel': 'Mini-Epic: Statusseite', 'issueUrl': 'https://github.com/interias/flotte-probe/issues/43', 'handlung': None},
+        {'nr': 43, 'titel': 'Mini-Mission: Statusseite', 'issueUrl': 'https://github.com/interias/flotte-probe/issues/43', 'handlung': None},
         {'nr': 44, 'titel': 'Spec: Exportskript', 'issueUrl': 'https://github.com/interias/flotte-probe/issues/44', 'handlung': None},
     ]
     # on their way: each in its row, until the driver acknowledges it

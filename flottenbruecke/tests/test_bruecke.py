@@ -90,7 +90,7 @@ def test_kosten_des_wartens(client, bericht):
 def test_fragekarte_traegt_was_der_mensch_braucht(client, bericht):
     client.post('/api/bericht', json=bericht)
     f = frage39(tafel(client))
-    assert f['frage'].startswith('Wo liegt') and f['titel'].startswith('Mini-Epic') and f['konto'] == 'Konto 2'
+    assert f['frage'].startswith('Wo liegt') and f['titel'].startswith('Mini-Mission') and f['konto'] == 'Konto 2'
     assert (f['marke'], f['umkehrbar'], f['herkunft']) == ('nach außen sichtbar', False, 'Eigenes Urteil: nach außen sichtbar')
     assert f['grund'].startswith('Der Ort der Datei')
     # holds 1 of 3 packages
@@ -104,7 +104,7 @@ def test_blockadekarte_mit_grund_und_log(client, bericht):
     client.post('/api/bericht', json=bericht)
     b = tafel(client)['braucht'][0]
     assert (b['art'], b['epic'], b['stufe']) == ('blockade', 40, 'blockiert')
-    assert b['grund'].startswith('3 Gate-Läufe') and len(b['log']) == 5
+    assert b['grund'].startswith('3 Andockprüfungen') and len(b['log']) == 5
     assert (b['seit'], b['wartetS'], b['handlung']) == ('2026-11-20T14:05:44+00:00', 1526, None)
 
 
@@ -190,7 +190,7 @@ def test_bericht_eines_alten_treibers_ohne_neue_felder(client, bericht):
         del bericht['fragen'][0][k]
     assert client.post('/api/bericht', json=bericht).status_code == 200
     assert ebenen(client)['braucht'] == [('blockade', 40), ('frage', 39)]
-    assert tafel(client)['braucht'][0]['grund'].startswith('Gate dreimal rot')
+    assert tafel(client)['braucht'][0]['grund'].startswith('Andockprüfung dreimal rot')
 
 
 def test_stufe_statt_prozent_bleibt_pflicht(client, bericht):
@@ -527,7 +527,7 @@ def test_prio_steht_in_bereit_oben_mit_grund(client, bericht):
     client.post('/api/bericht', json=bericht)
     bereit = tafel(client)['unterwegs']['bereit']
     assert [(x['nr'], x['prio']) for x in bereit] == [(41, True), (30, False), (42, False)]
-    assert bereit[0]['notiz'] == 'wartet auf den Merge von #38'
+    assert bereit[0]['notiz'] == 'wartet auf das Andocken von #38'
 
 
 def test_bereit_zeigt_die_kind_tickets_als_links(client, bericht):
