@@ -15,7 +15,7 @@ HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause'
 PROJEKT_ORDNER_MAX = 260
 # the link of projekt_hinzufuegen: https://<host>/<owner>/<name>; the hosts allowed are github.com and the Gitea forges the driver reports
 PROJEKT_LINK_MAX = 300
-_LINK_TEIL = re.compile(r'^[\w.-]{1,100}$')
+_LINK_TEIL = re.compile(r'^[\w.-]{1,100}$', re.ASCII)
 _LINK_LOKAL = re.compile(r'^(localhost|.*\.localhost|.*\.local|.*\.lan|.*\.home\.arpa|.*\.internal)$', re.I)
 _LINK_IP = re.compile(r'^(\d{1,3}(\.\d{1,3}){3}|[0-9a-f:.]*:[0-9a-f:.]*)$', re.I)
 

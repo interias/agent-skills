@@ -304,12 +304,13 @@ export async function projekt(argv: string[], w: ProjektWelt = { aufrufer: aufru
   const [befehl, ordner, ...rest] = argv;
   switch (befehl) {
     case 'hinzufuegen': {
-      const link = wert(argv, '--klonen');
-      const pfad = ordner && !ordner.startsWith('--') ? ordner : null;
-      const flags = pfad ? rest : argv.slice(1);
-      if ((!pfad && !link) || (argv.includes('--klonen') && !link?.trim())) throw new Error(AUFRUF);
+      const flags = argv.slice(1);
+      const link = wert(flags, '--klonen');
+      // the folder is the one word that is neither a switch nor its value, before or after the switches
+      const pfade = flags.filter((x, i) => !x.startsWith('--') && !['--konten', '--bruecke', '--klonen'].includes(flags[i - 1]));
+      if (pfade.length > 1 || (!pfade.length && !link) || (flags.includes('--klonen') && !link?.trim())) throw new Error(AUFRUF);
       const konten = wert(flags, '--konten')?.split(',').filter(Boolean);
-      return await hinzufuegen(pfad, { autostart: flags.includes('--autostart'), konten, bruecke: wert(flags, '--bruecke'), klonen: link }, w);
+      return await hinzufuegen(pfade[0] ?? null, { autostart: flags.includes('--autostart'), konten, bruecke: wert(flags, '--bruecke'), klonen: link }, w);
     }
     case 'entfernen':
       return entfernen(ordner ?? '.', w);

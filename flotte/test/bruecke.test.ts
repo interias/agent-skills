@@ -2546,6 +2546,42 @@ describe('Projekte über die Brücke (#126)', () => {
     }
   }, T);
 
+  it('a second link while a clone runs is refused; the driver halts only after the clone', async () => {
+    const t = aufbau();
+    const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));
+    let laeuft = 0;
+    // a slow clone that only fails: nothing is left behind, the lock opens again
+    const aufrufAsync = async (): Promise<{ code: number; stdout: string; stderr: string }> => {
+      laeuft++;
+      await new Promise((r) => setTimeout(r, 1500));
+      return { code: 128, stdout: '', stderr: 'fatal: langsam' };
+    };
+    t.welt.projekt = { heim, kontenDatei: join(heim, 'konten.json'), autostart: () => 'angelegt', aufrufAsync };
+    const link = (name: string): Wunsch => ({ epic: 0, art: 'projekt_hinzufuegen', text: JSON.stringify({ url: `https://github.com/octo/${name}`, ordner: join(t.repo, '..', name), autostart: false }) });
+    const liste: Wunsch[] = [link('eins'), link('zwei')];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(laeuft).toBe(1);
+      expect(texte).toContain('Projekt hinzufügen über die Brücke abgelehnt: ein Klon läuft schon; danach noch einmal');
+      expect(texte.some((x) => x.startsWith('Projekt hinzufügen über die Brücke abgelehnt: Klon von octo/eins abgebrochen'))).toBe(true);
+      expect(readdirSync(join(t.repo, '..')).filter((n) => n.includes('klon'))).toEqual([]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('an adapter filled while the driver runs: missions start again with the adapter as written', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\ngate_command: <PowerShell-Befehl der ganzen Andockprüfung>' });
+    setTimeout(() => writeFileSync(join(t.repo, '.claude', 'epic.md'), '---\nmerge: mensch\ngate_command: gate voll\n---\n# Adapter\n'), 1200);
+    const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3], { maxDauerMs: 6000 }), t.welt);
+    const texte = z.ereignisse.map((x) => x.text);
+    expect(texte).toContain('Adapter ausgefüllt: Missionen starten wieder');
+    expect(z.epics['3'].stufe).not.toBe('wartend');
+    expect(z.epics['3'].notiz ?? '').not.toMatch(/wartet auf den Adapter/);
+  }, T);
+
   it('an adapter with gaps of the template starts no mission: the mission waits on it, one event, the report names the gaps', async () => {
     const t = aufbau({ adapter: 'merge: mensch\ngate_command: <PowerShell-Befehl der ganzen Andockprüfung>\ncommit_style: <conventional>' });
     const b = await attrappe(() => null);

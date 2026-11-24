@@ -203,14 +203,23 @@ describe('flotte projekt hinzufuegen --klonen', () => {
     await expect(projekt(['hinzufuegen', '--klonen'], w)).rejects.toThrow('Aufruf:');
   });
 
-  it('without the write right: no label created, the missing right and labels named', async () => {
+  it('without the write right: no label created, the missing right and only the missing labels named', async () => {
     const w = welt({ push: false, quelle: bareRepo() });
     const ziel = join(mkdtempSync(join(tmpdir(), 'flotte-klon-lesen-')), 'klein');
     const r = (await projekt(['hinzufuegen', ziel, '--klonen', 'https://github.com/octo/klein'], w)) as Record<string, any>;
-    expect(w.gh.some((a) => a[0] === 'label')).toBe(false);
+    expect(w.gh.some((a) => a[0] === 'label' && a[1] === 'create')).toBe(false);
     expect(r.klon.zugang.push).toBe(false);
-    expect(r.klon.zugang.labelsFehlen).toContain('ready-for-agent');
-    expect(r.meldung).toContain('Schreibrecht fehlt (pushen und Labels setzen geht nicht); Labels fehlen: ready-for-agent, ready-for-human');
+    expect(r.klon.zugang.labelsFehlen).not.toContain('ready-for-agent');
+    expect(r.meldung).toContain('Schreibrecht fehlt (pushen und Labels setzen geht nicht); Labels fehlen: ready-for-human, needs-info');
+  });
+
+  it('the folder may stand after the switches as well; two folders are refused', async () => {
+    const w = welt({ quelle: bareRepo() });
+    const ziel = join(mkdtempSync(join(tmpdir(), 'flotte-klon-nach-')), 'woanders');
+    const r = (await projekt(['hinzufuegen', '--klonen', 'https://github.com/octo/klein', ziel, '--konten', '1'], w)) as Record<string, any>;
+    expect(r.ordner).toBe(ziel);
+    expect(existsSync(join(ziel, '.claude', 'epic.md'))).toBe(true);
+    await expect(projekt(['hinzufuegen', ziel, '--klonen', 'https://github.com/octo/klein', `${ziel}2`], w)).rejects.toThrow('Aufruf:');
   });
 
   it('a Gitea link is allowed only for the Gitea forge of a project there', async () => {

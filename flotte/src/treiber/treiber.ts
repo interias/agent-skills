@@ -699,7 +699,8 @@ class Treiber {
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
       // runs work on in their own process group, a new start takes them over (D16).
-      if (halt && !this.mergesOffen.size && !this.fertig.length) {
+      // a clone under way ends first: otherwise its hidden half folder would stay behind
+      if (halt && !this.mergesOffen.size && !this.fertig.length && !this.klontGerade) {
         await this.triageAnhalten('Treiber angehalten');
         rmSync(join(this.dir, 'anhalten'), { force: true });
         this.ereignis(null, `Angehalten auf Wunsch: kein Andocken offen${this.laufend.size ? `, ${this.laufend.size} Lauf/Läufe arbeiten weiter und werden beim Neustart übernommen` : ''}`);
@@ -1240,8 +1241,14 @@ class Treiber {
     // an adapter with gaps of the template (gate command, test commands …) starts no mission; the bridge shows the person's step
     const luecken = this.adapterLuecken();
     if (luecken.join(',') !== this.lueckenGemeldet) {
+      const vorher = this.lueckenGemeldet;
       this.lueckenGemeldet = luecken.join(',');
       this.ereignis(null, luecken.length ? `Adapter unvollständig, noch auszufüllen: ${luecken.join(', ')}; keine Mission startet, bis er ausgefüllt ist` : 'Adapter ausgefüllt: Missionen starten wieder');
+      if (!luecken.length && vorher) {
+        // filled while the driver runs: gate command and the rest as the person wrote them, the waiting note goes
+        this.adapter = adapterAus(this.e.repo);
+        for (const b of this.bilder) if (this.epic(b.nr).notiz?.startsWith('wartet auf den Adapter')) this.epic(b.nr).notiz = '';
+      }
     }
     if (luecken.length) {
       const notiz = `wartet auf den Adapter (noch auszufüllen: ${luecken.join(', ')})`;

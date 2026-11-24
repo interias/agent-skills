@@ -8,6 +8,7 @@
 // there), and what the project needs to be set up (dependencies, .env), named, never run.
 
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { setTimeout as warte } from 'node:timers/promises';
 import { basename, dirname, join } from 'node:path';
 import { aufrufenAsync, type Aufrufer, type AsyncAufrufer } from '../aufruf.ts';
 import { LABELS } from '../epic/mechanik.ts';
@@ -145,7 +146,16 @@ export async function klonen(q: Quelle, ordner: string, w: KlonWelt): Promise<vo
       const s = await a('git', ['-C', zwischen, 'remote', 'set-url', 'origin', q.url]);
       if (s.code) throw new Error(s.stderr.trim());
     }
-    renameSync(zwischen, ordner);
+    // Windows: a virus scanner or the indexer may hold a fresh file for a moment; a few tries before giving up
+    for (let versuch = 1; ; versuch++) {
+      try {
+        renameSync(zwischen, ordner);
+        break;
+      } catch (e) {
+        if (versuch >= 5 || !['EPERM', 'EBUSY', 'EACCES'].includes((e as NodeJS.ErrnoException).code ?? '')) throw e;
+        await warte(500 * versuch);
+      }
+    }
   } catch (e) {
     weg();
     throw new Error(`Klon von ${q.forge} nicht abgeschlossen: ${(e as Error).message.slice(0, 200)}. Der Klon ist wieder entfernt.`);
@@ -200,13 +210,14 @@ export async function zugangPruefen(repo: string, q: Quelle, w: { aufrufer: Aufr
     z.issues = info.has_issues !== false;
   }
   const soll = flottenLabels(adapterText(repo));
-  if (!z.push) {
-    z.labelsFehlen = soll.map(([n]) => n);
-    return z;
-  }
   try {
     const f = zugriffFuer(repo, w.aufrufer, q.forge);
     const da = new Set(f.labelNamen());
+    if (!z.push) {
+      // without the right: only named, the ones there are not
+      z.labelsFehlen = soll.map(([n]) => n).filter((n) => !da.has(n));
+      return z;
+    }
     const neu = soll.filter(([n]) => !da.has(n));
     for (const [n, farbe, text] of neu) {
       try {
