@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { belege, belegung, bildAus, kollision, liesAdapter, sammle, type EpicBild } from '../src/werkzeuge/belegung.ts';
 import type { Aufrufer } from '../src/aufruf.ts';
+import { githubZugriff } from '../src/forge/github.ts';
 
 const adapter = liesAdapter('---\nexclusive_paths: [package-lock.json, db/migrations/]\nalways_collide:\n  - CHANGELOG.md   # patch notes\n  - version.txt\n---\n');
 const bild = (nr: number, o: Partial<EpicBild> = {}): EpicBild => ({ nr, module: [], dateien: [], exklusiv: false, migration: false, nach: [], ...o });
@@ -146,7 +147,7 @@ describe('prio/hoch', () => {
       '20': { body: '', labels: [{ name: 'epic' }] },
     };
     const gh: Aufrufer = (_p, args) => ({ code: 0, stdout: JSON.stringify(issues[args[2]] ?? { body: '' }), stderr: '' });
-    const { bilder } = sammle(gh, 'C:/gibt-es-nicht', 'o/r', [10, 20]);
+    const { bilder } = sammle(githubZugriff(gh, 'o/r'), 'C:/gibt-es-nicht', [10, 20]);
     expect(bilder.map((b) => [b.nr, Boolean(b.prio)])).toEqual([
       [10, true],
       [20, false],
@@ -162,7 +163,7 @@ describe('sammle', () => {
       '20': '> **Reihenfolge:** nach #10\n## Betroffene Module\n- web',
     };
     const gh: Aufrufer = (_p, args) => ({ code: 0, stdout: JSON.stringify({ body: bodies[args[2]] ?? '' }), stderr: '' });
-    const { bilder } = sammle(gh, 'C:/gibt-es-nicht', 'o/r', [10, 20]);
+    const { bilder } = sammle(githubZugriff(gh, 'o/r'), 'C:/gibt-es-nicht', [10, 20]);
     expect(bilder).toEqual([
       { nr: 10, module: ['api'], dateien: ['api/x.ts'], exklusiv: false, migration: false, nach: [], kinder: [11] },
       { nr: 20, module: ['web'], dateien: [], exklusiv: false, migration: false, nach: [10] },

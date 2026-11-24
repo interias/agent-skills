@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
+import { githubZugriff } from '../src/forge/github.ts';
 import { faktenpaket, genannteDateien, LESEN_MAX } from '../src/triage-fakten.ts';
 import type { Ticket } from '../src/triage.ts';
 import { Auswertung, type LaufErgebnis, type Start } from '../src/werkzeuge/lauf.ts';
@@ -33,7 +34,7 @@ const merges = (_p: string, args: string[]) => (args[0] === 'pr' && args[1] === 
 describe('#167 Faktenpaket der Triage', () => {
   it('holds the ADRs with status, the adapter, the last merges and the named files that exist, cut', () => {
     const r = repo();
-    const f = faktenpaket(r, 'o/r', merges, [notiz(1, 'Der Port in `src/port.ts` und src/fehlt.ts'), notiz(2, 'Siehe src/gross.ts und src/port.ts')]);
+    const f = faktenpaket(r, githubZugriff(merges, 'o/r'), [notiz(1, 'Der Port in `src/port.ts` und src/fehlt.ts'), notiz(2, 'Siehe src/gross.ts und src/port.ts')]);
     expect(f).toContain('- ADR-0001 — Erste Entscheidung (Entschieden; docs/adr/0001-erste.md)');
     expect(f).toContain('- ADR-0002 — Zweite (Abgelöst; docs/adr/0002-zweite.md)');
     expect(f).toContain('ready_label: ready-for-agent');
@@ -42,14 +43,14 @@ describe('#167 Faktenpaket der Triage', () => {
     expect(f).not.toContain('src/fehlt.ts');
     // a path leading out of the repository is never read
     writeFileSync(join(r, '..', `${basename(r)}-draussen.txt`), 'geheim');
-    expect(faktenpaket(r, 'o/r', merges, [notiz(3, `Siehe ../${basename(r)}-draussen.txt`)])).not.toContain('geheim');
+    expect(faktenpaket(r, githubZugriff(merges, 'o/r'), [notiz(3, `Siehe ../${basename(r)}-draussen.txt`)])).not.toContain('geheim');
     // a file named twice stands once; a long one is cut and says so
     expect(f.match(/### src\/port\.ts/g)).toHaveLength(1);
     expect(f).toContain('### src/gross.ts (genannt in #2, gekürzt auf 4000 von 10000 Bytes)');
   });
 
   it('a part the forge does not answer says so instead of failing the run', () => {
-    const f = faktenpaket(repo(), 'o/r', () => ({ code: 1, stdout: '', stderr: 'HTTP 502' }), []);
+    const f = faktenpaket(repo(), githubZugriff(() => ({ code: 1, stdout: '', stderr: 'HTTP 502' }), 'o/r'), []);
     expect(f).toContain('## Zuletzt angedockt (höchstens 15 PRs)\n(nicht lesbar)');
     expect(f).toContain('(keine, oder keine im Repository)');
   });

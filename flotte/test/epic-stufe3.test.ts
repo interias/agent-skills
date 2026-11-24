@@ -331,6 +331,14 @@ describe('Aufträge nach mission/SKILL.md 4a und 4b (#67)', () => {
     for (const teil of ['- obst/REGISTER.md', '**nicht committen**', '`inhaltlich`', 'Schema konflikt (version 1)']) expect(k).toContain(teil);
   });
 
+  it('cut on a Gitea project: reading and the write right through the API, never gh (#127)', () => {
+    expect(schnittAuftrag(kontext())).toContain('gh issue view <nr>');
+    const g = schnittAuftrag(kontext({ adapter: ADAPTER3.replace(/^---\n/, '---\nforge: gitea\napi: http://gitea.invalid/api/v1/repos/o/r\n') }));
+    expect(g).not.toMatch(/`gh /);
+    expect(g).toContain('curl gegen `api` des Adapters');
+    expect(g).toContain('`.permissions.push` aus `GET <api>`');
+  });
+
   it('the commit of 4d after the adapter: style, language, umlauts, the issue number, the why, Co-Authored-By of the rung', () => {
     const s = stand({ bericht: { ...(BEISPIELE.implementer as ImplementerBericht), betreff: 'Schnittprüfung für Größe und Übergänge', warum: 'Das Programm prüft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.' } });
     expect(commitNachricht(kontext(), urteilspaket, s, 67)).toBe('feat: Schnittpruefung fuer Groesse und Uebergaenge (#67)\n\nDas Programm prueft den Schnitt selbst, weil ein Zyklus sonst ewig wartet.\n\nUebernommen: f\n\nPaket 67 der Mission #69, abgenommen von flotte mission (4c).\n\nCo-Authored-By: Claude Opus <noreply@anthropic.com>\n');

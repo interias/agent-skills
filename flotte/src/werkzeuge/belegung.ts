@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
+import { type ForgeZugriff, type Issue, zugriffFuer } from '../forge/zugriff.ts';
 import { bereicheAus, bereicheVon } from '../treiber/gate.ts';
 import { mergeVorschlag } from '../treiber/admiral.ts';
 
@@ -322,39 +323,35 @@ export const kinderAus = (body: string) => [...new Set([...body.matchAll(/^\s*[-
  * along the way waits for the person's label. ohneEpic: released issues that are no epic and no child
  * of one (a spec without epic_label waits silently otherwise; follow-up check of #27).
  */
-export function freigegebene(aufrufer: Aufrufer, forgeRepo: string, adapter: Adapter): { epics: number[]; ohneEpic: number[] } {
-  const liste = (label: string, felder: string) => {
-    const r = aufrufer('gh', ['issue', 'list', '--repo', forgeRepo, '--state', 'open', '--label', label, '--limit', '500', '--json', felder]);
-    if (r.code) throw new Error(`gh issue list --label ${label}: ${r.stderr.trim()}`);
-    return JSON.parse(r.stdout || '[]') as { number: number; body?: string }[];
-  };
-  const bereit = new Set(liste(adapter.ready_label, 'number').map((i) => i.number));
-  const alle = liste(adapter.epic_label, 'number,body');
-  const kinder = new Map(alle.map((e) => [e.number, kinderAus(e.body ?? '')]));
-  const epics = alle.filter((e) => bereit.has(e.number) || kinder.get(e.number)!.some((k) => bereit.has(k))).map((e) => e.number);
-  const erfasst = new Set([...alle.map((e) => e.number), ...[...kinder.values()].flat()]);
+export function freigegebene(z: ForgeZugriff, adapter: Adapter): { epics: number[]; ohneEpic: number[] } {
+  const bereit = new Set(z.issues(adapter.ready_label, ['number']).map((i) => i.nummer));
+  const alle = z.issues(adapter.epic_label, ['number', 'body']);
+  const kinder = new Map(alle.map((e) => [e.nummer, kinderAus(e.body)]));
+  const epics = alle.filter((e) => bereit.has(e.nummer) || kinder.get(e.nummer)!.some((k) => bereit.has(k))).map((e) => e.nummer);
+  const erfasst = new Set([...alle.map((e) => e.nummer), ...[...kinder.values()].flat()]);
   return { epics: epics.sort((a, b) => a - b), ohneEpic: [...bereit].filter((n) => !erfasst.has(n)).sort((a, b) => a - b) };
 }
 
-export function sammle(aufrufer: Aufrufer, repo: string, forgeRepo: string, nummern: number[]): { bilder: EpicBild[]; adapter: Adapter } {
+export function sammle(z: ForgeZugriff, repo: string, nummern: number[]): { bilder: EpicBild[]; adapter: Adapter } {
   const adapter = adapterAus(repo);
   // the priority label on the epic or on one of its children
-  const hatPrio = (j: { labels?: { name?: string }[] }) => (j.labels ?? []).some((l) => l?.name === adapter.prio_label);
+  const hatPrio = (labels: string[]) => labels.includes(adapter.prio_label);
   const bilder = nummern.map((nr) => {
-    const r = aufrufer('gh', ['issue', 'view', String(nr), '--repo', forgeRepo, '--json', 'body,labels,title']);
-    if (r.code) throw new Error(`gh issue view ${nr}: ${r.stderr.trim()}`);
-    const j = JSON.parse(r.stdout);
-    const body = String(j.body ?? '');
-    let prio = hatPrio(j);
+    const j = z.issue(nr, ['body', 'labels', 'title']);
+    const body = j.body;
+    let prio = hatPrio(j.labels);
     // #112: title and body of the epic and of each child, for the merge proposal
-    const texte = [{ nr, text: `${j.title ?? ''}\n${body}` }];
+    const texte = [{ nr, text: `${j.titel}\n${body}` }];
     const kinderBodies = kinderAus(body).map((k) => {
-      const c = aufrufer('gh', ['issue', 'view', String(k), '--repo', forgeRepo, '--json', 'body,labels,title']);
-      if (c.code) return '';
-      const kj = JSON.parse(c.stdout);
-      prio ||= hatPrio(kj);
-      texte.push({ nr: k, text: `${kj.title ?? ''}\n${kj.body ?? ''}` });
-      return String(kj.body ?? '');
+      let kj: Issue;
+      try {
+        kj = z.issue(k, ['body', 'labels', 'title']);
+      } catch {
+        return '';
+      }
+      prio ||= hatPrio(kj.labels);
+      texte.push({ nr: k, text: `${kj.titel}\n${kj.body}` });
+      return kj.body;
     });
     const bild = bildAus(nr, [body, ...kinderBodies], adapter, nummern, prio);
     const kinder = kinderAus(body);
@@ -371,7 +368,7 @@ export function belegung(argv: string[], aufrufer: Aufrufer = aufrufen): unknown
   // the value after a switch (--obergrenze 3) is no epic
   const nummern = rest.filter((a, i) => /^#?\d+$/.test(a) && !rest[i - 1]?.startsWith('--')).map((a) => Number(a.replace('#', '')));
   if (!repo || !forgeRepo || !nummern.length) throw new Error('Aufruf: flotte belegung <repo> <owner/name> #a #b ... [--laufend #x,#y] [--gemergt #z] [--obergrenze 4]');
-  const { bilder, adapter } = sammle(aufrufer, repo, forgeRepo, nummern);
+  const { bilder, adapter } = sammle(zugriffFuer(repo, aufrufer, forgeRepo), repo, nummern);
   const i = rest.indexOf('--obergrenze');
   return { bilder, ...belege(bilder, adapter, { laufend: liste(rest, '--laufend'), gemergt: liste(rest, '--gemergt'), obergrenze: i >= 0 ? Number(rest[i + 1]) : 4 }) };
 }

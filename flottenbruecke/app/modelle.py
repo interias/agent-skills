@@ -170,7 +170,7 @@ class ForgeStatus(BaseModel):
     angemeldet: bool
     konto: str | None = Field(None, max_length=100)
     rechte: Literal['ok', 'fehlt'] | None = None
-    # whether the driver can run it: it speaks GitHub only (#127)
+    # whether the driver can run it; since #127 it speaks GitHub and Gitea
     treiber: bool = True
 
 

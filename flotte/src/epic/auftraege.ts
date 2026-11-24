@@ -79,12 +79,18 @@ const testBefehle = (k: Kontext) =>
     .join(', ') || 'keine im Adapter (`test_commands` fehlt)';
 
 /** Phase 1 and 2a–2c of mission/SKILL.md as one call; plan, opening, labels and comments (2d) are the program's */
+/** #127: how a run reads the forge of the project: gh for GitHub, curl against the API for Gitea (mission/references/forge.md) */
+const gitea = (k: Kontext) => frontmatter(k.adapter).get('forge')?.[0] === 'gitea';
+const forgeLesen = (k: Kontext) =>
+  gitea(k) ? 'Lesen in der Forge mit curl gegen `api` des Adapters, Token wie in `mission/references/forge.md` (etwa `GET <api>/issues/<nr>`)' : 'Lesen in der Forge mit `gh` (etwa `gh issue view <nr> --json title,body,labels,state`)';
+const forgeSchreibrecht = (k: Kontext) => (gitea(k) ? '`.permissions.push` aus `GET <api>`' : '`gh api repos/{owner}/{repo} --jq .permissions.push`');
+
 export function schnittAuftrag(k: Kontext): string {
   return [
     `Schnitt und Vorab-Tor für Mission #${k.epic} in einem Lauf von \`flotte mission\` — dem Programm, das den Paket-Loop von \`/mission\` fährt (agent-skills#69). Du übernimmst Phase 1 (Lesen) und 2a–2c (Pakete, Graph, Vorab-Tor) von \`/mission\`; Plan, Eröffnungskommentar, Labels, Worktrees, Ingenieure, Andocken und Pull Request macht das Programm.`,
     `Missions-Worktree, dein Arbeitsverzeichnis: \`${k.epicWorktree}\` (Branch \`${k.epicBranch}\`). Ausgangszahlen (Phase 0, gemessen vom Programm): ${zahlen(k.basis)}.`,
     [
-      '**Du liest nur.** Keine Datei ändern, nichts committen, nichts pushen, keine Issues, Kommentare oder Labels in der Forge, kein `AskUserQuestion`, keine Rückfrage im Text: Alles Fragwürdige ist ein Tor-Punkt im Ergebnis. Lesen in der Forge mit `gh` (etwa `gh issue view <nr> --json title,body,labels,state`), Grep und Glob immer mit `path`. Jeder Befehl im Vordergrund; dein Zug endet nur mit dem Ergebnis.',
+      '**Du liest nur.** Keine Datei ändern, nichts committen, nichts pushen, keine Issues, Kommentare oder Labels in der Forge, kein `AskUserQuestion`, keine Rückfrage im Text: Alles Fragwürdige ist ein Tor-Punkt im Ergebnis. ' + forgeLesen(k) + ', Grep und Glob immer mit `path`. Jeder Befehl im Vordergrund; dein Zug endet nur mit dem Ergebnis.',
     ].join('\n'),
     [
       '## Lesen (Phase 1)',
@@ -125,7 +131,7 @@ export function schnittAuftrag(k: Kontext): string {
       '7. Eine Behauptung im Body ist gegen den Arbeitsbaum nicht haltbar, und ein Paket hängt daran.',
       '8. Die Ausgangsmessung ist nicht fahrbar, oder die Testisolation greift nicht.',
       '9. Der Verifikationsweg eines Pakets ist nicht fahrbar (Werkzeug, Zugang oder Ablage fehlt); mit Empfehlung, wie mit dem nicht fahrbaren Teil umgegangen wird.',
-      '10. Der Forge-Zugang hat kein Schreibrecht (`gh api repos/{owner}/{repo} --jq .permissions.push`).',
+      `10. Der Forge-Zugang hat kein Schreibrecht (${forgeSchreibrecht(k)}).`,
       '11. Kanten wurden aus `body` gelesen, und der Adapter setzt `write_back_dependencies` für sie nicht.',
       '12. Jeder Punkt aus `gate_approvals`, den ein Paket berührt: was es beantwortet, was es kostet, was die harte Grenze ist.',
       '13. Der Adapter hat kein Frontmatter.',

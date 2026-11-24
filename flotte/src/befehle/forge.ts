@@ -20,7 +20,7 @@ export interface ForgeStatus {
   konto: string | null;
   /** push right on the repository; null when not signed in */
   rechte: 'ok' | 'fehlt' | null;
-  /** whether the driver can run the project (it speaks GitHub only, #127) */
+  /** whether the driver can run the project (GitHub and Gitea through its forge layer, #127) */
   treiber: boolean;
 }
 
@@ -41,7 +41,7 @@ export async function forgeStatus(repo: string, w: ForgeWelt, github?: string): 
   const adapter = adapterVon(repo);
   if (schluessel(adapter, 'forge') === 'gitea') {
     const forge = giteaRepoAus(adapter);
-    const nicht: ForgeStatus = { art: 'gitea', forge, angemeldet: false, konto: null, rechte: null, treiber: false };
+    const nicht: ForgeStatus = { art: 'gitea', forge, angemeldet: false, konto: null, rechte: null, treiber: true };
     let kopf: string;
     try {
       kopf = giteaZugang(adapter, repo, w.aufrufer);

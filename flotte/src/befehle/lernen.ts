@@ -6,6 +6,7 @@
 import { resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { lernAuftrag, lernBeleg, lernErgebnisAus, lernKommentar, lernKommentare, lernRegeln, lernSchema, regelTexte, streichKandidaten } from '../lernen.ts';
+import { forgeRepoFuer, zugriffFuer } from '../forge/zugriff.ts';
 import { forgeAus } from '../treiber/treiber.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
 import { kontoAus } from '../werkzeuge/konten.ts';
@@ -36,8 +37,9 @@ export interface LernWelt {
 export async function lerne(o: LernAuftrag, w: LernWelt) {
   const regeln = lernRegeln(regelTexte(o.repo, o.skills));
   const ids = regeln.map((r) => r.regel);
-  const streichen = o.issue === null ? [] : streichKandidaten(lernKommentare(w.aufrufer, o.forge, o.issue)).filter((r) => ids.includes(r));
-  const beleg = lernBeleg(w.aufrufer, o.forge, o.pr, o.epic);
+  const zugriff = zugriffFuer(o.repo, w.aufrufer, o.forge);
+  const streichen = o.issue === null ? [] : streichKandidaten(lernKommentare(zugriff, o.issue)).filter((r) => ids.includes(r));
+  const beleg = lernBeleg(zugriff, o.pr, o.epic);
   const r = await w.starte({
     ...(o.programm ?? {}),
     repo: o.repo,
@@ -52,7 +54,15 @@ export async function lerne(o: LernAuftrag, w: LernWelt) {
   const ergebnis = lernErgebnisAus(r.strukturiert);
   if (!ergebnis) return { gepostet: false, issue: o.issue, kommentar: null, fehler: `keine Antwort im Schema (${r.fehler ?? `Exit ${r.code}`})`, sitzung: r.sitzung, dauer_s: Math.round(r.dauerMs / 1000) };
   const kommentar = lernKommentar(ergebnis, o.pr, o.epic, w.heute(), ids, streichen);
-  const gepostet = o.issue !== null && w.aufrufer('gh', ['issue', 'comment', String(o.issue), '--repo', o.forge, '--body-file', '-'], { eingabe: kommentar }).code === 0;
+  let gepostet = false;
+  if (o.issue !== null) {
+    try {
+      zugriff.kommentieren(o.issue, kommentar);
+      gepostet = true;
+    } catch {
+      // not posted: the result says so
+    }
+  }
   return { gepostet, issue: o.issue, kommentar, vorschlaege: ergebnis.vorschlaege.length, streichen, regeln: ids, sitzung: r.sitzung, dauer_s: Math.round(r.dauerMs / 1000) };
 }
 
@@ -67,7 +77,8 @@ export async function lernen(argv: string[], aufrufer: Aufrufer = aufrufen): Pro
   const pr = Number(wert(argv, '--pr'));
   if (!(pr > 0)) throw new Error(AUFRUF);
   const epic = wert(argv, '--epic') ? Number(wert(argv, '--epic')) : null;
-  let forge = wert(argv, '--forge') ?? null;
+  // #127: a Gitea project names owner/name in its adapter (api), a GitHub one in origin
+  let forge = wert(argv, '--forge') ?? (forgeRepoFuer(repo, '') || null);
   if (!forge) {
     const r = aufrufer('git', ['-C', repo, 'remote', 'get-url', 'origin']);
     forge = r.code ? null : forgeAus(r.stdout);
