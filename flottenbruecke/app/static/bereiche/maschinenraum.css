@@ -5,7 +5,9 @@
 .bereich[data-bereich="maschinenraum"] .mr-karte.veraltet { opacity: .6; }
 .bereich[data-bereich="maschinenraum"] .mr-karte h3 { margin: 0; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
 /* the window of an account as a wide tank: name, tube, "x % übrig bis reset" */
-.bereich[data-bereich="maschinenraum"] .fenster { grid-template-columns: 3.5em minmax(60px, 1fr); gap: 2px 8px; font-size: 13px; }
+/* the label column holds "Reserveenergie" in one line, the same width in both tanks so the tubes line up */
+.bereich[data-bereich="maschinenraum"] .fenster { grid-template-columns: 8.5em minmax(60px, 1fr); gap: 2px 8px; font-size: 13px; }
+.bereich[data-bereich="maschinenraum"] .fenster > :first-child { white-space: nowrap; }
 .bereich[data-bereich="maschinenraum"] .fenster .roehre { height: 12px; }
 .bereich[data-bereich="maschinenraum"] .fenster > :last-child { grid-column: 2; }
 .bereich[data-bereich="maschinenraum"] .fenster + .fenster { margin-left: 0; }

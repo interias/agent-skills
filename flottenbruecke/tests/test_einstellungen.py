@@ -3,6 +3,8 @@ shown per project with the change on its way, an older driver without settings s
 
 import json
 
+from conftest import fremd, koppeln
+
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
 
@@ -50,11 +52,14 @@ def test_letzte_aenderung_je_einstellung_gilt_bis_zum_abholen(client, bericht):
     assert [json.loads(h['text']) for h in offene(client)] == [{'name': 'obergrenze', 'wert': 4}, {'name': 'platteMinGb', 'wert': 50}]
 
 
-def test_ohne_pin_oder_mit_falscher_pin_nichts(client, bericht):
+def test_ohne_geraet_mit_recht_nichts(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert einstellen(client, 'obergrenze', 2, pin=None).status_code == 403
-    assert einstellen(client, 'obergrenze', 2, pin='0000').status_code == 403
+    assert einstellen(fremd(client), 'obergrenze', 2).status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert einstellen(stumm, 'obergrenze', 2).status_code == 403
     assert offene(client) == []
+    assert einstellen(client, 'obergrenze', 2, pin=None).status_code == 200
 
 
 def test_ohne_gesetzte_pin_ist_einstellen_abgeschaltet(bruecke, bericht):
@@ -99,12 +104,11 @@ def test_konten_nur_aus_der_auswahl_und_mindestens_eines(client, bericht):
 
 
 def test_modelle_von_triage_und_admiral(client, bericht):
-    """#166: the models of triage and admiral, only with the PIN and only the words the driver offers."""
+    """#166: the models of triage and admiral, only with a paired device and only the words the driver offers."""
     client.post('/api/bericht', json=bericht)
     e = je_name(client)
     assert (e['triageModell']['wert'], e['triageModell']['werte']) == ('opus', ['opus', 'fable', 'sonnet'])
-    assert einstellen(client, 'triageModell', 'sonnet', pin=None).status_code == 403
-    assert einstellen(client, 'admiralModell', 'opus', pin='0000').status_code == 403
+    assert einstellen(fremd(client), 'triageModell', 'sonnet').status_code == 401
     assert offene(client) == []
     for name in ('triageModell', 'admiralModell'):
         for w in ('haiku', 'claude-opus-5-5', 'Opus', None, 1, ['opus']):
@@ -166,13 +170,13 @@ def test_einstellen_stoert_die_epic_handlungen_nicht(client, bericht):
 
 
 def test_sammelansicht_je_projekt_schalter_und_drei_zahlen(client, bericht):
-    """#193: per project the switch einsammeln with the PIN, and the missions running, waiting and released but not collected."""
+    """#193: per project the switch einsammeln with a paired device, and the missions running, waiting and released but not collected."""
     client.post('/api/bericht', json=bericht)
     p = tafel(client)['projekte'][0]
     # laeuft/frage/nacharbeit run, pr, fertig and blockiert count in neither
     assert p['sammeln'] == {'laufend': 2, 'wartend': 2, 'freigegeben': 2}
     assert (je_name(client)['einsammeln']['wert'], je_name(client)['einsammeln']['werte']) == ('an', ['an', 'aus'])
-    assert einstellen(client, 'einsammeln', 'aus', pin=None).status_code == 403
+    assert einstellen(fremd(client), 'einsammeln', 'aus').status_code == 401
     assert einstellen(client, 'einsammeln', 'vielleicht').status_code == 422
     assert einstellen(client, 'einsammeln', 'aus').json()['ok']
     assert je_name(client)['einsammeln']['offen']['wert'] == 'aus'

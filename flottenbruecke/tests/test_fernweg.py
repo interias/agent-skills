@@ -1,6 +1,7 @@
 """#48 Fernzugriff (ADR-0006): the bridge serves a second entry, FERNPORT, which only the Tailscale add-on
-reaches. Over it the bridge is view only: the page and every reading endpoint as in the LAN, every writing
-request refused, also with the right PIN. The entry is the listening socket, never the sender or a header."""
+reaches. Over it the bridge reads as in the LAN and, since ADR-0007, takes the person's writing routes with the same
+device check; the services' routes, fetching and the machine's rights stay refused. The entry is the listening
+socket, never the sender or a header."""
 import json
 import re
 from pathlib import Path
@@ -10,7 +11,7 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app import start
-from app.main import ABHOLEN, FERNPORT, RECHNERPORT, Einstellung, erzeuge
+from app.main import ABHOLEN, FERNPORT, PERSON_FERN, RECHNERPORT, Einstellung, erzeuge
 from conftest import koppeln
 
 BEISPIEL = Path(__file__).parent.parent / 'beispiel'
@@ -77,11 +78,11 @@ def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
         assert (url, a.status_code, b.status_code) == (url, 200, 200)
         if url == '/api/tafel':
             ta, tb = a.json(), b.json()
-            assert (ta.pop('nurAnsicht'), tb.pop('nurAnsicht')) == (False, True)
+            assert (ta.pop('nurAnsicht'), tb.pop('nurAnsicht')) == (False, False)
             # the paired device is the LAN client's; over the remote entry no device is asked about
             assert (ta.pop('geraet')['name'], tb.pop('geraet')) == ('Testgerät', None)
-            # the Bereitschaftsraum offers no writing over the remote entry either
-            assert (ta['bereitschaftsraum'].pop('pin'), tb['bereitschaftsraum'].pop('pin')) == (True, False)
+            # ADR-0007: the Bereitschaftsraum offers writing over the remote entry as well
+            assert (ta['bereitschaftsraum'].pop('pin'), tb['bereitschaftsraum'].pop('pin')) == (True, True)
             assert tb == ta
         else:
             assert b.content == a.content, url
@@ -91,24 +92,34 @@ def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
 
 def test_tafel_ueber_den_fernweg_zeigt_offene_antwort_und_handlung(fern, gefuellt):
     t = fern.get('/api/tafel').json()
-    assert t['nurAnsicht'] is True
-    # the PIN of the bridge stays what it is: the page itself shows "nur Ansicht" and asks for none
+    # ADR-0007: no longer view only; the page acts there like in the LAN
+    assert t['nurAnsicht'] is False
     assert t['pin'] is True
     assert any(x.get('handlung') for x in t['braucht'])
 
 
-# ---- writing: refused over the remote entry, by principle
+# ---- writing (ADR-0007): the person's routes as in the LAN, every other one refused
 
 
-def test_jede_schreibende_route_ueber_den_fernweg_abgelehnt(app, lan, fern, gefuellt):
+def test_ueber_den_fernweg_nur_die_wege_der_person(app, lan, fern, gefuellt):
     routen = schreibende(app)
     genannt = {('POST', p) for p in ('/api/antwort', '/api/handlung', '/api/pin', '/api/holodeck', '/api/bericht', '/api/antworten/{id_}/quittung', '/api/handlungen/{id_}/quittung', '/api/push', '/api/push/abmelden')}
     assert genannt <= set(routen)
     vorher = lan.get('/api/tafel').json()
+    person = 0
     for methode, pfad in routen:
         r = fern.request(methode, konkret(pfad), json={}, headers={**PIN, 'X-Bruecke-Token': ''})
-        assert (methode, pfad, r.status_code) == (methode, pfad, 403)
-        assert 'nur Ansicht' in r.json()['detail']
+        if methode == 'POST' and PERSON_FERN.match(konkret(pfad)):
+            # not refused by the entry: the device check (an unpaired one is 401) or the body decides
+            person += 1
+            assert 'Fernweg' not in r.text, pfad
+        else:
+            assert (methode, pfad, r.status_code) == (methode, pfad, 403)
+            assert 'Fernweg' in r.json()['detail']
+    assert person >= 10
+    # nothing of the services and nothing of the machine is reachable that way
+    for pfad in ('/api/bericht', '/api/holodeck', '/api/geraete/1/rechte', '/api/geraete/1/entkoppeln', '/api/notaus/loesen', '/api/werft'):
+        assert not PERSON_FERN.match(pfad), pfad
     assert lan.get('/api/tafel').json() == vorher
 
 
@@ -119,7 +130,7 @@ def test_andere_methoden_ueber_den_fernweg_abgelehnt(fern, methode):
 
 
 def gueltige(bericht):
-    """The writing requests the ticket names, each valid and with the right PIN (or token): accepted in the LAN."""
+    """The writing requests the ticket names, each valid (the person's with a paired device, the services' with the token)."""
     proto = HOLODECK[0]
     return [
         ('/api/pin', None),
@@ -133,14 +144,24 @@ def gueltige(bericht):
     ]
 
 
-def test_genannte_schreibende_anfragen_auch_mit_richtiger_pin_abgelehnt(lan, fern, gefuellt, bericht):
-    vorher = lan.get('/api/tafel').json()
+def test_ueber_den_fernweg_handelt_ein_dort_gekoppeltes_geraet_die_dienste_nicht(app, lan, fern, gefuellt, bericht):
+    # the cookie belongs to the remote name, so the phone pairs there once; the right is given at the machine
+    g = koppeln(fern, handeln=False, name='Handy unterwegs')
+    r = fern.post('/api/handlung', json={'forge': PROBE, 'epic': 40, 'art': 'aufgeben'})
+    assert r.status_code == 403 and r.headers['x-bruecke-grund'] == 'recht'
+    am = TestClient(app, base_url=f'http://localhost:{RECHNERPORT}')
+    assert am.post(f"/api/geraete/{g['id']}/rechte", json={'antworten': True, 'handeln': True}, headers=PIN).status_code == 200
+    # and never over the remote entry itself
+    assert fern.post(f"/api/geraete/{g['id']}/rechte", json={'antworten': True, 'handeln': True}, headers=PIN).status_code == 403
     for pfad, body in gueltige(bericht):
-        assert fern.post(pfad, json=body, headers={**PIN, 'X-Bruecke-Token': ''}).status_code == 403, pfad
-    assert lan.get('/api/tafel').json() == vorher
+        r = fern.post(pfad, json=body, headers=PIN if pfad == '/api/pin' else {'X-Bruecke-Token': ''})
+        if PERSON_FERN.match(pfad):
+            assert r.status_code in (200, 204), (pfad, r.status_code, r.text)
+        else:
+            assert r.status_code == 403, pfad
 
 
-def test_im_lan_gehen_dieselben_anfragen_mit_pin(lan, gefuellt, bericht):
+def test_im_lan_gehen_dieselben_anfragen(lan, gefuellt, bericht):
     for pfad, body in gueltige(bericht):
         if pfad.endswith('/quittung'):
             lan.get('/api/antworten', params={'forge': PROBE})
@@ -165,9 +186,10 @@ def test_unterscheidung_haengt_am_eingang_nicht_an_absender_oder_kopf(app):
     koepfe = {**PIN, 'Host': f'flottenbruecke.example.ts.net:{FERNPORT}', 'X-Forwarded-For': '100.64.0.7', 'X-Forwarded-Host': 'flottenbruecke.example.ts.net', 'Forwarded': 'for=100.64.0.7'}
     assert lan.post('/api/pin', headers=koepfe).status_code == 204
     assert lan.get('/api/tafel', headers=koepfe).json()['nurAnsicht'] is False
-    # and the remote entry stays view only from any sender
+    # and the remote entry refuses the services' routes from any sender, even one that looks like the machine
     fern = TestClient(app, base_url=f'http://testserver:{FERNPORT}', client=('127.0.0.1', 50000))
-    assert fern.post('/api/pin', headers=PIN).status_code == 403
+    assert fern.post('/api/bericht', json={}).status_code == 403
+    assert fern.post('/api/notaus/loesen', headers=PIN).status_code == 403
 
 
 # ---- the two entries in the container

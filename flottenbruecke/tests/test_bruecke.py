@@ -3,7 +3,7 @@ import re
 from datetime import timedelta
 from pathlib import Path
 
-from conftest import koppeln
+from conftest import fremd, koppeln
 
 FORGE = {'forge': 'interias/flotte-probe'}
 SEIT = '2026-11-20T13:52:30Z'
@@ -235,13 +235,15 @@ def test_ungueltiger_forge_name(client, bericht):
 # ---- answers and PIN
 
 
-def test_ansehen_ohne_pin_antworten_nicht(client, bericht):
+def test_ansehen_ohne_geraet_antworten_nicht(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert client.get('/api/tafel').status_code == 200
-    assert client.get('/').status_code == 200
-    assert antwort(client, pin=None).status_code == 403
-    assert antwort(client, pin='0000').status_code == 403
+    ohne = fremd(client)
+    assert ohne.get('/api/tafel').status_code == 200
+    assert ohne.get('/').status_code == 200
+    assert antwort(ohne).status_code == 401
     assert abholen(client) == []
+    # the paired device answers without the PIN
+    assert antwort(client, pin=None).status_code == 200
 
 
 def test_ohne_gesetzte_pin_ist_antworten_aus(bruecke, bericht):
@@ -448,11 +450,14 @@ def test_icons_und_manifest(client):
 # ---- actions: requeue, give up, revoke (#28, v2)
 
 
-def test_handlung_braucht_pin(client, bericht):
+def test_handlung_braucht_ein_geraet_mit_recht(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert handlung(client, pin=None).status_code == 403
-    assert handlung(client, pin='0000').status_code == 403
+    assert handlung(fremd(client)).status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert handlung(stumm).status_code == 403
     assert abholen(client, 'handlungen') == []
+    assert handlung(client, pin=None).status_code == 200
 
 
 def test_einreihen_abholen_quittieren(client, bericht):

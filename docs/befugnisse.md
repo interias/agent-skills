@@ -88,4 +88,4 @@ Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entsc
   Frage an den Admiral.
 - **Aufräumen löscht nur**, was nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`.
 - **Die Brücke steuert nichts** außer den Handlungen, die sie an den Treiber reicht; Antworten und Handlungen nur im
-  LAN von einem gekoppelten Gerät mit PIN, das Recht zu handeln gibt nur der Rechner selbst (#46), unterwegs optional über Tailscale nur zur Ansicht (ADR-0006).
+  LAN von einem gekoppelten Gerät (die PIN koppelt es), das Recht zu handeln gibt nur der Rechner selbst (#46), unterwegs optional über Tailscale mit denselben Rechten, Rechte vergeben aber nur am Rechner (ADR-0006, ADR-0007).

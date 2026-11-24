@@ -1,8 +1,10 @@
-"""#126: projekt_hinzufuegen and projekt_entfernen, only with the PIN and only for a project whose driver fetches them.
+"""#126: projekt_hinzufuegen and projekt_entfernen, only with a paired device and only for a project whose driver fetches them.
 Entfernen takes the project from the list with a mark (nothing deleted); a newly started driver of it brings it back."""
 
 import copy
 import json
+
+from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
@@ -31,9 +33,12 @@ def schritt(c):
     return next(s['stand'] for s in c.get('/api/tafel').json()['einrichten']['schritte'] if s['schritt'] == 'projekt')
 
 
-def test_hinzufuegen_nur_mit_pin_fuer_einen_treiber_der_es_abholt(client, bericht):
+def test_hinzufuegen_nur_mit_geraet_fuer_einen_treiber_der_es_abholt(client, bericht):
     client.post('/api/bericht', json=mit_projekten(bericht))
-    assert hinzufuegen(client, pin=None).status_code == 403
+    assert hinzufuegen(fremd(client)).status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert hinzufuegen(stumm).status_code == 403
     assert hinzufuegen(client, forge='interias/unbekannt').status_code == 404
     r = hinzufuegen(client)
     assert r.json()['ok']
@@ -66,7 +71,7 @@ def test_hinzufuegen_abgelehnt_ohne_ordner_zu_lang_oder_aelterer_treiber(client,
 
 def test_entfernen_nimmt_das_projekt_aus_der_liste_und_loescht_nichts(client, bericht, tmp_path):
     client.post('/api/bericht', json=mit_projekten(bericht))
-    assert handlung(client, 'projekt_entfernen', pin=None).status_code == 403
+    assert handlung(fremd(client), 'projekt_entfernen').status_code == 401
     assert handlung(client, 'projekt_entfernen').json()['ok']
     assert FORGE not in forges(client)
     # the driver still fetches it and halts; its last reports (same start) keep the project out of the list

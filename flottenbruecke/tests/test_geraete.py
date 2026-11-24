@@ -1,6 +1,6 @@
-"""#46 Geräteanmeldung: what the person writes needs two keys, a paired device with the right for it and the PIN.
+"""#46 Geräteanmeldung: what the person writes needs a paired device with the right for it, no PIN each time.
 A device pairs once with the PIN (a random key as a cookie, the bridge keeps only its hash); rights, unpairing and
-releasing the emergency stop go only through the entry of the machine itself (RECHNERPORT, on 127.0.0.1 only)."""
+releasing the emergency stop go with the PIN only through the entry of the machine itself (RECHNERPORT, on 127.0.0.1 only)."""
 import hashlib
 import sqlite3
 
@@ -114,10 +114,10 @@ def test_rechner_eingang_nur_fuer_localhost_kein_umbenannter_name(app, lan):
         assert TestClient(app, base_url=f'http://{host}:{RECHNERPORT}').get('/api/tafel').json()['amRechner'] is True, host
 
 
-# ---- two keys for each action
+# ---- the device is the key for each action
 
 
-def test_jede_handlung_verlangt_geraet_mit_recht_und_pin(app, lan):
+def test_jede_handlung_verlangt_ein_geraet_mit_recht_nicht_die_pin(app, lan):
     fremd = TestClient(app)
     r = fremd.post('/api/handlung', json=EINREIHEN, headers=PIN)
     assert r.status_code == 401 and r.headers['x-bruecke-grund'] == 'geraet'
@@ -125,10 +125,8 @@ def test_jede_handlung_verlangt_geraet_mit_recht_und_pin(app, lan):
     fremd.cookies.set(GERAET_COOKIE, 'erfunden')
     assert fremd.post('/api/handlung', json=EINREIHEN, headers=PIN).status_code == 401
     g = koppeln(lan)
-    r = lan.post('/api/handlung', json=EINREIHEN, headers={'X-Bruecke-Pin': '0000'})
-    assert r.status_code == 403 and r.headers['x-bruecke-grund'] == 'pin'
-    assert lan.post('/api/handlung', json=EINREIHEN).status_code == 403
-    assert lan.post('/api/handlung', json=EINREIHEN, headers=PIN).status_code == 200
+    # the paired device acts without the PIN
+    assert lan.post('/api/handlung', json=EINREIHEN).status_code == 200
     # unpaired on the machine: the key is worth nothing from now on
     assert am_rechner(lan).post(f"/api/geraete/{g['id']}/entkoppeln", headers=PIN).status_code == 200
     r = lan.post('/api/handlung', json={**EINREIHEN, 'art': 'aufgeben'}, headers=PIN)
@@ -218,8 +216,8 @@ def test_not_aus_haelt_auch_schon_gesendetes_zurueck(app, lan):
 def test_jede_handlung_mit_geraet_zeit_und_befehl_im_logbuch(app, lan, uhr):
     koppeln(lan, name='Handy')
     assert lan.post('/api/handlung', json=EINREIHEN, headers=PIN).status_code == 200
-    # a refused one is no action
-    lan.post('/api/handlung', json=EINREIHEN, headers={'X-Bruecke-Pin': '0000'})
+    # a refused one (unpaired client) is no action
+    TestClient(app).post('/api/handlung', json=EINREIHEN, headers=PIN)
     lan.post('/api/notaus')
     am_rechner(lan).post('/api/notaus/loesen', headers=PIN)
     log = lan.get('/api/tafel').json()['geraeteLogbuch']
@@ -234,12 +232,15 @@ def test_jede_handlung_mit_geraet_zeit_und_befehl_im_logbuch(app, lan, uhr):
 # ---- the remote entry
 
 
-def test_ueber_den_fernweg_weder_koppeln_noch_handeln(app, lan):
+def test_ueber_den_fernweg_koppeln_und_handeln_rechte_nur_am_rechner(app, lan):
+    # ADR-0007: a device with the right acts over the remote entry; rights and releasing stay with the machine
     koppeln(lan)
     fern = TestClient(app, base_url=f'http://testserver:{FERNPORT}')
     fern.cookies.set(GERAET_COOKIE, lan.cookies[GERAET_COOKIE])
-    for pfad, body in (('/api/geraete/koppeln', {'name': 'Fern'}), ('/api/handlung', EINREIHEN), ('/api/notaus', None), ('/api/geraete/1/rechte', {'antworten': True, 'handeln': True})):
+    assert fern.post('/api/handlung', json=EINREIHEN).status_code == 200
+    for pfad, body in (('/api/geraete/1/rechte', {'antworten': True, 'handeln': True}), ('/api/geraete/1/entkoppeln', None), ('/api/notaus/loesen', None)):
         r = fern.post(pfad, json=body, headers=PIN)
-        assert r.status_code == 403 and 'nur Ansicht' in r.json()['detail'], pfad
-    assert len(lan.get('/api/tafel').json()['geraete']) == 1
+        assert r.status_code == 403 and 'Fernweg' in r.json()['detail'], pfad
+    assert fern.post('/api/geraete/koppeln', json={'name': 'Fern'}, headers=PIN).status_code == 200
+    assert len(lan.get('/api/tafel').json()['geraete']) == 2
     assert fern.get('/api/tafel').json()['amRechner'] is False

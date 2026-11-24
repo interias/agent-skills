@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import Einstellung, erzeuge
-from conftest import koppeln
+from conftest import fremd, koppeln
 
 BEISPIEL = json.loads((Path(__file__).parent.parent / 'beispiel' / 'chat.json').read_text(encoding='utf-8'))
 FORGE = 'interias/flotte-probe'
@@ -212,17 +212,19 @@ def schreiben(c, chat_id, von, pin):
     ]
 
 
-@pytest.mark.parametrize('pin', [None, '0000'])
-def test_jede_handlung_im_bereitschaftsraum_braucht_die_pin(bekannt, bruecke, pin):
+def test_jede_handlung_im_bereitschaftsraum_braucht_ein_geraet_mit_recht(bekannt):
     chat_id, id_ = einmal_beantwortet(bekannt, mit_entwurf())
     vorher = raum(bekannt)
-    assert [r.status_code for r in schreiben(bekannt, chat_id, id_, pin)] == [403] * 5
+    # an unpaired client (the PIN does not help it) and a device without the right to act (the draft): nothing happens
+    assert [r.status_code for r in schreiben(fremd(bekannt), chat_id, id_, '4711')] == [401] * 5
+    stumm = fremd(bekannt)
+    koppeln(stumm, handeln=False)
+    assert stumm.post(f'/api/chat/{chat_id}/anlegen', json={'starten': True, 'von': id_}, headers=PIN).status_code == 403
     assert raum(bekannt) == vorher
     assert holen(bekannt).json() == []
-    # five wrong ones lock this client out; a fresh bridge on the same store: with the PIN each one goes through (verwerfen last)
-    c = bruecke()
-    assert [r.status_code for r in schreiben(c, chat_id, id_, '4711')] == [200] * 5
-    assert chat(c, chat_id)['stand'] == 'verworfen'
+    # the paired device with the right: each one goes through without the PIN (verwerfen last)
+    assert [r.status_code for r in schreiben(bekannt, chat_id, id_, None)] == [200] * 5
+    assert chat(bekannt, chat_id)['stand'] == 'verworfen'
 
 
 def test_ohne_gesetzte_pin_ist_schreiben_abgeschaltet(bruecke):
@@ -361,13 +363,12 @@ def test_archivieren_haelt_an_blendet_aus_und_holt_zurueck(bekannt):
     assert bekannt.post(f'/api/chat/99/archivieren', json={'archiviert': True}, headers=PIN).status_code == 404
 
 
-def test_stoppen_fortsetzen_archivieren_brauchen_geraet_und_pin(bekannt, bruecke):
+def test_stoppen_fortsetzen_archivieren_brauchen_ein_gekoppeltes_geraet(bekannt, bruecke):
     r = beginnen(bekannt).json()
     for weg in ('stoppen', 'fortsetzen', 'archivieren'):
         body = {'archiviert': True} if weg == 'archivieren' else None
-        assert bekannt.post(f"/api/chat/{r['chat']}/{weg}", json=body, headers={'X-Bruecke-Pin': '0000'}).status_code == 403, weg
-        fremd = TestClient(bekannt.app)
-        assert fremd.post(f"/api/chat/{r['chat']}/{weg}", json=body, headers=PIN).status_code == 401, weg
+        assert fremd(bekannt).post(f"/api/chat/{r['chat']}/{weg}", json=body, headers=PIN).status_code == 401, weg
+        assert bekannt.post(f"/api/chat/{r['chat']}/{weg}", json=body).status_code == 200, weg
 
 
 def test_chats_je_repository_auf_der_tafel(bekannt, bericht):

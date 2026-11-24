@@ -1,12 +1,12 @@
 """The Werft on the bridge (#90, agent-skills/ADR-0005): the bridge takes the report of each machine's Werft
-and holds its stand, the actions of the person (only with the PIN) and the messages; it never calls the Werft."""
+and holds its stand, the actions of the person (only from a paired device with the right) and the messages; it never calls the Werft."""
 
 import copy
 import json
 from pathlib import Path
 
 import pytest
-from conftest import koppeln
+from conftest import fremd, koppeln
 
 BEISPIEL = Path(__file__).parent.parent / 'beispiel'
 WERFT = json.loads((BEISPIEL / 'werft.json').read_text(encoding='utf-8'))
@@ -130,7 +130,7 @@ def test_ohne_werft_ist_die_liste_leer(client, bericht):
     assert werft_tafel(client) == []
 
 
-# ---- PIN-Pflicht: POST /api/werft/handlung
+# ---- Gerät mit Recht: POST /api/werft/handlung
 
 
 @pytest.mark.parametrize('art,stack,text', [
@@ -141,12 +141,14 @@ def test_ohne_werft_ist_die_liste_leer(client, bericht):
     ('einstellen', None, json.dumps({'name': 'abfrage_s', 'wert': 300})),
     ('einstellen', None, json.dumps({'name': 'migration_test', 'wert': False})),
 ])
-def test_jede_handlung_nur_mit_pin(client, werft, art, stack, text):
+def test_jede_handlung_nur_mit_geraet_mit_recht(client, werft, art, stack, text):
     client.post('/api/werft', json=werft)
-    assert handeln(client, art, stack, text, pin=None).status_code == 403
-    assert handeln(client, art, stack, text, pin='0000').status_code == 403
+    assert handeln(fremd(client), art, stack, text).status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert handeln(stumm, art, stack, text).status_code == 403
     assert offene(client) == []
-    r = handeln(client, art, stack, text)
+    r = handeln(client, art, stack, text, pin=None)
     assert r.status_code == 200, r.text
     [h] = offene(client)
     assert (h['id'], h['forge'], h['stack'], h['art'], h['herkunft']) == (r.json()['id'], FORGE, stack, art, 'Mensch über die Brücke')
@@ -160,11 +162,12 @@ def test_ohne_gesetzte_pin_ist_alles_abgeschaltet(bruecke, werft):
     assert offene(c) == []
 
 
-def test_fuenf_falsche_pins_sperren_auch_hier(client, werft):
+def test_fuenf_falsche_pins_sperren_auch_beim_koppeln(client, werft):
     client.post('/api/werft', json=werft)
+    neu = fremd(client)
     for _ in range(5):
-        assert handeln(client, 'nachziehen', 'worker', pin='0000').status_code == 403
-    assert handeln(client, 'nachziehen', 'worker').status_code == 429
+        assert neu.post('/api/geraete/koppeln', json={'name': 'Neu'}, headers={'X-Bruecke-Pin': '0000'}).status_code == 403
+    assert neu.post('/api/geraete/koppeln', json={'name': 'Neu'}, headers=PIN).status_code == 429
     assert offene(client) == []
 
 

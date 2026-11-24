@@ -27,9 +27,9 @@ const lager = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window */ } },
   weg(k) { try { localStorage.removeItem(k); } catch { /* private window */ } },
 };
-// #46: the PIN is the second key next to the device, so it never stays on the device: asked for each action, held only
-// in this page's memory for the few requests of one action (several settings, a subscription), and an older page's
-// stored one is removed
+// #46: the PIN pairs a device and, at the machine, gives rights and releases the emergency stop; a paired device with
+// the right acts without it (Stefan, 24.11.2026). It never stays on the device: held only in this page's memory for the
+// few requests of one change at the machine, and an older page's stored one is removed
 lager.weg(PIN_KEY);
 const PIN_FRIST_MS = 30000;
 let pinKurz = null;
@@ -618,20 +618,23 @@ function widerrufVerdrahten(wo, d, neu) {
   });
 }
 
-// ---- sending from a paired device with the PIN (#46)
+// ---- sending from a paired device (#46); the PIN only where the machine itself is asked
+
+const MIT_PIN = /^\/api\/(geraete\/|notaus\/loesen)/;
 
 async function senden(pfad, body, el, status) {
   // #48: over the remote entry the bridge refuses it anyway; no PIN dialog there
   if (stand?.nurAnsicht) return false;
+  const mitPin = MIT_PIN.test(pfad);
   for (let versuch = 0; versuch < 3; versuch++) {
-    const pin = pinHolen() || (await pinFragen());
-    if (!pin) return false;
+    const pin = mitPin ? pinHolen() || (await pinFragen()) : null;
+    if (mitPin && !pin) return false;
     const knoepfe = [...el.querySelectorAll('button')];
     knoepfe.forEach((b) => (b.disabled = true));
     if (status) { status.className = 'status'; status.textContent = 'sende …'; }
     let r;
     try {
-      r = await fetch(pfad, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bruecke-Pin': pin }, body: JSON.stringify(body) });
+      r = await fetch(pfad, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(pin ? { 'X-Bruecke-Pin': pin } : {}) }, body: JSON.stringify(body) });
     } catch {
       r = null;
     }

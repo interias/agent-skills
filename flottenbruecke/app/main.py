@@ -10,8 +10,8 @@
 # event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN. #154: it shows the stand of
 # itself (BRUECKE_COMMIT, BRUECKE_DATUM, build arguments of its image) and of each driver, and carries the update
 # the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again. #48 (ADR-0006):
-# a second entry, FERNPORT, which only the optional Tailscale add-on reaches, is view only: the page and every reading
-# endpoint as in the LAN, every request that writes refused, whatever PIN it carries.
+# a second entry, FERNPORT, which only the optional Tailscale add-on reaches: reading as in the LAN, and since ADR-0007
+# the person's writing routes (PERSON_FERN) with the same device check; services, fetching and the machine's rights not.
 # The Bereitschaftsraum (#85, agent-skills/ADR-0004) is the chat: the person writes with the PIN, the service
 # `flotte chat` fetches, acknowledges and answers with the token; the bridge never starts claude and stores no credentials.
 # #46: what the person writes needs two keys, a paired device with the right for it and the PIN. A device pairs once
@@ -104,6 +104,12 @@ class Einstellung:
         return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt, commit=os.environ.get('BRUECKE_COMMIT', ''), datum=os.environ.get('BRUECKE_DATUM', ''))
 
 
+# ADR-0007: over the remote entry the person writes like in the LAN (paired device with the right); every other
+# writing route stays refused there: the services' report, fetching and receipts, the holodeck, and the machine's own
+# rights, unpairing and releasing the emergency stop. An allow list, so a later endpoint is refused until named here.
+PERSON_FERN = re.compile(r'^/api/(antwort|handlung|werft/handlung|pin|notaus|push|push/abmelden|geraete/koppeln|chat|chat/\d+/(nachricht|einstellung|anlegen|verwerfen|stoppen|fortsetzen|archivieren))$')
+
+
 def fernweg(request: Request) -> bool:
     """The entry is the socket the request came in on (uvicorn: its local address), not a sender or a header a client sets."""
     server = request.scope.get('server')
@@ -157,11 +163,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     push = Push(e.vapid, e.vapid_kontakt, e.push_senden) if e.vapid else None
     app = FastAPI(title='Flottenbrücke', docs_url=None, redoc_url=None, openapi_url=None)
 
-    # #48: over the remote entry only viewing; a principle, not a list of endpoints, so every later one is covered
+    # #48, ADR-0007: over the remote entry reading, and writing only on the person's routes (PERSON_FERN)
     @app.middleware('http')
-    async def nur_ansicht(request: Request, weiter):
-        if fernweg(request) and (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN):
-            return JSONResponse({'detail': 'Über den Fernweg nur Ansicht: Antworten und Handlungen gehen nur im LAN.'}, status_code=403)
+    async def fernweg_grenze(request: Request, weiter):
+        if fernweg(request) and (request.url.path in ABHOLEN or (request.method not in ('GET', 'HEAD') and not (request.method == 'POST' and PERSON_FERN.match(request.url.path)))):
+            return JSONResponse({'detail': 'Über den Fernweg nicht: Dienste, Abholen und die Rechte des Rechners gehen nur im LAN bzw. am Rechner.'}, status_code=403)
         # #46: strict, also for GETs that write; the driver sends no Origin and stays untouched
         if (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN) and fremder_origin(request):
             return JSONResponse({'detail': 'Fremder Origin: schreiben geht nur von der Seite der Brücke selbst.'}, status_code=403)
@@ -194,8 +200,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         if n:
             raise HTTPException(423, f"Not-Aus seit {n['seit']} ({n['geraet']}): die Brücke nimmt nichts an, bis der Rechner ihn löst.")
 
-    def person(request: Request, recht: str, pin: str | None) -> dict:
-        """Who writes: the device first (401 unknown or unpaired, 403 without the right), then the emergency stop, then the PIN."""
+    def person(request: Request, recht: str) -> dict:
+        """Who writes: the device (401 unknown or unpaired, 403 without the right), then the emergency stop. No PIN: it
+        pairs a device and lets the machine give rights; a paired device with the right acts on its own (Stefan, 24.11.2026)."""
         if not e.pin:
             raise HTTPException(403, 'Keine PIN gesetzt (BRUECKE_PIN in .env): Antworten ist abgeschaltet.')
         g = geraet_von(request)
@@ -205,7 +212,6 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             wort = 'Handeln' if recht == 'handeln' else 'Antworten'
             raise HTTPException(403, f'Diesem Gerät fehlt das Recht „{wort}“; das gibt nur der Rechner selbst (Maschinenraum über localhost).', headers={'X-Bruecke-Grund': 'recht'})
         kein_notaus()
-        pin_pruefen(request, pin)
         speicher.geraet_benutzt(g['id'], stempel())
         return g
 
@@ -301,11 +307,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def board(request: Request) -> dict:
         # push: the public VAPID key when Web-Push is on (#37), else None
         # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
-        # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
+        # nurAnsicht (#48) stays in the board for older pages; since ADR-0007 the remote entry acts like the LAN
         projekte = speicher.projekte()
-        t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
+        t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': False}
         # over the remote entry the Bereitschaftsraum offers no writing either (#48)
-        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin) and not fernweg(request))
+        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin))
         # #46: the paired devices and their rights, this device (None: not paired), whether this is the machine itself,
         # the emergency stop and the device log
         dieses = geraet_von(request)
@@ -325,8 +331,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return HTMLResponse(inhalt, headers=HOLODECK_KOEPFE)
 
     @app.post('/api/handlung')
-    def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'handeln', x_bruecke_pin)
+    def handeln(h: Handlung, request: Request) -> dict:
+        g = person(request, 'handeln')
         ergebnis = handlung_ablegen(h, g['name'])
         protokoll(g, request, h)
         return ergebnis
@@ -486,9 +492,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True, 'id': ids[0], 'ids': ids}
 
     @app.post('/api/werft/handlung')
-    def werft_handeln(h: WerftHandlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+    def werft_handeln(h: WerftHandlung, request: Request) -> dict:
         """#90: only with the PIN, checked against the last report of that machine's Werft; the Werft checks again."""
-        g = person(request, 'handeln', x_bruecke_pin)
+        g = person(request, 'handeln')
         w = next((x for x in speicher.werft() if x['rechner'] == h.rechner), None)
         repo = next((r for r in (w['bericht']['repos'] if w else []) if r['forge'] == h.forge), None)
         if repo is None:
@@ -557,16 +563,16 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return c
 
     @app.post('/api/chat')
-    def chat_beginnen(b: ChatBeginn, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_beginnen(b: ChatBeginn, request: Request) -> dict:
+        g = person(request, 'antworten')
         konto_bekannt(b.konto)
         neu = speicher.chat_beginnen(b.forge, b.konto, b.modell, b.text, stempel())
         protokoll(g, request, b)
         return {'ok': True, **neu}
 
     @app.post('/api/chat/{id_}/nachricht')
-    def chat_schreiben(id_: int, t: ChatText, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_schreiben(id_: int, t: ChatText, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         neu = speicher.chat_schreiben(id_, t.text, stempel())
         if neu is None:
@@ -575,8 +581,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True, 'id': neu}
 
     @app.post('/api/chat/{id_}/einstellung')
-    def chat_einstellen(id_: int, w: ChatEinstellung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_einstellen(id_: int, w: ChatEinstellung, request: Request) -> dict:
+        g = person(request, 'antworten')
         c = offener_chat(id_)
         if w.konto != c['konto']:
             konto_bekannt(w.konto)
@@ -588,8 +594,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     # creating is a release (SCHNITTSTELLE.md): the draft is the stored one of the chat's latest answer, never the form's
     @app.post('/api/chat/{id_}/anlegen')
-    def chat_anlegen(id_: int, a: ChatAnlegen, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'handeln', x_bruecke_pin)
+    def chat_anlegen(id_: int, a: ChatAnlegen, request: Request) -> dict:
+        g = person(request, 'handeln')
         offener_chat(id_)
         neu = speicher.chat_anlegen(id_, a.von, a.starten, stempel())
         if isinstance(neu, str):
@@ -598,8 +604,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True, 'id': neu}
 
     @app.post('/api/chat/{id_}/verwerfen')
-    def chat_verwerfen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_verwerfen(id_: int, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         if not speicher.chat_verwerfen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
@@ -609,8 +615,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # #47: stop and continue a chat, archive it; like writing, from a paired device with the PIN
 
     @app.post('/api/chat/{id_}/stoppen')
-    def chat_stoppen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_stoppen(id_: int, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         if not speicher.chat_stoppen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht offen.')
@@ -618,8 +624,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True}
 
     @app.post('/api/chat/{id_}/fortsetzen')
-    def chat_fortsetzen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_fortsetzen(id_: int, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         if not speicher.chat_fortsetzen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht gestoppt.')
@@ -627,8 +633,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True}
 
     @app.post('/api/chat/{id_}/archivieren')
-    def chat_archivieren(id_: int, a: ChatArchiv, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_archivieren(id_: int, a: ChatArchiv, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         grund = speicher.chat_archivieren(id_, a.archiviert, stempel())
         if grund:
@@ -690,8 +696,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True}
 
     @app.post('/api/antwort')
-    def antworten(a: Antwort, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def antworten(a: Antwort, request: Request) -> dict:
+        g = person(request, 'antworten')
         p = speicher.projekt(a.forge)
         f = next((f for f in (p['bericht']['fragen'] if p else []) if f['epic'] == a.epic and f['nr'] == a.nr and f['seit'] == a.seit), None)
         if f is None:
@@ -714,16 +720,16 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # ---- Web-Push (#37): a paired device subscribes and unsubscribes only with the PIN
 
     @app.post('/api/push')
-    def abonnieren(a: PushAbo, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        person(request, 'antworten', x_bruecke_pin)
+    def abonnieren(a: PushAbo, request: Request) -> dict:
+        person(request, 'antworten')
         if not push:
             raise HTTPException(409, 'Web-Push ist aus: kein VAPID-Schlüssel (BRUECKE_VAPID_SCHLUESSEL in .env).')
         speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel())
         return {'ok': True}
 
     @app.post('/api/push/abmelden')
-    def abmelden(a: PushAbmeldung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        person(request, 'antworten', x_bruecke_pin)
+    def abmelden(a: PushAbmeldung, request: Request) -> dict:
+        person(request, 'antworten')
         return {'ok': True, 'geloescht': speicher.abo_loeschen(a.endpoint)}
 
     @app.get('/healthz')

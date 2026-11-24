@@ -16,6 +16,11 @@ def am_rechner(c: TestClient) -> TestClient:
     return TestClient(c.app, base_url=f'http://localhost:{RECHNERPORT}')
 
 
+def fremd(c: TestClient) -> TestClient:
+    """A client on the same app without the cookie: a device that was never paired."""
+    return TestClient(c.app)
+
+
 def koppeln(c: TestClient, handeln: bool = True, name: str = 'Testgerät', pin: str = '4711') -> dict:
     """#46: pairs the client as a device; with handeln the machine gives it the right to act too. The cookie is Secure:
     the test client talks plain HTTP, so it carries the key as an ordinary cookie."""

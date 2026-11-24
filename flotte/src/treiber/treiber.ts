@@ -429,6 +429,30 @@ const BELEGT = new Set(['laeuft', 'frage', 'nacharbeit']);
 const ENDE = new Set(['fertig', 'blockiert', 'abgebrochen']);
 const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+/** A gap shorter than this between the last save and a start is a restart, not a stop */
+export const STILLSTAND_AB_MS = 10 * 60_000;
+
+/**
+ * The driver did not run between its last save (`stand`) and this start: a started mission got no turn in that span
+ * unless its run worked on without the driver. So from its last own activity (newest log line of its runs, never
+ * before `stand`) to the start it was held, like a pause (Stefan, 24.11.2026: 30 h of a stopped driver counted as
+ * work). A mission whose last held span is still open already covers the gap.
+ */
+export function stillstandEintragen(epics: Iterable<FlottenEpic>, stand: string | undefined, anfang: number, aktivBis: (nr: number) => number | null): number[] {
+  const zuletzt = stand ? Date.parse(stand) : NaN;
+  if (!Number.isFinite(zuletzt) || anfang - zuletzt < STILLSTAND_AB_MS) return [];
+  const betroffen: number[] = [];
+  for (const ep of epics) {
+    if (!ep.gestartetAm || ep.endeAm || ep.aufgegebenAm) continue;
+    if (ep.halte?.at(-1)?.bis === null) continue;
+    const von = Math.max(zuletzt, aktivBis(ep.nr) ?? 0, Date.parse(ep.gestartetAm));
+    if (anfang - von < STILLSTAND_AB_MS) continue;
+    (ep.halte ??= []).push({ art: 'pause', von: new Date(von).toISOString(), bis: new Date(anfang).toISOString() });
+    betroffen.push(ep.nr);
+  }
+  return betroffen;
+}
+
 export async function fahre(e: Einstellung, w: Welt = echteWelt): Promise<FlottenZustand> {
   const dir = flotteDir(e.repo, w.aufrufer);
   const sperre = sperren(dir);
@@ -573,6 +597,8 @@ class Treiber {
       aktiv: true,
       stand: '',
     };
+    const still = stillstandEintragen(Object.values(this.z.epics), alt.stand, anfang, (nr) => this.letzteLaufAktivitaet(nr));
+    if (still.length) this.ereignis(null, `Treiber stand seit ${alt.stand}: diese Zeit zählt als Pause, nicht als Arbeit (${still.map((n) => `#${n}`).join(', ')})`);
     const fehlt = [...this.e.konten, ...(this.e.admiralKonto ? [this.e.admiralKonto] : [])].filter((k) => !existsSync(k));
     if (fehlt.length) throw new Error(`Kontenverzeichnis fehlt: ${fehlt.join(', ')}. Pfade ausschreiben, nicht ~.`);
     // #112: the adapter's merge is the start value of the setting merge
@@ -1138,6 +1164,20 @@ class Treiber {
     const jetzt = new Date(this.w.jetzt()).toISOString();
     if (offen) offen.bis = jetzt;
     if (art && ep.gestartetAm) (ep.halte ??= []).push({ art, von: jetzt, bis: null });
+  }
+
+  /** newest write of a log of the epic's runs (ms), the last sign a run worked; null without logs */
+  letzteLaufAktivitaet(nr: number): number | null {
+    const laeufe = join(this.dir, 'laeufe');
+    if (!existsSync(laeufe)) return null;
+    let neu: number | null = null;
+    for (const d of readdirSync(laeufe).filter((x) => x.startsWith(`${nr}-`) && x.endsWith('.jsonl'))) {
+      try {
+        const t = statSync(join(laeufe, d)).mtimeMs;
+        if (neu === null || t > neu) neu = t;
+      } catch { /* gone meanwhile */ }
+    }
+    return neu;
   }
 
   /** #202: seconds of the held spans of an epic between its first start and bis */
