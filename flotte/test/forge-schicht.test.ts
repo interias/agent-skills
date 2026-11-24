@@ -5,6 +5,8 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileS
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { AsyncAufrufer, Aufrufer } from '../src/aufruf.ts';
+import { giteaAsync, githubAsync } from '../src/forge/async.ts';
 import { curlKonfig, curlLesen } from '../src/forge/curl.ts';
 import { giteaZugriff } from '../src/forge/gitea.ts';
 import { githubZugriff } from '../src/forge/github.ts';
@@ -115,9 +117,9 @@ describe('forge layer: the choice by the adapter', () => {
 
 describe('forge layer: gh only in the GitHub implementation', () => {
   // the order writer has its own GitHub side; the link check asks gh for the login itself (#125)
-  const ERLAUBT = ['forge/github.ts', 'auftrag/github.ts', 'befehle/forge.ts'];
+  const ERLAUBT = ['forge/github.ts', 'forge/async.ts', 'auftrag/github.ts', 'befehle/forge.ts'];
   // still to move behind the forge layer; each package of #127 takes its files off this list
-  ERLAUBT.push('befehle/lernen.ts', 'befehle/messen.ts', 'befehle/triage.ts', 'epic/mechanik.ts', 'lernen.ts', 'treiber/forge.ts', 'treiber/treiber.ts', 'triage-abschluss.ts', 'triage-fakten.ts', 'werkzeuge/belegung.ts');
+  ERLAUBT.push('befehle/lernen.ts', 'befehle/messen.ts', 'befehle/triage.ts', 'lernen.ts', 'treiber/forge.ts', 'treiber/treiber.ts', 'triage-abschluss.ts', 'triage-fakten.ts', 'werkzeuge/belegung.ts');
   const dateien = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? dateien(join(dir, n)) : n.endsWith('.ts') ? [join(dir, n)] : []));
 
   it('no other file under src/ calls gh', () => {
@@ -127,5 +129,32 @@ describe('forge layer: gh only in the GitHub implementation', () => {
       .filter((d) => !ERLAUBT.includes(d))
       .filter((d) => /\(\s*'gh'\s*,/.test(readFileSync(join(src, d), 'utf8')));
     expect(treffer).toEqual([]);
+  });
+});
+
+const asynchron = (a: Aufrufer): AsyncAufrufer => async (p, args, o) => a(p, args, o);
+
+describe.each([
+  ['GitHub', (b: Bestand) => githubAsync(asynchron(ghAttrappe(b)), 'o/r')],
+  ['Gitea', (b: Bestand) => giteaAsync(asynchron(giteaAttrappe(b)), GITEA_API(b), () => 'token geheim')],
+] as const)('forge layer without blocking (flotte mission): %s', (_, bauen) => {
+  it('labels, body, title, comments, Missionsziele and the pull request of the mission', async () => {
+    const b = bestand();
+    const mission = issueAnlegen(b, { titel: 'Mission', body: 'Plan', labels: ['epic', 'status/blockiert'] });
+    const kind = issueAnlegen(b, { titel: 'Ziel' });
+    mission.kinder.push(kind.nummer);
+    const f = bauen(b);
+    expect(await f.labelNamen()).toEqual(expect.arrayContaining(['epic', 'status/blockiert']));
+    await f.labelAnlegen('status/in-arbeit', '00f0ff', 'Zustand');
+    await f.labelsAendern(mission.nummer, ['status/in-arbeit'], ['status/blockiert']);
+    expect(await f.labels(mission.nummer)).toEqual(['epic', 'status/in-arbeit']);
+    expect([await f.body(mission.nummer), await f.titel(mission.nummer)]).toEqual(['Plan', 'Mission']);
+    await f.kommentieren(mission.nummer, 'Eröffnung');
+    expect(await f.kommentare(mission.nummer)).toEqual(['Eröffnung']);
+    expect(await f.kinder(mission.nummer)).toEqual([kind.nummer]);
+    expect(await f.offenerPr('epic/1-x')).toBeNull();
+    const url = await f.prAnlegen('main', 'epic/1-x', 'WIP: Mission', 'Gate');
+    expect(url).toMatch(/\/pulls?\/\d+$/);
+    expect(await f.offenerPr('epic/1-x')).toBe(url);
   });
 });

@@ -310,3 +310,84 @@ Describe 'merge.ps1: the head branch' {
         (Get-DeleteCalls $r).Count | Should Be 0
     }
 }
+
+# Gitea (#127): curl is a stub script (-CurlCommand) that reads the request from its config on stdin, logs
+# "METHOD path" and answers from rules; a rule with `after` holds only once a logged call matched it.
+$curlStub = @'
+$cfg = @($input) -join "`n"
+$url = [regex]::Match($cfg, '(?m)^url = "(.*)"$').Groups[1].Value
+$method = [regex]::Match($cfg, '(?m)^request = "(.*)"$').Groups[1].Value
+$auth = [regex]::Match($cfg, '(?m)^header = "Authorization: (.*)"$').Groups[1].Value
+$path = $url -replace '^https?://[^/]+/api/v1/repos/o/r', ''
+$line = "$method $path"
+$log = @(if (Test-Path $env:MERGE_GH_LOG) { Get-Content $env:MERGE_GH_LOG -Encoding utf8 })
+Add-Content -Path $env:MERGE_GH_LOG -Value "$line | $auth | $($args -join ' ')" -Encoding utf8
+foreach ($rule in (Get-Content $env:MERGE_GH_FIXTURE -Raw -Encoding utf8 | ConvertFrom-Json)) {
+    if ($line -notmatch $rule.match) { continue }
+    if ($rule.after -and -not ($log | Where-Object { $_ -match $rule.after })) { continue }
+    if ($rule.out) { $rule.out }
+    "$($rule.status)"
+    exit 0
+}
+'404'
+exit 0
+'@
+
+function New-GiteaRules([string]$body, [string]$title = 'Mission', [string]$statuses = '[]', [string]$behind = '0', [string]$issue3 = 'closed') {
+    $pr = @{ number = 7; title = $title; state = 'open'; merged = $false; draft = $false; mergeable = $true; body = $body; head = @{ ref = 'epic/7-x'; sha = $headSha }; base = @{ ref = 'main' } }
+    $merged = $pr.Clone(); $merged.state = 'closed'; $merged.merged = $true
+    @(
+        @{ match = '^GET /pulls/7$'; after = '^POST /pulls/7/merge'; out = (ConvertTo-Json -Compress -Depth 4 -InputObject $merged); status = 200 }
+        @{ match = '^GET /pulls/7$'; out = (ConvertTo-Json -Compress -Depth 4 -InputObject $pr); status = 200 }
+        @{ match = '^GET $'; out = '{"default_branch":"main"}'; status = 200 }
+        @{ match = '^GET /contents/\.claude/epic\.md\?ref=main$'; out = (ConvertTo-Json -Compress -InputObject @{ content = (Get-Base64 $nachGate) }); status = 200 }
+        @{ match = '^GET /commits/main/status$'; out = '{"total_count":0,"statuses":[]}'; status = 200 }
+        @{ match = "^GET /commits/$headSha/status$"; out = "{`"statuses`":$statuses}"; status = 200 }
+        @{ match = '^GET /branches/main$'; out = "{`"commit`":{`"id`":`"$baseSha`"}}"; status = 200 }
+        @{ match = "^GET /compare/$headSha\.\.\.main$"; out = "{`"total_commits`":$behind}"; status = 200 }
+        @{ match = '^POST /pulls/7/merge$'; status = 200 }
+        @{ match = '^GET /issues/3$'; out = "{`"state`":`"$issue3`"}"; status = 200 }
+        @{ match = '^GET /compare/main\.\.\.epic%2F7-x$'; out = '{"total_commits":0}'; status = 200 }
+        @{ match = '^DELETE /branches/epic%2F7-x$'; status = 204 }
+    )
+}
+
+function Invoke-GiteaMerge($rules) {
+    $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory -Path $dir | Out-Null
+    $stubFile = Join-Path $dir 'curl-stub.ps1'
+    Set-Content -Path $stubFile -Value $curlStub -Encoding UTF8
+    $fixture = Join-Path $dir 'rules.json'
+    [IO.File]::WriteAllText($fixture, (ConvertTo-Json -Depth 5 -InputObject @($rules)), (New-Object Text.UTF8Encoding $false))
+    $log = Join-Path $dir 'calls.log'
+    $env:MERGE_GH_FIXTURE = $fixture; $env:MERGE_GH_LOG = $log; $env:FLOTTE_FORGE_KOPF = 'token geheim'
+    try { $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -Api 'http://gitea.invalid/api/v1/repos/o/r' -CurlCommand $stubFile -GhCommand 'kein-gh' -LeerMinuten 0 -TaktSekunden 0 2>$null }
+    finally { Remove-Item Env:FLOTTE_FORGE_KOPF }
+    $exit = $LASTEXITCODE
+    $calls = if (Test-Path $log) { @(Get-Content $log -Encoding UTF8) } else { @() }
+    @{ Exit = $exit; Out = (@($out) -join "`n"); Calls = $calls }
+}
+
+Describe 'merge.ps1: Gitea through its API (#127)' {
+    It 'merges a gated pull request, names the closed issues and deletes the branch; the token goes on stdin' {
+        $r = Invoke-GiteaMerge (New-GiteaRules ((New-GateBody) + "`n`nCloses #3"))
+        $r.Exit | Should Be 0
+        $r.Out | Should Be 'GEMERGT #7 -> main; Issues zu: #3; Branch epic/7-x geloescht'
+        @($r.Calls | Where-Object { $_ -match "^POST /pulls/7/merge \| token geheim \| -sS --config - " }).Count | Should Be 1
+        @($r.Calls | Where-Object { $_ -match 'geheim\s*$' -or ($_ -split ' \| ')[2] -match 'geheim' }).Count | Should Be 0
+    }
+
+    It 'names a Missionsziel that stayed open (HTTP 412 at a blocker) as still open' {
+        $r = Invoke-GiteaMerge (New-GiteaRules ((New-GateBody) + "`n`nCloses #3") -issue3 'open')
+        $r.Out | Should Match 'Issues zu: ; NOCH OFFEN: #3'
+    }
+
+    It 'refuses without a green gate, on a red commit status, on a draft and on a head behind the base' {
+        (Invoke-GiteaMerge (New-GiteaRules 'kein Gate')).Out | Should Match "GATE FEHLT #7: kein Abschnitt '## Gate'"
+        (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -statuses '[{"context":"ci","status":"failure"}]')).Out | Should Match 'CHECKS ROT #7: ci'
+        (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -title 'WIP: Mission')).Out | Should Match 'NICHT GEMERGT #7: Entwurf'
+        $r = Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -behind '2')
+        $r.Out | Should Match 'der Head enthaelt die aktuelle Basis nicht \(2 Commits dahinter\)'
+        @($r.Calls | Where-Object { $_ -match '^POST /pulls/7/merge' }).Count | Should Be 0
+    }
+}

@@ -1,13 +1,15 @@
 // The real Mechanik of `flotte mission` (#66, stage 2 of #69): worktrees, RAM and graph through the
 // scripts of mission/scripts (called, not rebuilt, decision 1), 4c through the adapter's test_commands
 // and lint_commands (decision 6, counted in zaehlen.ts), merge, revert and push through git in the
-// epic worktree, labels, comments and the pull request through gh. Every program goes through one
-// AsyncAufrufer, so tests run git and the scripts for real against a fixture and record gh.
+// epic worktree, labels, comments and the pull request through the forge layer (src/forge/async.ts, gh or
+// the Gitea API). Every program goes through one AsyncAufrufer, so tests run git and the scripts for real
+// against a fixture and record the forge.
 
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { aufrufenAsync, pwshJsonAsync, type AsyncAufrufer, type Ergebnis } from '../aufruf.ts';
 import { schluessel } from '../befehle/adapter.ts';
+import { forgeAsyncFuer } from '../forge/async.ts';
 import { frontmatter, liesAdapter } from '../werkzeuge/belegung.ts';
 import { messeRam, SKRIPTE, type Ram } from '../werkzeuge/ressourcen.ts';
 import { flotteDir } from '../werkzeuge/zustand.ts';
@@ -111,7 +113,7 @@ const trotzSperreAufrufer = (a: AsyncAufrufer): AsyncAufrufer => (programm, args
  * A read of the forge that a passing fault of the forge broke: HTTP 5xx, a lost connection, a time
  * limit (#108). Such a read goes again; a 4xx or anything else stops at once.
  */
-const GH_VORUEBERGEHEND = /HTTP 5\d\d|Server Error|Something went wrong|error connecting to|connection reset|i\/o timeout|TLS handshake timeout|unexpected EOF|Zeitgrenze \d+ ms/i;
+const GH_VORUEBERGEHEND = /HTTP 5\d\d|Server Error|Something went wrong|error connecting to|connection reset|i\/o timeout|TLS handshake timeout|unexpected EOF|Zeitgrenze \d+ ms|keine Verbindung/i;
 const GH_VERSUCHE = 4;
 const ghPause = (versuch: number) => new Promise((weiter) => setTimeout(weiter, 500 * versuch));
 
@@ -187,28 +189,16 @@ export function echteMechanik(e: MechanikEinstellung): Mechanik {
     if (r.code) throw fehler(`git ${args.join(' ')}`, r);
     return r.stdout.trim();
   }
-  async function gh(args: string[], eingabe?: string): Promise<string> {
-    const r = await a('gh', args, { eingabe, timeoutMs: 120_000 });
-    if (r.code) throw fehler(`gh ${args.slice(0, 3).join(' ')}`, r);
-    return r.stdout;
-  }
+  const forge = forgeAsyncFuer(repo, a, e.forge);
   /** a call that may go again, a read or an edit that sets a state: a passing fault or an unreadable answer goes again, at most GH_VERSUCHE times (#108) */
-  async function ghWiederholt<T>(args: string[], deuten: (aus: string) => T): Promise<T> {
+  async function wiederholt<T>(tun: () => Promise<T>): Promise<T> {
     for (let versuch = 1; ; versuch++) {
-      const r = await a('gh', args, { timeoutMs: 120_000 });
-      let f: Error;
-      if (!r.code) {
-        try {
-          return deuten(r.stdout);
-        } catch (x) {
-          f = new Error(`gh ${args.slice(0, 3).join(' ')}: Antwort nicht lesbar: ${(x as Error).message}`);
-        }
-      } else {
-        f = fehler(`gh ${args.slice(0, 3).join(' ')}`, r);
-        if (!GH_VORUEBERGEHEND.test(`${r.stderr}
-${r.stdout}`)) throw f;
+      try {
+        return await tun();
+      } catch (f) {
+        const text = (f as Error).message;
+        if (versuch >= GH_VERSUCHE || !(GH_VORUEBERGEHEND.test(text) || /Antwort nicht lesbar/.test(text))) throw f;
       }
-      if (versuch >= GH_VERSUCHE) throw f;
       await ghPause(versuch);
     }
   }
@@ -241,19 +231,19 @@ ${r.stdout}`)) throw f;
 
   async function labelsSicher() {
     if (labelsDa) return;
-    const da = new Set(await ghWiederholt(['label', 'list', '--repo', e.forge, '--json', 'name', '--limit', '500'], (aus) => (JSON.parse(aus || '[]') as { name: string }[]).map((l) => l.name)));
+    const da = new Set(await wiederholt(() => forge.labelNamen()));
     const soll: [string, { farbe: string; text: string }][] = [...Object.entries(LABELS), [adapter.epic_label, EPIC_LABEL]];
-    for (const [name, l] of soll) if (!da.has(name)) await gh(['label', 'create', name, '--repo', e.forge, '--color', l.farbe, '--description', l.text]);
+    for (const [name, l] of soll) if (!da.has(name)) await forge.labelAnlegen(name, l.farbe, l.text);
     labelsDa = true;
   }
 
-  const labelsVon = (ticket: number) => ghWiederholt(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'labels'], (aus) => ((JSON.parse(aus).labels ?? []) as { name: string }[]).map((l) => l.name));
-  const kommentareVon = (ticket: number) => ghWiederholt(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'comments'], (aus) => ((JSON.parse(aus).comments ?? []) as { body: string }[]).map((k) => k.body));
+  const labelsVon = (ticket: number) => wiederholt(() => forge.labels(ticket));
+  const kommentareVon = (ticket: number) => wiederholt(() => forge.kommentare(ticket));
 
   /** edit, then read back (mission/SKILL.md, "Die Statuslabels"); one more try, then a Glut point: the text, not a stop */
   async function labelsSetzen(ticket: number, dazu: string[], weg: string[]): Promise<string | null> {
     for (let versuch = 0; versuch < 2; versuch++) {
-      await ghWiederholt(['issue', 'edit', String(ticket), '--repo', e.forge, ...(dazu.length ? ['--add-label', dazu.join(',')] : []), ...(weg.length ? ['--remove-label', weg.join(',')] : [])], () => undefined);
+      await wiederholt(() => forge.labelsAendern(ticket, dazu, weg));
       const ist = await labelsVon(ticket);
       if (dazu.every((l) => ist.includes(l)) && weg.every((l) => !ist.includes(l))) return null;
     }
@@ -438,26 +428,20 @@ ${r.stdout}`)) throw f;
       return { available: Boolean(j.available), ...(j.reason ? { grund: j.reason } : {}), ...(j.graph ? { pfad: j.graph } : {}) };
     },
     async body(ticket) {
-      return ghWiederholt(['issue', 'view', String(ticket), '--repo', e.forge, '--json', 'body'], (aus) => String(JSON.parse(aus).body ?? ''));
+      return wiederholt(() => forge.body(ticket));
     },
     async unterIssues(ticket) {
-      try {
-        return await ghWiederholt(['api', `repos/${e.forge}/issues/${ticket}/sub_issues`, '--paginate', '--jq', '.[].number'], (aus) => aus.split(/\s+/).filter(Boolean).map(Number));
-      } catch (f) {
-        // a forge without sub-issues answers 404: no children linked there, the body still counts
-        if (/HTTP 404|Not Found/.test((f as Error).message)) return [];
-        throw f;
-      }
+      return wiederholt(() => forge.kinder(ticket));
     },
     kommentare: kommentareVon,
     async kommentar(ticket, text) {
       // from a file (stdin), never from a shell string (mission/references/forge.md, "Stolperstellen")
       for (let versuch = 1; ; versuch++) {
-        const r = await a('gh', ['issue', 'comment', String(ticket), '--repo', e.forge, '--body-file', '-'], { eingabe: text, timeoutMs: 120_000 });
-        if (!r.code) return;
-        const f = fehler('gh issue comment', r);
-        if (versuch >= GH_VERSUCHE || !GH_VORUEBERGEHEND.test(`${r.stderr}
-${r.stdout}`)) throw f;
+        try {
+          return await forge.kommentieren(ticket, text);
+        } catch (f) {
+          if (versuch >= GH_VERSUCHE || !GH_VORUEBERGEHEND.test((f as Error).message)) throw f;
+        }
         // the forge may have taken the comment before it failed: written again only when it is not there (#108)
         await ghPause(versuch);
         if ((await kommentareVon(ticket)).some((k) => k.trim() === text.trim())) return;
@@ -485,12 +469,10 @@ ${r.stdout}`)) throw f;
       const wt = await epicWt();
       await gitOk(wt, ['push', '-q', '-u', remote, e.epicBranch]);
       // a repeated end after a stop finds its pull request
-      const offen = await ghWiederholt(['pr', 'list', '--repo', e.forge, '--head', e.epicBranch, '--state', 'open', '--json', 'url'], (aus) => JSON.parse(aus || '[]') as { url: string }[]);
-      let pr: string | null = offen[0]?.url ?? null;
+      let pr = await wiederholt(() => forge.offenerPr(e.epicBranch));
       if (!pr) {
-        const titel = await ghWiederholt(['issue', 'view', String(e.epic), '--repo', e.forge, '--json', 'title'], (aus) => String(JSON.parse(aus).title ?? `Mission #${e.epic}`));
-        const aus = await gh(['pr', 'create', '--repo', e.forge, '--base', basisBranch, '--head', e.epicBranch, '--title', `${wip ? 'WIP: ' : ''}${titel}`, '--body-file', '-'], body);
-        pr = /https?:\/\/\S+/.exec(aus)?.[0] ?? null;
+        const titel = await wiederholt(() => forge.titel(e.epic));
+        pr = await forge.prAnlegen(basisBranch, e.epicBranch, `${wip ? 'WIP: ' : ''}${titel}`, body);
       }
       const fehler = await labelsSetzen(e.epic, [], ['status/in-arbeit']);
       halterWeg();

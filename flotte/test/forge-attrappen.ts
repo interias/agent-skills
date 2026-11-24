@@ -137,7 +137,11 @@ export function ghAttrappe(b: Bestand): Aufrufer {
       const pfad = args.find((x) => x.startsWith(`repos/${repo}`))!.slice(`repos/${repo}`.length);
       const jq = nach('--jq');
       let m: RegExpExecArray | null;
-      if ((m = /^\/issues\/(\d+)\/sub_issues$/.exec(pfad))) return ok(issue(m[1])!.kinder.map((k) => issue(String(k))!).map((k) => `${JSON.stringify({ number: k.nummer, state: k.offen ? 'open' : 'closed', labels: k.labels })}\n`).join(''));
+      if ((m = /^\/issues\/(\d+)\/sub_issues$/.exec(pfad))) {
+        const kinder = issue(m[1])!.kinder.map((k) => issue(String(k))!);
+        // the two jq forms of the forge layer: numbers only (flotte mission), or number, state and labels
+        return ok(kinder.map((k) => `${jq === '.[].number' ? k.nummer : JSON.stringify({ number: k.nummer, state: k.offen ? 'open' : 'closed', labels: k.labels })}\n`).join(''));
+      }
       if ((m = /^\/issues\/(\d+)\/sub_issue$/.exec(pfad)) && nach('--method') === 'DELETE') {
         const mission = issue(m[1])!;
         const kind = Number(nach('-F')!.split('=')[1]) - 1000;
