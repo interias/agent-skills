@@ -337,9 +337,11 @@ Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte 
   legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
   was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.
   Meldet sich kein Treiber, nennt die Seite den Weg am Rechner (`flotte projekt hinzufuegen`).
+  Bilder: `doku/v3-maschinenraum-projekte-1440.png`, `-390.png`.
   Darunter **Automatik je Projekt** (#193): eine Zeile je Projekt mit dem Schalter „Missionen automatisch
   einsammeln“ (an/aus, Umschalten mit PIN als `einstellen`, wirksam ab dem nächsten Takt) und der Zahl laufender,
   wartender und freigegebener, noch nicht eingesammelter Missionen. Ausschalten hält nichts an.
+  Bilder: `doku/v3-maschinenraum-automatik-1440.png`, `-390.png`.
   Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die übrigen fünfzehn wirksamen Werte
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was
