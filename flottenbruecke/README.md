@@ -397,6 +397,11 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
   Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar) prüft den Ordner,
   legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
   was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.
+  Statt des Ordners geht **oder Link zum Repository** (nur `https://` auf github.com oder die Gitea-Forge
+  eines Projekts): Der Treiber klont mit der Anmeldung des Rechners in den vorgeschlagenen Ordner (änderbar),
+  prüft Rechte und Labels und nennt, was zum Einrichten fehlt, ohne es auszuführen. Hat der Adapter eines
+  Projekts noch Lücken der Vorlage, steht an seiner Karte „Dein Schritt: Adapter ausfüllen (in einem eigenen
+  Chat)“; bis dahin startet dort keine Mission.
   Meldet sich kein Treiber, nennt die Seite den Weg am Rechner (`flotte projekt hinzufuegen`).
   Bilder: `doku/v3-maschinenraum-projekte-1440.png`, `-390.png`.
   Darunter **Automatik je Projekt** (#193): eine Zeile je Projekt mit dem Schalter „Missionen automatisch

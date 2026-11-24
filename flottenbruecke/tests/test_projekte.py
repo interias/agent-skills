@@ -90,3 +90,85 @@ def test_ein_neu_gestarteter_treiber_bringt_das_projekt_zurueck(client, bericht)
     assert FORGE in forges(client)
     # the removal the old driver never fetched does not halt the new one
     assert client.get('/api/handlungen', params={'forge': FORGE}).json() == []
+
+
+# ---- adding a project by a link to its repository: the driver clones at its machine, the bridge checks the link
+
+
+def mit_klonen(bericht, gitea=None, luecken=None):
+    b = mit_projekten(bericht)
+    b['klonAngebot'] = {'gitea': gitea or [], 'eltern': 'C:\\Users\\jemand\\git'}
+    if luecken is not None:
+        b['adapterLuecken'] = luecken
+    return b
+
+
+def klonen(c, url, ordner=None, **o):
+    d = {'url': url, 'autostart': False}
+    if ordner is not None:
+        d['ordner'] = ordner
+    return handlung(c, 'projekt_hinzufuegen', json.dumps(d), **o)
+
+
+def test_link_mit_und_ohne_ordner_geht_an_den_treiber(client, bericht):
+    client.post('/api/bericht', json=mit_klonen(bericht))
+    assert klonen(client, ' https://github.com/octo/klein ').json()['ok']
+    nur_link = client.get('/api/handlungen', params={'forge': FORGE}).json()[-1]
+    assert json.loads(nur_link['text']) == {'url': 'https://github.com/octo/klein', 'autostart': False}
+    # once acknowledged, "Erledigt" names the repository of the link, never a path
+    assert client.post(f"/api/handlungen/{nur_link['id']}/quittung").json()['ok']
+    eintrag = next(x for x in client.get('/api/tafel').json()['erledigt'] if x.get('handlung') == 'projekt_hinzufuegen')
+    assert (eintrag['ordner'], eintrag['link'], eintrag['text']) == (None, 'octo/klein', None)
+    assert klonen(client, 'https://github.com/octo/klein.git', ordner='D:\\repos\\klein').json()['ok']
+    assert json.loads(client.get('/api/handlungen', params={'forge': FORGE}).json()[-1]['text']) == {'ordner': 'D:\\repos\\klein', 'url': 'https://github.com/octo/klein.git', 'autostart': False}
+
+
+def test_link_nur_https_auf_github_oder_der_gemeldeten_gitea_forge(client, bericht):
+    client.post('/api/bericht', json=mit_klonen(bericht, gitea=['https://gitea.beispiel.de:3000']))
+    for url, text in [
+        ('http://github.com/octo/klein', 'Nur https-Links'),
+        ('file:///C:/geheim', 'Nur https-Links'),
+        ('ssh://git@github.com/octo/klein', 'Nur https-Links'),
+        ('git@github.com:octo/klein.git', 'Nur https-Links'),
+        ('https://user:geheim@github.com/octo/klein', 'Benutzerangaben'),
+        ('https://localhost/octo/klein', 'eigenen Netzes'),
+        ('https://192.168.1.20/octo/klein', 'eigenen Netzes'),
+        ('https://github.com/octo', 'kein Repository'),
+        ('https://github.com/octo/klein?x=1', 'Parameter'),
+        ('https://gitlab.com/octo/klein', 'keine erlaubte Quelle'),
+        ('https://gitea.beispiel.de/team/werk', 'keine erlaubte Quelle'),
+    ]:
+        r = klonen(client, url)
+        assert r.status_code == 422, url
+        assert text in r.text, (url, r.text)
+    assert klonen(client, 'https://gitea.beispiel.de:3000/team/werk').json()['ok']
+    # neither folder nor link; a folder that is not absolute next to a link
+    assert handlung(client, 'projekt_hinzufuegen', '{"autostart": false}').status_code == 422
+    assert klonen(client, 'https://github.com/octo/klein', ordner='relativ').status_code == 422
+
+
+def ohne_klonen(bericht):
+    b = mit_projekten(bericht)
+    b.pop('klonAngebot', None)
+    b.pop('adapterLuecken', None)
+    return b
+
+
+def test_link_bei_einem_treiber_ohne_klonen_abgelehnt(client, bericht):
+    client.post('/api/bericht', json=ohne_klonen(bericht))
+    r = klonen(client, 'https://github.com/octo/klein')
+    assert r.status_code == 409
+    assert 'Link' in r.json()['detail']
+    # the folder alone still goes
+    assert hinzufuegen(client).json()['ok']
+
+
+def test_tafel_traegt_klonangebot_und_adapterluecken(client, bericht):
+    client.post('/api/bericht', json=mit_klonen(bericht, luecken=['gate_command', 'test_commands']))
+    p = client.get('/api/tafel').json()['projekte'][0]
+    assert p['klonAngebot'] == {'gitea': [], 'eltern': 'C:\\Users\\jemand\\git'}
+    assert p['adapterLuecken'] == ['gate_command', 'test_commands']
+    client.post('/api/bericht', json=ohne_klonen(bericht))
+    p = client.get('/api/tafel').json()['projekte'][0]
+    assert p['klonAngebot'] is None
+    assert p['adapterLuecken'] == []

@@ -13,6 +13,50 @@ EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit',
 HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden', 'forge_verknuepfen': 'forge_verknuepfen', 'projekt_hinzufuegen': 'projekt_hinzufuegen', 'projekt_entfernen': 'projekt_entfernen'}
 # #126: the longest folder path of projekt_hinzufuegen (the classic Windows limit)
 PROJEKT_ORDNER_MAX = 260
+# the link of projekt_hinzufuegen: https://<host>/<owner>/<name>; the hosts allowed are github.com and the Gitea forges the driver reports
+PROJEKT_LINK_MAX = 300
+_LINK_TEIL = re.compile(r'^[\w.-]{1,100}$', re.ASCII)
+_LINK_LOKAL = re.compile(r'^(localhost|.*\.localhost|.*\.local|.*\.lan|.*\.home\.arpa|.*\.internal)$', re.I)
+_LINK_IP = re.compile(r'^(\d{1,3}(\.\d{1,3}){3}|[0-9a-f:.]*:[0-9a-f:.]*)$', re.I)
+
+
+def link_pruefen(url: str) -> tuple[str, str]:
+    """The origin (https://host[:port]) and owner/name of a repository link, or a ValueError with a clear text.
+    Which host is allowed is checked against the report of the driver (main.py); the driver checks everything again."""
+    if re.match(r'^[\w.-]+@[\w.-]+:', url):
+        raise ValueError('Nur https-Links: ein ssh-Link (git@…) wird nicht geklont; den https-Link des Repositorys nehmen.')
+    try:
+        t = urlsplit(url)
+        port = t.port
+    except ValueError:
+        raise ValueError('Der Link ist keine URL; etwa https://github.com/<owner>/<name>.') from None
+    if t.scheme != 'https':
+        raise ValueError(f'Nur https-Links (kein {t.scheme or "Schema"}://); etwa https://github.com/<owner>/<name>.')
+    if t.username is not None or t.password is not None:
+        raise ValueError('Der Link enthält Benutzerangaben; ohne sie angeben (der Rechner nimmt seine eigene Anmeldung).')
+    if t.query or t.fragment:
+        raise ValueError('Der Link hat Parameter oder einen Anker; nur https://<host>/<owner>/<name>.')
+    host = (t.hostname or '').lower()
+    if not host:
+        raise ValueError('Der Link ist keine URL; etwa https://github.com/<owner>/<name>.')
+    teile = t.path.rstrip('/').split('/')[1:]
+    name = re.sub(r'\.git$', '', teile[1], flags=re.I) if len(teile) == 2 else ''
+    if len(teile) != 2 or not _LINK_TEIL.match(teile[0]) or not _LINK_TEIL.match(name) or set(teile[0]) == {'.'} or set(name) == {'.'}:
+        raise ValueError('Der Link nennt kein Repository; erwartet wird https://<host>/<owner>/<name>.')
+    netz = f'[{host}]' if ':' in host else host
+    return f"https://{netz}{f':{port}' if port else ''}", f'{teile[0]}/{name}'
+
+
+def link_erlaubt(url: str, gitea: list[str]) -> None:
+    """github.com or one of the Gitea forges the driver reports; a refusal names what is allowed."""
+    herkunft, _ = link_pruefen(url)
+    if herkunft == 'https://github.com' or herkunft.lower() in [g.lower() for g in gitea]:
+        return
+    host = (urlsplit(herkunft).hostname or '').lower()
+    if _LINK_LOKAL.match(host) or _LINK_IP.match(host):
+        raise ValueError('Keine Adressen dieses Rechners oder des eigenen Netzes; nur github.com oder die Gitea-Forge eines Projekts.')
+    erlaubt = ' oder '.join(['github.com', *[urlsplit(g).netloc for g in gitea]])
+    raise ValueError(f'Nur {erlaubt}; {urlsplit(herkunft).netloc} ist keine erlaubte Quelle.')
 # #95: the account actions; epic is the account's number (konto_anlegen: 0)
 KONTO_HANDLUNGEN = ('konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden')
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
@@ -188,6 +232,13 @@ class KontoEintrag(BaseModel):
     aktiv: bool
     # from `flotte konten pruefen`; None: not checked yet
     anmeldung: Literal['angemeldet', 'nicht angemeldet', 'ordner fehlt', 'unklar'] | None = None
+
+
+class KlonAngebot(BaseModel):
+    """projekt_hinzufuegen with a link: the Gitea forges (https origins) allowed besides github.com, the folder new clones go to."""
+
+    gitea: list[str] = Field([], max_length=20)
+    eltern: str = Field(max_length=PROJEKT_ORDNER_MAX)
 
 
 class ForgeStatus(BaseModel):
@@ -528,6 +579,10 @@ class Bericht(BaseModel):
     forgeStatus: ForgeStatus | None = None
     # #126: the driver fetches projekt_hinzufuegen and projekt_entfernen; an older one does not
     projektHandlungen: bool = False
+    # projekt_hinzufuegen with a link: only a driver that reports it clones; an older one does not (None)
+    klonAngebot: KlonAngebot | None = None
+    # the keys of the driver's adapter still in <…> as in the template: no mission starts while there are any
+    adapterLuecken: list[str] = Field([], max_length=30)
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
@@ -747,20 +802,25 @@ class Handlung(BaseModel):
                 raise ValueError('Forge verknüpfen und Projekt entfernen: epic 0')
             self.nr, self.seit, self.text = None, None, None
         elif self.art == 'projekt_hinzufuegen':
-            # #126: {"ordner", "autostart"}; a running driver of a reported project writes adapter and start script there
+            # #126: {"ordner", "autostart"}; a running driver of a reported project writes adapter and start script there.
+            # With "url" (the link to the repository) the driver clones first; the folder may then be left out (proposed)
             try:
                 d = json.loads(self.text or '')
             except ValueError:
                 d = None
             ordner = d.get('ordner').strip() if isinstance(d, dict) and isinstance(d.get('ordner'), str) else ''
+            url = d.get('url').strip() if isinstance(d, dict) and isinstance(d.get('url'), str) else ''
             # a path copied with "Copy as path" comes in quotes; they go
             if len(ordner) >= 2 and ordner[0] == ordner[-1] and ordner[0] in '"\'':
                 ordner = ordner[1:-1].strip()
-            if self.epic != 0 or not ordner or len(ordner) > PROJEKT_ORDNER_MAX or not isinstance(d.get('autostart', False), bool):
-                raise ValueError(f'Projekt hinzufügen: epic 0 und text {{"ordner" (1–{PROJEKT_ORDNER_MAX} Zeichen), "autostart" (ja/nein)}}')
-            if not re.match(r'^([A-Za-z]:[\\/]|[\\/])', ordner):
+            if self.epic != 0 or not (ordner or url) or len(ordner) > PROJEKT_ORDNER_MAX or len(url) > PROJEKT_LINK_MAX or not isinstance(d.get('autostart', False), bool):
+                raise ValueError(f'Projekt hinzufügen: epic 0 und text {{"ordner" (1–{PROJEKT_ORDNER_MAX} Zeichen) oder "url" (Link zum Repository), "autostart" (ja/nein)}}')
+            if ordner and not re.match(r'^([A-Za-z]:[\\/]|[\\/]|~[\\/])', ordner):
                 raise ValueError('Projekt hinzufügen: der Ordner als absoluter Pfad, etwa C:\\repos\\projekt')
-            self.nr, self.seit, self.text = None, None, json.dumps({'ordner': ordner, 'autostart': d.get('autostart', False)}, ensure_ascii=False)
+            if url:
+                link_pruefen(url)
+            wunsch = {**({'ordner': ordner} if ordner else {}), **({'url': url} if url else {}), 'autostart': d.get('autostart', False)}
+            self.nr, self.seit, self.text = None, None, json.dumps(wunsch, ensure_ascii=False)
         elif self.art in KONTO_HANDLUNGEN:
             # #95: konto_anlegen: epic 0, text the name or nothing; the others: epic the account's number, no text
             if self.art == 'konto_anlegen' and (self.epic != 0 or len(self.text or '') > 60):

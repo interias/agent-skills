@@ -599,7 +599,7 @@ function handlungWort(x) {
   if (x.handlung === 'einspielen') return 'Einspielen und Treiber neu starten';
   if (x.handlung === 'forge_verknuepfen') return 'Forge am Rechner verknüpfen';
   // #126: the folder by its name only
-  if (x.handlung === 'projekt_hinzufuegen') return `Projekt ${esc(x.ordner)} hinzufügen${x.autostart ? ' (mit Autostart)' : ''}`;
+  if (x.handlung === 'projekt_hinzufuegen') return `Projekt ${esc(x.link ?? x.ordner)} ${x.link ? 'klonen und ' : ''}hinzufügen${x.autostart ? ' (mit Autostart)' : ''}`;
   if (x.handlung === 'projekt_entfernen') return 'Projekt entfernen, Treiber hält an';
   // #95: an account of the machine
   if (x.handlung === 'konto_anlegen') return `Konto anlegen${x.text ? ` (${esc(x.text)})` : ''}`;

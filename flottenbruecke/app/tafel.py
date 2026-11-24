@@ -302,6 +302,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         # #126: adding a project or removing this one on its way to the driver
         liste[-1]['meldetProjekte'] = bool(b.get('projektHandlungen'))
         liste[-1]['hinzufuegen'] = _handlung(offen_h.get((0, 'projekt_hinzufuegen', None, None)))
+        # the field "Link zum Repository" (None: this driver does not clone) and the gaps of its adapter
+        liste[-1]['klonAngebot'] = b.get('klonAngebot')
+        liste[-1]['adapterLuecken'] = b.get('adapterLuecken') or []
         liste[-1]['entfernen'] = _handlung(offen_h.get((0, 'projekt_entfernen', None, None)))
         # #96: the accounts of the machine, the newest report wins; an action goes to the project that reported it
         if b.get('kontenListe') is not None:
@@ -499,9 +502,11 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             elif h['art'] in ('forge_verknuepfen', 'projekt_entfernen'):
                 x = {**x, 'epic': None}
             elif h['art'] == 'projekt_hinzufuegen':
-                # #126: the folder by its name only, as in the logbook
+                # #126: the folder by its name only, as in the logbook; a link by owner/name
                 z = json.loads(h['text'])
-                x = {**x, 'epic': None, 'text': None, 'ordner': re.split(r'[\\/]', z['ordner'].rstrip('\\/'))[-1], 'autostart': z['autostart']}
+                ordner = re.split(r'[\\/]', z['ordner'].rstrip('\\/'))[-1] if z.get('ordner') else None
+                link = '/'.join(z['url'].rstrip('/').split('/')[-2:]).removesuffix('.git') if z.get('url') else None
+                x = {**x, 'epic': None, 'text': None, 'ordner': ordner, 'link': link, 'autostart': z['autostart']}
             elif h['art'].startswith('konto_'):
                 # #95: an account of the machine, no epic
                 x = {**x, 'epic': None, 'konto': h['epic'] or None}

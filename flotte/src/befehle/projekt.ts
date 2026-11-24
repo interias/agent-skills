@@ -1,4 +1,6 @@
 // flotte projekt hinzufuegen <ordner> [--autostart] [--konten 1,2] [--bruecke <url>] | entfernen [<ordner>] (#126).
+// With --klonen <url> the folder may be left out (proposed from the link) and is cloned first when it is
+// missing; an existing one must have the link as origin (src/befehle/klonen.ts).
 // hinzufuegen checks the folder (exists, root of a Git repository) before it writes anything, then writes only
 // two files: the adapter .claude/epic.md from the template of mission/references/adapter.md ("Vorlage"; an
 // existing adapter is never overwritten) and the start script ~/.claude/flotte/start/<name>.ps1 (never over an
@@ -6,14 +8,15 @@
 // --autostart the scheduled task "Flotte <name>" at logon, like einrichten.ps1 step 4, only when it is missing.
 // entfernen halts the driver like `flotte anhalten` and deletes nothing.
 
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { aufrufen, type Aufrufer } from '../aufruf.ts';
+import { aufrufen, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { KONTEN_DATEI, kontenTafel, kontoAus, liesKonten } from '../werkzeuge/konten.ts';
 import { flotteDir } from '../werkzeuge/zustand.ts';
 import { forgeStatus, type ForgeStatus, type ForgeWelt } from './forge.ts';
+import { einrichtenUmschau, giteaHerkuenfte, klonen, ordnerVorschlag, originPasst, pruefeQuelle, type Quelle, vorlageMitQuelle, type Zugang, zugangPruefen, zugangText } from './klonen.ts';
 
 export type Autostart = 'angelegt' | 'vorhanden';
 
@@ -28,6 +31,12 @@ export interface ProjektWelt {
   /** the scheduled task at logon, only when missing; default the real one (tests never register one) */
   autostart?: (aufgabe: string, skript: string) => Autostart;
   abruf?: ForgeWelt['abruf'];
+  /** the clone (--klonen); default the real git */
+  aufrufAsync?: AsyncAufrufer;
+  /** test hatch only: the local source the clone really reads (src/befehle/klonen.ts) */
+  quelleUmleiten?: (url: string) => string;
+  /** the repository of the driver that adds: counts among the projects already there */
+  eigenesRepo?: string;
 }
 
 export interface ProjektErgebnis {
@@ -40,6 +49,8 @@ export interface ProjektErgebnis {
   autostart: Autostart | 'fehlgeschlagen' | null;
   autostartGrund?: string;
   forge: { origin: boolean; status: ForgeStatus | null };
+  /** --klonen: the repository of the link, whether it was cloned (or the folder was there), rights and labels, what setting up needs */
+  klon?: { quelle: string; geklont: boolean; zugang: Zugang; einrichten: string[] };
   /** for events and the CLI: the folder name only, never a path */
   meldung: string;
   /** for the public fleet logbook: what was created, nothing about the forge */
@@ -48,7 +59,7 @@ export interface ProjektErgebnis {
 
 const VORLAGE = fileURLToPath(new URL('../../../mission/references/adapter.md', import.meta.url));
 const STANDARD_BRUECKE = 'http://127.0.0.1:4747';
-const AUFRUF = 'Aufruf: flotte projekt hinzufuegen <ordner> [--autostart] [--konten 1,2] [--bruecke <url>] | entfernen [<ordner>]';
+const AUFRUF = 'Aufruf: flotte projekt hinzufuegen <ordner> [--autostart] [--konten 1,2] [--bruecke <url>] | hinzufuegen [<ordner>] --klonen <https-Link> [--autostart] … | entfernen [<ordner>]';
 
 const wert = (argv: string[], name: string) => {
   const i = argv.indexOf(name);
@@ -124,7 +135,7 @@ const gleicherOrdner = (a: string, b: string) => {
 const ohneAnfuehrung = (s: string) => s.trim().replace(/^(["'])(.*)\1$/, '$2').trim();
 
 /** The folder an existing start script changes to (Set-Location), or null when it names none. */
-function skriptOrdner(text: string): string | null {
+export function skriptOrdner(text: string): string | null {
   const m = /Set-Location\s+(?:-(?:Literal)?Path\s+)?(?:'((?:[^']|'')*)'|"([^"]*)"|([^\s;]+))/i.exec(text);
   if (!m) return null;
   return m[1] !== undefined ? m[1].replace(/''/g, "'") : (m[2] ?? m[3]);
@@ -155,18 +166,69 @@ function forgeText(f: ProjektErgebnis['forge']): string {
   return `${s.art} ${s.forge}, ${s.angemeldet ? `angemeldet${s.konto ? ` als ${s.konto}` : ''}, ${s.rechte === 'ok' ? 'mit' : 'ohne'} Schreibrecht` : 'nicht angemeldet'}`;
 }
 
-export async function hinzufuegen(ordner: string, o: { autostart: boolean; konten?: string[]; bruecke?: string }, w: ProjektWelt): Promise<ProjektErgebnis> {
-  const ohne = ohneAnfuehrung(ordner);
+/** The folders of the projects of this machine: those of the start scripts, and the driver's own. */
+export function bekannteProjekte(w: Pick<ProjektWelt, 'heim' | 'eigenesRepo'>): string[] {
+  const dir = join(w.heim, '.claude', 'flotte', 'start');
+  const aus = w.eigenesRepo ? [resolve(w.eigenesRepo)] : [];
+  let dateien: string[] = [];
+  try {
+    dateien = readdirSync(dir).filter((d) => d.toLowerCase().endsWith('.ps1'));
+  } catch {
+    /* none yet */
+  }
+  for (const d of dateien) {
+    try {
+      const o = skriptOrdner(readFileSync(join(dir, d), 'utf8'));
+      if (o && !aus.some((a) => gleicherOrdner(a, o))) aus.push(o);
+    } catch {
+      /* unreadable */
+    }
+  }
+  return aus;
+}
+
+/** What the bridge needs for the field "Link zum Repository": the Gitea forges allowed besides github.com, the folder new clones go to. */
+export function klonAngebot(w: Pick<ProjektWelt, 'heim' | 'eigenesRepo'>): { gitea: string[]; eltern: string } {
+  const p = bekannteProjekte(w);
+  const eltern = dirname(ordnerVorschlag('x', p, w.heim));
+  // the bridge never sees the user's name: the home folder goes as ~, the driver expands it again
+  return { gitea: giteaHerkuenfte(p), eltern: gleicherOrdner(eltern, w.heim) || eltern.toLowerCase().startsWith(`${w.heim.toLowerCase()}${sep}`) ? `~${eltern.slice(w.heim.length)}` : eltern };
+}
+
+/** --klonen: the folder of the link is cloned when it is missing; an existing one must have the link as origin. */
+async function bereitstellen(q: Quelle, abs: string, w: ProjektWelt, vorher: () => void): Promise<boolean> {
+  if (existsSync(abs)) {
+    pruefeOrdner(abs, w.aufrufer);
+    const r = w.aufrufer('git', ['-C', abs, 'remote', 'get-url', 'origin']);
+    if (r.code) throw new Error(`Den Ordner ${basename(abs)} gibt es schon, aber ohne origin; nicht geklont, nichts geschrieben.`);
+    if (!originPasst(r.stdout, q)) throw new Error(`Den Ordner ${basename(abs)} gibt es schon, sein origin zeigt auf ein anderes Repository als ${q.forge}; nicht geklont, nichts geschrieben. Einen anderen Ordner angeben.`);
+    return false;
+  }
+  vorher();
+  await klonen(q, abs, w);
+  return true;
+}
+
+export async function hinzufuegen(ordner: string | null, o: { autostart: boolean; konten?: string[]; bruecke?: string; klonen?: string }, w: ProjektWelt): Promise<ProjektErgebnis> {
+  const projekte = o.klonen ? bekannteProjekte(w) : [];
+  const quelle = o.klonen ? pruefeQuelle(o.klonen, giteaHerkuenfte(projekte)) : null;
+  const gegeben = ordner?.trim() ? ohneAnfuehrung(ordner) : '';
+  // ~ for the home folder: the bridge proposes clone folders that way (klonAngebot)
+  const ohne = /^~([\\/]|$)/.test(gegeben) ? join(w.heim, gegeben.slice(1)) : gegeben || (quelle ? ordnerVorschlag(quelle.name, projekte, w.heim) : '');
   if (!isAbsolute(ohne) || !/^([A-Za-z]:[\\/]|[\\/])/.test(ohne)) throw new Error('Der Ordner muss ein absoluter Pfad sein (etwa C:\\repos\\projekt); nichts geschrieben.');
-  const abs = pruefeOrdner(ohne, w.aufrufer);
-  const name = basename(abs).replace(/[^\w.-]/g, '-');
+  const name = basename(resolve(ohne)).replace(/[^\w.-]/g, '-');
   const skriptDatei = join(w.heim, '.claude', 'flotte', 'start', `${name}.ps1`);
+  // an existing start script for another folder: refused before anything is written (and before a clone)
+  const fremd = () => {
+    const ziel = existsSync(skriptDatei) ? skriptOrdner(readFileSync(skriptDatei, 'utf8')) : null;
+    if (ziel !== null && !gleicherOrdner(ziel, resolve(ohne))) throw new Error(`Das Startskript ${name}.ps1 gibt es schon für einen anderen Ordner (${basename(ziel)} in ${basename(join(ziel, '..'))}); nichts geschrieben. Das Skript wegräumen oder umbenennen, dann noch einmal.`);
+  };
   // built before anything is written, so a wrong --bruecke or --konten leaves nothing behind
-  const skript = startskript({ name, ordner: abs, konten: o.konten ?? standardKonten(w), bruecke: o.bruecke ?? process.env.FLOTTE_BRUECKE ?? STANDARD_BRUECKE });
-  // an existing start script for another folder: refused before anything is written
+  const skript = startskript({ name, ordner: resolve(ohne), konten: o.konten ?? standardKonten(w), bruecke: o.bruecke ?? process.env.FLOTTE_BRUECKE ?? STANDARD_BRUECKE });
+  const geklont = quelle ? await bereitstellen(quelle, resolve(ohne), w, fremd) : false;
+  const abs = pruefeOrdner(ohne, w.aufrufer);
+  fremd();
   const neuesSkript = !existsSync(skriptDatei);
-  const ziel = neuesSkript ? null : skriptOrdner(readFileSync(skriptDatei, 'utf8'));
-  if (ziel !== null && !gleicherOrdner(ziel, abs)) throw new Error(`Das Startskript ${name}.ps1 gibt es schon für einen anderen Ordner (${basename(ziel)} in ${basename(join(ziel, '..'))}); nichts geschrieben. Das Skript wegräumen oder umbenennen, dann noch einmal.`);
   const origin = w.aufrufer('git', ['-C', abs, 'remote', 'get-url', 'origin']).code === 0;
 
   const adapterDatei = join(abs, '.claude', 'epic.md');
@@ -177,6 +239,8 @@ export async function hinzufuegen(ordner: string, o: { autostart: boolean; konte
   if (vorhanden) adapter = readFileSync(alterName ? altDatei : adapterDatei, 'utf8');
   else {
     adapter = adapterVorlage(readFileSync(w.vorlage ?? VORLAGE, 'utf8'));
+    // what the link tells: forge and api
+    if (quelle) adapter = vorlageMitQuelle(adapter, quelle);
     mkdirSync(join(abs, '.claude'), { recursive: true });
     writeFileSync(adapterDatei, adapter, { flag: 'wx' });
   }
@@ -205,11 +269,15 @@ export async function hinzufuegen(ordner: string, o: { autostart: boolean; konte
     }
   }
 
+  let klon: ProjektErgebnis['klon'];
+  if (quelle) klon = { quelle: quelle.forge, geklont, zugang: await zugangPruefen(abs, quelle, w), einrichten: einrichtenUmschau(abs) };
   const offen = offeneSchluessel(adapter);
   const adapterText = `Adapter ${alterName ? 'unter altem Namen .claude/prd.md, umbenennen in .claude/epic.md' : vorhanden ? 'vorhanden, unverändert' : 'angelegt'}${offen.length ? `, noch auszufüllen: ${offen.join(', ')}` : ''}`;
   const skriptText = `Startskript ${name}.ps1 ${neuesSkript ? 'angelegt' : 'vorhanden, unverändert'}`;
   const autoText = autostart ? `; Autostart ${autostart}` : '';
   const forge = { origin, status };
+  const klonText = klon ? `${klon.geklont ? `geklont aus ${klon.quelle}` : `Ordner schon da, origin passt zu ${klon.quelle}`}; ` : '';
+  const klonRest = klon ? `; ${zugangText(klon.zugang)}; Einrichten: ${klon.einrichten.length ? `gefunden ${klon.einrichten.join(', ')}; nichts davon ausgeführt` : 'nichts gefunden'}` : '';
   return {
     projekt: name,
     ordner: abs,
@@ -218,9 +286,10 @@ export async function hinzufuegen(ordner: string, o: { autostart: boolean; konte
     autostart,
     ...(autostartGrund ? { autostartGrund } : {}),
     forge,
+    ...(klon ? { klon } : {}),
     // the reason only here (the bridge and the CLI), not in the public logbook
-    meldung: `Projekt ${name}: ${adapterText}; ${skriptText}${autoText}${autostartGrund ? `: ${autostartGrund}` : ''}; Forge: ${forgeText(forge)}`,
-    logbuch: `Projekt ${name} hinzugefügt: ${adapterText}; ${skriptText}${autoText}`,
+    meldung: `Projekt ${name}: ${klonText}${adapterText}; ${skriptText}${autoText}${autostartGrund ? `: ${autostartGrund}` : ''}; Forge: ${forgeText(forge)}${klonRest}`,
+    logbuch: `Projekt ${name} hinzugefügt: ${klon?.geklont ? 'geklont; ' : ''}${adapterText}; ${skriptText}${autoText}`,
   };
 }
 
@@ -239,9 +308,13 @@ export async function projekt(argv: string[], w: ProjektWelt = { aufrufer: aufru
   const [befehl, ordner, ...rest] = argv;
   switch (befehl) {
     case 'hinzufuegen': {
-      if (!ordner || ordner.startsWith('--')) throw new Error(AUFRUF);
-      const konten = wert(rest, '--konten')?.split(',').filter(Boolean);
-      return await hinzufuegen(ordner, { autostart: rest.includes('--autostart'), konten, bruecke: wert(rest, '--bruecke') }, w);
+      const flags = argv.slice(1);
+      const link = wert(flags, '--klonen');
+      // the folder is the one word that is neither a switch nor its value, before or after the switches
+      const pfade = flags.filter((x, i) => !x.startsWith('--') && !['--konten', '--bruecke', '--klonen'].includes(flags[i - 1]));
+      if (pfade.length > 1 || (!pfade.length && !link) || (flags.includes('--klonen') && !link?.trim())) throw new Error(AUFRUF);
+      const konten = wert(flags, '--konten')?.split(',').filter(Boolean);
+      return await hinzufuegen(pfade[0] ?? null, { autostart: flags.includes('--autostart'), konten, bruecke: wert(flags, '--bruecke'), klonen: link }, w);
     }
     case 'entfernen':
       return entfernen(ordner ?? '.', w);

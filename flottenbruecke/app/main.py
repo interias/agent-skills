@@ -38,7 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, Verlauf, WerftBericht, WerftHandlung, einstellung_pruefen
+from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, Verlauf, WerftBericht, WerftHandlung, einstellung_pruefen, link_erlaubt
 from .speicher import Speicher
 from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
@@ -397,6 +397,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(409, 'Dieser Treiber kennt die Projekt-Handlungen nicht (älterer Stand).')
             if h.art == 'projekt_entfernen' and p.get('entfernt'):
                 raise HTTPException(409, 'Das Projekt ist schon entfernt.')
+            url = json.loads(h.text).get('url') if h.art == 'projekt_hinzufuegen' else None
+            if url:
+                # the driver clones; github.com or a Gitea forge it reports, nothing else (it checks again)
+                if b.get('klonAngebot') is None:
+                    raise HTTPException(409, 'Dieser Treiber klont nicht (älterer Stand); den Ordner am Rechner angeben oder den Link dort klonen.')
+                try:
+                    link_erlaubt(url, b['klonAngebot']['gitea'])
+                except ValueError as e:
+                    raise HTTPException(422, str(e)) from None
         elif h.art == 'forge_verknuepfen':
             # #125: only a driver that reports its forge fetches it
             if b.get('forgeStatus') is None:

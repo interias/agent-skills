@@ -54,7 +54,9 @@ Frontmatter (Abschnitt „Form").
 ## Vorlage
 
 Ein neuer Adapter beginnt mit diesem Block; `flotte projekt hinzufuegen` legt ihn wortgleich an, wenn
-`.claude/epic.md` fehlt, und meldet die Schlüssel, deren Wert (oder Eintrag) noch in `<…>` steht. Die
+`.claude/epic.md` fehlt (mit `--klonen` sind `forge` und `api` aus dem Link schon eingesetzt), und meldet die
+Schlüssel, deren Wert (oder Eintrag) noch in `<…>` steht. Solange es solche gibt, startet der Flotten-Treiber in
+dem Projekt keine Mission. Die
 übrigen Werte sind die Standards unten; was fehlt, gilt wie in „Schlüssel“ beschrieben.
 
 ```markdown
