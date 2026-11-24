@@ -103,6 +103,32 @@ class Andocken(BaseModel):
     grund: str | None = Field(None, max_length=500)
 
 
+class DeinSchritt(BaseModel):
+    text: str = Field(max_length=300)
+    # where the link of the card goes: the first open question, the PR, the blockade with "Neu einreihen", the issue
+    ziel: Literal['frage', 'pr', 'einreihen', 'issue']
+
+
+class GateKontext(BaseModel):
+    name: str = Field(max_length=100)
+    stand: Literal['fertig', 'laeuft']
+
+
+class LageGate(BaseModel):
+    kontexte: list[GateKontext] = Field([], max_length=40)
+    von: int | None = Field(None, ge=1)
+    seit: str | None = Field(None, max_length=40)
+
+
+class Lage(BaseModel):
+    """What happens with the epic, in one line: a label, the driver's sentence with its reason, since when; the person's step."""
+    etikett: Literal['arbeitet', 'prueft', 'wartet_auf_dich', 'wartet', 'gestoppt', 'fertig']
+    satz: str = Field(max_length=500)
+    seit: str | None = Field(None, max_length=40)
+    deinSchritt: DeinSchritt | None = None
+    gate: LageGate | None = None
+
+
 class Epic(BaseModel):
     nr: int
     titel: str = Field('', max_length=300)
@@ -143,6 +169,8 @@ class Epic(BaseModel):
     prioritaet: Literal['hoch', 'normal'] | None = None
     # #112: how it merges now; an older driver has none (no switch then)
     merge: Andocken | None = None
+    # the line of the card under "Unterwegs" and of a blockade; an older driver has none (the cards as before)
+    lage: Lage | None = None
 
 
 class Fenster(BaseModel):

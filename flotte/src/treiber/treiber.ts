@@ -29,6 +29,8 @@ import { fehlerText, type ForgeZugriff, forgeRepoFuer, type Issue, zugriffFuer }
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
+import { gateStand, missionsWorktrees } from './pruefprotokolle.ts';
+import { type Lage, lageArt, lageVon } from './lage.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
@@ -318,6 +320,9 @@ export interface FlottenEpic extends EpicZustand {
   prognose?: Spanne | null;
   /** #202: spans its next turn was held after the first start: paused by the person, or a brake (account limit, RAM) */
   halte?: { art: 'pause' | 'limit'; von: string; bis: string | null }[];
+  /** Tag H: the kind of the mission's line on the bridge (lageArt) and since when it holds */
+  lageArt?: string | null;
+  lageSeit?: string | null;
 }
 
 export interface FlottenZustand extends Zustand {
@@ -400,6 +405,8 @@ export const DROSSEL_MS = 5 * 60_000;
 
 /** a time of day in the driver's local time, HH:MM */
 const uhr = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+/** Tag H: how long the list of worktrees serves the gate logs of the missions */
+const WORKTREES_MS = 30_000;
 
 /** #199: the cause of a block, for the note on the bridge and the logbook */
 export function ursache(grund: string): 'Limit' | 'Erlaubnis' | 'anderes' {
@@ -470,6 +477,10 @@ const mitTriage = new Set<Treiber>();
 class Treiber {
   z!: FlottenZustand;
   laufend = new Map<number, Promise<void>>();
+  /** Tag H: missions whose question block the admiral answers right now, since (ISO) */
+  beimAdmiral = new Map<number, string>();
+  /** Tag H: `git worktree list --porcelain` of the repository, read at most every WORKTREES_MS */
+  worktreeListe: { zeit: number; text: string } | null = null;
   fertig: { nr: number; r: LaufErgebnis }[] = [];
   bilder: EpicBild[] = [];
   adapter!: Adapter;
@@ -825,7 +836,7 @@ class Treiber {
       const verfolgen = derselbe || unklar;
       this.ereignis(ep.nr, verfolgen ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
       const log = ep.log && existsSync(ep.log) ? ep.log : this.leeresLog(ep.nr);
-      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s), beiZeile: (z, t) => this.agentZeile(ep, z, t, true) })
+      const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s), beiZeile: (z, t) => this.agentZeile(ep, z, t, true), belebt: () => this.gateBelebt(ep) })
         .then((r) => {
           this.fertig.push({ nr: ep.nr, r });
         })
@@ -1056,6 +1067,7 @@ class Treiber {
         werkzeuge: laufWerkzeuge,
         beiSchritt: (s) => this.schritt(ep, s),
         beiZeile: (z, t) => this.agentZeile(ep, z, t, false),
+        belebt: () => this.gateBelebt(ep),
         beimStart: (pid) => {
           ep.pid = pid;
           ep.pidSeit = Date.now();
@@ -1565,17 +1577,21 @@ class Treiber {
     // the admiral's own, as before #52: the person's answers are no precedent of his
     const frueher = this.z.entscheidungen.filter((d) => d.epic === nr && d.von !== 'mensch').map((d) => `- Frage „${d.frage}" → ${d.antwort} (${d.herkunft})`);
     const kontext = `Mission #${nr} in ${this.e.forge}, Repository ${this.e.repo}.${frueher.length ? `\nFrühere Entscheidungen zu dieser Mission:\n${frueher.join('\n')}` : ''}`;
-    const r = await this.w.starte({
-      ...this.programm(),
-      repo: this.e.repo,
-      konto,
-      auftrag: admiralAuftrag(block, kontext),
-      modell: this.e.admiralModell,
-      extraArgs: [...admiralArgs(block), ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
-      werkzeuge: admiralWerkzeuge,
-      leerlaufMs: 15 * 60_000,
-      log: join(this.dir, 'admiral', `${nr}-${this.w.jetzt()}.jsonl`),
-    });
+    this.beimAdmiral.set(nr, new Date(this.w.jetzt()).toISOString());
+    this.brueckeBald();
+    const r = await this.w
+      .starte({
+        ...this.programm(),
+        repo: this.e.repo,
+        konto,
+        auftrag: admiralAuftrag(block, kontext),
+        modell: this.e.admiralModell,
+        extraArgs: [...admiralArgs(block), ...(this.e.admiralEffort ? ['--effort', this.e.admiralEffort] : [])],
+        werkzeuge: admiralWerkzeuge,
+        leerlaufMs: 15 * 60_000,
+        log: join(this.dir, 'admiral', `${nr}-${this.w.jetzt()}.jsonl`),
+      })
+      .finally(() => this.beimAdmiral.delete(nr));
     if (r.fehler === 'werkzeuge') this.ereignis(nr, `${r.stderr.split('\n')[0]}: Admiral beendet, die Fragen gehen an den Menschen`);
     this.antwortenVerteilen(ep, block, antwortenAus(r.fehler === 'werkzeuge' ? null : r.strukturiert, block));
   }
@@ -3022,6 +3038,79 @@ class Treiber {
     });
   }
 
+  /** Tag H: the worktrees of a mission (mission worktree and package worktrees), from a list at most WORKTREES_MS old */
+  missionsWts(ep: FlottenEpic): string[] {
+    const jetzt = Date.now();
+    if (!this.worktreeListe || jetzt - this.worktreeListe.zeit > WORKTREES_MS) {
+      const r = this.w.aufrufer('git', ['-C', this.e.repo, 'worktree', 'list', '--porcelain']);
+      this.worktreeListe = { zeit: jetzt, text: r.code ? '' : r.stdout };
+    }
+    return missionsWorktrees(this.worktreeListe.text, ep.nr, (ep.pakete ?? []).map((p) => p.nr).filter((n): n is number => n != null));
+  }
+
+  /** Tag H: a gate log of the mission written within GATE_STILL_MS keeps the idle limit of its run at rest */
+  gateBelebt(ep: FlottenEpic): { zeit: number; was: string } | null {
+    const g = gateStand(this.missionsWts(ep), Date.now());
+    if (!g) return null;
+    return { zeit: g.zuletzt, was: `Protokoll der Andockprüfung wächst: ${g.kontexte.filter((k) => k.stand === 'laeuft').map((k) => k.name).join(', ')}` };
+  }
+
+  /**
+   * Tag H: the line of the mission for the bridge. Its time is the natural start of the state, else the
+   * moment the driver first reported this kind of line (kept in the state across restarts).
+   */
+  lage(ep: FlottenEpic, pakete: BerichtPaket[]): Lage {
+    const nr = ep.nr;
+    const prozess = this.laufend.has(nr);
+    const lauf = ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe);
+    const gateAuf = lauf && prozess ? (gateLauf(ep.agenten ?? [])?.seit ?? null) : null;
+    // the logs only where a gate may run: the driver's Andockprüfung, the run's gate, or a run at work
+    const ab = ep.gateSeit ?? gateAuf;
+    const gate = ab || (lauf && prozess) ? gateStand(this.missionsWts(ep), Date.now(), ab ? Date.parse(ab) : null) : null;
+    const offen = this.z.fragen.filter((f) => f.epic === nr && !f.beantwortet);
+    const x = lageVon({
+      nr,
+      jetzt: this.w.jetzt(),
+      stufe: ep.stufe,
+      notiz: ep.notiz,
+      pr: ep.pr,
+      prozess,
+      beimAdmiral: this.beimAdmiral.get(nr) ?? null,
+      frageWartet: !!ep.wartendeFrage,
+      fragen: { anzahl: offen.length, ganz: offen.some((f) => f.ganzerLauf), seit: offen.map((f) => f.seit).sort()[0] ?? null },
+      pausiert: ep.pausiert ?? null,
+      limitBis: ep.limitBis ?? null,
+      ramHalt: this.ramBremse.halt && !prozess,
+      schlangePlatz: this.z.schlange.includes(nr) ? this.z.schlange.indexOf(nr) + 1 : null,
+      schlangeSeit: this.z.schlange.includes(nr) ? (ep.schlangeSeit ?? null) : null,
+      andockpruefung: ep.gateSeit ?? null,
+      gateLauf: gateAuf,
+      gateStand: gate,
+      agenten: prozess ? (ep.agenten ?? []) : [],
+      pakete: { fertig: pakete.filter((p) => p.stand === 'fertig').length, gesamt: pakete.length },
+      schritt: ep.schritt ?? null,
+      merge: this.stellung(ep),
+      haltUrsache: ep.haltUrsache ?? null,
+      haltGrund: ep.haltGrund ?? null,
+      haltZeit: ep.haltZeit ?? null,
+      gemergtAm: null,
+      gestartetAm: ep.gestartetAm ?? null,
+    });
+    const art = lageArt(x);
+    if (ep.lageArt !== art) {
+      ep.lageArt = art;
+      ep.lageSeit = new Date(this.w.jetzt()).toISOString();
+    }
+    // the limits of the bridge (flottenbruecke/app/modelle.py, Lage): cut, never refused
+    return {
+      ...x,
+      satz: x.satz.slice(0, 500),
+      seit: x.seit ?? ep.lageSeit ?? null,
+      deinSchritt: x.deinSchritt ? { ...x.deinSchritt, text: x.deinSchritt.text.slice(0, 300) } : null,
+      gate: x.gate ? { ...x.gate, kontexte: x.gate.kontexte.slice(-40).map((k) => ({ ...k, name: k.name.slice(0, 100) })) } : null,
+    };
+  }
+
   bericht(): Bericht {
     const konto = (k: string) => kurzname(k, this.e.admiralKonto);
     return {
@@ -3067,6 +3156,7 @@ class Treiber {
           nach: this.bilder.find((b) => b.nr === ep.nr)?.nach ?? [],
           ...(ep.starts ? { neustarts: ep.starts - 1 } : {}),
           ...(gate ? { gateLauf: gate } : {}),
+          lage: this.lage(ep, pakete),
           ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
       }),

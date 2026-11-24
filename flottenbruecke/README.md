@@ -219,7 +219,11 @@ Drei Ebenen, sortiert danach, was du tun musst:
    die Ebene grau und still.
 2. **Unterwegs** — Läufe und Andock-Schlange als Karten. Je Lauf ein Lebenszeichen: Puls, „letzter
    Schritt vor N min“ und eine Leiste bis zur Leerlauf-Grenze (gelb ab der Hälfte, rot kurz davor,
-   dann stoppt der Puls). Je Mission eine Segmentleiste der Missionsziel-Tickets mit „3 von 5 fertig“;
+   dann stoppt der Puls). Darüber sagt eine Zeile, was mit der Mission geschieht: Etikett (Arbeitet, Prüft,
+   Wartet auf dich, Wartet, Gestoppt), ein Satz des Treibers mit Grund und „seit 42 min“; braucht es dich,
+   steht darunter „Dein Schritt“ mit Link zur Frage, zum PR oder zu „Neu einreihen“ (Bild:
+   [`doku/unterwegs-lage-1440.png`](doku/unterwegs-lage-1440.png)). Der letzte Schritt des Laufs und die
+   Kontexte der Andockprüfung stehen dann in der aufgeklappten Leiste. Je Mission eine Segmentleiste der Missionsziel-Tickets mit „3 von 5 fertig“;
    antippen zeigt `#nr Titel · Stand`, jede Zeile verlinkt aufs Issue (im spec-Modus die Pakete des
    Laufs, `P1`, `P2` …, ohne Link). Läuft eine Andockprüfung, steht im Kopf des Laufs **Andockprüfung n**
    mit Start und Dauer, in der Andock-Schlange die des Treibers ebenso. Darunter eine Zeile **Bereit**,
