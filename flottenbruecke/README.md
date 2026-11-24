@@ -259,6 +259,17 @@ ab. Auf dem Handy (bis 700 px) ist nur „Braucht dich“ offen, die Knöpfe sin
 Die Seite lädt alle 10 s neu und ändert nur Karten, die sich geändert haben; eine Karte, an der du
 gerade antwortest, bleibt stehen.
 
+**Verlauf mitlesen** (Tag J): Ein Klick auf eine Karte unter *Unterwegs* (oder ihr Knopf „Verlauf ›“)
+öffnet rechts eine Schublade mit dem Verlauf der Mission: was der Lauf sagt, je Werkzeug eine Zeile in
+Klartext (Lesen, Tests, Andockprüfung …) mit Ziel und Dauer, Subagenten als aufklappbare Gruppen mit Rolle
+und Paket, Fragen und Entscheidungen hervorgehoben; der rohe Befehl nur hinter „Befehl zeigen“. Die Tafel
+bleibt daneben klickbar, ‹ › und die Pfeiltasten wechseln die Mission, Esc schließt, „Weit“ nimmt die
+ganze Breite, Filter und „Mitlaufen“ stehen im Kopf ([`doku/verlauf-schublade-1440.png`](doku/verlauf-schublade-1440.png)).
+Auf dem Handy schiebt sich ein Blatt von unten hoch, Neuestes oben, Reiter Verlauf · Pakete ·
+Entscheidungen ([`doku/verlauf-blatt-390.png`](doku/verlauf-blatt-390.png)). Lesen darf jedes gekoppelte
+Gerät, auch über den Fernweg; Werkzeugausgaben kommen nie auf die Brücke, Geheimnisse sind maskiert
+(`SCHNITTSTELLE.md`, Abschnitt 5a).
+
 ## Holodeck
 
 Je Projekt ein fester Ordner mit Prototypen: `prototypen/` in der Repo-Wurzel, anders mit dem

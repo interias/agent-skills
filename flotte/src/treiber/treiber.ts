@@ -3,6 +3,7 @@
 // call per question block. Everything the driver decides is in this file and tested by the
 // scripts D1–D21 (test/drehbuecher.test.ts).
 
+import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -31,6 +32,7 @@ import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan,
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { gateStand, missionsWorktrees } from './pruefprotokolle.ts';
 import { type Lage, lageArt, lageVon } from './lage.ts';
+import { fragenUndEntscheidungen, type Klartext, klartextAus, kuerzePfade, maskiere, Verlaufleser } from './verlauf.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
@@ -272,6 +274,8 @@ export interface FlottenEpic extends EpicZustand {
   /** the last step of the run from its log, for the board (#14, round 5, C4) */
   schritt?: string | null;
   schrittZeit?: string | null;
+  /** Tag J: the last step in plain words, for the card on the bridge */
+  klartext?: Klartext | null;
   /** resumes after a silent turn (acceptance finding 13) */
   leerlaeufe?: number;
   /** rules of guard.ps1 that refused a call of this epic's run, in order (acceptance finding B) */
@@ -407,6 +411,9 @@ export const DROSSEL_MS = 5 * 60_000;
 const uhr = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
 /** Tag H: how long the list of worktrees serves the gate logs of the missions */
 const WORKTREES_MS = 30_000;
+/** Tag J: the entries of a mission's history the bridge gets, and how long after its last run an ended mission keeps sending */
+export const VERLAUF_MAX = 300;
+export const VERLAUF_NACH_MS = 2 * 3600_000;
 
 /** #199: the cause of a block, for the note on the bridge and the logbook */
 export function ursache(grund: string): 'Limit' | 'Erlaubnis' | 'anderes' {
@@ -542,6 +549,9 @@ class Treiber {
   /** the set of prototypes the bridge holds (names and contents) and the messages reported once */
   holodeckStand: string | null = null;
   holodeckGemeldet = new Set<string>();
+  /** Tag J: the readers of the missions' logs and the history the bridge last took, per mission */
+  verlaufLeser = new Map<number, Verlaufleser>();
+  verlaufGesendet = new Map<number, string>();
   /** the sessions of the accounts (#41), read in the background at most every SITZUNGEN_MS; the report carries the last reading */
   sitzungen: BerichtSitzung[] = [];
   sitzungenGelesen = 0;
@@ -1097,6 +1107,16 @@ class Treiber {
    */
   agentZeile(ep: FlottenEpic, zeile: string, zeit: number, nachlese: boolean): void {
     if (!this.e.bruecke) return;
+    // Tag J: the step in plain words for the card, with the role and package of a subagent by its call
+    if (zeile.includes('"type":"assistant"')) {
+      try {
+        const k = klartextAus(JSON.parse(zeile), (id) => {
+          const a = (ep.agenten ?? []).find((x) => x.art === 'aufruf' && x.id === id);
+          return a?.rolle === 'implementer' ? { rolle: 'Ingenieur', paket: a.paket ?? null } : a?.rolle === 'reviewer' ? { rolle: 'Erster Offizier', paket: a.paket ?? null } : null;
+        }, this.verlaufOptionen(ep));
+        if (k) ep.klartext = k;
+      } catch { /* no line of JSON */ }
+    }
     if (!zeile.includes('"tool_use') && !zeile.includes('"parent_tool_use_id":"')) return;
     const gate = [this.adapter?.gate_command, this.adapter?.gate_always_command].filter((b): b is string => Boolean(b));
     const neu = eintraegeAus(zeile, zeit, gate).filter((e) => !(nachlese && e.art === 'unter'));
@@ -2764,6 +2784,50 @@ class Treiber {
     for (const id of [...this.zuQuittieren]) if (await this.bruecke.quittiere(id)) this.zuQuittieren = this.zuQuittieren.filter((x) => x !== id);
     for (const id of [...this.handlungenZuQuittieren]) if (await this.bruecke.quittiereHandlung(id)) this.handlungenZuQuittieren = this.handlungenZuQuittieren.filter((x) => x !== id);
     await this.holodeckMelden();
+    await this.verlaufMelden();
+  }
+
+  /** Tag J: gate commands and the roots below which a path of the mission becomes relative */
+  verlaufOptionen(ep: FlottenEpic): { gate: string[]; wurzeln: string[] } {
+    return { gate: [this.adapter?.gate_command, this.adapter?.gate_always_command].filter((b): b is string => Boolean(b)), wurzeln: [...this.missionsWts(ep), this.e.repo] };
+  }
+
+  /**
+   * Tag J: the last step for the bridge: in plain words while the run works, else the driver's own line (a silence,
+   * the end of a turn), masked and with short paths. Never a raw command with a local path.
+   */
+  schrittFuerBruecke(ep: FlottenEpic): string | null {
+    const s = ep.schritt;
+    if (!s) return null;
+    const k = ep.klartext;
+    if (k && !/^(?:still seit|Zugende)/.test(s)) return `${k.paket != null ? `Paket ${typeof k.paket === 'number' ? `#${k.paket}` : k.paket}: ` : ''}${k.rolle ?? 'Orchestrierung'} ${k.satz}`.slice(0, 500);
+    return maskiere(kuerzePfade(s, this.verlaufOptionen(ep).wurzeln)).slice(0, 500);
+  }
+
+  /**
+   * Tag J: the condensed history of each mission at work or ended within VERLAUF_NACH_MS, read on from its logs, with
+   * the questions and decisions; sent only when it changed since the bridge last took it. The report stays as it was.
+   */
+  async verlaufMelden(): Promise<void> {
+    if (!this.bruecke) return;
+    const laeufe = join(this.dir, 'laeufe');
+    for (const ep of Object.values(this.z.epics)) {
+      const zuletzt = this.letzteLaufAktivitaet(ep.nr);
+      if (zuletzt === null) continue;
+      const aktiv = ['laeuft', 'nacharbeit', 'frage', 'pr'].includes(ep.stufe) && this.e.epics.includes(ep.nr);
+      if (!aktiv && Date.now() - zuletzt > VERLAUF_NACH_MS) {
+        this.verlaufLeser.delete(ep.nr);
+        continue;
+      }
+      let leser = this.verlaufLeser.get(ep.nr);
+      if (!leser) this.verlaufLeser.set(ep.nr, (leser = new Verlaufleser(this.verlaufOptionen(ep))));
+      Object.assign(leser.o, this.verlaufOptionen(ep));
+      leser.lies(laeufe, ep.nr);
+      const eintraege = leser.eintraege(VERLAUF_MAX, fragenUndEntscheidungen(ep.nr, this.z.fragen, this.z.entscheidungen));
+      const stand = createHash('sha1').update(JSON.stringify(eintraege)).digest('hex');
+      if (this.verlaufGesendet.get(ep.nr) === stand) continue;
+      if (await this.bruecke.verlauf(this.e.forge, ep.nr, new Date(this.w.jetzt()).toISOString(), eintraege)) this.verlaufGesendet.set(ep.nr, stand);
+    }
   }
 
   /** Reads the sessions of all accounts without holding the turn up; a failure leaves the list empty. */
@@ -3088,7 +3152,8 @@ class Treiber {
       gateStand: gate,
       agenten: prozess ? (ep.agenten ?? []) : [],
       pakete: { fertig: pakete.filter((p) => p.stand === 'fertig').length, gesamt: pakete.length },
-      schritt: ep.schritt ?? null,
+      schritt: this.schrittFuerBruecke(ep),
+      klartext: prozess ? (ep.klartext ?? null) : null,
       merge: this.stellung(ep),
       haltUrsache: ep.haltUrsache ?? null,
       haltGrund: ep.haltGrund ?? null,
@@ -3136,7 +3201,7 @@ class Treiber {
           notiz: ep.notiz,
           geparkt: ep.geparkt,
           pakete: pakete.map((p) => ({ ...p, ...detail.get(p.nr ?? specSchluessel(ep.nr, p.name)) })),
-          schritt: ep.schritt ?? null,
+          schritt: this.schrittFuerBruecke(ep),
           schrittZeit: ep.schrittZeit ?? null,
           prozess: this.laufend.has(ep.nr),
           grund: halt ? `${ep.haltUrsache && ep.haltGrund ? `Ursache ${ep.haltUrsache}: ` : ''}${ep.haltGrund ?? ep.notiz}` : '',

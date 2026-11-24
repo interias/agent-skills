@@ -39,6 +39,7 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
 4. `POST /api/bericht`, danach die Quittung für jede Antwort und Handlung, die jetzt im
    geschriebenen Zustand steht.
 5. `POST /api/holodeck`, nur wenn sich der Satz der Prototypen geändert hat (Abschnitt 5).
+6. `POST /api/verlauf` je Mission, nur wenn sich ihr Verlauf geändert hat (Abschnitt 5a).
 
 **Zeitnah:** Jedes Ereignis des Treibers (neue Frage an den Menschen, Stufenwechsel, Andocken) schickt
 sofort einen Bericht, ohne Quittungen. Solange eine Frage offen ist, fragt der Treiber zwischen den
@@ -500,6 +501,49 @@ sind die Kanten `{nr, titel, stufe, offen, issueUrl}`, `offen` sagt, ob der Vorg
 offen ist (sonst erledigt oder dem Bericht unbekannt, `stufe` dann `null`); `folgen[]` die Nummern
 der offenen Missionen, die nach dieser kommen. Das Projekt trägt wie bisher `prognose`. Alles stammt aus
 dem Bericht, die Brücke fragt keine Forge.
+
+## 5a. Verlauf der Läufe: `POST /api/verlauf`, `GET /api/verlauf` (Tag J)
+
+Was eine Mission gerade tut, zum Mitlesen auf der Brücke. Der Treiber liest die Protokolle der Läufe
+(`laeufe/<nr>-*.jsonl`, stream-json) fortlaufend und verdichtet sie; die Brücke liest keine Datei vom
+Rechner. Der Bericht bleibt, wie er ist: der Verlauf geht eigens und nur, wenn er sich änderte.
+
+**Treiber → Brücke:** `POST /api/verlauf` mit Token, Body (Form: `beispiel/verlauf.json`, dort eine
+Liste mit einem Body): `{forge, epic, stand, eintraege: [...]}`. Antwort `{"ok": true, "eintraege": <n>}`,
+`401` ohne passenden Token, `422` bei ungültigen Feldern, über den Fernweg `403`. Die Liste **ersetzt**
+die vorige der Mission; eine Mission, deren Verlauf sieben Tage nicht kam, verschwindet.
+
+| Feld | Bedeutung | Prüfung der Brücke |
+|---|---|---|
+| `id` | Kennung: Werkzeugaufruf, Textblock, `frage:<nr>:<seit>`, `ent:<nr>:<zeit>` | ≤ 200 Zeichen |
+| `art` | `text` (was der Lauf sagt), `werkzeug`, `gruppe` (Subagent), `frage`, `entscheidung` | eine davon |
+| `zeit`, `bis` | Beginn und Ende (ISO); ohne `bis` läuft es noch, die Seite zählt selbst | ≤ 40 Zeichen |
+| `text` | Text des Laufs, Ziel des Werkzeugs (Datei relativ zum Worktree, Beschreibung des Befehls), Titel der Gruppe, Frage bzw. `Frage n → Antwort · Frage` | ≤ 2000 Zeichen |
+| `gruppe` | `id` der Gruppe, zu der der Eintrag gehört | ≤ 200 |
+| `wz` | Art in Klartext: `Lesen`, `Bearbeiten`, `Schreiben`, `Suchen`, `Tests`, `Befehl`, `Andockprüfung`, `Pull Request`, `Commit`, `Ticket`, `Git`, `Skill`, `Warten`, `Recherche`, `Nachricht`, `Anhalten`, `Bericht` | ≤ 40 |
+| `roh` | der Befehl selbst, maskiert, nur als einklappbares Detail | ≤ 2000 |
+| `stand` | `laeuft`, `fertig`, `fehler`, `abgebrochen`; bei `frage` heißt `laeuft` offen, `fertig` beantwortet | eine davon |
+| `rolle`, `paket` | Gruppe: `Ingenieur`, `Erster Offizier`, `Prüfer`, `Kundschafter` oder `Subagent`; Paket `#480` bzw. `#45-p2` | ≤ 40 |
+| `von` | Entscheidung: `Mensch`, `Admiral`, `Lauf` | ≤ 100 |
+
+Höchstens 400 Einträge je Body; der Treiber schickt die letzten 300 und dazu die Köpfe der Gruppen,
+deren Arbeit darin steht. **Nie eine Werkzeugausgabe.** Vor dem Senden maskiert der Treiber Geheimnisse
+(`sk-…`, `ghp_…`, `github_pat_…`, `glpat-…`, `xox…-`, `AKIA…`, JWT, `Authorization`/`Bearer`,
+Zugangsdaten in URLs, der Wert jedes Namens wie `*TOKEN*`, `*SECRET*`, `*PASSWORD*`, `*_KEY`, `*-PIN`
+in Zuweisung, Kopfzeile oder Option) zu `***` und kürzt lokale Pfade: unter einem Worktree der Mission
+oder dem Repository relativ, sonst unter dem Benutzerordner `~`. Fragen und Entscheidungen der Mission
+kommen aus seinem Zustand. Er schickt für Missionen, die laufen oder einen PR haben, und für beendete
+bis zwei Stunden nach ihrem letzten Lauf, nach dem Bericht des Takts, mit 10 s Zeitgrenze; gemerkt wird
+ein SHA-1 über die Einträge, ein Neustart liest die Protokolle neu (die neuesten bis 32 MB) und schickt einmal.
+
+**Seite → Brücke:** `GET /api/verlauf?forge=<owner/name>&epic=<nr>` → `{forge, epic, stand, empfangen,
+eintraege}`, `404` ohne Verlauf. Nur ein gekoppeltes Gerät (auch über den Fernweg) oder der Rechner
+selbst liest; sonst `401` mit `X-Bruecke-Grund: geraet`. Es gibt keinen Weg zurück zum Lauf, und keine
+Push-Nachricht trägt Verlaufstext.
+
+**Schritt im Bericht:** `schritt` der Mission und der Satz der `lage` bei „Arbeitet“ nutzen dieselbe
+Übersetzung: „Paket #481: Ingenieur fährt Tests: …“, „Orchestrierung liest mission/SKILL.md“. Eigene
+Zeilen des Treibers („still seit …“, „Zugende …“) gehen maskiert und mit kurzen Pfaden.
 
 ## 6. Werft: `POST /api/werft`, `GET /api/werft/handlungen`
 

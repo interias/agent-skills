@@ -28,7 +28,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
@@ -38,7 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
+from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, Verlauf, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
@@ -57,6 +57,8 @@ GERAET_MAX_ALTER = 400 * 24 * 3600
 BEFEHL_MAX = 600
 # GETs that write: fetching marks answers and actions as fetched, the chat service's fetch remembers its machine and
 # accounts (#85). Only driver, Werft and chat service fetch, and only in the LAN.
+# Tag J: how long the bridge keeps the history of a mission the driver no longer sends
+VERLAUF_TAGE = 7
 ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen', '/api/chat/nachrichten')
 
 # A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
@@ -278,6 +280,14 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         speicher.prototypen_setzen(h.forge, [d.model_dump() for d in h.dateien])
         return {'ok': True, 'dateien': len(h.dateien)}
 
+    # Tag J: the condensed history of a mission's runs; only the driver writes it, a paired device reads it (GET below)
+    @app.post('/api/verlauf')
+    def verlauf_empfangen(v: Verlauf, x_bruecke_token: str | None = Header(None)) -> dict:
+        treiber(x_bruecke_token)
+        alt = (jetzt() - timedelta(days=VERLAUF_TAGE)).isoformat(timespec='seconds')
+        speicher.verlauf_setzen(v.forge, v.epic, v.stand, [x.model_dump(exclude_none=True) for x in v.eintraege], stempel(), alt)
+        return {'ok': True, 'eintraege': len(v.eintraege)}
+
     # ---- Werft (#90, agent-skills/ADR-0005): like the driver it only calls; the bridge commands nothing
 
     @app.post('/api/werft')
@@ -321,6 +331,16 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         t['notaus'] = speicher.notaus()
         t['geraeteLogbuch'] = speicher.logbuch()
         return t
+
+    # Tag J: reading only, no way back to the run; a paired device (also over the remote entry) or the machine itself
+    @app.get('/api/verlauf')
+    def verlauf_lesen(forge: str, epic: int, request: Request) -> dict:
+        if geraet_von(request) is None and not am_rechner(request):
+            raise HTTPException(401, 'Dieses Gerät ist nicht gekoppelt: den Verlauf sieht nur ein gekoppeltes Gerät.', headers={'X-Bruecke-Grund': 'geraet'})
+        v = speicher.verlauf(forge, epic)
+        if v is None:
+            raise HTTPException(404, 'Für diese Mission ist noch kein Verlauf da.')
+        return v
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
     @app.get('/holodeck/{besitzer}/{repo}/{name}')

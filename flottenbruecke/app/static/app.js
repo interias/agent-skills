@@ -435,6 +435,9 @@ function gateLaufHtml(g) {
   return `<span class="gate-lauf">Andockprüfung ${esc(g.n)}${datum(g.seit) ? ` · Start ${esc(uhrzeit(g.seit))}, ${zeitHtml(g.seit, 'seit {}', null, 'rel gate')}` : ''}</span>`;
 }
 
+// Tag J: every card under Unterwegs opens the history of its mission (verlauf.js); a tap on the card does the same
+const VERLAUF_KNOPF = '<button type="button" class="verlauf-auf" data-verlauf aria-label="Verlauf der Mission öffnen">Verlauf ›</button>';
+
 function laufHtml(x) {
   const nr = x.issueUrl ? `<a class="nr" href="${esc(x.issueUrl)}">#${x.nr}</a>` : `<span class="nr">#${x.nr}</span>`;
   // how long the epic runs (since its first run); a tap shows the start as clock time
@@ -449,13 +452,13 @@ function laufHtml(x) {
     const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
     const gate = x.lage ? '' : x.gateLauf ? gateLaufHtml(x.gateLauf) : x.gateSeit ? zeitHtml(x.gateSeit, 'Andockprüfung seit {}', null, 'rel gate') : '';
     // the driver's line says what happens; the PR stays a link in the line below, which the phone shows too
-    if (x.lage) return `${kopfz}${titel}${lageHtml(x)}${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${pr ? `${pr} · ` : ''}${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
-    return `${kopfz}${titel}<span class="schritt">${pr}${x.notiz ? ` · ${esc(x.notiz)}` : ''}</span>${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
+    if (x.lage) return `${kopfz}${titel}${lageHtml(x)}${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${pr ? `${pr} · ` : ''}${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>${VERLAUF_KNOPF}`;
+    return `${kopfz}${titel}<span class="schritt">${pr}${x.notiz ? ` · ${esc(x.notiz)}` : ''}</span>${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>${VERLAUF_KNOPF}`;
   }
-  if (x.lage) return `${kopfz}${titel}${kopfmeta}${lageHtml(x)}${paketeHtml(x)}${lebenHtml(x)}`;
+  if (x.lage) return `${kopfz}${titel}${kopfmeta}${lageHtml(x)}${paketeHtml(x)}${lebenHtml(x)}${VERLAUF_KNOPF}`;
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
   const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
-  return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
+  return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}${VERLAUF_KNOPF}`;
 }
 
 // the driver's line (lage): a label, the sentence with its reason, since when; below it the person's step with
