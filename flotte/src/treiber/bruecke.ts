@@ -199,6 +199,10 @@ export interface Bericht {
   forgeStatus?: { art: 'github' | 'gitea'; forge: string; angemeldet: boolean; konto: string | null; rechte: 'ok' | 'fehlt' | null; treiber: boolean } | null;
   /** #126: the driver fetches projekt_hinzufuegen and projekt_entfernen */
   projektHandlungen?: boolean;
+  /** projekt_hinzufuegen with a link: the Gitea forges (https origins) allowed besides github.com, the folder new clones go to; null: not readable */
+  klonAngebot?: { gitea: string[]; eltern: string } | null;
+  /** the keys of the adapter still in <…> as in the template; while there are any, no mission starts */
+  adapterLuecken?: string[];
   ram: { stufe: string; halt: boolean; prozent: number | null } | null;
   platte: { freiGb: number | null; genug: boolean } | null;
   obergrenze: number | null;

@@ -92,8 +92,17 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
 
   // ---- projects (#126): "Projekt hinzufügen" goes to a running driver of a reported project, which writes adapter
   // and start script in the folder at its machine; "Entfernen" halts a project's driver and takes it from the list,
-  // nothing is deleted. Both with the PIN. The typed folder survives the reload of the page.
+  // nothing is deleted. Both with the PIN. The typed folder survives the reload of the page. With a link to the
+  // repository the driver clones first; the folder is proposed from the link (next to the projects there) until
+  // the person types one. An adapter with gaps of the template starts no mission: the card names the person's step.
   let ordnerEntwurf = '';
+  let linkEntwurf = '';
+  let ordnerVorschlag = '';
+  const linkName = (link) => /^https:\/\/[^/?#]+\/[\w.-]+\/([\w.-]+?)(?:\.git)?\/?$/.exec(link.trim())?.[1] ?? '';
+  const lueckenHtml = (p) =>
+    p.adapterLuecken?.length
+      ? `<p class="dein-schritt"><b>Dein Schritt:</b> Adapter ausfüllen (in einem eigenen Chat)</p><p class="mr-hilfe">Noch auszufüllen in <code>.claude/epic.md</code>: ${p.adapterLuecken.map((k) => `<code>${esc(k)}</code>`).join(', ')}. Bis dahin startet hier keine Mission.</p>`
+      : '';
   const holtProjekte = (t) => t.projekte.filter((p) => p.meldetProjekte && !p.veraltet);
   const projektWartet = (h, was) => (h ? `<span class="mr-wartet">${was} wartet auf den Rechner${h.abgeholt ? ' · abgeholt' : ''}</span>` : '');
 
@@ -101,14 +110,35 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     if (!t.projekte.length) return '';
     const zu = !t.pin ? ' disabled' : '';
     const karten = t.projekte.map((p) => `<article class="mr-karte${p.veraltet ? ' veraltet' : ''}"><h3>${esc(p.kurz)}</h3>
-<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
+<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
     const treiber = holtProjekte(t);
     const wartet = t.projekte.find((p) => p.hinzufuegen);
     const wahl = treiber.length > 1 ? `<label class="mr-feld">über den Treiber von<select class="mr-ordner" name="projekt-ueber"${zu}>${treiber.map((p) => `<option value="${esc(p.forge)}">${esc(p.kurz)}${p.rechner ? ` · ${esc(p.rechner)}` : ''}</option>`).join('')}</select></label>` : '';
+    const klont = treiber.some((p) => p.klonAngebot);
+    const gitea = [...new Set(treiber.flatMap((p) => p.klonAngebot?.gitea ?? []))].map((g) => g.replace(/^https:\/\//, ''));
+    const linkFeld = klont ? `<label class="mr-feld">oder Link zum Repository<input type="url" class="mr-ordner" name="projekt-link" maxlength="300" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://github.com/owner/name" value="${esc(linkEntwurf)}"${zu}></label>` : '';
+    const linkHilfe = klont
+      ? `<p class="mr-hilfe">Mit Link klont der Rechner das Repository im Hintergrund, mit seiner eigenen Git- und gh-Anmeldung (keine Zugangsdaten über die Brücke); erlaubt sind nur <code>https://</code>-Links auf github.com${gitea.length ? ` oder ${gitea.map((g) => `<code>${esc(g)}</code>`).join(', ')}` : ''}. Der Ordner wird aus dem Link vorgeschlagen und ist änderbar; gibt es ihn schon, klont der Rechner nicht, sondern prüft, ob sein <code>origin</code> zum Link passt. Danach prüft er Schreibrecht und Issues, legt fehlende Labels der Flotte an und nennt, was zum Einrichten fehlt (Abhängigkeiten, <code>.env</code>); ausgeführt wird davon nichts, Geheimnisse trägst du selbst ein.</p>`
+      : '';
     const neu = treiber.length
-      ? `<div class="mr-projekt-neu knoepfe" data-ueber="${esc(treiber[0].forge)}">${wahl}<label class="mr-feld">Ordner am Rechner<input type="text" class="mr-ordner" name="projekt-ordner" maxlength="260" autocomplete="off" spellcheck="false" placeholder="C:\\pfad\\zum\\repository" value="${esc(ordnerEntwurf)}"${zu}></label><label class="mr-chip"><input type="checkbox" name="projekt-autostart"${zu}><span>Autostart beim Anmelden</span></label><button type="button" class="knopf haupt" data-projekt-hinzufuegen${zu || (wartet ? ' disabled' : '')}>Projekt hinzufügen</button><span class="status" role="status">${projektWartet(wartet?.hinzufuegen, 'Hinzufügen')}</span></div><p class="mr-hilfe">Der Rechner prüft den Ordner (vorhanden, ein Git-Repository) und schreibt nur zwei Dateien: den Adapter <code>.claude/epic.md</code> aus der Vorlage, wenn er fehlt, und das Startskript <code>~/.claude/flotte/start/&lt;name&gt;.ps1</code>. Was angelegt wurde und was im Adapter noch auszufüllen ist, steht danach als Ereignis. „Entfernen“ hält den Treiber an; eine geplante Aufgabe „Flotte &lt;name&gt;“ (Autostart) bleibt und startet ihn bei jeder Anmeldung wieder, abschalten in der Aufgabenplanung (deaktivieren oder löschen).</p>`
-      : '<p class="mr-hilfe">Hinzufügen holt ein laufender Treiber ab; gerade meldet sich keiner. Am Rechner: <code>flotte projekt hinzufuegen &lt;ordner&gt; [--autostart]</code>.</p>';
+      ? `<div class="mr-projekt-neu knoepfe" data-ueber="${esc(treiber[0].forge)}">${wahl}${linkFeld}<label class="mr-feld">Ordner am Rechner${klont ? ' (bei Link: Vorschlag)' : ''}<input type="text" class="mr-ordner" name="projekt-ordner" maxlength="260" autocomplete="off" spellcheck="false" placeholder="C:\\pfad\\zum\\repository" value="${esc(ordnerEntwurf)}"${zu}></label><label class="mr-chip"><input type="checkbox" name="projekt-autostart"${zu}><span>Autostart beim Anmelden</span></label><button type="button" class="knopf haupt" data-projekt-hinzufuegen${zu || (wartet ? ' disabled' : '')}>Projekt hinzufügen</button><span class="status" role="status">${projektWartet(wartet?.hinzufuegen, 'Hinzufügen')}</span></div><p class="mr-hilfe">Der Rechner prüft den Ordner (vorhanden, ein Git-Repository) und schreibt nur zwei Dateien: den Adapter <code>.claude/epic.md</code> aus der Vorlage, wenn er fehlt, und das Startskript <code>~/.claude/flotte/start/&lt;name&gt;.ps1</code>. Was angelegt wurde und was im Adapter noch auszufüllen ist, steht danach als Ereignis; solange der Adapter Lücken der Vorlage hat, startet in dem Projekt keine Mission. „Entfernen“ hält den Treiber an; eine geplante Aufgabe „Flotte &lt;name&gt;“ (Autostart) bleibt und startet ihn bei jeder Anmeldung wieder, abschalten in der Aufgabenplanung (deaktivieren oder löschen).</p>${linkHilfe}`
+      : '<p class="mr-hilfe">Hinzufügen holt ein laufender Treiber ab; gerade meldet sich keiner. Am Rechner: <code>flotte projekt hinzufuegen &lt;ordner&gt; [--autostart]</code> oder <code>flotte projekt hinzufuegen --klonen &lt;https-Link&gt; [&lt;ordner&gt;]</code>.</p>';
     return `<h3 class="mr-titel">Projekte</h3><div class="mr-reihe">${karten}</div>${neu}`;
+  }
+
+  // the folder proposed from the link: next to the projects of the chosen driver's machine; a typed folder stays
+  function linkGetippt(feld) {
+    linkEntwurf = feld.value;
+    const zeile = feld.closest('.mr-projekt-neu');
+    const ordnerFeld = zeile.querySelector('[name="projekt-ordner"]');
+    const ueber = zeile.querySelector('[name="projekt-ueber"]')?.value ?? zeile.dataset.ueber;
+    const eltern = (letzte?.projekte ?? []).find((p) => p.forge === ueber)?.klonAngebot?.eltern;
+    const name = linkName(feld.value);
+    if (!eltern || (ordnerFeld.value.trim() && ordnerFeld.value !== ordnerVorschlag)) return;
+    const trenner = eltern.includes('\\') ? '\\' : '/';
+    ordnerVorschlag = name ? `${eltern.replace(/[\\/]+$/, '')}${trenner}${name}` : '';
+    ordnerFeld.value = ordnerVorschlag;
+    ordnerEntwurf = ordnerVorschlag;
   }
 
   async function projektKnopf(ev) {
@@ -123,16 +153,25 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     const zeile = ev.target.closest('.mr-projekt-neu');
     const status = zeile.querySelector('.status');
     const ordner = zeile.querySelector('[name="projekt-ordner"]').value.trim();
-    if (!ordner) {
+    const url = zeile.querySelector('[name="projekt-link"]')?.value.trim() ?? '';
+    const ueber = zeile.querySelector('[name="projekt-ueber"]')?.value ?? zeile.dataset.ueber;
+    const fehlt = !ordner && !url ? 'Erst den Ordner oder einen Link angeben.' : url && !(letzte?.projekte ?? []).find((p) => p.forge === ueber)?.klonAngebot ? 'Dieser Treiber klont nicht (älterer Stand); einen anderen wählen oder den Ordner am Rechner angeben.' : '';
+    if (fehlt) {
       status.className = 'status schlecht';
-      status.textContent = 'Erst den Ordner angeben.';
+      status.textContent = fehlt;
       return;
     }
     const autostart = zeile.querySelector('[name="projekt-autostart"]').checked;
-    const ueber = zeile.querySelector('[name="projekt-ueber"]')?.value ?? zeile.dataset.ueber;
-    if (!(await bestaetigen(`Den Ordner ${ordner} als Projekt hinzufügen${autostart ? ', mit Autostart beim Anmelden' : ''}? Der Rechner schreibt nur Adapter (wenn er fehlt) und Startskript.`, 'Hinzufügen'))) return;
-    if (await senden('/api/handlung', { forge: ueber, epic: 0, art: 'projekt_hinzufuegen', nr: null, seit: null, text: JSON.stringify({ ordner, autostart }) }, zeile, status)) {
+    const mit = autostart ? ', mit Autostart beim Anmelden' : '';
+    const frage = url
+      ? `Das Repository ${url} ${ordner ? `nach ${ordner} ` : ''}klonen und als Projekt hinzufügen${mit}? Der Rechner klont mit seiner eigenen Anmeldung, legt fehlende Labels an und schreibt Adapter (wenn er fehlt) und Startskript; Abhängigkeiten und .env richtet er nicht ein.`
+      : `Den Ordner ${ordner} als Projekt hinzufügen${mit}? Der Rechner schreibt nur Adapter (wenn er fehlt) und Startskript.`;
+    if (!(await bestaetigen(frage, url ? 'Klonen' : 'Hinzufügen'))) return;
+    const wunsch = { ...(ordner ? { ordner } : {}), ...(url ? { url } : {}), autostart };
+    if (await senden('/api/handlung', { forge: ueber, epic: 0, art: 'projekt_hinzufuegen', nr: null, seit: null, text: JSON.stringify(wunsch) }, zeile, status)) {
       ordnerEntwurf = '';
+      linkEntwurf = '';
+      ordnerVorschlag = '';
       await laden();
     }
   }
@@ -175,7 +214,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     konto: { titel: 'Konto anlegen', text: 'Ein Konto ist ein Claude-Konfigordner auf dem Rechner. Mit laufendem Treiber legt „Konto anlegen“ unten das nächste an; ohne Treiber am Rechner: <code>flotte konten anlegen</code>.' },
     anmeldung: { titel: 'Am Rechner anmelden', text: '„Am Rechner anmelden“ öffnet dort ein Terminal mit <code>claude</code>; die Anmeldung (<code>/login</code>) machst du am Rechner, nichts davon geht durch die Brücke. Ohne Treiber: <code>flotte konten anmelden &lt;nr&gt;</code>.' },
     forge: { titel: 'Forge verknüpfen', text: '„Am Rechner verknüpfen“ unter „Forge“ öffnet dort <code>gh auth login</code> (Gitea: Benutzer und Token in den Git-Credential-Speicher des Rechners); ohne Treiber: <code>flotte forge verknuepfen &lt;repo&gt;</code>. Fertig, wenn ein Treiber die Forge angemeldet und mit Schreibrecht meldet.' },
-    projekt: { titel: 'Projekt hinzufügen', text: '„Projekt hinzufügen“ unter „Projekte“ nimmt den Ordner eines Repositorys am Rechner: Ein laufender Treiber legt dort den Adapter an (wenn er fehlt) und das Startskript, auf Wunsch mit Autostart. Ohne laufenden Treiber am Rechner: <code>flotte projekt hinzufuegen &lt;ordner&gt; [--autostart]</code>, dann das Startskript starten; sein erster Bericht legt das Projekt hier an.' },
+    projekt: { titel: 'Projekt hinzufügen', text: '„Projekt hinzufügen“ unter „Projekte“ nimmt den Ordner eines Repositorys am Rechner oder einen https-Link zum Repository (dann klont der Rechner es selbst): Ein laufender Treiber legt dort den Adapter an (wenn er fehlt) und das Startskript, auf Wunsch mit Autostart. Ohne laufenden Treiber am Rechner: <code>flotte projekt hinzufuegen &lt;ordner&gt; [--autostart]</code>, dann das Startskript starten; sein erster Bericht legt das Projekt hier an.' },
   };
   const STAND_SCHRITT = { offen: 'offen', wartet: 'wartet auf den Rechner', fertig: 'fertig' };
 
@@ -641,6 +680,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
         el.dataset.verdrahtet = '1';
         el.addEventListener('input', (ev) => {
           if (ev.target.name === 'projekt-ordner') ordnerEntwurf = ev.target.value;
+          else if (ev.target.name === 'projekt-link') linkGetippt(ev.target);
           else geaendert(ev);
         });
         el.addEventListener('click', (ev) => {

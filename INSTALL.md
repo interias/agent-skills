@@ -41,7 +41,8 @@ und anmelden, Forge verknüpfen, Projekt hinzufügen).
    Startskript in `~/.claude/flotte/start/*.ps1` eine `Flotte <name>`, je für den angemeldeten Benutzer;
    Docker Desktop muss dafür selbst beim Anmelden starten. Ein zweiter Lauf ändert nichts Bestehendes.
    Ein Startskript schreibt man nicht von Hand: `flotte projekt hinzufuegen <ordner> [--autostart]` (oder
-   „Projekt hinzufügen“ im Maschinenraum) legt es dort an, mit `--autostart` samt Aufgabe `Flotte <name>`.
+   „Projekt hinzufügen“ im Maschinenraum) legt es dort an, mit `--autostart` samt Aufgabe `Flotte <name>`;
+   mit `--klonen <https-Link>` (oder dem Link im Maschinenraum) klont der Rechner das Repository vorher selbst.
    `install.ps1 -OhneBruecke` lässt die Brücke aus; so ruft der Treiber es beim Einspielen auf.
 3. **Trocken prüfen** und die Ausgabe lesen:
 

@@ -2515,6 +2515,52 @@ describe('Projekte über die Brücke (#126)', () => {
     }
   }, T);
 
+  it('projekt_hinzufuegen with a link only: the driver clones beside the loop into the proposed folder, start and result as events; the report offers the field', async () => {
+    const t = aufbau();
+    const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));
+    // the source of the clone: a local bare repository through the test hatch, never the network
+    const arbeit = join(mkdtempSync(join(tmpdir(), 'flotte-quelle-')), 'arbeit');
+    mkdirSync(arbeit);
+    aufrufen('git', ['-C', arbeit, 'init', '-q']);
+    writeFileSync(join(arbeit, 'README.md'), 'klein\n');
+    aufrufen('git', ['-C', arbeit, 'add', '.']);
+    aufrufen('git', ['-C', arbeit, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'start']);
+    const bare = `${arbeit}.git`;
+    aufrufen('git', ['clone', '-q', '--bare', arbeit, bare]);
+    t.welt.projekt = { heim, kontenDatei: join(heim, 'konten.json'), autostart: () => 'angelegt', quelleUmleiten: () => bare };
+    const liste: Wunsch[] = [{ epic: 0, art: 'projekt_hinzufuegen', text: JSON.stringify({ url: 'https://github.com/octo/klein', autostart: false }) }];
+    const b = await attrappe(() => null, { handlung: () => liste.shift() ?? null });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 4000 }), t.welt);
+      const ziel = join(t.repo, '..', 'klein');
+      expect(readFileSync(join(ziel, 'README.md'), 'utf8')).toContain('klein');
+      expect(readFileSync(join(ziel, '.claude', 'epic.md'), 'utf8')).toMatch(/^forge: github$/m);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte).toContain('Projekt hinzufügen mit Link: der Klon läuft im Hintergrund, das Ergebnis folgt als Ereignis');
+      expect(texte.filter((x) => x.startsWith('Projekt klein: geklont aus octo/klein; Adapter angelegt'))).toHaveLength(1);
+      expect(t.p.kommentare.filter((k) => k.text.includes('Projekt klein hinzugefügt: geklont;'))).toHaveLength(1);
+      expect(b.berichte.at(-1)!.klonAngebot).toEqual({ gitea: [], eltern: resolve(t.repo, '..') });
+      expect(b.berichte.at(-1)!.adapterLuecken).toEqual([]);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('an adapter with gaps of the template starts no mission: the mission waits on it, one event, the report names the gaps', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\ngate_command: <PowerShell-Befehl der ganzen Andockprüfung>\ncommit_style: <conventional>' });
+    const b = await attrappe(() => null);
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: ende(3, 13) }])]), [3], { bruecke: b.url, maxDauerMs: 2500 }), t.welt);
+      expect(z.epics['3'].stufe).toBe('wartend');
+      expect(z.epics['3'].notiz).toBe('wartet auf den Adapter (noch auszufüllen: gate_command, commit_style)');
+      expect(z.ereignisse.filter((x) => x.text.startsWith('Adapter unvollständig'))).toEqual([expect.objectContaining({ text: 'Adapter unvollständig, noch auszufüllen: gate_command, commit_style; keine Mission startet, bis er ausgefüllt ist' })]);
+      expect(z.epics['3'].konto).toBeNull();
+      expect(b.berichte.at(-1)!.adapterLuecken).toEqual(['gate_command', 'commit_style']);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('projekt_hinzufuegen for a folder that is no Git repository: refused as an event, nothing written', async () => {
     const t = aufbau();
     const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));

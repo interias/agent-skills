@@ -12,7 +12,7 @@ import { type Adapter, adapterAus, belege, type EpicBild, freigegebene, sammle }
 import { aktiveAuswahl, KONTEN_DATEI, kontenTafel, kontoAus, kurzname, liesKonten } from '../werkzeuge/konten.ts';
 import { anmeldung, konten as kontenBefehl, type KontenWelt } from '../befehle/konten.ts';
 import { forgeStatus, type ForgeStatus, type ForgeWelt, verknuepfen } from '../befehle/forge.ts';
-import { hinzufuegen as projektHinzufuegen, type ProjektWelt } from '../befehle/projekt.ts';
+import { hinzufuegen as projektHinzufuegen, klonAngebot, offeneSchluessel, type ProjektWelt } from '../befehle/projekt.ts';
 import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
@@ -178,7 +178,7 @@ export interface Welt {
   /** #125: the Gitea API and the terminal for linking the forge; default the real ones */
   forge?: Partial<Pick<ForgeWelt, 'abruf' | 'terminal'>>;
   /** #126: home folder, konten.json, adapter template and the scheduled task of a new project; default the real ones */
-  projekt?: Partial<Pick<ProjektWelt, 'heim' | 'kontenDatei' | 'vorlage' | 'autostart'>>;
+  projekt?: Partial<Pick<ProjektWelt, 'heim' | 'kontenDatei' | 'vorlage' | 'autostart' | 'aufrufAsync' | 'quelleUmleiten'>>;
 }
 
 export const echteWelt: Welt = {
@@ -585,6 +585,10 @@ class Treiber {
   einspielenWunsch: { seit: string; bruecke: string | null } | null = null;
   /** #126: projekt_entfernen over the bridge: the driver halts like `flotte anhalten`, nothing is deleted */
   entfernenWunsch = false;
+  /** a clone of projekt_hinzufuegen with a link is under way; one at a time */
+  klontGerade = false;
+  /** the placeholders of the template still in the adapter, last reported; while there are any, no mission starts */
+  lueckenGemeldet = '';
 
   /** #127: the forge of the project, GitHub or Gitea by the adapter */
   readonly forge: ForgeZugriff;
@@ -1232,6 +1236,17 @@ class Treiber {
         ep.notiz = `Vorgänger #${tot} ist ${stufeText(this.epic(tot).stufe)}`;
         this.ereignis(b.nr, ep.notiz);
       }
+    }
+    // an adapter with gaps of the template (gate command, test commands …) starts no mission; the bridge shows the person's step
+    const luecken = this.adapterLuecken();
+    if (luecken.join(',') !== this.lueckenGemeldet) {
+      this.lueckenGemeldet = luecken.join(',');
+      this.ereignis(null, luecken.length ? `Adapter unvollständig, noch auszufüllen: ${luecken.join(', ')}; keine Mission startet, bis er ausgefüllt ist` : 'Adapter ausgefüllt: Missionen starten wieder');
+    }
+    if (luecken.length) {
+      const notiz = `wartet auf den Adapter (noch auszufüllen: ${luecken.join(', ')})`;
+      for (const b of this.bilder) if (this.epic(b.nr).stufe === 'wartend' && this.epic(b.nr).notiz !== notiz) this.epic(b.nr).notiz = notiz;
+      return;
     }
     if (this.ramBremse.halt || !this.platteGenug) return;
     // #95: a deactivated account gets no new epic, its running ones go on
@@ -1989,25 +2004,57 @@ class Treiber {
   // ---- projects (#126): the machine writes adapter and start script of another folder; the logbook names only its folder
 
   get projektWelt(): ProjektWelt {
-    return { aufrufer: this.w.aufrufer, heim: homedir(), kontenDatei: this.kontenWelt.datei, abruf: this.w.forge?.abruf, ...this.w.projekt };
+    return { aufrufer: this.w.aufrufer, heim: homedir(), kontenDatei: this.kontenWelt.datei, abruf: this.w.forge?.abruf, eigenesRepo: this.e.repo, ...this.w.projekt };
   }
 
   /** projekt_hinzufuegen over the bridge, with the PIN: like `flotte projekt hinzufuegen`, the start script reports to this bridge */
   projektHinzufuegen(h: BrueckenHandlung): void {
     const nein = (grund: string) => this.ereignis(null, `Projekt hinzufügen über die Brücke abgelehnt: ${grund.slice(0, 300)}`);
-    let wunsch: { ordner?: unknown; autostart?: unknown } | null;
+    let wunsch: { ordner?: unknown; url?: unknown; autostart?: unknown } | null;
     try {
       wunsch = JSON.parse(h.text ?? 'null');
     } catch {
       wunsch = null;
     }
-    if (typeof wunsch?.ordner !== 'string' || !wunsch.ordner.trim()) return nein('kein Ordner');
-    projektHinzufuegen(wunsch.ordner.trim(), { autostart: wunsch.autostart === true, bruecke: this.e.bruecke ?? undefined }, this.projektWelt)
+    const ordner = typeof wunsch?.ordner === 'string' && wunsch.ordner.trim() ? wunsch.ordner.trim() : null;
+    const url = typeof wunsch?.url === 'string' && wunsch.url.trim() ? wunsch.url.trim() : undefined;
+    if (!ordner && !url) return nein('kein Ordner und kein Link');
+    // the clone runs beside the loop with the Git and gh login of this machine; one at a time
+    if (url && this.klontGerade) return nein('ein Klon läuft schon; danach noch einmal');
+    if (url) {
+      this.klontGerade = true;
+      this.ereignis(null, 'Projekt hinzufügen mit Link: der Klon läuft im Hintergrund, das Ergebnis folgt als Ereignis');
+    }
+    projektHinzufuegen(ordner, { autostart: wunsch?.autostart === true, bruecke: this.e.bruecke ?? undefined, klonen: url }, this.projektWelt)
       .then((r) => {
         this.ereignis(null, r.meldung);
         this.imLogbuch(null, `${r.logbuch}; ${HERKUNFT_BRUECKE}`);
       })
-      .catch((e) => nein((e as Error).message));
+      .catch((e) => nein((e as Error).message))
+      .finally(() => {
+        if (url) this.klontGerade = false;
+      });
+  }
+
+  /** the keys of the adapter whose value still stands in <…> as in the template; empty when filled or without an adapter */
+  adapterLuecken(): string[] {
+    for (const d of ['epic.md', 'prd.md']) {
+      try {
+        return offeneSchluessel(readFileSync(join(this.e.repo, '.claude', d), 'utf8'));
+      } catch {
+        /* the next name */
+      }
+    }
+    return [];
+  }
+
+  /** for the bridge's field "Link zum Repository": the allowed Gitea forges and the folder for new clones */
+  klonAngebot(): { gitea: string[]; eltern: string } | null {
+    try {
+      return klonAngebot(this.projektWelt);
+    } catch {
+      return null;
+    }
   }
 
   /** projekt_entfernen over the bridge, with the PIN: halts like `flotte anhalten`; adapter, start script, state and repository stay */
@@ -3239,6 +3286,8 @@ class Treiber {
       kontenListe: this.kontenListe(),
       forgeStatus: this.forgeStand,
       projektHandlungen: true,
+      klonAngebot: this.klonAngebot(),
+      adapterLuecken: this.adapterLuecken(),
       konten: this.alleKonten()
         .filter((k) => this.bewertung.has(k))
         .map((k) => {
