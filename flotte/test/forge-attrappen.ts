@@ -26,6 +26,9 @@ export interface BPr {
   kopf: string;
   basis: string;
   zustand: 'OPEN' | 'CLOSED' | 'MERGED';
+  /** Gitea: a real conflict, or how many reads still say mergeable false while it checks */
+  konflikt?: boolean;
+  pruefend?: number;
 }
 
 export interface Bestand {
@@ -184,7 +187,7 @@ export function giteaAttrappe(b: Bestand, token = 'token geheim'): Aufrufer {
   const idVon = (l: string) => (ids.has(l) ? ids.get(l)! : (ids.set(l, ++labelId), labelId));
   const labelAus = (l: string) => ({ id: idVon(l), name: l });
   const giteaIssue = (i: BIssue) => ({ number: i.nummer, title: i.titel, body: i.body, html_url: `${web}/issues/${i.nummer}`, state: i.offen ? 'open' : 'closed', labels: i.labels.map(labelAus), closed_at: i.offen ? null : '2026-01-01T00:00:00Z', user: { login: i.autor } });
-  const giteaPr = (p: BPr) => ({ number: p.nummer, title: p.titel, body: p.body, html_url: `${web}/pulls/${p.nummer}`, state: p.zustand === 'OPEN' ? 'open' : 'closed', merged: p.zustand === 'MERGED', mergeable: true, head: { ref: p.kopf, sha: `sha-${p.kopf}` }, base: { ref: p.basis }, created_at: '2026-01-01T00:00:00Z', merged_at: p.zustand === 'MERGED' ? '2026-01-02T00:00:00Z' : null });
+  const giteaPr = (p: BPr) => ({ number: p.nummer, title: p.titel, body: p.body, html_url: `${web}/pulls/${p.nummer}`, state: p.zustand === 'OPEN' ? 'open' : 'closed', merged: p.zustand === 'MERGED', mergeable: !(p.konflikt || /^\s*WIP:/.test(p.titel) || (p.pruefend !== undefined && p.pruefend-- > 0)), head: { ref: p.kopf, sha: `sha-${p.kopf}` }, base: { ref: p.basis }, created_at: '2026-01-01T00:00:00Z', merged_at: p.zustand === 'MERGED' ? '2026-01-02T00:00:00Z' : null });
   const antwort = (status: number, wert?: unknown): Ergebnis => ({ code: 0, stdout: `${wert === undefined ? '' : JSON.stringify(wert)}\n${status}`, stderr: '' });
   /** a list with Gitea's paging: at most limit (capped at 50) from page */
   const seite = (q: URLSearchParams, liste: unknown[]) => {

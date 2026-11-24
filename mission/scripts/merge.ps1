@@ -177,7 +177,7 @@ function Get-PrInfo([string]$fields) {
     }
 }
 function Get-DefaultBranch {
-    if (-not $gitea) { return "$(gh api "repos/$Repo" --jq .default_branch 2>$null)".Trim() }
+    if (-not $gitea) { $n = gh api "repos/$Repo" --jq .default_branch 2>$null; return $(if ($LASTEXITCODE) { '' } else { "$n".Trim() }) }
     $r = Invoke-Gitea GET ''
     if (Test-Ok $r) { "$($r.Json.default_branch)".Trim() } else { '' }
 }
@@ -200,7 +200,7 @@ function Get-Checks([string]$headSha) {
         @{ name = $_.context; bucket = switch ("$($_.status)") { 'success' { 'pass' } 'warning' { 'pass' } 'pending' { 'pending' } default { 'fail' } } } })
 }
 function Get-BranchSha([string]$branch) {
-    if (-not $gitea) { return (gh api "repos/$Repo/commits/$branch" --jq .sha 2>$null) }
+    if (-not $gitea) { $n = gh api "repos/$Repo/commits/$branch" --jq .sha 2>$null; return $(if ($LASTEXITCODE) { '' } else { "$n".Trim() }) }
     $r = Invoke-Gitea GET "/branches/$([uri]::EscapeDataString($branch))"
     if (Test-Ok $r) { "$($r.Json.commit.id)" } else { '' }
 }
@@ -285,6 +285,8 @@ if ("$hinter".Trim() -ne '0') { "GATE FEHLT #${Pr}: der Head enthaelt die aktuel
 
 $head = $info.headRefOid
 $info = Get-PrInfo mergeable
+# Gitea says not mergeable also while it checks after a push to the base: a conflict only when a second read says so
+if ($gitea -and $info.mergeable -eq 'CONFLICTING') { Start-Sleep ([math]::Min(5, $TaktSekunden)); $info = Get-PrInfo mergeable }
 if ($info.mergeable -eq 'CONFLICTING') { "KONFLIKT #${Pr}: nicht mergebar"; exit 1 }
 # only the head that was checked: a push between the check and the merge makes the forge refuse
 if ($gitea) { $ok = Test-Ok (Invoke-Gitea POST "/pulls/$Pr/merge" @{ Do = 'merge'; head_commit_id = $head }) }

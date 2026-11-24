@@ -3286,7 +3286,8 @@ class Treiber {
       try {
         this.standardZweig = this.forge.standardZweig() || null;
       } catch {
-        this.standardZweig = null;
+        // a passing fault of the forge: read again next time
+        return null;
       }
     }
     return this.standardZweig;

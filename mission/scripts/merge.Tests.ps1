@@ -312,7 +312,8 @@ Describe 'merge.ps1: the head branch' {
 }
 
 # Gitea (#127): curl is a stub script (-CurlCommand) that reads the request from its config on stdin, logs
-# "METHOD path" and answers from rules; a rule with `after` holds only once a logged call matched it.
+# "METHOD path" and answers from rules; a rule with `after` holds only once a logged call matched it, one with
+# `prior` only when that many earlier calls matched its own pattern.
 $curlStub = @'
 $cfg = @($input) -join "`n"
 $url = [regex]::Match($cfg, '(?m)^url = "(.*)"$').Groups[1].Value
@@ -325,6 +326,7 @@ Add-Content -Path $env:MERGE_GH_LOG -Value "$line | $auth | $($args -join ' ')" 
 foreach ($rule in (Get-Content $env:MERGE_GH_FIXTURE -Raw -Encoding utf8 | ConvertFrom-Json)) {
     if ($line -notmatch $rule.match) { continue }
     if ($rule.after -and -not ($log | Where-Object { $_ -match $rule.after })) { continue }
+    if ($null -ne $rule.prior -and @($log | Where-Object { ($_ -split ' \| ')[0] -match $rule.match }).Count -notin @($rule.prior)) { continue }
     if ($rule.out) { $rule.out }
     "$($rule.status)"
     exit 0
@@ -333,11 +335,13 @@ foreach ($rule in (Get-Content $env:MERGE_GH_FIXTURE -Raw -Encoding utf8 | Conve
 exit 0
 '@
 
-function New-GiteaRules([string]$body, [string]$title = 'Mission', [string]$statuses = '[]', [string]$behind = '0', [string]$issue3 = 'closed') {
+function New-GiteaRules([string]$body, [string]$title = 'Mission', [string]$statuses = '[]', [string]$behind = '0', [string]$issue3 = 'closed', [int[]]$unmergeable = @()) {
     $pr = @{ number = 7; title = $title; state = 'open'; merged = $false; draft = $false; mergeable = $true; body = $body; head = @{ ref = 'epic/7-x'; sha = $headSha }; base = @{ ref = 'main' } }
     $merged = $pr.Clone(); $merged.state = 'closed'; $merged.merged = $true
+    $notMergeable = $pr.Clone(); $notMergeable.mergeable = $false
     @(
         @{ match = '^GET /pulls/7$'; after = '^POST /pulls/7/merge'; out = (ConvertTo-Json -Compress -Depth 4 -InputObject $merged); status = 200 }
+        @{ match = '^GET /pulls/7$'; prior = $unmergeable; out = (ConvertTo-Json -Compress -Depth 4 -InputObject $notMergeable); status = 200 }
         @{ match = '^GET /pulls/7$'; out = (ConvertTo-Json -Compress -Depth 4 -InputObject $pr); status = 200 }
         @{ match = '^GET $'; out = '{"default_branch":"main"}'; status = 200 }
         @{ match = '^GET /contents/\.claude/epic\.md\?ref=main$'; out = (ConvertTo-Json -Compress -InputObject @{ content = (Get-Base64 $nachGate) }); status = 200 }
@@ -388,6 +392,14 @@ Describe 'merge.ps1: Gitea through its API (#127)' {
         (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -title 'WIP: Mission')).Out | Should Match 'NICHT GEMERGT #7: Entwurf'
         # a head without any status: Gitea sends statuses null (found by the probe against the throwaway Gitea)
         (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -statuses 'null')).Out | Should Match '^GEMERGT #7'
+    }
+
+    It 'reads a pull request that is not mergeable once more: Gitea may still check it after a push to the base (review of #127)' {
+        # reads of /pulls/7: 0 the start, 1 mergeable, 2 the second read, 3 after the merge
+        (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -unmergeable 1)).Out | Should Match '^GEMERGT #7'
+        $r = Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -unmergeable 1, 2)
+        $r.Out | Should Be 'KONFLIKT #7: nicht mergebar'
+        @($r.Calls | Where-Object { $_ -match '^POST /pulls/7/merge' }).Count | Should Be 0
         $r = Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -behind '2')
         $r.Out | Should Match 'der Head enthaelt die aktuelle Basis nicht \(2 Commits dahinter\)'
         @($r.Calls | Where-Object { $_ -match '^POST /pulls/7/merge' }).Count | Should Be 0

@@ -107,6 +107,8 @@ export function forgeFaelle(neu: () => Promise<ForgeStand>) {
     expect(s.zugriff.prLink(nr)).toBe(url);
     expect(s.zugriff.pr(nr, ['state', 'mergeable', 'url', 'headRefName', 'baseRefName', 'headRefOid', 'body'])).toMatchObject({ nummer: nr, zustand: 'OPEN', kopf: 'epic/1-probe', basis, body: 'Gate grün.', url });
     expect(s.zugriff.pr(nr, ['headRefOid']).kopfSha).not.toBe('');
+    // Gitea calls a WIP pull request not mergeable; that is no conflict (review of #127)
+    expect(s.zugriff.pr(nr, ['mergeable']).mergebar).not.toBe('CONFLICTING');
     s.zugriff.prBodySetzen(nr, 'Gate grün. Neu.');
     expect(s.zugriff.pr(nr, ['body']).body).toBe('Gate grün. Neu.');
     expect(s.zugriff.prs({ zustand: 'all', kopf: 'epic/1-probe', felder: ['number', 'state'] }).map((p) => [p.nummer, p.zustand])).toEqual([[nr, 'OPEN']]);

@@ -33,7 +33,8 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
 ```
 
 - **Repository und Forge:** ohne `<repo>` das Repository des aktuellen Ordners (sein
-  Hauptverzeichnis, auch aus einem Worktree), ohne `--forge` das GitHub-Repository von `origin`.
+  Hauptverzeichnis, auch aus einem Worktree), ohne `--forge` das GitHub-Repository von `origin`, bei
+  `forge: gitea` im Adapter das Repository aus dessen `api` (#127).
   Beides lässt sich angeben: `fahren <repo> --forge <owner/name>`.
 - **Missionen:** ohne `--epics` alle offenen Missionen (`epic_label`) mit `ready_label` des Adapters, an
   sich oder an einem offenen Missionsziel (`references/belegung.md`). Der Treiber sammelt sie etwa alle

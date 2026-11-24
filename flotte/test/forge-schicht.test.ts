@@ -66,6 +66,25 @@ describe('forge layer: Gitea through its API (stand-in)', () => {
     expect(b.aufrufe.flat().join(' ')).not.toContain('falsch');
   });
 
+  it('mergeable false is a conflict only when it holds: not for a WIP title, not while Gitea still checks', () => {
+    const b = bestand();
+    b.prs.push({ nummer: 1, titel: 'WIP: Mission', body: '', kopf: 'epic/1-a', basis: 'main', zustand: 'OPEN' });
+    b.prs.push({ nummer: 2, titel: 'Mission', body: '', kopf: 'epic/2-a', basis: 'main', zustand: 'OPEN', pruefend: 1 });
+    b.prs.push({ nummer: 3, titel: 'Mission', body: '', kopf: 'epic/3-a', basis: 'main', zustand: 'OPEN', konflikt: true });
+    const z = giteaZugriff(giteaAttrappe(b), GITEA_API(b), () => 'token geheim', 'epic', 0);
+    expect([1, 2, 3].map((n) => z.pr(n, ['mergeable']).mergebar)).toEqual(['UNKNOWN', 'MERGEABLE', 'CONFLICTING']);
+  });
+
+  it('a label someone else made after the first read is found by reading the list again', () => {
+    const b = bestand();
+    const i = issueAnlegen(b, { titel: 'A', labels: ['epic'] });
+    const z = giteaZugriff(giteaAttrappe(b), GITEA_API(b), () => 'token geheim');
+    expect(z.labelNamen()).toEqual(['epic']);
+    b.labels.push('ready-for-agent');
+    z.labelsAendern(i.nummer, { dazu: ['ready-for-agent'] });
+    expect(i.labels).toEqual(['epic', 'ready-for-agent']);
+  });
+
   it('a list longer than one page is read page by page (Gitea caps at 50)', () => {
     const b = bestand();
     for (let i = 0; i < 120; i++) issueAnlegen(b, { titel: `T${i}`, labels: ['epic'] });

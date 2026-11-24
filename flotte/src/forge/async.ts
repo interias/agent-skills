@@ -105,7 +105,12 @@ export function giteaAsync(a: AsyncAufrufer, api: string, kopf: () => string, ep
     },
     labels: async (nr) => namen((await aufruf('GET', `/issues/${nr}`)).labels),
     async labelsAendern(nr, dazu, weg) {
-      const karte = await labelIds();
+      let karte = await labelIds();
+      // a name not in the list read earlier: read it once more, someone else may have made the label
+      if ([...dazu, ...weg].some((l) => !karte.has(l))) {
+        ids = null;
+        karte = await labelIds();
+      }
       const id = (l: string) => {
         if (!karte.has(l)) throw new Error(`Gitea: Label ${l} gibt es im Repository nicht`);
         return karte.get(l)!;
