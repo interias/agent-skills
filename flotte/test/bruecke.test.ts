@@ -861,6 +861,24 @@ describe('Einstellungen über die Brücke (#58)', () => {
     expect(z3.epics['4'].stufe).toBe('fertig');
   }, T);
 
+  it('#193 einsammeln aus from the bridge: a mission collected before and still waiting stays in the deployment after a restart', async () => {
+    const t = aufbau({ freigegeben: () => ({ bereit: [3, 4], epics: [{ number: 3 }, { number: 4 }] }) });
+    const b = await attrappe(() => null, { handlung: nacheinander([einstellen('einsammeln', 'aus')]) });
+    const buch = drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+    try {
+      // one mission at a time: #4 waits while #3 runs, the driver stops before it starts
+      const z = await fahre(t.einstellung(buch, [], { bruecke: b.url, auto: true, gesetzt: [], obergrenze: 1, maxDauerMs: 800 }), t.welt);
+      expect(z.epics['4'].stufe).toBe('wartend');
+      expect(z.einstellungen).toMatchObject({ einsammeln: { wert: 'aus' } });
+    } finally {
+      await b.zu();
+    }
+    const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten }, freigegeben: () => ({ bereit: [3, 4], epics: [{ number: 3 }, { number: 4 }] }) });
+    const z2 = await fahre(t2.einstellung(buch, [], { auto: true, gesetzt: [] }), t2.welt);
+    expect(z2.ereignisse.some((x) => /^Übernommen aus einem früheren Einsatz: .*#4/.test(x.text))).toBe(true);
+    expect(z2.epics['4'].stufe).toBe('fertig');
+  }, T);
+
   it('#193 the start parameters of einsammeln: --epics alone is aus, --dauerhaft an, both given explicitly; without them an from the standard', () => {
     const git: Aufrufer = (_p, args) => ({ code: 0, stdout: args.includes('get-url') ? 'https://github.com/o/r.git\n' : '/r/.git\n', stderr: '' });
     const ohne = einstellungAus(['/r', '--konten', '/k'], '/r', git);

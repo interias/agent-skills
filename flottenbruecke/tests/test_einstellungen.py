@@ -180,7 +180,8 @@ def test_sammelansicht_je_projekt_schalter_und_drei_zahlen(client, bericht):
 
 
 def test_sammelansicht_zaehlt_frage_und_nacharbeit_mit_und_ohne_freigegeben_null(client, bericht):
-    bericht['epics'] = [{**bericht['epics'][1], 'nr': 50, 'stufe': 'frage'}, {**bericht['epics'][1], 'nr': 51, 'stufe': 'nacharbeit'}]
+    # a waiting mission outside the deployment (an earlier one) counts in neither
+    bericht['epics'] = [{**bericht['epics'][1], 'nr': 50, 'stufe': 'frage'}, {**bericht['epics'][1], 'nr': 51, 'stufe': 'nacharbeit'}, {**bericht['epics'][0], 'nr': 52, 'stufe': 'wartend', 'imEinsatz': False}]
     del bericht['freigegeben']
     client.post('/api/bericht', json=bericht)
     assert tafel(client)['projekte'][0]['sammeln'] == {'laufend': 2, 'wartend': 0, 'freigegeben': 0}

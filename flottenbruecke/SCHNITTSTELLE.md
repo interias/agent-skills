@@ -398,7 +398,7 @@ In `GET /api/tafel` trägt jede Zeile in `projekte[].epics[]` dazu `imEinsatz`, 
 `prioritaet`, `merge` (#112, aus dem Bericht, sonst `null`) und die noch nicht quittierten Handlungen
 `pause` (`pausieren`/`fortsetzen`), `vorrang` (`prioritaet`) und `andocken` (`merge`), je `{id, art, text, zeit, abgeholt, quittiert}` oder `null`; jedes Projekt
 trägt `freigegeben[]` `{nr, titel, issueUrl, handlung}` und (#193, Automatik je Projekt im Maschinenraum) `sammeln`
-`{laufend, wartend, freigegeben}`: Missionen des Berichts in `laeuft`, `frage` oder `nacharbeit`, in `wartend`, und die
+`{laufend, wartend, freigegeben}`: Missionen des Berichts im Einsatz (`imEinsatz`, fehlt: ja) in `laeuft`, `frage` oder `nacharbeit`, in `wartend`, und die
 Länge von `freigegeben[]` (fehlende Felder zählen 0). Die Karten der Brücke tragen `pausiert` und
 `prio` (die Schiffsliste zeigt beides).
 

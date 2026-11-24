@@ -159,7 +159,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
 <h4>${esc(p.kurz)}</h4><p class="mr-stand">${stand}</p><p class="mr-auto-zahlen">${zahl(z.laufend, 'laufend')}${zahl(z.wartend, 'wartend')}${zahl(z.freigegeben, 'freigegeben, nicht eingesammelt')}</p>
 <div class="knoepfe">${knopf}<span class="status" role="status"></span></div></div>`;
     };
-    const hinweis = !t.pin ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.` : 'An: der Treiber sammelt jede freigegebene Mission selbst ein, wie mit --dauerhaft, und wartet danach auf neue. Aus: keine neue Mission; laufende, wartende und aufgenommene laufen weiter, nichts hält an. Wirkt ab dem nächsten Takt, Umschalten braucht die PIN; ein Start mit --dauerhaft oder --epics setzt den Wert neu.';
+    const hinweis = !t.pin ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.` : 'An: der Treiber sammelt jede freigegebene Mission selbst ein; hier eingeschaltet wartet er danach auf neue wie mit --dauerhaft. Aus: keine neue Mission; laufende, wartende und aufgenommene laufen weiter, nichts hält an. Wirkt ab dem nächsten Takt, Umschalten braucht die PIN; ein Start mit --dauerhaft oder --epics setzt den Wert neu.';
     return `<h3 class="mr-titel">Automatik je Projekt</h3><p class="mr-hinweis">${esc(hinweis)}</p><div class="mr-automatik">${t.projekte.map(zeile).join('')}</div>`;
   }
 

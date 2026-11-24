@@ -586,7 +586,9 @@ class Treiber {
       this.ereignis(null, `Über die Brücke aufgenommen, bleibt im Einsatz: ${wieder.map((n) => `#${n}`).join(', ')}`);
     }
     // #150: a run of an earlier deployment the collection misses (no epic label, driven with --epics) is still at work
-    const uebernommen = Object.values(this.z.epics).filter((ep) => (BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt') && !this.e.epics.includes(ep.nr)).map((ep) => ep.nr);
+    // #193: with einsammeln switched off on the bridge, a mission collected before and still waiting stays as well
+    const wartendBleibt = !this.e.auto && this.herkunft.get('einsammeln')?.herkunft === 'bruecke';
+    const uebernommen = Object.values(this.z.epics).filter((ep) => (BELEGT.has(ep.stufe) || ep.stufe === 'pr' || ep.stufe === 'gemergt' || (wartendBleibt && ep.stufe === 'wartend')) && !this.e.epics.includes(ep.nr)).map((ep) => ep.nr);
     if (uebernommen.length) {
       this.e.epics = [...this.e.epics, ...uebernommen];
       this.ereignis(null, `Übernommen aus einem früheren Einsatz: ${uebernommen.map((n) => `#${n}`).join(', ')} (nicht eingesammelt, aber noch in Arbeit)`);

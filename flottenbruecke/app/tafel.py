@@ -457,7 +457,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         if b.get('triage'):
             lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h, jetzt))
         # #193: the row of the collection view in the Maschinenraum; the switch itself is the setting einsammeln
-        stufen = [ep['stufe'] for ep in b.get('epics', [])]
+        stufen = [ep['stufe'] for ep in b.get('epics', []) if ep.get('imEinsatz', True)]
         liste[-1]['sammeln'] = {'laufend': sum(s in LAUFEND for s in stufen), 'wartend': stufen.count('wartend'), 'freigegeben': len(b.get('freigegeben', []))}
         liste[-1]['freigegeben'] = [{'nr': f['nr'], 'titel': f.get('titel', ''), 'issueUrl': f"{url}/issues/{f['nr']}" if url else None, 'handlung': _handlung(offen_h.get((f['nr'], 'aufnehmen', None, None)))} for f in b.get('freigegeben', [])]
 
