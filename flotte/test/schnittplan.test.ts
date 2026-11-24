@@ -41,9 +41,10 @@ function welt(notizen: Notiz[], plan: unknown, o: { missionen?: Mission[]; komme
           return { code: 0, stdout: JSON.stringify(liste), stderr: '' };
         }
         if (args[0] === 'api') {
-          const nr = Number(/issues\/(\d+)$/.exec(args[1])?.[1]);
+          const nr = Number(/issues\/(\d+)(\/sub_issues)?$/.exec(args[1])?.[1]);
           const m = missionen.find((x) => x.number === nr);
-          if (m) return m.kinder === null ? { code: 1, stdout: '', stderr: 'HTTP 404' } : { code: 0, stdout: `${m.kinder ?? 0}\n`, stderr: '' };
+          // the Missionsziele of the mission, one JSON line each
+          if (m) return m.kinder === null ? { code: 1, stdout: '', stderr: 'HTTP 404' } : { code: 0, stdout: Array.from({ length: m.kinder ?? 0 }, (_, i) => `${JSON.stringify({ number: 1000 + i, state: 'open', labels: [] })}\n`).join(''), stderr: '' };
           return { code: 0, stdout: `${notizen.find((t) => t.number === nr)?.rolle ?? 'OWNER'}\n`, stderr: '' };
         }
         if (args[0] === 'issue' && args[1] === 'comment' && o.kommentarScheitert) return { code: 1, stdout: '', stderr: 'nein' };

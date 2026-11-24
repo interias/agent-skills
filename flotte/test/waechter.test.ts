@@ -62,6 +62,7 @@ const AUSNAHMEN = {
     { wort: 'MERGED', grund: 'state of a pull request in the GitHub API' },
     { wort: 'mergedAt', grund: 'JSON field of `gh pr`' },
     { wort: 'mergeable', grund: 'JSON field of `gh pr`' },
+    { wort: 'MERGEABLE', grund: 'value of the field `mergeable` of `gh pr`, kept by the forge layer for both forges (#127)' },
   ],
   // Spots inside a text that are not checked, cut out before matching.
   stellen: [

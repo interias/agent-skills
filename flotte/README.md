@@ -152,6 +152,16 @@ statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste St
    in dieses Issue. Umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet die
    [Triage](#triage) wie eine Sternzeit-Notiz.
 
+**Forge** (#127): Alles, was der Treiber, `flotte mission`, Triage, Lernen und Messen an der Forge
+tun, geht durch eine Forge-Schicht (`src/forge/`) mit einer Umsetzung für GitHub (über `gh`) und einer
+für Gitea (über `curl` gegen die API). Gewählt wird nach dem Adapterschlüssel `forge`; Gitea nimmt
+Repository und Adresse aus `api` und die Anmeldung wie `flotte auftrag` (`token_env`/`token_file`
+oder der Git-Credential-Speicher). `merge.ps1` bekommt bei Gitea `-Api`, den Zugang nur in der
+Umgebung seines Prozesses. Auf Gitea ist eine Mission von ihren Missionszielen blockiert, eine
+blockierende Mission mit `epic_label` ist eine Reihenfolge-Kante, kein Missionsziel; Statusmeldungen
+von Commits stehen für Checks, und ein Teil-Lauf der Andockprüfung (`gate_partial`) reicht dort nie,
+weil Gitea je Vergleich keine Dateiliste liefert.
+
 Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-Issue mit Label
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und
 `flotte zuschauen` stehen in [`SKILL.md`](SKILL.md).
@@ -366,8 +376,9 @@ Dritter gehen gar nicht ins Modell, das Repository kann öffentlich sein. Steht 
 Kommentar der Triage (Frage, oder Entscheidung, deren Freigabe gescheitert ist) kein solcher
 Kommentar, wird das Ticket übersprungen (`wartet`), ohne Modellaufruf. Triage legt keine Tickets an
 (agent-skills/ADR-0002), außer aus einem Lernvorschlag über den Auftragsschreiber (eine Sternzeit-Notiz)
-und ebenso eine Mission aus dem Schnittplan, und spricht bisher
-nur GitHub; ein Gitea-Repository steht in `fehler`.
+und ebenso eine Mission aus dem Schnittplan. Sie spricht GitHub und Gitea über die Forge-Schicht
+(#127); auf Gitea gilt als Rolle eines Kommentars `OWNER` für den Besitzer des Repositorys,
+`COLLABORATOR` für ein Konto mit Schreibrecht, sonst `NONE`.
 
 **Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl vor dem Schnittplan
 jeden Vorschlag der Lernschleife an diesem Issue einzeln, einen `claude -p` je Vorschlag (Schema
