@@ -10,7 +10,8 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app import start
-from app.main import ABHOLEN, FERNPORT, Einstellung, erzeuge
+from app.main import ABHOLEN, FERNPORT, RECHNERPORT, Einstellung, erzeuge
+from conftest import koppeln
 
 BEISPIEL = Path(__file__).parent.parent / 'beispiel'
 SEIT = '2026-11-20T13:52:30Z'
@@ -28,7 +29,9 @@ def app(tmp_path, uhr):
 
 @pytest.fixture
 def lan(app):
-    return TestClient(app)
+    c = TestClient(app)
+    koppeln(c)
+    return c
 
 
 @pytest.fixture
@@ -75,6 +78,8 @@ def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
         if url == '/api/tafel':
             ta, tb = a.json(), b.json()
             assert (ta.pop('nurAnsicht'), tb.pop('nurAnsicht')) == (False, True)
+            # the paired device is the LAN client's; over the remote entry no device is asked about
+            assert (ta.pop('geraet')['name'], tb.pop('geraet')) == ('Testgerät', None)
             # the Bereitschaftsraum offers no writing over the remote entry either
             assert (ta['bereitschaftsraum'].pop('pin'), tb['bereitschaftsraum'].pop('pin')) == (True, False)
             assert tb == ta
@@ -156,6 +161,7 @@ def test_abholen_ueber_den_fernweg_abgelehnt(lan, fern, gefuellt):
 def test_unterscheidung_haengt_am_eingang_nicht_an_absender_oder_kopf(app):
     # a client in the LAN that claims to come from the tailnet stays in the LAN
     lan = TestClient(app, client=('100.64.0.7', 41641))
+    koppeln(lan)
     koepfe = {**PIN, 'Host': f'flottenbruecke.example.ts.net:{FERNPORT}', 'X-Forwarded-For': '100.64.0.7', 'X-Forwarded-Host': 'flottenbruecke.example.ts.net', 'Forwarded': 'for=100.64.0.7'}
     assert lan.post('/api/pin', headers=koepfe).status_code == 204
     assert lan.get('/api/tafel', headers=koepfe).json()['nurAnsicht'] is False
@@ -168,20 +174,27 @@ def test_unterscheidung_haengt_am_eingang_nicht_an_absender_oder_kopf(app):
 
 
 def test_start_oeffnet_lan_und_fernweg():
-    lan_o, fern_o = start.eingaenge({})
-    assert (lan_o['port'], fern_o['port']) == (start.PORT, FERNPORT) and FERNPORT != start.PORT
-    assert 'factory' not in lan_o and 'factory' not in fern_o
+    lan_o, fern_o, rechner_o = start.eingaenge({})
+    assert (lan_o['port'], fern_o['port'], rechner_o['port']) == (start.PORT, FERNPORT, RECHNERPORT)
+    assert len({start.PORT, FERNPORT, RECHNERPORT}) == 3
+    assert 'factory' not in lan_o and 'factory' not in fern_o and 'factory' not in rechner_o
 
 
 def test_fernweg_bleibt_http_wenn_das_lan_https_spricht():
-    # Tailscale ends TLS itself and talks plain HTTP to the remote entry inside the compose network
-    lan_o, fern_o = start.eingaenge({'BRUECKE_ZERT': '/zert/a.pem', 'BRUECKE_ZERT_SCHLUESSEL': '/zert/a-key.pem'})
+    # Tailscale ends TLS itself and talks plain HTTP to the remote entry inside the compose network; the machine's own
+    # entry stays plain HTTP too (#46)
+    lan_o, fern_o, rechner_o = start.eingaenge({'BRUECKE_ZERT': '/zert/a.pem', 'BRUECKE_ZERT_SCHLUESSEL': '/zert/a-key.pem'})
     assert lan_o['ssl_certfile'] == '/zert/a.pem'
     assert 'ssl_certfile' not in fern_o and 'ssl_keyfile' not in fern_o
+    assert rechner_o['port'] == RECHNERPORT
+    assert 'ssl_certfile' not in rechner_o and 'ssl_keyfile' not in rechner_o
 
 
 def test_compose_veroeffentlicht_den_fernweg_nicht():
-    # only the Tailscale service reaches the remote entry, over the compose network; no port of the machine leads to it
+    # only the Tailscale service reaches the remote entry, over the compose network; no port of the machine leads to it.
+    # The machine's own entry (#46) is published on 127.0.0.1 only.
     text = (Path(__file__).parent.parent / 'compose.yaml').read_text(encoding='utf-8')
-    veroeffentlicht = re.findall(r'^\s+- "[^"]*:(\d+)"\s*$', text, re.M)
-    assert veroeffentlicht == ['8000']
+    veroeffentlicht = re.findall(r'^\s+- "([^"]*):(\d+)"\s*$', text, re.M)
+    assert [p for _, p in veroeffentlicht] == ['8000', '8002']
+    assert str(FERNPORT) not in [p for _, p in veroeffentlicht]
+    assert [v for v, p in veroeffentlicht if p == str(RECHNERPORT)] == ['127.0.0.1:${BRUECKE_RECHNER_PORT:-4748}']

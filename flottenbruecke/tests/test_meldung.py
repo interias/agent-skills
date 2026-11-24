@@ -8,6 +8,7 @@ from pywebpush import WebPushException
 from app import start
 from app.main import Einstellung, erzeuge
 from app.meldung import inhalt, schluessel_erzeugen
+from conftest import koppeln
 
 PIN = {'X-Bruecke-Pin': '4711'}
 ABO = {'endpoint': 'https://fcm.googleapis.com/fcm/send/abo-1', 'keys': {'p256dh': 'BOeffentlich', 'auth': 'geheim'}}
@@ -36,7 +37,9 @@ def dienst():
 @pytest.fixture
 def baue(tmp_path, uhr, dienst):
     def baue(vapid=SCHLUESSEL):
-        return TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr, vapid=vapid, push_senden=dienst)))
+        c = TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr, vapid=vapid, push_senden=dienst)))
+        koppeln(c)
+        return c
 
     return baue
 
@@ -50,8 +53,8 @@ def abonnieren(c, abo=ABO, headers=PIN):
 
 def test_abo_nur_mit_pin(baue, bericht, dienst):
     c = baue()
-    assert abonnieren(c, headers={}).status_code == 401
-    assert abonnieren(c, headers={'X-Bruecke-Pin': 'falsch'}).status_code == 401
+    assert abonnieren(c, headers={}).status_code == 403
+    assert abonnieren(c, headers={'X-Bruecke-Pin': 'falsch'}).status_code == 403
     assert abonnieren(c).json() == {'ok': True}
     c.post('/api/bericht', json=bericht)
     assert [g['endpoint'] for g in dienst.gesendet] == [ABO['endpoint']]
@@ -85,8 +88,8 @@ def test_abo_bei_anderem_ziel_abgelehnt(baue, endpoint):
 def test_abmelden_nur_mit_pin_dann_kein_versand(baue, bericht, dienst):
     c = baue()
     abonnieren(c)
-    assert c.post('/api/push/abmelden', json={'endpoint': ABO['endpoint']}).status_code == 401
-    assert c.post('/api/push/abmelden', json={'endpoint': ABO['endpoint']}, headers={'X-Bruecke-Pin': 'falsch'}).status_code == 401
+    assert c.post('/api/push/abmelden', json={'endpoint': ABO['endpoint']}).status_code == 403
+    assert c.post('/api/push/abmelden', json={'endpoint': ABO['endpoint']}, headers={'X-Bruecke-Pin': 'falsch'}).status_code == 403
     assert c.post('/api/push/abmelden', json={'endpoint': ABO['endpoint']}, headers=PIN).json() == {'ok': True, 'geloescht': True}
     assert c.post('/api/push/abmelden', json={'endpoint': ABO['endpoint']}, headers=PIN).json() == {'ok': True, 'geloescht': False}
     c.post('/api/bericht', json=bericht)

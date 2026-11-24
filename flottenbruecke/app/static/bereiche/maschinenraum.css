@@ -63,6 +63,9 @@
 .bereich[data-bereich="maschinenraum"] .mr-stand-karte code { font: 13px var(--disp); letter-spacing: .04em; color: var(--pfirsich); }
 .bereich[data-bereich="maschinenraum"] .mr-neu { margin: 0; font: 13.5px/1.4 var(--lesen); color: var(--gold); overflow-wrap: anywhere; }
 .bereich[data-bereich="maschinenraum"] .mr-alle { margin-bottom: 8px; }
+/* #46: the emergency stop and the devices */
+.bereich[data-bereich="maschinenraum"] .mr-notaus { margin: 0; padding: 6px 12px; border-radius: 6px; background: var(--rot); color: #000; }
+.bereich[data-bereich="maschinenraum"] .mr-alle:empty { display: none; }
 /* Werft (#90): a card per stack, its stand as a mark (green, red, gold for "wartet", grey for "aus"); the log folds open when red */
 .bereich[data-bereich="maschinenraum"] .mr-werft { margin-bottom: 10px; }
 .bereich[data-bereich="maschinenraum"] .mr-werft.veraltet .mr-reihe { opacity: .6; }

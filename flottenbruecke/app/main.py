@@ -14,17 +14,23 @@
 # endpoint as in the LAN, every request that writes refused, whatever PIN it carries.
 # The Bereitschaftsraum (#85, agent-skills/ADR-0004) is the chat: the person writes with the PIN, the service
 # `flotte chat` fetches, acknowledges and answers with the token; the bridge never starts claude and stores no credentials.
+# #46: what the person writes needs two keys, a paired device with the right for it and the PIN. A device pairs once
+# with the PIN and keeps a random key as a cookie; a new one may answer, acting is given only on the machine itself, over
+# a third entry, RECHNERPORT, which compose publishes on 127.0.0.1 only. A writing request with a foreign Origin is 403;
+# the emergency stop of any paired device refuses every writing of the person until the machine releases it.
 
 import hashlib
 import hmac
 import json
 import os
 import re
+import secrets
 import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
@@ -32,7 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
+from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
@@ -41,6 +47,14 @@ FEHLVERSUCHE = 5
 SPERRE_S = 300
 # #48: the remote entry in the container (app/start.py), never published on the machine; the Tailscale add-on proxies to it
 FERNPORT = 8001
+# #46: the entry of the machine itself (app/start.py); compose publishes it on 127.0.0.1 only. Rights, unpairing and
+# releasing the emergency stop go only through it
+RECHNERPORT = 8002
+GERAET_COOKIE = 'bruecke_geraet'
+# browsers keep a cookie at most 400 days
+GERAET_MAX_ALTER = 400 * 24 * 3600
+# the longest command the device log keeps of one request
+BEFEHL_MAX = 600
 # GETs that write: fetching marks answers and actions as fetched, the chat service's fetch remembers its machine and
 # accounts (#85). Only driver, Werft and chat service fetch, and only in the LAN.
 ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen', '/api/chat/nachrichten')
@@ -96,6 +110,19 @@ def fernweg(request: Request) -> bool:
     return bool(server) and server[1] == FERNPORT
 
 
+def am_rechner(request: Request) -> bool:
+    """#46: like the remote entry, the entry of the machine is the socket, never a sender or a header."""
+    server = request.scope.get('server')
+    return bool(server) and server[1] == RECHNERPORT
+
+
+def fremder_origin(request: Request) -> bool:
+    """A browser names the page that sends; another page (or a sandboxed prototype, `null`) is not this bridge.
+    A request without Origin is no browser's (the driver with its token)."""
+    origin = request.headers.get('origin')
+    return origin is not None and urlsplit(origin).netloc.lower() != (request.headers.get('host') or '').lower()
+
+
 class Pinwache:
     """At most FEHLVERSUCHE wrong PINs per client, then SPERRE_S seconds nothing."""
 
@@ -116,7 +143,8 @@ class Pinwache:
                 self.fehler.pop(client, None)
                 return
             liste.append(jetzt)
-        raise HTTPException(401, 'PIN falsch.')
+        # 403 (#46): 401 means the device is unknown; the header tells the page to ask for the PIN again
+        raise HTTPException(403, 'PIN falsch.', headers={'X-Bruecke-Grund': 'pin'})
 
 
 def erzeuge(e: Einstellung | None = None) -> FastAPI:
@@ -132,6 +160,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     async def nur_ansicht(request: Request, weiter):
         if fernweg(request) and (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN):
             return JSONResponse({'detail': 'Über den Fernweg nur Ansicht: Antworten und Handlungen gehen nur im LAN.'}, status_code=403)
+        # #46: strict, also for GETs that write; the driver sends no Origin and stays untouched
+        if (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN) and fremder_origin(request):
+            return JSONResponse({'detail': 'Fremder Origin: schreiben geht nur von der Seite der Brücke selbst.'}, status_code=403)
         return await weiter(request)
 
     def jetzt() -> datetime:
@@ -143,6 +174,50 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def treiber(token: str | None) -> None:
         if e.token and not (token and hmac.compare_digest(e.token.encode(), token.encode())):
             raise HTTPException(401, 'Treiber-Token fehlt oder falsch.')
+
+    # ---- the person (#46): a paired device with the right, then the PIN
+
+    def schluessel_hash(schluessel: str) -> str:
+        return hashlib.sha256(schluessel.encode()).hexdigest()
+
+    def geraet_von(request: Request) -> dict | None:
+        schluessel = request.cookies.get(GERAET_COOKIE)
+        return speicher.geraet(schluessel_hash(schluessel)) if schluessel else None
+
+    def pin_pruefen(request: Request, pin: str | None) -> None:
+        wache.pruefe(e.pin, pin, request.client.host if request.client else '?')
+
+    def kein_notaus() -> None:
+        n = speicher.notaus()
+        if n:
+            raise HTTPException(423, f"Not-Aus seit {n['seit']} ({n['geraet']}): die Brücke nimmt nichts an, bis der Rechner ihn löst.")
+
+    def person(request: Request, recht: str, pin: str | None) -> dict:
+        """Who writes: the device first (401 unknown or unpaired, 403 without the right), then the emergency stop, then the PIN."""
+        if not e.pin:
+            raise HTTPException(403, 'Keine PIN gesetzt (BRUECKE_PIN in .env): Antworten ist abgeschaltet.')
+        g = geraet_von(request)
+        if g is None:
+            raise HTTPException(401, 'Dieses Gerät ist nicht gekoppelt: einmal mit der PIN koppeln.', headers={'X-Bruecke-Grund': 'geraet'})
+        if not g[recht]:
+            wort = 'Handeln' if recht == 'handeln' else 'Antworten'
+            raise HTTPException(403, f'Diesem Gerät fehlt das Recht „{wort}“; das gibt nur der Rechner selbst (Maschinenraum über localhost).', headers={'X-Bruecke-Grund': 'recht'})
+        kein_notaus()
+        pin_pruefen(request, pin)
+        speicher.geraet_benutzt(g['id'], stempel())
+        return g
+
+    def rechner(request: Request, pin: str | None) -> dict:
+        """Rights, unpairing, releasing the emergency stop: only the entry of the machine, with the PIN."""
+        if not am_rechner(request):
+            raise HTTPException(403, 'Das geht nur am Rechner selbst (Brücke über localhost).')
+        pin_pruefen(request, pin)
+        return {'id': None, 'name': 'Rechner'}
+
+    def protokoll(g: dict, request: Request, body=None) -> None:
+        """Each writing of the person in the device log: device, time and the command as sent."""
+        befehl = request.url.path + (f' {body.model_dump_json(exclude_none=True)}' if body is not None else '')
+        speicher.logbuch_schreiben(g['name'], befehl[:BEFEHL_MAX], stempel())
 
     # ---- driver
 
@@ -221,6 +296,14 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
         # over the remote entry the Bereitschaftsraum offers no writing either (#48)
         t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin) and not fernweg(request))
+        # #46: the paired devices and their rights, this device (None: not paired), whether this is the machine itself,
+        # the emergency stop and the device log
+        dieses = geraet_von(request)
+        t['geraete'] = speicher.geraete()
+        t['geraet'] = dieses
+        t['amRechner'] = am_rechner(request)
+        t['notaus'] = speicher.notaus()
+        t['geraeteLogbuch'] = speicher.logbuch()
         return t
 
     # a prototype only from the store: any name or project it does not hold is 404, never a file
@@ -233,7 +316,12 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     @app.post('/api/handlung')
     def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        g = person(request, 'handeln', x_bruecke_pin)
+        ergebnis = handlung_ablegen(h)
+        protokoll(g, request, h)
+        return ergebnis
+
+    def handlung_ablegen(h: Handlung) -> dict:
         if h.art == 'triage':
             return triage_starten(h)
         if h.art == 'einspielen':
@@ -390,7 +478,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.post('/api/werft/handlung')
     def werft_handeln(h: WerftHandlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
         """#90: only with the PIN, checked against the last report of that machine's Werft; the Werft checks again."""
-        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        g = person(request, 'handeln', x_bruecke_pin)
         w = next((x for x in speicher.werft() if x['rechner'] == h.rechner), None)
         repo = next((r for r in (w['bericht']['repos'] if w else []) if r['forge'] == h.forge), None)
         if repo is None:
@@ -412,6 +500,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         gespeichert = speicher.werft_handlung_setzen(h.rechner, h.forge, h.stack, h.art, h.text, stempel())
         if gespeichert is None:
             raise HTTPException(409, 'Die Werft hat die Handlung schon abgeholt.')
+        protokoll(g, request, h)
         return {'ok': True, 'id': gespeichert['id']}
 
     # ---- Bereitschaftsraum (#85): the chat service (token), SCHNITTSTELLE.md section 8
@@ -443,10 +532,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(404, 'Keine solche Nachricht.')
         return {'ok': True}
 
-    # ---- Bereitschaftsraum: what the person does, each with the PIN
-
-    def chat_pin(request: Request, pin: str | None) -> None:
-        wache.pruefe(e.pin, pin, request.client.host if request.client else '?')
+    # ---- Bereitschaftsraum: what the person does, each from a paired device with the PIN; creating missions is acting
 
     def konto_bekannt(konto: str) -> None:
         if not any(konto in r['konten'] for r in speicher.chat_rechner()):
@@ -460,56 +546,110 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     @app.post('/api/chat')
     def chat_beginnen(b: ChatBeginn, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        chat_pin(request, x_bruecke_pin)
+        g = person(request, 'antworten', x_bruecke_pin)
         konto_bekannt(b.konto)
-        return {'ok': True, **speicher.chat_beginnen(b.forge, b.konto, b.modell, b.text, stempel())}
+        neu = speicher.chat_beginnen(b.forge, b.konto, b.modell, b.text, stempel())
+        protokoll(g, request, b)
+        return {'ok': True, **neu}
 
     @app.post('/api/chat/{id_}/nachricht')
     def chat_schreiben(id_: int, t: ChatText, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        chat_pin(request, x_bruecke_pin)
+        g = person(request, 'antworten', x_bruecke_pin)
         offener_chat(id_)
         neu = speicher.chat_schreiben(id_, t.text, stempel())
         if neu is None:
             raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
+        protokoll(g, request, t)
         return {'ok': True, 'id': neu}
 
     @app.post('/api/chat/{id_}/einstellung')
     def chat_einstellen(id_: int, w: ChatEinstellung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        chat_pin(request, x_bruecke_pin)
+        g = person(request, 'antworten', x_bruecke_pin)
         c = offener_chat(id_)
         if w.konto != c['konto']:
             konto_bekannt(w.konto)
         grund = speicher.chat_einstellen(id_, w.konto, w.modell, stempel())
         if grund:
             raise HTTPException(409, grund)
+        protokoll(g, request, w)
         return {'ok': True}
 
     # creating is a release (SCHNITTSTELLE.md): the draft is the stored one of the chat's latest answer, never the form's
     @app.post('/api/chat/{id_}/anlegen')
     def chat_anlegen(id_: int, a: ChatAnlegen, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        chat_pin(request, x_bruecke_pin)
+        g = person(request, 'handeln', x_bruecke_pin)
         offener_chat(id_)
         neu = speicher.chat_anlegen(id_, a.von, a.starten, stempel())
         if isinstance(neu, str):
             raise HTTPException(409, neu)
+        protokoll(g, request, a)
         return {'ok': True, 'id': neu}
 
     @app.post('/api/chat/{id_}/verwerfen')
     def chat_verwerfen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        chat_pin(request, x_bruecke_pin)
+        g = person(request, 'antworten', x_bruecke_pin)
         offener_chat(id_)
         if not speicher.chat_verwerfen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
+        protokoll(g, request)
         return {'ok': True}
 
+    # only whether the PIN is right (the page's PIN dialog); it does nothing, the wrong ones count as everywhere
     @app.post('/api/pin', status_code=204)
     def pin(request: Request, x_bruecke_pin: str | None = Header(None)) -> Response:
-        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        pin_pruefen(request, x_bruecke_pin)
         return Response(status_code=204)
+
+    # ---- devices (#46)
+
+    @app.post('/api/geraete/koppeln')
+    def koppeln(k: GeraetKoppeln, request: Request, response: Response, x_bruecke_pin: str | None = Header(None)) -> dict:
+        """Once per device with the PIN: a random key as a cookie, the bridge keeps only its hash. A new device may answer."""
+        kein_notaus()
+        pin_pruefen(request, x_bruecke_pin)
+        schluessel = secrets.token_urlsafe(32)
+        g = speicher.geraet_koppeln(k.name.strip(), schluessel_hash(schluessel), stempel())
+        response.set_cookie(GERAET_COOKIE, schluessel, max_age=GERAET_MAX_ALTER, path='/', secure=True, httponly=True, samesite='strict')
+        protokoll(g, request, k)
+        return {'ok': True, 'geraet': g}
+
+    @app.post('/api/geraete/{id_}/rechte')
+    def rechte(id_: int, r: GeraetRechte, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        g = rechner(request, x_bruecke_pin)
+        if not speicher.geraet_rechte(id_, r.antworten, r.handeln):
+            raise HTTPException(404, 'Kein solches Gerät.')
+        protokoll(g, request, r)
+        return {'ok': True}
+
+    @app.post('/api/geraete/{id_}/entkoppeln')
+    def entkoppeln(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        g = rechner(request, x_bruecke_pin)
+        if not speicher.geraet_entkoppeln(id_):
+            raise HTTPException(404, 'Kein solches Gerät.')
+        protokoll(g, request)
+        return {'ok': True}
+
+    @app.post('/api/notaus')
+    def notaus(request: Request) -> dict:
+        """Any paired device, without PIN and without a right: stopping must be quick."""
+        g = geraet_von(request)
+        if g is None:
+            raise HTTPException(401, 'Dieses Gerät ist nicht gekoppelt: einmal mit der PIN koppeln.', headers={'X-Bruecke-Grund': 'geraet'})
+        speicher.notaus_setzen(g['name'], stempel())
+        protokoll(g, request)
+        return {'ok': True, 'notaus': speicher.notaus()}
+
+    @app.post('/api/notaus/loesen')
+    def notaus_loesen(request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        g = rechner(request, x_bruecke_pin)
+        if not speicher.notaus_loesen():
+            raise HTTPException(409, 'Es ist kein Not-Aus ausgelöst.')
+        protokoll(g, request)
+        return {'ok': True}
 
     @app.post('/api/antwort')
     def antworten(a: Antwort, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        g = person(request, 'antworten', x_bruecke_pin)
         p = speicher.projekt(a.forge)
         f = next((f for f in (p['bericht']['fragen'] if p else []) if f['epic'] == a.epic and f['nr'] == a.nr and f['seit'] == a.seit), None)
         if f is None:
@@ -526,13 +666,14 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         gespeichert = speicher.antwort_setzen(a.forge, a.epic, a.nr, a.seit, a.option, a.text, stempel())
         if gespeichert is None:
             raise HTTPException(409, 'Der Treiber hat die Antwort schon abgeholt.')
+        protokoll(g, request, a)
         return {'ok': True, 'id': gespeichert['id']}
 
-    # ---- Web-Push (#37): a device subscribes and unsubscribes only with the PIN
+    # ---- Web-Push (#37): a paired device subscribes and unsubscribes only with the PIN
 
     @app.post('/api/push')
     def abonnieren(a: PushAbo, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        person(request, 'antworten', x_bruecke_pin)
         if not push:
             raise HTTPException(409, 'Web-Push ist aus: kein VAPID-Schlüssel (BRUECKE_VAPID_SCHLUESSEL in .env).')
         speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel())
@@ -540,7 +681,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     @app.post('/api/push/abmelden')
     def abmelden(a: PushAbmeldung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        wache.pruefe(e.pin, x_bruecke_pin, request.client.host if request.client else '?')
+        person(request, 'antworten', x_bruecke_pin)
         return {'ok': True, 'geloescht': speicher.abo_loeschen(a.endpoint)}
 
     @app.get('/healthz')

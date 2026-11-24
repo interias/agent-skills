@@ -501,6 +501,64 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
     if (await senden('/api/handlung', { forge: ziel, epic: 0, art: 'einspielen', nr: null, seit: null, text: null }, zeile, zeile.querySelector('.status'))) await laden();
   }
 
+  // ---- #46: the paired devices; rights, unpairing and releasing the emergency stop only on the machine itself
+  const ja = (b) => (b ? '<b class="ok">ja</b>' : '<span class="mr-leer">nein</span>');
+
+  function geraetHtml(t, g) {
+    const dieses = t.geraet?.id === g.id ? ' <span class="mr-hilfe">dieses Gerät</span>' : '';
+    const knoepfe = t.amRechner
+      ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-geraet-recht="antworten">${g.antworten ? 'Antworten nehmen' : 'Antworten geben'}</button><button type="button" class="knopf ${g.handeln ? 'zweit' : 'haupt'}" data-geraet-recht="handeln">${g.handeln ? 'Handeln nehmen' : 'Handeln geben'}</button><button type="button" class="knopf warn" data-geraet-entkoppeln>Entkoppeln</button><span class="status" role="status"></span></div>`
+      : '';
+    return `<article class="mr-karte mr-geraet" data-geraet="${esc(g.id)}" data-antworten="${g.antworten ? '1' : ''}" data-handeln="${g.handeln ? '1' : ''}" data-name="${esc(g.name)}"><h3>${esc(g.name)}${dieses}</h3>
+<dl><dt>Ansehen</dt><dd>${ja(true)}</dd><dt>Antworten</dt><dd>${ja(g.antworten)}</dd><dt>Handeln</dt><dd>${ja(g.handeln)}</dd><dt>Gekoppelt</dt><dd>${esc(wann(g.gekoppelt))}</dd><dt>Zuletzt</dt><dd>${g.zuletzt ? esc(wann(g.zuletzt)) : '<span class="mr-leer">–</span>'}</dd></dl>${knoepfe}</article>`;
+  }
+
+  function geraeteHtml(t) {
+    const n = t.notaus;
+    const hinweis = t.amRechner
+      ? 'Am Rechner: Hier gibst und nimmst du Rechte, entkoppelst Geräte und löst den Not-Aus. Jede Änderung braucht die PIN.'
+      : 'Jede Antwort braucht ein gekoppeltes Gerät und die PIN, jede Handlung ein Gerät mit dem Recht „Handeln“ und die PIN. Rechte gibt nur der Rechner selbst: dort die Brücke über localhost öffnen (Port BRUECKE_RECHNER_PORT).';
+    const koppeln = !t.geraet && t.pin ? '<button type="button" class="knopf haupt" data-geraet-koppeln>Dieses Gerät koppeln</button>' : '';
+    const notaus = n
+      ? `<p class="mr-notaus" role="status"><b>Not-Aus</b> seit ${esc(wann(n.seit))} (${esc(n.geraet)}): die Brücke nimmt keine Antwort und keine Handlung an.</p>${t.amRechner ? '<button type="button" class="knopf haupt" data-notaus-loesen>Not-Aus lösen</button>' : ''}`
+      : t.geraet && !t.nurAnsicht ? '<button type="button" class="knopf warn" data-notaus>Not-Aus</button>' : '';
+    const liste = t.geraete.length ? `<div class="mr-reihe">${t.geraete.map((g) => geraetHtml(t, g)).join('')}</div>` : '<p class="bereich-leer">Noch kein Gerät gekoppelt.</p>';
+    return `<h3 class="mr-titel">Geräte</h3><p class="mr-hinweis">${esc(hinweis)}</p><div class="knoepfe mr-alle">${koppeln}${notaus}<span class="status" role="status"></span></div>${liste}`;
+  }
+
+  async function geraetKnopf(ev) {
+    const b = ev.target.closest('button');
+    const zeile = b.closest('.knoepfe');
+    const status = zeile.querySelector('.status');
+    if (b.dataset.geraetKoppeln !== undefined) {
+      if (await koppelnFragen()) await laden();
+      return;
+    }
+    if (b.dataset.notaus !== undefined) {
+      if (!(await bestaetigen('Not-Aus auslösen? Die Brücke nimmt danach keine Antwort und keine Handlung mehr an, bis der Rechner ihn löst. Laufende Läufe der Treiber laufen weiter.', 'Not-Aus'))) return;
+      // stopping needs no PIN: one request, no dialog
+      const r = await fetch('/api/notaus', { method: 'POST' }).catch(() => null);
+      status.className = r?.ok ? 'status' : 'status schlecht';
+      status.textContent = r?.ok ? 'Not-Aus ausgelöst.' : !r ? 'Brücke nicht erreichbar' : (await r.json().catch(() => ({}))).detail || `Fehler ${r.status}`;
+      await laden();
+      return;
+    }
+    if (b.dataset.notausLoesen !== undefined) {
+      if (await senden('/api/notaus/loesen', {}, zeile, status)) await laden();
+      return;
+    }
+    const karte = b.closest('.mr-geraet');
+    const id = karte.dataset.geraet;
+    if (b.dataset.geraetEntkoppeln !== undefined) {
+      if (!(await bestaetigen(`${karte.dataset.name} entkoppeln? Das Gerät muss danach neu gekoppelt werden.`, 'Entkoppeln'))) return;
+      if (await senden(`/api/geraete/${id}/entkoppeln`, {}, zeile, status)) await laden();
+      return;
+    }
+    const rechte = { antworten: !!karte.dataset.antworten, handeln: !!karte.dataset.handeln };
+    rechte[b.dataset.geraetRecht] = !rechte[b.dataset.geraetRecht];
+    if (await senden(`/api/geraete/${id}/rechte`, rechte, zeile, status)) await laden();
+  }
+
   // ---- Web-Push (#37): this device subscribes with the PIN; the bridge pushes each new event of "Braucht dich"
   const kannPush = () => isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
@@ -550,7 +608,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
@@ -568,6 +626,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
           else if (ev.target.closest('[data-forge-verknuepfen]')) forgeKnopf(ev);
           else if (ev.target.closest('[data-projekt-entfernen], [data-projekt-hinzufuegen]')) projektKnopf(ev);
           else if (ev.target.closest('[data-einsammeln]')) einsammelnKnopf(ev);
+          else if (ev.target.closest('[data-geraet-koppeln], [data-notaus], [data-notaus-loesen], [data-geraet-recht], [data-geraet-entkoppeln]')) geraetKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away

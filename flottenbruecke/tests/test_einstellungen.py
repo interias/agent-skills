@@ -52,8 +52,8 @@ def test_letzte_aenderung_je_einstellung_gilt_bis_zum_abholen(client, bericht):
 
 def test_ohne_pin_oder_mit_falscher_pin_nichts(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert einstellen(client, 'obergrenze', 2, pin=None).status_code == 401
-    assert einstellen(client, 'obergrenze', 2, pin='0000').status_code == 401
+    assert einstellen(client, 'obergrenze', 2, pin=None).status_code == 403
+    assert einstellen(client, 'obergrenze', 2, pin='0000').status_code == 403
     assert offene(client) == []
 
 
@@ -103,8 +103,8 @@ def test_modelle_von_triage_und_admiral(client, bericht):
     client.post('/api/bericht', json=bericht)
     e = je_name(client)
     assert (e['triageModell']['wert'], e['triageModell']['werte']) == ('opus', ['opus', 'fable', 'sonnet'])
-    assert einstellen(client, 'triageModell', 'sonnet', pin=None).status_code == 401
-    assert einstellen(client, 'admiralModell', 'opus', pin='0000').status_code == 401
+    assert einstellen(client, 'triageModell', 'sonnet', pin=None).status_code == 403
+    assert einstellen(client, 'admiralModell', 'opus', pin='0000').status_code == 403
     assert offene(client) == []
     for name in ('triageModell', 'admiralModell'):
         for w in ('haiku', 'claude-opus-5-5', 'Opus', None, 1, ['opus']):
@@ -172,7 +172,7 @@ def test_sammelansicht_je_projekt_schalter_und_drei_zahlen(client, bericht):
     # laeuft/frage/nacharbeit run, pr, fertig and blockiert count in neither
     assert p['sammeln'] == {'laufend': 2, 'wartend': 2, 'freigegeben': 2}
     assert (je_name(client)['einsammeln']['wert'], je_name(client)['einsammeln']['werte']) == ('an', ['an', 'aus'])
-    assert einstellen(client, 'einsammeln', 'aus', pin=None).status_code == 401
+    assert einstellen(client, 'einsammeln', 'aus', pin=None).status_code == 403
     assert einstellen(client, 'einsammeln', 'vielleicht').status_code == 422
     assert einstellen(client, 'einsammeln', 'aus').json()['ok']
     assert je_name(client)['einsammeln']['offen']['wert'] == 'aus'

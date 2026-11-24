@@ -31,6 +31,7 @@
   </div>
   <a class="zaehler ruhig" id="zaehler" href="#bruecke" aria-label="Braucht dich: 0"><span>Braucht dich</span><b id="zaehler-zahl">0</b></a>
   <span class="nur-ansicht" id="nur-ansicht" title="Über den Fernweg: ansehen ja, Antworten und Handlungen nur im LAN" hidden>Nur Ansicht</span>
+  <a class="notaus-marke" id="notaus-marke" href="#maschinenraum" title="Not-Aus: die Brücke nimmt nichts an, bis der Rechner ihn löst" hidden>Not-Aus</a>
   <nav class="pillen" aria-label="Bereiche">
     <a class="pille" href="#bruecke" data-bereich="bruecke">Brücke<span class="pille-zahl" id="pille-zahl" hidden>0</span></a>
     <a class="pille" href="#holodeck" data-bereich="holodeck">Holo&shy;deck</a>
@@ -121,6 +122,20 @@
     <div class="dialog-knoepfe">
       <button type="button" class="knopf zweit" id="pin-abbruch">Abbrechen</button>
       <button type="submit" class="knopf haupt">Freigeben</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="koppeln-dialog">
+  <form method="dialog" id="koppeln-form">
+    <div class="dialog-balken">Gerät koppeln</div>
+    <p>Dieses Gerät ist der Brücke noch unbekannt. Einmal mit Namen und PIN koppeln; danach darf es antworten. Handeln gibt nur der Rechner selbst frei (Maschinenraum über localhost).</p>
+    <input id="koppeln-name" type="text" maxlength="60" autocomplete="off" required aria-label="Name des Geräts" placeholder="Name, etwa Handy">
+    <input id="koppeln-pin" type="password" inputmode="numeric" autocomplete="off" required aria-label="PIN" placeholder="PIN">
+    <p class="fehler" id="koppeln-fehler"></p>
+    <div class="dialog-knoepfe">
+      <button type="button" class="knopf zweit" id="koppeln-abbruch">Abbrechen</button>
+      <button type="submit" class="knopf haupt">Koppeln</button>
     </div>
   </form>
 </dialog>

@@ -24,6 +24,8 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
   Treiber, Werft und Chat-Dienst melden sich wie bisher am Rechner.
 - **Token (optional):** Setzt die Brücke `BRUECKE_TOKEN`, schickt der Treiber den Wert aus
   `FLOTTE_BRUECKE_TOKEN` als Kopf `X-Bruecke-Token` bei allen Aufrufen.
+- **Kein `Origin` (#46):** Eine schreibende Anfrage (auch Abholen) mit einem `Origin`, der nicht die
+  Brücke selbst ist, bekommt `403`. Treiber, Werft und Chat-Dienst schicken keinen `Origin`.
 - **Alt und neu passen zusammen:** Alle Felder, die v2 dazugebracht hat, sind im Bericht
   freiwillig. Ein älterer Treiber meldet weiter, ihm fehlen auf der Brücke nur Lebenszeichen,
   Laufband, Tanks und Handlungen. Die Brücke v2 legt ihre neue Tabelle auf einem alten Volume an,
@@ -564,7 +566,7 @@ und zeigt sie im Laufband und Logbuch (`ereignisse[]` mit `kurz` `Werft`, `forge
 des Treibers liefert sie nie.
 
 Die Seite legt Handlungen mit PIN an: `POST /api/werft/handlung` mit `X-Bruecke-Pin`, Body
-`{rechner, forge, stack, art, text}`, Antwort `{ok, id}`; ohne oder mit falscher PIN `401`, ohne
+`{rechner, forge, stack, art, text}`, Antwort `{ok, id}`; Gerät mit Recht Handeln nötig (Abschnitt „Geräte“), ohne oder mit falscher PIN `403`, ohne
 gesetzte PIN `403`, fünf falsche sperren (`429`). Geprüft gegen den letzten Bericht dieses Rechners:
 Repository oder Stack unbekannt `404`; `nachziehen` und `migration_freigeben` bei Werft oder Stack aus
 `409`; `migration_freigeben` nur bei `arbeit.zustand` `wartet` und nur mit genau `commit`,
@@ -607,7 +609,7 @@ mit keinem Push-Dienst, `push` in `GET /api/tafel` ist `null`, `POST /api/push` 
   (Host `fcm.googleapis.com` oder endend auf `.push.services.mozilla.com`, `.notify.windows.com`,
   `.push.apple.com`), ohne Benutzerangaben, Port keiner oder 443, sonst `422`: Die Brücke schickt an
   jedes Abo, also an kein Ziel im LAN. `200 {ok}`, ohne oder mit
-  falscher PIN `401`/`403`/`429` wie bei den Antworten, ohne VAPID-Schlüssel `409`.
+  falscher PIN, ohne gekoppeltes Gerät `401`/`403`/`429` wie bei den Antworten (Abschnitt „Geräte“), ohne VAPID-Schlüssel `409`.
 - **`POST /api/push/abmelden`** mit `X-Bruecke-Pin`: `{endpoint}`; `200 {ok, geloescht}`. Meldet der
   Push-Dienst ein Abo mit `404` oder `410` als abgelaufen, löscht die Brücke es selbst; jeder andere
   Fehler lässt es stehen (Log-Zeile ohne Inhalt).
@@ -732,3 +734,26 @@ Stand, Verlauf, die Karten der letzten Antwort, der letzte Entwurf `{von, text}`
 `missionen`. Fünf falsche PINs je Absender
 sperren für fünf Minuten. Über den Fernzugriff (#48) trägt `GET /api/tafel` `nurAnsicht: true` (im LAN
 `false`), und jede Anfrage außer GET und HEAD bekommt `403`, auch mit richtiger PIN.
+
+### Geräte (#46)
+
+Jede schreibende Anfrage der Person oben braucht ein gekoppeltes Gerät (Cookie `bruecke_geraet`) mit
+dem Recht dafür **und** `X-Bruecke-Pin`. Recht **Antworten**: `POST /api/antwort`, `POST /api/chat`,
+`…/nachricht`, `…/einstellung`, `…/verwerfen`, `POST /api/push`, `POST /api/push/abmelden`. Recht
+**Handeln**: `POST /api/handlung`, `POST /api/werft/handlung`, `POST /api/chat/{id}/anlegen`. Die
+Prüfung in dieser Reihenfolge: keine PIN gesetzt `403`; unbekanntes oder entkoppeltes Gerät `401` mit
+Kopf `X-Bruecke-Grund: geraet`; Recht fehlt `403` (`recht`); Not-Aus `423`; falsche oder fehlende PIN
+`403` (`pin`), fünf falsche `429`. `POST /api/pin` prüft nur die PIN (`204` oder `403`).
+
+- `POST /api/geraete/koppeln` `{name}` mit PIN: setzt das Cookie (zufällig, HttpOnly, Secure,
+  SameSite=Strict), gespeichert wird nur sein SHA-256. Antwort `{ok, geraet}`; ein neues Gerät hat
+  `antworten: true`, `handeln: false`.
+- **Nur über den Eingang des Rechners** (Port 8002 im Container, compose nur auf `127.0.0.1`), mit PIN,
+  sonst `403`: `POST /api/geraete/{id}/rechte` `{antworten, handeln}`, `POST /api/geraete/{id}/entkoppeln`,
+  `POST /api/notaus/loesen` (`409`, wenn keiner ausgelöst ist).
+- `POST /api/notaus`: jedes gekoppelte Gerät, ohne PIN und ohne Recht; danach `423` für jede Antwort,
+  Handlung und Kopplung, auch nach einem Neustart, bis zum Lösen.
+- In `GET /api/tafel`: `geraete[{id, name, antworten, handeln, gekoppelt, zuletzt}]`, `geraet` (das
+  anfragende Gerät oder `null`), `amRechner`, `notaus` (`{seit, geraet}` oder `null`) und
+  `geraeteLogbuch[{zeit, geraet, befehl}]` (neueste zuerst, höchstens 200; `befehl` ist Pfad und Body,
+  wie sie ankamen).

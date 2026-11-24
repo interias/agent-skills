@@ -52,8 +52,8 @@ def test_einstellung_annehmen_abholen_und_im_logbuch(client, bericht):
 
 def test_einstellung_braucht_die_pin(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert einstellen(client, 'mensch', pin=None).status_code == 401
-    assert einstellen(client, 'mensch', pin='0000').status_code == 401
+    assert einstellen(client, 'mensch', pin=None).status_code == 403
+    assert einstellen(client, 'mensch', pin='0000').status_code == 403
     assert offene(client) == []
 
 
@@ -69,8 +69,8 @@ def test_einstellung_nur_aus_den_werten_des_treibers(client, bericht):
 
 def test_schalter_am_epic_braucht_die_pin(client, bericht, bruecke):
     client.post('/api/bericht', json=bericht)
-    assert schalten(client, 41, 'automatisch', pin=None).status_code == 401
-    assert schalten(client, 41, 'automatisch', pin='0000').status_code == 401
+    assert schalten(client, 41, 'automatisch', pin=None).status_code == 403
+    assert schalten(client, 41, 'automatisch', pin='0000').status_code == 403
     assert offene(client) == []
     c = bruecke(pin='')
     c.post('/api/bericht', json=bericht)

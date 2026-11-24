@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import Einstellung, erzeuge
+from conftest import koppeln
 
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
@@ -49,9 +50,10 @@ def test_ohne_stand_sagt_die_bruecke_nichts_erfundenes(client, bericht):
 
 def test_einspielen_nur_mit_pin_der_treiber_holt_es_ab_mit_dem_stand_der_bruecke(tmp_path, uhr, bericht):
     c = TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr, commit='0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c')))
+    koppeln(c)
     c.post('/api/bericht', json=bericht)
-    assert einspielen(c, pin=None).status_code == 401
-    assert einspielen(c, pin='0000').status_code == 401
+    assert einspielen(c, pin=None).status_code == 403
+    assert einspielen(c, pin='0000').status_code == 403
     assert offene(c) == []
     r = einspielen(c)
     assert r.status_code == 200 and r.json()['ok']

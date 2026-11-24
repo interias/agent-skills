@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import koppeln
 
 BEISPIEL = Path(__file__).parent.parent / 'beispiel'
 WERFT = json.loads((BEISPIEL / 'werft.json').read_text(encoding='utf-8'))
@@ -142,8 +143,8 @@ def test_ohne_werft_ist_die_liste_leer(client, bericht):
 ])
 def test_jede_handlung_nur_mit_pin(client, werft, art, stack, text):
     client.post('/api/werft', json=werft)
-    assert handeln(client, art, stack, text, pin=None).status_code == 401
-    assert handeln(client, art, stack, text, pin='0000').status_code == 401
+    assert handeln(client, art, stack, text, pin=None).status_code == 403
+    assert handeln(client, art, stack, text, pin='0000').status_code == 403
     assert offene(client) == []
     r = handeln(client, art, stack, text)
     assert r.status_code == 200, r.text
@@ -162,7 +163,7 @@ def test_ohne_gesetzte_pin_ist_alles_abgeschaltet(bruecke, werft):
 def test_fuenf_falsche_pins_sperren_auch_hier(client, werft):
     client.post('/api/werft', json=werft)
     for _ in range(5):
-        assert handeln(client, 'nachziehen', 'worker', pin='0000').status_code == 401
+        assert handeln(client, 'nachziehen', 'worker', pin='0000').status_code == 403
     assert handeln(client, 'nachziehen', 'worker').status_code == 429
     assert offene(client) == []
 
@@ -317,6 +318,7 @@ def test_werft_auf_einem_alten_volume(tmp_path, uhr, werft):
     with sqlite3.connect(db) as alt:
         alt.execute('create table projekte (forge text primary key, angelegt text not null, empfangen text not null, bericht text not null)')
     c = TestClient(erzeuge(Einstellung(db=str(db), pin='4711', uhr=uhr)))
+    koppeln(c)
     assert c.post('/api/werft', json=werft).status_code == 200
     assert handeln(c, 'nachziehen', 'worker').status_code == 200
 

@@ -162,8 +162,8 @@ def test_bruecken_api_sendet_keine_cors_koepfe(client, satz):
 def test_antworten_ohne_pin_bleibt_gesperrt(client, bericht):
     client.post('/api/bericht', json=bericht)
     body = {'forge': PROBE, 'epic': 39, 'nr': 1, 'seit': '2026-11-20T13:52:30Z', 'option': 'A', 'text': None}
-    assert client.post('/api/antwort', json=body, headers={'Origin': 'null'}).status_code == 401
-    assert client.post('/api/handlung', json={'forge': PROBE, 'epic': 40, 'art': 'einreihen'}, headers={'Origin': 'null'}).status_code == 401
+    assert client.post('/api/antwort', json=body, headers={'Origin': 'null'}).status_code == 403
+    assert client.post('/api/handlung', json={'forge': PROBE, 'epic': 40, 'art': 'einreihen'}, headers={'Origin': 'null'}).status_code == 403
 
 
 def test_holodeck_skript_setzt_den_rahmen_ohne_same_origin():

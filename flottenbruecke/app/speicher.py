@@ -1,7 +1,8 @@
 # SQLite: the last report per project, when an epic reached its stage, the answers and actions of
 # the person until the driver acknowledges them, the prototypes of each project (Holodeck),
 # (#37) the push subscriptions of the devices and the events of "Braucht dich" already reported, and (#85)
-# the chats of the Bereitschaftsraum: messages, answers and state, never credentials.
+# the chats of the Bereitschaftsraum: messages, answers and state, never credentials. (#46) The paired
+# devices with their rights (only the hash of their key), the emergency stop and the log of what each device did.
 
 import json
 import sqlite3
@@ -121,7 +122,29 @@ create table if not exists chat_rechner (
   konten text not null,
   gesehen text not null
 );
+create table if not exists geraete (
+  id integer primary key autoincrement,
+  name text not null,
+  hash text not null unique,
+  antworten integer not null default 1,
+  handeln integer not null default 0,
+  gekoppelt text not null,
+  zuletzt text
+);
+create table if not exists notaus (
+  id integer primary key check (id = 1),
+  seit text not null,
+  geraet text not null
+);
+create table if not exists geraete_logbuch (
+  id integer primary key autoincrement,
+  zeit text not null,
+  geraet text not null,
+  befehl text not null
+);
 """
+# the entries of the device log the board carries, newest first
+LOGBUCH_ZEILEN = 200
 # the messages of the Werft kept per machine: its reports carry only those of one takt
 WERFT_MELDUNGEN = 40
 
@@ -482,3 +505,58 @@ class Speicher:
                 self.db.execute("update chats set stand = 'angelegt' where id = ? and stand = 'offen'", (n['chat'],))
             self.db.execute('update chats set geaendert = ? where id = ?', (jetzt, n['chat']))
             return True
+
+    # ---- devices (#46): only the hash of a device's key is stored, never the key
+
+    def geraet_koppeln(self, name: str, hash_: str, jetzt: str) -> dict:
+        """A new device may answer, not act; acting is given on the machine itself."""
+        with self.lock, self.db:
+            id_ = self.db.execute('insert into geraete (name, hash, gekoppelt) values (?, ?, ?)', (name, hash_, jetzt)).lastrowid
+            return self._geraet(self.db.execute('select * from geraete where id = ?', (id_,)).fetchone())
+
+    def geraet(self, hash_: str) -> dict | None:
+        with self.lock:
+            z = self.db.execute('select * from geraete where hash = ?', (hash_,)).fetchone()
+        return None if z is None else self._geraet(z)
+
+    def geraete(self) -> list[dict]:
+        with self.lock:
+            return [self._geraet(z) for z in self.db.execute('select * from geraete order by id')]
+
+    @staticmethod
+    def _geraet(z) -> dict:
+        return {'id': z['id'], 'name': z['name'], 'antworten': bool(z['antworten']), 'handeln': bool(z['handeln']), 'gekoppelt': z['gekoppelt'], 'zuletzt': z['zuletzt']}
+
+    def geraet_benutzt(self, id_: int, jetzt: str) -> None:
+        with self.lock, self.db:
+            self.db.execute('update geraete set zuletzt = ? where id = ?', (jetzt, id_))
+
+    def geraet_rechte(self, id_: int, antworten: bool, handeln: bool) -> bool:
+        with self.lock, self.db:
+            return self.db.execute('update geraete set antworten = ?, handeln = ? where id = ?', (int(antworten), int(handeln), id_)).rowcount == 1
+
+    def geraet_entkoppeln(self, id_: int) -> bool:
+        with self.lock, self.db:
+            return self.db.execute('delete from geraete where id = ?', (id_,)).rowcount == 1
+
+    def notaus(self) -> dict | None:
+        """Survives a restart of the bridge: it holds until the machine releases it."""
+        with self.lock:
+            z = self.db.execute('select seit, geraet from notaus').fetchone()
+        return None if z is None else dict(z)
+
+    def notaus_setzen(self, geraet: str, jetzt: str) -> None:
+        with self.lock, self.db:
+            self.db.execute('insert or ignore into notaus (id, seit, geraet) values (1, ?, ?)', (jetzt, geraet))
+
+    def notaus_loesen(self) -> bool:
+        with self.lock, self.db:
+            return self.db.execute('delete from notaus').rowcount == 1
+
+    def logbuch_schreiben(self, geraet: str, befehl: str, jetzt: str) -> None:
+        with self.lock, self.db:
+            self.db.execute('insert into geraete_logbuch (zeit, geraet, befehl) values (?, ?, ?)', (jetzt, geraet, befehl))
+
+    def logbuch(self) -> list[dict]:
+        with self.lock:
+            return [dict(z) for z in self.db.execute('select zeit, geraet, befehl from geraete_logbuch order by id desc limit ?', (LOGBUCH_ZEILEN,))]

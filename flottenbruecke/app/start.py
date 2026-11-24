@@ -2,6 +2,7 @@
 # BRUECKE_ZERT and BRUECKE_ZERT_SCHLUESSEL name a certificate and its key (mkcert), as the phone's
 # Web-Push needs. `python -m app.start --gesund` is the health check for either. #48 (ADR-0006): beside it, one app,
 # the remote entry on FERNPORT, plain HTTP and view only; compose publishes it nowhere, only the Tailscale add-on reaches it.
+# #46: a third, RECHNERPORT, the entry of the machine itself; compose publishes it on 127.0.0.1 only.
 
 import os
 import ssl
@@ -24,12 +25,13 @@ def optionen(env) -> dict:
     return {**o, 'ssl_certfile': z[0], 'ssl_keyfile': z[1]} if z else o
 
 
-def eingaenge(env) -> tuple[dict, dict]:
-    """The LAN entry as before and the remote entry; both serve the same app object, not a factory each."""
-    from .main import FERNPORT
+def eingaenge(env) -> tuple[dict, dict, dict]:
+    """The LAN entry as before, the remote entry and (#46) the entry of the machine itself, plain HTTP like the remote
+    one (a browser trusts localhost); all serve the same app object, not a factory each."""
+    from .main import FERNPORT, RECHNERPORT
 
     lan = {k: v for k, v in optionen(env).items() if k != 'factory'}
-    return lan, {'host': '0.0.0.0', 'port': FERNPORT, 'server_header': False}
+    return lan, {'host': '0.0.0.0', 'port': FERNPORT, 'server_header': False}, {'host': '0.0.0.0', 'port': RECHNERPORT, 'server_header': False}
 
 
 async def beide(env) -> None:
