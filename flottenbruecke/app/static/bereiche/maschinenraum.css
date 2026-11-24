@@ -88,3 +88,18 @@
 .bereich[data-bereich="maschinenraum"] .mr-schritte { margin: 0 0 16px; padding-left: 24px; display: grid; gap: 8px; }
 .bereich[data-bereich="maschinenraum"] .mr-schritt summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .bereich[data-bereich="maschinenraum"] .mr-schritt.fertig summary { color: var(--matt); }
+
+/* #193: Automatik je Projekt, one row per project: name, switch, three numbers, button; stacked on a phone */
+.bereich[data-bereich="maschinenraum"] .mr-automatik { display: grid; gap: 8px; }
+.bereich[data-bereich="maschinenraum"] .mr-auto-zeile { grid-template-columns: minmax(8em, 1fr) minmax(10em, 1.2fr) 2.4fr auto; align-items: center; column-gap: 16px; }
+.bereich[data-bereich="maschinenraum"] .mr-auto-zeile h4 { margin: 0; }
+.bereich[data-bereich="maschinenraum"] .mr-auto-zeile.veraltet { opacity: .6; }
+.bereich[data-bereich="maschinenraum"] .mr-auto-zahlen { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font: 13px/1.4 var(--lesen); color: var(--matt); }
+.bereich[data-bereich="maschinenraum"] .mr-auto-zahl b { color: var(--text); font-weight: 600; }
+/* the switch reads like a pill of the cards above: green when on */
+.bereich[data-bereich="maschinenraum"] .mr-auto-zeile .mr-stand > b { color: #000; padding: 1px 8px; border-radius: var(--rund); font-size: 12px; text-transform: uppercase; background: var(--lila); }
+.bereich[data-bereich="maschinenraum"] .mr-auto-zeile .mr-stand > b.ok { background: var(--gruen); }
+@media (max-width: 700px) {
+  .bereich[data-bereich="maschinenraum"] .mr-auto-zeile { grid-template-columns: 1fr; }
+  .bereich[data-bereich="maschinenraum"] .mr-auto-zeile .knopf { min-height: 48px; }
+}

@@ -60,7 +60,7 @@ describe('A: Start im Projektordner', () => {
     expect(e.admiralKonto).toBe(kontoAus('1'));
     expect(e.kontoMax).toEqual({ [kontoAus('1')]: 0 });
     // #58: explicit start parameters win over settings of the bridge at the start
-    expect(e.gesetzt).toEqual(['konten', 'admiral']);
+    expect(e.gesetzt).toEqual(['konten', 'admiral', 'einsammeln']);
     expect(einstellungAus(['--konten', '1', '--obergrenze', '2', '--leerlauf-min', '60', '--ram-warn', '70', '--platte-min-gb', '30'], join(repo, 'unter', 'ordner')).gesetzt).toEqual(['obergrenze', 'konten', 'ramWarn', 'platteMinGb', 'leerlaufMin']);
     const fest = einstellungAus([repo, '--forge', 'x/y', '--epics', '3,#4', '--konten', '2'], tmpdir());
     expect([fest.forge, fest.epics, fest.auto, fest.dauerhaft]).toEqual(['x/y', [3, 4], false, false]);

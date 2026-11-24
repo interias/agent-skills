@@ -163,3 +163,32 @@ def test_einstellen_stoert_die_epic_handlungen_nicht(client, bericht):
     assert client.post('/api/handlung', json={'forge': FORGE, 'epic': 40, 'art': 'einreihen'}, headers=PIN).status_code == 200
     assert client.post('/api/handlung', json={'forge': FORGE, 'epic': 0, 'art': 'einreihen'}, headers=PIN).status_code == 404
     assert sorted(h['art'] for h in offene(client)) == ['einreihen', 'einstellen']
+
+
+def test_sammelansicht_je_projekt_schalter_und_drei_zahlen(client, bericht):
+    """#193: per project the switch einsammeln with the PIN, and the missions running, waiting and released but not collected."""
+    client.post('/api/bericht', json=bericht)
+    p = tafel(client)['projekte'][0]
+    # laeuft/frage/nacharbeit run, pr, fertig and blockiert count in neither
+    assert p['sammeln'] == {'laufend': 2, 'wartend': 2, 'freigegeben': 2}
+    assert (je_name(client)['einsammeln']['wert'], je_name(client)['einsammeln']['werte']) == ('an', ['an', 'aus'])
+    assert einstellen(client, 'einsammeln', 'aus', pin=None).status_code == 401
+    assert einstellen(client, 'einsammeln', 'vielleicht').status_code == 422
+    assert einstellen(client, 'einsammeln', 'aus').json()['ok']
+    assert je_name(client)['einsammeln']['offen']['wert'] == 'aus'
+    assert [h['text'] for h in offene(client)] == ['{"name": "einsammeln", "wert": "aus"}']
+
+
+def test_sammelansicht_zaehlt_frage_und_nacharbeit_mit_und_ohne_freigegeben_null(client, bericht):
+    # a waiting mission outside the deployment (an earlier one) counts in neither
+    bericht['epics'] = [{**bericht['epics'][1], 'nr': 50, 'stufe': 'frage'}, {**bericht['epics'][1], 'nr': 51, 'stufe': 'nacharbeit'}, {**bericht['epics'][0], 'nr': 52, 'stufe': 'wartend', 'imEinsatz': False}]
+    del bericht['freigegeben']
+    client.post('/api/bericht', json=bericht)
+    assert tafel(client)['projekte'][0]['sammeln'] == {'laufend': 2, 'wartend': 0, 'freigegeben': 0}
+
+
+def test_maschinenraum_zeichnet_die_sammelansicht():
+    from pathlib import Path
+    mr = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'maschinenraum.js').read_text(encoding='utf-8')
+    assert 'Automatik je Projekt' in mr
+    assert "name: 'einsammeln'" in mr and 'data-einsammeln' in mr

@@ -45,8 +45,13 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   laufen diese Missionen und dazu alles, was das Einsammeln freigegeben findet. Läufe, Fragen und PRs
   eines früheren Einsatzes aus `zustand.json`, die das Einsammeln nicht trifft, übernimmt er (Ereignis
   „Übernommen aus einem früheren Einsatz“); sie zählen in der Belegung mit.
+  Ob er einsammelt, ist die Einstellung `einsammeln` (#193, „Automatik je Projekt“ im Maschinenraum der
+  Brücke): `--dauerhaft` oder ein Start ohne `--epics` setzt `an`, `--epics` allein `aus`. Über die Brücke
+  umgeschaltet gilt der Wert ab dem nächsten Takt und nach einem Neustart weiter, bis ein Start mit
+  `--dauerhaft` oder `--epics` ihn neu setzt (Ereignis). Aus hält nichts an: Laufende, wartende, genannte und
+  aufgenommene Missionen laufen weiter, nur keine neue kommt dazu.
 - **Ende:** Sind Schlange und Kandidaten leer, sammelt der Treiber ein letztes Mal ein und endet,
-  wenn nichts Neues freigegeben ist. Mit `--dauerhaft` wartet er weiter auf neue Missionen. Ist eine
+  wenn nichts Neues freigegeben ist. Mit `--dauerhaft` oder mit `einsammeln` `an` von der Brücke wartet er weiter auf neue Missionen. Ist eine
   Mission dieses Einsatzes blockiert oder abgebrochen und die Brücke erreichbar, endet er nicht, sondern bleibt im
   Einsatz (Ereignis „bleibt im Einsatz“), bis der Mensch sie dort neu einreiht oder aufgibt. Ohne
   Brücke endet er wie bisher; blockierte Missionen früherer Einsätze halten ihn nicht.

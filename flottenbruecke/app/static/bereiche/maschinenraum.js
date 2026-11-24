@@ -2,7 +2,8 @@
 // driver, all from /api/tafel; below them the settings of each driver (#59), changeable with the PIN,
 // and (#37) the Web-Push of this device, when the bridge has a VAPID key. #154: the stand of the bridge and of
 // each driver, a newer main of the source, and "Einspielen und Treiber neu starten" (PIN), one driver or all.
-// With several drivers, every setting stands once for all of them. #96: the accounts of konten.json with
+// With several drivers, every setting stands once for all of them; only the switch einsammeln (#193) stands
+// per project, in "Automatik je Projekt". #96: the accounts of konten.json with
 // their buttons, and the guided start while an account, the forge or a project is missing.
 // A field the report lacks gets an honest empty line, never a made-up value.
 // The shell (huelle.js) calls zeichne(t, el) on every load while the area is visible; t is null
@@ -134,6 +135,39 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
       ordnerEntwurf = '';
       await laden();
     }
+  }
+
+  // ---- #193: Automatik je Projekt: whether a driver collects released missions itself. One row per project with the
+  // switch (the setting einsammeln, changed with the PIN like every setting) and what runs, waits and is released
+  // but not collected; the settings below leave the switch out, it stands here only.
+  const AUTOMATIK = 'einsammeln';
+
+  function automatikHtml(t) {
+    if (!t.projekte.length) return '';
+    const zeile = (p) => {
+      const e = p.einstellungen?.find((x) => x.name === AUTOMATIK);
+      const z = p.sammeln ?? { laufend: 0, wartend: 0, freigegeben: 0 };
+      const an = e && basis(e) === 'an';
+      const stand = !e
+        ? nichts('Schalter')
+        : e.offen
+        ? `<span class="mr-wartet">wartet auf den Treiber · neu <b>${esc(e.offen.wert)}</b>${e.offen.abgeholt ? ' · abgeholt' : ''}</span>`
+        : `<b class="${e.wert === 'an' ? 'ok' : ''}">${esc(e.wert)}</b> <span class="mr-herkunft ${esc(e.herkunft)}">${esc(HERKUNFT[e.herkunft] ?? e.herkunft)}</span>`;
+      const knopf = e ? `<button type="button" class="knopf ${an ? 'zweit' : 'haupt'}" data-einsammeln="${esc(p.forge)}" data-wert="${an ? 'aus' : 'an'}" aria-pressed="${an}"${!t.pin || e.offen?.abgeholt ? ' disabled' : ''}>${an ? 'Ausschalten' : 'Einschalten'}</button>` : '';
+      const zahl = (n, was) => `<span class="mr-auto-zahl"><b class="zahl">${n}</b> ${was}</span>`;
+      return `<div class="mr-karte mr-auto-zeile${p.veraltet ? ' veraltet' : ''}" role="group" aria-label="Automatik ${esc(p.kurz)}">
+<h4>${esc(p.kurz)}</h4><p class="mr-stand">${stand}</p><p class="mr-auto-zahlen">${zahl(z.laufend, 'laufend')}${zahl(z.wartend, 'wartend')}${zahl(z.freigegeben, 'freigegeben, nicht eingesammelt')}</p>
+<div class="knoepfe">${knopf}<span class="status" role="status"></span></div></div>`;
+    };
+    const hinweis = !t.pin ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.` : 'An: der Treiber sammelt jede freigegebene Mission selbst ein; hier eingeschaltet wartet er danach auf neue wie mit --dauerhaft. Aus: keine neue Mission; laufende, wartende und aufgenommene laufen weiter, nichts hält an. Wirkt ab dem nächsten Takt, Umschalten braucht die PIN; ein Start mit --dauerhaft oder --epics setzt den Wert neu.';
+    return `<h3 class="mr-titel">Automatik je Projekt</h3><p class="mr-hinweis">${esc(hinweis)}</p><div class="mr-automatik">${t.projekte.map(zeile).join('')}</div>`;
+  }
+
+  async function einsammelnKnopf(ev) {
+    const knopf = ev.target.closest('[data-einsammeln]');
+    const zeile = knopf.closest('.mr-auto-zeile');
+    const text = JSON.stringify({ name: 'einsammeln', wert: knopf.dataset.wert });
+    if (await senden('/api/handlung', { forge: knopf.dataset.einsammeln, epic: 0, art: 'einstellen', nr: null, seit: null, text }, zeile, zeile.querySelector('.status'))) await laden();
   }
 
   // the guided start (#96): what is still missing, in this order; finished steps fold away
@@ -345,7 +379,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
     let html = '';
     if (geteilt) {
       const ps = mitEinstellungen(t);
-      const namen = ps[0].einstellungen.map((e) => e.name);
+      const namen = ps[0].einstellungen.map((e) => e.name).filter((n) => n !== AUTOMATIK);
       const zeilen = namen.map((n) => vereint(ps.map((p) => p.einstellungen.find((e) => e.name === n)).filter(Boolean))).filter(Boolean);
       const still = ps.some((p) => p.veraltet);
       html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}; „Missionen gleichzeitig“ zählt je Treiber. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
@@ -358,7 +392,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
         const bekannt = [r?.obergrenze != null ? `Missionen gleichzeitig <b>${r.obergrenze}</b>` : '', p.leerlaufS != null ? `Leerlauf <b>${Math.round(p.leerlaufS / 60)} min</b>` : ''].filter(Boolean).join(' · ');
         return `${kopf}<p class="mr-hinweis">Dieser Treiber meldet keine Einstellungen (älterer Stand): hier nur lesend${bekannt ? `, bekannt ist ${bekannt}` : ''}. Ändern geht, sobald der Treiber aktualisiert ist.</p>`;
       }
-      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
+      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.filter((e) => e.name !== AUTOMATIK).map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
     }).join('') + werftEinstellungenHtml(t);
   }
 
@@ -516,7 +550,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
@@ -533,6 +567,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
           else if (ev.target.closest('[data-konto]')) kontoKnopf(ev);
           else if (ev.target.closest('[data-forge-verknuepfen]')) forgeKnopf(ev);
           else if (ev.target.closest('[data-projekt-entfernen], [data-projekt-hinzufuegen]')) projektKnopf(ev);
+          else if (ev.target.closest('[data-einsammeln]')) einsammelnKnopf(ev);
         });
       }
       // a control in use keeps its DOM: the load must not take the focus or a half typed number away
