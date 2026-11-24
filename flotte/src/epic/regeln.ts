@@ -203,11 +203,16 @@ export interface BlockFrage {
   quelle: string;
 }
 
-const flach = (s: string) => s.replace(/\s+/g, ' ').trim();
+// #195: a dash between spaces separates the fields of a question line (bloecke.ts), so inside a field it becomes a hyphen
+const flach = (s: string) => s.replace(/\s+/g, ' ').trim().replace(/ [—–] /g, ' - ');
 
 export function frageBlock(epic: number, phase: 'tor' | 'ram', fragen: BlockFrage[], stand: string): string {
   const zeilen = fragen.map((f) => {
-    const optionen = f.optionen.map((o, i) => `${String.fromCharCode(65 + i)}) ${flach(o)}`).join(' ');
+    // the cut often writes its own letter before an option (`A: …`); the block numbers them itself
+    const optionen = f.optionen.map((o, i) => {
+      const b = String.fromCharCode(65 + i);
+      return `${b}) ${flach(o).replace(new RegExp(`^${b}[):]\\s*`), '')}`;
+    }).join(' ');
     const betrifft = f.betrifft === 'Lauf' ? 'Lauf' : f.betrifft.join(', ');
     return `${f.nr}. ${flach(f.frage)} — Betrifft: ${betrifft} — Lage: ${flach(f.lage)} — Optionen: ${optionen} — Empfehlung: ${f.empfehlung} — Grund: ${flach(f.grund)} — Regel/Quelle: ${flach(f.quelle)}`;
   });
