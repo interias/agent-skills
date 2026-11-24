@@ -321,7 +321,8 @@ describe('only software (24.11.2026): a content goal is no work for the fleet', 
     const a = schnittplanAuftrag(n, [], REGELN);
     expect(a).toContain('Ein Inhaltsziel ist keine Arbeit der Flotte');
     expect(a).toContain('(marke: Inhalt)');
-    expect(a).toContain('`ready-for-human` statt des Freigabelabels');
+    expect(a).toContain('`ready-for-human` statt `ready-for-agent`, das Label setzt der Mensch');
+    expect(a).toContain('und ein Inhaltsziel (unten)');
   });
 
   it('the mark Inhalt is allowed and kept, the note waits in the triage without a question added by the program', () => {

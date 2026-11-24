@@ -82,7 +82,7 @@ wird daraus kein Missionsziel; das arbeitet der Mensch in einem eigenen Chat aus
 Anliegen wird nur der Softwareanteil Auftrag, der Inhaltsanteil steht als zurückgestellt in der
 Zusammenfassung. Maßstab ist das Ergebnis, nicht ein Wort im Text. Soll ein Inhaltsziel trotzdem als
 Issue stehen, nur „anlegen“, nie „anlegen und starten“: Die Triage empfiehlt dann `ready-for-human`,
-nicht `ready-for-agent`.
+nicht `ready-for-agent`; das Label setzt der Mensch.
 
 **Schnittregeln** für die Missionsziele:
 

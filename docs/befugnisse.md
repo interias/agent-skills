@@ -38,9 +38,10 @@ Eine Ticketfrage geht nie an dich; der Missions-PR listet jedes angelegte Ticket
 
 **Nur Software.** Die Flotte baut, verbessert und repariert Software. Ist das Ergebnis eines Ziels
 Inhalt — Konzept, Konstruktion, Recherche, gestaltete Motive oder Texte —, bekommt es
-`ready-for-human`, nicht `ready-for-agent`, und du arbeitest es in einem eigenen Chat aus: Das
-Vorab-Tor und die Triage fragen dich mit dieser Empfehlung, statt es auszuarbeiten (Regel 14 in
-[`mission/SKILL.md`](../mission/SKILL.md)). Bei einem gemischten Ziel baut die Mission den
+`ready-for-human`, nicht `ready-for-agent`, und du arbeitest es in einem eigenen Chat aus. Das
+Vorab-Tor hält an und empfiehlt, es herauszulösen (Regel 14 in [`mission/SKILL.md`](../mission/SKILL.md));
+unter dem Treiber entscheidet diese Torfrage der Admiral. Die Triage fragt dich mit derselben
+Empfehlung (Marke `Inhalt`); das Label setzt du. Bei einem gemischten Ziel baut die Mission den
 Softwareanteil, der Inhaltsanteil wird offener Punkt im PR.
 
 ## Was immer gilt
