@@ -144,7 +144,11 @@ describe('flotte projekt hinzufuegen --klonen', () => {
     const r = (await projekt(['hinzufuegen', '--klonen', 'https://github.com/octo/klein', '--konten', '1'], w)) as Record<string, any>;
     expect(r.ordner).toBe(join(eltern, 'klein'));
     expect(readFileSync(skript(w, 'klein'), 'utf8')).toContain("--konten '1'");
-    expect(klonAngebot({ heim: mkdtempSync(join(tmpdir(), 'flotte-klon-leer-')) }).eltern).toMatch(/[\\/]git$/);
+    // under the home folder the bridge gets ~, never the user's name; the driver expands a ~ folder again
+    const leer = welt({ quelle: bareRepo() });
+    expect(klonAngebot(leer).eltern).toBe(join('~', 'git'));
+    const r2 = (await projekt(['hinzufuegen', join('~', 'git', 'klein'), '--klonen', 'https://github.com/octo/klein'], leer)) as Record<string, any>;
+    expect(r2.ordner).toBe(join(leer.heim, 'git', 'klein'));
   });
 
   it('an existing folder whose origin matches: not cloned, added as today', async () => {

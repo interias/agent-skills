@@ -147,8 +147,15 @@ def test_link_nur_https_auf_github_oder_der_gemeldeten_gitea_forge(client, beric
     assert klonen(client, 'https://github.com/octo/klein', ordner='relativ').status_code == 422
 
 
+def ohne_klonen(bericht):
+    b = mit_projekten(bericht)
+    b.pop('klonAngebot', None)
+    b.pop('adapterLuecken', None)
+    return b
+
+
 def test_link_bei_einem_treiber_ohne_klonen_abgelehnt(client, bericht):
-    client.post('/api/bericht', json=mit_projekten(bericht))
+    client.post('/api/bericht', json=ohne_klonen(bericht))
     r = klonen(client, 'https://github.com/octo/klein')
     assert r.status_code == 409
     assert 'Link' in r.json()['detail']
@@ -161,7 +168,7 @@ def test_tafel_traegt_klonangebot_und_adapterluecken(client, bericht):
     p = client.get('/api/tafel').json()['projekte'][0]
     assert p['klonAngebot'] == {'gitea': [], 'eltern': 'C:\\Users\\jemand\\git'}
     assert p['adapterLuecken'] == ['gate_command', 'test_commands']
-    client.post('/api/bericht', json=mit_projekten(bericht))
+    client.post('/api/bericht', json=ohne_klonen(bericht))
     p = client.get('/api/tafel').json()['projekte'][0]
     assert p['klonAngebot'] is None
     assert p['adapterLuecken'] == []

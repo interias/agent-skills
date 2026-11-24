@@ -70,6 +70,30 @@ export async function forgeStatus(repo: string, w: ForgeWelt, github?: string): 
   return { art: 'github', forge, angemeldet: true, konto, rechte: !push.code && push.stdout.trim() === 'true' ? 'ok' : 'fehlt', treiber: true };
 }
 
+/** Push right and issues of a repository (adding a project by link): gh on GitHub, the Gitea access of `flotte auftrag` on Gitea. */
+export async function repoRechte(repo: string, q: { art: 'github' | 'gitea'; forge: string; api: string }, w: { aufrufer: Aufrufer; abruf?: typeof fetch }): Promise<{ push: boolean; issues: boolean } | { fehler: string }> {
+  let info: Record<string, any>;
+  if (q.art === 'github') {
+    const r = w.aufrufer('gh', ['api', `repos/${q.forge}`]);
+    if (r.code) return { fehler: 'gh ist am Rechner nicht angemeldet oder sieht das Repository nicht' };
+    try {
+      info = JSON.parse(r.stdout);
+    } catch {
+      return { fehler: 'gh antwortete unlesbar' };
+    }
+  } else {
+    try {
+      const kopf = giteaZugang(adapterVon(repo), repo, w.aufrufer);
+      const r = await (w.abruf ?? fetch)(q.api, { headers: { Authorization: kopf } });
+      if (!r.ok) return { fehler: `Gitea antwortete ${r.status}` };
+      info = (await r.json()) as Record<string, any>;
+    } catch (e) {
+      return { fehler: (e as Error).message.slice(0, 200) };
+    }
+  }
+  return { push: info?.permissions?.push === true, issues: info?.has_issues !== false };
+}
+
 /** The command for the terminal at the machine: gh's own login, or the Gitea token hidden into the Git credential store. */
 export function verknuepfenBefehl(repo: string): string {
   const adapter = adapterVon(repo);

@@ -14,7 +14,7 @@ import { aufrufenAsync, type Aufrufer, type AsyncAufrufer } from '../aufruf.ts';
 import { LABELS } from '../epic/mechanik.ts';
 import { adapterText, zugriffFuer } from '../forge/zugriff.ts';
 import { schluessel } from './adapter.ts';
-import { giteaZugang } from './auftrag.ts';
+import { repoRechte } from './forge.ts';
 
 export interface Quelle {
   /** the link git clones: https://<host>/<owner>/<name>.git */
@@ -184,31 +184,9 @@ export interface Zugang {
 /** Write and issue rights on the repository, then the labels of the fleet: missing ones are created when the right is there. */
 export async function zugangPruefen(repo: string, q: Quelle, w: { aufrufer: Aufrufer; abruf?: typeof fetch }): Promise<Zugang> {
   const z: Zugang = { push: null, issues: null, labelsAngelegt: [], labelsFehlen: [] };
-  let info: Record<string, any> | null = null;
-  if (q.art === 'github') {
-    const r = w.aufrufer('gh', ['api', `repos/${q.forge}`]);
-    if (r.code) z.fehler = 'gh ist am Rechner nicht angemeldet oder sieht das Repository nicht';
-    else {
-      try {
-        info = JSON.parse(r.stdout);
-      } catch {
-        z.fehler = 'gh antwortete unlesbar';
-      }
-    }
-  } else {
-    try {
-      const kopf = giteaZugang(adapterText(repo), repo, w.aufrufer);
-      const r = await (w.abruf ?? fetch)(q.api, { headers: { Authorization: kopf } });
-      if (r.ok) info = (await r.json()) as Record<string, any>;
-      else z.fehler = `Gitea antwortete ${r.status}`;
-    } catch (e) {
-      z.fehler = (e as Error).message.slice(0, 200);
-    }
-  }
-  if (info) {
-    z.push = info.permissions?.push === true;
-    z.issues = info.has_issues !== false;
-  }
+  const r = await repoRechte(repo, q, w);
+  if ('fehler' in r) z.fehler = r.fehler;
+  else Object.assign(z, r);
   const soll = flottenLabels(adapterText(repo));
   try {
     const f = zugriffFuer(repo, w.aufrufer, q.forge);

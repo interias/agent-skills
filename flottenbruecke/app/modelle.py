@@ -815,7 +815,7 @@ class Handlung(BaseModel):
                 ordner = ordner[1:-1].strip()
             if self.epic != 0 or not (ordner or url) or len(ordner) > PROJEKT_ORDNER_MAX or len(url) > PROJEKT_LINK_MAX or not isinstance(d.get('autostart', False), bool):
                 raise ValueError(f'Projekt hinzufügen: epic 0 und text {{"ordner" (1–{PROJEKT_ORDNER_MAX} Zeichen) oder "url" (Link zum Repository), "autostart" (ja/nein)}}')
-            if ordner and not re.match(r'^([A-Za-z]:[\\/]|[\\/])', ordner):
+            if ordner and not re.match(r'^([A-Za-z]:[\\/]|[\\/]|~[\\/])', ordner):
                 raise ValueError('Projekt hinzufügen: der Ordner als absoluter Pfad, etwa C:\\repos\\projekt')
             if url:
                 link_pruefen(url)

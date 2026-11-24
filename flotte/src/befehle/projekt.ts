@@ -10,7 +10,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aufrufen, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { KONTEN_DATEI, kontenTafel, kontoAus, liesKonten } from '../werkzeuge/konten.ts';
@@ -190,7 +190,9 @@ export function bekannteProjekte(w: Pick<ProjektWelt, 'heim' | 'eigenesRepo'>): 
 /** What the bridge needs for the field "Link zum Repository": the Gitea forges allowed besides github.com, the folder new clones go to. */
 export function klonAngebot(w: Pick<ProjektWelt, 'heim' | 'eigenesRepo'>): { gitea: string[]; eltern: string } {
   const p = bekannteProjekte(w);
-  return { gitea: giteaHerkuenfte(p), eltern: dirname(ordnerVorschlag('x', p, w.heim)) };
+  const eltern = dirname(ordnerVorschlag('x', p, w.heim));
+  // the bridge never sees the user's name: the home folder goes as ~, the driver expands it again
+  return { gitea: giteaHerkuenfte(p), eltern: gleicherOrdner(eltern, w.heim) || eltern.toLowerCase().startsWith(`${w.heim.toLowerCase()}${sep}`) ? `~${eltern.slice(w.heim.length)}` : eltern };
 }
 
 /** --klonen: the folder of the link is cloned when it is missing; an existing one must have the link as origin. */
@@ -210,7 +212,9 @@ async function bereitstellen(q: Quelle, abs: string, w: ProjektWelt, vorher: () 
 export async function hinzufuegen(ordner: string | null, o: { autostart: boolean; konten?: string[]; bruecke?: string; klonen?: string }, w: ProjektWelt): Promise<ProjektErgebnis> {
   const projekte = o.klonen ? bekannteProjekte(w) : [];
   const quelle = o.klonen ? pruefeQuelle(o.klonen, giteaHerkuenfte(projekte)) : null;
-  const ohne = ordner?.trim() ? ohneAnfuehrung(ordner) : quelle ? ordnerVorschlag(quelle.name, projekte, w.heim) : '';
+  const gegeben = ordner?.trim() ? ohneAnfuehrung(ordner) : '';
+  // ~ for the home folder: the bridge proposes clone folders that way (klonAngebot)
+  const ohne = /^~([\\/]|$)/.test(gegeben) ? join(w.heim, gegeben.slice(1)) : gegeben || (quelle ? ordnerVorschlag(quelle.name, projekte, w.heim) : '');
   if (!isAbsolute(ohne) || !/^([A-Za-z]:[\\/]|[\\/])/.test(ohne)) throw new Error('Der Ordner muss ein absoluter Pfad sein (etwa C:\\repos\\projekt); nichts geschrieben.');
   const name = basename(resolve(ohne)).replace(/[^\w.-]/g, '-');
   const skriptDatei = join(w.heim, '.claude', 'flotte', 'start', `${name}.ps1`);
