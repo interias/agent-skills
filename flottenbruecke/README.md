@@ -227,7 +227,7 @@ Drei Ebenen, sortiert danach, was du tun musst:
    deine Antworten und Handlungen. Ein neues Andocken leuchtet einmal grün auf.
 
 **Detailansicht einer Mission** (#51): Unter der Segmentleiste eines Laufs stehen **Plätze 3/3** (Pakete
-in Ingenieur, Review oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
+in Ingenieur, Erster Offizier oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
 **Neustarts** des Laufs; die Laufzeit ist der Knopf „läuft seit …“. In der aufgeklappten Paketliste
 hat jedes Paket, zu dem der Treiber Agent-Aufrufe im Protokoll des Laufs sah, eine zweite Zeile:
 Phase (Ingenieur, Erster Offizier, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe

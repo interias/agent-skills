@@ -1,7 +1,8 @@
 # Brückenbilder
 
-`board-v2.png` (1440 px breit) und `board-v2-handy.png` (390 px breit, doppelte Auflösung) sind Bildschirmfotos der [Flottenbrücke](../../flottenbruecke/README.md) mit den
-Beispieldaten aus `flottenbruecke/beispiel/bericht.json`. Neu aufnehmen:
+`board-v2.png` (1440 px breit) und `board-v2-handy.png` (390 px breit, doppelte Auflösung) sind
+Bildschirmfotos der [Flottenbrücke](../../flottenbruecke/README.md) mit den Beispieldaten aus
+`flottenbruecke/beispiel/bericht.json`. Neu aufnehmen:
 
 1. Die Brücke lokal auf einem freien Port starten, `BRUECKE_DB` auf eine Wegwerfdatei, mit
    `BRUECKE_PIN` und `BRUECKE_TOKEN`.
