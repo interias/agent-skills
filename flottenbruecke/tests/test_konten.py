@@ -1,7 +1,9 @@
-"""#95: the account actions konto_anlegen, konto_deaktivieren, konto_aktivieren, konto_anmelden, only with the PIN,
+"""#95: the account actions konto_anlegen, konto_deaktivieren, konto_aktivieren, konto_anmelden, only with a paired device,
 fetched by the driver like einstellen; the report carries the accounts with aktiv and their sign-in (kontenListe)."""
 
 import copy
+
+from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
@@ -26,13 +28,16 @@ def offene(c):
     return c.get('/api/handlungen', params={'forge': FORGE}).json()
 
 
-def test_ohne_pin_nichts(client, bericht):
+def test_ohne_geraet_mit_recht_nichts(client, bericht):
     client.post('/api/bericht', json=mit_konten(bericht))
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
     for art, epic in (('konto_anlegen', 0), ('konto_deaktivieren', 1), ('konto_aktivieren', 2), ('konto_anmelden', 1)):
-        # without or with a wrong PIN: refused; after five failures the lock answers 429
-        assert handeln(client, art, epic, pin=None).status_code in (403, 429)
-        assert handeln(client, art, epic, pin='0000').status_code in (403, 429)
+        # an unpaired client: 401 (the PIN does not help); a device without the right to act: 403
+        assert handeln(fremd(client), art, epic).status_code == 401
+        assert handeln(stumm, art, epic).status_code == 403
     assert offene(client) == []
+    assert handeln(client, 'konto_anlegen', 0, pin=None).status_code == 200
 
 
 def test_mit_pin_genau_einmal_abgeholt(client, bericht):

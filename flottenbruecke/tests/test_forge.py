@@ -1,7 +1,9 @@
 """#125: the forge per project in the Maschinenraum: the state the driver reports (never a token), the action
-forge_verknuepfen only with the PIN, and the step "Forge verknüpfen" of the guided start."""
+forge_verknuepfen only with a paired device, and the step "Forge verknüpfen" of the guided start."""
 
 import copy
+
+from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
@@ -32,11 +34,14 @@ def test_status_je_projekt_ohne_token(client, bericht, tmp_path):
     assert schritt(client) == 'fertig'
 
 
-def test_handlung_nur_mit_pin(client, bericht):
+def test_handlung_nur_mit_geraet_mit_recht(client, bericht):
     client.post('/api/bericht', json=mit_forge(bericht, angemeldet=False, konto=None, rechte=None))
     assert schritt(client) == 'offen'
-    assert verknuepfen(client, pin=None).status_code == 403
-    assert verknuepfen(client).json()['ok']
+    assert verknuepfen(fremd(client)).status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert verknuepfen(stumm).status_code == 403
+    assert verknuepfen(client, pin=None).json()['ok']
     assert schritt(client) == 'wartet'
     geholt = client.get('/api/handlungen', params={'forge': FORGE}).json()
     assert [(h['epic'], h['art'], h['text']) for h in geholt] == [(0, 'forge_verknuepfen', None)]

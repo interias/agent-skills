@@ -1,8 +1,10 @@
 """Steering the epics of a deployment from the bridge (#61): take a released epic in, pause and continue
-an epic, set its priority. Accepted only with the PIN and where the report allows it, shown on the
+an epic, set its priority. Accepted only from a paired device with the right and where the report allows it, shown on the
 Sternenkarte and in the Schiffsliste, carried to the driver like every other action."""
 
 import pytest
+
+from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
 GUELTIG = [(43, 'aufnehmen', None), (38, 'pausieren', None), (39, 'fortsetzen', None), (41, 'prioritaet', 'hoch')]
@@ -30,11 +32,14 @@ def karte(c):
 
 
 @pytest.mark.parametrize('epic, art, text', GUELTIG)
-def test_jede_handlung_braucht_die_pin(client, bericht, epic, art, text):
+def test_jede_handlung_braucht_ein_geraet_mit_recht(client, bericht, epic, art, text):
     client.post('/api/bericht', json=bericht)
-    assert steuern(client, epic, art, text, pin=None).status_code == 403
-    assert steuern(client, epic, art, text, pin='0000').status_code == 403
+    assert steuern(fremd(client), epic, art, text).status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert steuern(stumm, epic, art, text).status_code == 403
     assert offene(client) == []
+    assert steuern(client, epic, art, text, pin=None).status_code == 200
 
 
 def test_ohne_gesetzte_pin_ist_steuern_abgeschaltet(bruecke, bericht):

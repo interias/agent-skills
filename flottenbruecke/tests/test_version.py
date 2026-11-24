@@ -1,6 +1,6 @@
 """#154: the stand of bridge and driver on every page and in the Maschinenraum, a newer main as a hint, and the
-button "Einspielen und Treiber neu starten": an action with the PIN the driver fetches (agent-skills/ADR-0005),
-for one driver or all; without the PIN only shown."""
+button "Einspielen und Treiber neu starten": an action of a paired device the driver fetches (agent-skills/ADR-0005),
+for one driver or all; without a device only shown."""
 
 import copy
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.main import Einstellung, erzeuge
-from conftest import koppeln
+from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
@@ -48,14 +48,16 @@ def test_ohne_stand_sagt_die_bruecke_nichts_erfundenes(client, bericht):
     assert t['projekte'][0]['version'] is None
 
 
-def test_einspielen_nur_mit_pin_der_treiber_holt_es_ab_mit_dem_stand_der_bruecke(tmp_path, uhr, bericht):
+def test_einspielen_nur_mit_geraet_mit_recht_der_treiber_holt_es_ab_mit_dem_stand_der_bruecke(tmp_path, uhr, bericht):
     c = TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr, commit='0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c')))
     koppeln(c)
     c.post('/api/bericht', json=bericht)
-    assert einspielen(c, pin=None).status_code == 403
-    assert einspielen(c, pin='0000').status_code == 403
+    assert einspielen(fremd(c)).status_code == 401
+    stumm = fremd(c)
+    koppeln(stumm, handeln=False)
+    assert einspielen(stumm).status_code == 403
     assert offene(c) == []
-    r = einspielen(c)
+    r = einspielen(c, pin=None)
     assert r.status_code == 200 and r.json()['ok']
     # on its way: the button says it waits for the driver
     assert tafel(c)['projekte'][0]['einspielen']['abgeholt'] is False

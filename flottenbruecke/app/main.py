@@ -194,8 +194,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         if n:
             raise HTTPException(423, f"Not-Aus seit {n['seit']} ({n['geraet']}): die Brücke nimmt nichts an, bis der Rechner ihn löst.")
 
-    def person(request: Request, recht: str, pin: str | None) -> dict:
-        """Who writes: the device first (401 unknown or unpaired, 403 without the right), then the emergency stop, then the PIN."""
+    def person(request: Request, recht: str) -> dict:
+        """Who writes: the device (401 unknown or unpaired, 403 without the right), then the emergency stop. No PIN: it
+        pairs a device and lets the machine give rights; a paired device with the right acts on its own (Stefan, 24.11.2026)."""
         if not e.pin:
             raise HTTPException(403, 'Keine PIN gesetzt (BRUECKE_PIN in .env): Antworten ist abgeschaltet.')
         g = geraet_von(request)
@@ -205,7 +206,6 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             wort = 'Handeln' if recht == 'handeln' else 'Antworten'
             raise HTTPException(403, f'Diesem Gerät fehlt das Recht „{wort}“; das gibt nur der Rechner selbst (Maschinenraum über localhost).', headers={'X-Bruecke-Grund': 'recht'})
         kein_notaus()
-        pin_pruefen(request, pin)
         speicher.geraet_benutzt(g['id'], stempel())
         return g
 
@@ -325,8 +325,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return HTMLResponse(inhalt, headers=HOLODECK_KOEPFE)
 
     @app.post('/api/handlung')
-    def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'handeln', x_bruecke_pin)
+    def handeln(h: Handlung, request: Request) -> dict:
+        g = person(request, 'handeln')
         ergebnis = handlung_ablegen(h, g['name'])
         protokoll(g, request, h)
         return ergebnis
@@ -486,9 +486,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True, 'id': ids[0], 'ids': ids}
 
     @app.post('/api/werft/handlung')
-    def werft_handeln(h: WerftHandlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+    def werft_handeln(h: WerftHandlung, request: Request) -> dict:
         """#90: only with the PIN, checked against the last report of that machine's Werft; the Werft checks again."""
-        g = person(request, 'handeln', x_bruecke_pin)
+        g = person(request, 'handeln')
         w = next((x for x in speicher.werft() if x['rechner'] == h.rechner), None)
         repo = next((r for r in (w['bericht']['repos'] if w else []) if r['forge'] == h.forge), None)
         if repo is None:
@@ -557,16 +557,16 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return c
 
     @app.post('/api/chat')
-    def chat_beginnen(b: ChatBeginn, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_beginnen(b: ChatBeginn, request: Request) -> dict:
+        g = person(request, 'antworten')
         konto_bekannt(b.konto)
         neu = speicher.chat_beginnen(b.forge, b.konto, b.modell, b.text, stempel())
         protokoll(g, request, b)
         return {'ok': True, **neu}
 
     @app.post('/api/chat/{id_}/nachricht')
-    def chat_schreiben(id_: int, t: ChatText, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_schreiben(id_: int, t: ChatText, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         neu = speicher.chat_schreiben(id_, t.text, stempel())
         if neu is None:
@@ -575,8 +575,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True, 'id': neu}
 
     @app.post('/api/chat/{id_}/einstellung')
-    def chat_einstellen(id_: int, w: ChatEinstellung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_einstellen(id_: int, w: ChatEinstellung, request: Request) -> dict:
+        g = person(request, 'antworten')
         c = offener_chat(id_)
         if w.konto != c['konto']:
             konto_bekannt(w.konto)
@@ -588,8 +588,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     # creating is a release (SCHNITTSTELLE.md): the draft is the stored one of the chat's latest answer, never the form's
     @app.post('/api/chat/{id_}/anlegen')
-    def chat_anlegen(id_: int, a: ChatAnlegen, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'handeln', x_bruecke_pin)
+    def chat_anlegen(id_: int, a: ChatAnlegen, request: Request) -> dict:
+        g = person(request, 'handeln')
         offener_chat(id_)
         neu = speicher.chat_anlegen(id_, a.von, a.starten, stempel())
         if isinstance(neu, str):
@@ -598,8 +598,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True, 'id': neu}
 
     @app.post('/api/chat/{id_}/verwerfen')
-    def chat_verwerfen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_verwerfen(id_: int, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         if not speicher.chat_verwerfen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
@@ -609,8 +609,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # #47: stop and continue a chat, archive it; like writing, from a paired device with the PIN
 
     @app.post('/api/chat/{id_}/stoppen')
-    def chat_stoppen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_stoppen(id_: int, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         if not speicher.chat_stoppen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht offen.')
@@ -618,8 +618,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True}
 
     @app.post('/api/chat/{id_}/fortsetzen')
-    def chat_fortsetzen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_fortsetzen(id_: int, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         if not speicher.chat_fortsetzen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht gestoppt.')
@@ -627,8 +627,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True}
 
     @app.post('/api/chat/{id_}/archivieren')
-    def chat_archivieren(id_: int, a: ChatArchiv, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def chat_archivieren(id_: int, a: ChatArchiv, request: Request) -> dict:
+        g = person(request, 'antworten')
         offener_chat(id_)
         grund = speicher.chat_archivieren(id_, a.archiviert, stempel())
         if grund:
@@ -690,8 +690,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         return {'ok': True}
 
     @app.post('/api/antwort')
-    def antworten(a: Antwort, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        g = person(request, 'antworten', x_bruecke_pin)
+    def antworten(a: Antwort, request: Request) -> dict:
+        g = person(request, 'antworten')
         p = speicher.projekt(a.forge)
         f = next((f for f in (p['bericht']['fragen'] if p else []) if f['epic'] == a.epic and f['nr'] == a.nr and f['seit'] == a.seit), None)
         if f is None:
@@ -714,16 +714,16 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     # ---- Web-Push (#37): a paired device subscribes and unsubscribes only with the PIN
 
     @app.post('/api/push')
-    def abonnieren(a: PushAbo, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        person(request, 'antworten', x_bruecke_pin)
+    def abonnieren(a: PushAbo, request: Request) -> dict:
+        person(request, 'antworten')
         if not push:
             raise HTTPException(409, 'Web-Push ist aus: kein VAPID-Schlüssel (BRUECKE_VAPID_SCHLUESSEL in .env).')
         speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel())
         return {'ok': True}
 
     @app.post('/api/push/abmelden')
-    def abmelden(a: PushAbmeldung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
-        person(request, 'antworten', x_bruecke_pin)
+    def abmelden(a: PushAbmeldung, request: Request) -> dict:
+        person(request, 'antworten')
         return {'ok': True, 'geloescht': speicher.abo_loeschen(a.endpoint)}
 
     @app.get('/healthz')

@@ -1,5 +1,7 @@
 """Decisions of an epic until the merge (#52): each epic not merged carries the person's answers and the
-influential decisions of the admiral and the run, from any day, revocable with the PIN until the merge."""
+influential decisions of the admiral and the run, from any day, revocable by a paired device until the merge."""
+
+from conftest import fremd
 
 FORGE = 'interias/flotte-probe'
 GESTERN = {'epic': 38, 'nr': 2, 'seit': '2026-11-19T16:40:00Z'}
@@ -31,7 +33,7 @@ def test_entscheidung_von_gestern_bei_laufendem_epic_sichtbar_und_widerrufbar(cl
     assert d['zeit'].startswith('2026-11-19T16:40')
     # yesterday's is not on "Erledigt heute"
     assert not [x for x in tafel(client)['erledigt'] if x['art'] == 'admiral' and x['nr'] == 2 and x['epic'] == 38]
-    assert widerruf(client, pin='0000', **GESTERN).status_code == 403
+    assert widerruf(fremd(client), **GESTERN).status_code == 401
     assert widerruf(client, **GESTERN).status_code == 200
     assert laeufe(client)[38]['entscheidungen'][2]['handlung']['text'] == 'Doch eine Liste ohne Gruppen'
     assert [(h['art'], h['epic'], h['nr'], h['seit']) for h in client.get('/api/handlungen', params={'forge': FORGE}).json()] == [('widerruf', 38, 2, GESTERN['seit'])]

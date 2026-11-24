@@ -313,13 +313,15 @@ Andocken: Du schreibst die neue Entscheidung, der Treiber kommentiert sie am Iss
 Beide Stellen teilen sich Formular und Entwurf.
 
 Ansehen ist im LAN (und über den Fernzugriff) frei, Antworten und Handlungen nur im LAN von einem
-gekoppelten Gerät mit PIN (unten „Geräte“). Fünf falsche PINs sperren für fünf
+gekoppelten Gerät mit dem passenden Recht (unten „Geräte“). Fünf falsche PINs (beim Koppeln oder am Rechner) sperren für fünf
 Minuten (je Absenderadresse; hinter Docker Desktop teilen sich oft alle Geräte eine).
 
 ## Geräte, Rechte und Not-Aus (#46)
 
-Zwei Schlüssel für alles, was du schreibst: ein **gekoppeltes Gerät** mit dem passenden Recht **und die
-PIN**. Die PIN allein reicht nicht mehr, das Gerät allein auch nicht.
+Wer schreibt, braucht ein **gekoppeltes Gerät** mit dem passenden Recht. Die **PIN** braucht es nur zum
+Koppeln und am Rechner (Rechte, Entkoppeln, Not-Aus lösen); ein Gerät mit Recht antwortet und handelt
+ohne sie (Stefan, 24.11.2026: die PIN bei jedem Schalter war zu viel). Die PIN allein reicht nicht: Ohne
+gekoppeltes Gerät geht nichts.
 
 - **Koppeln:** Beim ersten Senden fragt ein unbekanntes Gerät nach Namen und PIN (oder Maschinenraum,
   „Geräte“, **Dieses Gerät koppeln**). Die Brücke gibt ihm einen zufälligen Schlüssel als Cookie
@@ -446,7 +448,7 @@ Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
   Rückfrage. Angelegt wird wörtlich der Entwurf der letzten Antwort, die ihn brachte; kam inzwischen ein
   neuerer oder wartet eine Nachricht noch, lehnt die Brücke ab.
 
-Schreiben braucht ein gekoppeltes Gerät und die PIN, „Anlegen“ das Recht Handeln (oben „Geräte“); ohne
+Schreiben braucht ein gekoppeltes Gerät, „Anlegen“ das Recht Handeln (oben „Geräte“); ohne
 gesetzte PIN ist Schreiben abgeschaltet. Ansehen ist frei im LAN.
 
 ## Aktualisieren

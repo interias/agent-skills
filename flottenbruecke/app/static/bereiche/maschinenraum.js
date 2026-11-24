@@ -159,7 +159,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
 <h4>${esc(p.kurz)}</h4><p class="mr-stand">${stand}</p><p class="mr-auto-zahlen">${zahl(z.laufend, 'laufend')}${zahl(z.wartend, 'wartend')}${zahl(z.freigegeben, 'freigegeben, nicht eingesammelt')}</p>
 <div class="knoepfe">${knopf}<span class="status" role="status"></span></div></div>`;
     };
-    const hinweis = !t.pin ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.` : 'An: der Treiber sammelt jede freigegebene Mission selbst ein; hier eingeschaltet wartet er danach auf neue wie mit --dauerhaft. Aus: keine neue Mission; laufende, wartende und aufgenommene laufen weiter, nichts hält an. Wirkt ab dem nächsten Takt, Umschalten braucht die PIN; ein Start mit --dauerhaft oder --epics setzt den Wert neu.';
+    const hinweis = !t.pin ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.` : 'An: der Treiber sammelt jede freigegebene Mission selbst ein; hier eingeschaltet wartet er danach auf neue wie mit --dauerhaft. Aus: keine neue Mission; laufende, wartende und aufgenommene laufen weiter, nichts hält an. Wirkt ab dem nächsten Takt; ein Start mit --dauerhaft oder --epics setzt den Wert neu.';
     return `<h3 class="mr-titel">Automatik je Projekt</h3><p class="mr-hinweis">${esc(hinweis).replace(/--[a-z]+/g, (o) => `<code>${o}</code>`)}</p><div class="mr-automatik">${t.projekte.map(zeile).join('')}</div>`;
   }
 
@@ -375,7 +375,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
   function einstellungenHtml(t) {
     const mehrere = t.projekte.length > 1;
     const geteilt = gemeinsam(t);
-    const hinweisText = (p) => (!t.pin ? `Ändern abgeschaltet: ${huelle.ohnePin(t)}.` : p?.veraltet ? 'Der Treiber meldet sich gerade nicht: eine Änderung wirkt ab seinem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt, nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.');
+    const hinweisText = (p) => (!t.pin ? `Ändern abgeschaltet: ${huelle.ohnePin(t)}.` : p?.veraltet ? 'Der Treiber meldet sich gerade nicht: eine Änderung wirkt ab seinem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt, nichts Laufendes wird abgebrochen.');
     let html = '';
     if (geteilt) {
       const ps = mitEinstellungen(t);
@@ -401,7 +401,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
     const liste = t.werft ?? [];
     const mehrere = new Set(liste.map((w) => w.rechner)).size > 1;
     return liste.map((w, i) => {
-      const hinweis = !t.pin ? 'Ändern abgeschaltet: keine PIN gesetzt.' : w.veraltet ? 'Die Werft meldet sich gerade nicht: eine Änderung wirkt ab ihrem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt der Werft (alle 15 s), nichts Laufendes wird abgebrochen. Übernehmen braucht die PIN.';
+      const hinweis = !t.pin ? 'Ändern abgeschaltet: keine PIN gesetzt.' : w.veraltet ? 'Die Werft meldet sich gerade nicht: eine Änderung wirkt ab ihrem nächsten Takt.' : 'Eine Änderung wirkt ab dem nächsten Takt der Werft (alle 15 s), nichts Laufendes wird abgebrochen.';
       return `<h3 class="mr-titel">Einstellungen · Werft ${esc(w.kurz)}${mehrere ? ` · ${esc(w.rechner)}` : ''}</h3><p class="mr-hinweis">${esc(hinweis)}</p><div class="mr-reihe mr-einst">${w.einstellungen.map((e) => zeileHtml({ forge: w.id }, `w${i}`, e, t.pin, t)).join('')}</div>`;
     }).join('');
   }
@@ -487,7 +487,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
     const bruecke = `<article class="mr-karte mr-stand-karte"><h3>Brücke</h3><dl><dt>Stand</dt><dd>${standWert(b.commit, b.datum)}</dd></dl>${b.commit ? '' : '<p class="mr-hilfe">Gebaut ohne Stand: beim nächsten Einspielen über den Treiber kommt er dazu.</p>'}</article>`;
     const ps = mitVersion(t);
     const alle = t.pin && ps.length > 1 ? `<div class="knoepfe mr-alle"><button type="button" class="knopf zweit" data-einspielen="alle"${ps.some((p) => kannEinspielen(t, p)) ? '' : ' disabled'}>Einspielen und alle Treiber neu starten</button><span class="status" role="status"></span></div>` : '';
-    const hinweis = '<p class="mr-hinweis">Einspielen hält den Treiber an: Er startet nichts Neues, ein laufendes Andocken läuft zu Ende, laufende Läufe arbeiten weiter. Dann holt er main, spielt den Skill-Satz ein, baut die Brücke neu, wenn sie sich geändert hat, und startet mit derselben Kommandozeile neu; die Läufe übernimmt er. Braucht die PIN.</p>';
+    const hinweis = '<p class="mr-hinweis">Einspielen hält den Treiber an: Er startet nichts Neues, ein laufendes Andocken läuft zu Ende, laufende Läufe arbeiten weiter. Dann holt er main, spielt den Skill-Satz ein, baut die Brücke neu, wenn sie sich geändert hat, und startet mit derselben Kommandozeile neu; die Läufe übernimmt er.</p>';
     return `<h3 class="mr-titel">Stand</h3>${hinweis}${alle}<div class="mr-reihe">${bruecke}${t.projekte.map((p) => treiberStandHtml(t, p)).join('')}</div>`;
   }
 
@@ -517,7 +517,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
     const n = t.notaus;
     const hinweis = t.amRechner
       ? 'Am Rechner: Hier gibst und nimmst du Rechte, entkoppelst Geräte und löst den Not-Aus. Jede Änderung braucht die PIN.'
-      : 'Jede Antwort braucht ein gekoppeltes Gerät und die PIN, jede Handlung ein Gerät mit dem Recht „Handeln“ und die PIN. Rechte gibt nur der Rechner selbst: dort die Brücke über localhost öffnen (Port BRUECKE_RECHNER_PORT).';
+      : 'Jede Antwort braucht ein gekoppeltes Gerät, jede Handlung ein Gerät mit dem Recht „Handeln“; die PIN braucht es nur zum Koppeln. Rechte gibt nur der Rechner selbst: dort die Brücke über localhost öffnen (Port BRUECKE_RECHNER_PORT).';
     const koppeln = !t.geraet && t.pin ? '<button type="button" class="knopf haupt" data-geraet-koppeln>Dieses Gerät koppeln</button>' : '';
     const notaus = n
       ? `<p class="mr-notaus" role="status"><b>Not-Aus</b> seit ${esc(wann(n.seit))} (${esc(n.geraet)}): die Brücke nimmt keine Antwort und keine Handlung an.</p>${t.amRechner ? '<button type="button" class="knopf haupt" data-notaus-loesen>Not-Aus lösen</button>' : ''}`
@@ -559,16 +559,38 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
     if (await senden(`/api/geraete/${id}/rechte`, rechte, zeile, status)) await laden();
   }
 
-  // ---- Web-Push (#37): this device subscribes with the PIN; the bridge pushes each new event of "Braucht dich"
+  // ---- Web-Push (#37): this device subscribes (a paired device with the right Antworten); the bridge pushes each new event of "Braucht dich"
   const kannPush = () => isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+  // what this browser says about itself: an own subscription and the permission; read after each drawing, kept here
+  // so the next drawing shows it at once
+  let pushStand = null;
+  const PUSH_STAND = { an: ['ok', 'eingeschaltet'], aus: ['', 'aus'], gesperrt: ['rot', 'im Browser blockiert'] };
+  const pushStandHtml = () => (pushStand ? `<b class="mr-push-stand ${PUSH_STAND[pushStand][0]}">${PUSH_STAND[pushStand][1]}</b>` : '<b class="mr-push-stand">wird gelesen …</b>');
+  async function pushStandLesen() {
+    if (!kannPush()) return;
+    let s = 'aus';
+    try {
+      if (Notification.permission === 'denied') s = 'gesperrt';
+      else if (Notification.permission === 'granted') {
+        const reg = await navigator.serviceWorker.getRegistration('/');
+        if (reg && (await reg.pushManager.getSubscription())) s = 'an';
+      }
+    } catch { /* no service worker yet: off */ }
+    if (s === pushStand) return;
+    pushStand = s;
+    document.querySelectorAll('.mr-push-stand').forEach((e) => { e.outerHTML = pushStandHtml(); });
+  }
 
   const pushHtml = (t) => {
     if (!t.push) return '';
     const text = kannPush()
-      ? 'Bei einer neuen Frage oder Blockade meldet sich dieses Gerät, auch bei geschlossener App: Projekt, Nummer, Art und Titel, nie die Frage selbst. Einschalten und Abschalten brauchen die PIN.'
+      ? 'Bei einer neuen Frage oder Blockade meldet sich dieses Gerät, auch bei geschlossener App: Projekt, Nummer, Art und Titel, nie die Frage selbst.'
       : 'Dieses Gerät kann hier keine Meldungen empfangen: nur über HTTPS (Zertifikat der Brücke) in einem Browser mit Web-Push.';
     const zu = kannPush() && t.pin ? '' : ' disabled';
-    return `<h3 class="mr-titel">Meldungen auf diesem Gerät</h3><div class="mr-reihe"><div class="mr-karte mr-push" role="group" aria-label="Meldungen auf diesem Gerät"><p class="mr-hilfe">${esc(text)}</p>
+    if (kannPush()) queueMicrotask(pushStandLesen);
+    const stand = kannPush() ? `<dl><dt>Auf diesem Gerät</dt><dd>${pushStandHtml()}</dd></dl>` : '';
+    return `<h3 class="mr-titel">Meldungen auf diesem Gerät</h3><div class="mr-reihe"><div class="mr-karte mr-push" role="group" aria-label="Meldungen auf diesem Gerät">${stand}<p class="mr-hilfe">${esc(text)}</p>
 <div class="knoepfe"><button type="button" class="knopf haupt" data-push="an"${zu}>Einschalten</button><button type="button" class="knopf zweit" data-push="aus"${zu}>Abschalten</button><span class="status" role="status"></span></div></div></div>`;
   };
 
@@ -587,12 +609,17 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
         if (await senden('/api/push/abmelden', { endpoint: abo.endpoint }, karte, status)) {
           await abo.unsubscribe();
           melde('Abgeschaltet.');
+          pushStandLesen();
         }
         return;
       }
-      if ((await Notification.requestPermission()) !== 'granted') return melde('Meldungen sind für die Brücke nicht erlaubt (Einstellungen des Browsers).', true);
+      if ((await Notification.requestPermission()) !== 'granted') {
+        pushStandLesen();
+        return melde('Meldungen sind für die Brücke nicht erlaubt (Einstellungen des Browsers).', true);
+      }
       const abo = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(letzte.push) }));
       if (await senden('/api/push', abo.toJSON(), karte, status)) melde('Eingeschaltet.');
+      pushStandLesen();
     } catch (err) {
       melde(`Ging nicht: ${err.message || err}`, true);
     }

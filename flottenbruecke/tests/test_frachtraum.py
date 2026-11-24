@@ -1,12 +1,14 @@
 """Frachtraum (#116): the Sternzeit-Notizen of every project, bundled by project and topic, the
 decisions of the triage run to read and revoke, the critical questions to answer, and the triage run
-to start for one project or all. Every action only with the PIN, carried to the driver like the others."""
+to start for one project or all. Every action only with a paired device with the right, carried to the driver like the others."""
 
 import copy
 import json
 from pathlib import Path
 
 import pytest
+
+from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
 NOTIZEN = json.loads((Path(__file__).parent.parent / 'beispiel' / 'bericht-notizen.json').read_text(encoding='utf-8'))
@@ -45,15 +47,17 @@ def zwei(client, bericht):
     return client
 
 
-# ---- PIN
+# ---- device
 
 @pytest.mark.parametrize('art, felder', GUELTIG)
-def test_jede_handlung_braucht_die_pin(zwei, art, felder):
-    assert handlung(zwei, art, pin=None, **felder).status_code == 403
-    assert handlung(zwei, art, pin='0000', **felder).status_code == 403
+def test_jede_handlung_braucht_ein_geraet_mit_recht(zwei, art, felder):
+    assert handlung(fremd(zwei), art, **felder).status_code == 401
+    stumm = fremd(zwei)
+    koppeln(stumm, handeln=False)
+    assert handlung(stumm, art, **felder).status_code == 403
     assert offene(zwei) == []
-    # the counter test: the right PIN is taken
-    assert handlung(zwei, art, **felder).status_code == 200
+    # the counter test: the paired device with the right is taken, without the PIN
+    assert handlung(zwei, art, pin=None, **felder).status_code == 200
     assert [h['art'] for h in offene(zwei)] == [art]
 
 
@@ -224,9 +228,11 @@ def test_lernvorschlaege_wie_tickets_unter_dem_thema_lernschleife(client, berich
 SCHNITT = {'epic': 70, 'text': 'Suche und Filter sind zwei Dinge; erst den Filter allein.'}
 
 
-@pytest.mark.parametrize('pin', [None, '0000'])
-def test_schnitt_widerruf_braucht_die_pin(zwei, pin):
-    assert handlung(zwei, 'schnitt-widerruf', pin=pin, **SCHNITT).status_code == 403
+def test_schnitt_widerruf_braucht_ein_geraet_mit_recht(zwei):
+    assert handlung(fremd(zwei), 'schnitt-widerruf', **SCHNITT).status_code == 401
+    stumm = fremd(zwei)
+    koppeln(stumm, handeln=False)
+    assert handlung(stumm, 'schnitt-widerruf', **SCHNITT).status_code == 403
     assert offene(zwei) == []
 
 

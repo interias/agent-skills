@@ -4,6 +4,8 @@ the hard limit); the Sternenkarte shows the position, its origin and the reason 
 
 import json
 
+from conftest import fremd, koppeln
+
 FORGE = 'interias/flotte-probe'
 PIN = {'X-Bruecke-Pin': '4711'}
 NUR_NACH_GATE = 'der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate'
@@ -50,11 +52,14 @@ def test_einstellung_annehmen_abholen_und_im_logbuch(client, bericht):
     assert (x['titel'], x['wert']) == ('Andocken', 'mensch')
 
 
-def test_einstellung_braucht_die_pin(client, bericht):
+def test_einstellung_braucht_ein_geraet_mit_recht(client, bericht):
     client.post('/api/bericht', json=bericht)
-    assert einstellen(client, 'mensch', pin=None).status_code == 403
-    assert einstellen(client, 'mensch', pin='0000').status_code == 403
+    assert einstellen(fremd(client), 'mensch').status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert einstellen(stumm, 'mensch').status_code == 403
     assert offene(client) == []
+    assert einstellen(client, 'mensch', pin=None).status_code == 200
 
 
 def test_einstellung_nur_aus_den_werten_des_treibers(client, bericht):
@@ -67,11 +72,14 @@ def test_einstellung_nur_aus_den_werten_des_treibers(client, bericht):
     assert einstellen(client, 'mensch').status_code == 200
 
 
-def test_schalter_am_epic_braucht_die_pin(client, bericht, bruecke):
+def test_schalter_am_epic_braucht_ein_geraet_mit_recht(client, bericht, bruecke):
     client.post('/api/bericht', json=bericht)
-    assert schalten(client, 41, 'automatisch', pin=None).status_code == 403
-    assert schalten(client, 41, 'automatisch', pin='0000').status_code == 403
+    assert schalten(fremd(client), 41, 'automatisch').status_code == 401
+    stumm = fremd(client)
+    koppeln(stumm, handeln=False)
+    assert schalten(stumm, 41, 'automatisch').status_code == 403
     assert offene(client) == []
+    assert schalten(client, 41, 'automatisch', pin=None).status_code == 200
     c = bruecke(pin='')
     c.post('/api/bericht', json=bericht)
     assert schalten(c, 41, 'mensch').status_code == 403
