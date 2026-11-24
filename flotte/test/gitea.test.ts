@@ -13,6 +13,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { auftragAusfuehren } from '../src/auftrag/auftrag.ts';
 import { giteaForge } from '../src/auftrag/gitea.ts';
 import { auftrag } from '../src/befehle/auftrag.ts';
+import { aufrufen } from '../src/aufruf.ts';
+import { giteaZugriff } from '../src/forge/gitea.ts';
+import { forgeFaelle, type ForgeStand } from './forge-faelle.ts';
 import { auftragFaelle, ENTWURF_DREI, REGELN, type IssueStand, type Pruefstand } from './auftrag-faelle.ts';
 
 const COMPOSE = join(import.meta.dirname, 'gitea', 'compose.yaml');
@@ -82,10 +85,33 @@ const alle = async (pfad: string): Promise<any[]> => {
 };
 
 /** A fresh repository per case, so the cases do not see each other's issues. */
-async function neuesRepo(): Promise<string> {
+async function neuesRepo(mitZweig = false): Promise<string> {
   const name = `fall-${++zaehler}`;
-  await api('POST', '/user/repos', { name });
+  await api('POST', '/user/repos', { name, auto_init: mitZweig, default_branch: 'main' });
   return name;
+}
+
+/** #127: the driver's forge layer against this Gitea, curl through the real Aufrufer */
+async function forgeStand(): Promise<ForgeStand> {
+  const name = await neuesRepo(true);
+  const r = `/repos/${ADMIN}/${name}`;
+  return {
+    zugriff: giteaZugriff(aufrufen, `${basis}/api/v1${r}`, () => kopf),
+    issue: async (x) => {
+      const ids: number[] = [];
+      for (const l of x.labels ?? []) {
+        const da = (await alle(`${r}/labels`)).find((y) => y.name === l);
+        ids.push(da ? da.id : (await api('POST', `${r}/labels`, { name: l, color: '#ededed' })).id);
+      }
+      return (await api('POST', `${r}/issues`, { title: x.titel, body: x.body ?? '', labels: ids })).number;
+    },
+    kindDazu: async (mission, kind) => void (await api('POST', `${r}/issues/${mission}/dependencies`, { owner: ADMIN, repo: name, index: kind })),
+    zweig: async (zweig) => void (await api('POST', `${r}/contents/probe-${zaehler}.md`, { content: Buffer.from('probe\n').toString('base64'), branch: 'main', new_branch: zweig, message: 'probe' })),
+    lesen: async (nr) => {
+      const i = await api('GET', `${r}/issues/${nr}`);
+      return { offen: i.state === 'open', labels: (i.labels as { name: string }[]).map((l) => l.name), body: i.body, kommentare: (await alle(`${r}/issues/${nr}/comments`)).map((c) => c.body) };
+    },
+  };
 }
 
 function pruefstand(name: string): Pruefstand {
@@ -144,6 +170,10 @@ describe('auftrag: shared cases, Gitea layer against a throwaway Gitea', () => {
   }, 120_000);
 
   auftragFaelle(async () => pruefstand(await neuesRepo()));
+
+  describe('the forge layer of the driver (#127)', () => {
+    forgeFaelle(forgeStand);
+  });
 
   it('a Missionsziel is a dependency of its mission, and the epic label carries colour and description', async () => {
     const name = await neuesRepo();
