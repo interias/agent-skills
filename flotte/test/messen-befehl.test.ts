@@ -30,7 +30,7 @@ const stub: Aufrufer = (programm, args) => {
   aufrufe.push([programm, ...args]);
   const a = args.join(' ');
   if (programm === 'gh' && a.startsWith('pr list')) return { code: 0, stdout: JSON.stringify([{ number: 10, createdAt: min(20), mergedAt: min(80) }]), stderr: '' };
-  if (programm === 'gh' && a === 'api repos/o/korb --jq .default_branch') return { code: 0, stdout: 'main\n', stderr: '' };
+  if (programm === 'gh' && a === 'repo view o/korb --json defaultBranchRef --jq .defaultBranchRef.name') return { code: 0, stdout: 'main\n', stderr: '' };
   if (programm === 'gh' && a.startsWith('api --paginate')) return { code: 0, stdout: 'main\nepic/1-x\nagent/2-y\n', stderr: '' };
   if (programm === 'gh' && a.includes('compare/main...epic%2F1-x')) return { code: 0, stdout: '3\n', stderr: '' };
   if (programm === 'gh' && a.includes('compare/')) return { code: 0, stdout: '0\n', stderr: '' };

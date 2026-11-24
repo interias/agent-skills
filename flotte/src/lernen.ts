@@ -11,7 +11,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Aufrufer } from './aufruf.ts';
+import { fehlerText, type ForgeZugriff } from './forge/zugriff.ts';
 
 export const LERN_MAX = 3;
 export const LERN_STREICHEN_NACH = 10;
@@ -121,27 +121,21 @@ export function streichKandidaten(kommentare: string[], n = LERN_STREICHEN_NACH)
 }
 
 /** What the run left in the forge: the pull request and the comments of the epic, cut to BELEG_MAX. */
-export function lernBeleg(a: Aufrufer, forge: string, pr: number, epic: number | null): string {
+export function lernBeleg(z: ForgeZugriff, pr: number, epic: number | null): string {
   const teile: string[] = [];
-  const p = a('gh', ['pr', 'view', String(pr), '--repo', forge, '--json', 'number,title,url,body,mergedAt']);
-  if (!p.code) {
-    try {
-      const j = JSON.parse(p.stdout);
-      teile.push(`## Pull Request #${j.number}: ${j.title}\n${j.url}\ngemergt: ${j.mergedAt ?? 'nein'}\n\n${j.body ?? ''}`);
-    } catch {
-      teile.push(`## Pull Request #${pr}: nicht lesbar`);
-    }
-  } else teile.push(`## Pull Request #${pr}: nicht lesbar (${p.stderr.trim().slice(0, 200)})`);
+  try {
+    const p = z.pr(pr, ['number', 'title', 'url', 'body', 'mergedAt']);
+    teile.push(`## Pull Request #${p.nummer}: ${p.titel}\n${p.url}\ngemergt: ${p.gemergtAm ?? 'nein'}\n\n${p.body}`);
+  } catch (e) {
+    teile.push(`## Pull Request #${pr}: nicht lesbar (${fehlerText(e).slice(0, 200)})`);
+  }
   if (epic !== null) {
-    const e = a('gh', ['issue', 'view', String(epic), '--repo', forge, '--json', 'number,title,url,comments']);
-    if (!e.code) {
-      try {
-        const j = JSON.parse(e.stdout);
-        teile.push(`## Mission #${j.number}: ${j.title}\n${j.url}`);
-        for (const c of j.comments ?? []) teile.push(`### Kommentar ${c.url ?? ''} (${c.createdAt ?? ''})\n${c.body ?? ''}`);
-      } catch {
-        teile.push(`## Mission #${epic}: nicht lesbar`);
-      }
+    try {
+      const i = z.issue(epic, ['number', 'title', 'url', 'comments']);
+      teile.push(`## Mission #${i.nummer}: ${i.titel}\n${i.url}`);
+      for (const c of i.kommentare) teile.push(`### Kommentar ${c.url} (${c.zeit})\n${c.body}`);
+    } catch {
+      // a mission the forge does not answer for leaves only the pull request
     }
   }
   const text = teile.join('\n\n');
@@ -197,11 +191,9 @@ export function lernErgebnisAus(x: unknown): LernErgebnis | null {
 }
 
 /** Comments of the collecting issue, for streichKandidaten. */
-export function lernKommentare(a: Aufrufer, forge: string, issue: number): string[] {
-  const r = a('gh', ['issue', 'view', String(issue), '--repo', forge, '--json', 'comments']);
-  if (r.code) return [];
+export function lernKommentare(z: ForgeZugriff, issue: number): string[] {
   try {
-    return (JSON.parse(r.stdout).comments ?? []).map((c: { body?: string }) => String(c.body ?? ''));
+    return z.issue(issue, ['comments']).kommentare.map((k) => k.body);
   } catch {
     return [];
   }

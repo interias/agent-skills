@@ -6,8 +6,8 @@
 // - open in the triage (needs-triage, needs-info) with an open question to the person below it.
 // Anything else is a deviation: the run is then incomplete, not finished (flotte/README.md, "Triage").
 
-import type { Aufrufer } from './aufruf.ts';
 import { TRIAGE_LABEL, type AuftragsRegeln } from './auftrag/auftrag.ts';
+import { fehlerText, type ForgeZugriff } from './forge/zugriff.ts';
 import { BERECHTIGT, INFO_LABEL, offeneFragen, TRIAGE_MARKE, type Ticket } from './triage.ts';
 
 export interface Abweichung {
@@ -58,24 +58,29 @@ export function endzustandFehlt(t: Ticket & { offen: boolean }, mission: (Stand 
  * them, the driver only reports them as released without a mission. One list of the released tickets, one of the
  * open missions, then the parent of each released ticket that is no mission itself.
  */
-export function loseFreigaben(a: Aufrufer, forge: string, r: AuftragsRegeln, schon: Set<number>): Abweichung[] {
+export function loseFreigaben(z: ForgeZugriff, r: AuftragsRegeln, schon: Set<number>): Abweichung[] {
   const liste = (label: string) => {
-    const x = a('gh', ['issue', 'list', '--repo', forge, '--label', label, '--state', 'open', '--limit', '500', '--json', 'number,title,labels']);
-    if (x.code) throw new Error(`gh issue list ${forge} --label ${label}: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
-    return JSON.parse(x.stdout || '[]') as { number: number; title: string; labels: { name: string }[] }[];
+    try {
+      return z.issues(label, ['number', 'title', 'labels'], 500);
+    } catch (e) {
+      throw new Error(`Issues ${z.repo} mit ${label} nicht lesbar: ${fehlerText(e).slice(0, 200)}`);
+    }
   };
-  const missionen = new Set(liste(r.epic_label).map((m) => Number(m.number)));
+  const missionen = new Set(liste(r.epic_label).map((m) => m.nummer));
   const out: Abweichung[] = [];
   for (const i of liste(r.ready_label)) {
-    const nr = Number(i.number);
-    const labels = (i.labels ?? []).map((l) => l.name);
+    const nr = i.nummer;
+    const labels = i.labels;
     if (schon.has(nr) || labels.includes(r.epic_label)) continue;
-    const p = a('gh', ['api', `repos/${forge}/issues/${nr}`, '--jq', '.parent_issue_url']);
-    // a forge that does not answer for one ticket: left alone, the next run reads it again
-    if (p.code) continue;
-    const m = /\/issues\/(\d+)\s*$/.exec(p.stdout.trim());
-    if (m && missionen.has(Number(m[1]))) continue;
-    out.push({ forge, nr, titel: String(i.title ?? ''), zustand: ['offen', ...labels, ...(m ? [`Missionsziel von #${m[1]}`] : [])].join(', '), grund: m ? `${r.ready_label} an #${m[1]}, die keine offene Mission (${r.epic_label}) ist` : `${r.ready_label} ohne Mission (kein Sub-Issue einer Mission)` });
+    let m: number | null;
+    try {
+      m = z.mission(nr);
+    } catch {
+      // a forge that does not answer for one ticket: left alone, the next run reads it again
+      continue;
+    }
+    if (m !== null && missionen.has(m)) continue;
+    out.push({ forge: z.repo, nr, titel: i.titel, zustand: ['offen', ...labels, ...(m !== null ? [`Missionsziel von #${m}`] : [])].join(', '), grund: m !== null ? `${r.ready_label} an #${m}, die keine offene Mission (${r.epic_label}) ist` : `${r.ready_label} ohne Mission (kein Sub-Issue einer Mission)` });
   }
   return out;
 }
@@ -84,37 +89,42 @@ export function loseFreigaben(a: Aufrufer, forge: string, r: AuftragsRegeln, sch
  * Reads each note again (state, labels, comments, parent mission) and returns those without an allowed end state.
  * neu: the missions this run created. A note or mission the forge does not answer for counts as a deviation.
  */
-export function abschlusspruefung(a: Aufrufer, forge: string, r: AuftragsRegeln, notizen: { nummer: number; titel: string }[], neu: number[]): Abweichung[] {
+export function abschlusspruefung(z: ForgeZugriff, r: AuftragsRegeln, notizen: { nummer: number; titel: string }[], neu: number[]): Abweichung[] {
+  const forge = z.repo;
   const missionen = new Map<number, Stand>();
-  const lies = (n: number, felder: string) => {
-    const x = a('gh', ['issue', 'view', String(n), '--repo', forge, '--json', felder]);
-    if (x.code) throw new Error(`#${n} nicht lesbar: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
-    return JSON.parse(x.stdout) as any;
+  const lies = (n: number, felder: string[]) => {
+    try {
+      return z.issue(n, felder);
+    } catch (e) {
+      throw new Error(`#${n} nicht lesbar: ${fehlerText(e).slice(0, 200)}`);
+    }
   };
   const out: Abweichung[] = [];
   for (const n of notizen) {
     const abweichung = (zustand: string, grund: string) => out.push({ forge, nr: n.nummer, titel: n.titel, zustand, grund });
     try {
-      const i = lies(n.nummer, 'number,title,state,labels,comments');
+      const i = lies(n.nummer, ['number', 'title', 'state', 'labels', 'comments']);
       const t: Ticket & { offen: boolean } = {
         nummer: n.nummer,
-        titel: String(i.title ?? n.titel),
+        titel: i.titel || n.titel,
         body: '',
         url: '',
-        offen: String(i.state).toUpperCase() === 'OPEN',
-        labels: (i.labels ?? []).map((l: { name: string }) => l.name),
-        kommentare: (i.comments ?? []).map((c: any) => ({ body: String(c.body ?? ''), autor: String(c.author?.login ?? '?'), zeit: String(c.createdAt ?? ''), rolle: String(c.authorAssociation ?? 'NONE') })),
+        offen: i.zustand === 'OPEN',
+        labels: i.labels,
+        kommentare: i.kommentare.map((k) => ({ body: k.body, autor: k.autor, zeit: k.zeit, rolle: k.rolle })),
       };
       let mission: (Stand & { nummer: number; neu: boolean }) | null = null;
       if (t.offen) {
-        const p = a('gh', ['api', `repos/${forge}/issues/${n.nummer}`, '--jq', '.parent_issue_url']);
-        if (p.code) throw new Error(`Mission von #${n.nummer} nicht lesbar: ${(p.stderr || p.stdout).trim().slice(0, 200)}`);
-        const m = /\/issues\/(\d+)\s*$/.exec(p.stdout.trim());
-        if (m) {
-          const nr = Number(m[1]);
+        let nr: number | null;
+        try {
+          nr = z.mission(n.nummer);
+        } catch (e) {
+          throw new Error(`Mission von #${n.nummer} nicht lesbar: ${fehlerText(e).slice(0, 200)}`);
+        }
+        if (nr !== null) {
           if (!missionen.has(nr)) {
-            const x = lies(nr, 'state,labels');
-            missionen.set(nr, { offen: String(x.state).toUpperCase() === 'OPEN', labels: (x.labels ?? []).map((l: { name: string }) => l.name) });
+            const x = lies(nr, ['state', 'labels']);
+            missionen.set(nr, { offen: x.zustand === 'OPEN', labels: x.labels });
           }
           mission = { nummer: nr, neu: neu.includes(nr), ...missionen.get(nr)! };
         }

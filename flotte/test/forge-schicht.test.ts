@@ -119,7 +119,7 @@ describe('forge layer: gh only in the GitHub implementation', () => {
   // the order writer has its own GitHub side; the link check asks gh for the login itself (#125)
   const ERLAUBT = ['forge/github.ts', 'forge/async.ts', 'auftrag/github.ts', 'befehle/forge.ts'];
   // still to move behind the forge layer; each package of #127 takes its files off this list
-  ERLAUBT.push('befehle/lernen.ts', 'befehle/messen.ts', 'befehle/triage.ts', 'lernen.ts', 'treiber/forge.ts', 'treiber/treiber.ts', 'triage-abschluss.ts', 'triage-fakten.ts', 'werkzeuge/belegung.ts');
+  ERLAUBT.push('treiber/forge.ts', 'treiber/treiber.ts', 'werkzeuge/belegung.ts');
   const dateien = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? dateien(join(dir, n)) : n.endsWith('.ts') ? [join(dir, n)] : []));
 
   it('no other file under src/ calls gh', () => {

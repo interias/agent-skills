@@ -6,7 +6,7 @@
 
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import type { Aufrufer } from './aufruf.ts';
+import type { ForgeZugriff } from './forge/zugriff.ts';
 import type { Ticket } from './triage.ts';
 
 /** File accesses of the model per call when no setting says otherwise. */
@@ -70,16 +70,15 @@ function dateien(repo: string, notizen: Ticket[]): string[] {
 }
 
 /** The facts of one project for the orders of a triage run. A part the program cannot read says so. */
-export function faktenpaket(repo: string, forge: string, a: Aufrufer, notizen: Ticket[]): string {
+export function faktenpaket(repo: string, z: ForgeZugriff, notizen: Ticket[]): string {
   const adr = adrListe(repo);
   const adapterDatei = join(repo, '.claude', 'epic.md');
   const adapter = existsSync(adapterDatei) ? readFileSync(adapterDatei, 'utf8').slice(0, ADAPTER_MAX) : '(kein Adapter)';
-  const m = a('gh', ['pr', 'list', '--repo', forge, '--state', 'merged', '--limit', String(MERGES), '--json', 'number,title']);
   let merges = '(nicht lesbar)';
   try {
-    if (!m.code) merges = (JSON.parse(m.stdout || '[]') as { number: number; title: string }[]).map((p) => `- #${p.number} ${p.title}`).join('\n') || '(keine)';
+    merges = z.prs({ zustand: 'merged', limit: MERGES, felder: ['number', 'title'] }).map((p) => `- #${p.nummer} ${p.titel}`).join('\n') || '(keine)';
   } catch {
-    // an answer that is no JSON stays unreadable
+    // a forge that does not answer, or an answer that is no JSON, stays unreadable
   }
   const genannt = dateien(repo, notizen);
   return `# Fakten (vom Programm gelesen)
