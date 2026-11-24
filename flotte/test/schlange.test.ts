@@ -415,6 +415,19 @@ describe('C1: Stille mit lebendem Kindprozess', () => {
     expect(mit.fehler).toBe('leerlauf');
     expect(Date.now() - t0).toBeGreaterThanOrEqual(1400);
   }, T);
+
+  it('Tag H: a growing gate log of the run lets the idle limit rest, also past stilleMaxMs; once it is silent the limit counts', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flotte-stille-'));
+    const log = join(dir, 'l.jsonl');
+    writeFileSync(log, '');
+    const t0 = Date.now();
+    const schritte: string[] = [];
+    // the gate writes its log for 1.5 s, then stays silent; no child process, a cap below that
+    const r = await beobachte({ pid: process.pid, konto: dir, beenden: false, log, leerlaufMs: 300, stilleMaxMs: 400, kinder: async () => [], beiSchritt: (x) => schritte.push(x), belebt: () => ({ zeit: Math.min(Date.now(), t0 + 1500), was: 'Protokoll der Andockprüfung wächst: buero' }) });
+    expect(r.fehler).toBe('leerlauf');
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(1500 + 300);
+    expect(schritte.some((x) => /^still seit \d+ min, Protokoll der Andockprüfung wächst: buero$/.test(x))).toBe(true);
+  }, T);
 });
 
 describe('C3: Adapter ohne merge', () => {

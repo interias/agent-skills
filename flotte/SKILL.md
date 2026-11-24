@@ -141,7 +141,7 @@ Weitere Befehle, jeder gibt genau ein JSON-Objekt aus:
    - Ein Fehlstart wird höchstens zweimal neu gestartet.
    - Bei einem Netzfehler setzt der Treiber höchstens zweimal mit `--resume` fort.
    - Endet ein Zug ohne Block, fragt der Treiber einmal nach; danach gilt der Lauf als abgebrochen.
-   - Nach `--leerlauf-min` ohne Ausgabe beendet er den Zug und setzt ihn einmal fort. Beim zweiten Mal bricht er die Mission ab. Lebt unter dem Lauf ein Kindprozess (eine Andockprüfung, eine Testsuite), gilt die Stille als Arbeit, bis zum Vierfachen von `--leerlauf-min`; das Ereignis nennt den Kindprozess.
+   - Nach `--leerlauf-min` ohne Ausgabe beendet er den Zug und setzt ihn einmal fort. Beim zweiten Mal bricht er die Mission ab. Lebt unter dem Lauf ein Kindprozess (eine Andockprüfung, eine Testsuite), gilt die Stille als Arbeit, bis zum Vierfachen von `--leerlauf-min`; das Ereignis nennt den Kindprozess. Wächst ein Protokoll der Andockprüfung der Mission (`.gate/logs/*.log` im Missions- oder Paket-Worktree), ruht die Grenze ganz; sie zählt erst, wenn auch das Log still ist.
    - `permission_denials` blockieren die Mission, ohne zweiten Versuch, wenn der Zug ohne Block endet. Endet er mit `FLOTTE-FRAGE` oder `FLOTTE-ENDE`, geht der Block vor: Die Ablehnungen sind ein Ereignis und stehen in der Lage jeder Frage des Blocks.
    - Ausnahme sind Sperren von `guard.ps1`. Der Treiber gibt den Hook jedem Zug über `--settings` mit, weil der Hook des Skills nach `--resume` nicht mehr gilt. Nach einer Sperre darf der Lauf seinen Weg ändern, wie im Fenster. Blockiert wird die Mission erst in einem dieser Fälle:
      - Der Zug scheitert an der Sperre.

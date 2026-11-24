@@ -29,7 +29,7 @@ def test_beispiel_zeigt_nur_offene_epics_mit_stufe_prio_und_pakete(client, beric
     assert k[41]['issueUrl'].endswith('/issues/41')
     assert len(k[41]['pakete']) == 3 and all('url' in p for p in k[41]['pakete'])
     assert k[41]['prognose'] == {'p50': 10800, 'p90': 18000}
-    assert set(k[41]) == {'id', 'nr', 'titel', 'stufe', 'prio', 'konto', 'issueUrl', 'pr', 'prUrl', 'warum', 'fragen', 'prognose', 'pakete', 'nach', 'folgen', 'imEinsatz', 'pausiert', 'prioritaet', 'pause', 'vorrang', 'merge', 'andocken'}
+    assert set(k[41]) == {'id', 'nr', 'titel', 'stufe', 'prio', 'konto', 'issueUrl', 'pr', 'prUrl', 'warum', 'fragen', 'prognose', 'pakete', 'nach', 'folgen', 'imEinsatz', 'pausiert', 'prioritaet', 'pause', 'vorrang', 'merge', 'andocken', 'lage'}
 
 
 def test_sortiert_nach_stufe_dann_prio_dann_nummer(client, bericht):

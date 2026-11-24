@@ -17,6 +17,8 @@ const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: '
 const ANDOCKEN = { automatisch: 'automatisch nach Andockprüfung', mensch: 'Mensch prüft jedes Andocken' };
 const andockenWort = (text) => (text ? ANDOCKEN[text] ?? text : 'zurück zum Vorschlag');
 const VON = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
+// the label of a card's line (lage), from the driver
+const ETIKETT = { arbeitet: 'Arbeitet', prueft: 'Prüft', wartet_auf_dich: 'Wartet auf dich', wartet: 'Wartet', gestoppt: 'Gestoppt', fertig: 'Fertig' };
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -131,7 +133,7 @@ function liste(box, items, html, verdrahten, tag = 'article') {
 function klasse(it) {
   return {
     frage: 'karte frage', blockade: 'karte blockade',
-    lauf: `karte lauf${it.wartetAufDich ? ' wartet' : ''}`, schlange: 'karte lauf schlange', bereit: 'b-ep',
+    lauf: `karte lauf${wartetAufDich(it) ? ' wartet' : ''}`, schlange: 'karte lauf schlange', bereit: 'b-ep',
   }[it.form] ?? (it.form === 'zeile' ? `${it.art}${it.neu ? ' neu' : ''}` : '');
 }
 
@@ -304,7 +306,9 @@ function blockadeHtml(x, t) {
     const zu = t.pin ? '' : ' disabled';
     unten = `<div class="knoepfe"><button type="button" class="knopf haupt" data-h="einreihen"${zu}>Neu einreihen</button><button type="button" class="knopf zweit" data-log aria-expanded="${auf.has(`log:${x.id}`)}">Log ansehen</button><button type="button" class="knopf zweit" data-h="aufgeben"${zu}>Aufgeben</button><span class="status"></span></div>${x.aktiv ? '' : '<span class="hinweis">Der Treiber meldet sich gerade nicht: die Handlung wirkt bei seinem nächsten Start.</span>'}`;
   }
-  return `${kopfz}<h3>${esc(erste)}</h3>${titel}${lage}${log}${unten}`;
+  // the driver's sentence usually names the reason already: then no heading repeats it
+  const kopf = x.lage?.satz.includes(erste) ? '' : `<h3>${esc(erste)}</h3>`;
+  return `${kopfz}${lageHtml(x)}${kopf}${titel}${lage}${log}${unten}`;
 }
 
 function blockadeVerdrahten(el, x) {
@@ -328,10 +332,12 @@ function blockadeVerdrahten(el, x) {
 
 function ebene2(t) {
   const u = t.unterwegs;
-  const laufen = u.laeufe.filter((l) => !l.wartetAufDich).length;
-  const warten = u.laeufe.length - laufen;
+  // with the driver's line a card counts by its label (a PR may wait for the person too), else as before
+  const laufen = u.laeufe.filter((l) => !wartetAufDich(l)).length;
+  const warten = [...u.laeufe, ...u.schlange].filter(wartetAufDich).length;
+  const schlange = u.schlange.filter((x) => !wartetAufDich(x)).length;
   $('e2-zahl').textContent = u.laeufe.length + u.schlange.length;
-  $('e2-klein').textContent = [laufen ? `${laufen} ${laufen === 1 ? 'läuft' : 'laufen'}` : '', warten ? `${warten} wartet auf dich` : '', u.schlange.length ? `${u.schlange.length} in der Schlange` : '', u.bereit.length ? `${u.bereit.length} bereit` : ''].filter(Boolean).join(' · ') || 'nichts unterwegs';
+  $('e2-klein').textContent = [laufen ? `${laufen} ${laufen === 1 ? 'läuft' : 'laufen'}` : '', warten ? `${warten} wartet auf dich` : '', schlange ? `${schlange} in der Schlange` : '', u.bereit.length ? `${u.bereit.length} bereit` : ''].filter(Boolean).join(' · ') || 'nichts unterwegs';
   const items = [...u.laeufe.map((l) => ({ ...l, form: 'lauf', flip: l.id })), ...u.schlange.map((s) => ({ ...s, id: `${s.id}:s`, form: 'schlange', flip: s.id }))];
   liste($('e2-liste'), items, laufHtml, paketeVerdrahten);
   const box = $('bereit');
@@ -379,17 +385,29 @@ function entscheidungenHtml(x) {
   return `<section class="entscheidungen" aria-label="Entscheidungen bis zum Andocken"><h4>Entscheidungen bis zum Andocken</h4><ol>${zeilen}</ol></section>`;
 }
 
+// with the driver's line (lage) the run's last step and the contexts of the gate move into the detail
+function lageDetailHtml(x) {
+  if (!x.lage) return '';
+  const schritt = x.schritt ? `<p class="d-schritt"><b>Letzter Schritt:</b> ${esc(x.schritt)}${x.schrittZeit ? ` (${esc(uhrzeit(x.schrittZeit))})` : ''}</p>` : '';
+  const g = x.lage.gate;
+  if (!g?.kontexte?.length) return schritt;
+  const fertig = g.kontexte.filter((k) => k.stand === 'fertig').length;
+  const kopf = `Andockprüfung · ${fertig} von ${g.von ?? g.kontexte.length} fertig${datum(g.seit) ? ` · ${zeitHtml(g.seit, 'seit {}')}` : ''}`;
+  return `${schritt}<section class="d-gate" aria-label="Andockprüfung"><h4>${kopf}</h4><ul>${g.kontexte.map((k) => `<li class="${esc(k.stand)}"><span class="punkt"></span><span>${esc(k.name)}</span><span class="ps">${k.stand === 'fertig' ? 'fertig' : 'läuft'}</span></li>`).join('')}</ul></section>`;
+}
+
 // the opened detail of an epic: one section per entry
-const abschnitte = (x) => [x.pakete?.length ? paketeListe(x) : '', entscheidungenHtml(x)];
+const abschnitte = (x) => [lageDetailHtml(x), x.pakete?.length ? paketeListe(x) : '', entscheidungenHtml(x)];
 
 function paketeHtml(x) {
   const e = x.entscheidungen?.length ?? 0;
-  if (!x.pakete?.length && !e) return '';
+  const mehr = Boolean(x.lage && (x.schritt || x.lage.gate?.kontexte?.length));
+  if (!x.pakete?.length && !e && !mehr) return '';
   const n = x.pakete?.length ?? 0;
   const fertig = (x.pakete ?? []).filter((p) => p.stand === 'fertig').length;
   const offen = auf.has(`pakete:${x.id}`);
   const liste = offen ? `<div class="detail">${abschnitte(x).join('')}</div>` : '';
-  const zahl = [n ? (x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`) : '', e ? `${e} ${e === 1 ? 'Entscheidung' : 'Entscheidungen'}` : ''].filter(Boolean).join(' · ');
+  const zahl = [n ? (x.form === 'bereit' ? `${n} ${n === 1 ? 'Ticket' : 'Tickets'}${fertig ? ` · ${fertig} fertig` : ''}` : `${fertig} von ${n} fertig`) : '', e ? `${e} ${e === 1 ? 'Entscheidung' : 'Entscheidungen'}` : ''].filter(Boolean).join(' · ') || 'Details';
   return `<button type="button" class="paketleiste" data-pakete aria-expanded="${offen}" title="Pakete und Entscheidungen: antippen für die Liste"><span class="segmente">${(x.pakete ?? []).map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${zahl}</span></button>${liste}`;
 }
 
@@ -424,16 +442,55 @@ function laufHtml(x) {
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
   const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
   // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
-  const meta = x.form === 'lauf' ? [gateLaufHtml(x.gateLauf), x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
+  // Tag H: with the line of the mission the gate stands there once, not again above it
+  const meta = x.form === 'lauf' ? [x.lage ? '' : gateLaufHtml(x.gateLauf), x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
   const kopfmeta = meta.length ? `<span class="epic-meta">${meta.join(' · ')}</span>` : '';
   if (x.form === 'schlange') {
     const pr = x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : x.pr ? `PR #${x.pr}` : '';
-    const gate = x.gateLauf ? gateLaufHtml(x.gateLauf) : x.gateSeit ? zeitHtml(x.gateSeit, 'Andockprüfung seit {}', null, 'rel gate') : '';
+    const gate = x.lage ? '' : x.gateLauf ? gateLaufHtml(x.gateLauf) : x.gateSeit ? zeitHtml(x.gateSeit, 'Andockprüfung seit {}', null, 'rel gate') : '';
+    // the driver's line says what happens; the PR stays a link in the line below, which the phone shows too
+    if (x.lage) return `${kopfz}${titel}${lageHtml(x)}${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${pr ? `${pr} · ` : ''}${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
     return `${kopfz}${titel}<span class="schritt">${pr}${x.notiz ? ` · ${esc(x.notiz)}` : ''}</span>${paketeHtml(x)}<div class="zeile"><span>${x.position ? `Platz ${x.position}` : 'Schlange'}</span><span>${zeitHtml(x.seit, 'in der Schlange seit {}')}${gate ? ` · ${gate}` : ''}</span></div>`;
   }
+  if (x.lage) return `${kopfz}${titel}${kopfmeta}${lageHtml(x)}${paketeHtml(x)}${lebenHtml(x)}`;
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
   const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
   return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}`;
+}
+
+// the driver's line (lage): a label, the sentence with its reason, since when; below it the person's step with
+// a link to where it is done. An older driver sends none: the card draws its step as before
+const wartetAufDich = (x) => (x.lage ? x.lage.etikett === 'wartet_auf_dich' : Boolean(x.wartetAufDich));
+
+function lageHtml(x) {
+  const l = x.lage;
+  if (!l) return '';
+  // the dot sticks to the last word: a wrapped line never starts with it
+  const seit = datum(l.seit) ? `<span class="lage-seit">&nbsp;· ${zeitHtml(l.seit, 'seit {}')}</span>` : '';
+  return `<p class="lagez"><span class="etikett ${esc(l.etikett)}">${esc(ETIKETT[l.etikett] ?? l.etikett)}</span> <span class="satz">${esc(l.satz)}</span>${seit}</p>${deinSchrittHtml(x)}`;
+}
+
+function deinSchrittHtml(x) {
+  const d = x.lage?.deinSchritt;
+  if (!d) return '';
+  const inhalt = `<b>Dein Schritt:</b> ${esc(d.text)}`;
+  const pfeil = ' <span class="pfeil" aria-hidden="true">›</span>';
+  const url = { pr: x.prUrl, issue: x.issueUrl }[d.ziel];
+  if (url) return `<a class="dein-schritt" href="${esc(url)}">${inhalt}${pfeil}</a>`;
+  if (d.ziel === 'frage' || d.ziel === 'einreihen') return `<button type="button" class="dein-schritt" data-dein="${esc(d.ziel)}" data-forge="${esc(x.forge)}" data-nr="${esc(x.nr ?? x.epic)}">${inhalt}${pfeil}</button>`;
+  return `<p class="dein-schritt">${inhalt}</p>`;
+}
+
+// where "Dein Schritt" leads on the board: the first open question of the mission, or its blockade with "Neu einreihen"
+function deinZiel(b) {
+  const { dein, forge } = b.dataset;
+  const nr = Number(b.dataset.nr);
+  if (dein === 'frage') {
+    const f = stand?.braucht.find((x) => x.art === 'frage' && x.forge === forge && x.epic === nr);
+    return f ? karteIn('e1-liste', f.id) : null;
+  }
+  const k = karteIn('e1-liste', `epic:${forge}#${nr}`);
+  return k?.querySelector('[data-h="einreihen"]') ?? k;
 }
 
 // the life sign: a pulse while the run speaks, a bar up to the idle limit (yellow from half, red near it)
@@ -851,6 +908,12 @@ function laufband(t) {
 }
 
 document.addEventListener('click', (ev) => {
+  const d = ev.target.closest?.('button[data-dein]');
+  if (d) {
+    const ziel = deinZiel(d);
+    if (ziel) huelle.springe('bruecke', ziel);
+    return;
+  }
   const b = ev.target.closest?.('.laeuft-seit');
   if (!b) return;
   b.classList.toggle('start');

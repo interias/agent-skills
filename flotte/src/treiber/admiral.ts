@@ -75,7 +75,8 @@ export const MERKMALE: { punkt: string; woerter: string[] }[] = [
   { punkt: 'nach außen', woerter: ['E-Mail', 'Mail an', 'Newsletter', 'Nachricht an', 'Nachrichten an', 'SMS', 'versenden', 'an Dritte', 'Webhook'] },
   { punkt: 'Geld', woerter: ['Geld', 'Zahlung', 'Bezahl', 'Rechnung', 'Preis', 'Abrechnung', 'Abonnement','Stripe', 'PayPal'] },
   { punkt: 'Produktivdaten', woerter: ['Produktivdaten', 'Produktion', 'Datenmigration', 'Migration von Daten', 'Daten migrieren', 'Backfill'] },
-  { punkt: 'Sicherheit und Zugänge', woerter: ['Sicherheit', 'Zugang', 'Zugänge', 'Zugangsdaten', '=Token', 'Passwort', 'Berechtigung', '=Rechte', 'Secret', 'API-Key', 'Login'] },
+  // accesses and secrets only: "Sicherheit" alone named a mere topic and held a PR for nothing (hexanite#463)
+  { punkt: 'Sicherheit und Zugänge', woerter: ['Zugang', 'Zugänge', 'Zugangsdaten', '=Token', 'Passwort', 'Geheimnis', 'SSH-Schlüssel', 'API-Schlüssel', 'privater Schlüssel', 'privaten Schlüssel', 'Schlüsselpaar', 'Berechtigung', '=Rechte', '=Auth', 'Authentifizierung', 'Autorisierung', 'Anmeldung', 'Secret', 'API-Key', 'Login'] },
   { punkt: 'Kundentext', woerter: ['Kunde', 'Kundin', 'Versprechen', 'AGB'] },
   { punkt: 'Architektur', woerter: ['neue Abhängigkeit', 'Abhängigkeit hinzu', 'Bruch mit ADR', 'Bruch mit dem ADR', 'Bruch mit einem ADR', 'bricht ADR', 'bricht mit ADR', 'bricht das ADR', 'widerspricht ADR', 'gegen ADR', 'ADR ablösen', 'ADR ändern', 'ADR aufheben', 'Bruch mit einer Architekturentscheidung', 'bricht eine Architekturentscheidung'] },
 ];

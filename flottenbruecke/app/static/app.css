@@ -217,6 +217,29 @@ textarea {
 .lauf.wartet .kopfz .nr { color: var(--lila); }
 .lauf.schlange { border-left-color: var(--blau); }
 .lauf.schlange .kopfz .nr { color: var(--himmel); }
+/* the driver's line (lage): label, sentence, since when; the person's step below it, a link to where it is done */
+.lagez { margin: 0; font: 13px/1.45 var(--lesen); color: var(--text); overflow-wrap: anywhere; }
+.etikett { display: inline-block; margin-right: 2px; padding: 0 8px; border-radius: var(--rund); background: var(--matt); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; vertical-align: 1px; }
+.etikett.arbeitet { background: var(--gruen); }
+.etikett.prueft { background: var(--himmel); }
+.etikett.wartet_auf_dich { background: var(--lila); }
+.etikett.wartet { background: transparent; color: var(--gelb); box-shadow: inset 0 0 0 1px var(--gelb); }
+.etikett.gestoppt { background: var(--rot); }
+.lage-seit { color: var(--matt); white-space: nowrap; }
+.dein-schritt { display: block; width: 100%; margin: 0; padding: 6px 10px; border: 0; border-left: 3px solid var(--lila); border-radius: 0 8px 8px 0; background: #1f1628; color: var(--text); font: 13px/1.4 var(--lesen); text-align: left; overflow-wrap: anywhere; }
+.dein-schritt b { color: var(--lila); font-weight: 600; }
+a.dein-schritt, button.dein-schritt { cursor: pointer; }
+a.dein-schritt:hover, button.dein-schritt:hover { background: #2a1d36; text-decoration: none; }
+.dein-schritt .pfeil { color: var(--lila); font-weight: 700; }
+.dein-schritt:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.d-schritt { margin: 0 0 4px; color: var(--matt); font: 12.5px/1.4 var(--lesen); overflow-wrap: anywhere; }
+.d-schritt b { color: var(--text); font-weight: 600; }
+.d-gate h4 { margin: 2px 0 2px; color: var(--matt); font: 400 11.5px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.d-gate ul { margin: 0 0 4px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 2px 14px; font: 13px/1.4 var(--lesen); }
+.d-gate li { display: inline-flex; align-items: center; gap: 6px; }
+.d-gate .punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+.d-gate .fertig .punkt { background: var(--gruen); }
+.d-gate .ps { color: var(--matt); font: 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
 .segmente { display: flex; gap: 3px; height: 5px; }
 .segment { flex: 1; border-radius: 3px; background: #2c2c3a; }
 .segment.fertig { background: var(--gruen); }
@@ -352,6 +375,7 @@ dialog p { font: 14px/1.45 var(--lesen); }
   .opt { min-height: 48px; font-size: 14.5px; }
   .knopf { min-height: 48px; font-size: 14px; padding: 0 18px; }
   .knopf.klein { min-height: 32px; }
+  .dein-schritt { min-height: 44px; padding: 10px 12px; font-size: 14px; }
   .knoepfe .knopf.haupt { flex: 1 1 auto; }
   /* the bar in "Bereit" stands alone on the line: a thumb-sized target */
   .bereit .paketleiste { min-height: 40px; margin: -6px 0; }
