@@ -111,9 +111,11 @@ def fernweg(request: Request) -> bool:
 
 
 def am_rechner(request: Request) -> bool:
-    """#46: like the remote entry, the entry of the machine is the socket, never a sender or a header."""
+    """#46: like the remote entry, the entry of the machine is the socket, never a sender or a header. On top the
+    browser must have asked for localhost: a page that rebinds its own name to 127.0.0.1 stays out."""
     server = request.scope.get('server')
-    return bool(server) and server[1] == RECHNERPORT
+    host = urlsplit(f"//{request.headers.get('host') or ''}").hostname
+    return bool(server) and server[1] == RECHNERPORT and host in ('localhost', '127.0.0.1', '::1')
 
 
 def fremder_origin(request: Request) -> bool:
@@ -236,6 +238,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/api/antworten')
     def abholen(forge: str, x_bruecke_token: str | None = Header(None)) -> list[dict]:
         treiber(x_bruecke_token)
+        # #46: under the emergency stop nothing goes out, also what was sent before; it stays for after the release
+        if speicher.notaus():
+            return []
         # the contract: beispiel/antworten.json
         return [{'id': a['id'], 'epic': a['epic'], 'nr': a['nr'], 'seit': a['seit'], 'option': a['option'], 'text': a['text'] or None, 'zeit': a['zeit'], 'herkunft': HERKUNFT} for a in speicher.abholen(forge, stempel())]
 
@@ -249,7 +254,10 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/api/handlungen')
     def handlungen_abholen(forge: str, x_bruecke_token: str | None = Header(None)) -> list[dict]:
         treiber(x_bruecke_token)
-        return [{'id': h['id'], 'epic': h['epic'], 'art': h['art'], 'nr': h['nr'], 'seit': h['seit'], 'text': h['text'], 'zeit': h['zeit'], 'herkunft': HERKUNFT} for h in speicher.handlungen_abholen(forge, stempel())]
+        if speicher.notaus():
+            return []
+        # geraet (#46): the device that sent it, for the Flottenlogbuch; None for actions from before the pairing
+        return [{'id': h['id'], 'epic': h['epic'], 'art': h['art'], 'nr': h['nr'], 'seit': h['seit'], 'text': h['text'], 'zeit': h['zeit'], 'herkunft': HERKUNFT, 'geraet': h['geraet']} for h in speicher.handlungen_abholen(forge, stempel())]
 
     @app.post('/api/handlungen/{id_}/quittung')
     def handlung_quittieren(id_: int, x_bruecke_token: str | None = Header(None)) -> dict:
@@ -275,6 +283,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.get('/api/werft/handlungen')
     def werft_abholen(rechner: str, x_bruecke_token: str | None = Header(None)) -> list[dict]:
         treiber(x_bruecke_token)
+        if speicher.notaus():
+            return []
         # the contract: beispiel/werft-handlungen.json
         return [{'id': h['id'], 'forge': h['forge'], 'stack': h['stack'], 'art': h['art'], 'text': h['text'], 'zeit': h['zeit'], 'herkunft': HERKUNFT} for h in speicher.werft_handlungen_abholen(rechner, stempel())]
 
@@ -317,15 +327,15 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     @app.post('/api/handlung')
     def handeln(h: Handlung, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
         g = person(request, 'handeln', x_bruecke_pin)
-        ergebnis = handlung_ablegen(h)
+        ergebnis = handlung_ablegen(h, g['name'])
         protokoll(g, request, h)
         return ergebnis
 
-    def handlung_ablegen(h: Handlung) -> dict:
+    def handlung_ablegen(h: Handlung, geraet: str) -> dict:
         if h.art == 'triage':
-            return triage_starten(h)
+            return triage_starten(h, geraet)
         if h.art == 'einspielen':
-            return einspielen_starten(h)
+            return einspielen_starten(h, geraet)
         p = speicher.projekt(h.forge)
         b = p['bericht'] if p else {}
         ep = next((x for x in b.get('epics', []) if x['nr'] == h.epic), None)
@@ -414,7 +424,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(409, 'Nach dem Andocken oder ein zweites Mal geht kein Widerruf mehr über die Brücke.')
         elif ep['stufe'] not in ('blockiert', 'abgebrochen') or ep.get('aufgegebenAm'):
             raise HTTPException(409, 'Die Mission ist nicht blockiert.')
-        gespeichert = speicher.handlung_setzen(h.forge, h.epic, h.art, h.nr, h.seit, h.text, stempel())
+        gespeichert = speicher.handlung_setzen(h.forge, h.epic, h.art, h.nr, h.seit, h.text, stempel(), geraet)
         if gespeichert is None:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
         if h.art == 'projekt_entfernen':
@@ -422,7 +432,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             speicher.entfernt_merken(h.forge, (b.get('version') or {}).get('gestartet'), stempel())
         return {'ok': True, 'id': gespeichert['id']}
 
-    def triage_starten(h: Handlung) -> dict:
+    def triage_starten(h: Handlung, geraet: str) -> dict:
         """#116: one triage action per project, or (forge `alle`) one for each project whose driver reports a triage state and runs none."""
         if h.forge == 'alle':
             ziele = [p['forge'] for p in speicher.projekte() if p['bericht'].get('triage') and not p['bericht']['triage'].get('laeuft')]
@@ -439,7 +449,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             ziele = [h.forge]
         ids = []
         for forge in ziele:
-            gespeichert = speicher.handlung_setzen(forge, 0, 'triage', None, None, None, stempel())
+            gespeichert = speicher.handlung_setzen(forge, 0, 'triage', None, None, None, stempel(), geraet)
             # fetched already: that one starts the run, nothing more to do here
             if gespeichert is not None:
                 ids.append(gespeichert['id'])
@@ -447,7 +457,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(409, 'Der Treiber hat die Handlung schon abgeholt.')
         return {'ok': True, 'id': ids[0], 'ids': ids}
 
-    def einspielen_starten(h: Handlung) -> dict:
+    def einspielen_starten(h: Handlung, geraet: str) -> dict:
         """#154: one update per driver, or (forge `alle`) one for each driver that reports its stand and is not halting
         for one already. The text is the commit of this bridge's image: the driver builds it only when flottenbruecke/
         changed since."""
@@ -468,7 +478,7 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         text = json.dumps({'bruecke': e.commit or None})
         ids = []
         for forge in ziele:
-            gespeichert = speicher.handlung_setzen(forge, 0, 'einspielen', None, None, text, stempel())
+            gespeichert = speicher.handlung_setzen(forge, 0, 'einspielen', None, None, text, stempel(), geraet)
             if gespeichert is not None:
                 ids.append(gespeichert['id'])
         if not ids:
@@ -513,6 +523,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             raise HTTPException(422, 'rechner und konten (Kurznamen aus Ziffern, durch Komma getrennt)')
         # the accounts each machine has: the choice per chat
         speicher.chat_rechner_merken(rechner, liste, stempel())
+        if speicher.notaus():
+            return []
         return [{'id': n['id'], 'chat': n['chat'], 'forge': n['forge'], 'art': n['art'], 'konto': n['konto'], 'modell': n['modell'], 'text': n['text'], 'entwurf': n['entwurf'], 'starten': bool(n['starten']), 'sitzung': n['sitzung'], 'zeit': n['zeit']} for n in speicher.chat_offene(rechner, liste)]
 
     @app.post('/api/chat/nachrichten/{id_}/quittung')

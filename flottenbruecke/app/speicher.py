@@ -50,7 +50,8 @@ create table if not exists handlungen (
   text text,
   zeit text not null,
   abgeholt text,
-  quittiert text
+  quittiert text,
+  geraet text
 );
 create table if not exists prototypen (
   forge text not null,
@@ -165,6 +166,9 @@ class Speicher:
             if 'entfernt' not in [z['name'] for z in self.db.execute('pragma table_info(projekte)')]:
                 self.db.execute('alter table projekte add column entfernt text')
                 self.db.execute('alter table projekte add column entfernt_gestartet text')
+            # #46: the device that sent an action
+            if 'geraet' not in [z['name'] for z in self.db.execute('pragma table_info(handlungen)')]:
+                self.db.execute('alter table handlungen add column geraet text')
 
     def bericht_speichern(self, forge: str, bericht: dict, jetzt: str) -> bool:
         """Stores the report; True when it created the project."""
@@ -251,8 +255,9 @@ class Speicher:
         with self.lock:
             return [dict(z) for z in self.db.execute(sql + ' order by id', args)]
 
-    def handlung_setzen(self, forge: str, epic: int, art: str, nr: int | None, seit: str | None, text: str | None, jetzt: str) -> dict | None:
-        """New or changed action; None when the driver already fetched an open one for the same target."""
+    def handlung_setzen(self, forge: str, epic: int, art: str, nr: int | None, seit: str | None, text: str | None, jetzt: str, geraet: str | None = None) -> dict | None:
+        """New or changed action; None when the driver already fetched an open one for the same target. geraet (#46):
+        the name of the device that sent it, for the driver's Flottenlogbuch."""
         with self.lock, self.db:
             if art == 'einstellen':
                 # one open change per setting: the last one counts until the driver fetches it
@@ -270,10 +275,10 @@ class Speicher:
             if alt is not None and alt['abgeholt']:
                 return None
             if alt is None:
-                cur = self.db.execute('insert into handlungen (forge, epic, art, nr, seit, text, zeit) values (?, ?, ?, ?, ?, ?, ?)', (forge, epic, art, nr, seit, text, jetzt))
+                cur = self.db.execute('insert into handlungen (forge, epic, art, nr, seit, text, zeit, geraet) values (?, ?, ?, ?, ?, ?, ?, ?)', (forge, epic, art, nr, seit, text, jetzt, geraet))
                 id_ = cur.lastrowid
             else:
-                self.db.execute('update handlungen set art = ?, text = ?, zeit = ? where id = ?', (art, text, jetzt, alt['id']))
+                self.db.execute('update handlungen set art = ?, text = ?, zeit = ?, geraet = ? where id = ?', (art, text, jetzt, geraet, alt['id']))
                 id_ = alt['id']
             return dict(self.db.execute('select * from handlungen where id = ?', (id_,)).fetchone())
 

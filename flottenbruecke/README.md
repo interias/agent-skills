@@ -270,8 +270,8 @@ erst per Skript zeichnet, bleibt in der Vorschau leer und läuft erst in der Ans
 Verknüpfungen, kein Weg hinaus) und schickt nur Dateinamen und Inhalte, keine Pfade; die Brücke
 liefert nur, was sie gespeichert hat, und kennt kein Dateisystem der Projekte. Jeder Prototyp läuft
 in einem opaken Ursprung (`Content-Security-Policy: sandbox allow-scripts` und
-`<iframe sandbox="allow-scripts">`, beide ohne `allow-same-origin`): Er sieht weder die PIN im
-localStorage noch Cookies und kann die Brücken-API weder lesen noch, ohne PIN, etwas auslösen;
+`<iframe sandbox="allow-scripts">`, beide ohne `allow-same-origin`): Er sieht weder den localStorage
+noch Cookies und kann die Brücken-API weder lesen noch, ohne PIN, etwas auslösen;
 Verbindungen und Formulare sind gesperrt, Schriften und Skripte von `https:` laden.
 
 **Neu seit dem letzten Besuch:** ein gelber Punkt (blinkt nicht). Der localStorage-Schlüssel
@@ -288,7 +288,7 @@ Paketen“, eine Marke (`umkehrbar bis zum Andocken` oder warum es bleibt) und d
 bei dir liegt. Je Option steht die Folge darunter. Ein Tipp auf „A nehmen · Empfehlung“ sendet die
 Empfehlung; Optionen und Freitext gehen immer, der Freitext erreicht den Lauf unverändert. Ließ
 sich ein Block nicht in Fragen zerlegen, steht sein Wortlaut selbst auf der Karte. Beim ersten
-Senden fragt die Seite die PIN ab und merkt sie sich auf dem Gerät.
+Senden fragt die Seite die PIN ab; das Gerät behält sie nicht (#46, unten „Geräte“).
 
 Bis der Treiber die Antwort abholt, lässt sie sich ändern; danach steht „Angekommen, Lauf setzt
 fort“. Der Treiber behandelt sie wie `flotte antworten`, kommentiert am Issue mit der Herkunft
@@ -328,16 +328,21 @@ PIN**. Die PIN allein reicht nicht mehr, das Gerät allein auch nicht.
   `127.0.0.1` veröffentlicht (`http://localhost:4748/`, Port aus `BRUECKE_RECHNER_PORT`). Dort zeigt der
   Maschinenraum je Gerät **Antworten geben/nehmen**, **Handeln geben/nehmen** und **Entkoppeln**, jeweils
   mit PIN. Aus dem LAN lehnt die Brücke das mit `403` ab; sie erkennt den Rechner am Eingang, nicht an
-  Absenderadresse oder Kopfzeilen. Ein entkoppeltes Gerät ist sofort unbekannt (`401`) und muss neu koppeln.
+  der Absenderadresse, und nimmt dort nur den Namen `localhost`, `127.0.0.1` oder `[::1]` an (keine fremde
+  Seite, die ihren Namen auf den Rechner umbiegt). Ein entkoppeltes Gerät ist sofort unbekannt (`401`) und muss neu koppeln.
 - **Not-Aus:** Jedes gekoppelte Gerät löst ihn im Maschinenraum aus, ohne PIN und ohne Recht. Danach
   lehnt die Brücke jede Antwort, Handlung und Kopplung ab (`423`), auch nach einem Neustart, bis der
   Rechner ihn über seinen Eingang mit PIN löst. Oben steht solange rot „Not-Aus“. Die Treiber laufen
-  weiter; sie holen nur nichts Neues ab, weil nichts Neues angenommen wird.
+  weiter, bekommen aber nichts mehr ausgeliefert, auch nicht, was vor dem Not-Aus abgeschickt war; das
+  geht erst nach dem Lösen hinaus.
 - **Origin:** Eine schreibende Anfrage, deren `Origin` nicht die Brücke selbst ist (eine fremde Seite,
   ein Prototyp im Holodeck), bekommt `403`. Der Treiber schickt keinen `Origin` und weist sich weiter mit
   `X-Bruecke-Token` aus.
 - **Logbuch:** Jede Antwort und Handlung steht mit Gerät, Zeit und dem Befehl, wie er ankam, im Logbuch
-  (Art „Gerät“), ebenso Koppeln, Rechte, Entkoppeln und Not-Aus.
+  der Brücke (Art „Gerät“), ebenso Koppeln, Rechte, Entkoppeln und Not-Aus. Jede Handlung, die der
+  Treiber ausführt, steht dazu mit Gerät und Zeit im Flottenlogbuch.
+- **PIN je Handlung:** Die Seite behält die PIN nicht auf dem Gerät, nur eine halbe Minute im Speicher der
+  offenen Seite, damit eine Handlung aus mehreren Anfragen nicht mehrmals fragt.
 - **Fernweg:** Über Tailscale (unten) bleibt alles Ansicht: dort lässt sich weder koppeln noch handeln.
 
 Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-maschinenraum-geraete-390.png)),
@@ -475,5 +480,5 @@ python -m venv .venv
 ```
 
 Backend: FastAPI (`app/main.py`), Board-Logik `app/tafel.py`, Speicher `app/speicher.py`, Web-Push
-`app/meldung.py`, Start mit HTTP oder HTTPS samt dem Eingang für den Fernzugriff `app/start.py`.
+`app/meldung.py`, Start mit HTTP oder HTTPS samt den Eingängen für den Fernzugriff und den Rechner (#46) `app/start.py`.
 Frontend ohne Build: `app/static/`.

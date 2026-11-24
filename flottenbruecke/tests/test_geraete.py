@@ -28,7 +28,7 @@ def lan(app, bericht):
 
 
 def rechte(app, id_, antworten=True, handeln=True, pin=PIN):
-    return TestClient(app, base_url=f'http://testserver:{RECHNERPORT}').post(f'/api/geraete/{id_}/rechte', json={'antworten': antworten, 'handeln': handeln}, headers=pin)
+    return TestClient(app, base_url=f'http://localhost:{RECHNERPORT}').post(f'/api/geraete/{id_}/rechte', json={'antworten': antworten, 'handeln': handeln}, headers=pin)
 
 
 # ---- pairing
@@ -100,6 +100,18 @@ def test_rechner_nimmt_das_recht_wieder(app, lan):
     assert rechte(app, g['id'], antworten=False, handeln=False).status_code == 200
     assert lan.post('/api/handlung', json=EINREIHEN, headers=PIN).status_code == 403
     assert lan.post('/api/antwort', json={'forge': PROBE, 'epic': 39, 'nr': 1, 'seit': '2026-11-20T13:52:30Z', 'option': None, 'text': 'A'}, headers=PIN).status_code == 403
+
+
+def test_rechner_eingang_nur_fuer_localhost_kein_umbenannter_name(app, lan):
+    # a page that rebinds its own name to 127.0.0.1 reaches the socket, but the browser names its own host
+    g = koppeln(lan, handeln=False)
+    fremd = TestClient(app, base_url=f'http://boese.example:{RECHNERPORT}')
+    r = fremd.post(f"/api/geraete/{g['id']}/rechte", json={'antworten': True, 'handeln': True}, headers={**PIN, 'Origin': f'http://boese.example:{RECHNERPORT}'})
+    assert r.status_code == 403
+    assert fremd.get('/api/tafel').json()['amRechner'] is False
+    # [::1] as well (main.am_rechner); the test client cannot name an IPv6 host
+    for host in ('localhost', '127.0.0.1'):
+        assert TestClient(app, base_url=f'http://{host}:{RECHNERPORT}').get('/api/tafel').json()['amRechner'] is True, host
 
 
 # ---- two keys for each action
@@ -183,6 +195,21 @@ def test_not_aus_loest_jedes_gekoppelte_geraet_nur_der_rechner_loest_ihn(app, la
     assert am_rechner(lan).post('/api/notaus/loesen', headers=PIN).status_code == 409
     assert lan.get('/api/tafel').json()['notaus'] is None
     assert lan.post('/api/handlung', json=EINREIHEN, headers=PIN).status_code == 200
+
+
+def test_not_aus_haelt_auch_schon_gesendetes_zurueck(app, lan):
+    g = koppeln(lan, name='Handy')
+    assert lan.post('/api/handlung', json=EINREIHEN, headers=PIN).status_code == 200
+    assert lan.post('/api/notaus').status_code == 200
+    # the driver fetches nothing while it holds, and nothing is marked as fetched
+    assert lan.get('/api/handlungen', params={'forge': PROBE}).json() == []
+    assert lan.get('/api/antworten', params={'forge': PROBE}).json() == []
+    assert lan.get('/api/werft/handlungen', params={'rechner': 'r'}).json() == []
+    assert lan.get('/api/chat/nachrichten', params={'rechner': 'r'}).json() == []
+    assert am_rechner(lan).post('/api/notaus/loesen', headers=PIN).status_code == 200
+    # after the release it goes out, with the device for the driver's Flottenlogbuch
+    [h] = lan.get('/api/handlungen', params={'forge': PROBE}).json()
+    assert (h['art'], h['geraet']) == ('einreihen', g['name'])
 
 
 # ---- log

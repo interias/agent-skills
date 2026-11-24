@@ -335,7 +335,10 @@ Brücke`.
 ## 3. Handlungen abholen: `GET /api/handlungen?forge=<owner/name>`
 
 Liefert alle noch nicht quittierten Handlungen (Form: `beispiel/handlungen.json`):
-`{id, epic, art, nr, seit, text, zeit, herkunft}`.
+`{id, epic, art, nr, seit, text, zeit, herkunft, geraet}`. `geraet` (#46) ist der Name des gekoppelten
+Geräts, das die Handlung schickte (`null` bei älteren); der Treiber hängt ihn mit `zeit` an jede Zeile, die die
+Handlung ins Flottenlogbuch schreibt, und schreibt eine eigene, wenn sie keine schreibt. Unter Not-Aus liefern
+alle vier Abholwege (Antworten, Handlungen, Werft, Chat) eine leere Liste, ohne etwas als abgeholt zu markieren.
 
 | `art` | wann die Brücke sie annimmt | was der Treiber tut |
 |---|---|---|

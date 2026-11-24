@@ -13,7 +13,7 @@ BEISPIEL = json.loads((Path(__file__).parent.parent / 'beispiel' / 'bericht.json
 
 def am_rechner(c: TestClient) -> TestClient:
     """The same app over the entry of the machine itself (#46), as a browser on localhost reaches it."""
-    return TestClient(c.app, base_url=f'http://testserver:{RECHNERPORT}')
+    return TestClient(c.app, base_url=f'http://localhost:{RECHNERPORT}')
 
 
 def koppeln(c: TestClient, handeln: bool = True, name: str = 'Testgerät', pin: str = '4711') -> dict:
