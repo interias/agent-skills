@@ -857,6 +857,12 @@ class ChatAnlegen(BaseModel):
     von: int
 
 
+class ChatArchiv(BaseModel):
+    """#47: into the archive (true) or back out (false)."""
+
+    archiviert: bool
+
+
 class ChatQuittung(BaseModel):
     rechner: str = Field(min_length=1, max_length=200)
 

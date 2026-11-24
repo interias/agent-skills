@@ -11,7 +11,7 @@
 
 (() => {
   const KOPF = (n) => `<h2 class="ek bereich-kopf"><span>Bereitschaftsraum</span><span class="zahl">${n}</span><small>Gespräch → Mission · liest nur im Repository</small></h2>`;
-  const STAND = { offen: 'offen', angelegt: 'angelegt', verworfen: 'verworfen' };
+  const STAND = { offen: 'offen', gestoppt: 'gestoppt', angelegt: 'angelegt', verworfen: 'verworfen' };
   const MODELLE = ['claude-opus-5-5', 'opus', 'sonnet', 'haiku'];
   // drafts: chat id -> { text, wahl: { card index: [letters] } }; 'neu' -> the form of a new chat
   const entwuerfe = new Map();
@@ -19,6 +19,7 @@
   let flaeche = null; // the section of the area
   let gewaehlt = null; // the chat shown, 'neu' for the form, null: the newest open one
   let neuester = false; // after "Chat beginnen": show the newest chat once it is there
+  let archivZeigen = false; // #47: the archived chats in the list
 
   const raum = () => letzte?.bereitschaftsraum ?? { chats: [], konten: [], projekte: [], pin: false, modell: MODELLE[0] };
   const wann = (iso) => {
@@ -40,23 +41,26 @@
   function gesucht() {
     const r = raum();
     if (gewaehlt === 'neu') return null;
-    return r.chats.find((c) => c.id === gewaehlt) ?? r.chats.find((c) => c.stand === 'offen') ?? r.chats[0] ?? null;
+    const sichtbar = r.chats.filter((c) => archivZeigen || !c.archiviert);
+    return r.chats.find((c) => c.id === gewaehlt) ?? sichtbar.find((c) => c.stand === 'offen') ?? sichtbar[0] ?? null;
   }
 
   // ---- the list: chats by repository
 
   function listeHtml(r, c) {
     const gruppen = new Map();
-    for (const x of r.chats) {
+    const archiv = r.chats.filter((x) => x.archiviert).length;
+    for (const x of r.chats.filter((y) => archivZeigen || !y.archiviert)) {
       if (!gruppen.has(x.forge)) gruppen.set(x.forge, []);
       gruppen.get(x.forge).push(x);
     }
     const zeile = (x) => `<li><button type="button" class="br-chat${c && x.id === c.id ? ' aktiv' : ''}" data-chat="${x.id}"${c && x.id === c.id ? ' aria-current="true"' : ''}>
-<span class="br-chat-titel">${esc(x.titel)}</span>${marke(x.stand)}
+<span class="br-chat-titel">${esc(x.titel)}</span>${marke(x.stand)}${x.archiviert ? '<span class="br-stand archiviert">Archiv</span>' : ''}
 <small>${x.wartet ? '<b class="br-wartet">wartet</b> · ' : ''}Konto ${esc(x.konto)} · ${esc(x.modell || r.modell)} · ${esc(wann(x.geaendert))}</small></button></li>`;
     const neu = `<button type="button" class="knopf haupt br-neu" data-neu${gewaehlt === 'neu' ? ' aria-pressed="true"' : ''}>Neuer Chat</button>`;
     if (!r.chats.length) return `${neu}<p class="br-klein">Noch kein Chat.</p>`;
-    return `${neu}${[...gruppen].map(([forge, xs]) => `<section class="br-repo" aria-label="${esc(forge)}"><h3>${esc(forge.split('/').pop())} <small>${esc(forge)}</small></h3><ul>${xs.map(zeile).join('')}</ul></section>`).join('')}`;
+    const umschalter = archiv ? `<button type="button" class="knopf klein zweit br-archiv" data-archiv-zeigen aria-pressed="${archivZeigen}">${archivZeigen ? 'Archiv ausblenden' : `Archiv (${archiv})`}</button>` : '';
+    return `${neu}${umschalter}${[...gruppen].map(([forge, xs]) => `<section class="br-repo" aria-label="${esc(forge)}"><h3>${esc(forge.split('/').pop())} <small>${esc(forge)}</small></h3><ul>${xs.map(zeile).join('')}</ul></section>`).join('')}`;
   }
 
   // ---- a new chat: repository, account, model, the first message
@@ -89,6 +93,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
       const mensch = n.art === 'anlegen'
         ? `<li class="br-mensch anlegen"><b>${n.starten ? 'Anlegen und starten' : 'Anlegen'}</b> — der Entwurf unten<small>${esc(wann(n.zeit))}</small></li>`
         : `<li class="br-mensch"><div class="br-text">${absatz(n.text)}</div><small>${esc(wann(n.zeit))}</small></li>`;
+      if (!n.antwort && c.stand === 'gestoppt' && !n.quittiert) return `${mensch}<li class="br-antwort warten">Angehalten: geht nach „Fortsetzen“ an den Dienst.</li>`;
       if (!n.antwort && c.stand !== 'offen' && !n.quittiert) return `${mensch}<li class="br-antwort warten">Nicht mehr an den Dienst gegangen.</li>`;
       if (!n.antwort) {
         const wo = n.quittiert ? `Übernommen von ${esc(n.rechner)} — die Antwort kommt.` : 'Wartet auf den Dienst <code>flotte chat</code> eines Rechners mit Konto ' + esc(c.konto) + '.';
@@ -140,13 +145,18 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
 <label>Konto<select name="konto"${wahlZu}${c.rechner ? ' title="Das Konto steht fest, seit der Chat eine Sitzung hat."' : ''}>${konten.map((k) => `<option value="${esc(k)}"${k === c.konto ? ' selected' : ''}${c.rechner && k !== c.konto ? ' disabled' : ''}>Konto ${esc(k)}</option>`).join('')}</select></label>
 <label>Modell<input name="modell" list="br-modelle" autocomplete="off" spellcheck="false" value="${esc(c.modell || r.modell)}"${wahlZu}></label>${modelle('br-modelle')}
 <button type="submit" class="knopf klein zweit"${wahlZu}>Übernehmen</button><span class="status" role="status"></span></form>`;
-    const kopf = `<header class="br-kopf"><h3><span class="br-repo-name">${esc(c.kurz)}</span> ${esc(c.titel)}</h3>${marke(c.stand)}
-<small class="br-klein">${c.rechner ? `Rechner ${esc(c.rechner)}` : 'noch an keinen Rechner gebunden'} · begonnen ${esc(wann(c.angelegt))}</small>${wahl}</header>`;
+    // #47: stop, continue, archive; each with the PIN like writing
+    const zu = r.pin ? '' : ' disabled';
+    const lauf = c.stand === 'offen' ? `<button type="button" class="knopf klein zweit" data-steuern="stoppen"${zu}>Stoppen</button>`
+      : c.stand === 'gestoppt' ? `<button type="button" class="knopf klein haupt" data-steuern="fortsetzen"${zu}>Fortsetzen</button>` : '';
+    const steuern = `<div class="knoepfe br-steuern">${lauf}<button type="button" class="knopf klein zweit" data-steuern="archivieren"${zu}>${c.archiviert ? 'Aus dem Archiv' : 'Archivieren'}</button><span class="status" role="status"></span></div>`;
+    const kopf = `<header class="br-kopf"><h3><span class="br-repo-name">${esc(c.kurz)}</span> ${esc(c.titel)}</h3>${marke(c.stand)}${c.archiviert ? '<span class="br-stand archiviert">Archiv</span>' : ''}
+<small class="br-klein">${c.rechner ? `Rechner ${esc(c.rechner)}` : 'noch an keinen Rechner gebunden'} · begonnen ${esc(wann(c.angelegt))}</small>${wahl}${steuern}</header>`;
     const nWahl = Object.values(e.wahl || {}).filter((x) => x.length).length;
     const schreiben = c.stand === 'offen' ? `<form class="br-schreiben" data-form="schreiben">
 <textarea name="text" placeholder="${c.karten.length ? 'Eigene Antwort oder Ergänzung (optional zu den Karten)' : 'Nachricht'}" aria-label="Nachricht an den Bereitschaftsraum"${schreibt ? '' : ' disabled'}>${esc(e.text ?? '')}</textarea>
 <div class="knoepfe"><button type="submit" class="knopf haupt"${schreibt ? '' : ' disabled'}>${nWahl ? 'Antwort senden' : 'Senden'}</button><button type="button" class="knopf zweit" data-verwerfen${schreibt ? '' : ' disabled'}>Verwerfen</button><span class="status" role="status">${r.pin ? '' : `Schreiben abgeschaltet: ${esc(huelle.ohnePin(letzte))}`}</span></div></form>`
-      : `<p class="br-klein">${c.stand === 'angelegt' ? 'Angelegt: Dieser Chat ist abgeschlossen.' : 'Verworfen: Hier entsteht nichts mehr.'}</p>`;
+      : `<p class="br-klein">${c.stand === 'gestoppt' ? 'Gestoppt: Kein Rechner bekommt eine Nachricht dieses Chats, bis du ihn fortsetzt. Der Stand bleibt, auch über einen Neustart.' : c.stand === 'angelegt' ? 'Angelegt: Dieser Chat ist abgeschlossen.' : 'Verworfen: Hier entsteht nichts mehr.'}</p>`;
     return `${kopf}<ol class="br-verlauf">${verlaufHtml(c, r)}</ol>${kartenHtml(c, schreibt)}${missionenHtml(c)}${entwurfHtml(c, schreibt)}${schreiben}`;
   }
 
@@ -226,6 +236,14 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     if (await senden(`/api/chat/${c.id}/verwerfen`, {}, zeile, zeile.querySelector('.status'))) await laden();
   }
 
+  async function steuern(b, c) {
+    const weg = b.dataset.steuern;
+    if (weg === 'stoppen' && !(await bestaetigen(`Chat „${c.titel}“ stoppen? Eine wartende Nachricht geht an keinen Rechner, bis du fortsetzt; eine schon laufende Antwort kommt noch.`, 'Stoppen'))) return;
+    const zeile = b.closest('.knoepfe');
+    const body = weg === 'archivieren' ? { archiviert: !c.archiviert } : {};
+    if (await senden(`/api/chat/${c.id}/${weg}`, body, zeile, zeile.querySelector('.status'))) await laden();
+  }
+
   function zumGespraech() {
     const g = flaeche.querySelector('.br-gespraech');
     // on the phone the conversation stands below the list
@@ -241,6 +259,10 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
       gewaehlt = Number(b.dataset.chat);
       zeichnen(flaeche, letzte, true);
       return zumGespraech();
+    }
+    if (b.matches('[data-archiv-zeigen]')) {
+      archivZeigen = !archivZeigen;
+      return zeichnen(flaeche, letzte, true);
     }
     if (b.matches('[data-neu]')) {
       gewaehlt = 'neu';
@@ -261,6 +283,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     }
     if (b.dataset.anlegen) return anlegen(b, c);
     if (b.matches('[data-verwerfen]')) return verwerfen(b, c);
+    if (b.dataset.steuern) return steuern(b, c);
   }
 
   function absenden(ev) {
@@ -285,6 +308,35 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     }
   }
 
+  // #47, the command line: "chat anlegen [repository] <first message>" (beginnings of the words suffice). It fills the
+  // form of a new chat and sends it like its button, with device and PIN; without a message it only opens the form
+  function chatAnlegen(t, eingabe) {
+    const r = t.bereitschaftsraum;
+    if (!r?.pin || t.nurAnsicht || !r.konten.length || !r.projekte.length) return [];
+    const worte = String(eingabe ?? '').trim().split(/\s+/).filter(Boolean);
+    const klein = (w) => w.toLocaleLowerCase('de-DE');
+    if (worte.length < 2 || !'chat'.startsWith(klein(worte[0])) || !'anlegen'.startsWith(klein(worte[1]))) return [];
+    let rest = worte.slice(2);
+    const genannt = rest.length && r.projekte.find((f) => [klein(f), klein(f.split('/').pop())].includes(klein(rest[0])));
+    if (genannt) rest = rest.slice(1);
+    const forge = genannt || r.projekte[0];
+    const text = rest.join(' ');
+    const formular = () => flaeche?.querySelector('[data-form="neu"]');
+    return [{
+      art: 'Befehl',
+      titel: 'Chat anlegen',
+      info: `${forge.split('/').pop()} · ${text ? text.slice(0, 60) : 'Text dahinter wird die erste Nachricht'}`,
+      ziel: () => {
+        if (!flaeche) return null;
+        gewaehlt = 'neu';
+        entwuerfe.set('neu', { ...(entwuerfe.get('neu') || {}), forge, text });
+        zeichnen(flaeche, letzte, true);
+        return formular();
+      },
+      ausfuehren: () => (text && formular() ? beginnen(formular()) : formular()?.querySelector('textarea')?.focus()),
+    }];
+  }
+
   huelle.bereich({
     name: 'bereitschaftsraum',
     titel: 'Bereitschaftsraum',
@@ -304,9 +356,9 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
       }
       zeichnen(el, t);
     },
-    // the command line finds every chat by its first line or repository
-    treffer(t) {
-      return (t.bereitschaftsraum?.chats ?? []).map((c) => ({
+    // the command line finds every chat by its first line or repository, and (#47) runs "Chat anlegen"
+    treffer(t, eingabe) {
+      return [...chatAnlegen(t, eingabe), ...(t.bereitschaftsraum?.chats ?? []).map((c) => ({
         art: 'Chat',
         titel: c.titel,
         info: `${c.kurz} · ${STAND[c.stand] ?? c.stand}`,
@@ -316,7 +368,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
           zeichnen(flaeche, letzte, true);
           return flaeche.querySelector('.br-gespraech');
         },
-      }));
+      }))];
     },
   });
 })();

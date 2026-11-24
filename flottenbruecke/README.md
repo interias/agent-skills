@@ -259,8 +259,10 @@ Adapterschlüssel `prototype_dir` in `.claude/epic.md`. Jede HTML-Datei direkt d
 Unterordner, höchstens 50, je höchstens 2 MB) erscheint als Kachel mit Titel (`<title>`), Projekt,
 Datum und Vorschau, gruppiert und filterbar nach Projekt; die Befehlszeile findet sie auch. Antippen
 öffnet den Prototyp in einem Rahmen, wahlweise als **Schreibtisch** (volle Breite) oder **Telefon**
-(390 px breit). **Rückmeldung kopieren** legt `Rückmeldung zu Prototyp <owner/name>/<datei>: ` in
-die Zwischenablage, für den Chat. Nur ansehen: Die Brücke ändert keine Datei.
+(390 px breit). **Rückmeldung an den Chat** (#47) schickt den Text als Nachricht
+`Rückmeldung zu Prototyp <owner/name>/<datei>: …` in einen offenen Chat des Bereitschaftsraums (Chats
+des Projekts zuerst; Gerät und PIN wie beim Schreiben dort); **Rückmeldung kopieren** legt den Anfang
+in die Zwischenablage. Die Brücke ändert keine Datei des Prototyps.
 
 Die Vorschau ist der Prototyp selbst, verkleinert in einem Rahmen ganz ohne Skripte
 (`sandbox=""`, `loading="lazy"`): kein Bilderdienst, kein Bildschirmfoto-Schritt; ein Prototyp, der
@@ -426,8 +428,14 @@ Mission, ein Missionsziel oder nichts entsteht. Die Brücke startet kein `claude
 eine fortgesetzte Sitzung auf dem gewählten Konto und antwortet (`SCHNITTSTELLE.md`, Abschnitt 8). Die
 Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
 
-- **Chats je Repository** mit Stand: offen, angelegt (nach erfolgreichem Anlegen, mit Links auf die
+- **Chats je Repository** mit Stand: offen, gestoppt, angelegt (nach erfolgreichem Anlegen, mit Links auf die
   angelegten Issues), verworfen (ein Klick hier, beim Dienst kommt davon nichts an).
+- **Stoppen, Fortsetzen, Archivieren** (#47): Gestoppt bekommt kein Rechner eine Nachricht des Chats,
+  bis er fortgesetzt ist. Archivieren blendet einen Chat aus der Liste aus (ein offener wird dabei
+  gestoppt); „Archiv (n)“ zeigt sie wieder, „Aus dem Archiv“ holt einen zurück. Stand und Archiv
+  überstehen einen Neustart der Brücke.
+- **Befehlszeile:** `chat anlegen [repo] <text>` (Wortanfänge genügen) füllt „Neuer Chat“ und schickt
+  ihn mit Text gleich ab, wie der Knopf mit Gerät und PIN; ohne Text landet der Cursor im Feld.
 - **Neuer Chat**: Repository (`owner/name`), Konto aus den Konten, die die Dienste melden, Modell
   (Standard `claude-opus-5-5`), erste Nachricht. Das Konto steht fest, sobald der Chat eine Sitzung hat
   (dann gehört er dem Rechner, der zuerst eine Sitzung brachte); das Modell lässt sich jederzeit ändern.

@@ -68,6 +68,16 @@
 .bereich[data-bereich="holodeck"] .holo-geraete .knopf[aria-pressed="true"] { background: var(--violett); color: #000; border-color: var(--violett); }
 .bereich[data-bereich="holodeck"] .holo-meldung { margin: 6px 0 0; min-height: 1.2em; color: var(--matt); font: 12.5px var(--lesen); }
 .bereich[data-bereich="holodeck"] .holo-meldung:empty { min-height: 0; margin: 0; }
+/* #47: the feedback into a chat of the Bereitschaftsraum */
+.bereich[data-bereich="holodeck"] .holo-hinweis { margin: 6px 0 0; color: var(--leise); font: 12.5px/1.4 var(--lesen); }
+.bereich[data-bereich="holodeck"] .holo-rueck-form { display: grid; gap: 6px; margin-top: 8px; }
+.bereich[data-bereich="holodeck"] .holo-rueck-form label { display: grid; gap: 2px; color: var(--matt); font: 700 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.bereich[data-bereich="holodeck"] .holo-rueck-form select {
+  min-height: 32px; min-width: 0; max-width: 100%; padding: 4px 8px; background: #05050a; color: var(--text); border: 2px solid var(--linie);
+  border-radius: 8px; font: 14px var(--lesen); text-transform: none; letter-spacing: 0;
+}
+.bereich[data-bereich="holodeck"] .holo-rueck-form textarea { min-height: 64px; }
+.bereich[data-bereich="holodeck"] .holo-rueck-form .knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .bereich[data-bereich="holodeck"] .holo-buehne { margin-top: 8px; }
 .bereich[data-bereich="holodeck"] .holo-buehne iframe {
   display: block; width: 100%; height: max(420px, 72vh); margin: 0 auto; border: 0; border-radius: 6px; background: #fff;

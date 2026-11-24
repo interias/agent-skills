@@ -31,6 +31,11 @@
 }
 .bereich[data-bereich="bereitschaftsraum"] .br-stand.angelegt { background: var(--gruen); }
 .bereich[data-bereich="bereitschaftsraum"] .br-stand.verworfen { background: var(--flaeche2); color: var(--matt); }
+/* #47: stopped holds the chat, the archive only hides it */
+.bereich[data-bereich="bereitschaftsraum"] .br-stand.gestoppt { background: var(--gelb); }
+.bereich[data-bereich="bereitschaftsraum"] .br-stand.archiviert { background: var(--flaeche2); color: var(--leise); }
+.bereich[data-bereich="bereitschaftsraum"] .br-archiv { justify-self: start; }
+.bereich[data-bereich="bereitschaftsraum"] .br-steuern { flex: 1 1 100%; }
 
 /* ---- the conversation */
 .bereich[data-bereich="bereitschaftsraum"] .br-gespraech {
