@@ -232,12 +232,15 @@ def test_jede_handlung_mit_geraet_zeit_und_befehl_im_logbuch(app, lan, uhr):
 # ---- the remote entry
 
 
-def test_ueber_den_fernweg_weder_koppeln_noch_handeln(app, lan):
+def test_ueber_den_fernweg_koppeln_und_handeln_rechte_nur_am_rechner(app, lan):
+    # ADR-0007: a device with the right acts over the remote entry; rights and releasing stay with the machine
     koppeln(lan)
     fern = TestClient(app, base_url=f'http://testserver:{FERNPORT}')
     fern.cookies.set(GERAET_COOKIE, lan.cookies[GERAET_COOKIE])
-    for pfad, body in (('/api/geraete/koppeln', {'name': 'Fern'}), ('/api/handlung', EINREIHEN), ('/api/notaus', None), ('/api/geraete/1/rechte', {'antworten': True, 'handeln': True})):
+    assert fern.post('/api/handlung', json=EINREIHEN).status_code == 200
+    for pfad, body in (('/api/geraete/1/rechte', {'antworten': True, 'handeln': True}), ('/api/geraete/1/entkoppeln', None), ('/api/notaus/loesen', None)):
         r = fern.post(pfad, json=body, headers=PIN)
-        assert r.status_code == 403 and 'nur Ansicht' in r.json()['detail'], pfad
-    assert len(lan.get('/api/tafel').json()['geraete']) == 1
+        assert r.status_code == 403 and 'Fernweg' in r.json()['detail'], pfad
+    assert fern.post('/api/geraete/koppeln', json={'name': 'Fern'}, headers=PIN).status_code == 200
+    assert len(lan.get('/api/tafel').json()['geraete']) == 2
     assert fern.get('/api/tafel').json()['amRechner'] is False

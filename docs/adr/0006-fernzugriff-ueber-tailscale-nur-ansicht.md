@@ -1,6 +1,6 @@
 # ADR-0006 — Fernzugriff auf die Brücke über Tailscale, als Zusatz und nur zur Ansicht
 
-**Status:** Entschieden
+**Status:** Entschieden; der Teil „nur zur Ansicht“ ist durch ADR-0007 abgelöst (24.11.2026)
 **Datum:** 2026-11-23
 
 ## Kontext

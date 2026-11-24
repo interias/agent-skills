@@ -19,7 +19,7 @@ Umgesetzt im Treiber in `flotte/src/treiber/bruecke.ts`, `holodeck.ts` und `trei
 - **Kurze Zeitgrenze** (3 s) je Aufruf. Fehler, Zeitüberschreitung oder ein Status ≠ 2xx sind kein
   Fehler des Treibers: ein Ereignis beim Wechsel (erreichbar ↔ nicht erreichbar), sonst still
   weiter. Ist die Brücke aus, bleiben `flotte antworten` und das Issue als Weg.
-- **Nur über den LAN-Eingang:** Über den Fernzugriff (Tailscale, #48, agent-skills/ADR-0006) antwortet die
+- **Nur über den LAN-Eingang:** Über den Fernzugriff (Tailscale, #48, agent-skills/ADR-0006, ADR-0007) antwortet die
   Brücke auf Bericht, Abholen, Quittieren und Holodeck mit `403`, ebenso auf die Werft (Abschnitt 6) und den Chat-Dienst (Abschnitt 8);
   Treiber, Werft und Chat-Dienst melden sich wie bisher am Rechner.
 - **Token (optional):** Setzt die Brücke `BRUECKE_TOKEN`, schickt der Treiber den Wert aus
@@ -741,8 +741,9 @@ Archiv liegen in der Tabelle `chats` und überstehen einen Neustart. In `GET /ap
 `bereitschaftsraum` `{pin, modell, konten[{konto, rechner[]}], rechner[], projekte[], chats[]}`, je Chat
 Stand, `archiviert` (Zeitpunkt oder `null`), Verlauf, die Karten der letzten Antwort, der letzte Entwurf `{von, text}` und die angelegten
 `missionen`. Fünf falsche PINs je Absender (Koppeln, Rechner-Eingang, `POST /api/pin`)
-sperren für fünf Minuten. Über den Fernzugriff (#48) trägt `GET /api/tafel` `nurAnsicht: true` (im LAN
-`false`), und jede Anfrage außer GET und HEAD bekommt `403`, auch mit richtiger PIN.
+sperren für fünf Minuten. Über den Fernzugriff (#48) gelten seit ADR-0007 dieselben Regeln für die Wege der Person
+(`PERSON_FERN` in `app/main.py`); jede andere Anfrage außer GET und HEAD und das Abholen bekommen dort `403`.
+`nurAnsicht` in `GET /api/tafel` ist immer `false` (für ältere Seiten).
 
 ### Geräte (#46)
 

@@ -10,8 +10,8 @@
 # event of "Braucht dich" goes as a Web-Push to the devices that subscribed with the PIN. #154: it shows the stand of
 # itself (BRUECKE_COMMIT, BRUECKE_DATUM, build arguments of its image) and of each driver, and carries the update
 # the person asks for to the driver, which halts, installs, rebuilds the bridge and starts itself again. #48 (ADR-0006):
-# a second entry, FERNPORT, which only the optional Tailscale add-on reaches, is view only: the page and every reading
-# endpoint as in the LAN, every request that writes refused, whatever PIN it carries.
+# a second entry, FERNPORT, which only the optional Tailscale add-on reaches: reading as in the LAN, and since ADR-0007
+# the person's writing routes (PERSON_FERN) with the same device check; services, fetching and the machine's rights not.
 # The Bereitschaftsraum (#85, agent-skills/ADR-0004) is the chat: the person writes with the PIN, the service
 # `flotte chat` fetches, acknowledges and answers with the token; the bridge never starts claude and stores no credentials.
 # #46: what the person writes needs two keys, a paired device with the right for it and the PIN. A device pairs once
@@ -104,6 +104,12 @@ class Einstellung:
         return cls(db=os.environ.get('BRUECKE_DB', cls.db), pin=os.environ.get('BRUECKE_PIN', ''), token=os.environ.get('BRUECKE_TOKEN', ''), tz=os.environ.get('BRUECKE_TZ', cls.tz), vapid=os.environ.get('BRUECKE_VAPID_SCHLUESSEL', ''), vapid_kontakt=os.environ.get('BRUECKE_VAPID_KONTAKT') or cls.vapid_kontakt, commit=os.environ.get('BRUECKE_COMMIT', ''), datum=os.environ.get('BRUECKE_DATUM', ''))
 
 
+# ADR-0007: over the remote entry the person writes like in the LAN (paired device with the right); every other
+# writing route stays refused there: the services' report, fetching and receipts, the holodeck, and the machine's own
+# rights, unpairing and releasing the emergency stop. An allow list, so a later endpoint is refused until named here.
+PERSON_FERN = re.compile(r'^/api/(antwort|handlung|werft/handlung|pin|notaus|push|push/abmelden|geraete/koppeln|chat|chat/\d+/(nachricht|einstellung|anlegen|verwerfen|stoppen|fortsetzen|archivieren))$')
+
+
 def fernweg(request: Request) -> bool:
     """The entry is the socket the request came in on (uvicorn: its local address), not a sender or a header a client sets."""
     server = request.scope.get('server')
@@ -157,11 +163,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     push = Push(e.vapid, e.vapid_kontakt, e.push_senden) if e.vapid else None
     app = FastAPI(title='Flottenbrücke', docs_url=None, redoc_url=None, openapi_url=None)
 
-    # #48: over the remote entry only viewing; a principle, not a list of endpoints, so every later one is covered
+    # #48, ADR-0007: over the remote entry reading, and writing only on the person's routes (PERSON_FERN)
     @app.middleware('http')
-    async def nur_ansicht(request: Request, weiter):
-        if fernweg(request) and (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN):
-            return JSONResponse({'detail': 'Über den Fernweg nur Ansicht: Antworten und Handlungen gehen nur im LAN.'}, status_code=403)
+    async def fernweg_grenze(request: Request, weiter):
+        if fernweg(request) and (request.url.path in ABHOLEN or (request.method not in ('GET', 'HEAD') and not (request.method == 'POST' and PERSON_FERN.match(request.url.path)))):
+            return JSONResponse({'detail': 'Über den Fernweg nicht: Dienste, Abholen und die Rechte des Rechners gehen nur im LAN bzw. am Rechner.'}, status_code=403)
         # #46: strict, also for GETs that write; the driver sends no Origin and stays untouched
         if (request.method not in ('GET', 'HEAD') or request.url.path in ABHOLEN) and fremder_origin(request):
             return JSONResponse({'detail': 'Fremder Origin: schreiben geht nur von der Seite der Brücke selbst.'}, status_code=403)
@@ -301,11 +307,11 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
     def board(request: Request) -> dict:
         # push: the public VAPID key when Web-Push is on (#37), else None
         # bruecke (#154): the stand of this bridge's image, None when it was built without the build arguments
-        # nurAnsicht (#48): over the remote entry; the page then offers neither actions nor the PIN
+        # nurAnsicht (#48) stays in the board for older pages; since ADR-0007 the remote entry acts like the LAN
         projekte = speicher.projekte()
-        t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': fernweg(request)}
+        t = {**tafel(projekte, speicher.stufen_seit(), speicher.antworten(), jetzt(), tz, bool(e.pin), speicher.handlungen(), speicher.prototypen(), speicher.werft(), speicher.werft_handlungen()), 'push': push.oeffentlich if push else None, 'bruecke': {'commit': e.commit or None, 'datum': e.datum or None}, 'nurAnsicht': False}
         # over the remote entry the Bereitschaftsraum offers no writing either (#48)
-        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin) and not fernweg(request))
+        t['bereitschaftsraum'] = bereitschaftsraum(speicher.chats(), speicher.chat_nachrichten(), speicher.chat_rechner(), [p['forge'] for p in projekte], bool(e.pin))
         # #46: the paired devices and their rights, this device (None: not paired), whether this is the machine itself,
         # the emergency stop and the device log
         dieses = geraet_von(request)

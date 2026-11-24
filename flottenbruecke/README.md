@@ -3,7 +3,7 @@
 Ein kleiner, dauerhaft laufender Dienst (#28): Er zeigt alle Einsätze des Flotten-Treibers
 (`flotte`) über Repositorys und Konten hinweg, nimmt die Antworten des Menschen auf Fragen der
 Läufe entgegen und reicht zwei Handlungen bei Blockaden an den Treiber (neu einreihen, aufgeben), die Einstellungen des Treibers (Maschinenraum) und die Steuerung der Missionen im Einsatz (Sternenkarte: aufnehmen, pausieren, fortsetzen, Priorität, Andocken) und die Triage (Frachtraum: Triage-Lauf starten, Fragen beantworten, Entscheidungen und Missionen des Schnittplans widerrufen) und (#154) das Einspielen eines neuen Stands (Maschinenraum).
-Im LAN, unterwegs optional über Tailscale und dort nur zur Ansicht (unten „Fernzugriff“, agent-skills/ADR-0006). Die Brücke startet, stoppt und dockt nichts selbst an.
+Im LAN, unterwegs optional über Tailscale (unten „Fernzugriff“, agent-skills/ADR-0006 und ADR-0007). Die Brücke startet, stoppt und dockt nichts selbst an.
 
 ## Start
 
@@ -45,14 +45,13 @@ gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht 
 - **Auf dem Handy (Android):** Web-Push an die installierte Web-App, auch wenn sie geschlossen ist. Die
   Brücke braucht dafür HTTPS (Zertifikat aus mkcert) und einen VAPID-Schlüssel; ohne beide läuft sie
   unverändert über HTTP und spricht mit keinem Push-Dienst. Die Brücke schickt ausgehend an den
-  Push-Dienst des Browsers (bei Chrome der von Google), Ende-zu-Ende verschlüsselt. **Anmelden nur im
-  LAN:** keine öffentliche Adresse; das Handy erreicht die Brücke dazu im WLAN, über den Fernzugriff ist
-  sie nur Ansicht. Ein Gerät meldet sich im
+  Push-Dienst des Browsers (bei Chrome der von Google), Ende-zu-Ende verschlüsselt. Keine öffentliche
+  Adresse: das Handy erreicht die Brücke im WLAN oder über den Fernzugriff. Ein Gerät meldet sich im
   Maschinenraum unter „Meldungen auf diesem Gerät“ mit **Einschalten** an und mit **Abschalten** ab,
-  beides mit PIN. Ein Abo, das der Push-Dienst als abgelaufen meldet, löscht die Brücke selbst.
+  beides als gekoppeltes Gerät. Ein Abo, das der Push-Dienst als abgelaufen meldet, löscht die Brücke selbst.
   Einrichten: [`INSTALL.md`](../INSTALL.md), „Optional: Meldungen“. iOS ist nicht geprüft.
 
-## Fernzugriff (optional, nur Ansicht)
+## Fernzugriff (optional)
 
 Unterwegs zeigt die Brücke die Lage über [Tailscale](https://tailscale.com) (#48, agent-skills/ADR-0006):
 nur für Geräte im eigenen Tailnet, keine öffentliche Adresse, kein Port im Router. Der Zusatz ist ein
@@ -75,17 +74,19 @@ neu, bis er abgeschaltet ist. Die Seite liegt dann unter `https://<name>.<tailne
 Wer das Gerät ganz vergessen will: zusätzlich `docker volume rm flottenbruecke_tailscale` und das Gerät
 im Tailscale-Admin entfernen.
 
-**Nur Ansicht über den Fernweg:** Tailscale reicht an einen eigenen Eingang der Brücke weiter (Port 8001
-im Container, auf dem Rechner nirgends veröffentlicht). Dort liefert die Brücke die Seite und alles
-Lesende wie im LAN und lehnt jede schreibende Anfrage mit `403` ab, auch mit richtiger PIN: Antworten,
-Handlungen, PIN-Prüfung, Web-Push-Anmeldung und alle Endpunkte des Treibers. Die Seite trägt oben
-„Nur Ansicht“, ihre Knöpfe zum Handeln sind aus, und sie fragt keine PIN ab. Die Brücke erkennt den
-Fernweg am Eingang, nicht an Absenderadresse oder Kopfzeilen; ein Gerät im LAN kann ihn nicht
-vortäuschen. Antworten und Handlungen gehen weiter im LAN mit PIN oder über `flotte antworten`.
+**Handeln über den Fernweg (ADR-0007):** Tailscale reicht an einen eigenen Eingang der Brücke weiter
+(Port 8001 im Container, auf dem Rechner nirgends veröffentlicht). Dort liefert die Brücke alles Lesende wie
+im LAN und nimmt die Schreibwege der Person an, mit derselben Prüfung: Antworten, Handlungen, Werft,
+Bereitschaftsraum, Web-Push, Koppeln und Not-Aus auslösen, jeweils von einem gekoppelten Gerät mit dem
+Recht. Mit `403` abgelehnt bleiben die Wege von Treiber, Werft und Chat-Dienst (Bericht, Abholen,
+Quittungen, Holodeck) und die des Rechners (Rechte, Entkoppeln, Not-Aus lösen). Das Cookie gehört zum
+Namen der Seite: Ein Handy koppelt sich unter `https://<name>.<tailnet>.ts.net/` einmal neu, und der
+Rechner gibt dem neuen Gerät unter `http://localhost:4748/` das Recht. Die Brücke erkennt den Fernweg am
+Eingang, nicht an Absenderadresse oder Kopfzeilen; ein Gerät im LAN kann ihn nicht vortäuschen.
 
 **Probe vom Handy:** WLAN aus, im Mobilfunknetz die Tailscale-App verbinden und
-`https://<name>.<tailnet>.ts.net/` öffnen. Die Brücke erscheint mit „Nur Ansicht“, alle Bereiche zeigen
-dieselben Daten wie im LAN, „Senden“ und die Handlungen sind gesperrt.
+`https://<name>.<tailnet>.ts.net/` öffnen, beim ersten Senden mit Namen und PIN koppeln, am Rechner das
+Recht geben. Danach handelt das Handy dort wie im WLAN.
 
 ## Bereiche und Navigation
 
