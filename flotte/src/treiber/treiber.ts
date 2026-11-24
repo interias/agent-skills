@@ -25,6 +25,7 @@ import { LERN_MARKE } from '../lernen.ts';
 import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
+import { fehlerText, type ForgeZugriff, forgeRepoFuer, type Issue, zugriffFuer } from '../forge/zugriff.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
@@ -538,11 +539,16 @@ class Treiber {
   /** #126: projekt_entfernen over the bridge: the driver halts like `flotte anhalten`, nothing is deleted */
   entfernenWunsch = false;
 
+  /** #127: the forge of the project, GitHub or Gitea by the adapter */
+  readonly forge: ForgeZugriff;
+
   constructor(
     readonly e: Einstellung,
     readonly w: Welt,
     readonly dir: string,
-  ) {}
+  ) {
+    this.forge = zugriffFuer(e.repo, w.aufrufer, e.forge);
+  }
 
   async fahre(): Promise<FlottenZustand> {
     const anfang = this.w.jetzt();
@@ -594,10 +600,10 @@ class Treiber {
       this.ereignis(null, `Übernommen aus einem früheren Einsatz: ${uebernommen.map((n) => `#${n}`).join(', ')} (nicht eingesammelt, aber noch in Arbeit)`);
     }
     for (const nr of this.e.epics) this.z.epics[nr] ??= neuesEpic(nr);
-    const { bilder, adapter } = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics);
+    const { bilder, adapter } = sammle(this.forge, this.e.repo, this.e.epics);
     this.bilder = bilder;
     this.adapter = adapter;
-    this.z.logbuch ??= logbuchFinden(this.w.aufrufer, this.e.forge, this.logbuchText());
+    this.z.logbuch ??= logbuchFinden(this.forge, this.logbuchText());
     this.ereignis(null, `Einsatz gestartet: ${this.e.epics.map((n) => `#${n}`).join(', ') || 'keine freigegebenen Missionen'}${this.e.auto ? ` (freigegeben mit ${this.adapter.ready_label}, neu eingesammelt alle ${Math.round(this.e.sammelnMs / 60_000)} min)` : ''}`);
     if (this.adapter.merge === 'nach_gate') {
       this.mergeAlt = this.pruefeMergeSkript();
@@ -702,7 +708,7 @@ class Treiber {
     if (!neu.length) return false;
     this.e.epics = [...this.e.epics, ...neu];
     for (const nr of neu) this.z.epics[nr] ??= neuesEpic(nr);
-    this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+    this.bilder = sammle(this.forge, this.e.repo, this.e.epics).bilder;
     this.ereignis(null, `Neu freigegeben: ${neu.map((n) => `#${n}`).join(', ')}`);
     return true;
   }
@@ -712,7 +718,7 @@ class Treiber {
    * revoked on the bridge stays out, said once per process in the logbook.
    */
   einsammeln(adapter: Adapter): number[] {
-    const f = freigegebene(this.w.aufrufer, this.e.forge, adapter);
+    const f = freigegebene(this.forge, adapter);
     const neu = f.ohneEpic.filter((n) => !this.ohneEpicGemeldet.has(n));
     for (const n of neu) this.ohneEpicGemeldet.add(n);
     if (neu.length) this.ereignis(null, `freigegeben, aber keine Mission: ${neu.map((n) => `#${n}`).join(', ')} (ohne ${adapter.epic_label} und nicht Missionsziel einer Mission; mit --epics fahren oder das Label setzen)`);
@@ -761,7 +767,7 @@ class Treiber {
     this.geaendert = false;
     this.tafelAlt = false;
     schreibeTafel(this.dir, this.z, this.e.forge);
-    if (this.z.logbuch) logbuchSchreiben(this.w.aufrufer, this.e.forge, this.z.logbuch, this.logbuchText());
+    if (this.z.logbuch) logbuchSchreiben(this.forge, this.z.logbuch, this.logbuchText());
   }
 
   logbuchText(): string {
@@ -916,7 +922,7 @@ class Treiber {
   admiralWarnung(b: Bewertung): void {
     const text = b.stufe === 'rot' ? `Admiral-Konto rot (${b.grund}): der Admiral weicht auf ein Konto mit Luft aus, sonst wartet der Frageblock`  : `Admiral-Konto gelb (${b.grund}): bei Rot weicht der Admiral auf ein Konto mit Luft aus`;
     this.ereignis(null, text);
-    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+    if (this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
   }
 
   kontoName(k: string): string {
@@ -1176,7 +1182,7 @@ class Treiber {
     if (plan.neu.length && !this.kantenFrisch) {
       this.kantenFrisch = true;
       try {
-        this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+        this.bilder = sammle(this.forge, this.e.repo, this.e.epics).bilder;
         plan = planen();
       } catch (err) {
         this.ereignis(null, `Reihenfolge und Kollisionen vor dem Start nicht neu gelesen: ${String(err).slice(0, 200)}`);
@@ -1401,13 +1407,13 @@ class Treiber {
     if (stufe === 'blockiert') {
       // #199: the cause on the bridge (before the reason in the report) and in the logbook
       ep.haltUrsache = ursache(grund);
-      if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${ep.haltUrsache}: ${grund.split('\n')[0]}.`);
+      if (this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — Mission #${ep.nr} blockiert, Ursache ${ep.haltUrsache}: ${grund.split('\n')[0]}.`);
     }
     ep.haltGrund = grund.slice(0, 3000);
     ep.haltZeit = new Date(this.w.jetzt()).toISOString();
     ep.aufgegebenAm = null;
     this.ereignis(ep.nr, `${stufe}: ${grund.split('\n')[0]}`);
-    if (amIssue || stufe === 'blockiert') kommentar(this.w.aufrufer, this.e.forge, ep.nr, `**Flotte (${this.e.admiralName})** — Mission ${stufe}.\n\n${grund}`);
+    if (amIssue || stufe === 'blockiert') kommentar(this.forge, ep.nr, `**Flotte (${this.e.admiralName})** — Mission ${stufe}.\n\n${grund}`);
   }
 
   /** CleanupStale is repository-wide; it spares the locks of every epic that still holds them (halten). */
@@ -1547,8 +1553,8 @@ class Treiber {
         zeilen.push(`${a.nr}. ${nurBuchstaben(a.antwort) ? a.antwort.trim() : `Antwort: ${a.antwort}`} — Herkunft: ${a.herkunft}`);
         this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit, grund: a.grund, von: f.empfehlung && f.empfehlung === a.antwort ? 'lauf' : 'admiral' });
         const text = `**Entschieden von der Flotte (Admiral ${this.e.admiralName})** — ${f.frage}\nEntscheidung: ${a.antwort}\nHerkunft: ${a.herkunft}\nGrund: ${a.grund}\nVerworfen: ${f.empfehlung && f.empfehlung !== a.antwort ? `Empfehlung des Laufs ${f.empfehlung}` : '—'}\nWiderrufen: Kommentar hier; der Lauf setzt es als nächstes Paket oder in der Nacharbeit um.`;
-        kommentar(this.w.aufrufer, this.e.forge, nr, text);
-        if (a.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte (Admiral ${this.e.admiralName})** — Mission #${nr}, ${zeit.slice(0, 10)}\nFrage: ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')} (Empfehlung des Laufs: ${f.empfehlung ?? '—'})\nEntscheidung: ${a.antwort}\nWarum: ${a.grund}\nHerkunft: ${a.herkunft}`);
+        kommentar(this.forge, nr, text);
+        if (a.einflussreich && this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Protokoll Flotte (Admiral ${this.e.admiralName})** — Mission #${nr}, ${zeit.slice(0, 10)}\nFrage: ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')} (Empfehlung des Laufs: ${f.empfehlung ?? '—'})\nEntscheidung: ${a.antwort}\nWarum: ${a.grund}\nHerkunft: ${a.herkunft}`);
         this.ereignis(nr, `✔ Frage ${a.nr}: ${a.antwort} — ${a.herkunft}`);
         continue;
       }
@@ -1559,7 +1565,7 @@ class Treiber {
       const betrifft = f.betrifft === null ? '' : f.betrifft === 'Lauf' ? 'Lauf' : f.betrifft.join(', ');
       this.z.fragen.push({ epic: nr, nr: a.nr, frage: f.frage, lage: f.lage, optionen: f.optionen, mehrfach: f.mehrfach, grund: a.grund, herkunft: a.herkunft, marke: a.marke ?? '', umkehrbar: a.umkehrbar ?? null, betrifft, roh: f.roh, empfehlung: a.antwort, wartet, ganzerLauf: lauf, seit: zeit });
       zeilen.push(`${a.nr}. liegt beim Menschen${lauf ? '' : `; geparkt: ${wartet}`}`);
-      kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.\nAntworten, im Repository: \`flotte antworten . ${nr} ${a.nr} "<Antwort>"\``);
+      kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.\nAntworten, im Repository: \`flotte antworten . ${nr} ${a.nr} "<Antwort>"\``);
       this.ereignis(nr, `❓ Frage ${a.nr} liegt beim Menschen (wartet: ${wartet})`);
     }
     const text = this.an(nr, `Antwort des Admirals auf FLOTTE-FRAGE ${block.phase}:\n${zeilen.join('\n')}${geparkt.length && !ganzerLauf ? `\nweiter ohne ${[...new Set(geparkt)].join(', ')}` : ''}`);
@@ -1603,7 +1609,7 @@ class Treiber {
     // #52: the answer is a decision of the person, revocable on the bridge until the merge like the admiral's
     this.z.entscheidungen.push({ epic: a.epic, nr: a.nr, frage: f.frage || `Frage ${a.nr}`, antwort: a.anzeige ?? a.text, herkunft: ueberBruecke ? HERKUNFT_BRUECKE : HERKUNFT_FLOTTE, einflussreich: false, zeit: am, von: 'mensch' });
     ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
-    kommentar(this.w.aufrufer, this.e.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
+    kommentar(this.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
     this.wiederholungenSchliessen();
     const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
@@ -1689,7 +1695,7 @@ class Treiber {
   handlungAnwenden(h: BrueckenHandlung): void {
     const ep = this.epic(h.epic);
     const jetzt = new Date(this.w.jetzt()).toISOString();
-    const amIssue = (text: string) => kommentar(this.w.aufrufer, this.e.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
+    const amIssue = (text: string) => kommentar(this.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
     if (h.art === 'einstellen') return this.einstellen(h);
     if (h.art === 'aufnehmen') return this.aufnehmen(h);
     if (h.art === 'triage') return this.triageStarten();
@@ -1710,7 +1716,7 @@ class Treiber {
       const text = h.text!.trim();
       d.widerrufen = text;
       amIssue(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — ${d.frage}\nwiderrufen vom Menschen: ${text}\nVorher: ${d.antwort} (${d.herkunft})`);
-      if (d.einflussreich && this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Protokoll Flotte** — Mission #${h.epic}, Frage: ${d.frage}\nwiderrufen vom Menschen: ${text}`);
+      if (d.einflussreich && this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Protokoll Flotte** — Mission #${h.epic}, Frage: ${d.frage}\nwiderrufen vom Menschen: ${text}`);
       if (['gemergt', 'fertig'].includes(ep.stufe) || this.mergesOffen.has(ep.nr)) {
         return this.ereignis(h.epic, `Widerruf zu Frage ${h.nr} kam ${ep.stufe === 'fertig' ? 'nach' : 'während'} dem Andocken: daraus wird nur ein Ticket, wenn es nötig ist (mission/SKILL.md, Regel 3)`);
       }
@@ -1773,7 +1779,7 @@ class Treiber {
     if (!this.kantenFrisch) {
       this.kantenFrisch = true;
       try {
-        this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, this.e.epics).bilder;
+        this.bilder = sammle(this.forge, this.e.repo, this.e.epics).bilder;
       } catch (err) {
         this.ereignis(nr, `Reihenfolge nicht neu gelesen: ${String(err).slice(0, 200)}`);
       }
@@ -1855,7 +1861,7 @@ class Treiber {
 
   imLogbuch(epic: number | null, text: string): void {
     this.ereignis(epic, text);
-    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+    if (this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
   }
 
   // ---- forge (#125): only state and account name, never a token
@@ -1983,8 +1989,8 @@ class Treiber {
     const ep = this.epic(nr);
     if (ep && (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm)) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : stufeText(ep.stufe)}`);
     try {
-      if (!freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.includes(nr)) return nein(`keine offene Mission mit ${this.adapter.epic_label} und ${this.adapter.ready_label}`);
-      this.bilder = sammle(this.w.aufrufer, this.e.repo, this.e.forge, [...this.e.epics, nr]).bilder;
+      if (!freigegebene(this.forge, this.adapter).epics.includes(nr)) return nein(`keine offene Mission mit ${this.adapter.epic_label} und ${this.adapter.ready_label}`);
+      this.bilder = sammle(this.forge, this.e.repo, [...this.e.epics, nr]).bilder;
     } catch (err) {
       return nein(`Forge nicht lesbar (${String(err).slice(0, 200)})`);
     }
@@ -2069,7 +2075,7 @@ class Treiber {
     if (!this.bruecke || this.w.jetzt() - this.freigegebenZeit < PAKETE_MS) return;
     this.freigegebenZeit = this.w.jetzt();
     try {
-      this.freigegeben = freigegebene(this.w.aufrufer, this.e.forge, this.adapter).epics.filter((n) => !this.e.epics.includes(n));
+      this.freigegeben = freigegebene(this.forge, this.adapter).epics.filter((n) => !this.e.epics.includes(n));
     } catch {
       // the list only offers aufnehmen; the driver asks the forge again when the action comes
     }
@@ -2078,10 +2084,9 @@ class Treiber {
   /** the title of a released epic outside the deployment, read once */
   freiTitelVon(nr: number): string {
     if (!this.freiTitel.has(nr)) {
-      const r = this.w.aufrufer('gh', ['issue', 'view', String(nr), '--repo', this.e.forge, '--json', 'title']);
       let t = '';
       try {
-        t = r.code ? '' : String((JSON.parse(r.stdout) as { title?: string }).title ?? '');
+        t = this.forge.issue(nr, ['title']).titel;
       } catch {
         t = '';
       }
@@ -2367,7 +2372,7 @@ class Treiber {
     // #117: an answer to a Lernvorschlag names its kennung in the first line, so the next triage gives it to that proposal;
     // the question goes to the second, a kennung it quotes counts for no other proposal
     const wozu = f.lernvorschlag ? `${f.lernvorschlag}, Frage ${f.nr}\nFrage: ${f.frage}` : `Sternzeit-Notiz #${h.epic}, Frage ${f.nr}: ${f.frage}`;
-    if (!kommentar(this.w.aufrufer, this.e.forge, h.epic, this.ohneMarke(`**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${wozu}\nAntwort: ${antwort}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+    if (!kommentar(this.forge, h.epic, this.ohneMarke(`**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${wozu}\nAntwort: ${antwort}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
       return nein(`Kommentar an #${h.epic} gescheitert`);
     }
     this.triageStand!.fragen = this.triageStand!.fragen.filter((x) => x !== f);
@@ -2390,7 +2395,7 @@ class Treiber {
     const klar = d.ergebnis === 'klar';
     // #117: a superfluous proposal created and closed nothing: the objection naming its kennung is all, the next triage judges it again
     if (d.lernvorschlag && !klar) {
-      if (!kommentar(this.w.aufrufer, this.e.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „überflüssig“ zu ${d.lernvorschlag} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+      if (!kommentar(this.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „überflüssig“ zu ${d.lernvorschlag} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
         return nein(`Kommentar an #${d.nr} gescheitert, nichts geändert`);
       }
       d.widerrufen = text.slice(0, 4000);
@@ -2401,16 +2406,19 @@ class Treiber {
     // #148: a note the cut plan hung on a mission leaves it, the same way as with schnitt-widerruf
     const mission = klar && !d.lernvorschlag ? d.mission : undefined;
     const los = mission !== undefined ? `\nAus Mission #${mission} gelöst (Sub-Issue und Liste \`## Missionsziele\`). Nicht wieder in Mission #${mission}: Die nächste Triage ordnet diese Notiz neu zu, ohne diese Mission.` : '';
-    if (!kommentar(this.w.aufrufer, this.e.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „${was}“ zu Sternzeit-Notiz #${d.nr} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}${los}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
+    if (!kommentar(this.forge, d.nr, this.ohneMarke(`**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Triage-Entscheidung „${was}“ zu Sternzeit-Notiz #${d.nr} zurückgenommen\nEinwand: ${text}\nVorher: ${d.grund}${d.herkunft ? ` (${d.herkunft})` : ''}${los}\nHerkunft: ${HERKUNFT_BRUECKE}`))) {
       return nein(`Kommentar an #${d.nr} gescheitert, nichts geändert`);
     }
     d.widerrufen = text.slice(0, 4000);
     this.triageZeit = 0;
     const geloest = mission !== undefined ? this.notizLoesen(mission, d.nr) : null;
     if (geloest) return this.imLogbuch(null, `Widerruf der Triage-Entscheidung zu #${d.nr}: Kommentar steht, ${geloest}; Labels unverändert`);
-    const args = klar ? ['issue', 'edit', String(d.nr), '--repo', this.e.forge, '--remove-label', this.adapter.ready_label, '--add-label', TRIAGE_LABEL] : ['issue', 'reopen', String(d.nr), '--repo', this.e.forge];
-    const x = this.w.aufrufer('gh', args);
-    if (x.code) return this.imLogbuch(null, `Widerruf der Triage-Entscheidung zu #${d.nr}: Kommentar steht, ${klar ? 'Labels' : 'Wiederöffnen'} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
+    try {
+      if (klar) this.forge.labelsAendern(d.nr, { weg: [this.adapter.ready_label], dazu: [TRIAGE_LABEL] });
+      else this.forge.oeffnen(d.nr);
+    } catch (err) {
+      return this.imLogbuch(null, `Widerruf der Triage-Entscheidung zu #${d.nr}: Kommentar steht, ${klar ? 'Labels' : 'Wiederöffnen'} gescheitert: ${fehlerText(err).slice(0, 200)}`);
+    }
     const weg = mission !== undefined ? `von Mission #${mission} gelöst, ` : '';
     this.imLogbuch(null, `Triage-Entscheidung „${was}“ zu #${d.nr} widerrufen (${klar ? `${weg}${this.adapter.ready_label} ab, ${TRIAGE_LABEL} an` : 'wieder geöffnet'}), ${HERKUNFT_BRUECKE}`);
   }
@@ -2439,25 +2447,26 @@ class Treiber {
    * schnitt-widerruf both come here. Returns the step that failed, or null; nothing is repeated.
    */
   notizLoesen(mission: number, notiz: number): string | null {
-    const gh = (args: string[], eingabe?: string) => this.w.aufrufer('gh', args, eingabe === undefined ? undefined : { eingabe });
-    const nein = (was: string, x: { stdout: string; stderr: string }) => `${was} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`;
-    // the sub-issue API takes the database id of the child, not its number
-    const id = gh(['api', `repos/${this.e.forge}/issues/${notiz}`, '--jq', '.id']);
-    if (id.code || !/^\d+$/.test(id.stdout.trim())) return nein(`Id von #${notiz} lesen`, id);
-    const los = gh(['api', '--method', 'DELETE', `repos/${this.e.forge}/issues/${mission}/sub_issue`, '-F', `sub_issue_id=${id.stdout.trim()}`]);
-    if (los.code) return nein(`Sub-Issue #${notiz} von Mission #${mission} lösen`, los);
-    const v = gh(['issue', 'view', String(mission), '--repo', this.e.forge, '--json', 'body']);
-    let body: string | null;
+    const nein = (was: string, err: unknown) => `${was} gescheitert: ${fehlerText(err).slice(0, 200)}`;
     try {
-      body = v.code ? null : String(JSON.parse(v.stdout).body ?? '');
-    } catch {
-      body = null;
+      this.forge.kindLoesen(mission, notiz);
+    } catch (err) {
+      return nein(`Sub-Issue #${notiz} von Mission #${mission} lösen`, err);
     }
-    if (body === null) return nein(`Sub-Issue gelöst, Liste der Mission #${mission} lesen`, v);
+    let body: string;
+    try {
+      body = this.forge.issue(mission, ['body']).body;
+    } catch (err) {
+      return nein(`Sub-Issue gelöst, Liste der Mission #${mission} lesen`, err);
+    }
     const neu = ohneMissionsziel(body, notiz);
     if (neu === body) return null;
-    const e = gh(['issue', 'edit', String(mission), '--repo', this.e.forge, '--body-file', '-'], neu);
-    return e.code ? nein(`Sub-Issue gelöst, Liste der Mission #${mission} schreiben`, e) : null;
+    try {
+      this.forge.bodySetzen(mission, neu);
+      return null;
+    } catch (err) {
+      return nein(`Sub-Issue gelöst, Liste der Mission #${mission} schreiben`, err);
+    }
   }
 
   /**
@@ -2486,17 +2495,21 @@ class Treiber {
     const kopf = m.neu
       ? `**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Mission #${nr} „${m.titel}“ aus dem Schnittplan zurückgenommen\nEinwand: ${text}\nDanach: \`${ready}\` ab, ein laufender Außeneinsatz angehalten (pausiert, angedockt wird nur noch von einem Menschen), eine wartende Mission aus dem Einsatz genommen, die Missionsziele ${liste} gelöst und zurück in die Triage, die Mission als „not planned“ geschlossen (nicht gelöscht, wieder zu öffnen).`
       : `**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Missionsziele aus dem Schnittplan zurückgenommen: ${liste}\nEinwand: ${text}\nDanach: gelöst (Sub-Issue und Liste \`## Missionsziele\`) und zurück in die Triage; die Mission selbst bleibt, wie sie ist.`;
-    if (!kommentar(this.w.aufrufer, this.e.forge, nr, this.ohneMarke(`${kopf}\nHerkunft: ${HERKUNFT_BRUECKE}`))) return nein(`Kommentar an Mission #${nr} gescheitert, nichts geändert`);
+    if (!kommentar(this.forge, nr, this.ohneMarke(`${kopf}\nHerkunft: ${HERKUNFT_BRUECKE}`))) return nein(`Kommentar an Mission #${nr} gescheitert, nichts geändert`);
     m.widerrufen = text.slice(0, 4000);
     this.triageZeit = 0;
     const fehler: string[] = [];
-    const gh = (args: string[], was: string) => {
-      const x = this.w.aufrufer('gh', args);
-      if (x.code) fehler.push(`${was} gescheitert: ${(x.stderr || x.stdout).trim().slice(0, 200)}`);
-      return !x.code;
+    const schritt = (tun: () => void, was: string) => {
+      try {
+        tun();
+        return true;
+      } catch (err) {
+        fehler.push(`${was} gescheitert: ${fehlerText(err).slice(0, 200)}`);
+        return false;
+      }
     };
     if (m.neu) {
-      gh(['issue', 'edit', String(nr), '--repo', this.e.forge, '--remove-label', ready], `${ready} an Mission #${nr} abnehmen`);
+      schritt(() => this.forge.labelsAendern(nr, { weg: [ready] }), `${ready} an Mission #${nr} abnehmen`);
       const ep = this.z.epics[nr];
       if (ep && this.e.epics.includes(nr) && !['gemergt', 'fertig'].includes(ep.stufe) && !ep.aufgegebenAm) {
         if (ep.stufe === 'wartend' && !this.laufend.has(nr) && !ep.auftrag) this.austragen(ep);
@@ -2510,7 +2523,7 @@ class Treiber {
     }
     for (const k of kinder) {
       const an = `**Widerruf des Menschen (${HERKUNFT_BRUECKE})** — Sternzeit-Notiz #${k.nr} aus Mission #${nr} „${m.titel}“ gelöst\nEinwand: ${text}\nNicht wieder in Mission #${nr}: Die nächste Triage ordnet diese Notiz neu zu, ohne diese Mission.\nDanach: Sub-Issue gelöst, aus der Liste \`## Missionsziele\` genommen, \`${ready}\` ab, \`${TRIAGE_LABEL}\` an.\nHerkunft: ${HERKUNFT_BRUECKE}`;
-      if (!kommentar(this.w.aufrufer, this.e.forge, k.nr, this.ohneMarke(an))) {
+      if (!kommentar(this.forge, k.nr, this.ohneMarke(an))) {
         fehler.push(`Kommentar an #${k.nr} gescheitert, die Notiz bleibt in der Mission`);
         continue;
       }
@@ -2519,11 +2532,11 @@ class Treiber {
         fehler.push(`#${k.nr}: ${los}`);
         continue;
       }
-      if (!gh(['issue', 'edit', String(k.nr), '--repo', this.e.forge, '--remove-label', ready, '--add-label', TRIAGE_LABEL], `Labels an #${k.nr}`)) continue;
+      if (!schritt(() => this.forge.labelsAendern(k.nr, { weg: [ready], dazu: [TRIAGE_LABEL] }), `Labels an #${k.nr}`)) continue;
       // its decision of the triage run is taken back with it
       for (const d of entscheidungen) if (d.nr === k.nr && d.ergebnis === 'klar' && d.mission === nr && !d.widerrufen) d.widerrufen = m.widerrufen;
     }
-    if (m.neu) gh(['issue', 'close', String(nr), '--repo', this.e.forge, '--reason', 'not planned'], `Mission #${nr} schließen`);
+    if (m.neu) schritt(() => this.forge.schliessen(nr, { nichtGeplant: true }), `Mission #${nr} schließen`);
     if (fehler.length) m.fehler = `Widerruf: ${fehler.join('; ')}`.slice(0, 1000);
     const was = m.neu ? `Mission #${nr} aus dem Schnittplan widerrufen (${ready} ab, ${liste} zurück in die Triage, geschlossen)` : `Missionsziele ${liste} aus Mission #${nr} widerrufen (zurück in die Triage, die Mission bleibt)`;
     this.imLogbuch(null, `${was}${fehler.length ? `; gescheitert: ${fehler.join('; ').slice(0, 300)}` : ''}, ${HERKUNFT_BRUECKE}`);
@@ -2626,7 +2639,7 @@ class Treiber {
     (this.z.einstellungen ??= {})[name] = { wert: nachher, seit };
     const text = `Einstellung ${titel} von ${zeige(vorher)} → auf ${zeige(nachher)}, ${HERKUNFT_BRUECKE}`;
     this.ereignis(null, text);
-    if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
+    if (this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
     if (name === 'merge') this.wiederAndocken();
     // #193: switched on, the released missions join in the next turn, not after sammelnMs
     if (name === 'einsammeln' && nachher === 'an' && vorher !== 'an') this.gesammelt = -Infinity;
@@ -2771,18 +2784,17 @@ class Treiber {
       const alt = new Map((ep.pakete ?? []).map((p) => [p.nr, p]));
       const imBranch = this.imEpicBranch(b.nr);
       ep.pakete = b.kinder.map((k) => {
-        const r = this.w.aufrufer('gh', ['issue', 'view', String(k), '--repo', this.e.forge, '--json', 'number,title,state,labels,closedAt']);
-        let j: { title?: string; state?: string; labels?: { name?: string }[]; closedAt?: string | null } = {};
+        let j: Issue | null;
         try {
-          j = r.code ? {} : JSON.parse(r.stdout);
+          j = this.forge.issue(k, ['number', 'title', 'state', 'labels', 'closedAt']);
         } catch {
-          j = {};
+          j = null;
         }
-        const labels = (j.labels ?? []).map((l) => l?.name);
+        const labels = j?.labels ?? [];
         const geparkt = ep.geparkt.some((g) => g.replace(/^#/, '') === String(k));
-        const stand: BerichtPaket['stand'] = r.code
+        const stand: BerichtPaket['stand'] = !j
           ? (alt.get(k)?.stand ?? 'offen')
-          : j.state === 'CLOSED' || imBranch.has(k)
+          : j.zustand === 'CLOSED' || imBranch.has(k)
             ? 'fertig'
             : geparkt
               ? 'geparkt'
@@ -2795,8 +2807,8 @@ class Treiber {
                     : 'offen';
         // first seen working: the start of a package; closedAt its end (both null for an open one)
         const beginn = alt.get(k)?.beginn ?? (stand === 'offen' || stand === 'fertig' ? null : new Date(this.w.jetzt()).toISOString());
-        const ende = stand === 'fertig' ? (imBranch.get(k) ?? j.closedAt ?? alt.get(k)?.ende ?? null) : null;
-        return { name: `#${k}`, nr: k, titel: String(j.title ?? alt.get(k)?.titel ?? ''), stand, beginn, ende };
+        const ende = stand === 'fertig' ? (imBranch.get(k) ?? j?.geschlossenAm ?? alt.get(k)?.ende ?? null) : null;
+        return { name: `#${k}`, nr: k, titel: j?.titel ?? alt.get(k)?.titel ?? '', stand, beginn, ende };
       });
       this.tafelAlt = true;
     }
@@ -2914,9 +2926,8 @@ class Treiber {
 
   titel(ep: FlottenEpic): string {
     if (ep.titel == null) {
-      const r = this.w.aufrufer('gh', ['issue', 'view', String(ep.nr), '--repo', this.e.forge, '--json', 'title']);
       try {
-        ep.titel = r.code ? '' : String((JSON.parse(r.stdout) as { title?: string }).title ?? '');
+        ep.titel = this.forge.issue(ep.nr, ['title']).titel;
       } catch {
         ep.titel = '';
       }
@@ -3106,12 +3117,17 @@ class Treiber {
   }
 
   prInfo(pr: number): PrInfo | null {
-    const v = this.w.aufrufer('gh', ['pr', 'view', String(pr), '--repo', this.e.forge, '--json', 'state,headRefName,baseRefName,headRefOid,body']);
     try {
-      return JSON.parse(v.stdout) as PrInfo;
+      return this.prLesen(pr, ['state', 'headRefName', 'baseRefName', 'headRefOid', 'body']);
     } catch {
       return null;
     }
+  }
+
+  /** a pull request of the forge with the fields asked for; throws when the forge cannot read it */
+  prLesen(pr: number, felder: string[]): PrInfo {
+    const p = this.forge.pr(pr, felder);
+    return { state: p.zustand, headRefName: p.kopf, baseRefName: p.basis, headRefOid: p.kopfSha, body: p.body };
   }
 
   /**
@@ -3132,7 +3148,7 @@ class Treiber {
     const zeit = new Date(this.w.jetzt()).toISOString();
     const frage = `${grund}. Welcher Pull Request gehört zu Mission #${nr}?`;
     this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, lage: '', optionen: [], grund, herkunft: 'Treiber: fremder Pull Request', marke: 'fremder PR', betrifft: 'Lauf', roh: frage, empfehlung: 'den PR des Missions-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
-    kommentar(this.w.aufrufer, this.e.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber dockt diesen PR nicht an und beobachtet ihn nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
+    kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber dockt diesen PR nicht an und beobachtet ihn nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
     this.ereignis(nr, `❓ ${grund}: kein Andocken, Frage an den Menschen`);
     ep.pr = null;
     ep.stufe = 'frage';
@@ -3257,7 +3273,13 @@ class Treiber {
   erwarteteBasis(): string | null {
     const b = this.adapter.base_branch ?? this.adapter.main_branch;
     if (b) return b === 'from-issue' ? null : b;
-    this.standardZweig ??= this.w.aufrufer('gh', ['repo', 'view', this.e.forge, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name']).stdout.trim() || null;
+    if (this.standardZweig === undefined) {
+      try {
+        this.standardZweig = this.forge.standardZweig() || null;
+      } catch {
+        this.standardZweig = null;
+      }
+    }
     return this.standardZweig;
   }
 
@@ -3360,12 +3382,11 @@ class Treiber {
    */
   async nachziehen(ep: FlottenEpic, voll: string | null): Promise<GateErgebnis> {
     const nr = ep.nr;
-    const v = this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName,headRefOid,body']);
-    let info: { headRefName: string; baseRefName: string; headRefOid: string; body: string };
+    let info: PrInfo;
     try {
-      info = JSON.parse(v.stdout);
-    } catch {
-      return { art: 'mensch', text: `PR #${ep.pr} nicht lesbar: ${v.stderr.trim().slice(0, 200)}` };
+      info = this.prLesen(ep.pr!, ['headRefName', 'baseRefName', 'headRefOid', 'body']);
+    } catch (err) {
+      return { art: 'mensch', text: `PR #${ep.pr} nicht lesbar: ${fehlerText(err).slice(0, 200)}` };
     }
     const auftrag = 'Bring den Pull Request in Ordnung: Basis per `git merge` in den Missions-Branch holen, nur mechanische Konflikte lösen (sonst FLOTTE-FRAGE), Suiten und Andockprüfung neu, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.';
     const wt = this.epicWorktree(info.headRefName) ?? (await this.epicWorktreeAnlegen(ep, info.headRefName));
@@ -3450,9 +3471,12 @@ class Treiber {
     if (!basis.startsWith(bBase) || !bHead || !kopf.startsWith(bHead)) return { art: 'mensch', text: `Die Ausgabe der Andockprüfung nennt Basis ${bBase} und HEAD ${bHead || '?'}, der Worktree steht auf ${basis.slice(0, 7)} und ${kopf.slice(0, 8)}` };
     const p = await this.w.langsam('git', ['-C', wt, 'push', 'origin', `HEAD:refs/heads/${info.headRefName}`], { timeoutMs: 5 * 60_000 });
     if (p.code) return { art: 'mensch', text: `git push scheiterte: ${p.stderr.trim().slice(0, 200)}` };
-    const e = this.w.aufrufer('gh', ['pr', 'edit', String(ep.pr), '--repo', this.e.forge, '--body-file', '-'], { eingabe: blockEinsetzen(info.body, form, b.block) });
-    // pushed but without a block: a person looks; the worktree keeps the pushed state
-    if (e.code) return { art: 'mensch', text: `gepusht, aber die PR-Beschreibung nicht geschrieben: ${e.stderr.trim().slice(0, 200)}`, gepusht: true };
+    try {
+      this.forge.prBodySetzen(ep.pr!, blockEinsetzen(info.body, form, b.block));
+    } catch (err) {
+      // pushed but without a block: a person looks; the worktree keeps the pushed state
+      return { art: 'mensch', text: `gepusht, aber die PR-Beschreibung nicht geschrieben: ${fehlerText(err).slice(0, 200)}`, gepusht: true };
+    }
     return { art: 'gruen', text: '', teil, gepusht: true };
   }
 
@@ -3461,7 +3485,7 @@ class Treiber {
     if (ep.prBereitGemeldet) return;
     ep.prBereitGemeldet = true;
     const d = this.z.entscheidungen.filter((x) => x.epic === ep.nr && x.einflussreich);
-    kommentar(this.w.aufrufer, this.e.forge, ep.nr, `**PR bereit (Flotte)** — #${ep.pr}. Angedockt wird von einem Menschen (${warum}).${d.length ? `\nEinflussreiche Entscheidungen zu dieser Mission:\n${d.map((x) => `- ${x.frage} → ${x.antwort} (${x.herkunft})`).join('\n')}` : ''}`);
+    kommentar(this.forge, ep.nr, `**PR bereit (Flotte)** — #${ep.pr}. Angedockt wird von einem Menschen (${warum}).${d.length ? `\nEinflussreiche Entscheidungen zu dieser Mission:\n${d.map((x) => `- ${x.frage} → ${x.antwort} (${x.herkunft})`).join('\n')}` : ''}`);
     this.ereignis(ep.nr, `PR #${ep.pr} bereit, ein Mensch dockt an`);
   }
 
@@ -3469,7 +3493,7 @@ class Treiber {
   async mergeWache(): Promise<void> {
     for (const ep of Object.values(this.z.epics)) {
       if (ep.stufe !== 'pr' || !ep.pr || this.laufend.has(ep.nr) || ep.auftrag || this.mergesOffen.has(ep.nr)) continue;
-      const pz = prZustand(this.w.aufrufer, this.e.forge, ep.pr);
+      const pz = prZustand(this.forge, ep.pr);
       if (!pz) continue;
       if (pz.state === 'MERGED') {
         this.ereignis(ep.nr, `PR #${ep.pr} angedockt`);
@@ -3510,7 +3534,7 @@ class Treiber {
   /** #145: close the mission issue (or take its ready label) once; a forge that fails is tried again at the next start */
   missionAbschliessen(ep: FlottenEpic, nachlauf = false): void {
     if (!ep.pr || ep.abgeschlossen) return;
-    const was = missionAbschliessen(this.w.aufrufer, this.e.forge, ep.nr, ep.pr, this.adapter.ready_label, nachlauf);
+    const was = missionAbschliessen(this.forge, ep.nr, ep.pr, this.adapter.ready_label, nachlauf);
     // only a closed mission is done; one with open Missionsziele is looked at again at the next start
     ep.abgeschlossen = was?.endgueltig ?? false;
     // the start looks at it each time; it says so only when something changed
@@ -3531,10 +3555,9 @@ class Treiber {
    * origin (merge.ps1 does the same for the remote branch). A branch a worktree still holds stays.
    */
   lokalerBranchWeg(ep: FlottenEpic): void {
-    const v = this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName']);
-    let j: { headRefName?: string; baseRefName?: string } = {};
+    let j: PrInfo;
     try {
-      j = JSON.parse(v.stdout);
+      j = this.prLesen(ep.pr!, ['headRefName', 'baseRefName']);
     } catch {
       return;
     }
@@ -3556,11 +3579,11 @@ class Treiber {
    */
   async forgeBranchesWeg(ep: FlottenEpic): Promise<void> {
     if (!ep.pr) return;
-    const pz = prZustand(this.w.aufrufer, this.e.forge, ep.pr);
+    const pz = prZustand(this.forge, ep.pr);
     if (pz?.state !== 'MERGED') return this.ereignis(ep.nr, `Branches auf der Forge bleiben: PR #${ep.pr} ist dort ${pz?.state ?? 'nicht lesbar'}, nicht angedockt`);
-    let j: { headRefName?: string; baseRefName?: string } = {};
+    let j: Partial<PrInfo> = {};
     try {
-      j = JSON.parse(this.w.aufrufer('gh', ['pr', 'view', String(ep.pr), '--repo', this.e.forge, '--json', 'headRefName,baseRefName']).stdout);
+      j = this.prLesen(ep.pr, ['headRefName', 'baseRefName']);
     } catch {
       j = {};
     }
@@ -3581,23 +3604,19 @@ class Treiber {
         bleibt(`Commits nicht in origin/${basis}`);
         continue;
       }
-      const l = this.w.aufrufer('gh', ['pr', 'list', '--repo', this.e.forge, '--head', name, '--state', 'all', '--json', 'number,state']);
-      let eigene: { number: number; state: string }[];
+      let eigene: { nummer: number; zustand: string }[];
       try {
-        eigene = l.code ? [] : JSON.parse(l.stdout);
+        eigene = this.forge.prs({ zustand: 'all', kopf: name, felder: ['number', 'state'] });
       } catch {
-        eigene = [];
-      }
-      if (l.code) {
         bleibt('seine Pull Requests sind nicht lesbar');
         continue;
       }
-      const offen = eigene.find((p) => p.state !== 'MERGED');
+      const offen = eigene.find((p) => p.zustand !== 'MERGED');
       if (offen) {
-        bleibt(`PR #${offen.number} ist ${offen.state}`);
+        bleibt(`PR #${offen.nummer} ist ${offen.zustand}`);
         continue;
       }
-      const pr = eigene[0]?.number ?? ep.pr;
+      const pr = eigene[0]?.nummer ?? ep.pr;
       // with a lease: a commit pushed since ls-remote keeps the branch
       const d = await this.w.langsam('git', ['-C', this.e.repo, 'push', `--force-with-lease=refs/heads/${name}:${sha}`, 'origin', `:refs/heads/${name}`], { timeoutMs: 5 * 60_000 });
       if (d.code) bleibt(`git push --delete scheiterte: ${d.stderr.trim().split('\n')[0]}`);
@@ -3662,7 +3681,7 @@ const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3
 
 /**
  * The settings of `flotte fahren` (acceptance 3, decisions A, B, D): without <repo> the repository of
- * the current folder (its main checkout), without --forge the GitHub repository of origin, without
+ * the current folder (its main checkout), without --forge the Gitea repository of the adapter or the GitHub repository of origin, without
  * --epics the released epics.
  */
 export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufrufer: Aufrufer = aufrufen): Einstellung {
@@ -3674,7 +3693,8 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
     const common = r.stdout.trim();
     repo = /[\\/]\.git$/.test(common) ? resolve(common, '..') : resolve(cwd);
   }
-  let forge = wert(argv, '--forge') ?? null;
+  // #127: a Gitea project names owner/name in its adapter (api); origin counts for GitHub only
+  let forge = wert(argv, '--forge') ?? (forgeRepoFuer(repo, '') || null);
   if (!forge) {
     const r = aufrufer('git', ['-C', repo, 'remote', 'get-url', 'origin']);
     forge = r.code ? null : forgeAus(r.stdout);

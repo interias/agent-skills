@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../src/aufruf.ts';
 import { einstellungAus, fahre, forgeAus } from '../src/treiber/treiber.ts';
 import { freigegebene, liesAdapter } from '../src/werkzeuge/belegung.ts';
+import { githubZugriff } from '../src/forge/github.ts';
 import { kontenTafel, kontoAus, STANDARD_KONTEN } from '../src/werkzeuge/konten.ts';
 import { aufbau, drehbuch, ende, lauf } from './flotte-welt.ts';
 import { flotteDir, leer, neuesEpic, schreibe as schreibeZustand } from '../src/werkzeuge/zustand.ts';
@@ -69,6 +70,15 @@ describe('A: Start im Projektordner', () => {
     expect([beides.epics, beides.auto, beides.dauerhaft]).toEqual([[3], true, true]);
   });
 
+  it('#127: a Gitea project takes owner/name from the adapter, not from origin', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'flotte-gitea-'));
+    aufrufen('git', ['init', '-q', repo]);
+    mkdirSync(join(repo, '.claude'));
+    writeFileSync(join(repo, '.claude', 'epic.md'), '---\nforge: gitea\napi: https://gitea.example/api/v1/repos/team/projekt\n---\n');
+    expect(einstellungAus([repo, '--konten', '1'], repo).forge).toBe('team/projekt');
+    expect(einstellungAus([repo, '--forge', 'x/y', '--konten', '1'], repo).forge).toBe('x/y');
+  });
+
   it('names what is missing: no repository, no GitHub origin, no accounts, an account outside --konten', () => {
     const leer = mkdtempSync(join(tmpdir(), 'flotte-leer-'));
     expect(() => einstellungAus(['--konten', '1'], leer)).toThrow(/Kein Git-Repository/);
@@ -89,7 +99,7 @@ describe('B: freigegebene Epics', () => {
       const out = label === 'bereit' ? [{ number: 5 }, { number: 21 }, { number: 9 }] : [{ number: 3, body: '## Kinder\n- [ ] #5\n- [x] #6' }, { number: 4, body: '> **Reihenfolge:** Kinder: #7' }, { number: 21, body: '' }];
       return { code: 0, stdout: JSON.stringify(out), stderr: '' };
     };
-    expect(freigegebene(a, 'o/r', liesAdapter('---\nready_label: bereit\nepic_label: type/epic\n---\n'))).toEqual({ epics: [3, 21], ohneEpic: [9] });
+    expect(freigegebene(githubZugriff(a, 'o/r'), liesAdapter('---\nready_label: bereit\nepic_label: type/epic\n---\n'))).toEqual({ epics: [3, 21], ohneEpic: [9] });
     expect(aufrufe.map((x) => x[x.indexOf('--label') + 1])).toEqual(['bereit', 'type/epic']);
     expect(aufrufe.every((x) => x.includes('open'))).toBe(true);
     expect(liesAdapter('').ready_label).toBe('ready-for-agent');

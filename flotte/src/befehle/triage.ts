@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { auftragAusfuehren, entwurfLesen, missionAnlegen, missionszielAnhaengen, mitMissionszielen, TRIAGE_LABEL, zielBody, type AuftragsRegeln } from '../auftrag/auftrag.ts';
 import { githubForge } from '../auftrag/github.ts';
+import { githubZugriff } from '../forge/github.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
 import { abschlusspruefung, loseFreigaben, type Abschluss } from '../triage-abschluss.ts';
 import { faktenpaket, LESEN_MAX, maxTurns } from '../triage-fakten.ts';
@@ -275,7 +276,7 @@ export async function triagiere(o: TriageAuftrag, welt: TriageWelt) {
         tickets.push({ ...basis, ergebnis: 'kritisch', geschrieben: false, kommentar: text });
         continue;
       }
-      const steht = kommentar(w.aufrufer, z.forge, t.nummer, text);
+      const steht = kommentar(githubZugriff(w.aufrufer, z.forge), t.nummer, text);
       tickets.push({ ...basis, ergebnis: 'kritisch', geschrieben: steht, kommentar: text, ...(steht ? {} : { fehler: 'Kommentar gescheitert, nichts geändert' }) });
     }
     // #147: before each block that writes: after an abort nothing more
@@ -397,7 +398,7 @@ async function schneide(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, notizen:
       continue;
     }
     // the comment first: no note is closed without its origin standing at it
-    if (!kommentar(w.aufrufer, z.forge, t.nummer, text)) {
+    if (!kommentar(githubZugriff(w.aufrufer, z.forge), t.nummer, text)) {
       ergebnis.zuordnungen.push({ ...basis, geschrieben: false, kommentar: text, fehler: 'Kommentar gescheitert, nichts geändert' });
       continue;
     }
@@ -449,7 +450,7 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
         bereit.push(k);
         continue;
       }
-      if (!kommentar(w.aufrufer, z.forge, k.t.nummer, text)) {
+      if (!kommentar(githubZugriff(w.aufrufer, z.forge), k.t.nummer, text)) {
         k.erg.fehler = 'Kommentar gescheitert, nichts geändert';
         continue;
       }
@@ -483,7 +484,7 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
         if (a.trocken) continue;
         Object.assign(neu, { nummer: a.mission.nummer, url: a.mission.url });
         bereit.forEach((k) => (k.erg.mission = a.mission.nummer));
-        if (!kommentar(w.aufrufer, z.forge, a.mission.nummer, text)) {
+        if (!kommentar(githubZugriff(w.aufrufer, z.forge), a.mission.nummer, text)) {
           neu.fehler = `Mission #${a.mission.nummer} angelegt, Kommentar mit Herkunft gescheitert; sie und ihre Missionsziele bleiben ohne ${ready}`;
           bereit.forEach((k) => (k.erg.fehler = `an Mission #${a.mission.nummer} angehängt, deren Kommentar gescheitert: ohne ${ready}`));
           continue;
@@ -511,7 +512,7 @@ async function freigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, plan: G
         continue;
       }
       // the comment at the mission before its list and its children change
-      if (!kommentar(w.aufrufer, z.forge, m.nummer, text)) {
+      if (!kommentar(githubZugriff(w.aufrufer, z.forge), m.nummer, text)) {
         eintrag.fehler = 'Kommentar gescheitert, nichts angehängt';
         bereit.forEach((k) => (k.erg.fehler = `Kommentar steht, Kommentar an Mission #${m.nummer} gescheitert: nicht angehängt`));
         continue;
@@ -590,7 +591,7 @@ function nachfreigeben(o: TriageAuftrag, w: TriageWelt, z: TriageZiel): Nachgeho
     const e: Nachgeholt = { forge: z.forge, nummer: t.nummer, titel: t.titel, kinder, kommentar: text, geschrieben: false };
     out.push(e);
     if (o.trocken) continue;
-    if (!kommentar(w.aufrufer, z.forge, t.nummer, text)) {
+    if (!kommentar(githubZugriff(w.aufrufer, z.forge), t.nummer, text)) {
       e.fehler = 'Kommentar gescheitert, nichts geändert';
       continue;
     }
@@ -660,7 +661,7 @@ async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue:
       continue;
     }
     // the comment first: no Missionsziel without its origin standing at the collecting issue
-    if (!kommentar(w.aufrufer, z.forge, issue, text)) {
+    if (!kommentar(githubZugriff(w.aufrufer, z.forge), issue, text)) {
       out.tickets.push({ ...basis, ergebnis: e.art, geschrieben: false, kommentar: text, fehler: 'Kommentar gescheitert, nichts angelegt', sitzung: r.sitzung, ...warum });
       continue;
     }
@@ -672,7 +673,7 @@ async function lernTriage(o: TriageAuftrag, w: TriageWelt, z: TriageZiel, issue:
         const a = await auftragAusfuehren(entwurf, z.regeln, githubForge(w.aufrufer, z.forge, z.regeln), { starten: false, trocken: false });
         neu = a.trocken ? undefined : a.ziele[0];
         if (!neu) throw new Error('keine Sternzeit-Notiz angelegt');
-        if (!kommentar(w.aufrufer, z.forge, issue, lernAngelegtKommentar(v, neu, z.regeln.ready_label))) gescheitert = `Sternzeit-Notiz #${neu.nummer} angelegt, Kommentar mit ihrer Nummer gescheitert`;
+        if (!kommentar(githubZugriff(w.aufrufer, z.forge), issue, lernAngelegtKommentar(v, neu, z.regeln.ready_label))) gescheitert = `Sternzeit-Notiz #${neu.nummer} angelegt, Kommentar mit ihrer Nummer gescheitert`;
         // the body as the order writer wrote it, so the plan appends nothing that is there already
         notizen.push({ nummer: neu.nummer, titel: t.titel, body: zielBody(entwurfLesen(entwurf).ziele[0], undefined), url: neu.url, labels: [TRIAGE_LABEL], kommentare: [] });
       } catch (err) {

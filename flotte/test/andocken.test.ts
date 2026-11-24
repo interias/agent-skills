@@ -6,6 +6,7 @@ import type { Aufrufer } from '../src/aufruf.ts';
 import { BEIM_MENSCHEN, MERKMALE, mergeVorschlag } from '../src/treiber/admiral.ts';
 import { wirksameStellung } from '../src/treiber/einstellungen.ts';
 import { sammle } from '../src/werkzeuge/belegung.ts';
+import { githubZugriff } from '../src/forge/github.ts';
 
 describe('Andocken: Stellung, Vorschlag, Schalter (#112)', () => {
   it('the position from the setting: the project decides while nothing else does; automatisch only with merge: nach_gate', () => {
@@ -66,7 +67,7 @@ describe('Andocken: Stellung, Vorschlag, Schalter (#112)', () => {
       gesehen.push(args);
       return { code: 0, stdout: JSON.stringify({ ...issues[Number(args[2])], labels: [] }), stderr: '' };
     };
-    const { bilder } = sammle(gh, '/nirgends', 'o/r', [3, 4]);
+    const { bilder } = sammle(githubZugriff(gh, 'o/r'), '/nirgends', [3, 4]);
     expect(bilder.find((b) => b.nr === 3)!.mergeVorschlag).toBe('Kundentext: „Kunde“ in #12');
     expect(bilder.find((b) => b.nr === 4)!.mergeVorschlag).toBeUndefined();
     // no extra service: the same gh issue view as before, with the title

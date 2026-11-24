@@ -1780,20 +1780,20 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
         expect(wartetAufAntwort(notiz)).toBe(false);
       }
       expect(t.p.kommentare.every((k) => !k.text.includes('flotte:triage'))).toBe(true);
-      expect(stelle('gh', 'issue', 'edit', '30', '--repo', 'o/r', '--remove-label')).toBeGreaterThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/3/sub_issue', '-F', 'sub_issue_id=900030'));
-      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '30', '--repo', 'o/r', '--remove-label')]).toEqual(['gh', 'issue', 'edit', '30', '--repo', 'o/r', '--remove-label', 'ready-for-agent', '--add-label', 'needs-triage']);
+      expect(stelle('gh', 'issue', 'edit', '30')).toBeGreaterThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/3/sub_issue', '-F', 'sub_issue_id=900030'));
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '30')]).toEqual(['gh', 'issue', 'edit', '30', '--repo', 'o/r', '--add-label', 'needs-triage', '--remove-label', 'ready-for-agent']);
       // the list of the mission without both lines, the rest as it was
       expect(bodies[3]).toBe('Drei Notizen zum selben Port\n\n## Missionsziele\n\n> **Reihenfolge:** x\n');
       // closed last, not planned, never deleted
       const zu = stelle('gh', 'issue', 'close', '3');
       expect(t.p.aufrufe[zu]).toEqual(['gh', 'issue', 'close', '3', '--repo', 'o/r', '--reason', 'not planned']);
-      expect(zu).toBeGreaterThan(stelle('gh', 'issue', 'edit', '31', '--repo', 'o/r', '--remove-label'));
+      expect(zu).toBeGreaterThan(stelle('gh', 'issue', 'edit', '31'));
       expect(t.p.aufrufe.some((a) => a.includes('delete'))).toBe(false);
       // the failed step: in the report and the logbook, once
       const m = b.berichte.at(-1)!.triage.schnittplan!.missionen[0];
       expect(m.widerrufen).toBe('Port gehört in die Tafel-Mission.');
-      expect(m.fehler).toBe('Widerruf: Labels an #31 gescheitert: HTTP 502');
-      expect(texte(z)).toContain('Mission #3 aus dem Schnittplan widerrufen (ready-for-agent ab, #30, #31 zurück in die Triage, geschlossen); gescheitert: Labels an #31 gescheitert: HTTP 502, Mensch über die Brücke');
+      expect(m.fehler).toBe('Widerruf: Labels an #31 gescheitert: gh issue edit: HTTP 502');
+      expect(texte(z)).toContain('Mission #3 aus dem Schnittplan widerrufen (ready-for-agent ab, #30, #31 zurück in die Triage, geschlossen); gescheitert: Labels an #31 gescheitert: gh issue edit: HTTP 502, Mensch über die Brücke');
       expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'edit' && a[3] === '31')).toHaveLength(1);
       // the decisions of the notes go with it: #30 revoked, #31 still revocable on its own
       expect(z.triage!.entscheidungen.filter((d) => d.mission === 3).map((d) => [d.nr, d.widerrufen])).toEqual([[30, 'Port gehört in die Tafel-Mission.'], [31, null]]);
@@ -1822,7 +1822,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       // triage-widerruf of #33: comment, loosened (sub-issue, list line), then the labels
       expect(stelle('gh', 'issue', 'comment', '33')).toBeLessThan(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/40/sub_issue', '-F', 'sub_issue_id=900033'));
-      expect(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/40/sub_issue', '-F', 'sub_issue_id=900033')).toBeLessThan(stelle('gh', 'issue', 'edit', '33', '--repo', 'o/r', '--remove-label'));
+      expect(stelle('gh', 'api', '--method', 'DELETE', 'repos/o/r/issues/40/sub_issue', '-F', 'sub_issue_id=900033')).toBeLessThan(stelle('gh', 'issue', 'edit', '33'));
       expect(texte(z)).toContain('Triage-Entscheidung „Warp frei“ zu #33 widerrufen (von Mission #40 gelöst, ready-for-agent ab, needs-triage an), Mensch über die Brücke');
       // its comment names the loosening and that it shall not return to this mission
       const am33 = t.p.kommentare.filter((k) => k.nr === 33);
@@ -1894,7 +1894,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       // no turn for #4 in the script: a start would fail the test
       const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1200 }, { text: ende(3, 13) }])]), [], { bruecke: b.url, obergrenze: 1, auto: true, sammelnMs: 100 }), { ...t.welt, aufrufer, triagiere: tr.f });
       expect(texte(z)).toContain('Mission #4 aus dem Einsatz genommen (widerrufen, nicht gestartet), Mensch über die Brücke');
-      expect(texte(z)).toContain('Mission #4 aus dem Schnittplan widerrufen (ready-for-agent ab, #30, #31 zurück in die Triage, geschlossen); gescheitert: ready-for-agent an Mission #4 abnehmen gescheitert: HTTP 502; Mission #4 schließen gescheitert: HTTP 502, Mensch über die Brücke');
+      expect(texte(z)).toContain('Mission #4 aus dem Schnittplan widerrufen (ready-for-agent ab, #30, #31 zurück in die Triage, geschlossen); gescheitert: ready-for-agent an Mission #4 abnehmen gescheitert: gh issue edit: HTTP 502; Mission #4 schließen gescheitert: gh issue close: HTTP 502, Mensch über die Brücke');
       expect(z.widerrufen).toEqual([4]);
       expect(z.epics['4']).toBeUndefined();
       expect(t.p.meldungen.some((m) => /^#4 Lauf gestartet/.test(m))).toBe(false);
@@ -1990,7 +1990,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       expect(stelle('gh', 'issue', 'comment', '7')).toBeGreaterThanOrEqual(0);
       expect(stelle('gh', 'issue', 'comment', '7')).toBeLessThan(stelle('gh', 'issue', 'edit', '7'));
-      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '7')]).toEqual(['gh', 'issue', 'edit', '7', '--repo', 'o/r', '--remove-label', 'ready-for-agent', '--add-label', 'needs-triage']);
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '7')]).toEqual(['gh', 'issue', 'edit', '7', '--repo', 'o/r', '--add-label', 'needs-triage', '--remove-label', 'ready-for-agent']);
       expect(stelle('gh', 'issue', 'comment', '8')).toBeLessThan(stelle('gh', 'issue', 'reopen', '8'));
       expect(t.p.aufrufe[stelle('gh', 'issue', 'reopen', '8')]).toEqual(['gh', 'issue', 'reopen', '8', '--repo', 'o/r']);
       const am7 = t.p.kommentare.filter((k) => k.nr === 7);
@@ -2204,7 +2204,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       expect(e.map((d) => d.widerrufen)).toEqual(['Noch nicht.', null, 'Doch nicht erledigt.']);
       const stelle = (...x: string[]) => t.p.aufrufe.findIndex((a) => x.every((y, i) => a[i] === y));
       expect(stelle('gh', 'issue', 'comment', '200')).toBeLessThan(stelle('gh', 'issue', 'edit', '200'));
-      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '200')]).toEqual(['gh', 'issue', 'edit', '200', '--repo', 'o/r', '--remove-label', 'ready-for-agent', '--add-label', 'needs-triage']);
+      expect(t.p.aufrufe[stelle('gh', 'issue', 'edit', '200')]).toEqual(['gh', 'issue', 'edit', '200', '--repo', 'o/r', '--add-label', 'needs-triage', '--remove-label', 'ready-for-agent']);
       expect(t.p.kommentare.filter((k) => k.nr === 50).map((k) => k.text)).toEqual(['**Widerruf des Menschen (Mensch über die Brücke)** — Triage-Entscheidung „überflüssig“ zu Lernvorschlag 555/3 zurückgenommen\nEinwand: Doch nicht erledigt.\nVorher: g (h)\nHerkunft: Mensch über die Brücke']);
       expect(t.p.aufrufe.filter((a) => a[0] === 'gh' && a[3] === '50' && a[2] !== 'comment' && a[2] !== 'view')).toEqual([]);
       expect(texte(z)).toContain('Triage-Entscheidung „überflüssig“ zu Lernvorschlag 555/3 widerrufen, Mensch über die Brücke');
