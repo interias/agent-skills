@@ -341,7 +341,9 @@ dialog p { font: 14px/1.45 var(--lesen); }
   .anzeige, .tank { font-size: 12px; padding: 2px 9px; min-height: 24px; }
   .fenster { grid-template-columns: auto 34px auto; gap: 0 4px; font-size: 11px; }
   .fenster .reset { display: none; }
-  .tank { gap: 6px; }
+  /* "Hauptenergie" and "Reserveenergie" do not fit on one line beside each other: the second tank wraps */
+  .tank { gap: 2px 6px; flex-wrap: wrap; max-width: 100%; }
+  .fenster + .fenster { margin-left: 0; }
   .projekte, .leer { margin-left: 0; }
   .ek { font-size: 15px; min-height: 44px; }
   .ek small { display: none; }

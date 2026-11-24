@@ -230,7 +230,7 @@ Drei Ebenen, sortiert danach, was du tun musst:
 in Ingenieur, Review oder Nachbesserung gegen das Fenster des Projektadapters) und die Zahl der
 **Neustarts** des Laufs; die Laufzeit ist der Knopf „läuft seit …“. In der aufgeklappten Paketliste
 hat jedes Paket, zu dem der Treiber Agent-Aufrufe im Protokoll des Laufs sah, eine zweite Zeile:
-Phase (Ingenieur, Review, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
+Phase (Ingenieur, Erster Offizier, Nachbesserung, Andocken) mit Dauer in der Phase, Dauer gesamt, Runde, Stufe
 (eine Eskalation als „Standard → Urteil“) und die Uhrzeit des Lebenszeichens. „länger als üblich“
 (ruhig, kein Rot) erscheint, wenn ein laufendes Paket länger als das 1,5-Fache des Medians der
 fertigen Pakete des Projekts läuft, ab drei fertigen; die Brücke rechnet es selbst. Fehlt ein Feld

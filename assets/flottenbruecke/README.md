@@ -1,7 +1,6 @@
 # Brückenbilder
 
-`board-v2.png` (1440 px breit) und `board-v2-handy.png` (390 px breit, doppelte Auflösung) im README
-des Repositorys sind Bildschirmfotos der [Flottenbrücke](../../flottenbruecke/README.md) mit den
+`board-v2.png` (1440 px breit) und `board-v2-handy.png` (390 px breit, doppelte Auflösung) sind Bildschirmfotos der [Flottenbrücke](../../flottenbruecke/README.md) mit den
 Beispieldaten aus `flottenbruecke/beispiel/bericht.json`. Neu aufnehmen:
 
 1. Die Brücke lokal auf einem freien Port starten, `BRUECKE_DB` auf eine Wegwerfdatei, mit
@@ -14,5 +13,5 @@ Beispieldaten aus `flottenbruecke/beispiel/bericht.json`. Neu aufnehmen:
 4. Die Brücke wieder stoppen.
 
 `bereit-tickets.png` und `bereit-tickets-handy.png` zeigen dasselbe Beispiel, auf die Zeile
-„Bereit“ gescrollt, die Tickets von #41 aufgeklappt (#42 im spec-Modus ohne Leiste).
+„Bereit“ gescrollt (auf dem Handy „Unterwegs“ aufgeklappt), die Tickets von #41 aufgeklappt (#42 im spec-Modus ohne Leiste).
 `tanks-uebrig.png` und `tanks-uebrig-handy.png` zeigen nur den Kopf mit den Tanks („62 % übrig“).
