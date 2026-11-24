@@ -1,4 +1,4 @@
-// Tag H: the line of a mission on the cards of the bridge (lage.ts) and the gate from its logs (gatelogs.ts).
+// Tag H: the line of a mission on the cards of the bridge (lage.ts) and the gate from its logs (pruefprotokolle.ts).
 
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
@@ -86,6 +86,8 @@ describe('Tag H: die Lage einer Mission in einer Zeile', () => {
     expect(kurz(basis({ prozess: false, notiz: 'wartet auf Konto 2: Limit erreicht: usage_limit_reached' }))).toBe('wartet · Limit auf Konto 2, weiter sobald es Luft hat');
     expect(kurz(basis({ prozess: false, notiz: 'wartet auf RAM ok' }))).toBe('wartet · Speicher knapp, weiter sobald RAM ok');
     expect(lageVon(basis({ prozess: false, pausiert: vor(10), notiz: 'pausiert vom Menschen' }))).toMatchObject({ etikett: 'wartet', satz: 'von dir pausiert', seit: vor(10) });
+    // paused with a question to the whole run: no parked package to name
+    expect(lageVon(basis({ prozess: false, pausiert: vor(10), fragen: { anzahl: 1, ganz: true, seit: vor(5) } })).satz).toBe('von dir pausiert; eine Frage an dich');
   });
 
   it('the merge queue, the Andockprüfung, a PR the person merges (with the reason and the switch)', () => {
@@ -137,8 +139,11 @@ describe('Tag H: das Gate aus seinen Logs', () => {
     const g = gateStand([wt, join(wt, 'fehlt')], jetzt, jetzt - 50 * 60_000)!;
     expect(g.kontexte.map((k) => `${k.name}:${k.stand}`)).toEqual(['wurzel:fertig', 'stanze:fertig', 'buero:laeuft']);
     expect(gateSatz(g)).toBe('Andockprüfung: 2 Kontexte fertig, buero läuft');
-    // no known start: a running context makes it a gate, all logs of the folder count
-    expect(gateStand([wt], jetzt)!.kontexte).toHaveLength(4);
+    expect(g.seit).toBe(new Date(jetzt - 50 * 60_000).toISOString());
+    // no known start: a running context makes it a gate; a log hours before the others is an earlier run, and the start stays unknown
+    const ohne = gateStand([wt], jetzt)!;
+    expect(ohne.kontexte.map((k) => k.name)).toEqual(['wurzel', 'stanze', 'buero']);
+    expect(ohne.seit).toBeNull();
     expect(gateStand([wt], jetzt + GATE_STILL_MS)).toBeNull();
   });
 });

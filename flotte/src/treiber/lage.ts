@@ -99,7 +99,8 @@ export function lageVon(e: LageEingang): Lage {
   // a question about a parked package while the run goes on: the line stays the run's, the step is the person's
   if (e.fragen.anzahl && !x.deinSchritt && x.etikett !== 'wartet_auf_dich') {
     const n = e.fragen.anzahl === 1 ? 'eine Frage' : `${e.fragen.anzahl} Fragen`;
-    return { ...x, satz: `${x.satz}; ${n} an dich, ${e.fragen.anzahl === 1 ? 'ihr Paket ist' : 'ihre Pakete sind'} geparkt`, deinSchritt: { text: e.fragen.anzahl === 1 ? 'Frage beantworten' : 'Fragen beantworten', ziel: 'frage' } };
+    const geparkt = e.fragen.ganz ? '' : `, ${e.fragen.anzahl === 1 ? 'ihr Paket ist' : 'ihre Pakete sind'} geparkt`;
+    return { ...x, satz: `${x.satz}; ${n} an dich${geparkt}`, deinSchritt: { text: e.fragen.anzahl === 1 ? 'Frage beantworten' : 'Fragen beantworten', ziel: 'frage' } };
   }
   return x;
 }

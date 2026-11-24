@@ -10,12 +10,14 @@ import { join } from 'node:path';
 export const GATE_LOGS = join('.gate', 'logs');
 /** a log not written for this long belongs to a finished context */
 export const GATE_STILL_MS = 3 * 60_000;
+/** without a known start: logs further apart than this from the newer ones belong to an earlier gate run (the folder is never emptied) */
+export const LAUF_LUECKE_MS = 60 * 60_000;
 
 export interface GateStand {
   kontexte: { name: string; stand: 'fertig' | 'laeuft'; zeit: number }[];
   /** how many contexts the gate runs; unknown from the logs alone */
   von: number | null;
-  /** the logs folder was laid out (the gate's start), ISO */
+  /** the start of the gate run when known (`ab`), ISO; the logs alone do not tell it */
   seit: string | null;
   /** the newest write of any log, epoch ms */
   zuletzt: number;
@@ -59,17 +61,16 @@ export function gateStand(worktrees: string[], jetzt: number, ab: number | null 
       }
     }
     if (!kontexte.length || (ab === null && !kontexte.some((k) => k.stand === 'laeuft'))) continue;
+    if (ab === null) {
+      // the current run: from the newest log back, as long as no gap of LAUF_LUECKE_MS lies between two
+      kontexte.sort((a, b) => b.zeit - a.zeit);
+      const ende = kontexte.findIndex((k, i) => i > 0 && kontexte[i - 1].zeit - k.zeit > LAUF_LUECKE_MS);
+      if (ende > 0) kontexte.splice(ende);
+    }
     const zuletzt = Math.max(...kontexte.map((k) => k.zeit));
     if (best && best.zuletzt >= zuletzt) continue;
-    let seit: string | null = null;
-    try {
-      const s = statSync(dir);
-      seit = new Date(s.birthtimeMs || s.ctimeMs).toISOString();
-    } catch {
-      seit = null;
-    }
     kontexte.sort((a, b) => a.zeit - b.zeit || a.name.localeCompare(b.name));
-    best = { kontexte, von: null, seit, zuletzt };
+    best = { kontexte, von: null, seit: ab === null ? null : new Date(ab).toISOString(), zuletzt };
   }
   return best;
 }
