@@ -1,6 +1,7 @@
 // Tag J: the history of a mission's runs for the bridge (verlauf.ts): tool calls in plain words, the log condensed,
 // secrets masked and local paths shortened before anything leaves the machine. The fixture is a real excerpt of a
-// run's log (stream-json), masked by hand: user name replaced, tool outputs replaced, long prompts cut.
+// run's log (stream-json), masked by hand: user, project and account names replaced, tool outputs and usage removed,
+// long prompts cut.
 
 import { describe, expect, it } from 'vitest';
 import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -9,9 +10,9 @@ import { join } from 'node:path';
 import { fragenUndEntscheidungen, klartextAus, kuerzePfade, maskiere, uebersetze, Verdichter, type VerlaufEintrag, Verlaufleser } from '../src/treiber/verlauf.ts';
 
 const LOG = readFileSync(join(import.meta.dirname, 'lauf-verlauf.jsonl'), 'utf8');
-const WT = 'C:\\Users\\nutzer\\git\\hexanite-worktrees\\epic-482';
-const WT480 = 'C:\\Users\\nutzer\\git\\hexanite-worktrees\\480';
-const O = { gate: ['npm run gate'], wurzeln: [WT, WT480, 'C:\\Users\\nutzer\\git\\hexanite'] };
+const WT = 'C:\\Users\\nutzer\\git\\projekt-worktrees\\epic-482';
+const WT480 = 'C:\\Users\\nutzer\\git\\projekt-worktrees\\480';
+const O = { gate: ['npm run gate'], wurzeln: [WT, WT480, 'C:\\Users\\nutzer\\git\\projekt'] };
 
 function verdichtet(log = LOG, max = 300): VerlaufEintrag[] {
   const v = new Verdichter(O);
@@ -23,7 +24,7 @@ describe('uebersetze: a tool call in plain words', () => {
   it('reading, editing, writing and searching name the file relative to the worktree', () => {
     expect(uebersetze('Read', { file_path: `${WT480}\\gate\\logik.mts` }, O)).toEqual({ wz: 'Lesen', ziel: 'gate/logik.mts', roh: null });
     expect(uebersetze('Edit', { file_path: `${WT}\\stanze\\conftest.py`, old_string: 'a', new_string: 'b' }, O)).toEqual({ wz: 'Bearbeiten', ziel: 'stanze/conftest.py', roh: null });
-    expect(uebersetze('Write', { file_path: 'C:/Users/nutzer/git/hexanite-worktrees/epic-482/doku/messung.md', content: 'x' }, O)).toEqual({ wz: 'Schreiben', ziel: 'doku/messung.md', roh: null });
+    expect(uebersetze('Write', { file_path: 'C:/Users/nutzer/git/projekt-worktrees/epic-482/doku/messung.md', content: 'x' }, O)).toEqual({ wz: 'Schreiben', ziel: 'doku/messung.md', roh: null });
     expect(uebersetze('Grep', { pattern: 'journal', path: `${WT}\\stanze\\kern` }, O)).toEqual({ wz: 'Suchen', ziel: '„journal“ in stanze/kern', roh: null });
     expect(uebersetze('Glob', { pattern: '**/*.py' }, O)?.ziel).toBe('**/*.py');
   });
@@ -79,14 +80,14 @@ describe('maskiere: secrets never leave the machine', () => {
 describe('kuerzePfade: local paths relative to the worktree, else below ~', () => {
   it('every spelling of a root: backslash, slash, Git Bash', () => {
     expect(kuerzePfade(`Set-Location ${WT}\\stanze`, [WT])).toBe('Set-Location stanze');
-    expect(kuerzePfade('cd C:/Users/nutzer/git/hexanite-worktrees/epic-482/stanze && x', [WT])).toBe('cd stanze && x');
-    expect(kuerzePfade('cd /c/Users/nutzer/git/hexanite-worktrees/epic-482 && x', [WT])).toBe('cd . && x');
-    expect(kuerzePfade('tail /c/Users/nutzer/git/hexanite-worktrees/_m482/a.log', [WT])).toBe('tail ~/git/hexanite-worktrees/_m482/a.log');
+    expect(kuerzePfade('cd C:/Users/nutzer/git/projekt-worktrees/epic-482/stanze && x', [WT])).toBe('cd stanze && x');
+    expect(kuerzePfade('cd /c/Users/nutzer/git/projekt-worktrees/epic-482 && x', [WT])).toBe('cd . && x');
+    expect(kuerzePfade('tail /c/Users/nutzer/git/projekt-worktrees/_m482/a.log', [WT])).toBe('tail ~/git/projekt-worktrees/_m482/a.log');
     expect(kuerzePfade('C:\\Users\\nutzer\\AppData\\Local\\Temp\\x', [])).toBe('~\\AppData\\Local\\Temp\\x');
   });
 
   it('the longest root wins: a package worktree inside a folder of worktrees', () => {
-    expect(kuerzePfade(`${WT480}\\hive\\api\\conftest.py`, ['C:\\Users\\nutzer\\git\\hexanite-worktrees', WT480])).toBe('hive\\api\\conftest.py');
+    expect(kuerzePfade(`${WT480}\\hive\\api\\conftest.py`, ['C:\\Users\\nutzer\\git\\projekt-worktrees', WT480])).toBe('hive\\api\\conftest.py');
   });
 });
 
@@ -224,5 +225,69 @@ describe('fragenUndEntscheidungen: what the person and the admiral decided, high
       { id: 'frage:2:2026-11-24T08:00:00Z', art: 'frage', zeit: '2026-11-24T08:00:00Z', text: 'Zwei Testbetten?', stand: 'laeuft' },
       { id: 'ent:1:2026-11-24T07:05:00Z', art: 'entscheidung', zeit: '2026-11-24T07:05:00Z', text: 'Frage 1 → B · Darf ich?', von: 'Admiral' },
     ]);
+  });
+});
+
+describe('review findings: more secrets, more paths, groups and open calls', () => {
+  it.each([
+    ['curl -u admin:pw123geheim https://x', 'pw123geheim'],
+    ['Publish-Module -Name x -NuGetApiKey oy2abcdefgh123', 'oy2abcdefgh123'],
+    ['$p = ConvertTo-SecureString "P@ss1234" -AsPlainText -Force', 'P@ss1234'],
+    ['New-LocalUser -Name x -Password $geheimesPasswort', '$geheimesPasswort'],
+    ['export DB_PASS=geheim42', 'geheim42'],
+    ['mysql -u root -pSecret42 db', 'Secret42'],
+    ['gh secret set DEPLOY --body "wert123abc"', 'wert123abc'],
+    ['stripe sk_live_abcdefghijklmnop1234', 'sk_live_abcdefghijklmnop1234'],
+    ['npm config set //r/:_authToken npm_abcdefghijklmnopqrstuvwxyz0123456789', 'npm_abcdefghijklmnopqrstuvwxyz0123456789'],
+    ['HF hf_abcdefghijklmnopqrstuvwxyzABCD', 'hf_abcdefghijklmnopqrstuvwxyzABCD'],
+    ['key AIzaSyA1234567890abcdefghijklmnopqrstu', 'AIzaSyA1234567890abcdefghijklmnopqrstu'],
+    ['echo "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"', 'MIIEpAIBAAKCAQEA'],
+  ])('%s', (text, geheim) => {
+    expect(maskiere(text)).not.toContain(geheim);
+  });
+
+  it('a user folder after >, :, comma or backtick', () => {
+    for (const vor of ['>', ':', ',', '`', '|']) expect(kuerzePfade(`x${vor}/c/Users/nutzer/a`, [])).toBe(`x${vor}~/a`);
+    expect(kuerzePfade('x>C:\\Users\\nutzer\\a', [])).toBe('x>~\\a');
+  });
+
+  it('a running group keeps its header however much comes after it', () => {
+    const v = new Verdichter(O, 5);
+    v.zeile(JSON.stringify({ type: 'assistant', timestamp: '2026-11-24T07:00:00Z', message: { id: 'm0', content: [{ type: 'tool_use', id: 'g1', name: 'Agent', input: { description: 'Implementer #481 x', subagent_type: 'ingenieur-standard' } }] } }));
+    for (let i = 0; i < 12; i++) v.zeile(JSON.stringify({ type: 'assistant', parent_tool_use_id: 'g1', timestamp: '2026-11-24T07:01:00Z', message: { id: `m${i + 1}`, content: [{ type: 'text', text: `Schritt ${i}` }] } }));
+    const e = v.eintraege(3);
+    expect(e[0]).toMatchObject({ id: 'g1', art: 'gruppe', stand: 'laeuft' });
+    expect(e.slice(1).every((x) => x.gruppe === 'g1')).toBe(true);
+  });
+
+  it('calls a run left open are abgebrochen once the next run starts or the run ended', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'verlauf-'));
+    const aufruf = (id: string) => JSON.stringify({ type: 'assistant', timestamp: '2026-11-24T07:00:00Z', message: { id: `m-${id}`, content: [{ type: 'tool_use', id, name: 'Bash', input: { command: 'pytest' } }] } });
+    writeFileSync(join(dir, '482-1000-1.jsonl'), `${aufruf('t1')}\n`);
+    const l = new Verlaufleser(O);
+    l.lies(dir, 482);
+    expect(l.eintraege()[0]).toMatchObject({ stand: 'laeuft' });
+    writeFileSync(join(dir, '482-2000-2.jsonl'), `${aufruf('t2')}\n`);
+    l.lies(dir, 482);
+    expect(l.eintraege().map((e) => [e.id, e.stand, Boolean(e.bis)])).toEqual([['t1', 'abgebrochen', true], ['t2', 'laeuft', false]]);
+    l.schliessen();
+    expect(l.eintraege()[1]).toMatchObject({ id: 't2', stand: 'abgebrochen' });
+  });
+
+  it('an umlaut split at the end of a reading stays whole', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'verlauf-'));
+    const zeile = Buffer.from(`${JSON.stringify({ type: 'assistant', timestamp: '2026-11-24T07:00:00Z', message: { id: 'u', content: [{ type: 'text', text: 'Größe' }] } })}\n`, 'utf8');
+    const mitte = zeile.indexOf(Buffer.from('ö', 'utf8')) + 1;
+    writeFileSync(join(dir, '482-1000-1.jsonl'), zeile.subarray(0, mitte));
+    const l = new Verlaufleser(O);
+    l.lies(dir, 482);
+    appendFileSync(join(dir, '482-1000-1.jsonl'), zeile.subarray(mitte));
+    l.lies(dir, 482);
+    expect(l.eintraege()[0].text).toBe('Größe');
+  });
+
+  it('questions get short paths too', () => {
+    const [f] = fragenUndEntscheidungen(482, [{ epic: 482, nr: 1, frage: `Darf ${WT}\\a.txt weg?`, seit: '2026-11-24T07:00:00Z' }], [], [WT]);
+    expect(f.text).toBe('Darf a.txt weg?');
   });
 });

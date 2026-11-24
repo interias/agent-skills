@@ -6,6 +6,7 @@
 
 import { closeSync, openSync, readdirSync, readSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { gateKern } from './gate.ts';
 
 export interface VerlaufEintrag {
@@ -48,13 +49,20 @@ const ZIEL_MAX = 300;
 
 const STERNE = '***';
 /** names that say their value is secret, in an assignment, a header or an option */
-const NAME = String.raw`[\w.-]*(?:token|secret|passw(?:or)?d|passwort|api[_-]?key|access[_-]?key|private[_-]?key|_key|schluessel|credential)[\w.-]*|[\w.-]*[-_]pin`;
+const NAME = String.raw`[\w.-]*(?:token|secret|passw(?:or)?d|passwort|api[_-]?key|access[_-]?key|private[_-]?key|_key|schluessel|credential)[\w.-]*|[\w.-]*_pass[\w.-]*|[\w.-]*[-_]pin`;
 const GEHEIM: [RegExp, string][] = [
   [/\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,})/g, STERNE],
   [/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/g, STERNE],
   [/\bglpat-[A-Za-z0-9_-]{16,}/g, STERNE],
   [/\bxox[abprs]-[A-Za-z0-9-]{10,}/g, STERNE],
   [/\bAKIA[0-9A-Z]{16}\b/g, STERNE],
+  [/\b(?:sk_(?:live|test)_[A-Za-z0-9]{10,}|npm_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,})/g, STERNE],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g, STERNE],
+  // curl -u user:pw, mysql -pPW, ConvertTo-SecureString "pw", gh secret set … --body "value"
+  [/((?:^|\s)(?:-u|--user)\s+[^\s:]+:)("[^"]*"|'[^']*'|\S+)/g, `$1${STERNE}`],
+  [/(\bmysql(?:dump)?\b[^\n]*?\s-p)([^\s-]\S*)/g, `$1${STERNE}`],
+  [/(ConvertTo-SecureString\s+(?:-String\s+)?)("[^"]*"|'[^']*'|\S+)/gi, `$1${STERNE}`],
+  [/(\bgh secret set\b[^\n]*?(?:--body|-b)[ =])("[^"]*"|'[^']*'|\S+)/g, `$1${STERNE}`],
   [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, STERNE],
   [/\b(Authorization\s*:\s*(?:Bearer|Basic|token)\s+)[^\s"']+/gi, `$1${STERNE}`],
   [/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/g, `$1${STERNE}`],
@@ -63,6 +71,8 @@ const GEHEIM: [RegExp, string][] = [
   // NAME=value, NAME: value, "name": "value", --name value
   [new RegExp(String.raw`((?:${NAME})["']?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s;&|,"']+)`, 'gi'), `$1${STERNE}`],
   [new RegExp(String.raw`(--(?:${NAME}|token|password|passwort|secret|pin)[ =])("[^"]*"|'[^']*'|\S+)`, 'gi'), `$1${STERNE}`],
+  // a PowerShell parameter: -Password x, -NuGetApiKey x
+  [new RegExp(String.raw`((?:^|\s)-(?:${NAME}|token|password|passwort|secret)\s+)("[^"]*"|'[^']*'|\S+)`, 'gi'), `$1${STERNE}`],
 ];
 
 /** Masks tokens, keys and passwords: known token shapes, and the value of anything named like a secret. */
@@ -98,10 +108,12 @@ export function kuerzePfade(text: string, wurzeln: string[]): string {
     if (!m) continue;
     t = t.replace(new RegExp(`${m}(?:[\\\\/]+|(?![\\w.-]))`, 'gi'), (treffer) => (/[\\/]$/.test(treffer) ? '' : '.'));
   }
-  return t.replace(/\b[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s"'`;|&]+/gi, '~').replace(/(^|[\s"'=(])\/[a-z]\/Users\/[^/\s"'`;|&]+/gi, '$1~');
+  return t.replace(/\b[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s"'`;|&]+/gi, '~').replace(/(^|[^\w.-])\/[a-z]\/Users\/[^/\s"'`;|&]+/gi, '$1~');
 }
 
-const sauber = (s: string, o: VerlaufOptionen, n = TEXT_MAX) => maskiere(kuerzePfade(s, o.wurzeln ?? [])).slice(0, n);
+/** cut to n code units without splitting a surrogate pair (the bridge stores UTF-8) */
+const schnitt = (s: string, n: number) => s.slice(0, n).replace(/[\uD800-\uDBFF]$/, '');
+const sauber = (s: string, o: VerlaufOptionen, n = TEXT_MAX) => schnitt(maskiere(kuerzePfade(s, o.wurzeln ?? [])), n);
 const ersteZeile = (s: unknown) => String(s ?? '').split(/\r?\n/).find((z) => z.trim())?.trim() ?? '';
 const pfad = (p: unknown, o: VerlaufOptionen) => sauber(String(p ?? ''), o, ZIEL_MAX).replace(/\\/g, '/');
 
@@ -333,8 +345,23 @@ export class Verdichter {
     this.liste.push(e);
     this.nachId.set(e.id, e);
     if (this.liste.length > this.behalten) {
-      const weg = this.liste.splice(0, this.liste.length - this.behalten).filter((x) => x.art !== 'gruppe' || x.stand !== 'laeuft');
-      for (const x of weg) this.nachId.delete(x.id);
+      // the oldest go, a running group stays: its work still comes
+      let zuViel = this.liste.length - this.behalten;
+      this.liste = this.liste.filter((x) => {
+        if (zuViel <= 0 || (x.art === 'gruppe' && x.stand === 'laeuft')) return true;
+        zuViel--;
+        this.nachId.delete(x.id);
+        return false;
+      });
+    }
+  }
+
+  /** the run's process ended (the next run began, or the driver saw it end): what still runs was cut off */
+  schliessen(): void {
+    for (const e of this.liste) {
+      if (e.stand !== 'laeuft' || e.art === 'frage') continue;
+      e.stand = 'abgebrochen';
+      if (this.zuletzt) e.bis = this.zuletzt;
     }
   }
 
@@ -363,8 +390,10 @@ export const VERLAUF_BYTES = 32 * 1024 * 1024;
  */
 export class Verlaufleser {
   private v: Verdichter;
-  private dateien = new Map<string, { pos: number; rest: string }>();
+  private dateien = new Map<string, { pos: number; rest: string; dekoder: StringDecoder }>();
   private erstes = true;
+  /** the log the last lines came from: a later one is the next run, the earlier one's process ended */
+  private letzte: string | null = null;
 
   constructor(readonly o: VerlaufOptionen, private maxBytes = VERLAUF_BYTES) {
     this.v = new Verdichter(o);
@@ -389,10 +418,10 @@ export class Verlaufleser {
         if (nehmen.size && summe > this.maxBytes) break;
         nehmen.add(d);
       }
-      for (const d of namen) if (!nehmen.has(d)) this.dateien.set(d, { pos: groesse.get(d)!, rest: '' });
+      for (const d of namen) if (!nehmen.has(d)) this.dateien.set(d, { pos: groesse.get(d)!, rest: '', dekoder: new StringDecoder('utf8') });
     }
     for (const d of namen) {
-      const f = this.dateien.get(d) ?? { pos: 0, rest: '' };
+      const f = this.dateien.get(d) ?? { pos: 0, rest: '', dekoder: new StringDecoder('utf8') };
       this.dateien.set(d, f);
       const bis = groesse.get(d)!;
       if (bis <= f.pos) continue;
@@ -401,8 +430,13 @@ export class Verlaufleser {
         const puffer = Buffer.alloc(bis - f.pos);
         readSync(fd, puffer, 0, puffer.length, f.pos);
         f.pos = bis;
-        const teile = (f.rest + puffer.toString('utf8')).split(/\r?\n/);
+        // a character split at the end of a reading waits in the decoder for its other bytes
+        const teile = (f.rest + f.dekoder.write(puffer)).split(/\r?\n/);
         f.rest = teile.pop() ?? '';
+        if (teile.some((z) => z.trim())) {
+          if (this.letzte !== null && this.letzte !== d) this.v.schliessen();
+          this.letzte = d;
+        }
         for (const z of teile) this.v.zeile(z);
       } finally {
         closeSync(fd);
@@ -413,6 +447,10 @@ export class Verlaufleser {
   eintraege(max = 300, extra: VerlaufEintrag[] = []): VerlaufEintrag[] {
     return this.v.eintraege(max, extra);
   }
+
+  schliessen(): void {
+    this.v.schliessen();
+  }
 }
 
 const VON: Record<string, string> = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
@@ -422,8 +460,9 @@ export function fragenUndEntscheidungen(
   nr: number,
   fragen: { epic: number; nr: number; frage: string; seit: string; beantwortet?: string | null }[],
   entscheidungen: { epic: number; nr: number; frage: string; antwort: string; herkunft: string; zeit: string; von?: string | null }[],
+  wurzeln: string[] = [],
 ): VerlaufEintrag[] {
-  const m = (s: string) => maskiere(s).slice(0, TEXT_MAX);
+  const m = (s: string) => sauber(s, { wurzeln });
   return [
     ...fragen.filter((f) => f.epic === nr).map((f): VerlaufEintrag => ({ id: `frage:${f.nr}:${f.seit}`, art: 'frage', zeit: f.seit, text: m(f.frage), stand: f.beantwortet ? 'fertig' : 'laeuft' })),
     ...entscheidungen.filter((d) => d.epic === nr).map((d): VerlaufEintrag => ({ id: `ent:${d.nr}:${d.zeit}`, art: 'entscheidung', zeit: d.zeit, text: m(`Frage ${d.nr} → ${d.antwort} · ${d.frage}`), von: (d.von ? VON[d.von] : null) ?? d.herkunft.slice(0, 100) })),

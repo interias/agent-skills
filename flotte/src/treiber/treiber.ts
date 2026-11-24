@@ -552,6 +552,8 @@ class Treiber {
   /** Tag J: the readers of the missions' logs and the history the bridge last took, per mission */
   verlaufLeser = new Map<number, Verlaufleser>();
   verlaufGesendet = new Map<number, string>();
+  /** missions ended longer than VERLAUF_NACH_MS ago (or without logs): not looked at again until they run */
+  verlaufAlt = new Set<number>();
   /** the sessions of the accounts (#41), read in the background at most every SITZUNGEN_MS; the report carries the last reading */
   sitzungen: BerichtSitzung[] = [];
   sitzungenGelesen = 0;
@@ -2800,7 +2802,7 @@ class Treiber {
     const s = ep.schritt;
     if (!s) return null;
     const k = ep.klartext;
-    if (k && !/^(?:still seit|Zugende)/.test(s)) return `${k.paket != null ? `Paket ${typeof k.paket === 'number' ? `#${k.paket}` : k.paket}: ` : ''}${k.rolle ?? 'Orchestrierung'} ${k.satz}`.slice(0, 500);
+    if (k && !/^(?:still seit|Zugende)/.test(s)) return `${k.paket != null ? `Paket ${typeof k.paket === 'number' ? `#${k.paket}` : k.paket}: ` : ''}${k.rolle ?? (ep.stufe === 'nacharbeit' ? 'Nacharbeit:' : 'Orchestrierung')} ${k.satz}`.slice(0, 500);
     return maskiere(kuerzePfade(s, this.verlaufOptionen(ep).wurzeln)).slice(0, 500);
   }
 
@@ -2812,18 +2814,25 @@ class Treiber {
     if (!this.bruecke) return;
     const laeufe = join(this.dir, 'laeufe');
     for (const ep of Object.values(this.z.epics)) {
-      const zuletzt = this.letzteLaufAktivitaet(ep.nr);
-      if (zuletzt === null) continue;
       const aktiv = ['laeuft', 'nacharbeit', 'frage', 'pr'].includes(ep.stufe) && this.e.epics.includes(ep.nr);
-      if (!aktiv && Date.now() - zuletzt > VERLAUF_NACH_MS) {
-        this.verlaufLeser.delete(ep.nr);
-        continue;
+      if (aktiv) this.verlaufAlt.delete(ep.nr);
+      else {
+        // a mission waiting or long ended costs nothing: its logs are not even listed again
+        if (ep.stufe === 'wartend' || this.verlaufAlt.has(ep.nr)) continue;
+        const zuletzt = this.letzteLaufAktivitaet(ep.nr);
+        if (zuletzt === null || Date.now() - zuletzt > VERLAUF_NACH_MS) {
+          this.verlaufLeser.delete(ep.nr);
+          this.verlaufAlt.add(ep.nr);
+          continue;
+        }
       }
       let leser = this.verlaufLeser.get(ep.nr);
       if (!leser) this.verlaufLeser.set(ep.nr, (leser = new Verlaufleser(this.verlaufOptionen(ep))));
       Object.assign(leser.o, this.verlaufOptionen(ep));
       leser.lies(laeufe, ep.nr);
-      const eintraege = leser.eintraege(VERLAUF_MAX, fragenUndEntscheidungen(ep.nr, this.z.fragen, this.z.entscheidungen));
+      // without a process of the run nothing of it runs any more
+      if (!this.laufend.has(ep.nr)) leser.schliessen();
+      const eintraege = leser.eintraege(VERLAUF_MAX, fragenUndEntscheidungen(ep.nr, this.z.fragen, this.z.entscheidungen, leser.o.wurzeln));
       const stand = createHash('sha1').update(JSON.stringify(eintraege)).digest('hex');
       if (this.verlaufGesendet.get(ep.nr) === stand) continue;
       if (await this.bruecke.verlauf(this.e.forge, ep.nr, new Date(this.w.jetzt()).toISOString(), eintraege)) this.verlaufGesendet.set(ep.nr, stand);

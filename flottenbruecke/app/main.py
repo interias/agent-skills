@@ -55,10 +55,10 @@ GERAET_COOKIE = 'bruecke_geraet'
 GERAET_MAX_ALTER = 400 * 24 * 3600
 # the longest command the device log keeps of one request
 BEFEHL_MAX = 600
-# GETs that write: fetching marks answers and actions as fetched, the chat service's fetch remembers its machine and
-# accounts (#85). Only driver, Werft and chat service fetch, and only in the LAN.
 # Tag J: how long the bridge keeps the history of a mission the driver no longer sends
 VERLAUF_TAGE = 7
+# GETs that write: fetching marks answers and actions as fetched, the chat service's fetch remembers its machine and
+# accounts (#85). Only driver, Werft and chat service fetch, and only in the LAN.
 ABHOLEN = ('/api/antworten', '/api/handlungen', '/api/werft/handlungen', '/api/chat/nachrichten')
 
 # A prototype runs in an opaque origin (sandbox without allow-same-origin): it can neither read the
