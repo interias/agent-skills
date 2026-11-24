@@ -223,6 +223,8 @@ export interface Start {
   beiZeile?: (zeile: string, zeit: number) => void;
   /** silence with a living child process counts as work up to this long (C1); default 4 × leerlaufMs */
   stilleMaxMs?: number;
+  /** Tag H: the last write of work outside the log (a gate log of the run), epoch ms, and what it was; silence up to it is no idle */
+  belebt?: () => { zeit: number; was: string } | null;
   /** #147: aborting ends the run's whole process tree at once (fehler 'abbruch'); aborted before, nothing starts */
   abbruch?: AbortSignal;
   /** the program instead of claude: a stand-in that plays a script (stage 3) */
@@ -273,7 +275,7 @@ export function starte(s: Start): Promise<LaufErgebnis> {
   });
   const abbrechen = () => kind.pid && beende(kind.pid);
   s.abbruch?.addEventListener('abort', abbrechen, { once: true });
-  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, beiZeile: s.beiZeile, stilleMaxMs: s.stilleMaxMs }).then((r) => {
+  return beobachte({ log, ab, errAb, pid: kind.pid ?? null, ende, leerlaufMs: s.leerlaufMs, konto: s.konto, werkzeuge: s.werkzeuge, beenden: true, beiSchritt: s.beiSchritt, beiZeile: s.beiZeile, stilleMaxMs: s.stilleMaxMs, belebt: s.belebt }).then((r) => {
     s.abbruch?.removeEventListener('abort', abbrechen);
     return s.abbruch?.aborted ? { ...r, fehler: 'abbruch' as const } : r;
   });
@@ -335,6 +337,7 @@ export interface Beobachtung {
   beiSchritt?: (schritt: string) => void;
   beiZeile?: (zeile: string, zeit: number) => void;
   stilleMaxMs?: number;
+  belebt?: Start['belebt'];
   /** the living descendants of the run's process (C1); replaceable in tests */
   kinder?: (pid: number) => Promise<string[]>;
 }
@@ -410,6 +413,14 @@ export function beobachte(b: Beobachtung): Promise<LaufErgebnis> {
       schritt();
       const vorbei = b.ende ? code !== undefined : !b.pid || !lebt(b.pid);
       if (!vorbei && !leerlauf && Date.now() - Math.max(zuletzt, kindBis) > grenze) {
+        // Tag H: a gate log of the run that still grows is output: the limit rests until it is silent too
+        const aussen = b.belebt?.();
+        if (aussen && aussen.zeit > zuletzt) {
+          b.beiSchritt?.(`still seit ${Math.round((Date.now() - zuletzt) / 60_000)} min, ${aussen.was}`);
+          zuletzt = aussen.zeit;
+          ohneKind = false;
+          if (Date.now() - zuletzt <= grenze) return;
+        }
         if (b.pid && !ohneKind && Date.now() - zuletzt < stilleMax) {
           if (pruefe) return;
           pruefe = true;

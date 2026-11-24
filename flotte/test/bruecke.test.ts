@@ -160,6 +160,9 @@ describe('Flottenbrücke (#28)', () => {
       // `plaetze` (#51) only with Agent calls in the log: the sample has them, this run has none
       expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]).filter((k) => k !== 'plaetze'));
       expect(schluessel(mitFrage.fragen[0])).toEqual(schluessel(muster.fragen[0]));
+      // Tag H: the line of the mission names the person's step to her question, with the keys of the sample
+      expect(schluessel(mitFrage.epics[0].lage)).toEqual(schluessel(muster.epics[1].lage));
+      expect(mitFrage.epics[0].lage.deinSchritt?.ziel).toBe('frage');
       expect(schluessel(mitFrage.konten[0])).toEqual(schluessel(muster.konten[0]));
       expect(schluessel(mitFrage.ereignisse[0])).toEqual(schluessel(muster.ereignisse[0]));
       expect(schluessel(mitFrage.ram!)).toEqual(schluessel(muster.ram));

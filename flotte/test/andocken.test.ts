@@ -51,6 +51,15 @@ describe('Andocken: Stellung, Vorschlag, Schalter (#112)', () => {
     // capitals count only as a whole word in capitals; any other word only from the start of a word
     expect(v('die Adresse der Brücke, Kundgebung, Datenmodell, ein Abort')).toBeNull();
     expect(v('Zählerdatei und Changelog')).toBeNull();
+    // "Sicherheit" alone is no access or secret (the wording of hexanite#463 held a PR for nothing)
+    expect(v('Empfehlung mit Kosten 100/300 Boards, Sicherheit, offenen Risiken')).toBeNull();
+    expect(v('Sicherheitsabstand der Stanze')).toBeNull();
+    for (const [text, wort] of [['Geheimnis im Tresor', 'Geheimnis'], ['neuer SSH-Schlüssel', 'SSH-Schlüssel'], ['den privaten Schlüssel ablegen', 'privaten Schlüssel'], ['Auth über OIDC', 'Auth'], ['Anmeldung per Passkey', 'Anmeldung'], ['Zugangsdaten', 'Zugang'], ['Rechte der Gruppe', 'Rechte'], ['Authentifizierung', 'Authentifizierung']]) {
+      expect(v(text)).toBe(`Sicherheit und Zugänge: „${wort}“ in #7`);
+    }
+    // a key of the adapter or a key word is no secret
+    expect(v('Adapter-Schlüsselwort')).toBeNull();
+    expect(v('ein Schlüssel der Tabelle')).toBeNull();
     // the epic before its children; the first child with a hit names its number
     expect(mergeVorschlag([{ nr: 3, text: 'Epic ohne Treffer' }, { nr: 11, text: 'Kind ohne' }, { nr: 12, text: 'Passwort zurücksetzen' }])).toBe('Sicherheit und Zugänge: „Passwort“ in #12');
   });

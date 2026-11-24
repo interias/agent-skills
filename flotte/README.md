@@ -47,7 +47,8 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 - **Andocken je Projekt und Mission (#112):** Startwert ist `merge` des Adapters. Die Brücke verschärft nur:
   „automatisch“ gibt es nur bei `merge: nach_gate`, `merge.ps1` bleibt die harte Grenze. Je Mission
   schlägt der Treiber „Mensch prüft“ vor, wenn Body der Mission oder Titel/Body eines Missionsziels ein
-  Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`), und
+  Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`; beim
+  Punkt Sicherheit nur Wörter für Zugänge und Geheimnisse, das Wort „Sicherheit“ allein nicht), und
   zeigt den Grund; ein Schalter an der Mission (Sternenkarte) überstimmt Vorschlag und Projekt.
 - **Nicht einstellbar:** die Andock-Regel des Adapters, Rechte, Geheimnisse. Ein Update ist keine
   Einstellung, sondern die Handlung „Einspielen“ (unten, „Anhalten und neu starten“).

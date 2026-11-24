@@ -14,6 +14,7 @@ import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { PaketDetail } from '../werkzeuge/detail.ts';
 import type { BerichtEinstellung, WirksameStellung } from './einstellungen.ts';
 import type { MainStand } from './stand.ts';
+import type { Lage } from './lage.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
@@ -142,6 +143,8 @@ export interface BerichtEpic {
   plaetze?: { belegt: number; von?: number };
   /** #151, only while a gate runs: the gate run of the run (its n-th call of the gate command) or of the driver (its n-th), with its start */
   gateLauf?: { n: number; seit: string | null };
+  /** Tag H: what happens to the mission in one line: label, sentence, since, the person's step, the gate's contexts */
+  lage: Lage;
 }
 
 /** A decision for the bridge; von (#52): mensch, admiral, or lauf (the admiral followed the run's recommendation). */
