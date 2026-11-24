@@ -14,9 +14,9 @@ import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { auftragAusfuehren, entwurfLesen, missionAnlegen, missionszielAnhaengen, mitMissionszielen, TRIAGE_LABEL, zielBody, type AuftragsRegeln, type Forge } from '../auftrag/auftrag.ts';
 import { giteaForge } from '../auftrag/gitea.ts';
 import { githubForge } from '../auftrag/github.ts';
-import { githubZugriff } from '../forge/github.ts';
 import { adapterText, fehlerText, zugriffFuer, type ForgeZugriff, type Issue } from '../forge/zugriff.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
+import { kommentar } from '../treiber/forge.ts';
 import { abschlusspruefung, loseFreigaben, type Abschluss } from '../triage-abschluss.ts';
 import { faktenpaket, LESEN_MAX, maxTurns } from '../triage-fakten.ts';
 import { BERECHTIGT, entscheidungAus, ergaenzt, GESCHLOSSEN, INFO_LABEL, lernAngelegtKommentar, lernTriageKommentar, lernvorschlaege, missionAnhaengenKommentar, missionsName, missionszielAngelegt, missionszielFehlt, nachfreigabeKommentar, NEUE_MISSIONEN_MAX, neueMissionKommentar, offeneFragen, pakete, schnittplanAuftrag, schnittplanAus, schnittplanKlarKommentar, schnittplanKommentar, schnittplanReparatur, schnittplanSchema, triageAuftrag, triageKommentar, triageSchema, vonDerTriageAngelegt, wartetAufAntwort, type Entscheidung, type Kontext, type Lernvorschlag, type NeueMission, type OffeneMission, type Ticket, type Zuordnung, type Zuordnungsart } from '../triage.ts';
@@ -66,16 +66,6 @@ function forgeVon(z: TriageZiel, w: TriageWelt): { zugriff: ForgeZugriff; auftra
   return { zugriff, auftrag: giteaForge(schluessel(text, 'api')!, () => giteaZugang(text, z.repo, w.aufrufer), z.regeln, w.abruf) };
 }
 
-/** a comment through the forge layer; false when the forge does not take it */
-function kommentar(f: ForgeZugriff, nr: number, text: string): boolean {
-  try {
-    f.kommentieren(nr, text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 const ticketAus = (i: Issue): Ticket => ({
   nummer: i.nummer,
   titel: i.titel,
@@ -84,9 +74,6 @@ const ticketAus = (i: Issue): Ticket => ({
   labels: i.labels,
   kommentare: i.kommentare.map((k) => ({ body: k.body, autor: k.autor, zeit: k.zeit, rolle: k.rolle })),
 });
-
-/** the driver still passes its aufrufer and owner/name: GitHub, as before the forge layer */
-const zugriffAus = (x: ForgeZugriff | Aufrufer, forge: string) => (typeof x === 'function' ? githubZugriff(x, forge) : x);
 
 export interface TicketErgebnis {
   forge: string;
@@ -132,10 +119,7 @@ export interface KritischeFrage {
 }
 
 /** The open tickets with needs-triage or needs-info, each once, oldest first. */
-export function triageTickets(z: ForgeZugriff): Ticket[];
-export function triageTickets(a: Aufrufer, forge: string): Ticket[];
-export function triageTickets(x: ForgeZugriff | Aufrufer, forge = ''): Ticket[] {
-  const z = zugriffAus(x, forge);
+export function triageTickets(z: ForgeZugriff): Ticket[] {
   const alle = new Map<number, Ticket>();
   for (const label of LABELS) {
     let liste: Issue[];
@@ -150,11 +134,7 @@ export function triageTickets(x: ForgeZugriff | Aufrufer, forge = ''): Ticket[] 
 }
 
 /** #117: the proposals of the learning loop at the collecting issue, each with the comments naming it. */
-export function lernTickets(z: ForgeZugriff, issue: number): Lernvorschlag[];
-export function lernTickets(a: Aufrufer, forge: string, issue: number): Lernvorschlag[];
-export function lernTickets(x: ForgeZugriff | Aufrufer, y: string | number, nr?: number): Lernvorschlag[] {
-  const z = zugriffAus(x, String(y));
-  const issue = nr ?? Number(y);
+export function lernTickets(z: ForgeZugriff, issue: number): Lernvorschlag[] {
   let i: Issue;
   try {
     i = z.issue(issue, ['comments']);

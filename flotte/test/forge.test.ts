@@ -44,12 +44,12 @@ describe('#125 Status der Forge', () => {
     expect(JSON.stringify(await forgeStatus(repo, { aufrufer: gh({ auth: true, push: true }) }))).not.toContain('gho_');
   });
 
-  it('Gitea: the token from the machine, user and rights from the API; the driver does not speak Gitea yet', async () => {
+  it('Gitea: the token from the machine, user and rights from the API; the driver runs it (#127)', async () => {
     const repo = repoMit(GITEA);
     process.env.FORGE_TEST_TOKEN = 'geheim-123';
     try {
       const ok = await forgeStatus(repo, { aufrufer: gh({ auth: false }), abruf: gitea({ 'https://gitea.example/api/v1/user': { status: 200, body: { login: 'robo' } }, 'https://gitea.example/api/v1/repos/o/r': { status: 200, body: { permissions: { push: true } } } }) });
-      expect(ok).toEqual({ art: 'gitea', forge: 'o/r', angemeldet: true, konto: 'robo', rechte: 'ok', treiber: false });
+      expect(ok).toEqual({ art: 'gitea', forge: 'o/r', angemeldet: true, konto: 'robo', rechte: 'ok', treiber: true });
       expect(JSON.stringify(ok)).not.toContain('geheim');
       const ohne = await forgeStatus(repo, { aufrufer: gh({ auth: false }), abruf: gitea({ 'https://gitea.example/api/v1/user': { status: 200, body: { login: 'robo' } }, 'https://gitea.example/api/v1/repos/o/r': { status: 200, body: { permissions: { push: false } } } }) });
       expect(ohne).toMatchObject({ angemeldet: true, rechte: 'fehlt' });
