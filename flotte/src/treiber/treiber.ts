@@ -649,7 +649,7 @@ class Treiber {
         return this.z;
       }
       // nothing left: one more look for released epics, then the end (acceptance 3, decision C)
-      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.wartetAufBruecke() && !this.nachsammeln(true)) break;
+      if (!this.fertig.length && !this.laufend.size && !this.mergesOffen.size && this.istZuEnde() && !this.e.dauerhaft && !this.einsammelnVonBruecke() && !this.wartetAufBruecke() && !this.nachsammeln(true)) break;
       if (this.e.maxDauerMs !== null && this.w.jetzt() - anfang > this.e.maxDauerMs) {
         this.ereignis(null, `Zeitgrenze von ${Math.round(this.e.maxDauerMs / 1000)} s erreicht, Treiber hält an`);
         await Promise.all(this.laufend.values());
@@ -666,6 +666,11 @@ class Treiber {
     await Promise.all(this.nebenher);
     await this.abschluss();
     return this.z;
+  }
+
+  /** #193: einsammeln switched on over the bridge waits for new missions like --dauerhaft, else the switch would end with the deployment */
+  einsammelnVonBruecke(): boolean {
+    return this.e.auto && this.herkunft.get('einsammeln')?.herkunft === 'bruecke';
   }
 
   /** `flotte anhalten` left a file next to the state, or (#154) the person asked for an update; reported once */
@@ -2621,6 +2626,8 @@ class Treiber {
     this.ereignis(null, text);
     if (this.z.logbuch) kommentar(this.w.aufrufer, this.e.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
     if (name === 'merge') this.wiederAndocken();
+    // #193: switched on, the released missions join in the next turn, not after sammelnMs
+    if (name === 'einsammeln' && nachher === 'an' && vorher !== 'an') this.gesammelt = -Infinity;
     if (name === 'paketeJeEpic' && nachher !== vorher) for (const ep of Object.values(this.z.epics)) if (!ENDE.has(ep.stufe)) ep.grenze = this.e.paketeJeEpic;
   }
 
@@ -3695,6 +3702,8 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   if (meldung === 'an' || meldung === 'aus') e.meldung = meldung;
   else if (meldung) throw new Error(`--meldung ${meldung}: an oder aus. ${AUFRUF}`);
   e.gesetzt = (Object.keys(START_PARAMETER) as EinstellungName[]).filter((n) => argv.includes(START_PARAMETER[n]!));
+  // #193: --dauerhaft and a fixed --epics list both set einsammeln explicitly
+  if (argv.includes('--dauerhaft') || argv.includes('--epics')) e.gesetzt.push('einsammeln');
   const ramWarn = wert(argv, '--ram-warn');
   e.ramWarn = ramWarn ? Number(ramWarn) : null;
   const grenze = wert(argv, '--obergrenze');

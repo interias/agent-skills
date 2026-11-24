@@ -45,6 +45,8 @@ export const EINSTELLUNGEN = {
   triageLesenMax: { titel: 'Dateizugriffe der Triage je Aufruf', min: 0, max: 100, leer: false, standard: 15 },
   // #37: the Windows notification of "Braucht dich" on the driver's machine
   meldung: { titel: 'Windows-Meldung bei „Braucht dich“', werte: ['an', 'aus'], leer: false, standard: 'aus' },
+  // #193: an like --dauerhaft, aus collects no new mission; the standard is that of a start without --epics
+  einsammeln: { titel: 'Missionen automatisch einsammeln', werte: ['an', 'aus'], leer: false, standard: 'an' },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -61,6 +63,8 @@ export const START_PARAMETER: Partial<Record<EinstellungName, string>> = {
   leerlaufMin: '--leerlauf-min',
   admiralModell: '--admiral-modell',
   meldung: '--meldung',
+  // #193: --epics sets it as well (treiber.ts, einstellungAus)
+  einsammeln: '--dauerhaft/--epics',
 };
 
 /** One setting in the report: value, where it comes from and since when, and what the bridge may offer. */
@@ -139,6 +143,8 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return e.triageLesenMax;
     case 'meldung':
       return e.meldung;
+    case 'einsammeln':
+      return e.auto ? 'an' : 'aus';
   }
 }
 
@@ -209,6 +215,9 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'meldung':
       e.meldung = wert as 'an' | 'aus';
+      break;
+    case 'einsammeln':
+      e.auto = wert === 'an';
       break;
   }
   return null;

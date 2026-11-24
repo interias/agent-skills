@@ -17,7 +17,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 |---|---|
 | `--konten 1,2` | Konten, auf die neue Missionen verteilt werden; eine Mission bleibt bei ihrem Konto |
 | `--epics 15,21` | nur diese Missionen; ohne Angabe alle freigegebenen, alle 15 Minuten neu eingesammelt |
-| `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Missionen warten; mit `--epics` laufen die genannten und dazu die freigegebenen |
+| `--dauerhaft` | nicht enden, wenn nichts mehr freigegeben ist, sondern auf neue Missionen warten; mit `--epics` laufen die genannten und dazu die freigegebenen. Anfangswert der Einstellung `einsammeln` (#193), die die Brücke je Projekt umschaltet |
 | `--konto-max 3=1` | höchstens so viele Missionen gleichzeitig auf diesem Konto |
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |

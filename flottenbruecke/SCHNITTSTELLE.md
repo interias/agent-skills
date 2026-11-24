@@ -157,15 +157,15 @@ Thema sind die Labels ohne `needs-triage`, `needs-info`, `ready-for-agent`, `sta
 Thema“ unten, sonst nach Namen; darin Tickets mit Frage zuerst, dann nach Nummer.
 
 **Einstellungen** (#58): je Einstellung `{name, titel, wert, herkunft, seit, standard, leer, min?, max?,
-auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (fünfzehn; ein älterer Treiber meldet die
-ersten zehn ohne `merge` oder elf bis vierzehn ohne die späteren). `herkunft` ist `start` (Startparameter oder ein
+auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (sechzehn; ein älterer Treiber meldet die
+ersten zehn ohne `merge` oder elf bis fünfzehn ohne die späteren). `herkunft` ist `start` (Startparameter oder ein
 vom Standard abweichender Startwert), `bruecke` (zuletzt über die Brücke geändert) oder `standard`;
 `seit` ist bei `bruecke` der Zeitpunkt der Änderung, sonst der Beginn des Einsatzes. `standard` ist
 der Wert ohne Startparameter und Brücke. `leer: true` heißt, `wert` darf `null` sein (zurück auf
 automatisch). Zahlen sind ganze Zahlen zwischen `min` und `max` (die Brücke übernimmt die Grenzen von
 hier, statt sie selbst zu kennen); Konten stehen als Kurzname wie in `konten[]` (`Konto <n>`, sonst
 Ordnername, nie ein Pfad), `auswahl` nennt die Konten, die es auf dem Rechner des Treibers gibt.
-Eine Wahl unter Wörtern (#112, `merge`; #37, `meldung`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
+Eine Wahl unter Wörtern (#112, `merge`; #37, `meldung`; #193, `einsammeln`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
 und `hinweis`, warum eines fehlt (sonst `null`); die Brücke lehnt ein anderes Wort mit `422` und dem
 Hinweis ab.
 
@@ -186,6 +186,7 @@ Hinweis ab.
 | `admiralModell` | Modell des Admirals | `opus`, `fable` oder `sonnet` | `werte`; Standard `fable`; Startparameter `--admiral-modell` | das Modell des nächsten Frageblocks des Admirals |
 | `triageLesenMax` | Dateizugriffe der Triage je Aufruf | Zahl | 0–100, Standard 15 | #167: so viele Dateien darf das Modell eines Triage-Aufrufs selbst lesen (`--max-turns` danach); die üblichen Fakten legt das Programm vor. Ab dem nächsten Aufruf |
 | `meldung` | Windows-Meldung bei „Braucht dich“ | `an` oder `aus` | `werte`; Standard `aus`; Startparameter `--meldung` | #37: bei `an` zeigt der Rechner des Treibers je neuer offener Frage und je neu blockierter oder abgebrochener Mission eine Windows-Meldung (Windows PowerShell, ohne Modul), mehrere aus demselben Takt als eine mit der Zahl. Inhalt nur Projektkürzel, Missionsnummer, Art (Frage/Blockade) und Titel (höchstens 60 Zeichen). Gemeldete Ereignisse stehen in `zustand.json` (`gemeldet`), auch bei `aus`: Nach einem Neustart oder beim Einschalten klingelt nichts Altes |
+| `einsammeln` | Missionen automatisch einsammeln | `an` oder `aus` | `werte`; Standard `an` (ein Start ohne `--epics`); Startparameter `--dauerhaft` (`an`) und `--epics` (ohne `--dauerhaft`: `aus`), beide gelten als ausdrücklich gesetzt | #193: bei `an` sammelt der Treiber jede offene Mission mit `ready_label` an sich oder an einem Missionsziel ein wie ohne `--epics`; eingeschaltet über die Brücke im nächsten Takt (nicht erst nach dem Abstand des Einsammelns), und solange der Wert von der Brücke kommt, endet der Treiber nicht von selbst, sondern wartet wie mit `--dauerhaft`. Bei `aus` kommt keine neue Mission dazu; laufende, wartende, mit `--epics` genannte und aufgenommene laufen weiter, nichts hält an. Freigegebene, nicht eingesammelte stehen weiter in `freigegeben[]` |
 
 **Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
 sagt. Sonst fehlt es in `werte`, `hinweis` sagt warum, und der Treiber lehnt es ab (Ereignis
@@ -396,7 +397,9 @@ Vorschlag (<Stellung>)` oder `auf die Einstellung des Projekts (<Stellung>)`). B
 In `GET /api/tafel` trägt jede Zeile in `projekte[].epics[]` dazu `imEinsatz`, `pausiert`,
 `prioritaet`, `merge` (#112, aus dem Bericht, sonst `null`) und die noch nicht quittierten Handlungen
 `pause` (`pausieren`/`fortsetzen`), `vorrang` (`prioritaet`) und `andocken` (`merge`), je `{id, art, text, zeit, abgeholt, quittiert}` oder `null`; jedes Projekt
-trägt `freigegeben[]` `{nr, titel, issueUrl, handlung}`. Die Karten der Brücke tragen `pausiert` und
+trägt `freigegeben[]` `{nr, titel, issueUrl, handlung}` und (#193, Automatik je Projekt im Maschinenraum) `sammeln`
+`{laufend, wartend, freigegeben}`: Missionen des Berichts in `laeuft`, `frage` oder `nacharbeit`, in `wartend`, und die
+Länge von `freigegeben[]` (fehlende Felder zählen 0). Die Karten der Brücke tragen `pausiert` und
 `prio` (die Schiffsliste zeigt beides).
 
 **`einstellen`** (#58) gehört zum Projekt, nicht zu einer Mission: `epic` ist `0`, `nr` und `seit` sind

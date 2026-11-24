@@ -725,8 +725,8 @@ describe('Einstellungen über die Brücke (#58)', () => {
   it('every setting: a valid value holds from the next turn, as event and in the logbook; an invalid one is refused with an event; the report names value and origin', async () => {
     const t = aufbau();
     const [k1, k2] = t.konten.map((k) => basename(k));
-    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['triageModell', 'sonnet'], ['admiralModell', 'opus'], ['meldung', 'an']];
-    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['triageModell', 'haiku'], ['admiralModell', 'claude-opus-5-5'], ['admiralModell', null], ['meldung', 'laut'], ['rechte', 'alle']];
+    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['triageModell', 'sonnet'], ['admiralModell', 'opus'], ['meldung', 'an'], ['einsammeln', 'aus']];
+    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['triageModell', 'haiku'], ['admiralModell', 'claude-opus-5-5'], ['admiralModell', null], ['meldung', 'laut'], ['einsammeln', true], ['rechte', 'alle']];
     const b = await attrappe(() => null, { handlung: nacheinander([...gueltig, ...ungueltig].map(([n, w]) => einstellen(n, w))) });
     try {
       const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
@@ -792,6 +792,84 @@ describe('Einstellungen über die Brücke (#58)', () => {
       await b2.zu();
     }
   }, T);
+
+  it('#193 einsammeln aus: a mission released later is not collected, the running one runs on; an: it joins in the next turn', async () => {
+    let frei = false;
+    const t = aufbau({ freigegeben: () => (frei ? { bereit: [3, 4], epics: [{ number: 3 }, { number: 4 }] } : { bereit: [3], epics: [{ number: 3 }] }) });
+    let schritt = 0;
+    let aus = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const wert = x.einstellungen.find((e) => e.name === 'einsammeln')?.wert;
+        if (schritt === 0) {
+          schritt = 1;
+          return einstellen('einsammeln', 'aus');
+        }
+        if (schritt === 1 && wert === 'aus') {
+          frei = true;
+          schritt = 2;
+        }
+        if (schritt === 2 && ++aus > 5) {
+          schritt = 3;
+          return einstellen('einsammeln', 'an');
+        }
+        return null;
+      },
+    });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      // collected again only once an hour: "an" must not wait for that
+      const z = await fahre(t.einstellung(buch, [], { bruecke: b.url, auto: true, sammelnMs: 3_600_000, gesetzt: [], maxDauerMs: 8000 }), t.welt);
+      const texte = z.ereignisse.map((x) => x.text);
+      expect(texte).toContain('Einstellung Missionen automatisch einsammeln von an → auf aus, Mensch über die Brücke');
+      const an = texte.indexOf('Einstellung Missionen automatisch einsammeln von aus → auf an, Mensch über die Brücke');
+      expect(an).toBeGreaterThan(-1);
+      expect(texte.indexOf('Neu freigegeben: #4')).toBeGreaterThan(an);
+      // while off: #4 released and never in the deployment, #3 on its way
+      const waehrendAus = b.berichte.filter((x) => x.einstellungen.find((e) => e.name === 'einsammeln')?.wert === 'aus');
+      expect(waehrendAus.length).toBeGreaterThan(5);
+      expect(waehrendAus.some((x) => x.epics.some((e) => e.nr === 4))).toBe(false);
+      expect(waehrendAus.some((x) => x.epics.some((e) => e.nr === 3 && e.stufe === 'laeuft'))).toBe(true);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['4'].stufe).toBe('fertig');
+      expect(b.berichte.at(-1)!.einstellungen.find((e) => e.name === 'einsammeln')).toMatchObject({ wert: 'an', herkunft: 'bruecke', werte: ['an', 'aus'], standard: 'an' });
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#193 einsammeln outlives a restart without --dauerhaft/--epics; an explicit start parameter wins with an event', async () => {
+    // #4 is released only after the switch went off
+    let frei: number[] = [];
+    const freigegeben = () => ({ bereit: frei, epics: frei.map((number) => ({ number })) });
+    const t = aufbau({ freigegeben });
+    const b = await attrappe(() => null, { handlung: nacheinander([einstellen('einsammeln', 'aus')]) });
+    try {
+      await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, auto: true, dauerhaft: true, gesetzt: [], maxDauerMs: 1500 }), t.welt);
+    } finally {
+      await b.zu();
+    }
+    frei = [4];
+    const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten }, freigegeben });
+    const z2 = await fahre(t2.einstellung(drehbuch([]), [], { auto: true, gesetzt: [], maxDauerMs: 1000 }), t2.welt);
+    expect(z2.einstellungen).toMatchObject({ einsammeln: { wert: 'aus' } });
+    expect(z2.epics['4']).toBeUndefined();
+    expect(z2.ereignisse.map((x) => x.text)).toContain('Einsatz gestartet: keine freigegebenen Missionen');
+    const z3 = await fahre(t2.einstellung(drehbuch([lauf(4, [{ text: ende(4, 14) }])]), [], { auto: true, dauerhaft: true, gesetzt: ['einsammeln'], maxDauerMs: 3000 }), t2.welt);
+    expect(z3.ereignisse.map((x) => x.text)).toContain('Einstellung Missionen automatisch einsammeln: Startparameter --dauerhaft/--epics gilt (an) statt aus von der Brücke');
+    expect(z3.einstellungen?.einsammeln).toBeUndefined();
+    expect(z3.epics['4'].stufe).toBe('fertig');
+  }, T);
+
+  it('#193 the start parameters of einsammeln: --epics alone is aus, --dauerhaft an, both given explicitly; without them an from the standard', () => {
+    const git: Aufrufer = (_p, args) => ({ code: 0, stdout: args.includes('get-url') ? 'https://github.com/o/r.git\n' : '/r/.git\n', stderr: '' });
+    const ohne = einstellungAus(['/r', '--konten', '/k'], '/r', git);
+    expect([ohne.auto, ohne.gesetzt?.includes('einsammeln')]).toEqual([true, false]);
+    const liste = einstellungAus(['/r', '--konten', '/k', '--epics', '3'], '/r', git);
+    expect([liste.auto, liste.gesetzt?.includes('einsammeln')]).toEqual([false, true]);
+    const dauer = einstellungAus(['/r', '--konten', '/k', '--epics', '3', '--dauerhaft'], '/r', git);
+    expect([dauer.auto, dauer.gesetzt?.includes('einsammeln')]).toEqual([true, true]);
+  });
 
   it('nothing running is stopped: a run stays on an account taken off, a lower limit starts fewer and ends none', async () => {
     const body = (m: string) => `## Betroffene Module\n- ${m}\n`;

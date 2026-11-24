@@ -28,6 +28,8 @@ FERTIG = ('gemergt', 'fertig')
 LANG_FAKTOR = 1.5
 LANG_AB = 3
 VON = ('mensch', 'admiral', 'lauf')
+# #193: a mission at work, as the driver counts it for the occupancy (BELEGT in treiber.ts)
+LAUFEND = ('laeuft', 'frage', 'nacharbeit')
 KARTE_RANG = {'blockiert': 0, 'abgebrochen': 0, 'frage': 1, 'laeuft': 2, 'nacharbeit': 2, 'pr': 3, 'wartend': 4}
 # #116 Frachtraum: the labels of the workflow are no topic (besides status/*); a ticket without a topic
 OHNE_THEMA = ('needs-triage', 'needs-info', 'ready-for-agent', 'epic')
@@ -454,6 +456,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
         if b.get('triage'):
             lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h, jetzt))
+        # #193: the row of the collection view in the Maschinenraum; the switch itself is the setting einsammeln
+        stufen = [ep['stufe'] for ep in b.get('epics', [])]
+        liste[-1]['sammeln'] = {'laufend': sum(s in LAUFEND for s in stufen), 'wartend': stufen.count('wartend'), 'freigegeben': len(b.get('freigegeben', []))}
         liste[-1]['freigegeben'] = [{'nr': f['nr'], 'titel': f.get('titel', ''), 'issueUrl': f"{url}/issues/{f['nr']}" if url else None, 'handlung': _handlung(offen_h.get((f['nr'], 'aufnehmen', None, None)))} for f in b.get('freigegeben', [])]
 
         # ---- level 3: the admiral's decisions of today, revocable until the merge
