@@ -101,6 +101,8 @@ const huelle = (() => {
     if (stand === null && !location.hash && t.einrichten && !t.einrichten.fertig) gehe('maschinenraum');
     stand = t;
     id('nur-ansicht').hidden = !t.nurAnsicht;
+    // #46: the emergency stop holds until the machine releases it
+    id('notaus-marke').hidden = !t.notaus;
     const n = t.braucht.length;
     const z = id('zaehler');
     z.classList.toggle('alarm', n > 0);

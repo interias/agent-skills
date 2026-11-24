@@ -27,6 +27,14 @@ const lager = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window */ } },
   weg(k) { try { localStorage.removeItem(k); } catch { /* private window */ } },
 };
+// #46: the PIN is the second key next to the device, so it never stays on the device: asked for each action, held only
+// in this page's memory for the few requests of one action (several settings, a subscription), and an older page's
+// stored one is removed
+lager.weg(PIN_KEY);
+const PIN_FRIST_MS = 30000;
+let pinKurz = null;
+const pinHolen = () => (pinKurz && pinKurz.bis > Date.now() ? pinKurz.pin : null);
+const pinMerken = (pin) => { pinKurz = pin ? { pin, bis: Date.now() + PIN_FRIST_MS } : null; };
 
 let stand = null;
 let versatz = 0; // server time minus local time
@@ -610,13 +618,13 @@ function widerrufVerdrahten(wo, d, neu) {
   });
 }
 
-// ---- sending with the PIN
+// ---- sending from a paired device with the PIN (#46)
 
 async function senden(pfad, body, el, status) {
   // #48: over the remote entry the bridge refuses it anyway; no PIN dialog there
   if (stand?.nurAnsicht) return false;
-  for (let versuch = 0; versuch < 2; versuch++) {
-    const pin = lager.get(PIN_KEY) || (await pinFragen());
+  for (let versuch = 0; versuch < 3; versuch++) {
+    const pin = pinHolen() || (await pinFragen());
     if (!pin) return false;
     const knoepfe = [...el.querySelectorAll('button')];
     knoepfe.forEach((b) => (b.disabled = true));
@@ -628,8 +636,14 @@ async function senden(pfad, body, el, status) {
       r = null;
     }
     knoepfe.forEach((b) => (b.disabled = false));
-    if (r && r.status === 401) {
-      lager.weg(PIN_KEY);
+    const grund = r?.headers.get('X-Bruecke-Grund');
+    // an unknown device pairs once, a wrong PIN is asked for again; then the same request once more
+    if (grund === 'geraet') {
+      if (!(await koppelnFragen())) return false;
+      continue;
+    }
+    if (grund === 'pin') {
+      pinMerken(null);
       continue;
     }
     if (!r || !r.ok) {
@@ -666,7 +680,7 @@ function pinFragen() {
       const pin = feld.value.trim();
       const r = await fetch('/api/pin', { method: 'POST', headers: { 'X-Bruecke-Pin': pin } }).catch(() => null);
       if (r && r.status === 204) {
-        lager.set(PIN_KEY, pin);
+        pinMerken(pin);
         ende(pin);
         return;
       }
@@ -675,6 +689,52 @@ function pinFragen() {
     };
     d.showModal();
     feld.focus();
+  });
+}
+
+// #46: the bridge sets the device's key as an HttpOnly cookie; the page never sees it
+function koppelnFragen() {
+  const d = $('koppeln-dialog');
+  const name = $('koppeln-name');
+  const feld = $('koppeln-pin');
+  const fehler = $('koppeln-fehler');
+  feld.value = '';
+  fehler.textContent = '';
+  return new Promise((fertig) => {
+    const ende = (wert) => {
+      $('koppeln-form').onsubmit = null;
+      $('koppeln-abbruch').onclick = null;
+      d.onclose = null;
+      if (d.open) d.close();
+      fertig(wert);
+    };
+    $('koppeln-abbruch').onclick = () => ende(false);
+    d.onclose = () => ende(false);
+    $('koppeln-form').onsubmit = async (ev) => {
+      ev.preventDefault();
+      // the cookie is Secure: over plain HTTP in the LAN the browser would drop it
+      if (!isSecureContext) {
+        fehler.textContent = 'Koppeln geht nur über HTTPS (Zertifikat der Brücke) oder am Rechner über localhost.';
+        return;
+      }
+      const pin = feld.value.trim();
+      const r = await fetch('/api/geraete/koppeln', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bruecke-Pin': pin }, body: JSON.stringify({ name: name.value.trim() }) }).catch(() => null);
+      // the browser may drop the cookie (private window, blocked cookies): no retry that pairs again and again
+      const behalten = r && r.ok && (await fetch('/api/tafel', { cache: 'no-store' }).then((x) => x.json()).catch(() => ({}))).geraet;
+      if (behalten) {
+        pinMerken(pin);
+        ende(true);
+        laden();
+        return;
+      }
+      if (r && r.ok) {
+        fehler.textContent = 'Gekoppelt, aber der Browser behält den Geräteschlüssel nicht (Cookies gesperrt oder privates Fenster).';
+        return;
+      }
+      fehler.textContent = !r ? 'Brücke nicht erreichbar' : (await r.json().catch(() => ({}))).detail || `Fehler ${r.status}`;
+    };
+    d.showModal();
+    (name.value ? feld : name).focus();
   });
 }
 

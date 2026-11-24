@@ -133,7 +133,9 @@ Nur im LAN: kein Tunnel, keine Portfreigabe im Router. Im Ordner `flottenbruecke
    Zertifikat ab.
 5. **Web-App installieren und Meldungen erlauben:** Auf dem Handy in Chrome
    `https://<rechnername>:4747/` öffnen, im Menü „App installieren“ (oder „Zum Startbildschirm
-   hinzufügen“), die App öffnen, Maschinenraum → „Meldungen auf diesem Gerät“ → **Einschalten**, PIN
+   hinzufügen“), die App öffnen, das Gerät einmal mit Namen und PIN koppeln (#46; handeln darf es erst,
+   wenn der Rechner es unter `http://localhost:4748/` im Maschinenraum freigibt),
+   Maschinenraum → „Meldungen auf diesem Gerät“ → **Einschalten**, PIN
    eingeben und Benachrichtigungen erlauben. **Abschalten** an derselben Stelle beendet das Abo.
 
 Zurück auf HTTP: `BRUECKE_ZERT`, `BRUECKE_ZERT_SCHLUESSEL` und `BRUECKE_VAPID_SCHLUESSEL` leeren,

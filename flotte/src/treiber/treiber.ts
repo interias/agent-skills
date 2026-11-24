@@ -1680,7 +1680,14 @@ class Treiber {
     for (const h of (await this.bruecke.holeHandlungen(this.e.forge)) ?? []) {
       const erledigt = (this.z.handlungenErledigt ??= []);
       if (!erledigt.includes(h.id)) {
-        this.handlungAnwenden(h);
+        // #46: each line the action writes into the Flottenlogbuch names the device; one that writes none gets its own
+        const g = typeof h.geraet === 'string' && h.geraet ? (this.handlungGeraet = { name: h.geraet.slice(0, 60), zeit: h.zeit, geschrieben: false }) : null;
+        try {
+          this.handlungAnwenden(h);
+          if (g && !g.geschrieben) this.imLogbuch(h.epic || null, `Handlung ${h.art}${h.epic ? ` an #${h.epic}` : ''} über die Brücke`);
+        } finally {
+          this.handlungGeraet = null;
+        }
         erledigt.push(h.id);
         if (erledigt.length > 200) erledigt.splice(0, erledigt.length - 200);
       }
@@ -1859,7 +1866,15 @@ class Treiber {
     );
   }
 
+  /** #46: the device of the bridge action being carried out, for the Flottenlogbuch */
+  handlungGeraet: { name: string; zeit: string; geschrieben: boolean } | null = null;
+
   imLogbuch(epic: number | null, text: string): void {
+    const g = this.handlungGeraet;
+    if (g) {
+      text = `${text} (Gerät „${g.name}“, ${g.zeit})`;
+      g.geschrieben = true;
+    }
     this.ereignis(epic, text);
     if (this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
   }

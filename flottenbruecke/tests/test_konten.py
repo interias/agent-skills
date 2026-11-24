@@ -30,8 +30,8 @@ def test_ohne_pin_nichts(client, bericht):
     client.post('/api/bericht', json=mit_konten(bericht))
     for art, epic in (('konto_anlegen', 0), ('konto_deaktivieren', 1), ('konto_aktivieren', 2), ('konto_anmelden', 1)):
         # without or with a wrong PIN: refused; after five failures the lock answers 429
-        assert handeln(client, art, epic, pin=None).status_code in (401, 429)
-        assert handeln(client, art, epic, pin='0000').status_code in (401, 429)
+        assert handeln(client, art, epic, pin=None).status_code in (403, 429)
+        assert handeln(client, art, epic, pin='0000').status_code in (403, 429)
     assert offene(client) == []
 
 

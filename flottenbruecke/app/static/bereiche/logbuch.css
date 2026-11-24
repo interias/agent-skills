@@ -10,6 +10,9 @@
 .bereich[data-bereich="logbuch"] .lb-art { justify-self: start; padding: 0 8px; border-radius: var(--rund); background: var(--violett); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
 .bereich[data-bereich="logbuch"] .lb-art.admiral { background: var(--blau); }
 .bereich[data-bereich="logbuch"] .lb-art.mensch { background: var(--orange); }
+/* #46: a device's command as sent, long JSON wraps */
+.bereich[data-bereich="logbuch"] .lb-art.gerät { background: var(--rot); }
+.bereich[data-bereich="logbuch"] .lb-text code { overflow-wrap: anywhere; }
 .bereich[data-bereich="logbuch"] .lb-text { overflow-wrap: anywhere; color: var(--matt); }
 .bereich[data-bereich="logbuch"] .lb-text b { color: var(--text); font-weight: 600; }
 .bereich[data-bereich="logbuch"] .lb-text small { color: var(--leise); font-size: 12px; }

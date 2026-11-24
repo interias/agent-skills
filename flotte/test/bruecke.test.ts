@@ -26,7 +26,7 @@ import { lernKommentar } from '../src/lernen.ts';
 const T = 30_000;
 const beispiel = (datei: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../flottenbruecke/beispiel/${datei}`, import.meta.url)), 'utf8'));
 
-type Wunsch = Pick<BrueckenHandlung, 'epic' | 'art'> & Partial<Pick<BrueckenHandlung, 'nr' | 'seit' | 'text'>>;
+type Wunsch = Pick<BrueckenHandlung, 'epic' | 'art'> & Partial<Pick<BrueckenHandlung, 'nr' | 'seit' | 'text' | 'geraet'>>;
 
 /**
  * A stand-in bridge: keeps the reports, answers what antwort() returns for an open question and
@@ -996,6 +996,22 @@ describe('Epics steuern über die Brücke (#61)', () => {
   const vier = () => ({ bereit: [4], epics: [{ number: 3 }, { number: 4 }] });
   const texte = (z: { ereignisse: { text: string }[] }) => z.ereignisse.map((x) => x.text);
   const index = (meldungen: string[], muster: RegExp) => meldungen.findIndex((m) => muster.test(m));
+
+  it('#46: the device that sent an action stands with its time in the Flottenlogbuch, also where the action itself writes none', async () => {
+    const t = aufbau({ freigegeben: vier, titel: { 4: 'Neu freigegeben' } });
+    const wuensche = nacheinander([{ epic: 4, art: 'aufnehmen', geraet: 'Handy' }, { epic: 3, art: 'einreihen', geraet: 'Tablet' }]);
+    const b = await attrappe(() => null, { handlung: wuensche });
+    try {
+      const buch = drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }]), lauf(4, [{ text: ende(4, 14) }])]);
+      await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      const logbuch = t.p.kommentare.filter((k) => k.nr === 99).map((k) => k.text);
+      expect(logbuch.some((x) => /^\*\*Flotte \(Treiber\)\*\* — Mission #4 in den Einsatz aufgenommen, Mensch über die Brücke \(Gerät „Handy“, \d{4}-\d\d-\d\dT[\d:.]+Z\)\.$/.test(x))).toBe(true);
+      // einreihen of a running epic writes no line of its own: the device still gets one
+      expect(logbuch.some((x) => /^\*\*Flotte \(Treiber\)\*\* — Handlung einreihen an #3 über die Brücke \(Gerät „Tablet“, .+\)\.$/.test(x))).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
 
   it('aufnehmen: a released epic outside --epics is offered in the report, checked against the forge, joins and runs', async () => {
     const t = aufbau({ freigegeben: vier, titel: { 4: 'Neu freigegeben' } });

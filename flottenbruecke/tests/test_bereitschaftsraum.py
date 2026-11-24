@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import Einstellung, erzeuge
+from conftest import koppeln
 
 BEISPIEL = json.loads((Path(__file__).parent.parent / 'beispiel' / 'chat.json').read_text(encoding='utf-8'))
 FORGE = 'interias/flotte-probe'
@@ -215,7 +216,7 @@ def schreiben(c, chat_id, von, pin):
 def test_jede_handlung_im_bereitschaftsraum_braucht_die_pin(bekannt, bruecke, pin):
     chat_id, id_ = einmal_beantwortet(bekannt, mit_entwurf())
     vorher = raum(bekannt)
-    assert [r.status_code for r in schreiben(bekannt, chat_id, id_, pin)] == [401] * 5
+    assert [r.status_code for r in schreiben(bekannt, chat_id, id_, pin)] == [403] * 5
     assert raum(bekannt) == vorher
     assert holen(bekannt).json() == []
     # five wrong ones lock this client out; a fresh bridge on the same store: with the PIN each one goes through (verwerfen last)
@@ -322,6 +323,7 @@ def test_der_stand_uebersteht_einen_neustart(tmp_path, uhr):
         return TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr)))
 
     c = neu()
+    koppeln(c)
     holen(c)
     chat_id, _ = einmal_beantwortet(c)
     c.post(f'/api/chat/{chat_id}/verwerfen', headers=PIN)

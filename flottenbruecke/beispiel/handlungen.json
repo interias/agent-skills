@@ -7,7 +7,8 @@
     "seit": null,
     "text": null,
     "zeit": "2026-11-20T14:36:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 4,
@@ -17,7 +18,8 @@
     "seit": "2026-11-20T14:18:02Z",
     "text": "Unter der nächsten Version, nicht unter Unreleased",
     "zeit": "2026-11-20T14:37:30+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 5,
@@ -27,7 +29,8 @@
     "seit": null,
     "text": "{\"name\": \"obergrenze\", \"wert\": 2}",
     "zeit": "2026-11-20T14:40:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 6,
@@ -37,7 +40,8 @@
     "seit": null,
     "text": null,
     "zeit": "2026-11-20T14:41:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 7,
@@ -47,7 +51,8 @@
     "seit": null,
     "text": null,
     "zeit": "2026-11-20T14:42:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 8,
@@ -57,7 +62,8 @@
     "seit": null,
     "text": null,
     "zeit": "2026-11-20T14:43:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 9,
@@ -67,7 +73,8 @@
     "seit": null,
     "text": "hoch",
     "zeit": "2026-11-20T14:44:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 10,
@@ -77,7 +84,8 @@
     "seit": null,
     "text": "mensch",
     "zeit": "2026-11-20T14:45:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 11,
@@ -87,7 +95,8 @@
     "seit": null,
     "text": null,
     "zeit": "2026-11-20T14:46:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 12,
@@ -97,7 +106,8 @@
     "seit": "2026-11-20T13:05:00Z",
     "text": "{\"option\": \"B\", \"text\": null}",
     "zeit": "2026-11-20T14:47:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 13,
@@ -107,7 +117,8 @@
     "seit": "2026-11-20T13:04:30Z",
     "text": "Die alte Ansicht brauchen wir noch für den Beamer im Besprechungsraum.",
     "zeit": "2026-11-20T14:48:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 14,
@@ -117,7 +128,8 @@
     "seit": null,
     "text": "Suche und Filter sind zwei Dinge; erst den Filter allein.",
     "zeit": "2026-11-20T14:49:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   },
   {
     "id": 15,
@@ -127,6 +139,7 @@
     "seit": null,
     "text": "{\"bruecke\": null}",
     "zeit": "2026-11-20T14:50:00+00:00",
-    "herkunft": "Mensch über die Brücke"
+    "herkunft": "Mensch über die Brücke",
+    "geraet": "Testgerät"
   }
 ]
