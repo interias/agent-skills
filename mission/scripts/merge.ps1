@@ -195,7 +195,8 @@ function Get-Checks([string]$headSha) {
     if (-not $gitea) { return @(gh pr checks $Pr --repo $Repo --json 'name,bucket' 2>$null | ConvertFrom-Json) }
     $r = Invoke-Gitea GET "/commits/$headSha/status"
     if (-not (Test-Ok $r)) { return @(@{ name = 'Status nicht lesbar'; bucket = 'pending' }) }
-    @($r.Json.statuses | ForEach-Object {
+    # a head without any status sends statuses null, which a pipeline would turn into one empty entry
+    @($r.Json.statuses | Where-Object { $_ } | ForEach-Object {
         @{ name = $_.context; bucket = switch ("$($_.status)") { 'success' { 'pass' } 'warning' { 'pass' } 'pending' { 'pending' } default { 'fail' } } } })
 }
 function Get-BranchSha([string]$branch) {

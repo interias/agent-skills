@@ -168,5 +168,6 @@ export function giteaZugriff(a: Aufrufer, api: string, kopf: () => string, epicL
     standardZweig: () => String(aufruf('GET', '').default_branch ?? ''),
     zweige: () => alle('/branches').map((b) => String(b.name)),
     voraus: (basisZweig, kopfZweig) => Number(aufruf('GET', `/compare/${encodeURIComponent(basisZweig)}...${encodeURIComponent(kopfZweig)}`).total_commits ?? 0),
+    mergeSkript: () => ({ args: ['-Api', basis], env: { FLOTTE_FORGE_KOPF: kopf() } }),
   };
 }

@@ -386,6 +386,8 @@ Describe 'merge.ps1: Gitea through its API (#127)' {
         (Invoke-GiteaMerge (New-GiteaRules 'kein Gate')).Out | Should Match "GATE FEHLT #7: kein Abschnitt '## Gate'"
         (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -statuses '[{"context":"ci","status":"failure"}]')).Out | Should Match 'CHECKS ROT #7: ci'
         (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -title 'WIP: Mission')).Out | Should Match 'NICHT GEMERGT #7: Entwurf'
+        # a head without any status: Gitea sends statuses null (found by the probe against the throwaway Gitea)
+        (Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -statuses 'null')).Out | Should Match '^GEMERGT #7'
         $r = Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -behind '2')
         $r.Out | Should Match 'der Head enthaelt die aktuelle Basis nicht \(2 Commits dahinter\)'
         @($r.Calls | Where-Object { $_ -match '^POST /pulls/7/merge' }).Count | Should Be 0

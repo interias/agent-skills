@@ -98,6 +98,8 @@ export interface ForgeZugriff {
   zweige(): string[];
   /** commits of kopf that basis lacks */
   voraus(basis: string, kopf: string): number;
+  /** what merge.ps1 needs beyond -Repo and -Pr: Gitea's -Api, and its Authorization header in the environment of that process only */
+  mergeSkript(): { args: string[]; env: Record<string, string> };
 }
 
 /** an error of the forge as a short line, for events and reports */

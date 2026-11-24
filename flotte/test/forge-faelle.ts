@@ -113,4 +113,14 @@ export function forgeFaelle(neu: () => Promise<ForgeStand>) {
     expect(s.zugriff.prs({ zustand: 'open', kopf: 'epic/2-anders', felder: ['number', 'state'] })).toEqual([]);
     expect(s.zugriff.prs({ zustand: 'merged', felder: ['number'] })).toEqual([]);
   });
+
+  it('tells merge.ps1 what it needs beyond -Repo and -Pr; a token only in the environment', async () => {
+    const s = await neu();
+    const m = s.zugriff.mergeSkript();
+    if (s.zugriff.art === 'github') expect(m).toEqual({ args: [], env: {} });
+    else {
+      expect(m.args).toEqual(['-Api', expect.stringMatching(/\/api\/v1\/repos\/[^/]+\/[^/]+$/)]);
+      expect(m.env.FLOTTE_FORGE_KOPF).toMatch(/^(token|Basic) /);
+    }
+  });
 }

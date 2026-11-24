@@ -3199,7 +3199,16 @@ class Treiber {
   }
 
   async mergeAufruf(ep: FlottenEpic): Promise<string> {
-    const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', this.e.mergeSkript, '-Repo', this.e.forge, '-Pr', String(ep.pr)], { cwd: this.e.repo, timeoutMs: 40 * 60_000 });
+    // Gitea (#127): the address as -Api, the token only in the environment of this one process
+    let zusatz: { args: string[]; env: Record<string, string> };
+    try {
+      zusatz = this.forge.mergeSkript();
+    } catch (err) {
+      const zeile = `nicht angedockt #${ep.pr}: Zugang zur Forge fehlt: ${fehlerText(err)}`;
+      this.ereignis(ep.nr, `merge.ps1: ${zeile}`);
+      return zeile;
+    }
+    const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', this.e.mergeSkript, '-Repo', this.e.forge, '-Pr', String(ep.pr), ...zusatz.args], { cwd: this.e.repo, timeoutMs: 40 * 60_000, ...(zusatz.args.length ? { env: zusatz.env } : {}) });
     const zeile = (r.stdout.trim().split(/\r?\n/).pop() || r.stderr.trim().split(/\r?\n/).pop() || `merge.ps1 Exit ${r.code}`).trim();
     this.ereignis(ep.nr, `merge.ps1: ${zeile}`);
     return zeile;

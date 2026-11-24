@@ -111,5 +111,6 @@ export function githubZugriff(a: Aufrufer, repo: string): ForgeZugriff {
     standardZweig: () => gh(['repo', 'view', repo, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name']).trim(),
     zweige: () => zeilen(['api', '--paginate', `repos/${repo}/branches`, '--jq', '.[].name']),
     voraus: (basis, kopf) => Number(gh(['api', `repos/${repo}/compare/${basis}...${encodeURIComponent(kopf)}`, '--jq', '.ahead_by']).trim()),
+    mergeSkript: () => ({ args: [], env: {} }),
   };
 }

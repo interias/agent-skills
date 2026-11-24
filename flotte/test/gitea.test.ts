@@ -13,8 +13,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { auftragAusfuehren } from '../src/auftrag/auftrag.ts';
 import { giteaForge } from '../src/auftrag/gitea.ts';
 import { auftrag } from '../src/befehle/auftrag.ts';
-import { aufrufen } from '../src/aufruf.ts';
+import { aufrufen, aufrufenAsync, pwshPfad } from '../src/aufruf.ts';
+import { forgeAsyncFuer } from '../src/forge/async.ts';
 import { giteaZugriff } from '../src/forge/gitea.ts';
+import { zugriffFuer } from '../src/forge/zugriff.ts';
+import { missionAbschliessen } from '../src/treiber/forge.ts';
+import { adapterAus, freigegebene, sammle } from '../src/werkzeuge/belegung.ts';
 import { forgeFaelle, type ForgeStand } from './forge-faelle.ts';
 import { auftragFaelle, ENTWURF_DREI, REGELN, type IssueStand, type Pruefstand } from './auftrag-faelle.ts';
 
@@ -174,6 +178,80 @@ describe('auftrag: shared cases, Gitea layer against a throwaway Gitea', () => {
   describe('the forge layer of the driver (#127)', () => {
     forgeFaelle(forgeStand);
   });
+
+  // #127, the probe of the issue: a mission with two Missionsziele is collected, built, docked after the gate and its
+  // issues close. Real: the order writer, the driver's collecting, the forge layer, merge.ps1 and closing the
+  // mission. Stood in: the runs of the Ingenieure (two commits by the test) and the gate run (its block in the PR).
+  it('probe: a mission with two Missionsziele is collected, built, docked after the gate, its issues close', async () => {
+    const protokoll: string[] = [];
+    const schritt = (x: string) => protokoll.push(x);
+    const name = await neuesRepo(true);
+    const dir = join(mkdtempSync(join(tmpdir(), 'flotte-gitea-probe-')), 'repo');
+    const git = (...args: string[]) => {
+      const r = aufrufen('git', ['-C', dir, ...args]);
+      if (r.code) throw new Error(`git ${args[0]}: ${r.stderr.trim()}`);
+      return r.stdout.trim();
+    };
+    const remote = `http://${ADMIN}:${token}@127.0.0.1:${port}/${ADMIN}/${name}.git`;
+    if (aufrufen('git', ['clone', '-q', remote, dir]).code) throw new Error('git clone gescheitert');
+    git('config', 'user.name', 'probe');
+    git('config', 'user.email', 'probe@example.invalid');
+    mkdirSync(join(dir, '.claude'));
+    writeFileSync(join(dir, '.claude', 'epic.md'), `---\nforge: gitea\napi: ${basis}/api/v1/repos/${ADMIN}/${name}\ntoken_env: FLOTTE_TEST_GITEA_TOKEN\nmerge: nach_gate\nmain_branch: main\n---\n# Adapter\n`);
+    git('add', '.');
+    git('commit', '-q', '-m', 'adapter');
+    git('push', '-q', 'origin', 'main');
+    writeFileSync(join(dir, 'entwurf.md'), ENTWURF_DREI.slice(0, ENTWURF_DREI.indexOf('# Missionsziel: Datei `probe/c.md`')));
+    process.env.FLOTTE_TEST_GITEA_TOKEN = token;
+    try {
+      const a = (await auftrag([dir, join(dir, 'entwurf.md'), '--starten'])) as any;
+      const mission: number = a.mission.nummer;
+      const ziele: number[] = a.ziele.map((z: { nummer: number }) => z.nummer);
+      schritt(`Auftrag: Mission #${mission}, Missionsziele ${ziele.map((z) => `#${z}`).join(', ')} (Labels ${a.labels.mission.join(', ')})`);
+
+      const z = zugriffFuer(dir, aufrufen, '');
+      const adapter = adapterAus(dir);
+      expect(freigegebene(z, adapter).epics).toEqual([mission]);
+      const { bilder } = sammle(z, dir, [mission]);
+      expect(bilder[0].kinder).toEqual(ziele);
+      schritt(`Eingesammelt: Mission #${mission} mit Missionszielen ${bilder[0].kinder!.map((k) => `#${k}`).join(', ')}`);
+
+      const zweig = `epic/${mission}-probe`;
+      git('checkout', '-q', '-b', zweig);
+      for (const [i, datei] of ['a', 'b'].entries()) {
+        mkdirSync(join(dir, 'probe'), { recursive: true });
+        writeFileSync(join(dir, 'probe', `${datei}.md`), `Zeile ${datei}\n`);
+        git('add', '.');
+        git('commit', '-q', '-m', `feat: probe/${datei}.md (#${ziele[i]})`);
+      }
+      git('push', '-q', 'origin', zweig);
+      const basisSha = git('rev-parse', 'origin/main');
+      const kopfSha = git('rev-parse', 'HEAD');
+      const body = `## Gate\n== Gate: Basis origin/main @ ${basisSha.slice(0, 7)} (HEAD ${kopfSha.slice(0, 8)})\nGate grün.\n\n${ziele.map((k) => `Closes #${k}`).join('\n')}\n`;
+      const prUrl = await forgeAsyncFuer(dir, aufrufenAsync, '').prAnlegen('main', zweig, 'Probe des Andockens auf Gitea', body);
+      const pr = Number(/\/pulls\/(\d+)$/.exec(prUrl ?? '')?.[1]);
+      expect(pr).toBeGreaterThan(0);
+      schritt(`Gebaut: ${zweig} mit 2 Commits, Pull Request #${pr} mit Gate-Block (Basis ${basisSha.slice(0, 7)}, HEAD ${kopfSha.slice(0, 8)})`);
+
+      const zusatz = z.mergeSkript();
+      const skript = resolve(import.meta.dirname, '..', '..', 'mission', 'scripts', 'merge.ps1');
+      const m = aufrufen(pwshPfad(), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, '-Repo', z.repo, '-Pr', String(pr), '-LeerMinuten', '0', ...zusatz.args], { env: { ...process.env, ...zusatz.env } });
+      const zeile = m.stdout.trim().split(/\r?\n/).pop() ?? '';
+      schritt(`merge.ps1: ${zeile}`);
+      expect(zeile).toBe(`GEMERGT #${pr} -> main; Issues zu: ${ziele.map((k) => `#${k}`).join(' ')}; Branch ${zweig} geloescht`);
+      expect(z.pr(pr, ['state']).zustand).toBe('MERGED');
+
+      const ende = missionAbschliessen(z, mission, pr, adapter.ready_label);
+      schritt(`Mission: ${ende?.text}`);
+      expect(ende).toEqual({ text: `Mission geschlossen nach dem Andocken von PR #${pr}`, endgueltig: true });
+      const zustaende = [mission, ...ziele].map((n) => `#${n} ${z.issue(n, ['state']).zustand}`);
+      schritt(`Issues: ${zustaende.join(', ')}`);
+      expect(zustaende.every((x) => x.endsWith('CLOSED'))).toBe(true);
+    } finally {
+      delete process.env.FLOTTE_TEST_GITEA_TOKEN;
+      console.log(`Probe #127 gegen die Wegwerf-Gitea:\n${protokoll.map((x) => `- ${x}`).join('\n')}`);
+    }
+  }, 180_000);
 
   it('a Missionsziel is a dependency of its mission, and the epic label carries colour and description', async () => {
     const name = await neuesRepo();
