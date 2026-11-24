@@ -134,3 +134,27 @@ describe('#211: a long own wait stays warm, the rule stands word for word in 4a 
     for (const { n, text } of ingenieure) expect(regel(text), n).toBe(regel(phase4a));
   });
 });
+
+describe('only software (24.11.2026): content goals go to the person, every place that releases or cuts says it', () => {
+  const regeln = abschnitt('## Die Regeln, die nicht verhandelbar sind', '## Die Statuslabels');
+  const tor = abschnitt('### 2c — Das Vorab-Tor', '### 2d');
+
+  it('rule 14: the mission builds software, no content', () => {
+    expect(regeln).toContain('14. **Die Mission baut Software, keinen Inhalt.**');
+    expect(regeln).toContain('Ein Inhaltsziel ist ein Punkt fürs Vorab-Tor (2c, Punkt 15)');
+  });
+
+  it('Vorab-Tor point 15: judged by the result, recommendation ready-for-human, mixed goals build the software part', () => {
+    expect(tor).toContain('15. **Ein Inhaltsziel** (Regel 14)');
+    expect(tor).toContain('Maßstab ist das Ergebnis, nicht ein Wort im Text');
+    expect(tor).toContain('Empfehlung: herauslösen — das Ticket bekommt `ready-for-human` statt des Freigabelabels');
+    expect(tor).toContain('der Inhaltsanteil wird offener Punkt im Pull Request');
+  });
+
+  it('Bereitschaftsraum, Nacharbeit, adapter reference and befugnisse carry it', () => {
+    expect(lies('bereitschaftsraum/SKILL.md')).toContain('nur „anlegen“, nie „anlegen und starten“: Die Triage empfiehlt dann `ready-for-human`');
+    expect(lies('mission-nacharbeit/SKILL.md')).toContain('**Inhalt** ist nie Sitzung (`mission/SKILL.md`, Regel 14)');
+    expect(lies('mission/references/adapter.md')).toContain('So kann ein Projekt auch Regel 14 („nur Software“, `SKILL.md`) schärfen');
+    expect(lies('docs/befugnisse.md')).toContain('bekommt es `ready-for-human`, nicht `ready-for-agent`');
+  });
+});

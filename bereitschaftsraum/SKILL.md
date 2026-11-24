@@ -76,6 +76,14 @@ Du wählst, was am Ende entsteht, und sagst es mit Grund:
 | **ein Missionsziel** | Ein Außeneinsatz kann es in einem Zug abnehmen: ein Ergebnis, eine Verifikation, wenige Module. |
 | **eine Mission mit Zielen** | Mehrere abnehmbare Ergebnisse, oder eines, das ein Außeneinsatz nicht in einem Zug schafft. |
 
+**Nur Software** (`mission/SKILL.md`, Regel 14). Ein Auftrag baut Software: Code, Tests und Doku. Ist
+das Ergebnis Inhalt — ein Konzept, eine Konstruktion, eine Recherche, gestaltete Motive oder Texte —,
+wird daraus kein Missionsziel; das arbeitet der Mensch in einem eigenen Chat aus. Bei einem gemischten
+Anliegen wird nur der Softwareanteil Auftrag, der Inhaltsanteil steht als zurückgestellt in der
+Zusammenfassung. Maßstab ist das Ergebnis, nicht ein Wort im Text. Soll ein Inhaltsziel trotzdem als
+Issue stehen, nur „anlegen“, nie „anlegen und starten“: Die Triage empfiehlt dann `ready-for-human`,
+nicht `ready-for-agent`.
+
 **Schnittregeln** für die Missionsziele:
 
 1. **Vertikal.** Jedes Ziel liefert einen dünnen, durchgehenden Streifen — vom Eingang bis zu dem,

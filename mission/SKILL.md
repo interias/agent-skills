@@ -118,6 +118,10 @@ Flotten-Treiber.
 13. **Wer einen Dev-Server oder Stack außerhalb von `Up` startet, beendet ihn am Ende des
     Pakets**; `Down` fängt den Rest ab (`references/worktree.md`). Ein Server, der das Paket
     überlebt, hält Speicher und Port, bis die nächste Sitzung ihn mit `CleanupStale` findet (#38).
+14. **Die Mission baut Software, keinen Inhalt.** Code, Tests und Doku der Software entstehen im
+    Lauf; Inhalt — Konzepte, Konstruktion, Recherche, gestaltete Motive oder Texte — erarbeitet der
+    Mensch in einem eigenen Chat, auch wenn die Mission die Software dafür baut. Ein Inhaltsziel ist
+    ein Punkt fürs Vorab-Tor (2c, Punkt 15). Herkunft: Entscheidung des Menschen vom 24.11.2026.
 
 ---
 
@@ -405,6 +409,12 @@ Vorzulegen ist:
     kein eigener DB-Server); `shared_services` ist gesetzt, `service_start` fehlt; ein Paket
     ändert das Lockfile eines `link_dirs`-Verzeichnisses und bräuchte eine echte Installation —
     **ein solches Paket ist per `Up` nicht rüstbar**, `Up` verlinkt immer alle `link_dirs`.
+15. **Ein Inhaltsziel** (Regel 14): Das Ergebnis der Mission oder eines Missionsziels ist Inhalt
+    statt Code und Doku der Software, die ihn ermöglicht. Maßstab ist das Ergebnis, nicht ein Wort im
+    Text: Eine Konzeptschleife zu bauen ist Software, die erste Konzeptrunde darin auszuarbeiten ist
+    Inhalt. Empfehlung: herauslösen — das Ticket bekommt `ready-for-human` statt des Freigabelabels,
+    ausgearbeitet wird davon nichts. Ein **gemischtes** Ziel ist kein Tor-Punkt: Die Abnahmeliste des
+    Pakets enthält nur den Softwareanteil, der Inhaltsanteil wird offener Punkt im Pull Request.
 
 **Fehlt der Adapter,** legt das Tor die abgeleiteten Werte immer als eigene Liste vor, auch wenn
 sonst nichts zu melden ist.

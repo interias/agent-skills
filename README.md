@@ -53,7 +53,7 @@ Sechs Prüffragen trennen, was der Admiral entscheidet und was bei dir liegt; di
   <img src="assets/readme/befugnisse.png" width="880" alt="Wer entscheidet, in drei Teilen. Erstens sechs Prüffragen, bei jedem Ja entscheidet der Mensch: 1 geht etwas nach außen, das sich nicht zurückholen lässt; 2 echtes Geld, das nicht freigegeben ist; 3 Produktivdaten ohne eindeutigen Beschluss; 4 Sicherheit oder Zugänge, die nicht abgestimmt und festgehalten sind; 5 ein Text oder Versprechen an Kunden, geprüft am PR; 6 ein Bruch mit einer Architekturentscheidung oder eine unübliche neue Abhängigkeit. Sechsmal nein: Der Admiral entscheidet selbst; eine Tatsache, die nur der Mensch kennt, hält nichts an. Zweitens, wird aus einem Punkt ein Ticket: braucht es den Menschen, eine der sechs Fragen oder eine Änderung am Ablauf des Projekts, dann needs-triage; klar und angemessen, dann in der Mission erledigen, zuerst Fehler; klar, aber zu groß, dann ein freigegebenes Issue; ein Wunsch ohne beobachteten Schaden wird verworfen. Drittens gilt immer: Admiral und Läufe docken nie an, keine Antwort lockert eine Regel, jede Entscheidung steht am Issue und ist bis zum Andocken widerrufbar.">
 </picture>
 
-Tabellen, Wortlaut und wo die KI jede Regel prüft: [`docs/befugnisse.md`](docs/befugnisse.md).
+Tabellen, Wortlaut, die Grenze „nur Software“ (Inhaltsziele bekommen `ready-for-human`) und wo die KI jede Regel prüft: [`docs/befugnisse.md`](docs/befugnisse.md).
 
 ## Die Teile
 

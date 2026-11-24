@@ -36,6 +36,13 @@ Die erste Frage, die mit Ja beantwortet wird, entscheidet.
 
 Eine Ticketfrage geht nie an dich; der Missions-PR listet jedes angelegte Ticket.
 
+**Nur Software.** Die Flotte baut, verbessert und repariert Software. Ist das Ergebnis eines Ziels
+Inhalt — Konzept, Konstruktion, Recherche, gestaltete Motive oder Texte —, bekommt es
+`ready-for-human`, nicht `ready-for-agent`, und du arbeitest es in einem eigenen Chat aus: Das
+Vorab-Tor und die Triage fragen dich mit dieser Empfehlung, statt es auszuarbeiten (Regel 14 in
+[`mission/SKILL.md`](../mission/SKILL.md)). Bei einem gemischten Ziel baut die Mission den
+Softwareanteil, der Inhaltsanteil wird offener Punkt im PR.
+
 ## Was immer gilt
 
 - Admiral und Läufe **docken nie an**. Wer andockt, sagt allein der Adapterschlüssel `merge`:
@@ -52,6 +59,7 @@ Eine Ticketfrage geht nie an dich; der Missions-PR listet jedes angelegte Ticket
 | Prüffragen 1–6 | `BEIM_MENSCHEN` in [`flotte/src/treiber/admiral.ts`](../flotte/src/treiber/admiral.ts), wortgleich in [`flotte/references/entscheidungsrecht.md`](../flotte/references/entscheidungsrecht.md) und [`mission/SKILL.md`](../mission/SKILL.md) | dem Admiral bei jedem Frageblock eines Laufs (Tor, Nacharbeit, Abbruch), der Triage bei jeder Frage | [`flotte/test/entscheidungsrecht.test.ts`](../flotte/test/entscheidungsrecht.test.ts), [`flotte/test/befugnisse.test.ts`](../flotte/test/befugnisse.test.ts) |
 | Ticketregel | `TICKET_REGEL` in `admiral.ts`, wortgleich in `mission/SKILL.md` (Regel 3) und [`mission-nacharbeit/SKILL.md`](../mission-nacharbeit/SKILL.md) | dem Lauf bei jedem Fund außerhalb eines Pakets, der Nacharbeit in jeder Fragerunde („Sitzung, verworfen oder Ticket“), dem Admiral | [`flotte/test/tickets.test.ts`](../flotte/test/tickets.test.ts), `befugnisse.test.ts` |
 | Verwerfen in der Triage | Schnittplan-Auftrag in [`flotte/src/triage.ts`](../flotte/src/triage.ts) | dem Triage-Lauf über alle Sternzeit-Notizen eines Projekts | `tickets.test.ts` |
+| Nur Software | Regel 14 und Vorab-Tor Punkt 15 in `mission/SKILL.md`, Fragerunde der Triage in `flotte/src/triage.ts` (Marke `Inhalt`) | dem Lauf am Tor, der Nacharbeit, dem Bereitschaftsraum, der Triage | [`flotte/test/skilltexte.test.ts`](../flotte/test/skilltexte.test.ts), [`flotte/test/schnittplan.test.ts`](../flotte/test/schnittplan.test.ts) |
 | Herkunft jeder Entscheidung | `HERKUNFT_REGEL` in `admiral.ts` | Admiral und Triage, im Kommentar am Issue | `befugnisse.test.ts` |
 | Nie andocken | Regel 1 in `mission/SKILL.md` und `entscheidungsrecht.md` | jedem Lauf, dem Admiral | Hook [`mission/scripts/guard.ps1`](../mission/scripts/guard.ps1) sperrt `gh pr merge` im Lauf |
 
