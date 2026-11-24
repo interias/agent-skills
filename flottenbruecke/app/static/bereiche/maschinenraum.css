@@ -1,7 +1,7 @@
 /* Maschinenraum (#42): the styles of this area only, every rule below .bereich[data-bereich="maschinenraum"]. */
 .bereich[data-bereich="maschinenraum"] .mr-titel { margin: 14px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--lila); }
 .bereich[data-bereich="maschinenraum"] .mr-reihe { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 8px; }
-.bereich[data-bereich="maschinenraum"] .mr-karte { background: var(--flaeche); border-left: 8px solid var(--c, var(--violett)); border-radius: 0 14px 14px 0; padding: 8px 12px 10px; min-width: 0; display: grid; gap: 6px; }
+.bereich[data-bereich="maschinenraum"] .mr-karte { background: var(--flaeche); border-left: 8px solid var(--c, var(--violett)); border-radius: 0 14px 14px 0; padding: 8px 12px 10px; min-width: 0; display: grid; gap: 6px; align-content: start; }
 .bereich[data-bereich="maschinenraum"] .mr-karte.veraltet { opacity: .6; }
 .bereich[data-bereich="maschinenraum"] .mr-karte h3 { margin: 0; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
 /* the window of an account as a wide tank: name, tube, "x % übrig bis reset" */
@@ -29,6 +29,9 @@
 /* Einstellungen (#59): a card per value, controls with big targets; gold for "wartet auf den Treiber", red stays with "Braucht dich" */
 .bereich[data-bereich="maschinenraum"] .mr-hinweis { margin: 0 0 8px; font: 13px/1.4 var(--lesen); color: var(--matt); }
 .bereich[data-bereich="maschinenraum"] .mr-hinweis b { color: var(--text); }
+/* a start parameter such as --dauerhaft never breaks after its dashes */
+.bereich[data-bereich="maschinenraum"] .mr-hinweis code { white-space: nowrap; }
+.bereich[data-bereich="maschinenraum"] .mr-projekt-neu { margin-top: 8px; }
 .bereich[data-bereich="maschinenraum"] .mr-einst { grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); }
 .bereich[data-bereich="maschinenraum"] .mr-einst-zeile.wartet { --c: var(--gold); }
 .bereich[data-bereich="maschinenraum"] .mr-karte h4 { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
