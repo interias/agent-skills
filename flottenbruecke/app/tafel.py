@@ -619,7 +619,7 @@ def bereitschaftsraum(chats: list[dict], nachrichten: list[dict], rechner: list[
         erste = next((n['text'] for n in eigene if n['art'] == 'text'), '') or ''
         liste.append({
             'id': c['id'], 'forge': c['forge'], 'kurz': c['forge'].split('/')[-1], 'konto': c['konto'], 'modell': c['modell'],
-            'stand': c['stand'], 'rechner': c['rechner'], 'angelegt': c['angelegt'], 'geaendert': c['geaendert'],
+            'stand': c['stand'], 'archiviert': c['archiviert'], 'rechner': c['rechner'], 'angelegt': c['angelegt'], 'geaendert': c['geaendert'],
             'titel': erste.splitlines()[0][:120] if erste.strip() else f"Chat {c['id']}",
             'konten': je_rechner.get(c['rechner'], []) if c['rechner'] else sorted(konten, key=int),
             'wartet': wartet,

@@ -692,9 +692,11 @@ nichts und gibt ebenfalls `200`.
 
 Mindestens `text` oder `fehler` ist gesetzt.
 
-**Stand des Chats** (`offen`, `angelegt`, `verworfen`) führt die Brücke. Hier gilt nur: Nach einer
+**Stand des Chats** (`offen`, `gestoppt`, `angelegt`, `verworfen`) führt die Brücke. Hier gilt nur: Nach einer
 Antwort auf `art: anlegen` mit `fehler: null` und nicht leerem `missionen` setzt sie „angelegt“ und
-zeigt die Links; „verworfen“ ist ein Klick in der Brücke und kommt nie beim Dienst an.
+zeigt die Links; „verworfen“ ist ein Klick in der Brücke und kommt nie beim Dienst an. Ein
+`gestoppter` Chat (#47) liefert keine Nachricht mehr an `GET`, bis der Mensch ihn fortsetzt; eine
+schon quittierte Nachricht darf der Dienst noch beantworten.
 
 **Ablauf je Takt:** zuerst Antworten nachliefern, die die Brücke noch nicht nahm (sie laufen nicht
 noch einmal), dann `GET`, dann je freiem Chat die älteste Nachricht: Quittung, dann
@@ -731,9 +733,13 @@ ersten Nachricht; `konto` muss ein Rechner melden, sonst `409`), `POST /api/chat
 (`{text}`), `POST /api/chat/{id}/einstellung` (`{konto, modell}`; ein anderes Konto nach der ersten
 Sitzung oder während ein Rechner eine Nachricht des Chats bearbeitet `409`), `POST /api/chat/{id}/anlegen` (`{starten, von}`: `von` ist die Nachricht, deren Antwort
 den gezeigten Entwurf brachte; `409` ohne Entwurf, bei einem neueren, solange eine Nachricht wartet oder
-der Chat nicht offen ist) und `POST /api/chat/{id}/verwerfen`. In `GET /api/tafel` steht
+der Chat nicht offen ist), `POST /api/chat/{id}/verwerfen` (offen oder gestoppt) und (#47)
+`POST /api/chat/{id}/stoppen` (offen → gestoppt, sonst `409`), `POST /api/chat/{id}/fortsetzen`
+(gestoppt → offen, holt ihn auch aus dem Archiv, sonst `409`), `POST /api/chat/{id}/archivieren`
+(`{archiviert}`; ein offener Chat wird dabei gestoppt; schon im oder nicht im Archiv `409`). Stand und
+Archiv liegen in der Tabelle `chats` und überstehen einen Neustart. In `GET /api/tafel` steht
 `bereitschaftsraum` `{pin, modell, konten[{konto, rechner[]}], rechner[], projekte[], chats[]}`, je Chat
-Stand, Verlauf, die Karten der letzten Antwort, der letzte Entwurf `{von, text}` und die angelegten
+Stand, `archiviert` (Zeitpunkt oder `null`), Verlauf, die Karten der letzten Antwort, der letzte Entwurf `{von, text}` und die angelegten
 `missionen`. Fünf falsche PINs je Absender
 sperren für fünf Minuten. Über den Fernzugriff (#48) trägt `GET /api/tafel` `nurAnsicht: true` (im LAN
 `false`), und jede Anfrage außer GET und HEAD bekommt `403`, auch mit richtiger PIN.
@@ -742,7 +748,7 @@ sperren für fünf Minuten. Über den Fernzugriff (#48) trägt `GET /api/tafel` 
 
 Jede schreibende Anfrage der Person oben braucht ein gekoppeltes Gerät (Cookie `bruecke_geraet`) mit
 dem Recht dafür **und** `X-Bruecke-Pin`. Recht **Antworten**: `POST /api/antwort`, `POST /api/chat`,
-`…/nachricht`, `…/einstellung`, `…/verwerfen`, `POST /api/push`, `POST /api/push/abmelden`. Recht
+`…/nachricht`, `…/einstellung`, `…/verwerfen`, `…/stoppen`, `…/fortsetzen`, `…/archivieren`, `POST /api/push`, `POST /api/push/abmelden`. Recht
 **Handeln**: `POST /api/handlung`, `POST /api/werft/handlung`, `POST /api/chat/{id}/anlegen`. Die
 Prüfung in dieser Reihenfolge: keine PIN gesetzt `403`; unbekanntes oder entkoppeltes Gerät `401` mit
 Kopf `X-Bruecke-Grund: geraet`; Recht fehlt `403` (`recht`); Not-Aus `423`; falsche oder fehlende PIN

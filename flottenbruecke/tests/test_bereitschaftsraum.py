@@ -307,6 +307,69 @@ def test_verwerfen_ist_ein_klick_der_brucke(bekannt):
     assert bekannt.post(f"/api/chat/{r['chat']}/nachricht", json={'text': 'x'}, headers=PIN).status_code == 409
 
 
+# ---- #47: stop, continue, archive
+
+def test_stoppen_haelt_den_chat_an_fortsetzen_gibt_die_nachricht_frei(bekannt):
+    r = beginnen(bekannt).json()
+    assert bekannt.post(f"/api/chat/{r['chat']}/stoppen", headers=PIN).json() == {'ok': True}
+    c = chat(bekannt, r['chat'])
+    assert (c['stand'], c['wartet']) == ('gestoppt', False)
+    # the waiting message stays, but no service gets it, and nothing new comes in
+    assert holen(bekannt).json() == []
+    assert quittung(bekannt, r['id']).status_code == 409
+    assert bekannt.post(f"/api/chat/{r['chat']}/nachricht", json={'text': 'x'}, headers=PIN).status_code == 409
+    assert bekannt.post(f"/api/chat/{r['chat']}/stoppen", headers=PIN).status_code == 409
+    assert bekannt.post(f"/api/chat/{r['chat']}/fortsetzen", headers=PIN).json() == {'ok': True}
+    assert (chat(bekannt, r['chat'])['stand'], chat(bekannt, r['chat'])['wartet']) == ('offen', True)
+    assert [n['id'] for n in holen(bekannt).json()] == [r['id']]
+    assert bekannt.post(f"/api/chat/{r['chat']}/fortsetzen", headers=PIN).status_code == 409
+
+
+def test_stoppen_waehrend_anlegen_macht_den_chat_trotzdem_angelegt(bekannt):
+    chat_id, id_ = einmal_beantwortet(bekannt, mit_entwurf())
+    bekannt.post(f'/api/chat/{chat_id}/anlegen', json={'starten': True, 'von': id_}, headers=PIN)
+    n = holen(bekannt).json()[0]
+    quittung(bekannt, n['id'])
+    # the service is creating already; the person stops the chat, the answer still comes
+    assert bekannt.post(f'/api/chat/{chat_id}/stoppen', headers=PIN).status_code == 200
+    assert antwort(bekannt, n['id'], BEISPIEL['antworten'][1]).status_code == 200
+    c = chat(bekannt, chat_id)
+    assert c['stand'] == 'angelegt' and c['missionen'] == BEISPIEL['antworten'][1]['missionen']
+    # no second creation of the same draft
+    assert bekannt.post(f'/api/chat/{chat_id}/fortsetzen', headers=PIN).status_code == 409
+    assert bekannt.post(f'/api/chat/{chat_id}/anlegen', json={'starten': True, 'von': id_}, headers=PIN).status_code == 409
+
+
+def test_gestoppter_chat_laesst_sich_verwerfen(bekannt):
+    r = beginnen(bekannt).json()
+    bekannt.post(f"/api/chat/{r['chat']}/stoppen", headers=PIN)
+    assert bekannt.post(f"/api/chat/{r['chat']}/verwerfen", headers=PIN).status_code == 200
+    assert chat(bekannt, r['chat'])['stand'] == 'verworfen'
+
+
+def test_archivieren_haelt_an_blendet_aus_und_holt_zurueck(bekannt):
+    r = beginnen(bekannt).json()
+    assert bekannt.post(f"/api/chat/{r['chat']}/archivieren", json={'archiviert': True}, headers=PIN).json() == {'ok': True}
+    c = chat(bekannt, r['chat'])
+    # an open chat stops on the way into the archive: nothing runs in a chat nobody sees
+    assert (c['archiviert'] is not None, c['stand']) == (True, 'gestoppt')
+    assert holen(bekannt).json() == []
+    assert bekannt.post(f"/api/chat/{r['chat']}/archivieren", json={'archiviert': True}, headers=PIN).status_code == 409
+    assert bekannt.post(f"/api/chat/{r['chat']}/archivieren", json={'archiviert': False}, headers=PIN).json() == {'ok': True}
+    c = chat(bekannt, r['chat'])
+    assert (c['archiviert'], c['stand']) == (None, 'gestoppt')
+    assert bekannt.post(f'/api/chat/99/archivieren', json={'archiviert': True}, headers=PIN).status_code == 404
+
+
+def test_stoppen_fortsetzen_archivieren_brauchen_geraet_und_pin(bekannt, bruecke):
+    r = beginnen(bekannt).json()
+    for weg in ('stoppen', 'fortsetzen', 'archivieren'):
+        body = {'archiviert': True} if weg == 'archivieren' else None
+        assert bekannt.post(f"/api/chat/{r['chat']}/{weg}", json=body, headers={'X-Bruecke-Pin': '0000'}).status_code == 403, weg
+        fremd = TestClient(bekannt.app)
+        assert fremd.post(f"/api/chat/{r['chat']}/{weg}", json=body, headers=PIN).status_code == 401, weg
+
+
 def test_chats_je_repository_auf_der_tafel(bekannt, bericht):
     bekannt.post('/api/bericht', json=bericht)
     r = beginnen(bekannt).json()
@@ -332,3 +395,33 @@ def test_der_stand_uebersteht_einen_neustart(tmp_path, uhr):
     assert (x['stand'], x['rechner'], x['konto']) == ('verworfen', 'STATION-A', '2')
     assert raum(d)['konten'][0]['konto'] == '1'
 
+
+def test_gestoppt_und_archiviert_ueberstehen_einen_neustart(tmp_path, uhr):
+    def neu():
+        return TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr)))
+
+    c = neu()
+    koppeln(c)
+    holen(c)
+    a, b = beginnen(c).json(), beginnen(c, text='Zweiter').json()
+    c.post(f"/api/chat/{a['chat']}/stoppen", headers=PIN)
+    c.post(f"/api/chat/{b['chat']}/archivieren", json={'archiviert': True}, headers=PIN)
+    d = neu()
+    assert chat(d, a['chat'])['stand'] == 'gestoppt'
+    assert chat(d, b['chat'])['archiviert'] is not None
+    # still stopped after the restart: no service gets its message
+    assert holen(d).json() == []
+
+
+
+BEREITSCHAFTSRAUM_JS = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'bereitschaftsraum.js').read_text(encoding='utf-8')
+
+
+def test_befehl_chat_anlegen_nur_ueber_beginnen():
+    # #47: the command of the command line sends like the button (beginnen -> senden with device and PIN), nothing else
+    teil = BEREITSCHAFTSRAUM_JS[BEREITSCHAFTSRAUM_JS.index('function chatAnlegen'):BEREITSCHAFTSRAUM_JS.index('huelle.bereich(')]
+    assert 'ausfuehren: () => (text && formular() ? beginnen(formular())' in teil
+    assert 'fetch(' not in teil and 'senden(' not in teil
+    # off without a PIN or over the remote entry, and only for the whole word "chat"
+    assert 'if (!r?.pin || t.nurAnsicht' in teil
+    assert "klein(worte[0]) !== 'chat'" in teil

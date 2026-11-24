@@ -90,11 +90,49 @@
     ziel.innerHTML = `<div class="holo-ansicht-kopf">
         <div class="holo-ansicht-titel"><b>${esc(p.titel || p.name)}</b><small>${esc(p.forge)} · ${esc(p.name)} · ${esc(datum(p.geaendert))}</small></div>
         <div class="holo-geraete" role="group" aria-label="Gerät">${knopf('schreibtisch', 'Schreibtisch')}${knopf('telefon', 'Telefon')}</div>
-        <button type="button" class="knopf klein haupt" data-aktion="kopieren">Rückmeldung kopieren</button>
+        <button type="button" class="knopf klein zweit" data-aktion="kopieren">Rückmeldung kopieren</button>
         <button type="button" class="knopf klein zweit" data-aktion="schliessen">Schließen</button>
       </div>
       <p class="holo-meldung" role="status"></p>
+      <div class="holo-rueck"></div>
       <div class="holo-buehne ${geraet}"><iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Prototyp: ${esc(p.titel || p.name)}" src="${esc(p.url)}?v=${encodeURIComponent(p.geaendert)}"></iframe></div>`;
+  }
+
+  // #47: the feedback goes as a message into an open chat of the Bereitschaftsraum (with device and PIN like writing
+  // there); drawn apart from the stage, so the prototype keeps running while the chats change
+  let rueckText = '';
+  let rueckChat = null;
+  function rueckmeldung(el) {
+    const p = gefunden();
+    const ziel = el.querySelector('.holo-rueck');
+    if (!p || !ziel) return;
+    const r = stand?.bereitschaftsraum;
+    const chats = (r?.chats ?? []).filter((c) => c.stand === 'offen' && !c.archiviert).sort((a, b) => (a.forge === p.forge ? 0 : 1) - (b.forge === p.forge ? 0 : 1));
+    if (!chats.some((c) => c.id === rueckChat)) rueckChat = chats[0]?.id ?? null;
+    const s = JSON.stringify([id(p), chats.map((c) => [c.id, c.titel, c.kurz]), r?.pin, rueckChat]);
+    if (ziel.dataset.sig === s || ziel.contains(document.activeElement)) return;
+    ziel.dataset.sig = s;
+    if (!r?.pin || stand.nurAnsicht) { ziel.innerHTML = `<p class="holo-hinweis">Rückmeldung an den Chat abgeschaltet: ${esc(huelle.ohnePin(stand))}.</p>`; return; }
+    if (!chats.length) { ziel.innerHTML = '<p class="holo-hinweis">Kein offener Chat: im Bereitschaftsraum einen beginnen, dann geht die Rückmeldung von hier hinein.</p>'; return; }
+    ziel.innerHTML = `<form class="holo-rueck-form" data-form="rueck">
+      <label>Chat<select name="chat">${chats.map((c) => `<option value="${c.id}"${c.id === rueckChat ? ' selected' : ''}>${esc(c.kurz)} · ${esc(c.titel)}</option>`).join('')}</select></label>
+      <textarea name="text" aria-label="Rückmeldung zum Prototyp" placeholder="Was passt, was nicht?">${esc(rueckText)}</textarea>
+      <div class="knoepfe"><button type="submit" class="knopf klein haupt">Rückmeldung an den Chat</button><span class="status" role="status"></span></div>
+    </form>`;
+  }
+
+  async function rueckSenden(form) {
+    const p = gefunden();
+    const text = rueckText.trim();
+    const status = form.querySelector('.status');
+    if (!p || !text) { status.className = 'status schlecht'; status.textContent = 'Text schreiben'; return; }
+    if (await senden(`/api/chat/${rueckChat}/nachricht`, { text: `Rückmeldung zu Prototyp ${p.forge}/${p.name}: ${text}` }, form, status)) {
+      rueckText = '';
+      form.querySelector('textarea').value = '';
+      status.className = 'status gut';
+      status.textContent = 'Im Chat abgelegt.';
+      await laden();
+    }
   }
 
   async function kopiere(text) {
@@ -124,6 +162,7 @@
     } else if (aktion === 'oeffnen') {
       offen = b.dataset.id;
       ansicht(el);
+      rueckmeldung(el);
       galerie(el);
       el.querySelector('.holo-ansicht').scrollIntoView({ block: 'start' });
     } else if (aktion === 'schliessen') {
@@ -155,6 +194,18 @@
         sektion = el;
         el.innerHTML = '<h2 class="ek bereich-kopf"><span>Holodeck</span><span class="zahl holo-zahl">0</span><small>nur ansehen · abgeschottet</small></h2><div class="holo-ansicht" hidden></div><div class="holo-galerie"></div>';
         el.addEventListener('click', (ev) => klick(ev, el));
+        el.addEventListener('input', (ev) => {
+          if (ev.target.closest('[data-form="rueck"]') && ev.target.name === 'text') rueckText = ev.target.value;
+        });
+        el.addEventListener('change', (ev) => {
+          if (ev.target.closest('[data-form="rueck"]') && ev.target.name === 'chat') rueckChat = Number(ev.target.value);
+        });
+        el.addEventListener('submit', (ev) => {
+          const form = ev.target.closest('[data-form="rueck"]');
+          if (!form) return;
+          ev.preventDefault();
+          rueckSenden(form);
+        });
       }
       if (!drin) {
         drin = true;
@@ -165,6 +216,7 @@
       // the open prototype was removed: close the view
       if (offen && t && !gefunden()) offen = null;
       ansicht(el);
+      rueckmeldung(el);
       galerie(el);
     },
     treffer(t) {

@@ -103,7 +103,8 @@ create table if not exists chats (
   rechner text,
   sitzung text,
   angelegt text not null,
-  geaendert text not null
+  geaendert text not null,
+  archiviert text
 );
 create table if not exists chat_nachrichten (
   id integer primary key autoincrement,
@@ -166,6 +167,9 @@ class Speicher:
             if 'entfernt' not in [z['name'] for z in self.db.execute('pragma table_info(projekte)')]:
                 self.db.execute('alter table projekte add column entfernt text')
                 self.db.execute('alter table projekte add column entfernt_gestartet text')
+            # #47: when a chat went into the archive
+            if 'archiviert' not in [z['name'] for z in self.db.execute('pragma table_info(chats)')]:
+                self.db.execute('alter table chats add column archiviert text')
             # #46: the device that sent an action
             if 'geraet' not in [z['name'] for z in self.db.execute('pragma table_info(handlungen)')]:
                 self.db.execute('alter table handlungen add column geraet text')
@@ -426,9 +430,29 @@ class Speicher:
             return None
 
     def chat_verwerfen(self, id_: int, jetzt: str) -> bool:
-        """offen -> verworfen; False when the chat is not open."""
+        """offen or gestoppt -> verworfen; False when the chat is neither."""
         with self.lock, self.db:
-            return self.db.execute("update chats set stand = 'verworfen', geaendert = ? where id = ? and stand = 'offen'", (jetzt, id_)).rowcount > 0
+            return self.db.execute("update chats set stand = 'verworfen', geaendert = ? where id = ? and stand in ('offen', 'gestoppt')", (jetzt, id_)).rowcount > 0
+
+    def chat_stoppen(self, id_: int, jetzt: str) -> bool:
+        """#47: offen -> gestoppt; its waiting message stays and goes to no service until it continues. False when not open."""
+        with self.lock, self.db:
+            return self.db.execute("update chats set stand = 'gestoppt', geaendert = ? where id = ? and stand = 'offen'", (jetzt, id_)).rowcount > 0
+
+    def chat_fortsetzen(self, id_: int, jetzt: str) -> bool:
+        """#47: gestoppt -> offen, also out of the archive. False when not stopped."""
+        with self.lock, self.db:
+            return self.db.execute("update chats set stand = 'offen', archiviert = null, geaendert = ? where id = ? and stand = 'gestoppt'", (jetzt, id_)).rowcount > 0
+
+    def chat_archivieren(self, id_: int, an: bool, jetzt: str) -> str | None:
+        """#47: into the archive (an open chat stops on the way) or back out, with its stand. None when done, else the reason."""
+        with self.lock, self.db:
+            c = self.db.execute('select stand, archiviert from chats where id = ?', (id_,)).fetchone()
+            if (c['archiviert'] is not None) == an:
+                return 'Der Chat ist schon im Archiv.' if an else 'Der Chat ist nicht im Archiv.'
+            stand = 'gestoppt' if an and c['stand'] == 'offen' else c['stand']
+            self.db.execute('update chats set archiviert = ?, stand = ?, geaendert = ? where id = ?', (jetzt if an else None, stand, jetzt, id_))
+            return None
 
     def chat_schreiben(self, chat: int, text: str, jetzt: str) -> int | None:
         """A text message in an open chat; None when the chat is not open (any more)."""
@@ -507,7 +531,8 @@ class Speicher:
             if antwort['sitzung']:
                 self.db.execute('update chats set sitzung = ?, rechner = coalesce(rechner, ?) where id = ?', (antwort['sitzung'], n['rechner'], n['chat']))
             if n['art'] == 'anlegen' and antwort['fehler'] is None and antwort.get('missionen'):
-                self.db.execute("update chats set stand = 'angelegt' where id = ? and stand = 'offen'", (n['chat'],))
+                # #47: stopped while the service was creating: the missions exist, so the chat is angelegt all the same
+                self.db.execute("update chats set stand = 'angelegt' where id = ? and stand in ('offen', 'gestoppt')", (n['chat'],))
             self.db.execute('update chats set geaendert = ? where id = ?', (jetzt, n['chat']))
             return True
 

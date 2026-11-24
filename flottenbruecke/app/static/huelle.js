@@ -1,5 +1,6 @@
 // Flottenbrücke v3 (#40): the shell around the areas. One line on top: logo, the command line
-// (search and jump only, nothing that acts), the counter "Braucht dich" and the areas as pills (on
+// (search and jump; #47: and the commands of the areas, which act only through their existing requests with device
+// and PIN, never a free command on the machine), the counter "Braucht dich" and the areas as pills (on
 // the phone at the bottom). The board of v2 is the area "Brücke" and draws itself (app.js). Every
 // other area lives in its own file under bereiche/ and registers itself:
 //
@@ -7,8 +8,9 @@
 //
 //   zeichne  draws the area into its section el: on every load of /api/tafel while the area is
 //            visible and when it becomes visible (t is null before the first load). Optional.
-//   treffer  hits of the area for the command line: [{ art, titel, info, ziel }], where ziel()
-//            returns the element to jump to (or nothing: then the jump only opens the area).
+//   treffer  hits of the area for the command line: [{ art, titel, info, ziel, ausfuehren }], where ziel()
+//            returns the element to jump to (or nothing: then the jump only opens the area). treffer(t, eingabe)
+//            gets the typed text; a hit with ausfuehren() is a command: it matches the text itself and runs after the jump.
 //            Optional; the board gives epics and projects this way, the Holodeck its prototypes.
 //
 // Besides the areas: huelle.springe(bereich, ziel) goes to an area and brings an element of it into
@@ -131,11 +133,12 @@ const huelle = (() => {
   let treffer = [];
   let wahl = -1;
 
-  function alle() {
+  // the areas get what was typed: a command (#47, art "Befehl") matches it itself and carries ausfuehren()
+  function alle(eingabe) {
     const t = [...sektionen.keys()].map((n) => ({ art: 'Bereich', titel: titel(n), bereich: n }));
     for (const [n, d] of defs) {
       if (!d.treffer || !stand) continue;
-      try { for (const x of d.treffer(stand) || []) t.push({ ...x, bereich: n }); } catch (err) { console.error(err); }
+      try { for (const x of d.treffer(stand, eingabe) || []) t.push({ ...x, bereich: n }); } catch (err) { console.error(err); }
     }
     return t;
   }
@@ -144,10 +147,12 @@ const huelle = (() => {
 
   function suchen() {
     const worte = norm(feld.value).split(/\s+/).filter(Boolean);
-    treffer = alle().filter((x) => {
+    const liste = alle(feld.value);
+    treffer = [...liste.filter((x) => x.ausfuehren), ...liste.filter((x) => {
+      if (x.ausfuehren) return false;
       const h = norm(`${x.art} ${x.titel} ${x.info ?? ''}`);
       return worte.every((w) => h.includes(w));
-    }).slice(0, 12);
+    })].slice(0, 12);
     box.innerHTML = treffer.map((x, i) => `<li role="option" id="treffer-${i}" aria-selected="false"><span class="t-art">${esc(x.art)}</span><span class="t-titel">${esc(x.titel)}</span>${x.info ? `<small>${esc(x.info)}</small>` : ''}</li>`).join('')
       || '<li class="t-leer">Kein Treffer</li>';
     oeffnen(true);
@@ -176,6 +181,8 @@ const huelle = (() => {
     feld.value = '';
     feld.blur();
     springe(x.bereich, x.ziel);
+    // a command runs like its button in the area: the same request, device and PIN
+    if (x.ausfuehren) x.ausfuehren();
   }
 
   feld.addEventListener('input', suchen);

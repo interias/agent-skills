@@ -38,7 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
+from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, WerftBericht, WerftHandlung, einstellung_pruefen
 from .speicher import Speicher
 from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
@@ -604,6 +604,36 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         if not speicher.chat_verwerfen(id_, stempel()):
             raise HTTPException(409, 'Der Chat ist nicht mehr offen.')
         protokoll(g, request)
+        return {'ok': True}
+
+    # #47: stop and continue a chat, archive it; like writing, from a paired device with the PIN
+
+    @app.post('/api/chat/{id_}/stoppen')
+    def chat_stoppen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        g = person(request, 'antworten', x_bruecke_pin)
+        offener_chat(id_)
+        if not speicher.chat_stoppen(id_, stempel()):
+            raise HTTPException(409, 'Der Chat ist nicht offen.')
+        protokoll(g, request)
+        return {'ok': True}
+
+    @app.post('/api/chat/{id_}/fortsetzen')
+    def chat_fortsetzen(id_: int, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        g = person(request, 'antworten', x_bruecke_pin)
+        offener_chat(id_)
+        if not speicher.chat_fortsetzen(id_, stempel()):
+            raise HTTPException(409, 'Der Chat ist nicht gestoppt.')
+        protokoll(g, request)
+        return {'ok': True}
+
+    @app.post('/api/chat/{id_}/archivieren')
+    def chat_archivieren(id_: int, a: ChatArchiv, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
+        g = person(request, 'antworten', x_bruecke_pin)
+        offener_chat(id_)
+        grund = speicher.chat_archivieren(id_, a.archiviert, stempel())
+        if grund:
+            raise HTTPException(409, grund)
+        protokoll(g, request, a)
         return {'ok': True}
 
     # only whether the PIN is right (the page's PIN dialog); it does nothing, the wrong ones count as everywhere

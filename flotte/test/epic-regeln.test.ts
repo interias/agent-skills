@@ -1,10 +1,10 @@
 // The pure rules of `flotte mission` (src/epic/regeln.ts) that no script of #65 pins on its own.
 
 import { describe, expect, it } from 'vitest';
-import { bewerteAufruf, endeBlock, hoeher, nachpruefung, wahl } from '../src/epic/regeln.ts';
+import { bewerteAufruf, endeBlock, frageBlock, hoeher, nachpruefung, wahl } from '../src/epic/regeln.ts';
 import { pruefeAusgabe, type Paket } from '../src/epic/schema.ts';
 import { neuerLauf, neuesPaket, paketBranch } from '../src/epic/zustand.ts';
-import { leseBlock } from '../src/werkzeuge/bloecke.ts';
+import { leseBlock, type FrageBlock } from '../src/werkzeuge/bloecke.ts';
 import type { LaufErgebnis } from '../src/werkzeuge/lauf.ts';
 
 const paket = (nr: string, o: Partial<Paket> = {}): Paket => ({ nr, titel: nr, klasse: 'standard', abnahme: ['a'], decisions: [], outOfScope: [], testing: [], verifikation: '', lektuere: [], dateien: [], nach: [], kollision: [], exklusiv: false, ...o });
@@ -69,5 +69,30 @@ describe('flotte mission, Regeln', () => {
   it('branch names and the end block in the form the driver reads', () => {
     expect(paketBranch({ nr: '69-p2', titel: 'Zustand: Größe & Übergänge prüfen jetzt' })).toBe('agent/69-p2-zustand-groesse-uebergaenge-pruefen');
     expect(leseBlock(endeBlock(69, 'https://github.com/o/r/pull/7', 'fertig', '- nichts'))).toEqual({ art: 'ende', epic: 69, pr: 7, prUrl: 'https://github.com/o/r/pull/7', offen: '- nichts' });
+  });
+
+  // #195: the real cut wrote dashes into its fields and its own letters before the options; the Admiral got one option
+  it('a gate question with dashes in its fields reaches the driver whole', () => {
+    const b = leseBlock(frageBlock(169, 'tor', [{
+      nr: 1,
+      frage: 'Die Vorlage `obst/ananas.txt` — die Datei gibt es nicht. Wonach richtet sich das Paket?',
+      betrifft: ['168'],
+      lage: 'Nur apfel.txt und birne.txt – beide einzeilig.',
+      optionen: ['A: Die Form der vorhandenen Dateien — im PR vermerkt.', 'B) Ananas mit anlegen – Arbeit, die niemand verlangt hat.', 'C: Paket startet nicht.'],
+      empfehlung: 'A',
+      grund: 'Die Form ist eindeutig — ohne Zusatzdatei.',
+      quelle: 'Skill /mission, Vorab-Tor Punkt 7',
+    }], 'Vorab-Tor, 1 Pakete geschnitten')) as FrageBlock;
+    const f = b.fragen[0];
+    expect(f.frage).toBe('Die Vorlage `obst/ananas.txt` - die Datei gibt es nicht. Wonach richtet sich das Paket?');
+    expect(f.betrifft).toEqual(['168']);
+    expect(f.optionen).toEqual([
+      { buchstabe: 'A', text: 'Die Form der vorhandenen Dateien - im PR vermerkt.' },
+      { buchstabe: 'B', text: 'Ananas mit anlegen - Arbeit, die niemand verlangt hat.' },
+      { buchstabe: 'C', text: 'Paket startet nicht.' },
+    ]);
+    expect(f.empfehlung).toBe('A');
+    expect(f.grund).toBe('Die Form ist eindeutig - ohne Zusatzdatei.');
+    expect(f.quelle).toBe('Skill /mission, Vorab-Tor Punkt 7');
   });
 });
