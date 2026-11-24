@@ -15,6 +15,7 @@ import type { PaketDetail } from '../werkzeuge/detail.ts';
 import type { BerichtEinstellung, WirksameStellung } from './einstellungen.ts';
 import type { MainStand } from './stand.ts';
 import type { Lage } from './lage.ts';
+import type { VerlaufEintrag } from './verlauf.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
@@ -366,6 +367,11 @@ export class Bruecke {
   /** true when the bridge took the set of prototypes; it replaces the project's previous set */
   async holodeck(forge: string, dateien: Prototyp[]): Promise<boolean> {
     return (await this.rufe('api/holodeck', { method: 'POST', body: JSON.stringify({ forge, dateien }) }, HOLODECK_MS)) !== undefined;
+  }
+
+  /** Tag J: the condensed history of one mission, it replaces the previous one; false from a bridge without it */
+  async verlauf(forge: string, epic: number, stand: string, eintraege: VerlaufEintrag[]): Promise<boolean> {
+    return (await this.rufe('api/verlauf', { method: 'POST', body: JSON.stringify({ forge, epic, stand, eintraege }) }, HOLODECK_MS)) !== undefined;
   }
 
   /** the open answers, undefined when the bridge is not reachable */

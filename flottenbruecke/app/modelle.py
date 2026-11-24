@@ -924,3 +924,36 @@ class ChatAntwort(BaseModel):
             raise ValueError('Mindestens text oder fehler')
         self.entwurf = self.entwurf if self.entwurf and self.entwurf.strip() else None
         return self
+
+
+# Tag J: the history of a mission's runs (POST /api/verlauf), condensed by the driver: the run's text, one line per tool,
+# subagents as groups, questions and decisions. Never a tool's output; secrets are masked and paths shortened before
+# sending. The whole list of one mission, it replaces the previous one.
+VERLAUF_MAX = 400
+
+
+class VerlaufEintrag(BaseModel):
+    id: str = Field(max_length=200)
+    art: Literal['text', 'werkzeug', 'gruppe', 'frage', 'entscheidung']
+    zeit: str | None = Field(None, max_length=40)
+    text: str = Field('', max_length=2000)
+    # the group (the Agent call) the entry belongs to
+    gruppe: str | None = Field(None, max_length=200)
+    # werkzeug: the kind in plain words (Tests, Lesen, Bearbeiten …) and the raw command, folded on the page
+    wz: str | None = Field(None, max_length=40)
+    roh: str | None = Field(None, max_length=2000)
+    stand: Literal['laeuft', 'fertig', 'fehler', 'abgebrochen'] | None = None
+    bis: str | None = Field(None, max_length=40)
+    # gruppe: the role and the package
+    rolle: str | None = Field(None, max_length=40)
+    paket: str | None = Field(None, max_length=40)
+    # entscheidung: who decided
+    von: str | None = Field(None, max_length=100)
+
+
+class Verlauf(BaseModel):
+    forge: str = Field(pattern=r'^[\w-][\w.-]*/[\w-][\w.-]*$', max_length=200)
+    epic: int = Field(gt=0)
+    stand: str = Field(max_length=40)
+    eintraege: list[VerlaufEintrag] = Field([], max_length=VERLAUF_MAX)
+

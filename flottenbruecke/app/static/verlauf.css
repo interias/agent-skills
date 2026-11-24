@@ -1,0 +1,162 @@
+/* Tag J: the history of a mission's runs (verlauf.js). Desktop: a drawer on the right, the board moves into the
+   space left of it and stays usable. Phone: a sheet from below over the pills. Read only; motion only in the slide,
+   the pulse of a running tool and the light of a new entry, all off for reduced motion. */
+.vl {
+  --flaeche3: #1c1c29;
+  --zeitfarbe: #8d8494;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  position: fixed; z-index: 10; display: flex; flex-direction: column; min-width: 0;
+  background: var(--flaeche2); color: var(--text); font: 13px/1.45 var(--lesen);
+  visibility: hidden; transition: transform .22s ease-out, width .22s ease-out, visibility 0s linear .22s;
+}
+.vl.auf { visibility: visible; transform: none; transition: transform .22s ease-out, width .22s ease-out; }
+
+/* the card that opens the history: a button of its own, and the chosen card marked */
+.verlauf-auf {
+  justify-self: end; background: none; border: 0; padding: 2px 0 0 8px; margin-top: -2px; cursor: pointer;
+  color: var(--himmel); font: 600 12px var(--disp); letter-spacing: .08em; text-transform: uppercase;
+}
+.verlauf-auf:hover { text-decoration: underline; }
+.verlauf-auf:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+#e2-liste > .karte { cursor: pointer; }
+#e2-liste > .karte.vl-gewaehlt { border-left-color: var(--himmel); background: var(--flaeche2); box-shadow: inset 0 0 0 1px var(--himmel); }
+#e2-liste > .karte.vl-gewaehlt .verlauf-auf { color: var(--pfirsich); }
+
+/* ---- head: title, the card's line, filters */
+.vl-kopf { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 10px; border-bottom: 1px solid var(--linie); background: var(--flaeche); }
+.vl-oben { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.vl-titel {
+  flex: 1; min-width: 0; margin: 0 4px; font: 700 17px/1.25 var(--disp); letter-spacing: .04em; text-transform: uppercase;
+  color: var(--pfirsich); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vl-knopf {
+  flex: none; border: 0; border-radius: var(--rund); padding: 3px 11px; min-height: 26px; background: var(--flaeche3); color: var(--pfirsich);
+  font: 600 12px/18px var(--disp); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
+}
+.vl-knopf:hover { background: var(--linie); }
+.vl-knopf:focus-visible, .vl-griff:focus-visible, .vl summary:focus-visible, .vl-reiter button:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.vl-knopf.an { background: var(--gruen); color: #000; }
+.vl-zahl { flex: none; padding: 0 6px; border: 1px solid var(--linie); border-radius: 3px; font: 11px/18px var(--mono); color: var(--matt); }
+.vl-lage { margin: 0; }
+.vl-filter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vl-filter .vl-knopf[aria-pressed="true"] { background: var(--pfirsich); color: #000; }
+.vl-luft { flex: 1; }
+.vl-stand { color: var(--zeitfarbe); font: 12px var(--disp); letter-spacing: .04em; white-space: nowrap; }
+.vl-griff { display: none; }
+.vl-reiter[hidden] { display: none; }
+
+/* ---- the entries */
+.vl-liste { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px 18px; display: flex; flex-direction: column; gap: 2px; }
+.vl-liste:focus { outline: none; }
+.vl-e { display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); gap: 6px; align-items: start; padding: 3px 0; border-radius: 4px; }
+.vl-zeit { color: var(--zeitfarbe); font: 12px/20px var(--mono); font-variant-numeric: tabular-nums; }
+.vl-sym { width: 18px; height: 20px; display: grid; place-items: center; }
+.vl-sym i { width: 8px; height: 8px; border-radius: 50%; background: var(--matt); display: block; }
+.vl-inh { min-width: 0; overflow-wrap: anywhere; line-height: 20px; }
+.vl-text .vl-inh { color: var(--text); }
+.vl-text .vl-sym i { background: var(--pfirsich); }
+.vl-wz .vl-inh { color: var(--matt); }
+.vl-wz .vl-sym i { border-radius: 2px; background: var(--violett); }
+.vl-art { color: var(--lila); font: 600 12px var(--disp); letter-spacing: .08em; text-transform: uppercase; margin-right: 6px; }
+.vl-dauer { color: var(--zeitfarbe); margin-left: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vl-dauer.lf { color: var(--gruen); }
+.vl-wz.laeuft .vl-sym i { background: var(--gruen); animation: vl-puls 1.4s ease-in-out infinite; }
+.vl-wz.fehler .vl-sym i { background: var(--rot); }
+.vl-marke { margin-left: 6px; padding: 0 6px; border-radius: 3px; font: 600 11px/16px var(--disp); letter-spacing: .06em; text-transform: uppercase; color: var(--gelb); box-shadow: inset 0 0 0 1px var(--gelb); }
+.vl-marke.fehler { color: var(--rot); box-shadow: inset 0 0 0 1px var(--rot); }
+.vl-roh { margin-top: 2px; }
+.vl-roh summary { list-style: none; display: inline; cursor: pointer; color: var(--zeitfarbe); font-size: 12px; }
+.vl-roh summary::-webkit-details-marker { display: none; }
+.vl-roh summary::before { content: "› "; }
+.vl-roh[open] summary::before { content: "⌄ "; }
+.vl-roh pre { margin: 4px 0 0; padding: 6px 8px; background: var(--flaeche); border: 1px solid var(--linie); border-radius: 4px; font: 12px/1.4 var(--mono); color: var(--matt); white-space: pre-wrap; overflow-wrap: anywhere; }
+.vl-ent, .vl-frage { margin: 4px 0; }
+.vl-ent .vl-inh, .vl-frage .vl-inh { padding: 6px 10px; border-radius: 4px; line-height: 1.45; color: var(--text); }
+.vl-ent .vl-inh { background: color-mix(in srgb, var(--himmel) 12%, transparent); border-left: 3px solid var(--himmel); }
+.vl-frage .vl-inh { background: color-mix(in srgb, var(--lila) 16%, transparent); border-left: 3px solid var(--lila); }
+.vl-ent .vl-sym i { background: var(--himmel); }
+.vl-frage .vl-sym i { background: var(--lila); }
+.vl-klein { display: block; font: 600 11px var(--disp); letter-spacing: .08em; text-transform: uppercase; color: var(--matt); margin-bottom: 2px; }
+.vl-ctx { display: inline-flex; flex-wrap: wrap; gap: 4px; margin: 0 4px; vertical-align: middle; }
+.vl-ctx span { padding: 0 6px; border-radius: 3px; font: 11px/16px var(--mono); background: var(--flaeche3); color: var(--matt); }
+.vl-ctx span.f { background: color-mix(in srgb, var(--gruen) 25%, transparent); color: var(--gruen); }
+.vl-ctx span.l { background: color-mix(in srgb, var(--himmel) 25%, transparent); color: var(--himmel); }
+
+/* ---- a group: one subagent (Ingenieur, Erster Offizier) with its own entries */
+.vl-gruppe { margin: 4px 0 4px 50px; border-left: 2px solid var(--linie); border-radius: 0 6px 6px 0; }
+.vl-gruppe.laeuft { border-left-color: var(--gruen); }
+.vl-gruppe > summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 10px; cursor: pointer; background: var(--flaeche); border-radius: 0 6px 6px 0; }
+.vl-gruppe > summary::-webkit-details-marker { display: none; }
+.vl-gruppe > summary:hover { background: var(--flaeche3); }
+.vl-pfeil { color: var(--zeitfarbe); width: 10px; flex: none; transition: transform .15s; }
+.vl-gruppe[open] > summary .vl-pfeil { transform: rotate(90deg); }
+.vl-rolle { flex: none; font: 700 13px var(--disp); letter-spacing: .08em; text-transform: uppercase; color: var(--orange); white-space: nowrap; }
+.vl-rolle.eo { color: var(--himmel); }
+.vl-gz { flex: 1; min-width: 0; color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vl-gstand { flex: none; font: 600 11px var(--disp); letter-spacing: .08em; text-transform: uppercase; color: var(--matt); white-space: nowrap; }
+.vl-gstand .vl-dauer { margin-left: 0; }
+.vl-gstand.fehler { color: var(--rot); }
+.vl-gstand.abgebrochen { color: var(--gelb); }
+.vl-kinder { padding: 4px 0 4px 8px; display: flex; flex-direction: column; gap: 2px; }
+.vl-gruppe .vl-gruppe { margin-left: 8px; }
+
+.vl-leer { margin: 0; padding: 18px 2px; color: var(--matt); display: grid; gap: 10px; justify-items: start; }
+.vl-leer p { margin: 0; }
+.vl-leer.klein { padding: 4px 2px; font-size: 12px; }
+.vl-hinweis { margin: 0 0 6px; color: var(--gelb); font-size: 12px; }
+
+/* ---- packages (phone tab) */
+.vl-pakete { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.vl-pakete li { display: grid; grid-template-columns: 10px auto minmax(0, 1fr); gap: 2px 10px; align-items: center; padding: 8px 10px; background: var(--flaeche); border-radius: 6px; }
+.vl-punkt { width: 10px; height: 10px; border-radius: 50%; background: #2c2c3a; }
+.vl-pakete .fertig .vl-punkt { background: var(--gruen); }
+.vl-pakete .laeuft .vl-punkt { background: var(--orange); }
+.vl-pakete .geparkt .vl-punkt { background: var(--lila); }
+.vl-pakete .blockiert .vl-punkt { background: var(--rot); }
+.vl-pakete .zurueckgelassen .vl-punkt { background: var(--gold); }
+.vl-pn { color: var(--himmel); font-weight: 700; white-space: nowrap; }
+.vl-pt { color: var(--text); overflow-wrap: anywhere; }
+.vl-ps { grid-column: 2 / -1; color: var(--matt); font: 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+
+.vl-e.neu { animation: vl-rein .6s ease-out; }
+@keyframes vl-rein { from { background: color-mix(in srgb, var(--gruen) 18%, transparent); } to { background: transparent; } }
+@keyframes vl-puls { 50% { opacity: .35; } }
+
+/* ---- desktop: the drawer, the board beside it */
+@media (min-width: 701px) {
+  .vl { top: 0; right: 0; bottom: 0; width: 52vw; border-left: 4px solid var(--orange); box-shadow: -18px 0 40px rgba(0, 0, 0, .6); transform: translateX(104%); }
+  body.vl-offen.vl-weit .vl { width: 100vw; border-left-width: 0; }
+  body.vl-offen:not(.vl-weit) { padding-right: calc(52vw + 16px); }
+}
+
+/* ---- phone: the sheet from below, newest on top, no filters */
+@media (max-width: 700px) {
+  .vl {
+    left: 0; right: 0; bottom: 0; top: max(40px, env(safe-area-inset-top)); border-top: 4px solid var(--orange);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, .7); transform: translateY(102%);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  body.vl-offen { overflow: hidden; }
+  .vl-griff { display: block; flex: none; width: 64px; height: 18px; margin: 2px auto 0; padding: 0; border: 0; background: none; cursor: pointer; }
+  .vl-griff::before { content: ""; display: block; width: 44px; height: 5px; margin: 6px auto; border-radius: 3px; background: var(--zeitfarbe); }
+  .vl-kopf { padding: 2px 12px 8px; gap: 6px; border-bottom: 0; background: none; }
+  .vl-titel { margin: 0; font-size: 16px; }
+  .vl-oben .vl-knopf { min-width: 40px; min-height: 40px; font-size: 15px; }
+  .vl-reiter { display: flex; flex: none; border-bottom: 1px solid var(--linie); padding: 0 6px; }
+  .vl-reiter button {
+    flex: 1; min-height: 44px; border: 0; background: none; padding: 9px 0 7px; color: var(--matt); cursor: pointer;
+    font: 600 13px var(--disp); letter-spacing: .04em; text-transform: uppercase; border-bottom: 3px solid transparent;
+  }
+  .vl-reiter button[aria-selected="true"] { color: var(--orange); border-bottom-color: var(--orange); }
+  .vl-liste { padding: 8px 12px 20px; }
+  .vl-e { grid-template-columns: 38px 14px minmax(0, 1fr); }
+  .vl-gruppe { margin-left: 8px; }
+  .vl-gruppe > summary { flex-wrap: wrap; min-height: 40px; }
+  .vl-gz { flex-basis: 40%; }
+  .vl-roh summary { display: inline-block; padding: 4px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vl, .vl.auf, .vl-pfeil { transition: none; }
+  .vl-e.neu, .vl-wz.laeuft .vl-sym i { animation: none; }
+}

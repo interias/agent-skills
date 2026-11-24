@@ -6,6 +6,7 @@
 import type { AgentEintrag } from '../werkzeuge/detail.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { GateStand } from './pruefprotokolle.ts';
+import type { Klartext } from './verlauf.ts';
 
 export type Etikett = 'arbeitet' | 'prueft' | 'wartet_auf_dich' | 'wartet' | 'gestoppt' | 'fertig';
 
@@ -54,6 +55,8 @@ export interface LageEingang {
   pakete: { fertig: number; gesamt: number };
   /** the run's last step (log), shown in the detail view of the bridge */
   schritt: string | null;
+  /** Tag J: the last step in plain words, with the role and package of the subagent that did it */
+  klartext?: Klartext | null;
   /** #112: how the merge is done, with the switch's origin */
   merge: { stellung: 'automatisch' | 'mensch'; herkunft: 'projekt' | 'vorschlag' | 'epic' };
   /** blocked or aborted: the cause (#199) and the reason, since */
@@ -141,6 +144,15 @@ function grundLage(e: LageEingang): Lage {
     const stand = e.pakete.gesamt ? `, ${e.pakete.fertig} von ${e.pakete.gesamt} ${e.pakete.gesamt === 1 ? 'Paket' : 'Paketen'} fertig` : '';
     const prueft = auf.filter((a) => a.rolle === 'reviewer');
     const bauen = auf.filter((a) => a.rolle === 'implementer');
+    // Tag J: the last step names a package at work: that package first, in plain words, the others after it
+    const k = e.klartext;
+    const beiK = k?.paket != null ? auf.find((a) => String(a.paket) === String(k.paket)) : undefined;
+    if (k && beiK) {
+      const b = bauen.filter((a) => a !== beiK);
+      const p = prueft.filter((a) => a !== beiK);
+      const andere = [b.length ? `${b.length === 1 ? 'Ingenieur' : `${b.length} Ingenieure`} an ${b.map((a) => paketName(a.paket)).join(', ')}` : '', p.length ? `Erster Offizier prüft ${p.map((a) => paketName(a.paket)).join(', ')}` : ''].filter(Boolean);
+      return l(bauen.length ? 'arbeitet' : 'prueft', `Paket ${paketName(beiK.paket)}: ${k.rolle ?? 'Subagent'} ${k.satz}${andere.length ? `, ${andere.join(', ')}` : ''}${stand}`);
+    }
     if (bauen.length) {
       const k = bauen.at(-1)!.klasse;
       return l('arbeitet', `${bauen.length === 1 ? 'Ingenieur' : `${bauen.length} Ingenieure`} an ${bauen.map((a) => paketName(a.paket)).join(', ')}${bauen.length === 1 && k ? ` (${KLASSE[k] ?? k})` : ''}${prueft.length ? `, Erster Offizier prüft ${prueft.map((a) => paketName(a.paket)).join(', ')}` : ''}${stand}`);
@@ -148,6 +160,10 @@ function grundLage(e: LageEingang): Lage {
     if (prueft.length) return l('prueft', `Erster Offizier prüft ${prueft.map((a) => paketName(a.paket)).join(', ')}${stand}`);
     const still = /^still seit \d+ min, Kindprozess lebt: (.+)$/.exec(e.schritt ?? '');
     if (still) return l('arbeitet', `wartet auf eigene Hintergrundarbeit (${still[1]})`);
+    if (k) {
+      const wer = `${k.paket != null ? `Paket ${paketName(k.paket)}: ` : ''}${k.rolle ? `${k.rolle} ` : ''}${k.satz}`;
+      return l('arbeitet', e.stufe === 'nacharbeit' ? `Nacharbeit: ${wer}` : k.rolle ? wer : `Orchestrierung ${k.satz}`);
+    }
     return l('arbeitet', `${e.stufe === 'nacharbeit' ? 'Nacharbeit' : 'Orchestrierung'}${e.schritt ? `: ${e.schritt}` : ''}`);
   }
   if (e.limitBis && Date.parse(e.limitBis) > e.jetzt) return l('wartet', `Limit, weiter um ${uhr(e.limitBis)}${e.notiz.includes('429') ? ' (429)' : ''}`);

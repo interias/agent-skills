@@ -56,6 +56,22 @@ describe('Tag H: die Lage einer Mission in einer Zeile', () => {
     expect(kurz(basis({ stufe: 'nacharbeit', schritt: 'Bash: gh pr view' }))).toBe('arbeitet · Nacharbeit: Bash: gh pr view');
   });
 
+  it('Tag J: with the plain words of the last step the card says who does what in which package', () => {
+    const impl = { zeit: JETZT, art: 'aufruf' as const, id: 'a', rolle: 'implementer' as const, klasse: 'standard' as const, paket: 481 };
+    const rev = { zeit: JETZT, art: 'aufruf' as const, id: 'b', rolle: 'reviewer' as const, paket: 480 };
+    const tests = { rolle: 'Ingenieur', paket: 481, satz: 'fährt Tests: Stanze ohne Browser' };
+    expect(kurz(basis({ agenten: [impl], klartext: tests }))).toBe('arbeitet · Paket #481: Ingenieur fährt Tests: Stanze ohne Browser, 1 von 3 Paketen fertig');
+    expect(kurz(basis({ agenten: [impl, rev], klartext: { rolle: 'Erster Offizier', paket: 480, satz: 'liest gate/logik.mts' } }))).toBe('arbeitet · Paket #480: Erster Offizier liest gate/logik.mts, Ingenieur an #481, 1 von 3 Paketen fertig');
+    expect(kurz(basis({ agenten: [rev], klartext: { rolle: 'Erster Offizier', paket: 480, satz: 'liest a.ts' } }))).toBe('prueft · Paket #480: Erster Offizier liest a.ts, 1 von 3 Paketen fertig');
+    // the step of a package no longer at work, or of the run itself: the line of the engineers as before
+    expect(kurz(basis({ agenten: [impl], klartext: { rolle: 'Ingenieur', paket: 470, satz: 'liest a.ts' } }))).toBe('arbeitet · Ingenieur an #481 (Standard), 1 von 3 Paketen fertig');
+    expect(kurz(basis({ klartext: { rolle: null, paket: null, satz: 'liest mission/SKILL.md' } }))).toBe('arbeitet · Orchestrierung liest mission/SKILL.md');
+    expect(kurz(basis({ stufe: 'nacharbeit', klartext: { rolle: null, paket: null, satz: 'Pull Request: Beschreibung nachziehen' } }))).toBe('arbeitet · Nacharbeit: Pull Request: Beschreibung nachziehen');
+    expect(kurz(basis({ klartext: { rolle: 'Kundschafter', paket: null, satz: 'sucht „journal“' } }))).toBe('arbeitet · Kundschafter sucht „journal“');
+    // a silence the driver reports wins over the last step
+    expect(kurz(basis({ schritt: 'still seit 61 min, Kindprozess lebt: pwsh.exe', klartext: tests }))).toBe('arbeitet · wartet auf eigene Hintergrundarbeit (pwsh.exe)');
+  });
+
   it('waits for its own background work, and the gate of the run with its contexts', () => {
     expect(kurz(basis({ schritt: 'still seit 61 min, Kindprozess lebt: pwsh.exe, node.exe' }))).toBe('arbeitet · wartet auf eigene Hintergrundarbeit (pwsh.exe, node.exe)');
     const g = { kontexte: [{ name: 'wurzel', stand: 'fertig' as const, zeit: 1 }, { name: 'stanze', stand: 'fertig' as const, zeit: 2 }, { name: 'hive-api', stand: 'fertig' as const, zeit: 3 }, { name: 'buero', stand: 'laeuft' as const, zeit: 4 }], von: 5, seit: vor(52), zuletzt: 4 };

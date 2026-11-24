@@ -67,7 +67,9 @@ def konkret(pfad: str) -> str:
 def test_fernweg_liest_alles_wie_im_lan(app, lan, fern, gefuellt):
     lesende = [r.path for r in app.routes if isinstance(r, APIRoute) and 'GET' in r.methods and r.path not in ABHOLEN]
     proto = HOLODECK[0]
-    urls = [p for p in lesende if '{' not in p] + [f"/holodeck/{proto['forge']}/{proto['dateien'][0]['name']}"]
+    # Tag J: the history needs its query and a paired device; test_verlauf.py reads it over the remote entry
+    assert '/api/verlauf' in lesende
+    urls = [p for p in lesende if '{' not in p and p != '/api/verlauf'] + [f"/holodeck/{proto['forge']}/{proto['dateien'][0]['name']}"]
     # every script and style the page names, with its content hash
     urls += re.findall(r'"(/static/[^"]+)"', lan.get('/').text)
     assert {'/', '/api/tafel', '/healthz', '/sw.js'} <= set(urls)

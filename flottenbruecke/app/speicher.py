@@ -61,6 +61,14 @@ create table if not exists prototypen (
   inhalt text not null,
   primary key (forge, name)
 );
+create table if not exists verlauf (
+  forge text not null,
+  epic integer not null,
+  stand text not null,
+  empfangen text not null,
+  eintraege text not null,
+  primary key (forge, epic)
+);
 create table if not exists push_abos (
   endpoint text primary key,
   p256dh text not null,
@@ -358,6 +366,19 @@ class Speicher:
         with self.lock:
             z = self.db.execute('select inhalt from prototypen where forge = ? and name = ?', (forge, name)).fetchone()
         return None if z is None else z['inhalt']
+
+    # ---- Tag J: the condensed history of a mission's runs, as the driver last sent it
+
+    def verlauf_setzen(self, forge: str, epic: int, stand: str, eintraege: list[dict], jetzt: str, alt: str) -> None:
+        """Replaces the history of the mission; one not sent since `alt` goes (a mission the driver no longer reports)."""
+        with self.lock, self.db:
+            self.db.execute('insert or replace into verlauf values (?, ?, ?, ?, ?)', (forge, epic, stand, jetzt, json.dumps(eintraege, ensure_ascii=False)))
+            self.db.execute('delete from verlauf where empfangen < ?', (alt,))
+
+    def verlauf(self, forge: str, epic: int) -> dict | None:
+        with self.lock:
+            z = self.db.execute('select stand, empfangen, eintraege from verlauf where forge = ? and epic = ?', (forge, epic)).fetchone()
+        return None if z is None else {'forge': forge, 'epic': epic, 'stand': z['stand'], 'empfangen': z['empfangen'], 'eintraege': json.loads(z['eintraege'])}
 
     # ---- Web-Push (#37): the subscriptions, and the events of level 1 already reported per project
 
