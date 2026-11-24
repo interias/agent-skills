@@ -8,6 +8,7 @@ import { mitMissionszielen } from '../src/auftrag/auftrag.ts';
 import { regelnAus } from '../src/befehle/auftrag.ts';
 import { triagiere } from '../src/befehle/triage.ts';
 import { lernKommentar } from '../src/lernen.ts';
+import { githubZugriff } from '../src/forge/github.ts';
 import { abschlusspruefung } from '../src/triage-abschluss.ts';
 import { entscheidungAus, offeneFragen, schnittplanAuftrag, type Ticket, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort } from '../src/triage.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
@@ -64,12 +65,13 @@ function forge(issues: Issue[]) {
           finde(m).kinder.push(Number(wert('-F').split('=')[1]) - 1000);
           return ok('{}');
         }
-        // #149: the jq of the run applied here: the `labeled` events of ready_label, the open children with it
+        // #149: the jq of the run applied here: the `labeled` events of ready_label, the children one JSON line each
         const lesen = /issues\/(\d+)\/(events|sub_issues)$/.exec(args[1] ?? '');
         if (args[0] === 'api' && lesen) {
           const i = finde(Number(lesen[1]));
           if (lesen[2] === 'events') return ok((i.markiert ?? []).filter((l) => l === 'ready-for-agent').map(() => '1\n').join(''));
-          return ok(i.kinder.map((k) => issues.find((x) => x.number === k)).filter((k) => k && k.state === 'open' && k.labels.includes('ready-for-agent')).map((k) => `${k!.number}\n`).join(''));
+          // a child the test does not list stands as an open one without labels
+          return ok(i.kinder.map((n) => issues.find((x) => x.number === n) ?? { number: n, state: 'open', labels: [] }).map((k) => `${JSON.stringify({ number: k.number, state: k.state, labels: k.labels })}\n`).join(''));
         }
         // #147: the final check reads each note again: state, labels, comments, and its parent mission
         if (args[0] === 'issue' && args[1] === 'view') {
@@ -84,7 +86,6 @@ function forge(issues: Issue[]) {
             return ok(eltern ? `https://api.github.com/repos/o/r/issues/${eltern.number}\n` : 'null\n');
           }
           if (jq === '.id') return ok(`${1000 + nr}\n`);
-          if (jq === '.sub_issues_summary.total') return ok(`${finde(nr).kinder.length}\n`);
           return ok('OWNER\n');
         }
         if (args[0] === 'issue' && args[1] === 'comment') finde(Number(args[2])).comments.push({ body: opt!.eingabe!, login: 'flotte', rolle: 'OWNER' });
@@ -841,7 +842,7 @@ describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubte
     expect(r.zustand).toBe('beendet');
     // the check itself still reports a note in triage without an open question
     f.finde(4).comments = [];
-    expect(abschlusspruefung(f.aufrufer([]), 'o/r', REGELN, [{ nummer: 4, titel: 'Logbuch-Idee' }], [])).toEqual([{ forge: 'o/r', nr: 4, titel: 'Logbuch-Idee', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }]);
+    expect(abschlusspruefung(githubZugriff(f.aufrufer([]), 'o/r'), REGELN, [{ nummer: 4, titel: 'Logbuch-Idee' }], [])).toEqual([{ forge: 'o/r', nr: 4, titel: 'Logbuch-Idee', zustand: 'offen, needs-triage', grund: 'in der Triage ohne offene Frage an den Menschen' }]);
   });
 
   it('reports a note without an allowed end state as an error: ready without mission, child of a new mission without ready, closed without reason', async () => {
@@ -857,7 +858,7 @@ describe('#147 Abschlussprüfung: jede Notiz der Eingabe endet in einem erlaubte
     g.finde(40).kinder = [30];
     g.finde(5).state = 'closed';
     g.finde(5).comments = [];
-    const abw = abschlusspruefung(g.aufrufer([]), 'o/r', REGELN, [g.finde(3), g.finde(5)].map((i) => ({ nummer: i.number, titel: i.title })), []);
+    const abw = abschlusspruefung(githubZugriff(g.aufrufer([]), 'o/r'), REGELN, [g.finde(3), g.finde(5)].map((i) => ({ nummer: i.number, titel: i.title })), []);
     expect(abw).toEqual([
       { forge: 'o/r', nr: 3, titel: 'Tafel zeigt den Port', zustand: `offen, ${READY}`, grund: `${READY} ohne Mission (kein Sub-Issue einer Mission)` },
       { forge: 'o/r', nr: 5, titel: 'Newsletter zum Port', zustand: 'geschlossen', grund: 'geschlossen ohne Grund im letzten Kommentar der Triage' },

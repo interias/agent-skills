@@ -79,7 +79,8 @@ function welt(
           const jq = args[args.indexOf('--jq') + 1];
           const nr = Number(/issues\/(\d+)$/.exec(args[1])?.[1]);
           if (args.includes('--method')) return { code: 0, stdout: '{}', stderr: '' };
-          if (jq === '.sub_issues_summary.total') return { code: 0, stdout: '0\n', stderr: '' };
+          // the Missionsziele of the mission (one JSON line each): none
+          if (/\/sub_issues$/.test(args[1])) return { code: 0, stdout: '', stderr: '' };
           if (jq === '.id') return { code: 0, stdout: `${1000 + nr}\n`, stderr: '' };
           if (o.rolleScheitert) return { code: 1, stdout: '', stderr: 'HTTP 502' };
           return { code: 0, stdout: `${tickets.find((t) => t.number === nr)?.rolle ?? 'OWNER'}\n`, stderr: '' };

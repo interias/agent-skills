@@ -137,6 +137,11 @@ export function ghAttrappe(b: Bestand): Aufrufer {
       const pfad = args.find((x) => x.startsWith(`repos/${repo}`))!.slice(`repos/${repo}`.length);
       const jq = nach('--jq');
       let m: RegExpExecArray | null;
+      // the order writer links a Missionsziel (src/auftrag/github.ts)
+      if ((m = /^\/issues\/(\d+)\/sub_issues$/.exec(pfad)) && nach('--method') === 'POST') {
+        issue(m[1])!.kinder.push(Number(nach('-F')!.split('=')[1]) - 1000);
+        return ok('{}');
+      }
       if ((m = /^\/issues\/(\d+)\/sub_issues$/.exec(pfad))) return ok(issue(m[1])!.kinder.map((k) => issue(String(k))!).map((k) => `${JSON.stringify({ number: k.nummer, state: k.offen ? 'open' : 'closed', labels: k.labels })}\n`).join(''));
       if ((m = /^\/issues\/(\d+)\/sub_issue$/.exec(pfad)) && nach('--method') === 'DELETE') {
         const mission = issue(m[1])!;
@@ -248,6 +253,11 @@ export function giteaAttrappe(b: Bestand, token = 'token geheim'): Aufrufer {
       if (x.methode === 'DELETE') {
         i.kinder = i.kinder.filter((k) => k !== body.index);
         return antwort(200, {});
+      }
+      // the order writer links a Missionsziel (src/auftrag/gitea.ts)
+      if (x.methode === 'POST') {
+        i.kinder.push(body.index);
+        return antwort(201, giteaIssue(issue(String(body.index))!));
       }
       return seite(q, i.kinder.map((k) => giteaIssue(issue(String(k))!)));
     }

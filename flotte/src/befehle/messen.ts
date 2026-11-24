@@ -8,6 +8,8 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { aufrufen, pwshJson, type Aufrufer } from '../aufruf.ts';
 import { kopfdaten, leseDatei, type Eintrag } from '../transkript.ts';
 import { aufrufLog, epicKennzahlen, epicSumme, epicVerlauf, istFehlstart, kalteNeustarts, kalteZeit, modellzeit, ORCHESTRIERUNG, paketMerges, prDauern, programmEreignisse, rolleAus, rueckfragen, runde, treiberKennzahlen, ungueltigeAusgaben, verteilung, type Arbeit, type Fenster, type ProgrammZustand, type PullRequest, type Rolle, type Rueckfrage, type TreiberZustand } from '../messen.ts';
+import { githubZugriff } from '../forge/github.ts';
+import { fehlerText, zugriffFuer } from '../forge/zugriff.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
 import { ladeSitzung, tokenKennzahlen, type AgentLauf } from '../tokens.ts';
 import { liesMessungen, stand as prognoseStand } from '../werkzeuge/prognose.ts';
@@ -143,10 +145,15 @@ function weitereStarts(konf: Konfiguration, e: Einsatz, bekannt: Set<string>): T
   return out;
 }
 
+/** #127: the forge of a deployment: its checkout's adapter when repoPfad names one, else GitHub with repo */
+const zugriffVon = (u: Umgebung, e: Einsatz) => (e.repoPfad ? zugriffFuer(e.repoPfad, u.aufrufer, e.repo) : githubZugriff(u.aufrufer, e.repo));
+
 function prs(u: Umgebung, e: Einsatz): { liste: PullRequest[]; fehler?: string } {
-  const r = u.aufrufer('gh', ['pr', 'list', '--repo', e.repo, '--state', 'merged', '--limit', '200', '--json', 'number,createdAt,mergedAt']);
-  if (r.code) return { liste: [], fehler: `gh pr list: ${r.stderr.trim().slice(0, 200)}` };
-  return { liste: JSON.parse(r.stdout) as PullRequest[] };
+  try {
+    return { liste: zugriffVon(u, e).prs({ zustand: 'merged', limit: 200, felder: ['number', 'createdAt', 'mergedAt'] }).map((p) => ({ number: p.nummer, createdAt: p.erstellt, mergedAt: p.gemergtAm })) };
+  } catch (err) {
+    return { liste: [], fehler: fehlerText(err).slice(0, 200) };
+  }
 }
 
 function weighted(u: Umgebung, t: Transkript, f: Fenster): number | null {
@@ -174,16 +181,21 @@ function reste(u: Umgebung, e: Einsatz): Reste {
     else hinweise.push('git worktree list fehlgeschlagen');
   }
   let branches: number | null = null;
-  const repo = u.aufrufer('gh', ['api', `repos/${e.repo}`, '--jq', '.default_branch']);
-  const list = u.aufrufer('gh', ['api', '--paginate', `repos/${e.repo}/branches`, '--jq', '.[].name']);
-  if (!repo.code && !list.code) {
-    const basis = repo.stdout.trim();
+  try {
+    const z = zugriffVon(u, e);
+    const basis = z.standardZweig();
+    const zweige = z.zweige().filter((x) => x && x !== basis);
     branches = 0;
-    for (const b of list.stdout.split(/\r?\n/).map((x) => x.trim()).filter((x) => x && x !== basis)) {
-      const c = u.aufrufer('gh', ['api', `repos/${e.repo}/compare/${basis}...${encodeURIComponent(b)}`, '--jq', '.ahead_by']);
-      if (!c.code && Number(c.stdout.trim()) > 0) branches++;
+    for (const b of zweige) {
+      try {
+        if (z.voraus(basis, b) > 0) branches++;
+      } catch {
+        // a branch the forge does not compare is not counted
+      }
     }
-  } else hinweise.push('Branches über gh nicht lesbar');
+  } catch {
+    hinweise.push('Branches über die Forge nicht lesbar');
+  }
   let container: number | null = null;
   const name = e.repo.split('/')[1];
   const d = u.aufrufer('docker', ['ps', '-a', '--format', '{{.Names}}']);
