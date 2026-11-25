@@ -4,6 +4,7 @@
 // the forge and does not take the driver's word.
 
 import type { Adapter } from '../werkzeuge/belegung.ts';
+import { gateKontext } from '../epic/zaehlen.ts';
 
 export interface GateForm {
   heading: string;
@@ -11,6 +12,26 @@ export interface GateForm {
   base: RegExp;
   head: RegExp;
   teil: RegExp;
+  /** gate_cached: a context line it matches took its result from the gate's cache; null: the adapter says nothing */
+  cached: RegExp | null;
+}
+
+/** A context of the gate block: result gruen, rot or the block's own word (übersprungen …), duration and cache as read; null: unknown. */
+export interface GateKontext {
+  name: string;
+  ergebnis: string;
+  dauerS: number | null;
+  cache: boolean | null;
+}
+
+/** One gate run of the driver: when it ended, for which mission and PR, how long it took, green or not, its contexts. */
+export interface AndockMessung {
+  zeit: string;
+  epic: number;
+  pr: number | null;
+  dauerS: number;
+  gruen: boolean;
+  kontexte: GateKontext[];
 }
 
 export interface GateLauf {
@@ -35,7 +56,35 @@ export function gateForm(a: Adapter): GateForm {
     base: new RegExp(a.gate_base ?? 'Basis \\S+ @ ([0-9a-f]{7,40})'),
     head: new RegExp(a.gate_head ?? '\\(HEAD ([0-9a-f]{7,40})\\)'),
     teil: new RegExp(a.gate_partial ?? 'Immer-Teil'),
+    cached: muster(a.gate_cached),
   };
+}
+
+/** An adapter pattern that does not compile gives null: the measurement then lacks the statement, nothing stops. */
+function muster(text: string | null): RegExp | null {
+  if (!text) return null;
+  try {
+    return new RegExp(text);
+  } catch {
+    return null;
+  }
+}
+
+/** The contexts of a gate block: its context lines (gateKontext) between the line with the base and the end. */
+export function kontexteAus(block: string, f: GateForm): GateKontext[] {
+  const zeilen = block.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
+  const s = zeilen.findIndex((z) => f.base.test(z));
+  if (s < 0) return [];
+  return zeilen.slice(s + 1).flatMap((z) => {
+    const k = gateKontext(z);
+    return k ? [{ name: k.name.slice(0, 100), ergebnis: k.ergebnis.slice(0, 40), dauerS: k.dauerS, cache: f.cached ? f.cached.test(z) : null }] : [];
+  });
+}
+
+/** n of m contexts from the cache, counted over the contexts that ran (green or red); null without a cache statement. */
+export function cacheAnteil(kontexte: GateKontext[]): { n: number; m: number } | null {
+  const gelaufen = kontexte.filter((k) => k.cache !== null && (k.ergebnis === 'gruen' || k.ergebnis === 'rot'));
+  return gelaufen.length ? { n: gelaufen.filter((k) => k.cache).length, m: gelaufen.length } : null;
 }
 
 /** gate_areas: `<pattern> = <name>`; ** spans folders, * and ? stay inside one, a trailing / is the folder. */

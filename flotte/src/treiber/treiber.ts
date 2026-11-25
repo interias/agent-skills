@@ -28,7 +28,7 @@ import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offen
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
 import { fehlerText, type ForgeZugriff, forgeRepoFuer, type Issue, zugriffFuer } from '../forge/zugriff.ts';
-import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
+import { type AndockMessung, bereicheAus, blockAus, blockEinsetzen, cacheAnteil, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, kontexteAus, letzterVollLauf } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { gateStand, missionsWorktrees } from './pruefprotokolle.ts';
@@ -327,6 +327,8 @@ export interface FlottenEpic extends EpicZustand {
   /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
   endeAm?: string | null;
   gateS?: number;
+  /** the last gate run of the driver for this mission: duration, contexts, cache hits (gate_cached) */
+  andockpruefung?: AndockMessung | null;
   prognose?: Spanne | null;
   /** #202: spans its next turn was held after the first start: paused by the person, or a brake (account limit, RAM) */
   halte?: { art: 'pause' | 'limit'; von: string; bis: string | null }[];
@@ -348,6 +350,8 @@ export interface FlottenZustand extends Zustand {
   statistik: { starts: number; maxLaeufe: number; admiral: number; pings: number; immerGruen: boolean; gateWiederholungen?: number };
   /** merge: nach_gate: the epics with a finished PR in the order of their FLOTTE-ENDE; only the head is up */
   schlange: number[];
+  /** the last ANDOCK_MESSUNGEN gate runs of the driver in this project, oldest first, for the bridge */
+  andockpruefungen?: AndockMessung[];
   /** ids of the bridge actions already carried out: one fetched twice acts once */
   handlungenErledigt?: number[];
   /** #58: the settings the person changed on the bridge, as the bridge sees them; they outlive a restart */
@@ -430,6 +434,8 @@ export function andockWahl(antwort: string): 'A' | 'B' | 'C' {
 /** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
 export const GATE_GRENZE = 3;
 const GATE_MAX_MS = 90 * 60_000;
+/** gate runs of the driver kept per project for the bridge's overview */
+export const ANDOCK_MESSUNGEN = 20;
 
 /**
  * guard.ps1 as a hook of the session, not only of the skill: the hook in the frontmatter of /mission
@@ -3403,11 +3409,13 @@ class Treiber {
           nach: this.bilder.find((b) => b.nr === ep.nr)?.nach ?? [],
           ...(ep.starts ? { neustarts: ep.starts - 1 } : {}),
           ...(gate ? { gateLauf: gate } : {}),
+          andockpruefung: ep.andockpruefung ?? null,
           lage: this.lage(ep, pakete),
           ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
       }),
       schlange: this.z.schlange,
+      andockpruefungen: this.z.andockpruefungen ?? [],
       // usage per account (#28, v2): stage, both windows with reset, the weekly lead the account choice
       // goes by (Tag P); the logbook keeps the stage only
       kontenListe: this.kontenListe(),
@@ -3891,9 +3899,13 @@ class Treiber {
     const b = blockAus(r.stdout, form);
     const s = Math.round((this.w.jetzt() - t0) / 1000);
     const ende = (r.stdout + r.stderr).trim().split(/\r?\n/).slice(-25).join('\n');
+    const gruen = Boolean(b?.gruen) && r.code === 0;
+    const messung: AndockMessung = { zeit: new Date(this.w.jetzt()).toISOString(), epic: nr, pr: ep.pr ?? null, dauerS: s, gruen, kontexte: b ? kontexteAus(b.block, form) : [] };
+    ep.andockpruefung = messung;
+    this.z.andockpruefungen = [...(this.z.andockpruefungen ?? []), messung].slice(-ANDOCK_MESSUNGEN);
     if (!b) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` nennt keine Basis (gate_base); merge.ps1 kann sie nicht prüfen` };
-    const gruen = b.gruen && r.code === 0;
-    this.ereignis(nr, `Andockprüfung des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})`);
+    const anteil = cacheAnteil(messung.kontexte);
+    this.ereignis(nr, `Andockprüfung des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})${anteil ? `; ${anteil.n} von ${anteil.m} Kontexten aus dem Cache` : ''}`);
     const aussen = gruen ? undefined : AUSSEN.find(([re]) => re.test(ende))?.[1];
     if (!gruen) return { art: 'zurueck', ...(aussen ? { aussen } : {}), text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
     if (b.teil !== teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ${b.teil ? '' : 'k'}ein Teil-Lauf (gate_partial); der Treiber schreibt sie nicht in den PR` };

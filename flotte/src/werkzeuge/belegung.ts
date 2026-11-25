@@ -69,6 +69,8 @@ export interface Adapter {
   gate_base: string | null;
   gate_head: string | null;
   gate_partial: string | null;
+  /** a regular expression on a context line of the gate block: that context came from the gate's cache */
+  gate_cached: string | null;
 }
 
 export interface Paar {
@@ -104,6 +106,7 @@ export function liesAdapter(text: string): Adapter {
     gate_base: werte.get('gate_base')?.[0] ?? null,
     gate_head: werte.get('gate_head')?.[0] ?? null,
     gate_partial: werte.get('gate_partial')?.[0] ?? null,
+    gate_cached: werte.get('gate_cached')?.[0] ?? null,
   };
 }
 

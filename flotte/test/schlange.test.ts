@@ -40,12 +40,12 @@ interface EpicGit {
  * A repository with origin, main (a/x.txt, b/y.txt) and per epic a branch in its own worktree with
  * one commit and a PR body that holds a full green gate run on that state.
  */
-function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null } = {}) {
+function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null; adapterZusatz?: string; kontexte?: string } = {}) {
   const bodies = new Map<number, string>();
   const liste: EpicGit[] = [];
   const t = aufbau({
     ...o,
-    adapter: ADAPTER,
+    adapter: `${ADAPTER}${o.adapterZusatz ?? ''}`,
     prInfo: (pr) => {
       // #141: the driver reads the PR at the head of the queue; a run of the script may wait for that (step signal)
       writeFileSync(`${process.env.FLOTTE_DREHBUCH}.signal-kopf-${pr}`, '');
@@ -58,7 +58,7 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
       const kopf = git(cwd, 'rev-parse', 'HEAD');
       const basis = git(cwd, 'rev-parse', 'origin/main');
       const gruen = !o.rot?.(cwd, n);
-      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: ${befehl === 'gate teil' ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n  wurzel ${gruen ? 'grün' : 'ROT'}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
+      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: ${befehl === 'gate teil' ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n${o.kontexte ?? `  wurzel ${gruen ? 'grün' : 'ROT'}`}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
     },
     // merge.ps1: the last run must name the current base and head (merge.Tests.ps1 checks the areas)
     mergeEcht: (pr, n) => {
@@ -172,6 +172,30 @@ describe('A: die Merge-Schlange', () => {
     expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
     // the driver's block is the last run of the PR, and merge.ps1 merged on it
     expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [false, true]]);
+  }, T);
+
+  it('measures each gate run of the driver: duration, contexts and cache hits (gate_cached); the logbook and the state keep it', async () => {
+    const kontexte = '  alpha    grün            9:50\n  beta     grün            0:02  aus dem Cache: grün am 25.11.2026, 08:12 auf 1a2b3c4d (9:41), Eingaben unverändert\n  gamma    übersprungen          nicht berührt';
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { adapterZusatz: "\ngate_cached: 'aus dem Cache'", kontexte });
+    // the run committed after its gate: the driver gates once itself
+    writeFileSync(join(t.epics[0].wt, 'a', 'nach.txt'), 'nach dem Gate\n');
+    git(t.epics[0].wt, 'add', '-A');
+    git(t.epics[0].wt, 'commit', '-q', '-m', 'nach dem Gate');
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    const m = z.epics['3'].andockpruefung!;
+    expect(m).toMatchObject({ epic: 3, pr: 13, gruen: true });
+    expect(m.dauerS).toBeGreaterThanOrEqual(0);
+    expect(Date.parse(m.zeit)).not.toBeNaN();
+    expect(m.kontexte).toEqual([
+      { name: 'alpha', ergebnis: 'gruen', dauerS: 590, cache: false },
+      { name: 'beta', ergebnis: 'gruen', dauerS: 2, cache: true },
+      { name: 'gamma', ergebnis: 'übersprungen', dauerS: null, cache: false },
+    ]);
+    expect(z.andockpruefungen).toEqual([m]);
+    expect(texte(z).some((x) => /^#3 Andockprüfung des Treibers grün nach \d+ s \(Exit 0\); 1 von 2 Kontexten aus dem Cache$/.test(x))).toBe(true);
   }, T);
 
   it('a block against another base than the merge-base is not counted, even with a gate call in the log (#191)', async () => {

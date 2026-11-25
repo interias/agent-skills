@@ -16,6 +16,7 @@ import type { BerichtEinstellung, WirksameStellung } from './einstellungen.ts';
 import type { MainStand } from './stand.ts';
 import type { Lage } from './lage.ts';
 import type { VerlaufEintrag } from './verlauf.ts';
+import type { AndockMessung } from './gate.ts';
 
 export const HERKUNFT_BRUECKE = 'Mensch über die Brücke';
 /** an answer of the person by `flotte antworten` (#52: a decision of the person like one over the bridge) */
@@ -144,6 +145,8 @@ export interface BerichtEpic {
   plaetze?: { belegt: number; von?: number };
   /** #151, only while a gate runs: the gate run of the run (its n-th call of the gate command) or of the driver (its n-th), with its start */
   gateLauf?: { n: number; seit: string | null };
+  /** the last gate run of the driver for this mission (duration, contexts, cache hits); null before the first */
+  andockpruefung: AndockMessung | null;
   /** Tag H: what happens to the mission in one line: label, sentence, since, the person's step, the gate's contexts */
   lage: Lage;
 }
@@ -192,6 +195,8 @@ export interface Bericht {
   taktS: number;
   epics: BerichtEpic[];
   schlange: number[];
+  /** the last gate runs of the driver in this project, oldest first: the bridge's overview of duration and cache share */
+  andockpruefungen: AndockMessung[];
   konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; vorsprung: number | null; alterMin: number | null; grund?: string }[];
   /** #95: the accounts of konten.json with aktiv and sign-in, never a path; null when the file cannot be read */
   kontenListe?: { nr: number; name: string; farbe: string; aktiv: boolean; anmeldung: string | null }[] | null;

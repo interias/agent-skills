@@ -211,6 +211,7 @@ Schlüssel. Ein Lauf dockt nie an, in keiner Einstellung.
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die die Andockprüfung lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
 | `gate_head` | regulärer Ausdruck mit einer Gruppe: die SHA, auf der die Andockprüfung lief | `\(HEAD ([0-9a-f]{7,40})\)` |
 | `gate_command` | Befehl (PowerShell), der die ganze Andockprüfung im Worktree fährt und den Block ausgibt; mit ihm fährt der Flotten-Treiber die Andockprüfung in seiner Andockschlange selbst. Rot von außen meldet er in einer eigenen Zeile, die mit `Testsperre belegt` oder `Zeitgrenze des Gates` beginnt (Vertrag mit dem Treiber: einmal wiederholt, zählt nicht gegen den Lauf) | keiner |
+| `gate_cached` | regulärer Ausdruck auf die Zeile eines Kontexts im Andockblock: passt er, nahm die Andockprüfung das Ergebnis des Kontexts aus ihrem Cache. Der Flotten-Treiber misst damit je Andockprüfung, wie viele Kontexte aus dem Cache kamen (Brücke, Maschinenraum); fehlt er, misst er nur die Dauern. Etwa `aus dem Cache` | keiner |
 | `gate_always_command` | Befehl für den Teil der Andockprüfung, der immer läuft, egal welche Bereiche sich bewegt haben (hexanite: `wurzel`) | keiner |
 | `gate_areas` | Liste `<muster> = <name>`: welche Dateien zu welchem Bereich der Andockprüfung gehören. `**` geht über Ordner, `*` und `?` bleiben in einem, ein `/` am Ende meint den ganzen Ordner | keine |
 | `gate_partial` | regulärer Ausdruck, der in der Kopfzeile einen Teil-Lauf (nur `gate_always_command`) erkennt | `Immer-Teil` |
