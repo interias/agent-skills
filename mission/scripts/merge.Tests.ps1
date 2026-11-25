@@ -11,6 +11,7 @@ Add-Content -Path $env:MERGE_GH_LOG -Value $line -Encoding utf8
 foreach ($rule in (Get-Content $env:MERGE_GH_FIXTURE -Raw -Encoding utf8 | ConvertFrom-Json)) {
     if ($line -match $rule.match) {
         if ($rule.out) { $rule.out }
+        if ($rule.err) { [Console]::Error.WriteLine([string]$rule.err) }
         exit $rule.exit
     }
 }
@@ -403,5 +404,32 @@ Describe 'merge.ps1: Gitea through its API (#127)' {
         $r = Invoke-GiteaMerge (New-GiteaRules (New-GateBody) -behind '2')
         $r.Out | Should Match 'der Head enthaelt die aktuelle Basis nicht \(2 Commits dahinter\)'
         @($r.Calls | Where-Object { $_ -match '^POST /pulls/7/merge' }).Count | Should Be 0
+    }
+}
+
+Describe 'merge.ps1: a refused merge names the reason of the forge (#229)' {
+    function New-RefusedRules([string]$err) {
+        @(New-Rules (New-GateBody) | ForEach-Object { if ($_.match -eq '^pr merge 7 ') { @{ match = '^pr merge 7 '; out = ''; err = $err; exit = 1 } } else { $_ } })
+    }
+
+    It 'prints the error output of gh on the same line, as one line' {
+        $r = Invoke-Merge -Native (New-RefusedRules "GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)`nsecond line")
+        $r.Exit | Should Be 1
+        $r.Out | Should Be 'MERGE FEHLGESCHLAGEN #7: GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest) second line'
+        (Get-DeleteCalls $r).Count | Should Be 0
+    }
+
+    It 'cuts a long reason and says so when gh gives none' {
+        $r = Invoke-Merge -Native (New-RefusedRules ('x' * 1000))
+        $r.Out | Should Match '^MERGE FEHLGESCHLAGEN #7: x{290,300}\.\.\.$'
+        $r = Invoke-Merge -Native (New-RefusedRules '')
+        $r.Out | Should Be 'MERGE FEHLGESCHLAGEN #7: keine Ausgabe der Forge'
+    }
+
+    It 'on Gitea names the status and the message of the API' {
+        $rules = @(New-GiteaRules (New-GateBody) | ForEach-Object { if ($_.match -eq '^POST /pulls/7/merge$') { @{ match = '^POST /pulls/7/merge$'; out = '{"message":"Please try again later","url":"x"}'; status = 405 } } else { $_ } })
+        $r = Invoke-GiteaMerge $rules
+        $r.Exit | Should Be 1
+        $r.Out | Should Be 'MERGE FEHLGESCHLAGEN #7: Status 405: Please try again later'
     }
 }

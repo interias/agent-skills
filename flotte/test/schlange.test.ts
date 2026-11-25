@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { aufrufen } from '../src/aufruf.ts';
 import { adapter, schluessel } from '../src/befehle/adapter.ts';
 import { zuschauen } from '../src/befehle/zuschauen.ts';
-import { fahre } from '../src/treiber/treiber.ts';
+import { ANDOCK_FRAGE, ANDOCK_VERSUCHE, andockEmpfehlung, andockFehler, andockWahl, antworten, fahre, type Welt } from '../src/treiber/treiber.ts';
 import { blockAus, blockEinsetzen, gateForm, gateLaeufe, gemeinsameBereiche, globRegex, bereicheAus, letzterVollLauf } from '../src/treiber/gate.ts';
 import { belege, bildAus, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { beobachte, schrittAus } from '../src/werkzeuge/lauf.ts';
@@ -40,7 +40,7 @@ interface EpicGit {
  * A repository with origin, main (a/x.txt, b/y.txt) and per epic a branch in its own worktree with
  * one commit and a PR body that holds a full green gate run on that state.
  */
-function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number } = {}) {
+function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null } = {}) {
   const bodies = new Map<number, string>();
   const liste: EpicGit[] = [];
   const t = aufbau({
@@ -61,7 +61,10 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
       return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: ${befehl === 'gate teil' ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n  wurzel ${gruen ? 'grün' : 'ROT'}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
     },
     // merge.ps1: the last run must name the current base and head (merge.Tests.ps1 checks the areas)
-    mergeEcht: (pr) => {
+    mergeEcht: (pr, n) => {
+      // #229: a refusal of the forge as merge.ps1 prints it, before any check of the stand-in
+      const s = o.stoerung?.(pr, n);
+      if (s) return s;
       const e = liste.find((x) => x.pr === pr)!;
       git(t.repo, 'fetch', '-q', 'origin');
       const basis = git(t.repo, 'rev-parse', 'origin/main');
@@ -341,6 +344,195 @@ describe('A: die Merge-Schlange', () => {
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
     expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', gateWiederholungen: 3 });
     expect(z.epics['3'].notiz).toMatch(/3 Andockprüfungen des Treibers, die Basis zog jedes Mal davon/);
+  }, T);
+});
+
+describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
+  const ABGELEHNT = 'MERGE FEHLGESCHLAGEN #13: GraphQL: Repository rule violations found. At least 1 approving review is required (mergePullRequest)';
+  const NETZ = 'MERGE FEHLGESCHLAGEN #13: HTTP 502: Bad Gateway (https://api.github.com/graphql)';
+  /** the person answers the driver's question once the event names it */
+  const mitAntwort = (t: { repo: string; welt: Welt }, antwort: string): Welt => ({
+    ...t.welt,
+    melde: (zeile: string) => {
+      t.welt.melde(zeile);
+      if (new RegExp(`Frage ${ANDOCK_FRAGE} an den Menschen`).test(zeile)) setTimeout(() => antworten([t.repo, '3', String(ANDOCK_FRAGE), antwort]), 100);
+    },
+  });
+
+  it('sorts the reason of the forge: passing, conflict, lasting', () => {
+    for (const x of ['HTTP 502: Bad Gateway', 'Post "https://api.github.com/graphql": net/http: TLS handshake timeout', 'GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)', 'Status 0: Server nicht erreicht', 'Server nicht erreicht', 'Status 405: Please try again later', 'GraphQL: Pull Request is not mergeable yet: mergeable state unknown']) expect(andockFehler(x), x).toBe('voruebergehend');
+    for (const x of ['GraphQL: Pull Request is not mergeable: the merge commit cannot be cleanly created. (mergePullRequest)', 'Status 409: merge conflict']) expect(andockFehler(x), x).toBe('konflikt');
+    for (const x of ['GraphQL: Repository rule violations found. At least 1 approving review is required (mergePullRequest)', 'GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)', 'keine Ausgabe der Forge', 'GraphQL: Could not resolve to a PullRequest with the number of 13. (repository.pullRequest)']) expect(andockFehler(x), x).toBe('dauerhaft');
+    expect(andockFehler('Post "https://api.github.com/graphql": could not resolve host: api.github.com')).toBe('voruebergehend');
+  });
+
+  it('recommends B only for a moved head, not for a branch ahead', () => {
+    expect(andockEmpfehlung('GraphQL: Head branch was modified. Review and try the merge again.', 'dauerhaft')).toBe('B');
+    expect(andockEmpfehlung('the branch is 2 commits ahead of the base', 'dauerhaft')).toBe('C');
+    expect(andockEmpfehlung('HTTP 502', 'voruebergehend')).toBe('A');
+  });
+
+  it('reads the answer by the option letter or its words; the bridge sends free text as "Antwort: …"; anything else is C', () => {
+    for (const [antwort, wahl] of [['A', 'A'], ['A — Antwort: bitte gleich', 'A'], ['B', 'B'], ['c', 'C'], ['Antwort: neu versuchen', 'A'], ['nochmal', 'A'], ['erneut versuchen', 'A'], ['Antwort: Andockprüfung neu fahren', 'B'], ['Mensch dockt an', 'C'], ['Antwort: keine Ahnung', 'C']] as const) expect(andockWahl(antwort), antwort).toBe(wahl);
+  });
+
+  it('passing: tries again after a pause, without a new gate, and docks', async () => {
+    // the note of the mission as the board and the bridge read it from the saved state, at each repeat
+    const notizen: string[] = [];
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      stoerung: (_pr, n) => {
+        if (n >= 2) notizen.push(JSON.parse(readFileSync(join(flotteDir(t.repo), 'zustand.json'), 'utf8')).epics['3'].notiz);
+        return n <= 2 ? NETZ : null;
+      },
+    });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    // a tick longer than the loop's own: the state is saved while the driver waits between two calls
+    const z = await fahre(t.einstellung(buch, [3], { taktMs: 300 }), t.welt);
+    expect(notizen).toEqual([
+      'PR #13: Andocken vorübergehend fehlgeschlagen, Wiederholung 1 von 3 (HTTP 502: Bad Gateway (https://api.github.com/graphql))',
+      'PR #13: Andocken vorübergehend fehlgeschlagen, Wiederholung 2 von 3 (HTTP 502: Bad Gateway (https://api.github.com/graphql))',
+    ]);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.merges).toEqual([13, 13, 13]);
+    expect(t.p.gates).toEqual([]);
+    const e = texte(z);
+    // the reason of the forge in the event, word for word
+    expect(e).toContain(`#3 merge.ps1: ${NETZ}`);
+    expect(e.filter((x) => /^#3 Andocken vorübergehend fehlgeschlagen \(HTTP 502: Bad Gateway \(https:\/\/api\.github\.com\/graphql\)\): Wiederholung [12] von 3 nach einem Takt, ohne neue Andockprüfung$/.test(x))).toHaveLength(2);
+    expect(z.fragen).toEqual([]);
+  }, T);
+
+  it('base moved: the epic stays at the head, the driver brings the base in, runs the gate and docks', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      stoerung: (_pr, n) => {
+        if (n !== 1) return null;
+        // another PR docked meanwhile (area B): the forge refuses the first call
+        git(t.repo, 'fetch', '-q', 'origin');
+        git(t.repo, 'merge', '-q', '--ff-only', 'origin/main');
+        writeFileSync(join(t.repo, 'b', 'anders.txt'), 'anders\n');
+        git(t.repo, 'add', '-A');
+        git(t.repo, 'commit', '-q', '-m', 'anderer PR');
+        git(t.repo, 'push', '-q', 'origin', 'main');
+        return 'MERGE FEHLGESCHLAGEN #13: GraphQL: Base branch was modified. Review and try the merge again. (mergePullRequest)';
+      },
+    });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate teil']);
+    const e = texte(z);
+    const vorbei = index(e, /^#3 Andocken vorübergehend fehlgeschlagen \(GraphQL: Base branch was modified/);
+    const fehlt = index(e, /^#3 merge\.ps1: GATE FEHLT #13: Gate lief gegen/);
+    const gate = index(e, /^#3 Andockprüfung des Treibers \(Immer-Teil/);
+    expect(vorbei).toBeGreaterThanOrEqual(0);
+    expect(vorbei).toBeLessThan(fehlt);
+    expect(fehlt).toBeLessThan(gate);
+    expect(gate).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+    // nothing went back to the run, and the head never left the queue
+    expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
+    expect(e.filter((x) => /^#3 Kopf der Schlange/.test(x))).toHaveLength(1);
+  }, T);
+
+  it('a conflict when docking takes the existing way: the driver brings the base in and checks before it docks', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: (_pr, n) => (n === 1 ? 'MERGE FEHLGESCHLAGEN #13: GraphQL: Pull Request is not mergeable: the merge commit cannot be cleanly created. (mergePullRequest)' : null) });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    const e = texte(z);
+    expect(index(e, /^#3 Andocken fehlgeschlagen mit Konflikt \(GraphQL: Pull Request is not mergeable/)).toBeLessThan(index(e, /^#3 Andockprüfung des Treibers \(/));
+    expect(t.p.gates).toHaveLength(1);
+  }, T);
+
+  it('lasting: a question block for the person with the reason word for word, what was tried, options and a recommendation; C leaves it to the person', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: () => ABGELEHNT, pr: () => ({ state: 'OPEN' }) });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 10_000 }), mitAntwort(t, 'C'));
+    const ursache = ABGELEHNT.replace('MERGE FEHLGESCHLAGEN #13: ', '');
+    // no repeat for a lasting refusal
+    expect(t.p.merges).toEqual([13]);
+    const f = z.fragen.find((x) => x.nr === ANDOCK_FRAGE)!;
+    expect(f).toMatchObject({ epic: 3, ganzerLauf: true, empfehlung: 'C', marke: 'Andocken', beantwortet: 'C' });
+    expect(f.frage).toContain(ursache);
+    expect(f.lage).toContain(`Ursache (merge.ps1): ${ursache}`);
+    expect(f.lage).toMatch(/Versucht: merge\.ps1 1-mal aufgerufen/);
+    expect(f.optionen!.map((o) => o.buchstabe)).toEqual(['A', 'B', 'C']);
+    expect(f.optionen!.map((o) => o.text).join(' | ')).toMatch(/erneut versuchen.*\| Andockprüfung neu fahren.*\| Mensch dockt an/);
+    const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**FRAGE AN DEN MENSCHEN (Flotte)**'))!;
+    expect(k.text).toContain(ursache);
+    expect(k.text).toContain(`flotte antworten . 3 ${ANDOCK_FRAGE}`);
+    // C: the PR waits for the person, with the reason on the board and the bridge card
+    expect(z.epics['3'].stufe).toBe('pr');
+    expect(z.epics['3'].notiz).toBe(`PR #13 bereit, ein Mensch dockt an (Andocken fehlgeschlagen: ${ursache})`);
+    // the question belongs to the driver, not to the run: no revocable decision for it
+    expect(z.entscheidungen.filter((d) => d.nr === ANDOCK_FRAGE)).toEqual([]);
+  }, T);
+
+  it('a forge conflict after the driver\'s own full gate asks the person, it does not leave the PR without a word', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: (_pr, n) => (n === 1 ? 'MERGE FEHLGESCHLAGEN #13: Status 409: merge conflict' : null), pr: () => ({ state: 'OPEN' }) });
+    // the run committed after its gate: the driver runs the full gate itself first
+    writeFileSync(join(t.epics[0].wt, 'a', 'nach.txt'), 'nach dem Gate\n');
+    git(t.epics[0].wt, 'add', '-A');
+    git(t.epics[0].wt, 'commit', '-q', '-m', 'nach dem Gate');
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 10_000 }), t.welt);
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
+    const f = z.fragen.find((x) => x.nr === ANDOCK_FRAGE)!;
+    expect(f.frage).toContain('Status 409: merge conflict');
+    expect(f.lage).toMatch(/Versucht: merge\.ps1 1-mal aufgerufen; 1 Andockprüfung des Treibers/);
+    expect(z.epics['3'].notiz).toMatch(/^PR #13: Andocken fehlgeschlagen, Frage an dich/);
+  }, T);
+
+  it('an open question closes once the mission leaves its PR; a later failure asks once more, never two open', async () => {
+    let gefragt = false;
+    let konflikte = 0;
+    // one conflict after another docking, read once after the first question
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: () => ABGELEHNT, pr: () => ({ state: 'OPEN', mergeable: gefragt && konflikte++ === 0 ? 'CONFLICTING' : 'MERGEABLE' }) });
+    const welt: Welt = { ...t.welt, melde: (zeile) => {
+      t.welt.melde(zeile);
+      if (new RegExp(`Frage ${ANDOCK_FRAGE} an den Menschen`).test(zeile)) gefragt = true;
+    } };
+    // the conflict after another docking sends the run back to work; it ends again with the same PR
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 15_000 }), welt);
+    const fragen = z.fragen.filter((x) => x.nr === ANDOCK_FRAGE);
+    expect(fragen).toHaveLength(2);
+    expect(fragen[0].beantwortet).toBe('überholt: die Mission steht auf laeuft');
+    expect(fragen[1].beantwortet).toBeUndefined();
+  }, T);
+
+  it('a person docks by hand without answering: the question closes with the docking', async () => {
+    let angedockt = false;
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: () => ABGELEHNT, pr: () => ({ state: angedockt ? 'MERGED' : 'OPEN' }) });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const welt: Welt = { ...t.welt, melde: (zeile) => {
+      t.welt.melde(zeile);
+      if (new RegExp(`Frage ${ANDOCK_FRAGE} an den Menschen`).test(zeile)) angedockt = true;
+    } };
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.fragen.find((x) => x.nr === ANDOCK_FRAGE)).toMatchObject({ beantwortet: 'von Hand angedockt' });
+  }, T);
+
+  it('passing three times over: the question recommends A; A puts it back into the queue and it docks', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: (_pr, n) => (n <= ANDOCK_VERSUCHE + 1 ? NETZ : null), pr: () => ({ state: 'OPEN' }) });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), mitAntwort(t, 'A'));
+    expect(z.epics['3'].stufe).toBe('fertig');
+    const f = z.fragen.find((x) => x.nr === ANDOCK_FRAGE)!;
+    expect(f).toMatchObject({ empfehlung: 'A', beantwortet: 'A' });
+    expect(f.lage).toMatch(/merge\.ps1 4-mal aufgerufen \(3 Wiederholungen im Abstand eines Takts/);
+    expect(t.p.merges).toHaveLength(ANDOCK_VERSUCHE + 2);
+    expect(t.p.gates).toEqual([]);
+  }, T);
+
+  it('B: the driver runs the gate again, also with a block that still counts, and docks', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { stoerung: (_pr, n) => (n === 1 ? ABGELEHNT : null), pr: () => ({ state: 'OPEN' }) });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), mitAntwort(t, 'B'));
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
+    expect(texte(z).some((x) => /^#3 Andockprüfung des Treibers \(voll, der Mensch will die Andockprüfung neu\)/.test(x))).toBe(true);
   }, T);
 });
 

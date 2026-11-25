@@ -135,6 +135,37 @@ describe('#211: a long own wait stays warm, the rule stands word for word in 4a 
   });
 });
 
+describe('check once, do not chase the base (24.11.2026): only the head of the merge queue merges the base and checks again', () => {
+  const phase6 = abschnitt('## Phase 6 — Abschluss', '- **Nicht andocken.**');
+  const adapterMd = lies('mission/references/adapter.md');
+  const andocken = adapterMd.slice(adapterMd.indexOf('### Andocken'), adapterMd.indexOf('### Werft'));
+
+  it('Phase 6: the mission runs the gate once on its head and does not merge the base afterwards', () => {
+    expect(phase6).toContain('Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head');
+    expect(phase6).toContain('Ein eigener Commit danach verlangt einen neuen Lauf und Block');
+    expect(phase6).toContain('Eine Bewegung der Basis verlangt keinen: Die Basis holt erst nach, wer andockt, unter dem Treiber nur die Spitze der Andock-Schlange (`references/adapter.md`, „Andocken")');
+    expect(phase6).not.toContain('gegen den aktuellen Stand der Basis');
+  });
+
+  it('by hand: bring the base in, gate, push and append the block, then merge.ps1 (adapter reference, short in AGENTS.md)', () => {
+    expect(andocken).toContain('ohne Treiber der Mensch oder die Sitzung, die andockt');
+    expect(andocken).toMatch(/1\. die Basis per `git merge <push_remote>\/<basis>` in den Missions-Branch holen, 2\. die Andockprüfung \(`gate_command`\) auf diesem Stand fahren, 3\. pushen und den neuen Block unter `gate_heading` an die PR-Beschreibung anhängen .* 4\. `merge\.ps1 -Repo <owner\/name> -Pr <nr>` aufrufen\./);
+    expect(lies('AGENTS.md')).toContain('fährt es neu, pusht und hängt den Block an die PR-Beschreibung');
+  });
+
+  it('every docking onto the base goes through merge.ps1, for the driver, a person and an admiral session alike; one way, not one actor', () => {
+    expect(andocken).toContain('**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**: Bei `merge: nach_gate` ist es der eine Weg für jeden, der andockt — den Treiber, einen Menschen, eine Sitzung, auch eine Admiral-Sitzung.');
+    expect(andocken).toContain('angedockt wird auf genau einem Weg, mit `merge.ps1`');
+    expect(andocken).not.toContain('und der Lauf fährt die Andockprüfung neu');
+    expect(skill).toContain('`merge.ps1` außerhalb des Laufs (`nach_gate`), der eine Weg für jeden, der andockt: Treiber, Mensch, Admiral-Sitzung.');
+    const befugnisse = lies('docs/befugnisse.md');
+    expect(befugnisse).toContain('Der Admiral des Treibers und die Läufe **docken nie an**.');
+    expect(befugnisse).toContain('Jedes Andocken auf den Basiszweig geht über `merge.ps1`: Wer bei `nach_gate` doch von Hand andockt — du, eine Sitzung, auch eine Admiral-Sitzung —, nimmt dasselbe Skript wie der Treiber');
+    expect(lies('AGENTS.md')).toContain('Jedes Andocken auf `main` geht über `mission/scripts/merge.ps1`');
+    for (const datei of ['mission/SKILL.md', 'mission/references/adapter.md', 'mission/README.md', 'mission/scripts/README.md']) expect(lies(datei), datei).not.toMatch(/genau ein(em)? Akteur/);
+  });
+});
+
 describe('only software (24.11.2026): content goals go to the person, every place that releases or cuts says it', () => {
   const regeln = abschnitt('## Die Regeln, die nicht verhandelbar sind', '## Die Statuslabels');
   const tor = abschnitt('### 2c — Das Vorab-Tor', '### 2d');
@@ -149,6 +180,19 @@ describe('only software (24.11.2026): content goals go to the person, every plac
     expect(tor).toContain('Maßstab ist das Ergebnis, nicht ein Wort im Text');
     expect(tor).toContain('Empfehlung: herauslösen — das Ticket bekommt `ready-for-human` statt des Freigabelabels');
     expect(tor).toContain('der Inhaltsanteil wird offener Punkt im Pull Request');
+  });
+
+  it('every place draws the line the same way (24.11.2026): what is made for the software is built, content the person works out in it is not', () => {
+    // test data stays the fleet's work; master and business data of the business are the person's
+    const baut = 'Was für die Software gemacht wird, baut die Flotte, auch Testdaten und beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte';
+    const inhalt = 'Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten des Betriebs, Recherche dafür';
+    const orte = { regel14: regeln, tor15: tor, triage: lies('flotte/src/triage.ts'), befugnisse: lies('docs/befugnisse.md'), nacharbeit: lies('mission-nacharbeit/SKILL.md'), bereitschaftsraum: lies('bereitschaftsraum/SKILL.md') };
+    for (const [ort, text] of Object.entries(orte)) {
+      // point 15 of the gate refers to rule 14 for what the fleet builds
+      if (ort !== 'tor15') expect(text, ort).toContain(baut);
+      expect(text, ort).toContain(inhalt);
+      expect(text, ort).not.toContain('gestaltete Motive');
+    }
   });
 
   it('Bereitschaftsraum, Nacharbeit, adapter reference and befugnisse carry it', () => {

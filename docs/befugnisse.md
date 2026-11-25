@@ -36,8 +36,11 @@ Die erste Frage, die mit Ja beantwortet wird, entscheidet.
 
 Eine Ticketfrage geht nie an dich; der Missions-PR listet jedes angelegte Ticket.
 
-**Nur Software.** Die Flotte baut, verbessert und repariert Software. Ist das Ergebnis eines Ziels
-Inhalt — Konzept, Konstruktion, Recherche, gestaltete Motive oder Texte —, bekommt es
+**Nur Software.** Die Flotte baut, verbessert und repariert Software. Was für die Software gemacht
+wird, baut die Flotte, auch Testdaten und beschlossene Gestaltung wie Piktogramme, Farben oder
+Oberflächentexte. Ist das Ergebnis eines Ziels Inhalt, den der Mensch in der Software erarbeitet und
+dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten des Betriebs, Recherche
+dafür —, bekommt es
 `ready-for-human`, nicht `ready-for-agent`, und du arbeitest es in einem eigenen Chat aus. Das
 Vorab-Tor hält an und empfiehlt, es herauszulösen (Regel 14 in [`mission/SKILL.md`](../mission/SKILL.md));
 unter dem Treiber entscheidet diese Torfrage der Admiral. Die Triage fragt dich mit derselben
@@ -46,8 +49,12 @@ Softwareanteil, der Inhaltsanteil wird offener Punkt im PR.
 
 ## Was immer gilt
 
-- Admiral und Läufe **docken nie an**. Wer andockt, sagt allein der Adapterschlüssel `merge`:
-  `mensch` heißt du, `nach_gate` heißt der Andock-Akteur des Treibers nach grüner Andockprüfung.
+- Der Admiral des Treibers und die Läufe **docken nie an**. Wer andockt, sagt allein der
+  Adapterschlüssel `merge`: `mensch` heißt du, `nach_gate` heißt der Treiber nach grüner Andockprüfung.
+  Jedes Andocken auf den Basiszweig geht über `merge.ps1`: Wer bei `nach_gate` doch von Hand andockt —
+  du, eine Sitzung, auch eine Admiral-Sitzung —, nimmt dasselbe Skript wie der Treiber; nur es prüft,
+  dass der Andockblock zur Spitze der Basis und zum Head passt
+  ([`adapter.md`](../mission/references/adapter.md), „Andocken“).
 - **Keine Antwort lockert eine Regel** der Skills.
 - **Jede Entscheidung steht am Issue**, mit Herkunft (Projektregel, Skill-Empfehlung, Präzedenz mit
   Fundstelle oder eigenes Urteil mit Grund), und ist bis zum Andocken widerrufbar — auf der Brücke
