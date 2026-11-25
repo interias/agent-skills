@@ -3,7 +3,8 @@
 // Holds no state of its own: a decided ticket no longer carries its triage label, an open question
 // waits for a comment below it. So it can run on a schedule (flotte/README.md, "Triage"). Prints one
 // JSON object: per ticket what was decided and written, and the questions to the person.
-// #117: with lern_issue in the adapter also each proposal of the learning loop there, like a ticket;
+// #117: with lern_issue in the adapter also each proposal of the learning loop there, like a ticket
+// (Tag O: only while the switch Lernschleife of the project is on, out of the box off);
 // #170: a clear one becomes a Sternzeit-Notiz through the order writer, cut into a mission by the same plan.
 // #146: one admiral call per project cuts a plan over all its notes and clears them in it (schneide); only
 // notes over the size of one call are split into a few packages by topic.
@@ -16,6 +17,7 @@ import { giteaForge } from '../auftrag/gitea.ts';
 import { githubForge } from '../auftrag/github.ts';
 import { adapterText, fehlerText, zugriffFuer, type ForgeZugriff, type Issue } from '../forge/zugriff.ts';
 import { admiralWerkzeuge } from '../treiber/admiral.ts';
+import { lernIssueFuer } from '../lernen.ts';
 import { kommentar } from '../treiber/forge.ts';
 import { abschlusspruefung, loseFreigaben, type Abschluss } from '../triage-abschluss.ts';
 import { faktenpaket, LESEN_MAX, maxTurns } from '../triage-fakten.ts';
@@ -765,7 +767,8 @@ export async function triage(argv: string[], aufrufer: Aufrufer = aufrufen): Pro
       if (!existsSync(repo)) throw new Error('Repository fehlt');
       // #127: a Gitea project takes owner/name from its api; the forge itself is chosen by the adapter (forgeVon)
       const forge = schluessel(text, 'forge') === 'gitea' ? giteaRepoAus(text) : (wert(argv, '--forge') ?? githubRepoAus(text, repo, aufrufer));
-      ziele.push({ repo, forge, regeln: regelnAus(text), lernIssue: liesAdapter(text).lern_issue });
+      // Tag O: the proposals only while the switch Lernschleife of the project is on (the driver's state)
+      ziele.push({ repo, forge, regeln: regelnAus(text), lernIssue: lernIssueFuer(repo, liesAdapter(text).lern_issue, aufrufer) });
     } catch (e) {
       fehler.push({ repo, fehler: (e as Error).message });
     }

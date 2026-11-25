@@ -690,7 +690,8 @@
     { "name": "admiralModell", "titel": "Modell des Admirals", "wert": "fable", "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": "fable", "leer": false, "werte": ["opus", "fable", "sonnet"], "hinweis": null },
     { "name": "triageLesenMax", "titel": "Dateizugriffe der Triage je Aufruf", "wert": 15, "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": 15, "leer": false, "min": 0, "max": 100 },
     { "name": "meldung", "titel": "Windows-Meldung bei „Braucht dich“", "wert": "aus", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "aus", "leer": false, "werte": ["an", "aus"], "hinweis": null },
-    { "name": "einsammeln", "titel": "Missionen automatisch einsammeln", "wert": "an", "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": "an", "leer": false, "werte": ["an", "aus"], "hinweis": null }
+    { "name": "einsammeln", "titel": "Missionen automatisch einsammeln", "wert": "an", "herkunft": "start", "seit": "2026-11-20T08:00:00Z", "standard": "an", "leer": false, "werte": ["an", "aus"], "hinweis": null },
+    { "name": "lernschleife", "titel": "Lernschleife", "wert": "aus", "herkunft": "standard", "seit": "2026-11-20T08:00:00Z", "standard": "aus", "leer": false, "werte": ["an", "aus"], "hinweis": null }
   ],
   "freigegeben": [
     { "nr": 43, "titel": "Mini-Mission: Statusseite" },

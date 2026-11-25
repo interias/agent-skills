@@ -3,6 +3,7 @@ shown per project with the change on its way, an older driver without settings s
 
 import json
 
+from app.modelle import einstellung_pruefen
 from conftest import fremd, koppeln
 
 FORGE = 'interias/flotte-probe'
@@ -196,3 +197,31 @@ def test_maschinenraum_zeichnet_die_sammelansicht():
     mr = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'maschinenraum.js').read_text(encoding='utf-8')
     assert 'Automatik je Projekt' in mr
     assert "name: 'einsammeln'" in mr and 'data-einsammeln' in mr
+
+
+def test_lernschleife_je_projekt_ab_werk_aus_gesperrt_ohne_lern_issue(client, bericht):
+    """Tag O: the switch Lernschleife comes off out of the box; on goes with the PIN like every setting, refused with the driver's hint while it lacks lern_issue."""
+    client.post('/api/bericht', json=bericht)
+    e = je_name(client)['lernschleife']
+    assert (e['wert'], e['standard'], e['werte']) == ('aus', 'aus', ['an', 'aus'])
+    assert einstellen(fremd(client), 'lernschleife', 'an').status_code == 401
+    assert einstellen(client, 'lernschleife', 'an').json()['ok']
+    assert [h['text'] for h in offene(client)] == ['{"name": "lernschleife", "wert": "an"}']
+    # without lern_issue the driver offers only aus and says what is missing; the bridge refuses an with that hint
+    hinweis = 'der Adapter nennt kein lern_issue: erst ein Sammel-Issue für die Lernvorschläge als lern_issue in .claude/epic.md eintragen'
+    for x in bericht['einstellungen']:
+        if x['name'] == 'lernschleife':
+            x.update(werte=['aus'], hinweis=hinweis)
+    client.post('/api/bericht', json=bericht)
+    r = einstellen(client, 'lernschleife', 'an')
+    assert (r.status_code, r.json()['detail']) == (422, hinweis)
+    assert einstellung_pruefen(bericht['einstellungen'], 'lernschleife', 'aus', {}) is None
+
+
+def test_maschinenraum_zeichnet_den_lernschalter():
+    from pathlib import Path
+    mr = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'maschinenraum.js').read_text(encoding='utf-8')
+    assert 'Lernschleife je Projekt' in mr
+    assert "name: 'lernschleife'" in mr and 'data-lernschleife' in mr
+    # out of the box off, how to switch it on and what happens then stand in the help text
+    assert 'Ab Werk aus' in mr and 'lern_issue' in mr

@@ -221,7 +221,8 @@ Grund, warum dieser Ablauf nicht einfach alles wegwirft.
 **Lernschleife.** Nennt der Adapter `lern_issue` und lief die Mission ohne Flotten-Treiber (der
 startet sie selbst), schlägt der Bericht als letzte Zeile den Aufruf vor:
 `bun ~/.claude/skills/flotte/src/cli.ts lernen <repo> --pr <nr> --epic <nr>`. Du führst ihn nicht
-selbst aus; er schreibt einen Kommentar in die Forge.
+selbst aus; er schreibt einen Kommentar in die Forge, und nur, wenn die Lernschleife des Projekts
+eingeschaltet ist (ab Werk aus, Schalter im Maschinenraum der Brücke); sonst meldet er nur `aus`.
 
 Dieser Ablauf schreibt **nicht** in die Forge. Er verändert keinen Zustand, den ein Leser in einem
 halben Jahr braucht; er räumt eine Arbeitskopie auf. Nur wenn ein nicht abgenommenes Ticket einen

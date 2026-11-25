@@ -96,5 +96,8 @@ Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entsc
   startet der Treiber nichts Neues, bei rotem hält er auch Fortsetzungen an. Das ist Mechanik, keine
   Frage an den Admiral.
 - **Aufräumen löscht nur**, was nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`.
+- **Die Lernschleife ist ab Werk aus**, je Projekt im Maschinenraum einschaltbar (mit PIN, nur mit `lern_issue`).
+  Eingeschaltet schreibt sie Vorschläge nur an das `lern_issue` des eigenen Projekts; an ein anderes Repository
+  (etwa agent-skills, wenn es nicht selbst das Projekt ist) geht nichts.
 - **Die Brücke steuert nichts** außer den Handlungen, die sie an den Treiber reicht; Antworten und Handlungen nur im
   LAN von einem gekoppelten Gerät (die PIN koppelt es), das Recht zu handeln gibt nur der Rechner selbst (#46), unterwegs optional über Tailscale mit denselben Rechten, Rechte vergeben aber nur am Rechner (ADR-0006, ADR-0007).

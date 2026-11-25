@@ -47,6 +47,8 @@ export const EINSTELLUNGEN = {
   meldung: { titel: 'Windows-Meldung bei „Braucht dich“', werte: ['an', 'aus'], leer: false, standard: 'aus' },
   // #193: an like --dauerhaft, aus collects no new mission; the standard is that of a start without --epics
   einsammeln: { titel: 'Missionen automatisch einsammeln', werte: ['an', 'aus'], leer: false, standard: 'an' },
+  // Tag O: the learning loop after each merge and its proposals in triage and Frachtraum; out of the box off, an only with lern_issue
+  lernschleife: { titel: 'Lernschleife', werte: ['an', 'aus'], leer: false, standard: 'aus' },
 } satisfies Record<string, Art>;
 
 export type EinstellungName = keyof typeof EINSTELLUNGEN;
@@ -65,6 +67,7 @@ export const START_PARAMETER: Partial<Record<EinstellungName, string>> = {
   meldung: '--meldung',
   // #193: --epics sets it as well (treiber.ts, einstellungAus)
   einsammeln: '--dauerhaft/--epics',
+  lernschleife: '--lernschleife',
 };
 
 /** One setting in the report: value, where it comes from and since when, and what the bridge may offer. */
@@ -94,6 +97,9 @@ export interface WirksameStellung {
   /** the reason of the proposal, also when the switch overrules it; null without one */
   grund: string | null;
 }
+
+/** Tag O: why the learning loop cannot be switched on: lern_issue says where its proposals go */
+export const LERN_OHNE_ISSUE = 'der Adapter nennt kein lern_issue: erst ein Sammel-Issue für die Lernvorschläge als lern_issue in .claude/epic.md eintragen';
 
 /** why automatisch is not to be had: merge.ps1 refuses everything but merge: nach_gate on the default branch */
 export const NUR_NACH_GATE = 'der Adapter sagt merge: mensch, automatisch andocken geht nur mit merge: nach_gate';
@@ -145,6 +151,8 @@ export function lies(e: Einstellung, name: EinstellungName, kontoName: (dir: str
       return e.meldung;
     case 'einsammeln':
       return e.auto ? 'an' : 'aus';
+    case 'lernschleife':
+      return e.lernschleife;
   }
 }
 
@@ -218,6 +226,9 @@ export function setze(e: Einstellung, name: EinstellungName, wert: unknown, ausw
       break;
     case 'einsammeln':
       e.auto = wert === 'an';
+      break;
+    case 'lernschleife':
+      e.lernschleife = wert as 'an' | 'aus';
       break;
   }
   return null;

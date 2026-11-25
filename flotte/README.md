@@ -22,6 +22,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--admiral <konto>` | alle Admiral-Aufrufe auf ein festes Konto legen |
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/mission-nacharbeit` abarbeiten |
+| `--lernschleife an` | die Lernschleife für dieses Projekt einschalten (Tag O): nach jedem Andocken belegte Vorschläge an `lern_issue`, Lern-Triage und Lernvorschläge im Frachtraum. Standard `aus` (ab Werk), auch im Maschinenraum je Projekt schaltbar; ohne `lern_issue` im Adapter gilt `an` nicht (Ereignis) |
 | `--meldung an` | je neuer Frage an dich und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), mehrere eines Takts als eine mit der Zahl; Standard `aus`, auch im Maschinenraum schaltbar. Inhalt nur Projektkürzel, Nummer, Art und Titel |
 
 ## Einstellungen ohne Neustart
@@ -32,7 +33,7 @@ der Läufe, das Admiral-Konto, die 5-h-Schwellen der Verbrauchsbremse (gelb/rot)
 100 % leerfahren“, die RAM-Schwelle, das Plattenminimum, der Leerlauf und (#112) das Andocken des
 Projekts (automatisch nach Andockprüfung oder Mensch prüft jeden PR) und (#166) das Modell der Triage
 (Standard `opus`) und des Admirals (Startwert `--admiral-modell`), ab dem nächsten Aufruf, und (#37) die Windows-Meldung
-bei „Braucht dich“. Der Treiber prüft die
+bei „Braucht dich“, dazu je Projekt (#193) das Einsammeln und (Tag O) die Lernschleife. Der Treiber prüft die
 Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 
 - **Wirkung ab dem nächsten Takt.** Nichts Laufendes wird abgebrochen: Eine gesenkte Obergrenze
@@ -50,6 +51,13 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
   Merkmalswort eines Punkts von `BEIM_MENSCHEN` nennt (`MERKMALE` in `src/treiber/admiral.ts`; beim
   Punkt Sicherheit nur Wörter für Zugänge und Geheimnisse, das Wort „Sicherheit“ allein nicht), und
   zeigt den Grund; ein Schalter an der Mission (Sternenkarte) überstimmt Vorschlag und Projekt.
+- **Lernschleife je Projekt (Tag O):** ab Werk aus, auch für ein neu hinzugefügtes Projekt. Aus heißt: nach dem
+  Andocken kein Lernaufruf (kein Modell, kein Kommentar), die Triage liest `lern_issue` nicht, der Frachtraum zeigt
+  keine Lernvorschläge; `flotte lernen` und `flotte triage` ohne Treiber lesen denselben Schalter aus `zustand.json`.
+  Einschalten (Maschinenraum, „Lernschleife je Projekt“, mit PIN, oder `--lernschleife an`) geht nur, wenn der
+  Adapter `lern_issue` nennt; `lern_issue` sagt nur, wohin die Vorschläge gehen. Übergang: Ein Treiber, der schon
+  vor dem Schalter lief und dessen Adapter `lern_issue` nennt, übernimmt einmalig „an“ (Ereignis `Lernschleife bleibt
+  an: …`). Nichts geht an ein anderes Repository als das des Projekts.
 - **Nicht einstellbar:** die Andock-Regel des Adapters, Rechte, Geheimnisse. Ein Update ist keine
   Einstellung, sondern die Handlung „Einspielen“ (unten, „Anhalten und neu starten“).
 
@@ -148,7 +156,8 @@ statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste St
    belegt, Zeitgrenze der Andockprüfung abgelaufen) wiederholt er einmal selbst.
 6. **Nach dem Andocken** schließt er die Mission, wenn alle Missionsziele zu sind; sonst nimmt er
    `ready_label` ab und sagt am Issue, was offen ist. Dann die `nach_merge`-Befehle des Adapters, dann Aufräumen (`CleanupStale`, der
-   lokale Missions-Branch, wenn er ganz in der Basis liegt). Nennt der Adapter `lern_issue`, schreibt
+   lokale Missions-Branch, wenn er ganz in der Basis liegt). Ist die Lernschleife des Projekts an
+   (ab Werk aus, Schalter im Maschinenraum oder `--lernschleife an`, braucht `lern_issue`), schreibt
    nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
    in dieses Issue. Umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet die
    [Triage](#triage) wie eine Sternzeit-Notiz.
@@ -387,7 +396,8 @@ und ebenso eine Mission aus dem Schnittplan. Sie spricht GitHub und Gitea über 
 (#127); auf Gitea gilt als Rolle eines Kommentars `OWNER` für den Besitzer des Repositorys,
 `COLLABORATOR` für ein Konto mit Schreibrecht, sonst `NONE`.
 
-**Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, triagiert derselbe Befehl vor dem Schnittplan
+**Lernvorschläge** (#117): Ist die Lernschleife des Projekts an (Tag O; `lern_issue` sagt nur, wohin),
+triagiert derselbe Befehl vor dem Schnittplan
 jeden Vorschlag der Lernschleife an diesem Issue einzeln, einen `claude -p` je Vorschlag (Schema
 `triageSchema()`, dieselbe Fragerunde und Liste „beim Menschen“). Sie sind Kommentare am Sammel-Issue;
 ein klarer wird eine Sternzeit-Notiz und geht in denselben Schnittplan wie die Tickets (#170).

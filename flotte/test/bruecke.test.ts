@@ -728,8 +728,8 @@ describe('Einstellungen über die Brücke (#58)', () => {
   it('every setting: a valid value holds from the next turn, as event and in the logbook; an invalid one is refused with an event; the report names value and origin', async () => {
     const t = aufbau();
     const [k1, k2] = t.konten.map((k) => basename(k));
-    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['triageModell', 'sonnet'], ['admiralModell', 'opus'], ['meldung', 'an'], ['einsammeln', 'aus']];
-    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['triageModell', 'haiku'], ['admiralModell', 'claude-opus-5-5'], ['admiralModell', null], ['meldung', 'laut'], ['einsammeln', true], ['rechte', 'alle']];
+    const gueltig: [string, unknown][] = [['obergrenze', 2], ['paketeJeEpic', 1], ['konten', [k2]], ['admiral', k1], ['verbrauchGelb', 50], ['verbrauchRot', 70], ['leerfahren', [k1]], ['ramWarn', 70], ['platteMinGb', 5], ['leerlaufMin', 30], ['merge', 'mensch'], ['triageModell', 'sonnet'], ['admiralModell', 'opus'], ['meldung', 'an'], ['einsammeln', 'aus'], ['lernschleife', 'aus']];
+    const ungueltig: [string, unknown][] = [['obergrenze', 5], ['paketeJeEpic', 0], ['konten', []], ['konten', ['gibt-es-nicht']], ['admiral', 'gibt-es-nicht'], ['verbrauchGelb', 99], ['verbrauchGelb', 80], ['verbrauchRot', 100], ['leerfahren', k1], ['ramWarn', 90], ['platteMinGb', 0.5], ['leerlaufMin', 'viel'], ['merge', 'nach_gate'], ['merge', 'automatisch'], ['triageModell', 'haiku'], ['admiralModell', 'claude-opus-5-5'], ['admiralModell', null], ['meldung', 'laut'], ['einsammeln', true], ['lernschleife', 'an'], ['lernschleife', true], ['rechte', 'alle']];
     const b = await attrappe(() => null, { handlung: nacheinander([...gueltig, ...ungueltig].map(([n, w]) => einstellen(n, w))) });
     try {
       const z = await fahre(t.einstellung(drehbuch([]), [], { bruecke: b.url, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
@@ -755,6 +755,9 @@ describe('Einstellungen über die Brücke (#58)', () => {
       expect(letzter.einstellungen.find((x) => x.name === 'triageModell')).toMatchObject({ standard: 'opus', leer: false, werte: ['opus', 'fable', 'sonnet'], hinweis: null });
       expect(letzter.einstellungen.find((x) => x.name === 'admiralModell')).toMatchObject({ standard: 'fable', leer: false, werte: ['opus', 'fable', 'sonnet'] });
       expect(texte).toContain('Einstellung Modell der Triage über die Brücke abgelehnt: "haiku" ist nicht opus oder fable oder sonnet');
+      // Tag O: the adapter of this world names no lern_issue, so the learning loop cannot be switched on
+      expect(texte).toContain('Einstellung Lernschleife über die Brücke abgelehnt: der Adapter nennt kein lern_issue: erst ein Sammel-Issue für die Lernvorschläge als lern_issue in .claude/epic.md eintragen');
+      expect(letzter.einstellungen.find((x) => x.name === 'lernschleife')).toMatchObject({ titel: 'Lernschleife', standard: 'aus', leer: false, werte: ['aus'], hinweis: expect.stringContaining('lern_issue') });
       // in effect: limit and idle limit; still no account path in the report
       expect(letzter.obergrenze).toBe(2);
       expect(letzter.leerlaufS).toBe(1800);
@@ -891,6 +894,21 @@ describe('Einstellungen über die Brücke (#58)', () => {
     const dauer = einstellungAus(['/r', '--konten', '/k', '--epics', '3', '--dauerhaft'], '/r', git);
     expect([dauer.auto, dauer.gesetzt?.includes('einsammeln')]).toEqual([true, true]);
   });
+
+  it('Tag O: --lernschleife an|aus is the start parameter of the switch, out of the box aus; another word is refused', () => {
+    const git: Aufrufer = (_p, args) => ({ code: 0, stdout: args.includes('get-url') ? 'https://github.com/o/r.git\n' : '/r/.git\n', stderr: '' });
+    const ohne = einstellungAus(['/r', '--konten', '/k'], '/r', git);
+    expect([ohne.lernschleife, ohne.gesetzt?.includes('lernschleife')]).toEqual(['aus', false]);
+    const an = einstellungAus(['/r', '--konten', '/k', '--lernschleife', 'an'], '/r', git);
+    expect([an.lernschleife, an.gesetzt?.includes('lernschleife')]).toEqual(['an', true]);
+    expect(() => einstellungAus(['/r', '--konten', '/k', '--lernschleife', 'ja'], '/r', git)).toThrow(/--lernschleife ja: an oder aus/);
+  });
+
+  it('Tag O: --lernschleife an without lern_issue in the adapter does not hold: an event says why, the switch stays off', async () => {
+    const t = aufbau();
+    const z = await fahre(t.einstellung(drehbuch([]), [], { lernschleife: 'an', gesetzt: ['lernschleife'], maxDauerMs: 500 }), t.welt);
+    expect(z.ereignisse.map((x) => x.text)).toContain('Einstellung Lernschleife: Startparameter --lernschleife an gilt nicht: der Adapter nennt kein lern_issue: erst ein Sammel-Issue für die Lernvorschläge als lern_issue in .claude/epic.md eintragen');
+  }, T);
 
   it('nothing running is stopped: a run stays on an account taken off, a lower limit starts fewer and ends none', async () => {
     const body = (m: string) => `## Betroffene Module\n- ${m}\n`;
@@ -2186,7 +2204,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       handlung: (x) => (x.triage.fragen.some((f) => f.ticket === 50) ? { epic: 50, art: 'triage-antwort', nr: 1, seit: '2026-11-22T12:00:00Z', text: JSON.stringify({ option: 'B', text: null }) } : null),
     });
     try {
-      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 600 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url, lernschleife: 'an' }), { ...t.welt, aufrufer });
       const erste = b.berichte[0].triage;
       expect(erste.tickets).toEqual([
         { nr: 50, titel: 'Lernvorschlag 555/1: Typprüfung im Gate', labels: ['Lernschleife'] },
@@ -2209,7 +2227,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     const aufrufer = mitLernIssue(t, true);
     const b = await attrappe(() => null);
     try {
-      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url, lernschleife: 'an' }), { ...t.welt, aufrufer });
       expect(b.berichte[0].triage.tickets).toEqual([
         { nr: 50, titel: 'Lernvorschlag 555/1: Typprüfung im Gate — Missionsziel fehlt', labels: ['Lernschleife'] },
         { nr: 50, titel: 'Lernvorschlag 555/3: Kundenmail', labels: ['Lernschleife'] },
@@ -2225,7 +2243,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     const aufrufer: Aufrufer = (p, a, o) => (p === 'gh' && a[0] === 'issue' && a[1] === 'view' && a[2] === '50' ? { code: 1, stdout: '', stderr: 'HTTP 502' } : mitNotiz(p, a, o));
     const b = await attrappe(() => null);
     try {
-      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer });
+      await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 300 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url, lernschleife: 'an' }), { ...t.welt, aufrufer });
       expect(b.berichte[0].triage.tickets).toEqual([{ nr: 61, titel: 'Newsletter', labels: ['needs-triage', 'kommunikation'] }]);
       expect(b.berichte[0].triage.fragen.map((f) => f.ticket)).toEqual([61]);
     } finally {
@@ -2256,7 +2274,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
       },
     });
     try {
-      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url, lernschleife: 'an' }), { ...t.welt, triagiere: tr.f });
       expect(tr.aufrufe[0].ziele[0].lernIssue).toBe(50);
       const e = z.triage!.entscheidungen;
       expect(e.map((d) => [d.nr, d.titel, d.ergebnis, d.lernvorschlag])).toEqual([
@@ -2291,9 +2309,40 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     );
     const b = await attrappe(() => null, { handlung: (x) => (x.triage.entscheidungen.length ? null : { epic: 0, art: 'triage' }) });
     try {
-      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, triagiere: tr.f });
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url, lernschleife: 'an' }), { ...t.welt, triagiere: tr.f });
       expect(z.triage!.entscheidungen.map((d) => [d.nr, d.titel, d.lernvorschlag, d.mission])).toEqual([[200, 'Typprüfung', undefined, 40]]);
       expect(texte(z)).toContain('Triage-Lauf beendet: 1 Warp frei (1 an Missionen angehängt), 0 geschlossen, 0 Fragen an den Menschen');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('Tag O: switched off (out of the box) the Frachtraum shows no Lernvorschläge and a triage run passes no lern_issue; switched on over the bridge the proposals come with the next report', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const aufrufer = mitLernIssue(t);
+    const tr = triageAttrappe(ergebnis([]), 50);
+    let schritt = 0;
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const an = x.einstellungen.find((e) => e.name === 'lernschleife')?.wert === 'an';
+        if (schritt === 0) return (schritt++, { epic: 0, art: 'triage' });
+        if (schritt === 1 && tr.aufrufe.length === 1 && !an) return (schritt++, { epic: 0, art: 'einstellen', text: JSON.stringify({ name: 'lernschleife', wert: 'an' }) });
+        return null;
+      },
+    });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 2500 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer, triagiere: tr.f });
+      const erste = b.berichte[0];
+      expect(erste.einstellungen.find((e) => e.name === 'lernschleife')).toMatchObject({ wert: 'aus', herkunft: 'standard', standard: 'aus', werte: ['an', 'aus'], hinweis: null });
+      expect(erste.triage.tickets.filter((x) => x.nr === 50)).toEqual([]);
+      expect(erste.triage.fragen.filter((x) => x.ticket === 50)).toEqual([]);
+      // off: the collecting issue is not even read
+      const vorher = b.berichte.findIndex((x) => x.einstellungen.find((e) => e.name === 'lernschleife')?.wert === 'an');
+      expect(vorher).toBeGreaterThan(0);
+      expect(tr.aufrufe[0].ziele[0].lernIssue).toBeNull();
+      expect(texte(z)).toContain('Einstellung Lernschleife von aus → auf an, Mensch über die Brücke');
+      expect(b.berichte.at(-1)!.triage.tickets.map((x) => x.titel)).toContain('Lernvorschlag 555/3: Kundenmail');
+      expect(z.einstellungen?.lernschleife).toMatchObject({ wert: 'an' });
     } finally {
       await b.zu();
     }

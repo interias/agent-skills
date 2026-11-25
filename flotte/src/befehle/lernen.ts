@@ -1,11 +1,12 @@
 // flotte lernen [<repo>] --pr <n> [--epic <n>] [--forge <owner/name>] [--konto <k>] [--modell <m>] [--trocken]
 // The learning loop after a merged epic (src/lernen.ts). The driver calls lerne() after each merge
-// when the adapter names lern_issue; /mission-aufraeumen calls the command by hand. Prints one JSON
+// when its switch Lernschleife is on (Tag O, needs lern_issue); /mission-aufraeumen calls the command by
+// hand, which also runs only with the switch on (else `aus` says why, no model is called). Prints one JSON
 // object: the comment, whether it was posted, the proposals and the tokens of the call.
 
 import { resolve } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
-import { lernAuftrag, lernBeleg, lernErgebnisAus, lernKommentar, lernKommentare, lernRegeln, lernSchema, regelTexte, streichKandidaten } from '../lernen.ts';
+import { LERN_AUS, lernAuftrag, lernBeleg, lernIssueFuer, lernErgebnisAus, lernKommentar, lernKommentare, lernRegeln, lernSchema, regelTexte, streichKandidaten } from '../lernen.ts';
 import { forgeRepoFuer, zugriffFuer } from '../forge/zugriff.ts';
 import { forgeAus } from '../treiber/treiber.ts';
 import { adapterAus } from '../werkzeuge/belegung.ts';
@@ -77,6 +78,9 @@ export async function lernen(argv: string[], aufrufer: Aufrufer = aufrufen): Pro
   const pr = Number(wert(argv, '--pr'));
   if (!(pr > 0)) throw new Error(AUFRUF);
   const epic = wert(argv, '--epic') ? Number(wert(argv, '--epic')) : null;
+  // Tag O: off (out of the box) nothing runs, not even --trocken: no model call, no comment
+  const lernIssue = lernIssueFuer(repo, adapterAus(repo).lern_issue, aufrufer);
+  if (lernIssue === null) return { gepostet: false, issue: null, kommentar: null, aus: LERN_AUS };
   // #127: a Gitea project names owner/name in its adapter (api), a GitHub one in origin
   let forge = wert(argv, '--forge') ?? (forgeRepoFuer(repo, '') || null);
   if (!forge) {
@@ -84,8 +88,7 @@ export async function lernen(argv: string[], aufrufer: Aufrufer = aufrufen): Pro
     forge = r.code ? null : forgeAus(r.stdout);
     if (!forge) throw new Error(`Die Forge lässt sich nicht aus origin lesen; --forge angeben. ${AUFRUF}`);
   }
-  const adapter = adapterAus(repo);
-  const issue = argv.includes('--trocken') ? null : adapter.lern_issue;
+  const issue = argv.includes('--trocken') ? null : lernIssue;
   return lerne(
     { repo, forge, pr, epic, issue, konto: kontoAus(wert(argv, '--konto') ?? '1'), modell: wert(argv, '--modell') ?? 'haiku', skills: resolve(SKRIPTE, '../..') },
     { aufrufer, starte, heute: () => new Date().toISOString().slice(0, 10) },
