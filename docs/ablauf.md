@@ -47,8 +47,8 @@ Entscheidung steht danach am Issue und ist bis zum Andocken widerrufbar.
 
 1. **Installieren:** wie in [`INSTALL.md`](../INSTALL.md).
 2. **Adapter anlegen:** `.claude/epic.md` im Zielprojekt. Soll die Flotte dort fahren, macht
-   `/flotte-einrichten` das Repository in einem Zug flottentauglich (Adapter, Andockprüfung, Forge,
-   Nachtlauf, Anmeldung an der Brücke); `flotte pruefen <ordner>` meldet, was fehlt. Die Skripte lesen nur das Frontmatter;
+   `/flotte-einrichten` das Repository in einem Zug flottentauglich (Adapter, Andockprüfung,
+   Forge, Nachtlauf, Anmeldung an der Brücke); `flotte pruefen <ordner>` meldet, was fehlt. Die Skripte lesen nur das Frontmatter;
    alle Schlüssel und Standards stehen in [`mission/references/adapter.md`](../mission/references/adapter.md).
    Fehlt der Adapter, leitet der erste Lauf ab, was geht, fragt den Rest am Vorab-Tor und bietet an,
    die Datei abzulegen.

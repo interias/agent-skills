@@ -105,8 +105,9 @@ Danach meldet `flotte pruefen` keine `<…>` mehr; ein Wert in `<…>` sperrt je
 2. **Labels:** die, die `flotte pruefen` unter `labels` als fehlend nennt, mit `gh label create`
    (Gitea: über die API) anlegen. Farben und Texte der Statuslabels stehen in
    `mission/references/forge.md`.
-3. **Der Weg nach main:** `merge: nach_gate` im Adapter, wenn der Treiber andocken soll (sonst bleibt
-   `mensch`; das entscheidet der Mensch). Dann ist **`merge.ps1` der einzige Weg** auf den Basiszweig,
+3. **Der Weg nach main:** `merge: nach_gate` im Adapter. Flottentauglich heißt: der Treiber dockt
+   an. Behält der Mensch `merge: mensch` (seine Entscheidung), bleibt `merge` in `flotte pruefen` als
+   `fehlt` stehen und im Bericht als bewusst offener Punkt. Mit `nach_gate` ist **`merge.ps1` der einzige Weg** auf den Basiszweig,
    für jeden: eine Zeile in `AGENTS.md`, dass angedockt nur mit `merge.ps1 -Repo <owner/name> -Pr <nr>`
    wird, nie mit `gh pr merge` oder dem Knopf der Forge. Branch-Schutz (kein direkter Push auf main)
    und abgeschaltetes Auto-Andocken der Forge schlägst du vor; einstellen tut es der Mensch.
@@ -134,7 +135,7 @@ liegen. Die Aufgabe läuft nur, solange der Benutzer angemeldet ist.
 3. **Anmelden** an der Brücke über den vorhandenen Weg: Maschinenraum, „Projekt hinzufügen“, oder
    `bun …\cli.ts projekt hinzufuegen <ordner> [--autostart]` (`flotte/SKILL.md`). Das legt das
    Startskript an; den Treiber startet der Mensch.
-4. **`flotte pruefen <ordner>`** zeigt `fehlt: 0`. Was `offen` bleibt (etwa kein angedockter PR mit
+4. **`flotte pruefen <ordner>`** zeigt `fehlt: 0` (oder nur `merge`, wenn der Mensch selbst andockt). Was `offen` bleibt (etwa kein angedockter PR mit
    Block), steht mit Grund im Bericht.
 
 ## Bericht

@@ -110,7 +110,8 @@ async function forgePunkte(repo: string, adapter: string, w: PruefWelt): Promise
   try {
     const form = gateForm(liesAdapter(adapter));
     const prs = z.f.prs({ zustand: 'merged', limit: PRS_GESUCHT, felder: ['number', 'body', 'mergedAt'] }).sort((x, y) => (y.gemergtAm ?? '').localeCompare(x.gemergtAm ?? ''));
-    const mit = prs.map((p) => ({ p, l: gateLaeufe(p.body, form) })).find((x) => x.l?.length);
+    // a partial run is never a proof (merge.ps1, treiber/gate.ts)
+    const mit = prs.map((p) => ({ p, l: gateLaeufe(p.body, form)?.filter((l) => !l.teil) })).find((x) => x.l?.length);
     const letzt = mit?.l?.at(-1);
     if (!mit || !letzt) aus.push({ bereich: 'andockpruefung', punkt: 'nachweisblock', stand: 'offen', text: `in den letzten ${prs.length} angedockten Pull Requests kein Andockblock unter „${form.heading}“`, schritt: schritt(6, 'Probelauf gegen main zeigt den Block') });
     else if (!letzt.head) aus.push({ bereich: 'andockpruefung', punkt: 'nachweisblock', stand: 'fehlt', text: `der Andockblock in #${mit.p.nummer} nennt die Basis, aber keinen HEAD`, schritt: schritt(2, 'Kopfzeile des Blocks mit Basis und HEAD') });
@@ -122,9 +123,12 @@ async function forgePunkte(repo: string, adapter: string, w: PruefWelt): Promise
 }
 
 export async function pruefeRepo(ordner: string, w: PruefWelt): Promise<unknown> {
-  const repo = resolve(ordner.trim().replace(/^(["'])(.*)\1$/, '$2'));
-  if (!existsSync(repo)) throw new Error(`Den Ordner ${basename(repo)} gibt es nicht.`);
-  if (w.aufrufer('git', ['-C', repo, 'rev-parse', '--show-toplevel']).code) throw new Error(`${basename(repo)} ist kein Git-Repository.`);
+  const gegeben = resolve(ordner.trim().replace(/^(["'])(.*)\1$/, '$2'));
+  if (!existsSync(gegeben)) throw new Error(`Den Ordner ${basename(gegeben)} gibt es nicht.`);
+  const wurzel = w.aufrufer('git', ['-C', gegeben, 'rev-parse', '--show-toplevel']);
+  if (wurzel.code) throw new Error(`${basename(gegeben)} ist kein Git-Repository.`);
+  // from a subfolder: the repository is its root (task name, start script, adapter of the working copy)
+  const repo = resolve(wurzel.stdout.trim());
   const a = w.aufrufer;
   const punkte: Punkt[] = [];
   const p = (bereich: Punkt['bereich'], punkt: string, ok: boolean, gut: string, schlecht: string, s: string, stand: Stand = 'fehlt') => punkte.push(ok ? { bereich, punkt, stand: 'ok', text: gut, schritt: '' } : { bereich, punkt, stand, text: schlecht, schritt: s });

@@ -1,4 +1,4 @@
-// Tag M: `flotte pruefen <ordner>` names what an existing repository lacks to be driven by the fleet, each point with
+// `flotte pruefen <ordner>` names what an existing repository lacks to be driven by the fleet, each point with
 // the step of /flotte-einrichten. Dummy repositories (real git, a gh and Task Scheduler stand-in); the command only reads.
 
 import { describe, expect, it } from 'vitest';
@@ -72,7 +72,7 @@ const FERTIG = [
 
 const stand = (r: any, punkt: string): Punkt => r.punkte.find((p: Punkt) => p.punkt === punkt);
 
-describe('Tag M: flotte pruefen', () => {
+describe('flotte pruefen', () => {
   it('a bare repository: every point that is missing, each with its step of /flotte-einrichten', async () => {
     const dir = repo();
     const r = (await pruefeRepo(dir, welt({ push: false }))) as any;
@@ -141,6 +141,16 @@ describe('Tag M: flotte pruefen', () => {
     expect(gh.every((a) => ['api repos/o/r', 'label list', 'pr list'].includes(a))).toBe(true);
     expect(w.aufrufe.filter(([p, a]) => p === 'git' && ['fetch', 'pull', 'push', 'commit', 'checkout'].some((x) => a.includes(x)))).toEqual([]);
     expect(git(dir, 'status', '--porcelain')).toBe('');
+  });
+
+  it('from a subfolder: the repository root counts; a partial run is no proof block', async () => {
+    const dir = repo({ '.claude/epic.md': FERTIG, 'sub/x.txt': 'x' });
+    const teil = BLOCK.replace('== Gate: Basis', '== Gate Immer-Teil: Basis');
+    const r = (await pruefeRepo(join(dir, 'sub'), welt({ prs: [{ number: 4, body: teil, mergedAt: '2026-11-22T10:00:00Z' }] }))) as any;
+    expect(r.projekt).toBe('app');
+    expect(r.adapterQuelle).toBe('Arbeitskopie');
+    expect(stand(r, 'aufgabe').text).toBe(`keine geplante Aufgabe ${nachtlaufAufgabe(dir)}`);
+    expect(stand(r, 'nachweisblock').stand).toBe('offen');
   });
 
   it('the task name is the one nachtlauf-aufgabe.ps1 builds (hash computed by the script logic in PowerShell)', () => {
