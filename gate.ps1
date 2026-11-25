@@ -44,7 +44,8 @@ foreach ($n in $teile.Keys) {
     $t0 = Get-Date
     $code = & $teile[$n] 2>&1 | Tee-Object -Variable aus | Select-Object -Last 1
     $ok = ($code -eq 0)
-    if (-not $ok) { $gruen = $false; $aus | Select-Object -Last 30 | Out-Host }
+    # a red part names its red tests first: the last 30 lines alone rarely reach back to them
+    if (-not $ok) { $gruen = $false; $aus | Where-Object { "$_" -match '^\(fail\) |^FAILED |^ERROR ' } | ForEach-Object { "  rot: $_" } | Out-Host; $aus | Select-Object -Last 30 | Out-Host }
     $zeilen += '  {0,-8} {1,-6} {2,6:N0} s' -f $n, ($(if ($ok) { 'grün' } else { 'ROT' })), ((Get-Date) - $t0).TotalSeconds
 }
 ''
