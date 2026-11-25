@@ -113,6 +113,25 @@
     return zeichne(oben, 0);
   }
 
+  // ---- Tag Q: the usage of the mission per package and role, from the card (the board's report); the head's sum line
+  // opens the table, a mark colours the sum. An older driver sends none: nothing here
+
+  const ROLLE = { Orchestrator: 'Orchestrator (Lagebesprechung, Andocken)' };
+  let vbAuf = true; // the table open, as the person left it
+
+  function verbrauchHtml(x) {
+    if (!x.verbrauch) return '';
+    const v = x.verbrauch;
+    const warn = v.warnung?.length ? v.warnung : null;
+    const summe = [v.anteil_woche != null ? `${anteilText(v.anteil_woche)} Woche` : '', (v.konten ?? []).join(', '), tokText(v.summe), cacheText(v.cache_quote)].filter(Boolean);
+    const titel = [verbrauchTitel(v), v.anteil_woche != null ? VERBRAUCH_METHODE : '', warn ? `Markiert: ${warn.join('; ')}\n${VERBRAUCH_MARKE}` : ''].filter(Boolean).join('\n\n');
+    const zeilen = (v.rollen ?? []).map((r) => `<tr><td>${esc(r.paket ?? '')}</td><td>${esc(ROLLE[r.rolle] ?? r.rolle)}</td><td class="z">${esc(anteilText(r.anteil_woche))}</td><td class="z" title="${esc(verbrauchTitel(r))}">${esc(tokText(r.summe))}</td><td class="z">${esc(r.cache_quote == null ? '' : `${Math.round(r.cache_quote * 100)} %`)}</td></tr>`).join('');
+    const tabelle = zeilen ? `<div class="vl-vb-tab"><table><thead><tr><th title="leer: die ganze Mission">Paket</th><th>Rolle</th><th class="z" title="${esc(VERBRAUCH_METHODE)}">≈Woche</th><th class="z">Tokens</th><th class="z">Cache</th></tr></thead><tbody>${zeilen}</tbody></table></div>` : '';
+    const kopf = `<span class="vl-vb-name">Verbrauch</span>${summe.map((t) => `<span>${esc(t)}</span>`).join(' · ')}${warn ? `<span class="vl-vb-warn">Markiert: ${esc(warn.join(' · '))}</span>` : ''}`;
+    if (!tabelle) return `<p class="vl-vb-summe${warn ? ' warnung' : ''}" title="${esc(titel)}">${kopf}</p>`;
+    return `<details class="vl-vb" data-vl-vb${vbAuf ? ' open' : ''}><summary class="vl-vb-summe${warn ? ' warnung' : ''}" title="${esc(titel)}"><span class="vl-pfeil" aria-hidden="true">▸</span>${kopf}</summary>${tabelle}</details>`;
+  }
+
   // ---- the panel's parts
 
   function lageZeile(x) {
@@ -126,7 +145,7 @@
     const x = z.x;
     const titel = `<h2 class="vl-titel" title="${esc(x.titel ?? '')}">#${esc(x.nr)}${x.titel ? ` · ${esc(x.titel)}` : ''}</h2>`;
     const zu = '<button type="button" class="vl-knopf" data-vl-zu aria-label="Verlauf schließen" title="Schließen (Esc)">✕</button>';
-    if (!BREIT.matches) return `<div class="vl-oben">${titel}${zu}</div>${lageZeile(x)}`;
+    if (!BREIT.matches) return `<div class="vl-oben">${titel}${zu}</div>${lageZeile(x)}${verbrauchHtml(x)}`;
     const i = karten.findIndex((k) => schluessel(k.x) === z.schluessel);
     const n = karten.length;
     const zahl = i >= 0 ? `<span class="vl-zahl" title="Pfeiltasten links und rechts wechseln die Mission">${i + 1}/${n}</span>` : '';
@@ -134,7 +153,7 @@
     const filter = FILTER.map(([w, t]) => `<button type="button" class="vl-knopf" data-vl-filter="${w}" aria-pressed="${z.filter === w}">${t}</button>`).join('');
     const stand = z.daten?.stand ? `<span class="vl-stand" title="Stand des Verlaufs, wie der Treiber ihn zuletzt schickte">Stand ${esc(uhrzeit(z.daten.stand))}</span>` : '';
     const folgen = `<button type="button" class="vl-knopf${z.folgen ? ' an' : ''}" data-vl-folgen aria-pressed="${z.folgen}" title="An: neue Einträge holen die Liste ans Ende">Mitlaufen</button>`;
-    return `<div class="vl-oben">${wechsel}${titel}${zahl}<button type="button" class="vl-knopf" data-vl-weit aria-pressed="${z.weit}">${z.weit ? 'Schmal' : 'Weit'}</button>${zu}</div>${lageZeile(x)}<div class="vl-filter" role="group" aria-label="Filter">${filter}<span class="vl-luft"></span>${stand}${folgen}</div>`;
+    return `<div class="vl-oben">${wechsel}${titel}${zahl}<button type="button" class="vl-knopf" data-vl-weit aria-pressed="${z.weit}">${z.weit ? 'Schmal' : 'Weit'}</button>${zu}</div>${lageZeile(x)}${verbrauchHtml(x)}<div class="vl-filter" role="group" aria-label="Filter">${filter}<span class="vl-luft"></span>${stand}${folgen}</div>`;
   }
 
   function reiterHtml() {
@@ -311,6 +330,7 @@
       d.dataset.vlWar = d.open ? '1' : '0';
     }
     if (d.dataset?.vlRoh != null) (d.open ? befehle.add(d.dataset.vlRoh) : befehle.delete(d.dataset.vlRoh));
+    if (d.dataset?.vlVb != null) vbAuf = d.open;
   }, true);
 
   document.addEventListener('keydown', (ev) => {

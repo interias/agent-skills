@@ -201,7 +201,7 @@ export function rolleVon(typ: string, beschreibung = ''): string {
 }
 
 /** "#480", a spec package "#45-p2"; null without one */
-function paketAus(beschreibung: string): { schluessel: number | string; name: string; rest: string } | null {
+export function paketAus(beschreibung: string): { schluessel: number | string; name: string; rest: string } | null {
   const m = PAKET.exec(beschreibung);
   if (!m) return null;
   return { schluessel: m[2] ? `${m[1]}-p${m[2]}` : Number(m[1]), name: m[0], rest: beschreibung.slice(m.index + m[0].length).trim() };

@@ -231,6 +231,26 @@
       "prioritaet": null,
       "merge": { "stellung": "automatisch", "herkunft": "projekt", "grund": null },
       "lage": { "etikett": "wartet_auf_dich", "satz": "1 Frage an dich", "seit": "2026-11-20T13:52:30Z", "deinSchritt": { "text": "Frage beantworten", "ziel": "frage" }, "gate": null },
+      "verbrauch": {
+        "stand": "2026-11-20T14:30:40Z",
+        "eingabe": 144000,
+        "cache_schreiben": 1000000,
+        "cache_lesen": 4130000,
+        "ausgabe": 134000,
+        "summe": 5408000,
+        "gewichtet": 2477000,
+        "cache_quote": 0.783,
+        "anteil_woche": 5.6,
+        "konten": ["Konto 2"],
+        "rollen": [
+          {"paket": null, "rolle": "Orchestrator", "eingabe": 4000, "cache_schreiben": 210000, "cache_lesen": 1900000, "ausgabe": 38000, "summe": 2152000, "gewichtet": 646500, "cache_quote": 0.899, "anteil_woche": 1.6},
+          {"paket": "P1", "rolle": "Ingenieur", "eingabe": 61000, "cache_schreiben": 320000, "cache_lesen": 1150000, "ausgabe": 52000, "summe": 1583000, "gewichtet": 836000, "cache_quote": 0.751, "anteil_woche": 1.9},
+          {"paket": "P1", "rolle": "Erster Offizier", "eingabe": 22000, "cache_schreiben": 140000, "cache_lesen": 380000, "ausgabe": 9000, "summe": 551000, "gewichtet": 280000, "cache_quote": 0.701, "anteil_woche": 0.6},
+          {"paket": "P2", "rolle": "Ingenieur", "eingabe": 48000, "cache_schreiben": 260000, "cache_lesen": 610000, "ausgabe": 31000, "summe": 949000, "gewichtet": 589000, "cache_quote": 0.664, "anteil_woche": 1.3},
+          {"paket": null, "rolle": "Kundschafter", "eingabe": 9000, "cache_schreiben": 70000, "cache_lesen": 90000, "ausgabe": 4000, "summe": 173000, "gewichtet": 125500, "cache_quote": 0.533, "anteil_woche": 0.2}
+        ],
+        "warnung": ["Verbrauch 2,3-mal das Mittel vergleichbarer Missionen (3 Pakete ± 1)"]
+      },
       "gestartetAm": "2026-11-20T12:51:10Z",
       "schlangeSeit": null,
       "gateSeit": null,
@@ -276,6 +296,26 @@
       "prioritaet": null,
       "merge": { "stellung": "automatisch", "herkunft": "projekt", "grund": null },
       "lage": { "etikett": "prueft", "satz": "Andockprüfung des Treibers 1 von 3 Kontexten fertig, wurzel läuft (PR #44)", "seit": "2026-11-20T14:27:45Z", "deinSchritt": null, "gate": { "kontexte": [{ "name": "buero", "stand": "fertig" }, { "name": "wurzel", "stand": "laeuft" }], "von": 3, "seit": "2026-11-20T14:27:45Z" } },
+      "verbrauch": {
+        "stand": "2026-11-20T14:30:40Z",
+        "eingabe": 19000,
+        "cache_schreiben": 242000,
+        "cache_lesen": 2690000,
+        "ausgabe": 54000,
+        "summe": 3005000,
+        "gewichtet": 860500,
+        "cache_quote": 0.912,
+        "anteil_woche": 2.1,
+        "konten": ["Konto 1"],
+        "rollen": [
+          {"paket": null, "rolle": "Orchestrator", "eingabe": 2000, "cache_schreiben": 60000, "cache_lesen": 900000, "ausgabe": 15000, "summe": 977000, "gewichtet": 242000, "cache_quote": 0.936, "anteil_woche": 0.6},
+          {"paket": "P1", "rolle": "Ingenieur", "eingabe": 8000, "cache_schreiben": 90000, "cache_lesen": 1000000, "ausgabe": 20000, "summe": 1118000, "gewichtet": 320500, "cache_quote": 0.911, "anteil_woche": 0.8},
+          {"paket": "P1", "rolle": "Erster Offizier", "eingabe": 3000, "cache_schreiben": 30000, "cache_lesen": 310000, "ausgabe": 6000, "summe": 349000, "gewichtet": 101500, "cache_quote": 0.904, "anteil_woche": 0.2},
+          {"paket": "P2", "rolle": "Ingenieur", "eingabe": 5000, "cache_schreiben": 50000, "cache_lesen": 420000, "ausgabe": 11000, "summe": 486000, "gewichtet": 164500, "cache_quote": 0.884, "anteil_woche": 0.4},
+          {"paket": null, "rolle": "Andockprüfung", "eingabe": 1000, "cache_schreiben": 12000, "cache_lesen": 60000, "ausgabe": 2000, "summe": 75000, "gewichtet": 32000, "cache_quote": 0.822, "anteil_woche": 0.1}
+        ],
+        "warnung": []
+      },
       "gestartetAm": "2026-11-20T10:12:00Z",
       "schlangeSeit": "2026-11-20T14:05:20Z",
       "gateSeit": "2026-11-20T14:27:45Z",
@@ -491,7 +531,12 @@
       },
       "vorsprung": -12,
       "alterMin": 6.0,
-      "grund": "verbraucht 71 %, Hochrechnung 96 %"
+      "grund": "verbraucht 71 %, Hochrechnung 96 %",
+      "missionen": [
+        { "epic": 39, "heute": { "summe": 5408000, "anteil": 5.6 }, "woche": { "summe": 5408000, "anteil": 5.6 } },
+        { "epic": 37, "heute": { "summe": 640000, "anteil": 0.9 }, "woche": { "summe": 2870000, "anteil": 3.8 } },
+        { "epic": 40, "heute": { "summe": 0, "anteil": 0.0 }, "woche": { "summe": 1310000, "anteil": null } }
+      ]
     }
   ],
   "ram": {
@@ -547,6 +592,11 @@
       "zeit": "2026-11-20T13:35:12Z",
       "epic": 35,
       "text": "PR #43 angedockt"
+    },
+    {
+      "zeit": "2026-11-20T13:35:20Z",
+      "epic": 35,
+      "text": "Verbrauch der Mission: 1,9 Mio Tokens (gewichtet 520 Tsd), Cache 89 %, ≈2,4 % Woche auf Konto 1"
     },
     {
       "zeit": "2026-11-20T13:52:30Z",

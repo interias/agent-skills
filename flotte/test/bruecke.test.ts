@@ -157,13 +157,14 @@ describe('Flottenbrücke (#28)', () => {
       const muster = beispiel('bericht.json');
       const mitFrage = b.berichte.find((x) => x.fragen.length)!;
       expect(schluessel(mitFrage)).toEqual(schluessel(muster));
-      // `plaetze` (#51) only with Agent calls in the log: the sample has them, this run has none
-      expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]).filter((k) => k !== 'plaetze'));
+      // `plaetze` (#51) only with Agent calls in the log, `verbrauch` (Tag Q) only with transcripts: this run has neither
+      expect(schluessel(mitFrage.epics[0])).toEqual(schluessel(muster.epics[1]).filter((k) => k !== 'plaetze' && k !== 'verbrauch'));
       expect(schluessel(mitFrage.fragen[0])).toEqual(schluessel(muster.fragen[0]));
       // Tag H: the line of the mission names the person's step to her question, with the keys of the sample
       expect(schluessel(mitFrage.epics[0].lage)).toEqual(schluessel(muster.epics[1].lage));
       expect(mitFrage.epics[0].lage.deinSchritt?.ziel).toBe('frage');
-      expect(schluessel(mitFrage.konten[0])).toEqual(schluessel(muster.konten[0]));
+      // `missionen` (Tag Q) only for an account with counted missions
+      expect(schluessel(mitFrage.konten[0])).toEqual(schluessel(muster.konten[0]).filter((k) => k !== 'missionen'));
       expect(schluessel(mitFrage.ereignisse[0])).toEqual(schluessel(muster.ereignisse[0]));
       expect(schluessel(mitFrage.ram!)).toEqual(schluessel(muster.ram));
       expect(schluessel(mitFrage.platte!)).toEqual(schluessel(muster.platte));
