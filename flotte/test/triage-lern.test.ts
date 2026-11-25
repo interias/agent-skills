@@ -138,6 +138,17 @@ describe('#117: Lernvorschlag wird wie ein Triage-Ticket behandelt', () => {
     expect(t.gestartet[0].extraArgs).toEqual(expect.arrayContaining(['--tools', 'Read,Grep,Glob']));
   });
 
+  it('Tag N: a selection without the collecting issue leaves its proposals for the next run; with it they are triaged', async () => {
+    const ohne = welt([lern()], { [K(1)]: antwort.klar, [K(2)]: antwort.ueberfluessig, [K(3)]: antwort.kritisch });
+    const r = await triagiere({ ...auftrag(), ziele: [{ ...auftrag().ziele[0], nummern: [5] }] }, ohne.w);
+    expect(ohne.gestartet).toEqual([]);
+    expect(schreibend(ohne.aufrufe)).toEqual([]);
+    expect(r.tickets).toEqual([]);
+    const mit = welt([lern()], { [K(1)]: antwort.ueberfluessig, [K(2)]: antwort.ueberfluessig, [K(3)]: antwort.ueberfluessig });
+    const r2 = await triagiere({ ...auftrag(), ziele: [{ ...auftrag().ziele[0], nummern: [ISSUE] }] }, mit.w);
+    expect(r2.tickets.map((x) => x.lernvorschlag)).toEqual([K(1), K(2), K(3)]);
+  });
+
   it('a second run over the comments of the first does nothing: no model, nothing written', async () => {
     const t = welt([lern()], { [K(1)]: antwort.klar, [K(2)]: antwort.ueberfluessig, [K(3)]: antwort.kritisch });
     await triagiere(auftrag(), t.w);

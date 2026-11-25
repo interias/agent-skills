@@ -60,6 +60,16 @@
 .bereich[data-bereich="frachtraum"] .fr-ticket:first-child { border-top: 0; }
 .bereich[data-bereich="frachtraum"] .fr-marke { padding: 0 8px; border-radius: var(--rund); background: var(--lila); color: #000; font: 700 11px/18px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
 .bereich[data-bereich="frachtraum"] .fr-label { padding: 0 8px; border-radius: var(--rund); border: 1px solid var(--linie); color: var(--matt); font-size: 12px; }
+/* Tag N: the choice of the next triage run: a checkbox per note, "alle"/"keine" per topic and project */
+.bereich[data-bereich="frachtraum"] .fr-wahl-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 6px; }
+.bereich[data-bereich="frachtraum"] .fr-thema-kopf { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 8px; }
+.bereich[data-bereich="frachtraum"] .fr-wahl-knoepfe { display: inline-flex; gap: 4px; }
+.bereich[data-bereich="frachtraum"] .fr-mini { min-height: 28px; padding: 0 10px; border-radius: var(--rund); border: 1px solid var(--linie); background: var(--flaeche2); color: var(--matt); font: 12px var(--lesen); cursor: pointer; }
+.bereich[data-bereich="frachtraum"] .fr-mini:hover { color: var(--text); }
+.bereich[data-bereich="frachtraum"] .fr-mini:focus-visible, .bereich[data-bereich="frachtraum"] .fr-haken input:focus-visible { outline: 2px solid var(--himmel); outline-offset: 2px; }
+.bereich[data-bereich="frachtraum"] .fr-haken { display: inline-flex; align-items: center; justify-content: center; align-self: center; min-width: 28px; min-height: 28px; margin: -4px 0 -4px -4px; cursor: pointer; }
+.bereich[data-bereich="frachtraum"] .fr-haken input { width: 18px; height: 18px; margin: 0; accent-color: var(--orange); cursor: pointer; }
+.bereich[data-bereich="frachtraum"] .fr-ticket.abgewaehlt .fr-titel, .bereich[data-bereich="frachtraum"] .fr-ticket.abgewaehlt .nr { color: var(--leise); }
 
 @media (max-width: 700px) {
   .bereich[data-bereich="frachtraum"] .wider { min-height: 44px; }
@@ -67,4 +77,7 @@
   .bereich[data-bereich="frachtraum"] .fr-ticket { min-height: 44px; align-items: center; }
   .bereich[data-bereich="frachtraum"] .fr-ticket .nr { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
   .bereich[data-bereich="frachtraum"] .fr-zeile .nr, .bereich[data-bereich="frachtraum"] .fr-name { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+  .bereich[data-bereich="frachtraum"] .fr-haken { min-width: 44px; min-height: 44px; margin: 0 -8px 0 -10px; }
+  .bereich[data-bereich="frachtraum"] .fr-haken input { width: 22px; height: 22px; }
+  .bereich[data-bereich="frachtraum"] .fr-mini { min-height: 44px; min-width: 52px; }
 }

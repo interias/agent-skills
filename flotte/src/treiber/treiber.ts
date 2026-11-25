@@ -1805,7 +1805,7 @@ class Treiber {
     const amIssue = (text: string) => kommentar(this.forge, h.epic, `${text}\nHerkunft: ${HERKUNFT_BRUECKE}`);
     if (h.art === 'einstellen') return this.einstellen(h);
     if (h.art === 'aufnehmen') return this.aufnehmen(h);
-    if (h.art === 'triage') return this.triageStarten();
+    if (h.art === 'triage') return this.triageStarten(h.text);
     if (h.art === 'einspielen') return this.einspielenAnfordern(h);
     if (h.art.startsWith('konto_')) return this.kontoHandlung(h);
     if (h.art === 'forge_verknuepfen') return this.forgeVerknuepfen();
@@ -2284,12 +2284,35 @@ class Treiber {
 
   /**
    * triage over the bridge: a triage run (`flotte triage`) for this project beside the loop, on the
-   * admiral's account (another with room when it is red). One at a time.
+   * admiral's account (another with room when it is red). One at a time. Tag N: text {"nummern"} is the choice
+   * of the Frachtraum, checked against the open notes read now; null (or no JSON, an older bridge) means all.
    */
-  triageStarten(): void {
+  triageStarten(text: string | null = null): void {
     const nein = (grund: string) => this.ereignis(null, `Triage-Lauf über die Brücke abgelehnt: ${grund}`);
     if (this.triageLaeuft) return nein('ein Triage-Lauf läuft schon');
     if (existsSync(join(this.dir, 'anhalten')) || this.einspielenWunsch || this.entfernenWunsch) return nein('der Treiber hält an');
+    let wahl: unknown = null;
+    try {
+      wahl = text ? JSON.parse(text) : null;
+    } catch {
+      wahl = null;
+    }
+    let nummern: number[] | undefined;
+    let umfang = '';
+    let uebergangen = '';
+    if (wahl && typeof wahl === 'object' && 'nummern' in wahl) {
+      const roh = (wahl as { nummern: unknown }).nummern;
+      if (!Array.isArray(roh) || !roh.every((n) => Number.isSafeInteger(n) && n > 0)) return nein('die Wahl der Notizen ist ungültig');
+      if (!roh.length) return nein('keine Notiz gewählt');
+      this.triageLesen(true);
+      const offen = new Set((this.triageStand?.tickets ?? []).map((t) => t.nr));
+      const gewaehlt = [...new Set(roh as number[])].sort((x, y) => x - y);
+      nummern = gewaehlt.filter((n) => offen.has(n));
+      const uebrig = gewaehlt.filter((n) => !offen.has(n)).map((n) => `#${n}`);
+      if (!nummern.length) return nein(`keine der gewählten Notizen ist offen (${uebrig.join(', ')})`);
+      umfang = ` über ${nummern.length} von ${offen.size} Notizen`;
+      if (uebrig.length) uebergangen = `; übergangen, keine offene Notiz: ${uebrig.join(', ')}`;
+    }
     // the account like a question block of the admiral: his own, else one with room (#111)
     const konto = this.admiralKontoFuer({ konto: this.e.konten[0] } as FlottenEpic);
     if (!konto) return nein('kein Konto mit Luft');
@@ -2298,12 +2321,12 @@ class Treiber {
     this.triageBeendet = undefined;
     // #147: in the state, so a restart after a driver that died meanwhile reports it as aborted
     this.z.triageLauf = { seit: this.triageSeit, pids: [] };
-    this.imLogbuch(null, `Triage-Lauf gestartet, ${HERKUNFT_BRUECKE}`);
-    this.triageFahrt = this.triageFahren(konto);
+    this.imLogbuch(null, `Triage-Lauf gestartet${umfang}, ${HERKUNFT_BRUECKE}${uebergangen}`);
+    this.triageFahrt = this.triageFahren(konto, nummern);
     this.nebenbei(this.triageFahrt);
   }
 
-  async triageFahren(konto: string): Promise<void> {
+  async triageFahren(konto: string, nummern?: number[]): Promise<void> {
     const abbruch = new AbortController();
     this.triageAbbruch = abbruch;
     mitTriage.add(this);
@@ -2329,7 +2352,7 @@ class Treiber {
       const datei = join(this.e.repo, '.claude', 'epic.md');
       const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
       const r = await (this.w.triagiere ?? triagiere)(
-        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue }], konto, modell: this.e.triageModell, lesenMax: this.e.triageLesenMax, trocken: false, programm: this.programm() },
+        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue, ...(nummern ? { nummern } : {}) }], konto, modell: this.e.triageModell, lesenMax: this.e.triageLesenMax, trocken: false, programm: this.programm() },
         { aufrufer: this.w.aufrufer, starte: starteTriage, abgebrochen: () => abbruch.signal.aborted },
       );
       // #147: aborted, what the run wrote until then still counts (decisions, cut plan), only its end differs

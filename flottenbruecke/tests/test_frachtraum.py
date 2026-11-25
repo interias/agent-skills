@@ -106,6 +106,55 @@ def test_triage_fuer_alle_eine_handlung_je_projekt_mit_triage(zwei, bericht):
     assert len(offene(zwei)) == 1 and len(offene(zwei, 'interias/notizen')) == 1
 
 
+def test_triage_mit_wahl_traegt_die_nummern_ohne_wahl_null(zwei):
+    # Tag N: the choice of the Frachtraum, sorted and each number once; pressed again before the driver fetches it: the last one counts
+    assert handlung(zwei, 'triage', text=json.dumps({'nummern': [63, 61, 61]})).status_code == 200
+    assert json.loads(frachtraum(zwei)[0]['handlung']['text']) == {'nummern': [61, 63]}
+    assert handlung(zwei, 'triage', text=None).status_code == 200
+    assert [h['text'] for h in offene(zwei)] == [None]
+    assert handlung(zwei, 'triage', forge='interias/notizen', text=json.dumps({'nummern': [7]})).status_code == 200
+    assert [json.loads(h['text']) for h in offene(zwei, 'interias/notizen')] == [{'nummern': [7]}]
+
+
+def test_triage_fuer_alle_nimmt_je_projekt_dessen_wahl(zwei):
+    # a project not named in the choice gets all of its notes (text null)
+    r = handlung(zwei, 'triage', forge='alle', text=json.dumps({'nummern': {FORGE: [58, 61], 'interias/fremd': [1]}}))
+    assert r.status_code == 200 and len(r.json()['ids']) == 2
+    assert [json.loads(h['text']) for h in offene(zwei)] == [{'nummern': [58, 61]}]
+    assert [h['text'] for h in offene(zwei, 'interias/notizen')] == [None]
+
+
+@pytest.mark.parametrize('text', [
+    'alle',
+    json.dumps([61]),
+    json.dumps({'nummern': []}),
+    json.dumps({'nummern': ['61']}),
+    json.dumps({'nummern': [True]}),
+    json.dumps({'nummern': [0]}),
+    json.dumps({'nummern': [1.5]}),
+    json.dumps({'nummern': list(range(1, 502))}),
+    json.dumps({'nummern': {FORGE: [61]}}),
+    json.dumps({'andere': [61]}),
+])
+def test_triage_mit_ungueltiger_wahl_ist_422(zwei, text):
+    assert handlung(zwei, 'triage', text=text).status_code == 422
+    assert offene(zwei) == []
+
+
+def test_triage_fuer_alle_ohne_wahl_in_einem_projekt_startet_dort_keinen(zwei):
+    r = handlung(zwei, 'triage', forge='alle', text=json.dumps({'nummern': {FORGE: []}}))
+    assert r.status_code == 200 and len(r.json()['ids']) == 1
+    assert offene(zwei) == []
+    assert [h['text'] for h in offene(zwei, 'interias/notizen')] == [None]
+    assert handlung(zwei, 'triage', forge='alle', text=json.dumps({'nummern': {FORGE: [], 'interias/notizen': []}})).status_code == 409
+
+
+@pytest.mark.parametrize('text', [json.dumps({'nummern': [61]}), json.dumps({'nummern': {FORGE: ['x']}})])
+def test_triage_fuer_alle_mit_ungueltiger_wahl_ist_422(zwei, text):
+    assert handlung(zwei, 'triage', forge='alle', text=text).status_code == 422
+    assert offene(zwei) == []
+
+
 def test_antwort_mit_eigenem_text_oder_beidem(zwei):
     assert handlung(zwei, 'triage-antwort', **{**FRAGE, 'text': antwort(None, '  Nur an die Testliste, dann an alle.  ')}).status_code == 200
     assert json.loads(frachtraum(zwei)[0]['fragen'][0]['handlung']['text']) == {'option': None, 'text': 'Nur an die Testliste, dann an alle.'}

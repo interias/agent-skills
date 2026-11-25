@@ -15,9 +15,36 @@ HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause'
 PROJEKT_ORDNER_MAX = 260
 # the link of projekt_hinzufuegen: https://<host>/<owner>/<name>; the hosts allowed are github.com and the Gitea forges the driver reports
 PROJEKT_LINK_MAX = 300
+# Tag N: the most notes a choice of the Frachtraum names for one triage run
+TRIAGE_WAHL_MAX = 500
 _LINK_TEIL = re.compile(r'^[\w.-]{1,100}$', re.ASCII)
 _LINK_LOKAL = re.compile(r'^(localhost|.*\.localhost|.*\.local|.*\.lan|.*\.home\.arpa|.*\.internal)$', re.I)
 _LINK_IP = re.compile(r'^(\d{1,3}(\.\d{1,3}){3}|[0-9a-f:.]*:[0-9a-f:.]*)$', re.I)
+
+
+def _nummern(liste, leer: bool = False) -> list[int]:
+    """Tag N: a choice of notes: 1–TRIAGE_WAHL_MAX whole numbers above 0, sorted, each once; leer: none allowed."""
+    if not isinstance(liste, list) or not (0 if leer else 1) <= len(liste) <= TRIAGE_WAHL_MAX or not all(type(n) is int and n > 0 for n in liste):
+        raise ValueError(f'Triage-Lauf: text {{"nummern": [1–{TRIAGE_WAHL_MAX} Nummern von Notizen]}} oder null für alle')
+    return sorted(set(liste))
+
+
+def triage_wahl(text: str | None, alle: bool) -> str | None:
+    """Tag N: the text of a triage action: null means every open note; {"nummern": [..]} the chosen ones; for `alle`
+    {"nummern": {"owner/name": [..]}}, a project not named takes all of its notes, one with [] none (no run)."""
+    if text is None:
+        return None
+    try:
+        d = json.loads(text)
+    except ValueError:
+        d = None
+    if not isinstance(d, dict) or set(d) != {'nummern'}:
+        raise ValueError('Triage-Lauf: text {"nummern": [...]} oder null für alle')
+    if not alle:
+        return json.dumps({'nummern': _nummern(d['nummern'])})
+    if not isinstance(d['nummern'], dict) or not all(isinstance(k, str) and len(k) <= 200 for k in d['nummern']):
+        raise ValueError('Triage-Lauf für alle: text {"nummern": {"owner/name": [...]}}')
+    return json.dumps({'nummern': {k: _nummern(v, leer=True) for k, v in d['nummern'].items()}})
 
 
 def link_pruefen(url: str) -> tuple[str, str]:
@@ -772,10 +799,11 @@ class Handlung(BaseModel):
         if self.art == 'widerruf' and (self.nr is None or not self.seit or not self.text):
             raise ValueError('Widerruf: nr, seit und die neue Entscheidung')
         if self.art in ('triage', 'einspielen'):
-            # belongs to the project like einstellen; einspielen (#154): the bridge sets the text itself
+            # belongs to the project like einstellen; einspielen (#154): the bridge sets the text itself;
+            # triage (Tag N): the choice of the notes, null for all
             if self.epic != 0:
                 raise ValueError('Triage-Lauf und Einspielen: epic 0')
-            self.nr, self.seit, self.text = None, None, None
+            self.nr, self.seit, self.text = None, None, triage_wahl(self.text, self.forge == 'alle') if self.art == 'triage' else None
         elif self.art == 'triage-antwort':
             try:
                 d = json.loads(self.text or '')

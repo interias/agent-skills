@@ -469,8 +469,10 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     def triage_starten(h: Handlung, geraet: str) -> dict:
         """#116: one triage action per project, or (forge `alle`) one for each project whose driver reports a triage state and runs none."""
+        # Tag N: the choice of the notes; for `alle` per project, one not named takes all of its notes, one with none no run
+        wahl = json.loads(h.text)['nummern'] if h.text else None
         if h.forge == 'alle':
-            ziele = [p['forge'] for p in speicher.projekte() if p['bericht'].get('triage') and not p['bericht']['triage'].get('laeuft')]
+            ziele = [p['forge'] for p in speicher.projekte() if p['bericht'].get('triage') and not p['bericht']['triage'].get('laeuft') and (not isinstance(wahl, dict) or wahl.get(p['forge']) != [])]
             if not ziele:
                 raise HTTPException(409, 'Kein Treiber kann gerade einen Triage-Lauf starten.')
         else:
@@ -482,9 +484,10 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             if p['bericht']['triage'].get('laeuft'):
                 raise HTTPException(409, 'Ein Triage-Lauf läuft schon.')
             ziele = [h.forge]
+        text = lambda forge: (json.dumps({'nummern': wahl[forge]}) if forge in wahl else None) if isinstance(wahl, dict) else h.text
         ids = []
         for forge in ziele:
-            gespeichert = speicher.handlung_setzen(forge, 0, 'triage', None, None, None, stempel(), geraet)
+            gespeichert = speicher.handlung_setzen(forge, 0, 'triage', None, None, text(forge), stempel(), geraet)
             # fetched already: that one starts the run, nothing more to do here
             if gespeichert is not None:
                 ids.append(gespeichert['id'])

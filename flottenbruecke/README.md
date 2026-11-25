@@ -172,10 +172,16 @@ ein Block mit der Zahl der Notizen und der offenen Fragen; Projekte mit Fragen s
   Grund, Fundstelle und Verweis.
 - **Sternzeit-Notizen nach Thema** — Thema sind die fachlichen Labels (ohne `needs-triage`, `needs-info`,
   `ready-for-agent`, `status/*`, `epic`), sonst „ohne Thema“; Notizen mit offener Frage zuerst. Die
-  Befehlszeile findet jede Notiz und jede Frage.
+  Befehlszeile findet jede Notiz und jede Frage. Ein Haken je Notiz und „alle / keine“ je Thema und
+  Projekt wählen die Notizen des nächsten Laufs: vorgewählt sind alle, auch eine neu hinzugekommene;
+  die Wahl übersteht das Neuladen und gilt nur für den nächsten Start, danach ist wieder alles gewählt.
+  Abgewählte bleiben unberührt mit ihrem Label für eine spätere Runde; nichts davon steht in der Forge.
 
-**Triage-Lauf starten** je Projekt und **Triage-Lauf für alle**, nach einer Rückfrage: Der Treiber führt
-`flotte triage` aus (`flotte/README.md`, „Triage“), einen Lauf je Projekt zur Zeit. Jede Handlung braucht
+**Triage-Lauf starten** je Projekt und **Triage-Lauf für alle**, nach einer Rückfrage, die die Wahl nennt:
+Der Knopf heißt bei einer Teilwahl „Triage-Lauf starten (12 von 15)“ und ist bei keiner gewählten Notiz
+gesperrt; „für alle“ nimmt je Projekt dessen Wahl, ein Projekt ohne gewählte Notiz bekommt keinen Lauf.
+Der Treiber führt `flotte triage` aus (`flotte/README.md`, „Triage“), nur über die gewählten Notizen,
+einen Lauf je Projekt zur Zeit. Jede Handlung braucht
 die PIN und wirkt ab dem nächsten Takt des Treibers; nichts existiert nur auf der Brücke. Die Daten liest
 der Treiber aus der Forge (`triage` im Bericht, `SCHNITTSTELLE.md`); ein älterer Treiber fehlt hier.
 Bilder: `doku/v3-frachtraum-1440.png`, `-390.png`; Schnittplan: `doku/v3-frachtraum-schnittplan-1440.png`, `-390.png`.

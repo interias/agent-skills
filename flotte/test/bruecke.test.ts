@@ -1489,6 +1489,52 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   }, T);
 
+  /** Tag N: a forge with the open Sternzeit-Notizen #61, #62, #63 */
+  const mitNotizen = (t: ReturnType<typeof aufbau>): Aufrufer => (p, a, o) => {
+    if (p === 'gh' && a[0] === 'issue' && a[1] === 'list' && a.includes('needs-triage'))
+      return ok(JSON.stringify([61, 62, 63].map((n) => ({ number: n, title: `Notiz ${n}`, body: 'Text', url: `https://github.com/o/r/issues/${n}`, labels: [{ name: 'needs-triage' }], comments: [] }))));
+    return t.welt.aufrufer(p, a, o);
+  };
+  const mitWahl = async (text: string | null) => {
+    const t = aufbau();
+    const tr = triageAttrappe(zwei());
+    const b = await attrappe(() => null, { handlung: () => ({ epic: 0, art: 'triage', text }) });
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ warte: 900 }, { text: ende(3, 13) }])]), [3], { bruecke: b.url }), { ...t.welt, aufrufer: mitNotizen(t), triagiere: tr.f });
+      return { z, tr, b };
+    } finally {
+      await b.zu();
+    }
+  };
+
+  it('Tag N: triage with {"nummern"} runs only over the chosen open notes; the logbook names the count of all', async () => {
+    const { z, tr } = await mitWahl(JSON.stringify({ nummern: [63, 61] }));
+    expect(tr.aufrufe).toHaveLength(1);
+    expect(tr.aufrufe[0].ziele[0].nummern).toEqual([61, 63]);
+    expect(texte(z)).toContain('Triage-Lauf gestartet über 2 von 3 Notizen, Mensch über die Brücke');
+  }, T);
+
+  it('Tag N: a chosen number that is no open note (any more) is passed over and named; text null still means all', async () => {
+    const { z, tr } = await mitWahl(JSON.stringify({ nummern: [62, 99, 7] }));
+    expect(tr.aufrufe[0].ziele[0].nummern).toEqual([62]);
+    expect(texte(z)).toContain('Triage-Lauf gestartet über 1 von 3 Notizen, Mensch über die Brücke; übergangen, keine offene Notiz: #7, #99');
+    const alle = await mitWahl(null);
+    expect(alle.tr.aufrufe[0].ziele[0].nummern).toBeUndefined();
+    expect(texte(alle.z)).toContain('Triage-Lauf gestartet, Mensch über die Brücke');
+  }, T);
+
+  it('Tag N: a choice without an open note, an empty or a broken one is refused with its reason; no run', async () => {
+    for (const [text, grund] of [
+      [JSON.stringify({ nummern: [98, 99] }), 'Triage-Lauf über die Brücke abgelehnt: keine der gewählten Notizen ist offen (#98, #99)'],
+      [JSON.stringify({ nummern: [] }), 'Triage-Lauf über die Brücke abgelehnt: keine Notiz gewählt'],
+      [JSON.stringify({ nummern: ['61'] }), 'Triage-Lauf über die Brücke abgelehnt: die Wahl der Notizen ist ungültig'],
+    ]) {
+      const { z, tr } = await mitWahl(text);
+      expect(tr.aufrufe).toHaveLength(0);
+      expect(texte(z)).toContain(grund);
+    }
+  }, T);
+
   it('#166: the triage runs with triageModell, opus without a setting; a change holds from the next run, the running one keeps its model', async () => {
     const t = aufbau();
     const tr = triageAttrappe(zwei(), 1200);
