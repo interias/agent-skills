@@ -174,11 +174,13 @@ describe('only software (24.11.2026): content goals go to the person, every plac
   });
 
   it('every place draws the line the same way (24.11.2026): what is made for the software is built, content the person works out in it is not', () => {
-    const baut = 'Was für die Software gemacht wird, baut die Flotte, auch beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte';
-    const inhalt = 'Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten, Recherche dafür';
+    // test data stays the fleet's work; master and business data of the business are the person's
+    const baut = 'Was für die Software gemacht wird, baut die Flotte, auch Testdaten und beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte';
+    const inhalt = 'Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten des Betriebs, Recherche dafür';
     const orte = { regel14: regeln, tor15: tor, triage: lies('flotte/src/triage.ts'), befugnisse: lies('docs/befugnisse.md'), nacharbeit: lies('mission-nacharbeit/SKILL.md'), bereitschaftsraum: lies('bereitschaftsraum/SKILL.md') };
     for (const [ort, text] of Object.entries(orte)) {
-      expect(text, ort).toContain(baut);
+      // point 15 of the gate refers to rule 14 for what the fleet builds
+      if (ort !== 'tor15') expect(text, ort).toContain(baut);
       expect(text, ort).toContain(inhalt);
       expect(text, ort).not.toContain('gestaltete Motive');
     }

@@ -77,9 +77,11 @@ Du wählst, was am Ende entsteht, und sagst es mit Grund:
 | **eine Mission mit Zielen** | Mehrere abnehmbare Ergebnisse, oder eines, das ein Außeneinsatz nicht in einem Zug schafft. |
 
 **Nur Software** (`mission/SKILL.md`, Regel 14). Ein Auftrag baut Software: Code, Tests und Doku. Was
-für die Software gemacht wird, baut die Flotte, auch beschlossene Gestaltung wie Piktogramme, Farben oder
-Oberflächentexte. Ist das Ergebnis Inhalt, den der Mensch in der Software erarbeitet und dort pflegt —
-Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten, Recherche dafür —, wird daraus kein Missionsziel; das arbeitet der Mensch in einem eigenen Chat aus. Bei einem gemischten
+für die Software gemacht wird, baut die Flotte, auch Testdaten und beschlossene Gestaltung wie
+Piktogramme, Farben oder Oberflächentexte. Ist das Ergebnis Inhalt, den der Mensch in der Software
+erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten des Betriebs,
+Recherche dafür —, wird daraus kein Missionsziel; das arbeitet der Mensch in einem eigenen Chat aus.
+Bei einem gemischten
 Anliegen wird nur der Softwareanteil Auftrag, der Inhaltsanteil steht als zurückgestellt in der
 Zusammenfassung. Maßstab ist das Ergebnis, nicht ein Wort im Text. Soll ein Inhaltsziel trotzdem als
 Issue stehen, nur „anlegen“, nie „anlegen und starten“: Die Triage empfiehlt dann `ready-for-human`,
