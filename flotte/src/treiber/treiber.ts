@@ -22,7 +22,7 @@ import { lerne } from '../befehle/lernen.ts';
 import { regelnAus } from '../befehle/auftrag.ts';
 import { lernTickets, triagiere, triageTickets } from '../befehle/triage.ts';
 import { ohneMissionsziel, TRIAGE_LABEL } from '../auftrag/auftrag.ts';
-import { LERN_MARKE } from '../lernen.ts';
+import { LERN_MARKE, lernStellung } from '../lernen.ts';
 import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offeneFragen, TRIAGE_FRAGE_MARKE, TRIAGE_MARKE, wartetAufAntwort, type Ticket } from '../triage.ts';
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
@@ -35,7 +35,7 @@ import { type Lage, lageArt, lageVon } from './lage.ts';
 import { fragenUndEntscheidungen, type Klartext, klartextAus, kuerzePfade, maskiere, Verlaufleser } from './verlauf.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { schreibeTafel } from './tafel.ts';
-import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
+import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, LERN_OHNE_ISSUE, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
 import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as meldungsInhalt } from './meldung.ts';
 import { EINGESPIELT, type Eingespielt, einspielen, liesStand, type MainStand, mainStand, mitSperre, HUELLE, NEUSTART, neustarten, type SkillStand, STAND_MS } from './stand.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../werkzeuge/detail.ts';
@@ -83,6 +83,8 @@ export interface Einstellung {
   merge: Stellung;
   /** #37 --meldung: a Windows notification for each new event of "Braucht dich" */
   meldung: 'an' | 'aus';
+  /** Tag O --lernschleife: the learning loop after each merge and the triage of its proposals; aus out of the box, an only with lern_issue */
+  lernschleife: 'an' | 'aus';
   /** #58: the settings given explicitly as start parameters; they win over the bridge's at the start */
   gesetzt?: EinstellungName[];
   /** --konto-max <dir>=<n>: at most n epics at the same time on that account (an account that must last) */
@@ -143,6 +145,7 @@ export function standard(repo: string, forge: string, epics: number[], konten: s
     leerfahren: [],
     merge: 'mensch',
     meldung: 'aus',
+    lernschleife: 'aus',
     kontoMax: {},
     verbrauchMaxAlterMin: 30,
     nacharbeit: true,
@@ -345,7 +348,9 @@ export interface FlottenZustand extends Zustand {
   /** ids of the bridge actions already carried out: one fetched twice acts once */
   handlungenErledigt?: number[];
   /** #58: the settings the person changed on the bridge, as the bridge sees them; they outlive a restart */
-  einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string }>>;
+  einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string; uebernahme?: true }>>;
+  /** Tag O: the transition of the learning loop (on for a setup older than the switch) is done; it happens once */
+  lernschleifeGeklaert?: boolean;
   /** #61: epics taken into the deployment on the bridge; they join it again after a restart until they are done */
   aufgenommen?: number[];
   /** #116: the decisions of the triage runs started on the bridge, newest first, revocable there; they outlive a restart.
@@ -632,6 +637,7 @@ class Treiber {
     this.adapter = adapterAus(this.e.repo);
     this.e.merge = this.adapter.merge === 'nach_gate' ? 'automatisch' : 'mensch';
     this.einstellungenLaden(new Date(anfang).toISOString());
+    this.lernUebernahme(alt.stand, new Date(anfang).toISOString());
     if (this.e.auto) {
       // #150: with --epics and --dauerhaft the fixed list stays, the released ones join it
       this.e.epics = [...new Set([...this.e.epics, ...this.einsammeln(this.adapter)])];
@@ -2199,7 +2205,7 @@ class Treiber {
     if (['gemergt', 'fertig'].includes(ep.stufe) || ep.aufgegebenAm) return nein(`Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : stufeText(ep.stufe)}`);
     const neu = h.text?.trim() || null;
     if (neu !== null && neu !== 'automatisch' && neu !== 'mensch') return nein(`unbekannte Stellung ${JSON.stringify(h.text).slice(0, 40)}`);
-    const gesperrt = this.mergeGesperrt('merge', neu);
+    const gesperrt = this.gesperrt('merge', neu);
     if (gesperrt) return nein(gesperrt);
     const vorher = this.stellung(ep);
     ep.merge = neu;
@@ -2260,7 +2266,8 @@ class Treiber {
       // its own try: a failed read of lern_issue must not hold back the Sternzeit-Notizen
       let lern: ReturnType<typeof lernTickets> = [];
       try {
-        if (this.adapter.lern_issue) lern = lernTickets(this.forge, this.adapter.lern_issue);
+        const lernIssue = this.lernIssue();
+        if (lernIssue) lern = lernTickets(this.forge, lernIssue);
       } catch {
         lern = [];
       }
@@ -2352,7 +2359,7 @@ class Treiber {
       const datei = join(this.e.repo, '.claude', 'epic.md');
       const regeln = regelnAus(existsSync(datei) ? readFileSync(datei, 'utf8') : '');
       const r = await (this.w.triagiere ?? triagiere)(
-        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.adapter.lern_issue, ...(nummern ? { nummern } : {}) }], konto, modell: this.e.triageModell, lesenMax: this.e.triageLesenMax, trocken: false, programm: this.programm() },
+        { ziele: [{ repo: this.e.repo, forge: this.e.forge, regeln, lernIssue: this.lernIssue(), ...(nummern ? { nummern } : {}) }], konto, modell: this.e.triageModell, lesenMax: this.e.triageLesenMax, trocken: false, programm: this.programm() },
         { aufrufer: this.w.aufrufer, starte: starteTriage, abgebrochen: () => abbruch.signal.aborted },
       );
       // #147: aborted, what the run wrote until then still counts (decisions, cut plan), only its end differs
@@ -2740,9 +2747,32 @@ class Treiber {
     return name === 'konten' ? this.startKonten.map((d) => this.kontoKurz(d)) : EINSTELLUNGEN[name].standard;
   }
 
-  /** #112: the bridge only tightens: automatisch is refused while the adapter says merge: mensch (merge.ps1 would refuse it too) */
-  mergeGesperrt(name: EinstellungName, wert: unknown): string | null {
+  /**
+   * #112: the bridge only tightens: automatisch is refused while the adapter says merge: mensch (merge.ps1 would refuse it too).
+   * Tag O: the learning loop goes on only when the adapter names lern_issue, where its proposals go.
+   */
+  gesperrt(name: EinstellungName, wert: unknown): string | null {
+    if (name === 'lernschleife') return wert === 'an' && !this.adapter.lern_issue ? LERN_OHNE_ISSUE : null;
     return name === 'merge' && wert === 'automatisch' && this.adapter.merge !== 'nach_gate' ? NUR_NACH_GATE : null;
+  }
+
+  /** Tag O: the collecting issue while the learning loop is on, else null: no learning run, no Lern-Triage, no proposals in the Frachtraum */
+  lernIssue(): number | null {
+    return this.e.lernschleife === 'an' ? this.adapter.lern_issue : null;
+  }
+
+  /**
+   * Tag O: out of the box the learning loop is off. A setup older than the switch (its state was there, nothing about
+   * the loop stored) whose adapter names lern_issue keeps it on, once, with an event; a new project stays off.
+   */
+  lernUebernahme(bestand: string | undefined, seit: string): void {
+    if (this.z.lernschleifeGeklaert) return;
+    this.z.lernschleifeGeklaert = true;
+    if (this.herkunft.get('lernschleife')?.herkunft === 'start' || !lernStellung({ ...this.z, stand: bestand, lernschleifeGeklaert: false }, this.adapter.lern_issue).uebernahme) return;
+    this.e.lernschleife = 'an';
+    (this.z.einstellungen ??= {}).lernschleife = { wert: 'an', seit, uebernahme: true };
+    this.herkunft.set('lernschleife', { herkunft: 'start', seit });
+    this.ereignis(null, `Lernschleife bleibt an: der Adapter nennt lern_issue #${this.adapter.lern_issue} (einmalige Übernahme der bestehenden Einrichtung; ab Werk ist sie aus, ausschalten im Maschinenraum)`);
   }
 
   /** #112: the merge of an epic now: the person's switch, else the proposal from its content, else the project */
@@ -2760,15 +2790,22 @@ class Treiber {
     const gespeichert = (this.z.einstellungen ??= {});
     for (const name of NAMEN) {
       const jetzt = this.einstellung(name);
-      const vomStart = this.e.gesetzt ? this.e.gesetzt.includes(name) : JSON.stringify(jetzt) !== JSON.stringify(this.standardWert(name));
+      let vomStart = this.e.gesetzt ? this.e.gesetzt.includes(name) : JSON.stringify(jetzt) !== JSON.stringify(this.standardWert(name));
       const b = gespeichert[name];
+      // Tag O: a start parameter that cannot hold (--lernschleife an without lern_issue) falls back to the standard
+      const sperre = vomStart ? this.gesperrt(name, jetzt) : null;
+      if (sperre) {
+        setzeEinstellung(this.e, name, this.standardWert(name), this.kontenAuswahl());
+        this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel}: Startparameter ${START_PARAMETER[name] ?? ''} ${zeige(jetzt)} gilt nicht: ${sperre}`);
+        vomStart = false;
+      }
       if (b && vomStart) {
         delete gespeichert[name];
         if (JSON.stringify(b.wert) !== JSON.stringify(jetzt)) this.ereignis(null, `Einstellung ${EINSTELLUNGEN[name].titel}: Startparameter ${START_PARAMETER[name] ?? ''} gilt (${zeige(jetzt)}) statt ${zeige(b.wert)} von der Brücke`);
       } else if (b) {
-        const fehler = this.mergeGesperrt(name, b.wert) ?? setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
+        const fehler = this.gesperrt(name, b.wert) ?? setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
         if (!fehler) {
-          this.herkunft.set(name, { herkunft: 'bruecke', seit: b.seit });
+          this.herkunft.set(name, { herkunft: b.uebernahme ? 'start' : 'bruecke', seit: b.seit });
           continue;
         }
         delete gespeichert[name];
@@ -2800,7 +2837,7 @@ class Treiber {
     const gelb = name === 'verbrauchGelb' ? roh.wert : this.e.verbrauchGelb;
     const rot = name === 'verbrauchRot' ? roh.wert : this.e.verbrauchRot;
     const quer = (name === 'verbrauchGelb' || name === 'verbrauchRot') && typeof gelb === 'number' && typeof rot === 'number' && gelb >= rot ? `gelb (${gelb}) muss unter rot (${rot}) liegen` : null;
-    const fehler = setzeEinstellung({ ...this.e }, name, roh.wert, this.kontenAuswahl()) ?? quer ?? this.mergeGesperrt(name, roh.wert);
+    const fehler = setzeEinstellung({ ...this.e }, name, roh.wert, this.kontenAuswahl()) ?? quer ?? this.gesperrt(name, roh.wert);
     if (fehler) return this.ereignis(null, `Einstellung ${titel} über die Brücke abgelehnt: ${fehler}`);
     setzeEinstellung(this.e, name, roh.wert, this.kontenAuswahl());
     const nachher = this.einstellung(name);
@@ -2813,6 +2850,8 @@ class Treiber {
     if (name === 'merge') this.wiederAndocken();
     // #193: switched on, the released missions join in the next turn, not after sammelnMs
     if (name === 'einsammeln' && nachher === 'an' && vorher !== 'an') this.gesammelt = -Infinity;
+    // Tag O: the Lernvorschläge come into the Frachtraum or leave it with the next report, not after TRIAGE_MS
+    if (name === 'lernschleife' && nachher !== vorher) this.triageLesen(true);
     if (name === 'paketeJeEpic' && nachher !== vorher) for (const ep of Object.values(this.z.epics)) if (!ENDE.has(ep.stufe)) ep.grenze = this.e.paketeJeEpic;
   }
 
@@ -2822,9 +2861,10 @@ class Treiber {
     return NAMEN.map((name) => {
       const a: { titel: string; leer: boolean; min?: number; max?: number; konto?: string; werte?: string[] } = EINSTELLUNGEN[name];
       const h = this.herkunft.get(name) ?? { herkunft: 'standard' as const, seit: this.z.stand };
-      // #112: only the words the driver takes now, and why automatisch is missing
-      const werte = a.werte?.filter((w) => !this.mergeGesperrt(name, w));
-      const art = a.konto ? { auswahl } : werte ? { werte, hinweis: werte.length < a.werte!.length ? NUR_NACH_GATE : null } : { min: a.min, max: a.max };
+      // #112: only the words the driver takes now, and why one is missing (automatisch, Tag O: an without lern_issue)
+      const werte = a.werte?.filter((w) => !this.gesperrt(name, w));
+      const fehlt = a.werte?.find((w) => this.gesperrt(name, w));
+      const art = a.konto ? { auswahl } : werte ? { werte, hinweis: fehlt ? this.gesperrt(name, fehlt) : null } : { min: a.min, max: a.max };
       return { name, titel: a.titel, wert: this.einstellung(name), herkunft: h.herkunft, seit: h.seit, standard: this.standardWert(name), leer: a.leer, ...art };
     });
   }
@@ -3836,7 +3876,8 @@ class Treiber {
     ep.notiz = `PR #${ep.pr} angedockt`;
     this.missionAbschliessen(ep);
     this.epicMessen(ep);
-    if (this.adapter.lern_issue && ep.pr) this.nebenbei(this.lernschleife(ep, ep.pr, this.adapter.lern_issue));
+    const lernIssue = this.lernIssue();
+    if (lernIssue && ep.pr) this.nebenbei(this.lernschleife(ep, ep.pr, lernIssue));
   }
 
   /** #145: close the mission issue (or take its ready label) once; a forge that fails is tried again at the next start */
@@ -3985,7 +4026,7 @@ export function forgeAus(url: string): string | null {
   return /github\.com[:/]([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/.exec(url.trim())?.[1] ?? null;
 }
 
-const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>] [--meldung an|aus]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
+const AUFRUF = 'Aufruf: flotte fahren [<repo>] [--forge <owner/name>] [--epics 3,4] --konten <konto>[,<konto>] [--admiral <konto>] [--dauerhaft] [--skill epic] [--modell m] [--admiral-modell fable] [--admiral-effort high] [--ping-modell haiku] [--leerlauf-min 60] [--takt-s 60] [--platte-min-gb 20] [--ram-warn 75] [--obergrenze n] [--konto-max <konto>=n] [--sweep-root <dir>] [--sweep-temp <dir>] [--ohne-docker] [--ohne-nacharbeit] [--merge-skript <merge.ps1>] [--max-min n] [--bruecke <url>] [--meldung an|aus] [--lernschleife an|aus]. Ein Konto ist 1, 2, 3, ein Ordnername im Benutzerverzeichnis oder ein Pfad.';
 
 /**
  * The settings of `flotte fahren` (acceptance 3, decisions A, B, D): without <repo> the repository of
@@ -4031,6 +4072,9 @@ export function einstellungAus(argv: string[], cwd: string = process.cwd(), aufr
   const meldung = wert(argv, '--meldung');
   if (meldung === 'an' || meldung === 'aus') e.meldung = meldung;
   else if (meldung) throw new Error(`--meldung ${meldung}: an oder aus. ${AUFRUF}`);
+  const lernschleife = wert(argv, '--lernschleife');
+  if (lernschleife === 'an' || lernschleife === 'aus') e.lernschleife = lernschleife;
+  else if (lernschleife) throw new Error(`--lernschleife ${lernschleife}: an oder aus. ${AUFRUF}`);
   e.gesetzt = (Object.keys(START_PARAMETER) as EinstellungName[]).filter((n) => argv.includes(START_PARAMETER[n]!));
   // #193: --dauerhaft and a fixed --epics list both set einsammeln explicitly
   if (argv.includes('--dauerhaft') || argv.includes('--epics')) e.gesetzt.push('einsammeln');

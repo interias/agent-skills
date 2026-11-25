@@ -4,6 +4,9 @@
 // and `flotte triage` decides each proposal like a ticket (#117, src/triage.ts). Without lern_issue the
 // comment is only printed.
 //
+// Tag O: whether the loop runs at all is the switch Lernschleife of the project (the driver's setting
+// `lernschleife`, kept in its state); lern_issue only says where the proposals go. Out of the box off.
+//
 // Growth stays bounded: every proposal names what can go in exchange, every rule the loop gave
 // birth to carries an id (`Lernschleife L<n>`), each loop says per id whether the rule applied in
 // this run, and a rule that never applied in LERN_STREICHEN_NACH runs in a row is proposed for
@@ -11,7 +14,9 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Aufrufer } from './aufruf.ts';
 import { fehlerText, type ForgeZugriff } from './forge/zugriff.ts';
+import { flotteDir, lies as liesZustand } from './werkzeuge/zustand.ts';
 
 export const LERN_MAX = 3;
 export const LERN_STREICHEN_NACH = 10;
@@ -20,6 +25,37 @@ const REGEL = /Lernschleife (L\d+)/g;
 export const LERN_MARKE = '<!-- lernschleife -->';
 
 export const FORMEN = ['test', 'adapterregel', 'skilltext', 'doku'] as const;
+
+/** what lernStellung reads of the driver's state */
+export interface LernStand {
+  stand?: unknown;
+  einstellungen?: { lernschleife?: { wert: unknown } };
+  lernschleifeGeklaert?: boolean;
+}
+
+/**
+ * Tag O: the switch of a project as the driver keeps it. Stored: that value. Else on only for a setup older than
+ * the switch (a state that has run, the transition not yet done) whose adapter names lern_issue (uebernahme).
+ * Without lern_issue always off: there is nowhere to write.
+ */
+export function lernStellung(z: LernStand, lernIssue: number | null): { wert: 'an' | 'aus'; uebernahme: boolean } {
+  if (!lernIssue) return { wert: 'aus', uebernahme: false };
+  const b = z.einstellungen?.lernschleife?.wert;
+  if (b === 'an' || b === 'aus') return { wert: b, uebernahme: false };
+  return z.stand && !z.lernschleifeGeklaert ? { wert: 'an', uebernahme: true } : { wert: 'aus', uebernahme: false };
+}
+
+/** Tag O: the collecting issue when the learning loop of the repository is on, else null; for the commands without a driver */
+export function lernIssueFuer(repo: string, lernIssue: number | null, aufrufer: Aufrufer): number | null {
+  if (!lernIssue) return null;
+  try {
+    return lernStellung(liesZustand(flotteDir(repo, aufrufer), repo) as LernStand, lernIssue).wert === 'an' ? lernIssue : null;
+  } catch {
+    return null;
+  }
+}
+
+export const LERN_AUS = 'Lernschleife ist für dieses Projekt aus (ab Werk): einschalten im Maschinenraum der Brücke („Lernschleife je Projekt“) oder mit flotte fahren --lernschleife an';
 
 export interface Vorschlag {
   titel: string;

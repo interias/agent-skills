@@ -209,6 +209,43 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     if (await senden('/api/handlung', { forge: knopf.dataset.einsammeln, epic: 0, art: 'einstellen', nr: null, seit: null, text }, zeile, zeile.querySelector('.status'))) await laden();
   }
 
+  // ---- Tag O: Lernschleife je Projekt: the learning loop after each merge and its proposals in triage and Frachtraum.
+  // Out of the box off; on only where the adapter names lern_issue (else the driver offers only aus and says why).
+  const LERNEN = 'lernschleife';
+  // the settings that have their own row per project and stay out of the settings below
+  const JE_PROJEKT = [AUTOMATIK, LERNEN];
+
+  function lernschleifeHtml(t) {
+    if (!t.projekte.length) return '';
+    const zeile = (p) => {
+      const e = p.einstellungen?.find((x) => x.name === LERNEN);
+      const an = e && basis(e) === 'an';
+      // locked: on is not to be had (no lern_issue); off stays possible while it is still on
+      const gesperrt = e && !an && !e.werte?.includes('an');
+      const stand = !e
+        ? nichts('Schalter')
+        : e.offen
+        ? `<span class="mr-wartet">wartet auf den Treiber · neu <b>${esc(e.offen.wert)}</b>${e.offen.abgeholt ? ' · abgeholt' : ''}</span>`
+        : `<b class="${e.wert === 'an' ? 'ok' : ''}">${esc(e.wert)}</b> <span class="mr-herkunft ${esc(e.herkunft)}">${esc(HERKUNFT[e.herkunft] ?? e.herkunft)}</span>`;
+      const was = !e ? '' : gesperrt ? `<span class="mr-grenze">Gesperrt: ${esc(e.hinweis ?? 'der Treiber nimmt an nicht an')}.</span>` : an ? 'Nach jedem Andocken Vorschläge ans Sammel-Issue, Triage und Frachtraum nehmen sie mit.' : 'Kein Lernaufruf, keine Lernvorschläge in Triage und Frachtraum.';
+      const knopf = e ? `<button type="button" class="knopf ${an || gesperrt ? 'zweit' : 'haupt'}" data-lernschleife="${esc(p.forge)}" data-wert="${an ? 'aus' : 'an'}" aria-pressed="${an}"${!t.pin || e.offen?.abgeholt || gesperrt ? ' disabled' : ''}>${an ? 'Ausschalten' : 'Einschalten'}</button>` : '';
+      return `<div class="mr-karte mr-auto-zeile${p.veraltet ? ' veraltet' : ''}" role="group" aria-label="Lernschleife ${esc(p.kurz)}">
+<h4>${esc(p.kurz)}</h4><p class="mr-stand">${stand}</p><p class="mr-auto-zahlen">${was}</p>
+<div class="knoepfe">${knopf}<span class="status" role="status"></span></div></div>`;
+    };
+    const hinweis = !t.pin
+      ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.`
+      : 'Ab Werk aus. An: nach jedem Andocken liest ein billiges Modell den Lauf und schreibt höchstens drei belegte Vorschläge als Kommentar an das Sammel-Issue lern_issue des Projekts; der Triage-Lauf entscheidet sie wie Sternzeit-Notizen, der Frachtraum zeigt sie unter „Lernschleife“. Umgesetzt wird nichts von selbst, nichts geht an ein anderes Repository. Einschalten geht nur, wenn der Adapter lern_issue nennt. Aus: kein Lernaufruf, kein Kommentar, keine Lernvorschläge. Wirkt ab dem nächsten Takt; ein Start mit --lernschleife setzt den Wert neu.';
+    return `<h3 class="mr-titel">Lernschleife je Projekt</h3><p class="mr-hinweis">${esc(hinweis).replace(/--[a-z]+|lern_issue/g, (o) => `<code>${o}</code>`)}</p><div class="mr-automatik">${t.projekte.map(zeile).join('')}</div>`;
+  }
+
+  async function lernschleifeKnopf(ev) {
+    const knopf = ev.target.closest('[data-lernschleife]');
+    const zeile = knopf.closest('.mr-auto-zeile');
+    const text = JSON.stringify({ name: 'lernschleife', wert: knopf.dataset.wert });
+    if (await senden('/api/handlung', { forge: knopf.dataset.lernschleife, epic: 0, art: 'einstellen', nr: null, seit: null, text }, zeile, zeile.querySelector('.status'))) await laden();
+  }
+
   // the guided start (#96): what is still missing, in this order; finished steps fold away
   const SCHRITT = {
     konto: { titel: 'Konto anlegen', text: 'Ein Konto ist ein Claude-Konfigordner auf dem Rechner. Mit laufendem Treiber legt „Konto anlegen“ unten das nächste an; ohne Treiber am Rechner: <code>flotte konten anlegen</code>.' },
@@ -418,7 +455,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
     let html = '';
     if (geteilt) {
       const ps = mitEinstellungen(t);
-      const namen = ps[0].einstellungen.map((e) => e.name).filter((n) => n !== AUTOMATIK);
+      const namen = ps[0].einstellungen.map((e) => e.name).filter((n) => !JE_PROJEKT.includes(n));
       const zeilen = namen.map((n) => vereint(ps.map((p) => p.einstellungen.find((e) => e.name === n)).filter(Boolean))).filter(Boolean);
       const still = ps.some((p) => p.veraltet);
       html += `<h3 class="mr-titel">Einstellungen · alle Treiber</h3><p class="mr-hinweis">${esc(`Übernehmen gilt für ${ps.map((p) => p.kurz).join(' und ')}; „Missionen gleichzeitig“ zählt je Treiber. ${hinweisText(still ? { veraltet: true } : null)}`)}</p><div class="mr-reihe mr-einst">${zeilen.map((e) => zeileHtml({ forge: ALLE }, 'alle', e, t.pin, t)).join('')}</div>`;
@@ -431,7 +468,7 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
         const bekannt = [r?.obergrenze != null ? `Missionen gleichzeitig <b>${r.obergrenze}</b>` : '', p.leerlaufS != null ? `Leerlauf <b>${Math.round(p.leerlaufS / 60)} min</b>` : ''].filter(Boolean).join(' · ');
         return `${kopf}<p class="mr-hinweis">Dieser Treiber meldet keine Einstellungen (älterer Stand): hier nur lesend${bekannt ? `, bekannt ist ${bekannt}` : ''}. Ändern geht, sobald der Treiber aktualisiert ist.</p>`;
       }
-      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.filter((e) => e.name !== AUTOMATIK).map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
+      return `${kopf}<p class="mr-hinweis">${esc(hinweisText(p))}</p><div class="mr-reihe mr-einst">${p.einstellungen.filter((e) => !JE_PROJEKT.includes(e.name)).map((e) => zeileHtml(p, i, e, t.pin, t)).join('')}</div>`;
     }).join('') + werftEinstellungenHtml(t);
   }
 
@@ -674,7 +711,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${lernschleifeHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';
@@ -693,6 +730,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
           else if (ev.target.closest('[data-forge-verknuepfen]')) forgeKnopf(ev);
           else if (ev.target.closest('[data-projekt-entfernen], [data-projekt-hinzufuegen]')) projektKnopf(ev);
           else if (ev.target.closest('[data-einsammeln]')) einsammelnKnopf(ev);
+          else if (ev.target.closest('[data-lernschleife]')) lernschleifeKnopf(ev);
           else if (ev.target.closest('[data-geraet-koppeln], [data-notaus], [data-notaus-loesen], [data-geraet-recht], [data-geraet-entkoppeln]')) geraetKnopf(ev);
         });
       }

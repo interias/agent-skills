@@ -125,7 +125,7 @@ beendet` oder `Neustart des Treibers`, wenn der Lauf beim Start noch als laufend
 `geschlossen`, …), `grund` welcher Endzustand fehlt. Die Endzustände: README von flotte, „Triage“. #170:
 `abweichungen[]` nennt auch jedes andere offene Ticket mit `ready_label`, das an keiner offenen Mission hängt.
 
-**Lernvorschläge** (#117): Nennt der Adapter `lern_issue`, liest der Treiber dazu die Kommentare dieses
+**Lernvorschläge** (#117): Ist die Einstellung `lernschleife` `an` (Tag O, braucht `lern_issue`), liest der Treiber dazu die Kommentare dieses
 Issues (`gh issue view`, ein Aufruf) und meldet jeden noch offenen Vorschlag der Lernschleife (keine
 Entscheidung der Triage, oder eine Frage, oder eine Antwort darunter) als Ticket `{nr: <lern_issue>,
 titel: "Lernvorschlag <id>/<n>: <Titel>", labels: ["Lernschleife"]}`; der Frachtraum zeigt sie so ohne
@@ -162,15 +162,15 @@ Thema sind die Labels ohne `needs-triage`, `needs-info`, `ready-for-agent`, `sta
 Thema“ unten, sonst nach Namen; darin Tickets mit Frage zuerst, dann nach Nummer.
 
 **Einstellungen** (#58): je Einstellung `{name, titel, wert, herkunft, seit, standard, leer, min?, max?,
-auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (sechzehn; ein älterer Treiber meldet die
-ersten zehn ohne `merge` oder elf bis fünfzehn ohne die späteren). `herkunft` ist `start` (Startparameter oder ein
+auswahl?, werte?, hinweis?}`, immer alle in dieser Reihenfolge (siebzehn; ein älterer Treiber meldet die
+ersten zehn ohne `merge` oder elf bis sechzehn ohne die späteren). `herkunft` ist `start` (Startparameter oder ein
 vom Standard abweichender Startwert), `bruecke` (zuletzt über die Brücke geändert) oder `standard`;
 `seit` ist bei `bruecke` der Zeitpunkt der Änderung, sonst der Beginn des Einsatzes. `standard` ist
 der Wert ohne Startparameter und Brücke. `leer: true` heißt, `wert` darf `null` sein (zurück auf
 automatisch). Zahlen sind ganze Zahlen zwischen `min` und `max` (die Brücke übernimmt die Grenzen von
 hier, statt sie selbst zu kennen); Konten stehen als Kurzname wie in `konten[]` (`Konto <n>`, sonst
 Ordnername, nie ein Pfad), `auswahl` nennt die Konten, die es auf dem Rechner des Treibers gibt.
-Eine Wahl unter Wörtern (#112, `merge`; #37, `meldung`; #193, `einsammeln`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
+Eine Wahl unter Wörtern (#112, `merge`; #37, `meldung`; #193, `einsammeln`; Tag O, `lernschleife`) trägt `werte`, die Wörter, die der Treiber **jetzt** annimmt,
 und `hinweis`, warum eines fehlt (sonst `null`); die Brücke lehnt ein anderes Wort mit `422` und dem
 Hinweis ab.
 
@@ -192,6 +192,7 @@ Hinweis ab.
 | `triageLesenMax` | Dateizugriffe der Triage je Aufruf | Zahl | 0–100, Standard 15 | #167: so viele Dateien darf das Modell eines Triage-Aufrufs selbst lesen (`--max-turns` danach); die üblichen Fakten legt das Programm vor. Ab dem nächsten Aufruf |
 | `meldung` | Windows-Meldung bei „Braucht dich“ | `an` oder `aus` | `werte`; Standard `aus`; Startparameter `--meldung` | #37: bei `an` zeigt der Rechner des Treibers je neuer offener Frage und je neu blockierter oder abgebrochener Mission eine Windows-Meldung (Windows PowerShell, ohne Modul), mehrere aus demselben Takt als eine mit der Zahl. Inhalt nur Projektkürzel, Missionsnummer, Art (Frage/Blockade) und Titel (höchstens 60 Zeichen). Gemeldete Ereignisse stehen in `zustand.json` (`gemeldet`), auch bei `aus`: Nach einem Neustart oder beim Einschalten klingelt nichts Altes |
 | `einsammeln` | Missionen automatisch einsammeln | `an` oder `aus` | `werte`; Standard `an` (ein Start ohne `--epics`); Startparameter `--dauerhaft` (`an`) und `--epics` (ohne `--dauerhaft`: `aus`), beide gelten als ausdrücklich gesetzt | #193: bei `an` sammelt der Treiber jede offene Mission mit `ready_label` an sich oder an einem Missionsziel ein wie ohne `--epics`; eingeschaltet über die Brücke im nächsten Takt (nicht erst nach dem Abstand des Einsammelns), und solange der Wert von der Brücke kommt, endet der Treiber nicht von selbst, sondern wartet wie mit `--dauerhaft`. Bei `aus` kommt keine neue Mission dazu; laufende, wartende, mit `--epics` genannte und aufgenommene laufen weiter, nichts hält an. Freigegebene, nicht eingesammelte stehen weiter in `freigegeben[]` |
+| `lernschleife` | Lernschleife | `an` oder `aus` | `werte`; Standard `aus` (ab Werk, auch für ein neues Projekt); Startparameter `--lernschleife`; `an` fehlt in `werte`, solange der Adapter kein `lern_issue` nennt (`hinweis` sagt das), ein Startparameter `an` gilt dann nicht (Ereignis) | Tag O: bei `an` nach jedem Andocken die Lernschleife (`flotte lernen`, ein Kommentar an `lern_issue`), die Lern-Triage im Triage-Lauf und die offenen Lernvorschläge in `triage.tickets`; bei `aus` nichts davon, `lern_issue` wird nicht gelesen. Umschalten liest den Frachtraum sofort neu. Übergang: Ein Treiber, dessen `zustand.json` schon vor dem Schalter bestand und dessen Adapter `lern_issue` nennt, übernimmt einmalig `an` (`herkunft` `start`, Ereignis `Lernschleife bleibt an: der Adapter nennt lern_issue #<n> (…)`) und behält es über Neustarts |
 
 **Die Brücke verschärft nur** (#112): `automatisch` gibt es nur, wenn der Adapter `merge: nach_gate`
 sagt. Sonst fehlt es in `werte`, `hinweis` sagt warum, und der Treiber lehnt es ab (Ereignis

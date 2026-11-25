@@ -1,10 +1,12 @@
 // The learning loop after a merged epic (Sparpaket, package 6): schema, rule ids, deletion
-// candidates, the comment, and the driver calling it after a merge only when lern_issue is set.
+// candidates, the comment, and the driver calling it after a merge only when lern_issue is set and
+// (Tag O) the switch Lernschleife of the project is on; out of the box it is off.
 
 import { describe, expect, it } from 'vitest';
-import { lerne } from '../src/befehle/lernen.ts';
-import { LERN_MARKE, lernErgebnisAus, lernKommentar, lernRegeln, lernSchema, streichKandidaten } from '../src/lernen.ts';
+import { lerne, lernen } from '../src/befehle/lernen.ts';
+import { LERN_MARKE, lernErgebnisAus, lernKommentar, lernRegeln, lernSchema, lernStellung, streichKandidaten } from '../src/lernen.ts';
 import { fahre } from '../src/treiber/treiber.ts';
+import { flotteDir, leer, lies as liesZustand, schreibe as schreibeZustand } from '../src/werkzeuge/zustand.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
 import { aufbau, drehbuch, ende, gateGefahren, lauf } from './flotte-welt.ts';
 
@@ -103,11 +105,11 @@ describe('lerne', () => {
 const lernAntwort = { wenn: '^Du bist die Lernschleife', schritte: [{ zeile: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { vorschlaege: [V], gegriffen: [] } } }] };
 
 describe('driver: learning loop after the merge', () => {
-  it('with lern_issue the driver posts the proposals there after the merge', async () => {
+  it('switched on with lern_issue the driver posts the proposals there after the merge', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll\nlern_issue: "#50"' });
     const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lernAntwort]);
     // #164: the driver ends when merge and learning run are done; the limit only guards a hang (a loaded machine)
-    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 120_000 }), t.welt);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 120_000, lernschleife: 'an' }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     const k = t.p.kommentare.filter((x) => x.nr === 50);
     expect(k).toHaveLength(1);
@@ -115,10 +117,62 @@ describe('driver: learning loop after the merge', () => {
     expect(t.p.meldungen.some((m) => /Lernschleife: 1 Vorschlag/.test(m))).toBe(true);
   }, 150_000);
 
-  it('without lern_issue no learning run starts', async () => {
+  it('Tag O: out of the box off: a new project with lern_issue gets no learning run and no comment after the merge', async () => {
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll\nlern_issue: "#50"' });
+    const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lernAntwort]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 120_000 }), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(buch.gesehen().some((g) => /Lernschleife/.test(JSON.stringify(g)))).toBe(false);
+    expect(t.p.kommentare.filter((x) => x.nr === 50)).toEqual([]);
+    expect(z.einstellungen?.lernschleife).toBeUndefined();
+    expect(z.ereignisse.some((x) => /Lernschleife/.test(x.text))).toBe(false);
+    // a later start keeps it off although the adapter names lern_issue: the transition is once, for setups older than the switch
+    const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten } });
+    const z2 = await fahre(t2.einstellung(drehbuch([]), [], { maxDauerMs: 500 }), t2.welt);
+    expect(z2.einstellungen?.lernschleife).toBeUndefined();
+    expect(z2.ereignisse.some((x) => /Lernschleife bleibt an/.test(x.text))).toBe(false);
+  }, 150_000);
+
+  it('Tag O transition: a setup older than the switch whose adapter names lern_issue stays on once, with an event, and keeps it over a restart', async () => {
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll\nlern_issue: "#50"' });
+    // the state of a driver from before the switch: it has run, nothing about the learning loop is stored
+    schreibeZustand(flotteDir(t.repo), { ...leer(t.repo), stand: '2026-11-20T10:00:00.000Z' });
+    const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lernAntwort]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 120_000 }), t.welt);
+    expect(z.ereignisse.map((x) => x.text)).toContain('Lernschleife bleibt an: der Adapter nennt lern_issue #50 (einmalige Übernahme der bestehenden Einrichtung; ab Werk ist sie aus, ausschalten im Maschinenraum)');
+    expect(z.einstellungen?.lernschleife).toMatchObject({ wert: 'an', uebernahme: true });
+    expect(t.p.kommentare.filter((x) => x.nr === 50)).toHaveLength(1);
+    const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten } });
+    const z2 = await fahre(t2.einstellung(drehbuch([]), [], { maxDauerMs: 500 }), t2.welt);
+    expect(z2.einstellungen?.lernschleife).toMatchObject({ wert: 'an' });
+    expect(z2.ereignisse.filter((x) => x.text.startsWith('Lernschleife bleibt an'))).toHaveLength(1);
+  }, 150_000);
+
+  it('Tag O: lernStellung reads the switch as the driver keeps it, for the commands without a driver', () => {
+    const alt = { stand: '2026-11-20T10:00:00.000Z' };
+    expect(lernStellung({}, 50)).toEqual({ wert: 'aus', uebernahme: false });
+    expect(lernStellung(alt, 50)).toEqual({ wert: 'an', uebernahme: true });
+    expect(lernStellung({ ...alt, lernschleifeGeklaert: true }, 50)).toEqual({ wert: 'aus', uebernahme: false });
+    expect(lernStellung({ ...alt, lernschleifeGeklaert: true, einstellungen: { lernschleife: { wert: 'an' } } }, 50)).toEqual({ wert: 'an', uebernahme: false });
+    expect(lernStellung({ ...alt, einstellungen: { lernschleife: { wert: 'aus' } } }, 50)).toEqual({ wert: 'aus', uebernahme: false });
+    // without lern_issue there is nowhere to write: off whatever is stored
+    expect(lernStellung({ ...alt, einstellungen: { lernschleife: { wert: 'an' } } }, null)).toEqual({ wert: 'aus', uebernahme: false });
+  });
+
+  it('Tag O: flotte lernen by hand with the switch off starts no model and posts nothing', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    schreibeZustand(flotteDir(t.repo), { ...leer(t.repo), stand: '2026-11-20T10:00:00.000Z', lernschleifeGeklaert: true });
+    const r = (await lernen([t.repo, '--pr', '13', '--forge', 'o/r'], t.welt.aufrufer)) as { aus?: string; gepostet: boolean };
+    expect(r.gepostet).toBe(false);
+    expect(r.aus).toContain('Lernschleife ist für dieses Projekt aus');
+    expect(t.p.aufrufe.some((a) => a[0] === 'gh' && a[1] === 'pr')).toBe(false);
+    expect(liesZustand(flotteDir(t.repo), t.repo).einstellungen).toBeUndefined();
+  });
+
+  it('without lern_issue no learning run starts, even switched on', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });
     const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lernAntwort]);
-    await fahre(t.einstellung(buch, [3]), t.welt);
+    await fahre(t.einstellung(buch, [3], { lernschleife: 'an' }), t.welt);
     expect(buch.gesehen().some((g) => /Lernschleife/.test(JSON.stringify(g)))).toBe(false);
     expect(t.p.kommentare.filter((x) => x.nr === 50)).toEqual([]);
   }, T);

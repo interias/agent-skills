@@ -415,7 +415,14 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
   einsammeln“ (an/aus, Umschalten mit PIN als `einstellen`, wirksam ab dem nächsten Takt) und der Zahl laufender,
   wartender und freigegebener, noch nicht eingesammelter Missionen. Ausschalten hält nichts an.
   Bilder: `doku/v3-maschinenraum-automatik-1440.png`, `-390.png`.
-  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die übrigen fünfzehn wirksamen Werte
+  Darunter **Lernschleife je Projekt** (Tag O): eine Zeile je Projekt mit dem Schalter „Lernschleife“, **ab Werk aus**
+  (auch ein neu hinzugefügtes Projekt). Einschalten mit PIN als `einstellen`, wirksam ab dem nächsten Takt: Dann
+  schreibt nach jedem Andocken ein billiges Modell höchstens drei belegte Vorschläge an das `lern_issue` des Projekts,
+  der Triage-Lauf entscheidet sie, der Frachtraum zeigt sie unter „Lernschleife“. Aus: kein Lernaufruf, kein
+  Kommentar, keine Lernvorschläge. Nennt der Adapter kein `lern_issue`, ist Einschalten gesperrt und die Zeile sagt,
+  was fehlt. Nichts geht an ein anderes Repository.
+  Bilder: `doku/v3-maschinenraum-lernschleife-1440.png`, `-390.png`.
+  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die übrigen fünfzehn wirksamen Werte (ohne Einsammeln und Lernschleife)
   des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
   Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was
   er bremst. Eine Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
