@@ -188,7 +188,9 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['3'].stufe).toBe('fertig');
     const m = z.epics['3'].andockpruefung!;
     expect(m).toMatchObject({ epic: 3, pr: 13, gruen: true });
+    // the wall clock of the whole command, not the sum of the contexts the block names (590 + 2 s)
     expect(m.dauerS).toBeGreaterThanOrEqual(0);
+    expect(m.dauerS).toBeLessThan(590 + 2);
     expect(Date.parse(m.zeit)).not.toBeNaN();
     expect(m.kontexte).toEqual([
       { name: 'alpha', ergebnis: 'gruen', dauerS: 590, cache: false },
