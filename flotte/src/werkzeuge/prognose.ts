@@ -39,6 +39,8 @@ export interface Messung {
   /** the forecast shown before the first run, and whether arbeitS + gateS fell into its span */
   prognose: Spanne | null;
   treffer: boolean | null;
+  /** Tag Q: tokens of its runs (all four kinds), weighted, cache rate; older lines have none */
+  verbrauch?: { summe: number; gewichtet: number; cache_quote: number | null };
 }
 
 /** seconds; the board shows p50–p90, the self check counts p10–p90 */

@@ -39,6 +39,19 @@ deshalb nie das Konto. Das Ereignis beim Start nennt den Grund („Start auf Kon
 Vorsprung im Wochenfenster“), der Maschinenraum den Vorsprung je Konto. Im Programm:
 `src/treiber/kontowahl.ts`.
 
+**Verbrauch je Mission:** In jedem Takt liest der Treiber von den Transkripten der Läufe einer Mission
+und ihrer Subagenten nur das Neue (Lesestand je Datei; die Sitzungen aus den Init-Zeilen der Logs unter
+`laeufe/`) und zählt jede `message.id` einmal: Eingabe, Cache-Schreiben, Cache-Lesen, Ausgabe, die
+gewichtete Summe (Eingabe + 1,25 Schreiben + 0,1 Lesen + 5 Ausgabe) und die Cache-Quote, je Paket und
+Rolle. Frageblöcke des Admirals und Triage-Läufe zählen nicht mit. Der **Wochenanteil** ist geschätzt
+(„≈“): der gemessene Wochenanteil des Kontos geteilt durch die gewichteten Tokens aller Missionsläufe
+darauf im laufenden Wochenfenster (ab 1 Mio, sonst gilt die letzte Messung), mal die gewichteten
+Tokens der Mission; weil andere Arbeit auf dem Konto mitzählt, liegt er eher zu hoch. Die Brücke
+markiert die Zahl ab dem Doppelten des Mittels vergleichbarer abgeschlossener Missionen (gleiche
+Paketzahl ± 1, sonst alle; aus `messungen.jsonl`) oder bei einer Cache-Quote unter 70 % ab 500 000
+Eingabe-Tokens; nichts hält deshalb an. Die Endsumme steht im Logbuch der Brücke und ohne Anteil am
+Planlimit als Zeile `Verbrauch: …` im Pull Request. Im Programm: `src/treiber/missionsverbrauch.ts`.
+
 Die Schwellen sind ein **Entwurf** wie die Kollisionsstufen (`belegung.md`) und werden an echten
 Einsätzen geschärft. Gemessene Kosten je Paket sammelt `verbrauch.md`; eine neue Zeile kommt per
 Pull Request ins Skill-Repository.

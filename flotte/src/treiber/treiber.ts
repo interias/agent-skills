@@ -29,12 +29,14 @@ import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBO
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
 import { fehlerText, type ForgeZugriff, forgeRepoFuer, type Issue, zugriffFuer } from '../forge/zugriff.ts';
 import { bereicheAus, blockAus, blockEinsetzen, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, letzterVollLauf } from './gate.ts';
-import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
+import { cacheQuote, gewichtet, type Tokens } from '../tokens.ts';
+import { antwortZeile, type Bericht, type BerichtKontoMission, type BerichtVerbrauch, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { gateStand, missionsWorktrees } from './pruefprotokolle.ts';
 import { type Lage, lageArt, lageVon } from './lage.ts';
 import { fragenUndEntscheidungen, type Klartext, klartextAus, kuerzePfade, maskiere, Verlaufleser } from './verlauf.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
+import { anteilWoche, auswerten, Fundstellen, imFenster, logbuchZeile, prBodyMitVerbrauch, prZeile, type Verbrauchsstand, warnungen, WOCHE, wochenRate, Zaehler } from './missionsverbrauch.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, LERN_OHNE_ISSUE, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
 import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as meldungsInhalt } from './meldung.ts';
@@ -331,9 +333,13 @@ export interface FlottenEpic extends EpicZustand {
   /** Tag H: the kind of the mission's line on the bridge (lageArt) and since when it holds */
   lageArt?: string | null;
   lageSeit?: string | null;
+  /** Tag Q: what its runs used so far, counted from the transcripts on each turn (ISO stand: last counted) */
+  verbrauch?: (Verbrauchsstand & { stand: string }) | null;
 }
 
 export interface FlottenZustand extends Zustand {
+  /** Tag Q: per account folder the last measured percent of its weekly limit per million weighted tokens of mission runs */
+  wochenRaten?: Record<string, number>;
   epics: Record<string, FlottenEpic>;
   aktiv: boolean;
   stand: string;
@@ -561,6 +567,9 @@ class Treiber {
   verlaufGesendet = new Map<number, string>();
   /** missions ended longer than VERLAUF_NACH_MS ago (or without logs): not looked at again until they run */
   verlaufAlt = new Set<number>();
+  /** Tag Q: per mission at work the counter of its transcripts and where they lie; the rates of this turn per account */
+  verbrauchZaehler = new Map<number, { z: Zaehler; f: Fundstellen }>();
+  wochenRaten: Record<string, number | null> = {};
   /** the sessions of the accounts (#41), read in the background at most every SITZUNGEN_MS; the report carries the last reading */
   sitzungen: BerichtSitzung[] = [];
   sitzungenGelesen = 0;
@@ -703,6 +712,7 @@ class Treiber {
       this.triageLesen();
       this.standLesen();
       this.brauchtDichMelden();
+      this.verbrauchZaehlen();
       this.speichern();
       await this.brueckeMelden();
       // flotte anhalten: nothing new started; once no merge of the driver is under way, it ends. The
@@ -2971,6 +2981,95 @@ class Treiber {
     }
   }
 
+  /**
+   * Tag Q: the tokens of each mission at work (or of the one named), read on from its transcripts: only what is new
+   * since the last turn. The count stays in the state, so an ended mission keeps its sum; a mission that rests drops its
+   * counter and is read whole once it works again. Then the rate of each account for the weekly share.
+   */
+  verbrauchZaehlen(nur?: FlottenEpic): void {
+    const laeufe = join(this.dir, 'laeufe');
+    const konten = this.alleKonten();
+    for (const ep of nur ? [nur] : Object.values(this.z.epics)) {
+      if (!nur && !['laeuft', 'nacharbeit', 'frage', 'pr'].includes(ep.stufe)) {
+        this.verbrauchZaehler.delete(ep.nr);
+        continue;
+      }
+      let v = this.verbrauchZaehler.get(ep.nr);
+      if (!v) this.verbrauchZaehler.set(ep.nr, (v = { z: new Zaehler(), f: new Fundstellen() }));
+      for (const q of v.f.quellen(laeufe, ep.nr, konten)) v.z.lies(q);
+      if (v.z.nachrichten.size) ep.verbrauch = { ...auswerten(v.z.nachrichten.values()), stand: new Date(this.w.jetzt()).toISOString() };
+    }
+    this.wochenRatenMessen();
+  }
+
+  /**
+   * Tag Q: per account the share of its weekly limit per million weighted tokens of the mission runs on it in the current
+   * weekly window; too little to measure keeps the last measured rate (in the state), none at all: no estimate.
+   */
+  wochenRatenMessen(): void {
+    const jetzt = this.w.jetzt();
+    const raten = (this.z.wochenRaten ??= {});
+    this.wochenRaten = {};
+    for (const k of this.alleKonten()) {
+      const s = this.bewertung.get(k)?.sieben;
+      const reset = s ? Date.parse(s.reset) : Number.NaN;
+      if (s && reset > jetzt) {
+        const g = Object.values(this.z.epics).reduce((n, ep) => n + imFenster(ep.verbrauch?.stunden[k], reset - WOCHE, jetzt).gewichtet, 0);
+        const r = wochenRate(s.verbraucht, g);
+        if (r !== null) raten[k] = r;
+      }
+      this.wochenRaten[k] = raten[k] ?? null;
+    }
+  }
+
+  /** Tag Q: a mission's usage for the bridge, the mark against the finished missions of this repository (without itself) */
+  verbrauchFuerBericht(ep: FlottenEpic): BerichtVerbrauch | null {
+    const v = ep.verbrauch;
+    if (!v) return null;
+    const reihe = (t: Tokens, konten: Record<string, number>) => ({ eingabe: t.eingabe, cache_schreiben: t.cache_schreiben, cache_lesen: t.cache_lesen, ausgabe: t.ausgabe, summe: t.eingabe + t.cache_schreiben + t.cache_lesen + t.ausgabe, gewichtet: Math.round(gewichtet(t)), cache_quote: cacheQuote(t), anteil_woche: anteilWoche(konten, this.wochenRaten) });
+    const frueher = this.messungen.flatMap((m) => (m.verbrauch && m.epic !== ep.nr ? [{ pakete: m.pakete.length, gewichtet: m.verbrauch.gewichtet }] : []));
+    return {
+      stand: v.stand,
+      ...reihe(v.tokens, v.konten),
+      konten: Object.keys(v.konten).slice(0, 10).map((k) => kurzname(k, this.e.admiralKonto).slice(0, 40)),
+      rollen: v.posten.slice(0, 200).map((p) => ({ paket: p.paket?.slice(0, 40) ?? null, rolle: p.rolle.slice(0, 40), ...reihe(p.tokens, p.konten) })),
+      warnung: warnungen(v.tokens, gewichtet(v.tokens), this.kinderZahl(ep.nr) ?? (ep.pakete?.length || null), frueher).slice(0, 4).map((w) => w.slice(0, 300)),
+    };
+  }
+
+  /** Tag Q: per account the missions with tokens today (since local midnight) and in its current weekly window */
+  verbrauchJeKonto(k: string): BerichtKontoMission[] {
+    const jetzt = this.w.jetzt();
+    const mitternacht = new Date(jetzt);
+    mitternacht.setHours(0, 0, 0, 0);
+    const reset = Date.parse(this.bewertung.get(k)?.sieben?.reset ?? '');
+    const wocheVon = reset > jetzt ? reset - WOCHE : jetzt - WOCHE;
+    const rate = this.wochenRaten[k] ?? null;
+    const teil = (x: { summe: number; gewichtet: number }) => ({ summe: x.summe, anteil: rate === null ? null : Math.round((x.gewichtet / 1e6) * rate * 10) / 10 });
+    return Object.values(this.z.epics)
+      .flatMap((ep) => {
+        const st = ep.verbrauch?.stunden[k];
+        const woche = imFenster(st, wocheVon, jetzt + 1);
+        return woche.summe ? [{ epic: ep.nr, heute: teil(imFenster(st, mitternacht.getTime(), jetzt + 1)), woche: teil(woche) }] : [];
+      })
+      .sort((a, b) => b.woche.summe - a.woche.summe)
+      .slice(0, 200);
+  }
+
+  /** Tag Q: the line `Verbrauch: …` in the mission's PR, tokens only; a forge that fails changes nothing */
+  verbrauchInPr(ep: FlottenEpic): void {
+    if (!ep.pr || !ep.verbrauch) return;
+    // a body the forge did not give is never overwritten
+    const body = this.prInfo(ep.pr)?.body;
+    if (typeof body !== 'string') return;
+    try {
+      const neu = prBodyMitVerbrauch(body, prZeile(ep.verbrauch.tokens));
+      if (neu !== body) this.forge.prBodySetzen(ep.pr, neu);
+    } catch (err) {
+      this.ereignis(ep.nr, `Verbrauchszeile im PR #${ep.pr} nicht gesetzt: ${fehlerText(err).slice(0, 200)}`);
+    }
+  }
+
   /** Reads the sessions of all accounts without holding the turn up; a failure leaves the list empty. */
   sitzungenLesen(): void {
     if (this.sitzungenLaeuft || this.w.jetzt() - this.sitzungenGelesen < SITZUNGEN_MS) return;
@@ -3136,6 +3235,14 @@ class Treiber {
    * whether it fell into the span shown at its start.
    */
   epicMessen(ep: FlottenEpic): void {
+    // Tag Q: the end sum, once more from the transcripts, into the logbook of the bridge and the PR (tokens only)
+    this.verbrauchZaehlen(ep);
+    this.verbrauchZaehler.delete(ep.nr);
+    const v = ep.verbrauch;
+    if (v) {
+      this.ereignis(ep.nr, logbuchZeile(v.tokens, anteilWoche(v.konten, this.wochenRaten)));
+      this.verbrauchInPr(ep);
+    }
     if (!ep.gestartetAm || !ep.endeAm) return;
     const laeufe = join(this.dir, 'laeufe');
     const logs = existsSync(laeufe)
@@ -3166,6 +3273,7 @@ class Treiber {
       pakete: paketeAusLogs(logs),
       prognose: ep.prognose ?? null,
       treffer: getroffen(ep.prognose ?? null, arbeitS + (ep.gateS ?? 0)),
+      ...(v ? { verbrauch: { summe: v.tokens.eingabe + v.tokens.cache_schreiben + v.tokens.cache_lesen + v.tokens.ausgabe, gewichtet: Math.round(gewichtet(v.tokens)), cache_quote: cacheQuote(v.tokens) } } : {}),
     };
     try {
       schreibeMessung(this.dir, m);
@@ -3363,6 +3471,7 @@ class Treiber {
           ...(ep.starts ? { neustarts: ep.starts - 1 } : {}),
           ...(gate ? { gateLauf: gate } : {}),
           lage: this.lage(ep, pakete),
+          ...((v) => (v ? { verbrauch: v } : {}))(this.verbrauchFuerBericht(ep)),
           ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
       }),
@@ -3379,7 +3488,8 @@ class Treiber {
         .map((k) => {
           const b = this.bewertung.get(k)!;
           const fenster = (f: Bewertung['fuenf']) => (f ? { verbraucht: f.verbraucht, reset: f.reset } : null);
-          return { konto: konto(k), stufe: b.stufe, fuenf: fenster(b.fuenf), woche: fenster(b.sieben), vorsprung: vorsprung(b, this.w.jetzt()), alterMin: b.alterMin, ...(b.stufe === 'gruen' ? {} : { grund: b.grund.slice(0, 4000) }) };
+          const missionen = this.verbrauchJeKonto(k);
+          return { konto: konto(k), stufe: b.stufe, fuenf: fenster(b.fuenf), woche: fenster(b.sieben), vorsprung: vorsprung(b, this.w.jetzt()), alterMin: b.alterMin, ...(b.stufe === 'gruen' ? {} : { grund: b.grund.slice(0, 4000) }), ...(missionen.length ? { missionen } : {}) };
         }),
       ram: this.ram ? { stufe: this.ram.level, halt: this.ramBremse.halt, prozent: this.ram.percent_used } : null,
       platte: { freiGb: this.freiGbWert, genug: this.platteGenug },
@@ -3442,6 +3552,8 @@ class Treiber {
     if (fremd) return this.prFrage(ep, fremd);
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
     ep.endeAm = new Date(this.w.jetzt()).toISOString();
+    this.verbrauchZaehlen(ep);
+    this.verbrauchInPr(ep);
     this.andocken(ep);
   }
 
