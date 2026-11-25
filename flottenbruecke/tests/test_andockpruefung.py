@@ -44,9 +44,27 @@ def test_aelterer_treiber_ohne_messung_bleibt_gueltig(client, bericht):
     assert all(k['andockpruefung'] is None for k in t['unterwegs']['schlange'])
 
 
-def test_ungueltige_messung_wird_abgelehnt(client, bericht):
+def test_lange_messung_wird_gekuerzt_nicht_abgelehnt(client, bericht):
+    # review M3: a long gate block never costs the whole report
+    m = bericht['andockpruefungen'][0]
+    m['kontexte'] = [{'name': 'k' * 300, 'ergebnis': 'e' * 90, 'dauerS': 1, 'cache': None} for _ in range(60)]
+    m['zeit'] = m['zeit'] + 'x' * 80
+    bericht['andockpruefungen'] = bericht['andockpruefungen'] * 30
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    p = tafel(client)['projekte'][0]
+    assert len(p['andockpruefungen']) == 50
+    k = next(x for x in p['andockpruefungen'] if len(x['kontexte']) == 40)['kontexte'][0]
+    assert (len(k['name']), len(k['ergebnis'])) == (100, 40)
+
+
+def test_unerwarteter_wert_kostet_nur_die_messung(client, bericht):
     bericht['andockpruefungen'][0]['dauerS'] = -1
-    assert client.post('/api/bericht', json=bericht).status_code == 422
+    e = next(e for e in bericht['epics'] if e['nr'] == 37)
+    e['andockpruefung']['gruen'] = 'vielleicht'
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    t = tafel(client)
+    assert len(t['projekte'][0]['andockpruefungen']) == 2
+    assert next(k for k in t['unterwegs']['schlange'] if k['nr'] == 37)['andockpruefung'] is None
 
 
 def test_oberflaeche_zeigt_die_messung(client):

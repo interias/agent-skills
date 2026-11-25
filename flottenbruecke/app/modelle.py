@@ -3,10 +3,10 @@
 
 import json
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, ValidationError, model_validator
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
@@ -210,6 +210,32 @@ class Andockpruefung(BaseModel):
     kontexte: list[AndockKontext] = Field([], max_length=40)
 
 
+def _kurz(v: Any, n: int) -> Any:
+    return v[:n] if isinstance(v, str) else v
+
+
+def _messung(v: Any) -> Andockpruefung | None:
+    """A gate run as the driver sent it, cut to the limits; one that still does not fit is left out, never the report."""
+    if not isinstance(v, dict):
+        return None
+    v = {**v, 'zeit': _kurz(v.get('zeit'), 40)}
+    if isinstance(v.get('kontexte'), list):
+        v['kontexte'] = [{**k, 'name': _kurz(k.get('name'), 100), 'ergebnis': _kurz(k.get('ergebnis'), 40)} if isinstance(k, dict) else k for k in v['kontexte'][:40]]
+    try:
+        return Andockpruefung.model_validate(v)
+    except ValidationError:
+        return None
+
+
+def _messungen(v: Any) -> list[Andockpruefung]:
+    # the newest 50; the driver sends them oldest first
+    return [m for m in map(_messung, v[-50:]) if m] if isinstance(v, list) else []
+
+
+Messung = Annotated[Andockpruefung | None, BeforeValidator(_messung)]
+Messungen = Annotated[list[Andockpruefung], BeforeValidator(_messungen)]
+
+
 class Lage(BaseModel):
     """What happens with the epic, in one line: a label, the driver's sentence with its reason, since when; the person's step."""
     etikett: Literal['arbeitet', 'prueft', 'wartet_auf_dich', 'wartet', 'gestoppt', 'fertig']
@@ -254,7 +280,7 @@ class Epic(BaseModel):
     plaetze: Plaetze | None = None
     gateLauf: GateLauf | None = None
     # the last gate run of the driver for the mission; an older driver has none
-    andockpruefung: Andockpruefung | None = None
+    andockpruefung: Messung = None
     # #61: in the driver's deployment (an older driver: always); paused by the person since; the priority set on the bridge, None: the label's
     imEinsatz: bool = True
     pausiert: str | None = Field(None, max_length=40)
@@ -604,7 +630,7 @@ class Bericht(BaseModel):
     epics: list[Epic] = Field([], max_length=200)
     schlange: list[int] = []
     # the last gate runs of the driver in the project, oldest first; an older driver has none
-    andockpruefungen: list[Andockpruefung] = Field([], max_length=50)
+    andockpruefungen: Messungen = []
     konten: list[Konto] = []
     ram: Ram | None = None
     platte: Platte | None = None
