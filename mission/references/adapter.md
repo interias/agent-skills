@@ -195,7 +195,7 @@ Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 | `plan_artifact` | `publish` (Lauftafel als Artifact veröffentlicht) oder `file` (Lauftafel nur als Datei, Pfad im Eröffnungskommentar) | `publish` |
 | `gate_approvals` | zusätzliche Punkte fürs Vorab-Tor, etwa bezahlte Läufe oder Blindsatz | keine |
 | `no_access` | Systeme, auf die ein Lauf keinen Zugriff hat. Ein Paket, das sie braucht, ist ein Tor-Punkt | keine |
-| `lern_issue` | Nummer des Sammel-Issues „Lernvorschläge“. Nach jedem angedockten Missions-PR schreibt die Lernschleife (`flotte lernen`, billiges Modell) dort höchstens drei Vorschläge mit Beleg als einen Kommentar; umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet `flotte triage` wie eine Sternzeit-Notiz (`flotte/README.md`, „Triage“). Eine übernommene Regel trägt die Herkunft `Lernschleife L<n>, <Datum>` | keines: keine Lernschleife |
+| `lern_issue` | Nummer des Sammel-Issues „Lernvorschläge“; sagt nur, wohin die Vorschläge gehen. Die Lernschleife ist ab Werk aus und wird je Projekt eingeschaltet (Maschinenraum der Brücke, „Lernschleife je Projekt“, mit PIN, oder `flotte fahren --lernschleife an`); einschalten geht nur, wenn dieser Schlüssel gesetzt ist. Eingeschaltet schreibt sie nach jedem angedockten Missions-PR (`flotte lernen`, billiges Modell) dort höchstens drei Vorschläge mit Beleg als einen Kommentar; umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet `flotte triage` wie eine Sternzeit-Notiz (`flotte/README.md`, „Triage“). Eine übernommene Regel trägt die Herkunft `Lernschleife L<n>, <Datum>` | keines: keine Lernschleife einschaltbar |
 
 ### Andocken (#14)
 
