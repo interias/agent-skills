@@ -382,7 +382,8 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
 ## Maschinenraum und Logbuch
 
 - **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (Hauptenergie und Reserveenergie, „… % übrig“, Reset-Zeit,
-  mit Wochentag ab 20 h), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
+  mit Wochentag ab 20 h), der **Vorsprung** in der Reserveenergie (danach wählt der Treiber das Konto
+  einer neuen Mission, ein Satz Erklärung steht darüber), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
   gleichzeitig) und der Takt der Treiber, die dort melden. Alles stammt aus dem Bericht. Was er nicht
   trägt, steht als „… meldet der Treiber nicht“. Die **Anmeldung** je Konto kommt aus `kontenListe`
   des Berichts (#95). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)

@@ -17,6 +17,7 @@ import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option 
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
+import { grund as kontoGrund, rangfolge, vorsprung } from './kontowahl.ts';
 import { entsperren, type EpicZustand, flotteDir, lebt, lies as liesZustand, neuesEpic, schreibe as schreibeZustand, sperren, startZeit, type Zustand } from '../werkzeuge/zustand.ts';
 import { lerne } from '../befehle/lernen.ts';
 import { regelnAus } from '../befehle/auftrag.ts';
@@ -1314,19 +1315,19 @@ class Treiber {
     }
     for (const nr of plan.neu) {
       const ep = this.epic(nr);
-      // fewest running runs; on a tie the account with fewer epics so far (dress rehearsal: with
-      // a limit of 1 every tie went to account 1). --konto-max counts the epics at work on the
-      // account, those placed in this tick too (probe 3: two new epics in one tick both went to the
-      // capped account).
+      // Tag P: the largest lead in the weekly window first (kontowahl.ts), on a tie the rule so far.
+      // --konto-max counts the epics at work on the account, those placed in this tick too (probe 3:
+      // two new epics in one tick both went to the capped account).
       const frei = gruen.filter((k) => this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
       if (!frei.length) break;
-      const konto = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
+      const konto = this.kontenReihe(frei)[0];
       ep.konto = konto;
       ep.stufe = 'laeuft';
       ep.notiz = '';
       const p = plan.paare.filter((x) => (x.a === nr || x.b === nr) && laufend.includes(x.a === nr ? x.b : x.a));
       const zuerst = plan.vorrang.find((v) => v.nr === nr && v.startet);
       if (p.length || zuerst) this.ereignis(nr, `Belegung: ${[...(zuerst ? [zuerst.grund] : []), ...p.map((x) => `mit #${x.a === nr ? x.b : x.a} ${x.stufe} (${x.beleg})`)].join('; ')}`);
+      this.ereignis(nr, `Start auf ${kontoGrund(this.kontoName(konto), this.bewertung.get(konto), this.w.jetzt())}`);
       if (this.ram) this.z.ram.push({ at: new Date(this.w.jetzt()).toISOString().slice(0, 16), epic: nr, level: this.ram.level, percent_used: this.ram.percent_used, free_gb: this.ram.free_gb });
       laufend.push(nr);
       this.starteLauf(ep, this.startText(nr), false);
@@ -1337,6 +1338,15 @@ class Treiber {
   prio(nr: number): boolean {
     const p = this.epic(nr)?.prioritaet;
     return p ? p === 'hoch' : Boolean(this.bilder.find((b) => b.nr === nr)?.prio);
+  }
+
+  /**
+   * Tag P: the accounts in the order they take a run: the largest lead in the weekly window first, on a
+   * tie more room in the 5-hour window, then fewest running runs and fewer epics so far (dress rehearsal:
+   * with a limit of 1 every tie went to account 1). The caller filters which accounts may take one.
+   */
+  kontenReihe(konten: string[]): string[] {
+    return rangfolge(konten, (k) => this.bewertung.get(k), this.w.jetzt(), (a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b));
   }
 
   aufKonto(k: string): number {
@@ -1484,9 +1494,10 @@ class Treiber {
     // the throttled account is held DROSSEL_MS, so two throttled accounts never hand a mission back and forth
     this.gedrosselt.set(konto, this.w.jetzt() + DROSSEL_MS);
     this.bewertung.set(konto, this.bewerten(konto));
-    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && (this.gedrosselt.get(k) ?? 0) <= this.w.jetzt() && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    // Tag P: like a start, a deactivated account (#95) takes none; unused, it would lead the order
+    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && (this.gedrosselt.get(k) ?? 0) <= this.w.jetzt() && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity) && this.kontoAktiv(k));
     if (frei.length) {
-      const neu = frei.sort((a, b) => this.aufKonto(a) - this.aufKonto(b) || this.epicsAuf(a) - this.epicsAuf(b))[0];
+      const neu = this.kontenReihe(frei)[0];
       await this.aufraeumen(nr);
       ep.konto = neu;
       ep.sitzung = null;
@@ -1596,13 +1607,14 @@ class Treiber {
 
   /**
    * #111: the account of the admiral's call: his own unless it is red; then another account of the
-   * fleet with room, green before yellow, each in the order of --konten; null when all are red.
+   * fleet with room and active (#95), green before yellow, each in the order of kontenReihe (Tag P); null when
+   * all are red.
    * Without --admiral his own is the run's account (flotte/SKILL.md), which may turn red during the turn.
    */
   admiralKontoFuer(ep: FlottenEpic): string | null {
     const eigenes = this.e.admiralKonto ?? ep.konto!;
     if (this.bewertung.get(eigenes)?.stufe !== 'rot') return eigenes;
-    const andere = this.e.konten.filter((k) => k !== eigenes);
+    const andere = this.kontenReihe(this.e.konten.filter((k) => k !== eigenes && this.kontoAktiv(k)));
     return andere.find((k) => this.bewertung.get(k)?.stufe === 'gruen') ?? andere.find((k) => this.bewertung.get(k)?.stufe === 'gelb') ?? null;
   }
 
@@ -3355,7 +3367,8 @@ class Treiber {
         };
       }),
       schlange: this.z.schlange,
-      // usage per account (#28, v2): stage, both windows with reset; the logbook keeps the stage only
+      // usage per account (#28, v2): stage, both windows with reset, the weekly lead the account choice
+      // goes by (Tag P); the logbook keeps the stage only
       kontenListe: this.kontenListe(),
       forgeStatus: this.forgeStand,
       projektHandlungen: true,
@@ -3366,7 +3379,7 @@ class Treiber {
         .map((k) => {
           const b = this.bewertung.get(k)!;
           const fenster = (f: Bewertung['fuenf']) => (f ? { verbraucht: f.verbraucht, reset: f.reset } : null);
-          return { konto: konto(k), stufe: b.stufe, fuenf: fenster(b.fuenf), woche: fenster(b.sieben), alterMin: b.alterMin, ...(b.stufe === 'gruen' ? {} : { grund: b.grund.slice(0, 4000) }) };
+          return { konto: konto(k), stufe: b.stufe, fuenf: fenster(b.fuenf), woche: fenster(b.sieben), vorsprung: vorsprung(b, this.w.jetzt()), alterMin: b.alterMin, ...(b.stufe === 'gruen' ? {} : { grund: b.grund.slice(0, 4000) }) };
         }),
       ram: this.ram ? { stufe: this.ram.level, halt: this.ramBremse.halt, prozent: this.ram.percent_used } : null,
       platte: { freiGb: this.freiGbWert, genug: this.platteGenug },
