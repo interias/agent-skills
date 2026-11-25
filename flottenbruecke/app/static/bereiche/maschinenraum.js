@@ -235,7 +235,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     };
     const hinweis = !t.pin
       ? `Umschalten abgeschaltet: ${huelle.ohnePin(t)}.`
-      : 'Ab Werk aus. An: nach jedem Andocken liest ein billiges Modell den Lauf und schreibt höchstens drei belegte Vorschläge als Kommentar an das Sammel-Issue lern_issue des Projekts; der Triage-Lauf entscheidet sie wie Sternzeit-Notizen, der Frachtraum zeigt sie unter „Lernschleife“. Umgesetzt wird nichts von selbst, nichts geht an ein anderes Repository. Einschalten geht nur, wenn der Adapter lern_issue nennt. Aus: kein Lernaufruf, kein Kommentar, keine Lernvorschläge. Wirkt ab dem nächsten Takt; ein Start mit --lernschleife setzt den Wert neu.';
+      : 'Ab Werk aus. An: nach jedem Andocken liest ein billiges Modell den Lauf und schreibt höchstens drei belegte Vorschläge als Kommentar an das Sammel-Issue lern_issue des Projekts; der Triage-Lauf entscheidet sie wie Sternzeit-Notizen, der Frachtraum zeigt sie unter „Lernschleife“. Umgesetzt wird nichts von selbst, nichts geht an ein anderes Repository. Einschalten geht nur, wenn der Adapter lern_issue nennt. Aus: kein Lernaufruf, kein Kommentar, keine Lernvorschläge. Wirkt ab dem nächsten Takt; ein Start mit --lernschleife setzt den Wert neu. „Start“ heißt hier auch: beim ersten Start nach dem Update aus der bestehenden Einrichtung übernommen.';
     return `<h3 class="mr-titel">Lernschleife je Projekt</h3><p class="mr-hinweis">${esc(hinweis).replace(/--[a-z]+|lern_issue/g, (o) => `<code>${o}</code>`)}</p><div class="mr-automatik">${t.projekte.map(zeile).join('')}</div>`;
   }
 

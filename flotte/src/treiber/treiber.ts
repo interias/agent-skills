@@ -348,7 +348,8 @@ export interface FlottenZustand extends Zustand {
   /** ids of the bridge actions already carried out: one fetched twice acts once */
   handlungenErledigt?: number[];
   /** #58: the settings the person changed on the bridge, as the bridge sees them; they outlive a restart */
-  einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string; uebernahme?: true }>>;
+  /** Tag O: uebernahme: the transition of the learning loop; start: --lernschleife, kept for the commands without a driver */
+  einstellungen?: Partial<Record<EinstellungName, { wert: Wert; seit: string; uebernahme?: true; start?: true }>>;
   /** Tag O: the transition of the learning loop (on for a setup older than the switch) is done; it happens once */
   lernschleifeGeklaert?: boolean;
   /** #61: epics taken into the deployment on the bridge; they join it again after a restart until they are done */
@@ -2766,6 +2767,8 @@ class Treiber {
    * the loop stored) whose adapter names lern_issue keeps it on, once, with an event; a new project stays off.
    */
   lernUebernahme(bestand: string | undefined, seit: string): void {
+    // --lernschleife lands in the state too: flotte lernen and flotte triage without a driver read it there, and it outlives the start
+    if (this.e.gesetzt?.includes('lernschleife') && this.herkunft.get('lernschleife')?.herkunft === 'start') (this.z.einstellungen ??= {}).lernschleife = { wert: this.e.lernschleife, seit, start: true };
     if (this.z.lernschleifeGeklaert) return;
     this.z.lernschleifeGeklaert = true;
     if (this.herkunft.get('lernschleife')?.herkunft === 'start' || !lernStellung({ ...this.z, stand: bestand, lernschleifeGeklaert: false }, this.adapter.lern_issue).uebernahme) return;
@@ -2805,7 +2808,7 @@ class Treiber {
       } else if (b) {
         const fehler = this.gesperrt(name, b.wert) ?? setzeEinstellung(this.e, name, b.wert, this.kontenAuswahl());
         if (!fehler) {
-          this.herkunft.set(name, { herkunft: b.uebernahme ? 'start' : 'bruecke', seit: b.seit });
+          this.herkunft.set(name, { herkunft: b.uebernahme || b.start ? 'start' : 'bruecke', seit: b.seit });
           continue;
         }
         delete gespeichert[name];

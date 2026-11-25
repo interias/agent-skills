@@ -85,6 +85,7 @@ Mögliche Schalter:
 | `--merge-skript` | `mission/scripts/merge.ps1` |
 | `--max-min` | ohne Grenze |
 | `--bruecke <url>` | Umgebung `FLOTTE_BRUECKE`, sonst keine Brücke; etwa `http://127.0.0.1:4747`. Den Token einer Brücke mit `BRUECKE_TOKEN` liest der Treiber aus `FLOTTE_BRUECKE_TOKEN` |
+| `--lernschleife an\|aus` | `aus` (ab Werk); `an`: nach jedem Andocken belegte Vorschläge an `lern_issue`, Lern-Triage und Lernvorschläge im Frachtraum; braucht `lern_issue`, bleibt in `zustand.json` gespeichert, auch im Maschinenraum je Projekt schaltbar |
 | `--meldung an\|aus` | `aus`; `an`: je neuer Frage an den Menschen und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), auch im Maschinenraum schaltbar |
 | `--konto-max <konto>=<n>` | ohne Grenze; höchstens n Missionen gleichzeitig auf diesem Konto (ein Konto, das noch reichen muss). Es zählen die Missionen, die dort laufen, fragen oder an ihrem PR stehen; eine angedockte, blockierte oder abgebrochene Mission gibt den Platz frei |
 

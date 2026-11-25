@@ -4,7 +4,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { lerne, lernen } from '../src/befehle/lernen.ts';
-import { LERN_MARKE, lernErgebnisAus, lernKommentar, lernRegeln, lernSchema, lernStellung, streichKandidaten } from '../src/lernen.ts';
+import { LERN_MARKE, lernErgebnisAus, lernKommentar, lernRegeln, lernIssueFuer, lernSchema, lernStellung, streichKandidaten } from '../src/lernen.ts';
+import { triage } from '../src/befehle/triage.ts';
 import { fahre } from '../src/treiber/treiber.ts';
 import { flotteDir, leer, lies as liesZustand, schreibe as schreibeZustand } from '../src/werkzeuge/zustand.ts';
 import type { LaufErgebnis, Start } from '../src/werkzeuge/lauf.ts';
@@ -168,6 +169,27 @@ describe('driver: learning loop after the merge', () => {
     expect(t.p.aufrufe.some((a) => a[0] === 'gh' && a[1] === 'pr')).toBe(false);
     expect(liesZustand(flotteDir(t.repo), t.repo).einstellungen).toBeUndefined();
   });
+
+  it('Tag O: --lernschleife an is kept in the state: a later start without it and flotte triage without a driver see it on', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const z = await fahre(t.einstellung(drehbuch([]), [], { lernschleife: 'an', gesetzt: ['lernschleife'], maxDauerMs: 500 }), t.welt);
+    expect(z.einstellungen?.lernschleife).toMatchObject({ wert: 'an', start: true });
+    const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten } });
+    const z2 = await fahre(t2.einstellung(drehbuch([]), [], { gesetzt: [], maxDauerMs: 500 }), t2.welt);
+    expect(z2.einstellungen?.lernschleife).toMatchObject({ wert: 'an' });
+    expect(lernIssueFuer(t.repo, 50, t.welt.aufrufer)).toBe(50);
+  }, T);
+
+  it('Tag O: flotte triage without a driver reads no lern_issue while the switch is off, and reads it while on', async () => {
+    const t = aufbau({ adapter: 'merge: mensch\nlern_issue: "#50"' });
+    const gelesen = () => t.p.aufrufe.filter((a) => a[0] === 'gh' && a[1] === 'issue' && a[2] === 'view' && a[3] === '50').length;
+    schreibeZustand(flotteDir(t.repo), { ...leer(t.repo), stand: '2026-11-20T10:00:00.000Z', lernschleifeGeklaert: true });
+    await triage([t.repo, '--forge', 'o/r', '--trocken'], t.welt.aufrufer);
+    expect(gelesen()).toBe(0);
+    schreibeZustand(flotteDir(t.repo), { ...leer(t.repo), stand: '2026-11-20T10:00:00.000Z', lernschleifeGeklaert: true, einstellungen: { lernschleife: { wert: 'an', seit: 's' } } });
+    await triage([t.repo, '--forge', 'o/r', '--trocken'], t.welt.aufrufer);
+    expect(gelesen()).toBeGreaterThan(0);
+  }, T);
 
   it('without lern_issue no learning run starts, even switched on', async () => {
     const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll' });
