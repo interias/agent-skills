@@ -323,6 +323,10 @@ describe('only software (24.11.2026): a content goal is no work for the fleet', 
     expect(a).toContain('(marke: Inhalt)');
     expect(a).toContain('`ready-for-human` statt `ready-for-agent`, das Label setzt der Mensch');
     expect(a).toContain('und ein Inhaltsziel (unten)');
+    // what is made for the software (decided design too) is built; only content worked out in it goes out
+    expect(a).toContain('auch beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte');
+    expect(a).toContain('Stamm- und Geschäftsdaten');
+    expect(a).not.toContain('gestaltete Motive');
   });
 
   it('the mark Inhalt is allowed and kept, the note waits in the triage without a question added by the program', () => {

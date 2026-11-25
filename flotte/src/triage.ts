@@ -262,7 +262,7 @@ const FRAGERUNDE = `Stell dir die Fragen einer Fragerunde selbst: Was genau soll
 
 Beim Menschen (beim_menschen: true, marke: der Punkt) liegt nur, was auf dieser Liste steht, und ein Inhaltsziel (unten), auch wenn die Antwort vorsichtig wäre:
 ${BEIM_MENSCHEN.map((p, i) => `${i + 1}. ${p} (marke: ${PUNKTE[i]})`).join('\n')}
-Ein Inhaltsziel ist keine Arbeit der Flotte: Ist das Ergebnis Inhalt — ein Konzept, eine Konstruktion, eine Recherche, gestaltete Motive oder Texte — statt Code und Doku der Software, die ihn ermöglicht, liegt eine Frage beim Menschen (marke: ${INHALT}) mit der Empfehlung „herauslösen: \`ready-for-human\` statt \`ready-for-agent\`, das Label setzt der Mensch“. Maßstab ist das Ergebnis, nicht ein Wort im Text; ist nur ein Teil Inhalt, wird der Softwareanteil geklärt und der Inhaltsanteil steht im grund als offener Punkt.
+Ein Inhaltsziel ist keine Arbeit der Flotte: Was für die Software gemacht wird, baut die Flotte, auch beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte. Ist das Ergebnis aber Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten, Recherche dafür — statt Code und Doku der Software, die ihn ermöglicht, liegt eine Frage beim Menschen (marke: ${INHALT}) mit der Empfehlung „herauslösen: \`ready-for-human\` statt \`ready-for-agent\`, das Label setzt der Mensch“. Maßstab ist das Ergebnis, nicht ein Wort im Text; ist nur ein Teil Inhalt, wird der Softwareanteil geklärt und der Inhaltsanteil steht im grund als offener Punkt.
 Alles andere entscheidest du. Im Zweifel nimmst du die vorsichtige Variante selbst, wenn sie deine Empfehlung ist.`;
 
 const abschnitte = (r: AuftragsRegeln) =>

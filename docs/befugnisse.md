@@ -36,8 +36,10 @@ Die erste Frage, die mit Ja beantwortet wird, entscheidet.
 
 Eine Ticketfrage geht nie an dich; der Missions-PR listet jedes angelegte Ticket.
 
-**Nur Software.** Die Flotte baut, verbessert und repariert Software. Ist das Ergebnis eines Ziels
-Inhalt — Konzept, Konstruktion, Recherche, gestaltete Motive oder Texte —, bekommt es
+**Nur Software.** Die Flotte baut, verbessert und repariert Software. Was für die Software gemacht
+wird, baut die Flotte, auch beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte. Ist
+das Ergebnis eines Ziels Inhalt, den der Mensch in der Software erarbeitet und dort pflegt —
+Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten, Recherche dafür —, bekommt es
 `ready-for-human`, nicht `ready-for-agent`, und du arbeitest es in einem eigenen Chat aus. Das
 Vorab-Tor hält an und empfiehlt, es herauszulösen (Regel 14 in [`mission/SKILL.md`](../mission/SKILL.md));
 unter dem Treiber entscheidet diese Torfrage der Admiral. Die Triage fragt dich mit derselben

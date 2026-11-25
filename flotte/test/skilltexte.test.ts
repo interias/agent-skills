@@ -173,6 +173,17 @@ describe('only software (24.11.2026): content goals go to the person, every plac
     expect(tor).toContain('der Inhaltsanteil wird offener Punkt im Pull Request');
   });
 
+  it('every place draws the line the same way (24.11.2026): what is made for the software is built, content the person works out in it is not', () => {
+    const baut = 'Was für die Software gemacht wird, baut die Flotte, auch beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte';
+    const inhalt = 'Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten, Recherche dafür';
+    const orte = { regel14: regeln, tor15: tor, triage: lies('flotte/src/triage.ts'), befugnisse: lies('docs/befugnisse.md'), nacharbeit: lies('mission-nacharbeit/SKILL.md'), bereitschaftsraum: lies('bereitschaftsraum/SKILL.md') };
+    for (const [ort, text] of Object.entries(orte)) {
+      expect(text, ort).toContain(baut);
+      expect(text, ort).toContain(inhalt);
+      expect(text, ort).not.toContain('gestaltete Motive');
+    }
+  });
+
   it('Bereitschaftsraum, Nacharbeit, adapter reference and befugnisse carry it', () => {
     expect(lies('bereitschaftsraum/SKILL.md')).toContain('nur „anlegen“, nie „anlegen und starten“: Die Triage empfiehlt dann `ready-for-human`');
     expect(lies('mission-nacharbeit/SKILL.md')).toContain('**Inhalt** ist nie Sitzung (`mission/SKILL.md`, Regel 14)');
