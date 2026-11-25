@@ -47,12 +47,13 @@ function New-Rules([string]$body, [string]$adapter = $nachGate, [string]$checks 
         @{ match = '^pr merge 7 '; out = ''; exit = 0 }
         @{ match = '^pr view 7 .*--json state,headRefName,baseRefName,closingIssuesReferences'; out = (ConvertTo-Json -Compress -InputObject @{ state = $stateAfter; headRefName = 'epic/7-x'; baseRefName = 'main'; closingIssuesReferences = @() }); exit = 0 }
         @{ match = '^api repos/o/r/compare/main\.\.\.epic/7-x'; out = $ahead; exit = 0 }
+        @{ match = '^api repos/o/r/branches/epic/7-x'; out = 'epic/7-x'; exit = 0 }
         @{ match = '^api -X DELETE'; out = ''; exit = 0 }
     )
     $rules
 }
 
-function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$TaktSekunden = 0) {
+function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$TaktSekunden = 0, [switch]$BranchBehalten) {
     $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $dir | Out-Null
     $stubFile = Join-Path $dir 'gh-stub.ps1'
@@ -66,7 +67,7 @@ function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$T
     [IO.File]::WriteAllText($fixture, (ConvertTo-Json -Depth 5 -InputObject @($rules)), (New-Object Text.UTF8Encoding $false))
     $log = Join-Path $dir 'calls.log'
     $env:MERGE_GH_FIXTURE = $fixture; $env:MERGE_GH_LOG = $log
-    $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -GhCommand $stubFile -LeerMinuten $LeerMinuten -TaktSekunden $TaktSekunden 2>$null
+    $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -GhCommand $stubFile -LeerMinuten $LeerMinuten -TaktSekunden $TaktSekunden -BranchBehalten:$BranchBehalten 2>$null
     $exit = $LASTEXITCODE
     $calls = if (Test-Path $log) { @(Get-Content $log -Encoding UTF8) } else { @() }
     @{ Exit = $exit; Out = (@($out) -join "`n"); Calls = $calls }
@@ -267,6 +268,31 @@ Describe 'merge.ps1: the head branch' {
         (Get-DeleteCalls $r).Count | Should Be 0
     }
 
+    It 'says when the forge already deleted the branch: no error, no delete call' {
+        $weg = @(@{ match = '^api repos/o/r/branches/epic/7-x'; out = ''; err = 'gh: Not Found (HTTP 404)'; exit = 1 })
+        # -Native: the error text of gh comes on stderr of its own process, as with the real gh
+        $r = Invoke-Merge -Native ($weg + (New-Rules (New-GateBody)))
+        $r.Exit | Should Be 0
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x war schon geloescht (von der Forge)'
+        (Get-DeleteCalls $r).Count | Should Be 0
+    }
+
+    It 'names the reason when it keeps the branch on purpose' {
+        $r = Invoke-Merge (New-Rules (New-GateBody)) -BranchBehalten
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x behalten (-BranchBehalten)'
+        (Get-DeleteCalls $r).Count | Should Be 0
+        $r = Invoke-Merge (New-Rules (New-GateBody) -ahead '')
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x behalten (Vergleich mit main nicht lesbar)'
+        (Get-DeleteCalls $r).Count | Should Be 0
+    }
+
+    It 'says deleted only when the forge deleted it' {
+        $r = Invoke-Merge (New-Rules (New-GateBody))
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x geloescht'
+        $nein = @(@{ match = '^api -X DELETE'; out = ''; err = 'gh: Forbidden (HTTP 403)'; exit = 1 })
+        $r = Invoke-Merge ($nein + (New-Rules (New-GateBody)))
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x nicht geloescht (die Forge lehnte ab)'
+    }
 }
 
 # Gitea (#127): curl is a stub script (-CurlCommand) that reads the request from its config on stdin, logs
@@ -310,6 +336,7 @@ function New-GiteaRules([string]$body, [string]$title = 'Mission', [string]$stat
         @{ match = '^POST /pulls/7/merge$'; status = 200 }
         @{ match = '^GET /issues/3$'; out = "{`"state`":`"$issue3`"}"; status = 200 }
         @{ match = '^GET /compare/main\.\.\.epic%2F7-x$'; out = '{"total_commits":0}'; status = 200 }
+        @{ match = '^GET /branches/epic%2F7-x$'; out = '{"name":"epic/7-x"}'; status = 200 }
         @{ match = '^DELETE /branches/epic%2F7-x$'; status = 204 }
     )
 }

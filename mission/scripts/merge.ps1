@@ -269,14 +269,26 @@ if ($issues) {
     $offen = @($issues | Where-Object { $_ -notin $zu })
     if ($offen) { $zeile += "; NOCH OFFEN: $($offen -join ' ')" }
 }
-if (-not $BranchBehalten) {
-    $voraus = Get-Ahead $info.baseRefName $info.headRefName
+# true only when the forge says the branch does not exist (404): it deleted it itself after the merge
+function Test-BranchWeg([string]$branch) {
+    if ($gitea) { return (Invoke-Gitea GET "/branches/$([uri]::EscapeDataString($branch))").Status -eq 404 }
+    $out = @(gh api "repos/$Repo/branches/$branch" --jq .name 2>&1 | ForEach-Object { "$_" }) -join ' '
+    [bool]$LASTEXITCODE -and $out -match 'HTTP 404'
+}
+# the end of the line says which of three it was: already gone (no error), deleted, or kept with its reason
+$branch = $info.headRefName
+if ($BranchBehalten) { $zeile += "; Branch $branch behalten (-BranchBehalten)" }
+elseif (Test-BranchWeg $branch) { $zeile += "; Branch $branch war schon geloescht (von der Forge)" }
+else {
+    $voraus = Get-Ahead $info.baseRefName $branch
     if ($voraus -eq '0') {
-        if ($gitea) { $weg = Test-Ok (Invoke-Gitea DELETE "/branches/$([uri]::EscapeDataString($info.headRefName))") }
-        else { gh api -X DELETE "repos/$Repo/git/refs/heads/$($info.headRefName)" 2>$null | Out-Null; $weg = -not $LASTEXITCODE }
-        $zeile += if (-not $weg) { "; Branch $($info.headRefName) nicht geloescht" } else { "; Branch $($info.headRefName) geloescht" }
+        if ($gitea) { $weg = Test-Ok (Invoke-Gitea DELETE "/branches/$([uri]::EscapeDataString($branch))") }
+        else { gh api -X DELETE "repos/$Repo/git/refs/heads/$branch" 2>$null | Out-Null; $weg = -not $LASTEXITCODE }
+        $zeile += if (-not $weg) { "; Branch $branch nicht geloescht (die Forge lehnte ab)" } else { "; Branch $branch geloescht" }
+    } elseif (-not $voraus) {
+        $zeile += "; Branch $branch behalten (Vergleich mit $($info.baseRefName) nicht lesbar)"
     } else {
-        $zeile += "; Branch $($info.headRefName) behalten ($voraus Commits nicht in $($info.baseRefName))"
+        $zeile += "; Branch $branch behalten ($voraus Commits nicht in $($info.baseRefName))"
     }
 }
 $zeile
