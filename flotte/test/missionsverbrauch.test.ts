@@ -127,7 +127,8 @@ describe('Fundstellen: from the logs of the runs to the transcripts of the accou
     writeFileSync(join(sub, 'agent-2.jsonl'), '');
     writeFileSync(join(sub, 'agent-2.meta.json'), JSON.stringify({ agentType: 'erster-offizier-urteil', description: 'Erster Offizier #45-p2' }));
     writeFileSync(join(sub, 'agent-3.jsonl'), '');
-    writeFileSync(join(sub, 'agent-3.meta.json'), JSON.stringify({ agentType: 'kundschafter', description: 'Fundstellen für das Vorab-Tor' }));
+    // a known type wins over a description that names the gate
+    writeFileSync(join(sub, 'agent-3.meta.json'), JSON.stringify({ agentType: 'kundschafter', description: 'Fundstellen in gate/logik.mts für das Vorab-Tor' }));
     writeFileSync(join(sub, 'agent-4.jsonl'), '');
     writeFileSync(join(sub, 'agent-4.meta.json'), JSON.stringify({ agentType: 'general-purpose', description: 'Andockprüfung der Mission' }));
     const q = new Fundstellen().quellen(laeufe, 491, [join(d, 'anderes'), konto]);

@@ -195,10 +195,10 @@ function initAus(datei: string): { id: string; cwd: string } | null | 'nie' {
   return groesse > 256 * 1024 ? 'nie' : null;
 }
 
-/** role of a subagent: the Andockprüfung by its description, else by its type (verlauf.ts) */
+/** role of a subagent by its type (verlauf.ts); one of no known type that runs the Andockprüfung by its description */
 function rolleAus(typ: string, beschreibung: string): string {
-  if (/andockpr|\bgate\b/i.test(beschreibung) || /andockpr|\bgate\b/i.test(typ)) return 'Andockprüfung';
-  return rolleVon(typ, beschreibung);
+  const r = rolleVon(typ, beschreibung);
+  return r === 'Subagent' && /andockpr|\bgate\b/i.test(`${typ} ${beschreibung}`) ? 'Andockprüfung' : r;
 }
 
 /**
