@@ -87,6 +87,15 @@ def _pakete(pakete: list[dict], url: str | None, schwelle: float | None, jetzt: 
     return [{**pk, 'url': f"{url}/issues/{pk['nr']}" if url and pk.get('nr') else None, 'lang': lang(pk)} for pk in pakete]
 
 
+def _andock(m: dict | None) -> dict | None:
+    """A gate run of the driver with its cache share: n of m contexts that ran (green or red) came from the
+    gate's cache; both None without a cache statement (the adapter has no gate_cached)."""
+    if not m:
+        return None
+    gelaufen = [k for k in m.get('kontexte', []) if k.get('cache') is not None and k.get('ergebnis') in ('gruen', 'rot')]
+    return {**m, 'ausCache': sum(1 for k in gelaufen if k['cache']) if gelaufen else None, 'mitCache': len(gelaufen) or None}
+
+
 def _von(d: dict) -> str:
     """Who decided: the driver says so since #52; an older one is read from herkunft."""
     if d.get('von') in VON:
@@ -308,6 +317,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         # the field "Link zum Repository" (None: this driver does not clone) and the gaps of its adapter
         liste[-1]['klonAngebot'] = b.get('klonAngebot')
         liste[-1]['adapterLuecken'] = b.get('adapterLuecken') or []
+        # the last gate runs of the driver in this project, newest first (Maschinenraum)
+        liste[-1]['andockpruefungen'] = [_andock(m) for m in reversed(b.get('andockpruefungen') or [])]
         # step 8 of the gate rework: the last night run and the halt of the merge queue (None: an older driver or none yet)
         liste[-1]['nachtlauf'] = b.get('nachtlauf')
         liste[-1]['entfernen'] = _handlung(offen_h.get((0, 'projekt_entfernen', None, None)))
@@ -387,6 +398,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'neustarts': ep.get('neustarts'),
                 'plaetze': ep.get('plaetze'),
                 'gateLauf': ep.get('gateLauf'),
+                'andockpruefung': _andock(ep.get('andockpruefung')),
                 'schritt': ep.get('schritt'),
                 'schrittZeit': ep.get('schrittZeit'),
                 'gestartetAm': ep.get('gestartetAm'),

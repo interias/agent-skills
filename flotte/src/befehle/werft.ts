@@ -38,7 +38,7 @@ const FELDER: Record<string, keyof Omit<Stack, 'name' | 'pfade'> | 'pfade'> = {
 
 export interface Stack {
   name: string;
-  /** patterns like gate_areas: ** spans folders, * and ? stay inside one, a trailing / is the folder */
+  /** path patterns: ** spans folders, * and ? stay inside one, a trailing / is the folder */
   pfade: string[];
   nachziehen: string;
   /** #89: migration into the test database, runs by itself */
@@ -78,7 +78,7 @@ export function deployAus(text: string): Deploy | null {
   return stacks.size ? { abfrageS, stacks: [...stacks.values()] } : null;
 }
 
-/** A path pattern as in gate_areas (mission/scripts/merge.ps1, ConvertTo-GlobRegex). */
+/** A path pattern: ** spans folders, * and ? stay inside one, a trailing / is the folder. */
 export function musterRegex(muster: string): RegExp {
   const p = muster.endsWith('/') ? `${muster}**` : muster;
   const r = p

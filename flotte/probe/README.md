@@ -38,9 +38,9 @@ vergleichbar:** Haiku, Mini-Missionen.
   persönlicher Skill `epic` ginge sonst vor) und der Pfad des Hooks auf die Kopie. Die Agenten des
   Stapels liegen in `.claude/agents/` mit `model: haiku`.
 - Adapter: hier `epic-probe3.md`. `merge: nach_gate`, `gate_command`, `gate_always_command`,
-  `gate_areas` (`alpha/`, `beta/`, `gamma/`), `worktree_may_start: [compose]`.
+  `gate_areas` (`alpha/`, `beta/`, `gamma/`), `worktree_may_start: [compose]`. Protokoll; diese Schlüssel sind seit dem Umbau der Andockprüfung abgeschafft, ein Teil-Lauf zählt nicht mehr.
 - Andockprüfung: hier `gate.ps1`, dieselbe Ausgabeform wie eine echte Projekt-Andockprüfung (Kontexte je Bereich,
-  `wurzel` immer, Kopfzeile mit Basis und HEAD, `-Alle`, `-Immer`). Der Bereich `gamma` startet den
+  `wurzel` immer, Kopfzeile mit Basis und HEAD, `-Alle`, `-Immer`; `-Immer` ist Protokoll, ein Teil-Lauf zählt nicht mehr). Der Bereich `gamma` startet den
   Compose-Dienst aus `compose.yaml` und fragt ihn ab. Zwei Auslöser in `.git`, je einmal: 300 s
   Stille vor der Andockprüfung (über der Leerlaufgrenze von 4 min) und eine rote Andockprüfung beim ersten Lauf auf
   einem Andocken der Basis.
@@ -55,6 +55,8 @@ vergleichbar:** Haiku, Mini-Missionen.
 | Starts (Start und Fortsetzungen) | 4 | 1 | 3 | 4 |
 | Aufrufe von `merge.ps1` | 3 | 1 | 2 | 2 |
 | Andockprüfungs-Läufe des Treibers | voll (rot ²), Immer-Teil | – | Immer-Teil | Immer-Teil |
+
+Die Teil-Läufe der Tabelle sind Protokoll; seit dem Umbau der Andockprüfung zählt ein Teil-Lauf nicht mehr.
 | Rückgaben an den Lauf | 1 ² | 0 | 0 | 0 |
 | Missions-Worktree vom Treiber neu angelegt ³ | ja | nein | ja | ja |
 | PR bereit bis angedockt (min, `mergedAt`) | 10,0 | 0,1 | 9,8 | 10,3 |
@@ -76,7 +78,7 @@ und 2), Reste 0 Worktrees, 0 Branches, 0 Container. Offen ist nur das Logbuch-Is
   die künstlich rote Andockprüfung. #44 kam mit gültigem Block und wurde ohne Andockprüfung angedockt.
 - **Bereiche, live auf der Forge:** #45, #46 und zuletzt #43 wurden nach einem Lauf nur des
   Immer-Teils angedockt; `merge.ps1` prüfte die Bereiche selbst. #43 bekam nach dem Andocken von #44
-  (gleicher Bereich) die volle Andockprüfung.
+  (gleicher Bereich) die volle Andockprüfung. Protokoll; seit dem Umbau der Andockprüfung zählt ein Teil-Lauf nicht mehr.
 - **Beide Konten gleichzeitig:** #43 auf Konto 1, #45 und #46 auf Konto 2, zur selben Zeit.
 - **Abbruch des Treibers mit lebenden Läufen:** Treiber hart beendet, #43 und #45 liefen weiter;
   der Neustart meldete „lebt noch: wird beobachtet, nicht neu gestartet“.

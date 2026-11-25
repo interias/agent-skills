@@ -47,12 +47,13 @@ function New-Rules([string]$body, [string]$adapter = $nachGate, [string]$checks 
         @{ match = '^pr merge 7 '; out = ''; exit = 0 }
         @{ match = '^pr view 7 .*--json state,headRefName,baseRefName,closingIssuesReferences'; out = (ConvertTo-Json -Compress -InputObject @{ state = $stateAfter; headRefName = 'epic/7-x'; baseRefName = 'main'; closingIssuesReferences = @() }); exit = 0 }
         @{ match = '^api repos/o/r/compare/main\.\.\.epic/7-x'; out = $ahead; exit = 0 }
+        @{ match = '^api repos/o/r/branches/epic/7-x'; out = 'epic/7-x'; exit = 0 }
         @{ match = '^api -X DELETE'; out = ''; exit = 0 }
     )
     $rules
 }
 
-function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$TaktSekunden = 0) {
+function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$TaktSekunden = 0, [switch]$BranchBehalten) {
     $dir = Join-Path $TestDrive ([guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $dir | Out-Null
     $stubFile = Join-Path $dir 'gh-stub.ps1'
@@ -66,7 +67,7 @@ function Invoke-Merge($rules, [switch]$Native, [double]$LeerMinuten = 0, [int]$T
     [IO.File]::WriteAllText($fixture, (ConvertTo-Json -Depth 5 -InputObject @($rules)), (New-Object Text.UTF8Encoding $false))
     $log = Join-Path $dir 'calls.log'
     $env:MERGE_GH_FIXTURE = $fixture; $env:MERGE_GH_LOG = $log
-    $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -GhCommand $stubFile -LeerMinuten $LeerMinuten -TaktSekunden $TaktSekunden 2>$null
+    $out = & pwsh -NoProfile -File $script -Repo o/r -Pr 7 -GhCommand $stubFile -LeerMinuten $LeerMinuten -TaktSekunden $TaktSekunden -BranchBehalten:$BranchBehalten 2>$null
     $exit = $LASTEXITCODE
     $calls = if (Test-Path $log) { @(Get-Content $log -Encoding UTF8) } else { @() }
     @{ Exit = $exit; Out = (@($out) -join "`n"); Calls = $calls }
@@ -228,72 +229,35 @@ Describe 'merge.ps1: a repository without CI (#14, C2)' {
     }
 }
 
-Describe 'merge.ps1: a last run of only the part that always runs (#14, B)' {
-    $areas = "---`nmerge: nach_gate`ngate_areas:`n  - 'apps/web/ = web'`n  - apps/api/** = api   # the server`ngate_always_command: npm run gate -- --immer`n---`n"
-    # full green run on base ccccccc and head eeeeeeee, then the part that always runs on the current state
+Describe 'merge.ps1: one gate block, one way (step 7 of the gate rebuild; was the part run of #14, B)' {
+    # an adapter of before: the abolished keys gate_areas, gate_always_command and gate_partial, a list among them
+    $alt = "---`nmerge: nach_gate`ngate_areas:`n  - 'apps/web/ = web'`n  - apps/api/** = api   # the server`ngate_always_command: npm run gate -- --immer`ngate_partial: Immer-Teil`n---`n"
+    # a full green run on an older state, then a run whose heading still says Immer-Teil on the current state
     $body = "## Gate`n``````n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`n$green`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n  wurzel gr$([char]0x00FC)n`n$green`n``````"
-    function New-Compare([string]$moved = 'apps/api/x.ts', [string]$epic = 'apps/web/y.ts', [string]$since = 'apps/api/x.ts') {
-        $list = { param($f) $l = @($f -split ',' | Where-Object { $_ }); (@("$($l.Count)") + $l) -join "`n" }
-        @(
-            @{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = (& $list $moved); exit = 0 }
-            @{ match = "^api repos/o/r/compare/$baseSha\.\.\.$headSha"; out = (& $list $epic); exit = 0 }
-            @{ match = "^api repos/o/r/compare/eeeeeeee\.\.\.$headSha"; out = (& $list $since); exit = 0 }
-        )
-    }
+    $compare = @(@{ match = '^api repos/o/r/compare/(ccccccc|eeeeeeee|aaaaaaa1)'; out = "1`napps/web/z.ts"; exit = 0 })
 
-    It 'merges when the base moved only in an area the epic does not touch' {
-        $r = Invoke-Merge ((New-Compare) + (New-Rules $body $areas))
-        $r.Out | Should Match 'GEMERGT #7'
-    }
-
-    It 'refuses when the base moved in an area of the epic' {
-        $r = Invoke-Merge ((New-Compare -moved 'apps/web/z.ts' -since 'apps/web/z.ts') + (New-Rules $body $areas))
-        $r.Out | Should Match 'GATE FEHLT #7: die Basis bewegte sich seit dem Voll-Lauf in Bereichen des Epics: web'
+    It 'a partial run never counts, even green on the current base and head; no file list is read' {
+        $r = Invoke-Merge ($compare + (New-Rules $body $alt))
+        $r.Out | Should Be 'GATE FEHLT #7: der letzte Gate-Lauf ist ein Teil-Lauf, er zaehlt nicht'
         (Get-MergeCalls $r).Count | Should Be 0
+        @($r.Calls | Where-Object { $_ -match '^api repos/o/r/compare/(ccccccc|eeeeeeee|aaaaaaa1)' }).Count | Should Be 0
     }
 
-    It 'refuses when the base moved a file outside every area' {
-        $r = Invoke-Merge ((New-Compare -moved 'package.json' -since 'package.json') + (New-Rules $body $areas))
-        $r.Out | Should Match 'Bereichen des Epics: \(ohne Bereich\)'
+    It 'without gate_partial the heading Immer-Teil marks a partial run; with it, its pattern does' {
+        (Invoke-Merge ($compare + (New-Rules $body))).Out | Should Match 'Teil-Lauf, er zaehlt nicht'
+        $eigen = "---`nmerge: nach_gate`ngate_partial: Nur-Wurzel`n---`n"
+        $nurWurzel = "## Gate`n== Gate: Nur-Wurzel, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green"
+        (Invoke-Merge (New-Rules $nurWurzel $eigen)).Out | Should Match 'Teil-Lauf, er zaehlt nicht'
+        # a full run after the partial one counts as usual
+        $danach = $body -replace '```$',"== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green`n``````"
+        (Invoke-Merge ($compare + (New-Rules $danach $alt))).Out | Should Match 'GEMERGT #7'
     }
 
-    It 'refuses when the epic touches a file outside every area and the base moved' {
-        $r = Invoke-Merge ((New-Compare -epic 'apps/web/y.ts,README.md') + (New-Rules $body $areas))
-        $r.Out | Should Match 'Bereichen des Epics: .*\(ohne Bereich\)'
-    }
-
-    It 'refuses own changes after the full run' {
-        $r = Invoke-Merge ((New-Compare -since 'apps/api/x.ts,apps/web/neu.ts') + (New-Rules $body $areas))
-        $r.Out | Should Match 'nach dem Voll-Lauf kamen eigene Aenderungen: apps/web/neu.ts'
-    }
-
-    It 'refuses a renamed file whose old name lies in the area of the epic' {
-        $r = Invoke-Merge ((New-Compare -moved 'apps/api/x.ts,apps/web/alt.ts' -since 'apps/api/x.ts,apps/web/alt.ts') + (New-Rules $body $areas))
-        $r.Out | Should Match 'Bereichen des Epics: web'
-    }
-
-    It 'refuses when the forge cuts a file list' {
-        $cut = @(@{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = "300`napps/api/x.ts"; exit = 0 }) + (New-Compare)
-        $r = Invoke-Merge ($cut + (New-Rules $body $areas))
-        $r.Out | Should Match 'Dateilisten fuer die Bereiche nicht lesbar'
-    }
-
-    It 'never merges when the check itself fails (an unreadable answer of the forge)' {
-        $kaputt = @(@{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = "keine Zahl`napps/api/x.ts"; exit = 0 }) + (New-Compare)
-        $r = Invoke-Merge ($kaputt + (New-Rules $body $areas))
-        $r.Out | Should Match 'GATE FEHLT #7: Pruefung gescheitert'
+    It 'a last run on an old base never counts, whatever the base moved in' {
+        $alt2 = "## Gate`n``````n== Gate: Basis origin/main @ aaaaaaa (HEAD eeeeeeee)`n$green`n== Gate: Basis origin/main @ ccccccc (HEAD bbbbbbbb)`n$green`n``````"
+        $r = Invoke-Merge ($compare + (New-Rules $alt2 $alt))
+        $r.Out | Should Match 'GATE FEHLT #7: Gate lief gegen ccccccc, die Basis steht auf aaaaaaa'
         (Get-MergeCalls $r).Count | Should Be 0
-    }
-
-    It 'refuses a part run without gate_areas in the adapter' {
-        $r = Invoke-Merge ((New-Compare) + (New-Rules $body))
-        $r.Out | Should Match 'Teil-Lauf, der Adapter nennt keine gate_areas'
-    }
-
-    It 'refuses a part run without a green full run before it' {
-        $nurTeil = "## Gate`n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`nGate ROT.`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green"
-        $r = Invoke-Merge ((New-Compare) + (New-Rules $nurTeil $areas))
-        $r.Out | Should Match 'vor dem Teil-Lauf steht kein gruener Voll-Lauf'
     }
 }
 
@@ -309,6 +273,32 @@ Describe 'merge.ps1: the head branch' {
         $r = Invoke-Merge (New-Rules (New-GateBody) -ahead '2')
         $r.Out | Should Match 'Branch epic/7-x behalten \(2 Commits nicht in main\)'
         (Get-DeleteCalls $r).Count | Should Be 0
+    }
+
+    It 'says when the forge already deleted the branch: no error, no delete call' {
+        $weg = @(@{ match = '^api repos/o/r/branches/epic/7-x'; out = ''; err = 'gh: Not Found (HTTP 404)'; exit = 1 })
+        # -Native: the error text of gh comes on stderr of its own process, as with the real gh
+        $r = Invoke-Merge -Native ($weg + (New-Rules (New-GateBody)))
+        $r.Exit | Should Be 0
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x war schon geloescht (von der Forge)'
+        (Get-DeleteCalls $r).Count | Should Be 0
+    }
+
+    It 'names the reason when it keeps the branch on purpose' {
+        $r = Invoke-Merge (New-Rules (New-GateBody)) -BranchBehalten
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x behalten (-BranchBehalten)'
+        (Get-DeleteCalls $r).Count | Should Be 0
+        $r = Invoke-Merge (New-Rules (New-GateBody) -ahead '')
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x behalten (Vergleich mit main nicht lesbar)'
+        (Get-DeleteCalls $r).Count | Should Be 0
+    }
+
+    It 'says deleted only when the forge deleted it' {
+        $r = Invoke-Merge (New-Rules (New-GateBody))
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x geloescht'
+        $nein = @(@{ match = '^api -X DELETE'; out = ''; err = 'gh: Forbidden (HTTP 403)'; exit = 1 })
+        $r = Invoke-Merge ($nein + (New-Rules (New-GateBody)))
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x nicht geloescht (die Forge lehnte ab)'
     }
 }
 
@@ -353,6 +343,7 @@ function New-GiteaRules([string]$body, [string]$title = 'Mission', [string]$stat
         @{ match = '^POST /pulls/7/merge$'; status = 200 }
         @{ match = '^GET /issues/3$'; out = "{`"state`":`"$issue3`"}"; status = 200 }
         @{ match = '^GET /compare/main\.\.\.epic%2F7-x$'; out = '{"total_commits":0}'; status = 200 }
+        @{ match = '^GET /branches/epic%2F7-x$'; out = '{"name":"epic/7-x"}'; status = 200 }
         @{ match = '^DELETE /branches/epic%2F7-x$'; status = 204 }
     )
 }
@@ -380,6 +371,14 @@ Describe 'merge.ps1: Gitea through its API (#127)' {
         $r.Out | Should Be 'GEMERGT #7 -> main; Issues zu: #3; Branch epic/7-x geloescht'
         @($r.Calls | Where-Object { $_ -match "^POST /pulls/7/merge \| token geheim \| -sS --config - " }).Count | Should Be 1
         @($r.Calls | Where-Object { $_ -match 'geheim\s*$' -or ($_ -split ' \| ')[2] -match 'geheim' }).Count | Should Be 0
+    }
+
+    It 'says when Gitea already deleted the branch (404): no error, no delete call' {
+        $weg = @(@{ match = '^GET /branches/epic%2F7-x$'; out = '{"message":"not found"}'; status = 404 })
+        $r = Invoke-GiteaMerge ($weg + (New-GiteaRules (New-GateBody)))
+        $r.Exit | Should Be 0
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x war schon geloescht (von der Forge)'
+        @($r.Calls | Where-Object { $_ -match '^DELETE ' }).Count | Should Be 0
     }
 
     It 'names a Missionsziel that stayed open (HTTP 412 at a blocker) as still open' {

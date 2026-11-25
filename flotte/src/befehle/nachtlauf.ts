@@ -14,6 +14,7 @@ import { forgeAus } from '../treiber/treiber.ts';
 import { SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { entsperren, ersetze, flotteDir, lebt, sperren } from '../werkzeuge/zustand.ts';
 import { schluessel } from './adapter.ts';
+import { gateKontexte } from '../epic/zaehlen.ts';
 
 /** the halt of the merge queue, next to zustand.json; the driver only reads it */
 export const HALT_DATEI = 'schlange-halt.json';
@@ -208,7 +209,8 @@ export function andockblock(ausgabe: string, adapter: string): { zeilen: string[
   }
   const schluss = block.at(-1)?.trim();
   const vollstaendig = block.length > 1 && (schluss === gruenZeile || schluss === ROT_ZEILE);
-  const teile = vollstaendig ? block.flatMap((z) => /^\s+(\S+)\s+(?:ROT|rot)\b/.exec(z)?.[1] ?? []).map(ohnePfade) : [];
+  // the red contexts as the measurement reads them: deeper indented detail lines are no part
+  const teile = vollstaendig ? gateKontexte(block.slice(1)).flatMap(({ kontext }) => (kontext.ergebnis === 'rot' ? [kontext.name] : [])).map(ohnePfade) : [];
   return { zeilen: vollstaendig ? block.map(ohnePfade) : [], gruen: block.some((z) => z.trim() === gruenZeile), teile, vollstaendig };
 }
 

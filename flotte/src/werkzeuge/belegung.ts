@@ -7,7 +7,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { type ForgeZugriff, type Issue, zugriffFuer } from '../forge/zugriff.ts';
-import { bereicheAus, bereicheVon } from '../treiber/gate.ts';
 import { mergeVorschlag } from '../treiber/admiral.ts';
 
 export type Kollision = 'keine' | 'klein' | 'mittel' | 'gross';
@@ -24,8 +23,6 @@ export interface EpicBild {
   migration: boolean;
   /** epics that must be merged before this one starts */
   nach: number[];
-  /** gate_areas of the files the epic names (#14, round 5); empty when it names none */
-  bereiche?: string[];
   /** prio_label on the epic or one of its children: goes into the next occupancy first */
   prio?: boolean;
   /** child tickets of the epic (its checklist and Kinder: list), for the package bar of the bridge */
@@ -60,16 +57,20 @@ export interface Adapter {
   lern_issue: number | null;
   /** the merge gate of the project, run by the driver in the epic worktree (#14, round 5); null: the run does it */
   gate_command: string | null;
-  /** only the part of the gate that always runs (hexanite: wurzel) */
-  gate_always_command: string | null;
-  /** `<pattern> = <name>` per area of the gate */
-  gate_areas: string[];
   gate_heading: string | null;
   gate_green: string | null;
   gate_base: string | null;
   gate_head: string | null;
+  /** a regular expression on a context line of the gate block: that context came from the gate's cache */
+  gate_cached: string | null;
+  /** abolished as a control (ABGESCHAFFT); its pattern still marks a partial run, which never counts */
   gate_partial: string | null;
+  /** abolished keys the adapter still names (ABGESCHAFFT): they act no more, the driver says so once */
+  abgeschafft: string[];
 }
+
+/** Keys of the partial gate run, abolished: the head of the merge queue always runs gate_command. */
+export const ABGESCHAFFT = ['gate_areas', 'gate_always_command', 'gate_partial'];
 
 export interface Paar {
   a: number;
@@ -97,13 +98,13 @@ export function liesAdapter(text: string): Adapter {
     nach_merge: werte.get('nach_merge') ?? [],
     lern_issue: Number(werte.get('lern_issue')?.[0]?.replace(/^#/, '')) > 0 ? Number(werte.get('lern_issue')![0].replace(/^#/, '')) : null,
     gate_command: werte.get('gate_command')?.[0] ?? null,
-    gate_always_command: werte.get('gate_always_command')?.[0] ?? null,
-    gate_areas: werte.get('gate_areas') ?? [],
     gate_heading: werte.get('gate_heading')?.[0] ?? null,
     gate_green: werte.get('gate_green')?.[0] ?? null,
     gate_base: werte.get('gate_base')?.[0] ?? null,
     gate_head: werte.get('gate_head')?.[0] ?? null,
+    gate_cached: werte.get('gate_cached')?.[0] ?? null,
     gate_partial: werte.get('gate_partial')?.[0] ?? null,
+    abgeschafft: ABGESCHAFFT.filter((k) => werte.has(k)),
   };
 }
 
@@ -178,7 +179,6 @@ export function bildAus(nr: number, bodies: string[], adapter: Adapter, epicNumm
   for (const d of dateien) if (/(^|\/)migrations?\//i.test(d)) migration = true;
   const bild: EpicBild = { nr, module: [...module].sort(), dateien: [...dateien].sort(), exklusiv, migration, nach: [...nach].filter((n) => n !== nr && epicNummern.includes(n)).sort((a, b) => a - b) };
   if (prio) bild.prio = true;
-  if (adapter.gate_areas.length) bild.bereiche = dateien.size ? [...bereicheVon([...dateien], bereicheAus(adapter.gate_areas))].sort() : [];
   return bild;
 }
 
@@ -245,16 +245,8 @@ export function belege(bilder: EpicBild[], adapter: Adapter, opts: { laufend: nu
     return menge.length <= Math.min(kappe, GRENZE[schlecht]);
   };
   let beste: number[] = [...opts.laufend];
-  // on a tie, epics from different gate areas: after a merge the next one then often needs only the
-  // part of the gate that always runs (#14, round 5)
-  const bereich = new Map(alle.map((n) => [n, bilder.find((b) => b.nr === n)?.bereiche ?? []]));
-  const geteilt = (m: number[]) => {
-    let n = 0;
-    for (let i = 0; i < m.length; i++) for (let j = i + 1; j < m.length; j++) if (bereich.get(m[i])!.some((x) => bereich.get(m[j])!.includes(x))) n++;
-    return n;
-  };
   const prio = new Set(bilder.filter((b) => b.prio).map((b) => b.nr));
-  const wert = (m: number[]) => [m.filter((n) => prio.has(n)).length, m.length, m.reduce((s, n) => s + entsperrt(n), 0), -geteilt(m), -m.reduce((s, n) => s + n, 0)];
+  const wert = (m: number[]) => [m.filter((n) => prio.has(n)).length, m.length, m.reduce((s, n) => s + entsperrt(n), 0), -m.reduce((s, n) => s + n, 0)];
   const besser = (x: number[], y: number[]) => {
     const [a, b] = [wert(x), wert(y)];
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i];

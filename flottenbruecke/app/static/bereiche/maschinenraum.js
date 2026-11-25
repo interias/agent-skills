@@ -267,6 +267,17 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     return `<h3 class="mr-titel">Lernschleife je Projekt</h3><p class="mr-hinweis">${esc(hinweis).replace(/--[a-z]+|lern_issue/g, (o) => `<code>${o}</code>`)}</p><div class="mr-automatik">${t.projekte.map(zeile).join('')}</div>`;
   }
 
+  // ---- the last Andockprüfungen of the driver per project, newest first: duration, result and the share of the
+  // contexts whose result came from the cache (adapter gate_cached); without that key only the duration
+  function andockpruefungenHtml(t) {
+    const mit = t.projekte.filter((p) => p.andockpruefungen?.length);
+    if (!mit.length) return '';
+    const zeile = (m) => `<li><span class="mr-andock-nr">#${esc(m.epic)}</span><b class="${m.gruen ? 'ok' : 'knapp'}">${m.gruen ? 'grün' : 'rot'}</b><span class="zahl">${esc(gateDauer(m.dauerS))}</span><span class="mr-andock-cache">${esc(m.mitCache ? `${m.ausCache} von ${m.mitCache} aus dem Cache` : '')}</span><span class="mr-hilfe">${esc(uhrzeit(m.zeit))}</span></li>`;
+    const karte = (p) => `<div class="mr-karte mr-andock-karte${p.veraltet ? ' veraltet' : ''}" role="group" aria-label="Letzte Andockprüfungen ${esc(p.kurz)}"><h4>${esc(p.kurz)}</h4><ol class="mr-andock">${p.andockpruefungen.slice(0, 10).map(zeile).join('')}</ol></div>`;
+    const hinweis = 'Die Andockprüfungen, die der Treiber an der Spitze der Andock-Schlange fuhr, neueste zuerst: Dauer, Ergebnis und wie viele der gelaufenen Kontexte ihr Ergebnis aus dem Cache der Andockprüfung nahmen. Nennt der Projektadapter dafür kein Muster, steht nur die Dauer da.';
+    return `<h3 class="mr-titel">Letzte Andockprüfungen</h3><p class="mr-hinweis">${esc(hinweis)}</p><div class="mr-automatik">${mit.map(karte).join('')}</div>`;
+  }
+
   async function lernschleifeKnopf(ev) {
     const knopf = ev.target.closest('[data-lernschleife]');
     const zeile = knopf.closest('.mr-auto-zeile');
@@ -739,7 +750,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       }
       const konten = t.konten.length ? `<p class="mr-hinweis">Vorsprung: übrige Reserveenergie (Wochenlimit) minus übriger Anteil der Woche bis zu ihrem Reset, in Punkten. Eine neue Mission startet zuerst auf dem freien Konto mit dem größten Vorsprung, damit sich die Konten gleichmäßig leeren, auch mit Arbeit außerhalb der Flotte.</p>${t.konten.some((k) => k.missionen?.length) ? `<p class="mr-hinweis">Missionen je Konto: heute und seit Beginn des Wochenfensters. ${esc(VERBRAUCH_METHODE)}</p>` : ''}<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
-      const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${lernschleifeHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
+      const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${lernschleifeHtml(t)}${andockpruefungenHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;
       if (!el.dataset.verdrahtet) {
         el.dataset.verdrahtet = '1';

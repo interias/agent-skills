@@ -169,8 +169,7 @@ Repository und Adresse aus `api` und die Anmeldung wie `flotte auftrag` (`token_
 oder der Git-Credential-Speicher). `merge.ps1` bekommt bei Gitea `-Api`, den Zugang nur in der
 Umgebung seines Prozesses. Auf Gitea ist eine Mission von ihren Missionszielen blockiert, eine
 blockierende Mission mit `epic_label` ist eine Reihenfolge-Kante, kein Missionsziel; Statusmeldungen
-von Commits stehen für Checks, und ein Teil-Lauf der Andockprüfung (`gate_partial`) reicht dort nie,
-weil Gitea je Vergleich keine Dateiliste liefert.
+von Commits stehen für Checks.
 
 Den Stand zeigen die Tafel (`<git common dir>/flotte/tafel.html`), das Logbuch-Issue mit Label
 `flotte` und die Brücke. Einzelne Befehle wie `flotte zustand`, `flotte antworten` und

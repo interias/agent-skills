@@ -211,9 +211,7 @@ Schlüssel. Ein Lauf dockt nie an, in keiner Einstellung.
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die die Andockprüfung lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
 | `gate_head` | regulärer Ausdruck mit einer Gruppe: die SHA, auf der die Andockprüfung lief | `\(HEAD ([0-9a-f]{7,40})\)` |
 | `gate_command` | Befehl (PowerShell), der die ganze Andockprüfung im Worktree fährt und den Block ausgibt; mit ihm fährt der Flotten-Treiber die Andockprüfung in seiner Andockschlange selbst. Rot von außen meldet er in einer eigenen Zeile, die mit `Testsperre belegt` oder `Zeitgrenze des Gates` beginnt (Vertrag mit dem Treiber: einmal wiederholt, zählt nicht gegen den Lauf) | keiner |
-| `gate_always_command` | Befehl für den Teil der Andockprüfung, der immer läuft, egal welche Bereiche sich bewegt haben (hexanite: `wurzel`) | keiner |
-| `gate_areas` | Liste `<muster> = <name>`: welche Dateien zu welchem Bereich der Andockprüfung gehören. `**` geht über Ordner, `*` und `?` bleiben in einem, ein `/` am Ende meint den ganzen Ordner | keine |
-| `gate_partial` | regulärer Ausdruck, der in der Kopfzeile einen Teil-Lauf (nur `gate_always_command`) erkennt | `Immer-Teil` |
+| `gate_cached` | regulärer Ausdruck auf die Zeile eines Kontexts im Andockblock: passt er, nahm die Andockprüfung das Ergebnis des Kontexts aus ihrem Cache. Der Flotten-Treiber misst damit je Andockprüfung, wie viele Kontexte aus dem Cache kamen (Brücke, Maschinenraum); fehlt er, misst er nur die Dauern. Groß- und Kleinschreibung zählen. Etwa `aus dem Cache` | keiner |
 
 **Der Andockblock** gilt bei `merge: nach_gate` immer, auch in Repositorys mit Checks: Ein Check
 prüft oft etwas anderes (in hexanite baut er nur die Website) und ersetzt die Andockprüfung nie; ein roter
@@ -258,17 +256,13 @@ Weg für jeden, der andockt — den Treiber, einen Menschen, eine Sitzung, auch 
 Nur das Skript prüft, dass der Andockblock zur Spitze der Basis und zum Head passt; ein
 `gh pr merge` oder der Knopf der Forge daneben umgeht diese Prüfung.
 
-**Der Teil-Lauf.** Ist der letzte Lauf ein Teil-Lauf (`gate_partial` in der Kopfzeile, nur
-`gate_always_command`), gelten 1 bis 5 auch für ihn, und dazu:
-
-- Davor steht ein **voller** grüner Lauf mit Basis und Head.
-- Die Basis hat sich seit diesem vollen Lauf **nur in Bereichen bewegt, die der Pull Request nicht
-  berührt** (`gate_areas`). Eine Datei in keinem Bereich zählt als jeder Bereich.
-- Der Head hat seit dem vollen Lauf nur Dateien der Basis dazubekommen (das Einmischen der Basis per `git merge`).
-
-Ohne `gate_areas` im Adapter zählt ein Teil-Lauf nie: Jede Bewegung der Basis verlangt dann eine
-volle Andockprüfung. `merge.ps1` prüft das selbst über die Forge; kann es den Vergleich nicht lesen,
-dockt es nicht an.
+**Ein Teil-Lauf zählt nie.** Passt die Kopfzeile des letzten Laufs auf das Teil-Muster, meldet
+`merge.ps1` `GATE FEHLT … der letzte Gate-Lauf ist ein Teil-Lauf, er zählt nicht`, und der
+Flotten-Treiber rechnet den Block nicht an, sondern fährt `gate_command` selbst. Das Muster ist
+`Immer-Teil`; nennt ein Adapter noch `gate_partial`, gilt dessen Wert. Die Schlüssel
+`gate_always_command`, `gate_areas` und `gate_partial` sind als Steuerung abgeschafft:
+`gate_partial` sperrt nur noch, die beiden anderen wirken nicht mehr. Ein Adapter, der sie noch
+nennt, bricht nichts ab; der Flotten-Treiber meldet sie einmal mit einem Hinweis im Logbuch.
 
 ### Nachtlauf
 
@@ -281,7 +275,7 @@ des Befehls.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `gate_night_command` | Befehl (PowerShell), der im eigenen Worktree des Nachtlaufs (`<worktree_root>/nachtlauf`, losgelöster HEAD, `env_files` und `link_dirs` wie bei `Up`) alles ohne Cache fährt; was er darüber hinaus braucht (etwa eine Installation), bringt er mit. Grün ist Exit 0 und, steht ein Andockblock in der Ausgabe, dessen Zeile `gate_green`; die roten Teile liest der Nachtlauf aus den Zeilen des Blocks. Rot auch in der Wiederholung hält die Andock-Schlange, bis ein Mensch freigibt | keiner: kein Nachtlauf |
+| `gate_night_command` | Befehl (PowerShell), der im eigenen Worktree des Nachtlaufs (`<worktree_root>/nachtlauf`, losgelöster HEAD, `env_files` und `link_dirs` wie bei `Up`) alles ohne Cache fährt; was er darüber hinaus braucht (etwa eine Installation), bringt er mit. Grün ist Exit 0 und, steht ein Andockblock in der Ausgabe, dessen Zeile `gate_green`; die roten Teile liest der Nachtlauf aus den Kontextzeilen des Blocks (tiefer eingerückte Detailzeilen zählen nicht, wie bei der Messung). Er ist keine Andockprüfung des Treibers: Er wird nicht gemessen, zählt nicht gegen die Grenze der Andockprüfungen und liefert keinen Andockblock. Rot auch in der Wiederholung hält die Andock-Schlange, bis ein Mensch freigibt | keiner: kein Nachtlauf |
 
 ### Werft (#88)
 
@@ -291,7 +285,7 @@ Repository nichts nach. Ein Lauf liest ihn nicht.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `deploy` | Map wie `test_commands`, je Eintrag `<stack>.<feld>: <wert>` (Stackname aus Buchstaben, Ziffern, `_`, `-`), dazu `abfrage_s`. Felder: `pfade` (Liste von Mustern wie `gate_areas`; eine geänderte Datei, die eines trifft, zieht den Stack nach), `nachziehen` (Befehl der System-Shell in der Repo-Wurzel, mit `WERFT_COMMIT` und `WERFT_STACK`; die Werft stellt die Arbeitskopie nicht um, der Befehl holt den Stand `WERFT_COMMIT` selbst; Exit ≠ 0 stellt den Stack auf rot), `migration_test` (Migration der Testdatenbank, läuft ohne Freigabe direkt nach `nachziehen`; Exit ≠ 0 stellt den Stack auf rot), `migration_arbeit` (Migration der Arbeitsdatenbank, nur nach geprüfter `sicherung` und Freigabe auf der Brücke), `sicherung` (Sicherungsbefehl vor `migration_arbeit`, Pflicht neben ihr). Alle mit `WERFT_COMMIT` und `WERFT_STACK`. `pfade` und `nachziehen` sind Pflicht; ein anderes Feld ist ein Fehler, den die Werft meldet, statt still nichts zu tun | keiner: keine Werft |
+| `deploy` | Map wie `test_commands`, je Eintrag `<stack>.<feld>: <wert>` (Stackname aus Buchstaben, Ziffern, `_`, `-`), dazu `abfrage_s`. Felder: `pfade` (Liste von Pfadmustern: `**` geht über Ordner, `*` und `?` bleiben in einem, ein `/` am Ende meint den ganzen Ordner; eine geänderte Datei, die eines trifft, zieht den Stack nach), `nachziehen` (Befehl der System-Shell in der Repo-Wurzel, mit `WERFT_COMMIT` und `WERFT_STACK`; die Werft stellt die Arbeitskopie nicht um, der Befehl holt den Stand `WERFT_COMMIT` selbst; Exit ≠ 0 stellt den Stack auf rot), `migration_test` (Migration der Testdatenbank, läuft ohne Freigabe direkt nach `nachziehen`; Exit ≠ 0 stellt den Stack auf rot), `migration_arbeit` (Migration der Arbeitsdatenbank, nur nach geprüfter `sicherung` und Freigabe auf der Brücke), `sicherung` (Sicherungsbefehl vor `migration_arbeit`, Pflicht neben ihr). Alle mit `WERFT_COMMIT` und `WERFT_STACK`. `pfade` und `nachziehen` sind Pflicht; ein anderes Feld ist ein Fehler, den die Werft meldet, statt still nichts zu tun | keiner: keine Werft |
 | `deploy.abfrage_s` | Abstand in Sekunden, in dem die Werft `origin/<main_branch>` holt; der Mensch kann ihn auf der Brücke überschreiben | `120` |
 
 Berührt ist ein Stack, wenn eine Datei im Diff seit dem letzten Stand der Werft eines seiner `pfade`

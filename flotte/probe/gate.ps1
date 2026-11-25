@@ -3,7 +3,8 @@
 # end whose head line names base and HEAD.
 #   (no switch)  the contexts the change touches since the merge-base with origin/main, plus wurzel
 #   -Alle        all contexts
-#   -Immer       only wurzel, the part that always runs (head line "Immer-Teil")
+#   -Immer       only wurzel, the part that always runs (head line "Immer-Teil"); record only: since the
+#                gate rebuild a partial run never counts
 # A context is red when one of its .txt files is empty or contains ROT. gamma also starts the
 # compose service of the repository and asks it for a line; the container stays up for the cleanup
 # of the skill to remove.

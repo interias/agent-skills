@@ -93,23 +93,68 @@ function pytest(text: string, ort: (p: string) => string): Gezaehlt | null {
 }
 
 /**
- * The summary of a context gate (the form of hexanite's gate and of flotte-probe's werkzeug/gate.ps1):
- * after the last `== Gate: …` line one line per context, `  <context> grün|rot <m:ss> [reason]`,
- * skipped contexts without a time, then `Gate grün.` or `Gate rot.`. A context run is a test; a
- * red context names itself as the file (its tests have no files of their own).
+ * A duration of a gate line in seconds: `m:ss`, `h:mm:ss` or `<n> s`. In `<n> s` a separator before
+ * groups of three digits is a thousands separator (PowerShell's N0: `1.558 s` is 1558 s), otherwise a
+ * decimal point. Anything else is null: nothing is guessed.
+ */
+export function dauerSekunden(text: string): number | null {
+  const t = text.trim();
+  const uhr = /^(?:(\d+):)?(\d+):(\d{2})$/.exec(t);
+  // seconds above 59, or minutes above 59 under hours, are not guessed
+  if (uhr) return Number(uhr[3]) > 59 || (uhr[1] !== undefined && Number(uhr[2]) > 59) ? null : Number(uhr[1] ?? 0) * 3600 + Number(uhr[2]) * 60 + Number(uhr[3]);
+  const s = /^(\d+(?:[.,']\d+)*)\s*s$/.exec(t);
+  if (!s) return null;
+  if (/^\d{1,3}(?:[.,']\d{3})+$/.test(s[1])) return Number(s[1].replace(/[.,']/g, ''));
+  return /^\d+(?:[.,]\d+)?$/.test(s[1]) ? Number(s[1].replace(',', '.')) : null;
+}
+
+const DAUER = String.raw`(?:\d+:)?\d+:\d{2}|\d+(?:[.,']\d+)*\s*s`;
+
+/**
+ * One context line of a gate block: `  <context> <result> [<duration>] [<rest>]`, indented, the result
+ * one word of letters (grün, ROT, übersprungen …); grün and rot come back as gruen and rot, any other
+ * word lower case. The duration is null when the line has none this reader knows. null: no context line.
+ */
+export function gateKontext(zeile: string): { name: string; ergebnis: string; dauerS: number | null; rest: string } | null {
+  const m = new RegExp(String.raw`^\s+(\S+)\s+(\p{L}+)(?:\s+(${DAUER}))?(?:\s+(.*?))?\s*$`, 'u').exec(zeile);
+  if (!m) return null;
+  const wort = m[2].toLowerCase();
+  const ergebnis = /^(grün|gruen|green)$/.test(wort) ? 'gruen' : /^(rot|red)$/.test(wort) ? 'rot' : wort;
+  return { name: m[1], ergebnis, dauerS: m[3] ? dauerSekunden(m[3]) : null, rest: m[4] ?? '' };
+}
+
+/**
+ * The context lines below the heading of a gate block: those indented like the first context line.
+ * Deeper ones are detail of a context (`    Gruppen: alle 11`, `    Log: …`), never a context of their own.
+ */
+export function gateKontexte(zeilen: string[]): { zeile: string; kontext: NonNullable<ReturnType<typeof gateKontext>> }[] {
+  let tiefe: number | null = null;
+  return zeilen.flatMap((zeile) => {
+    const kontext = gateKontext(zeile);
+    if (!kontext) return [];
+    const t = /^\s*/.exec(zeile)![0].length;
+    tiefe ??= t;
+    return t === tiefe ? [{ zeile, kontext }] : [];
+  });
+}
+
+/**
+ * The summary of a context gate (the form of hexanite's gate, of flotte-probe's werkzeug/gate.ps1 and of
+ * this repository's gate.ps1): after the last `== Gate: …` line one line per context (gateKontext),
+ * skipped contexts without a time, then `Gate grün.` or `Gate rot.`. A context with a result and a time
+ * is a test; a red context names itself as the file (its tests have no files of their own).
  */
 function gate(text: string): Gezaehlt | null {
-  const ende = /^Gate (gr\S{1,2}n|rot)\.\s*$/m.exec(text);
+  const ende = /^Gate (gr\S{1,2}n|rot)\.\s*$/im.exec(text);
   if (!ende) return null;
   const zeilen = text.slice(0, ende.index).split(/\r?\n/);
   const kopf = zeilen.map((z) => /^== Gate: /.test(z)).lastIndexOf(true);
   let tests = 0;
   const rot: Gezaehlt['rot'] = [];
-  for (const z of zeilen.slice(kopf + 1)) {
-    const m = /^\s+(\S+)\s+(gr\S{1,2}n|rot)\s+\d+:\d{2}(?:\s+(.*))?$/.exec(z);
-    if (!m) continue;
+  for (const { kontext: k } of gateKontexte(zeilen.slice(kopf + 1))) {
+    if (k.dauerS === null || (k.ergebnis !== 'gruen' && k.ergebnis !== 'rot')) continue;
     tests++;
-    if (m[2] === 'rot') rot.push({ datei: m[1], test: m[3]?.trim() || 'rot' });
+    if (k.ergebnis === 'rot') rot.push({ datei: k.name, test: k.rest.trim() || 'rot' });
   }
   return tests ? { dateien: null, tests, rot } : null;
 }

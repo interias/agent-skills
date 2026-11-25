@@ -19,11 +19,6 @@ ram_warn_percent: 85
 ram_hold_percent: 90
 ram_min_free_gb: 3
 gate_command: pwsh -NoProfile -File werkzeug/gate.ps1 -Alle
-gate_always_command: pwsh -NoProfile -File werkzeug/gate.ps1 -Immer
-gate_areas:
-  - obst/ = obst
-  - verse/ = verse
-  - thema/ = thema
 nach_merge:
   - git pull -q --ff-only
 ---

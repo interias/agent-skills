@@ -1,32 +1,47 @@
-// The gate block in a pull request description and the areas of the gate (#14, round 5, B). The
-// same rules as merge.ps1 (Test-GateBlock): the driver uses them to decide whether the part that
-// always runs is enough after it merged the base into an epic branch; merge.ps1 checks them again on
-// the forge and does not take the driver's word.
+// The gate block in a pull request description (#14, round 5, B) and its contexts. The same rules as
+// merge.ps1 (Test-GateBlock): the last run counts, with base, head and the green line; the driver
+// reads them to decide whether it gates itself, merge.ps1 checks them again on the forge and does not
+// take the driver's word.
 
 import type { Adapter } from '../werkzeuge/belegung.ts';
+import { gateKontexte } from '../epic/zaehlen.ts';
 
 export interface GateForm {
   heading: string;
   green: string;
   base: RegExp;
   head: RegExp;
+  /** gate_cached: a context line it matches took its result from the gate's cache; null: the adapter says nothing */
+  cached: RegExp | null;
+  /** the heading of a partial run (gate_partial, else Immer-Teil): such a run never counts */
   teil: RegExp;
+}
+
+/** A context of the gate block: result gruen, rot or the block's own word (übersprungen …), duration and cache as read; null: unknown. */
+export interface GateKontext {
+  name: string;
+  ergebnis: string;
+  dauerS: number | null;
+  cache: boolean | null;
+}
+
+/** One gate run of the driver: when it ended, for which mission and PR, how long it took, green or not, its contexts. */
+export interface AndockMessung {
+  zeit: string;
+  epic: number;
+  pr: number | null;
+  dauerS: number;
+  gruen: boolean;
+  kontexte: GateKontext[];
 }
 
 export interface GateLauf {
   base: string;
   head: string | null;
   gruen: boolean;
-  /** only the part that always runs (gate_partial in its head line) */
+  /** a partial run (GateForm.teil): never a proof, whatever it says */
   teil: boolean;
 }
-
-export interface Bereich {
-  muster: RegExp;
-  name: string;
-}
-
-export const OHNE_BEREICH = '(ohne Bereich)';
 
 export function gateForm(a: Adapter): GateForm {
   return {
@@ -34,56 +49,42 @@ export function gateForm(a: Adapter): GateForm {
     green: a.gate_green ?? 'Gate grün.',
     base: new RegExp(a.gate_base ?? 'Basis \\S+ @ ([0-9a-f]{7,40})'),
     head: new RegExp(a.gate_head ?? '\\(HEAD ([0-9a-f]{7,40})\\)'),
-    teil: new RegExp(a.gate_partial ?? 'Immer-Teil'),
+    cached: muster(a.gate_cached),
+    teil: muster(a.gate_partial) ?? /Immer-Teil/,
   };
 }
 
-/** gate_areas: `<pattern> = <name>`; ** spans folders, * and ? stay inside one, a trailing / is the folder. */
-export function globRegex(muster: string): RegExp {
-  const m = muster.endsWith('/') ? `${muster}**` : muster;
-  let r = '';
-  for (let i = 0; i < m.length; i++) {
-    const c = m[i];
-    if (c === '*' && m[i + 1] === '*') {
-      if (m[i + 2] === '/') {
-        r += '(.*/)?';
-        i += 2;
-      } else {
-        r += '.*';
-        i += 1;
-      }
-    } else if (c === '*') r += '[^/]*';
-    else if (c === '?') r += '[^/]';
-    else r += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+/** An adapter pattern that does not compile gives null: the measurement then lacks the statement, nothing stops. */
+function muster(text: string | null): RegExp | null {
+  if (!text) return null;
+  try {
+    return new RegExp(text);
+  } catch {
+    return null;
   }
-  return new RegExp(`^${r}$`);
 }
 
-export function bereicheAus(eintraege: string[]): Bereich[] {
-  return eintraege.flatMap((e) => {
-    const m = /^\s*(\S+)\s*=\s*(\S+)\s*$/.exec(e);
-    return m ? [{ muster: globRegex(m[1]), name: m[2] }] : [];
-  });
+/**
+ * The contexts of a gate block: its context lines (gateKontexte) below the line with the base, at most
+ * KONTEXTE_MAX; the cache pattern sees the first 500 characters of a line (an adapter pattern never
+ * runs long on a long line).
+ */
+/** as many contexts as the bridge takes per gate run (flottenbruecke/app/modelle.py) */
+export const KONTEXTE_MAX = 40;
+
+export function kontexteAus(block: string, f: GateForm): GateKontext[] {
+  const zeilen = block.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
+  const s = zeilen.findIndex((z) => f.base.test(z));
+  if (s < 0) return [];
+  return gateKontexte(zeilen.slice(s + 1))
+    .slice(0, KONTEXTE_MAX)
+    .map(({ zeile, kontext: k }) => ({ name: k.name.slice(0, 100), ergebnis: k.ergebnis.slice(0, 40), dauerS: k.dauerS, cache: f.cached ? f.cached.test(zeile.slice(0, 500)) : null }));
 }
 
-/** The areas of some files; a file in no area is OHNE_BEREICH and counts as touching every area. */
-export function bereicheVon(dateien: string[], bereiche: Bereich[]): Set<string> {
-  const namen = new Set<string>();
-  for (const d of dateien) {
-    const treffer = bereiche.filter((b) => b.muster.test(d)).map((b) => b.name);
-    if (treffer.length) for (const t of treffer) namen.add(t);
-    else namen.add(OHNE_BEREICH);
-  }
-  return namen;
-}
-
-/** The areas where the moved base and the epic meet; empty: the base moved only beside the epic. */
-export function gemeinsameBereiche(bewegt: string[], epic: string[], bereiche: Bereich[]): string[] {
-  const b = bereicheVon(bewegt, bereiche);
-  const e = bereicheVon(epic, bereiche);
-  const beide = [...b].filter((x) => e.has(x) || x === OHNE_BEREICH);
-  if (e.has(OHNE_BEREICH) && b.size) beide.push(OHNE_BEREICH);
-  return [...new Set(beide)];
+/** n of m contexts from the cache, counted over the contexts that ran (green or red); null without a cache statement. */
+export function cacheAnteil(kontexte: GateKontext[]): { n: number; m: number } | null {
+  const gelaufen = kontexte.filter((k) => k.cache !== null && (k.ergebnis === 'gruen' || k.ergebnis === 'rot'));
+  return gelaufen.length ? { n: gelaufen.filter((k) => k.cache).length, m: gelaufen.length } : null;
 }
 
 function abschnitt(body: string, heading: string): { zeilen: string[]; von: number; bis: number } | null {
@@ -177,11 +178,6 @@ export function gateLaeufeImLog(log: string, f: GateForm, befehle: string[]): Ga
 /** Two SHAs name the same commit when the shorter is a prefix of the longer. */
 export const gleich = (a: string | null, b: string | null) => !!a && !!b && (a.length <= b.length ? b.startsWith(a) : a.startsWith(b));
 
-/** The last full green run before the end (the base of a part run), or null. */
-export function letzterVollLauf(laeufe: GateLauf[]): GateLauf | null {
-  for (let i = laeufe.length - 1; i >= 0; i--) if (!laeufe[i].teil) return laeufe[i].gruen && laeufe[i].head ? laeufe[i] : null;
-  return null;
-}
 
 /** The block of a gate output: from its last line with a base to the end; null when no line names a base. */
 export function blockAus(ausgabe: string, f: GateForm): { block: string; gruen: boolean; teil: boolean } | null {

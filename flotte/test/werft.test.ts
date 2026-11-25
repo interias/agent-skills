@@ -216,7 +216,7 @@ describe('Werft (#88)', () => {
     expect(() => deployAus('---\ndeploy:\n  abfrage_s: 0\n  x.pfade: [a/]\n  x.nachziehen: up\n---\n')).toThrow(/abfrage_s/);
   });
 
-  it('matches paths like gate_areas: ** over folders, * inside one, a trailing / is the folder', () => {
+  it('matches path patterns: ** over folders, * inside one, a trailing / is the folder', () => {
     expect(musterRegex('apps/a/').test('apps/a/x/y.ts')).toBe(true);
     expect(musterRegex('apps/*.ts').test('apps/x/y.ts')).toBe(false);
     expect(musterRegex('**/compose.yml').test('compose.yml')).toBe(true);
