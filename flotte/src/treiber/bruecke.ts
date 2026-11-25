@@ -228,7 +228,8 @@ export interface Bericht {
 
 /** the night run (flotte nachtlauf) for the bridge: never a path; the issue as a number, the bridge links it */
 export interface BerichtNachtlauf {
-  halt: { seit: string; grund: string; commit: string; basis: string; issue: number | null; teile: string[]; gruen: { zeit: string; commit: string } | null } | null;
+  /** commit null: the halt file is unreadable or names none */
+  halt: { seit: string; grund: string; commit: string | null; basis: string; issue: number | null; teile: string[]; gruen: { zeit: string; commit: string } | null } | null;
   letzter: { ergebnis: 'gruen' | 'rot' | 'fehler'; commit: string | null; basis: string; zeit: string; dauerS: number; wiederholt: boolean; teile: string[]; grund: string | null } | null;
 }
 

@@ -41,7 +41,7 @@ import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as m
 import { EINGESPIELT, type Eingespielt, einspielen, liesStand, type MainStand, mainStand, mitSperre, HUELLE, NEUSTART, neustarten, type SkillStand, STAND_MS } from './stand.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
-import { FREIGEBEN, haltKurz, liesHalt, liesNachtlauf, type NachtErgebnis, type SchlangeHalt } from '../befehle/nachtlauf.ts';
+import { FREIGEBEN, haltKurz, liesHalt, liesNachtlauf, type NachtErgebnis, ohnePfade, type SchlangeHalt } from '../befehle/nachtlauf.ts';
 
 export interface Einstellung {
   repo: string;
@@ -3612,17 +3612,25 @@ class Treiber {
     const n = liesNachtlauf(this.dir).letzter;
     if (n && n.zeit !== this.z.nachtlauf?.zeit) {
       this.z.nachtlauf = n;
-      if (n.ergebnis !== 'fehler') this.ereignis(null, `Nachtlauf ${n.ergebnis === 'gruen' ? 'grün' : 'rot'} auf origin/${n.basis} @ ${(n.commit ?? '').slice(0, 7)} nach ${Math.round(n.dauerS / 60)} min${n.wiederholt ? ', wiederholt' : ''}`);
-      else this.ereignis(null, `Nachtlauf nicht gefahren: ${n.grund ?? '?'}`);
+      if (n.ergebnis !== 'fehler') this.ereignis(null, ohnePfade(`Nachtlauf ${n.ergebnis === 'gruen' ? 'grün' : 'rot'} auf origin/${n.basis} @ ${(n.commit ?? '').slice(0, 7)} nach ${Math.round(n.dauerS / 60)} min${n.wiederholt ? ', wiederholt' : ''}`));
+      else this.ereignis(null, ohnePfade(`Nachtlauf nicht gefahren: ${n.grund ?? '?'}`));
     }
-    const h = liesHalt(this.dir);
     const vorher = this.z.schlangeHalt ?? null;
+    let h = liesHalt(this.dir);
+    // a file that turns unreadable keeps the halt read before (never fail open)
+    if (h?.unlesbar && vorher && !vorher.unlesbar) h = vorher;
     if (JSON.stringify(h) !== JSON.stringify(vorher)) {
       this.z.schlangeHalt = h;
       this.geaendert = true;
-      if (h && (!vorher || vorher.seit !== h.seit)) this.ereignis(null, `Andock-Schlange hält: ${h.grund}${h.issue ? `, Issue #${h.issue}` : ''}; neue Andockungen warten, laufende Missionen arbeiten weiter; freigeben am Rechner: ${FREIGEBEN}`);
-      if (!h) this.ereignis(null, 'Andock-Schlange freigegeben: das Andocken geht weiter');
-      else if (h.gruen && h.gruen.zeit !== vorher?.gruen?.zeit) this.ereignis(null, `Nachtlauf grün auf ${h.gruen.commit.slice(0, 7)} nach dem Halt: die Schlange hält weiter, bis ein Mensch freigibt (${FREIGEBEN})`);
+      if (h && (!vorher || vorher.seit !== h.seit)) this.ereignis(null, ohnePfade(`Andock-Schlange hält: ${h.grund}${h.issue ? `, Issue #${h.issue}` : ''}; neue Andockungen warten, laufende Missionen arbeiten weiter; freigeben am Rechner: ${FREIGEBEN}`));
+      if (!h) {
+        this.ereignis(null, 'Andock-Schlange freigegeben: das Andocken geht weiter');
+        // the waiting PRs drop the halt from their note at once, not only when they become the head
+        this.z.schlange.forEach((nr, i) => {
+          const ep = this.epic(nr);
+          if (ep?.stufe === 'pr' && ep.pr && nr !== this.kopfAktiv && ep.notiz?.includes('; die Schlange hält (')) ep.notiz = `PR #${ep.pr}: Andock-Schlange, Platz ${i + 1}`;
+        });
+      } else if (h.gruen && h.gruen.zeit !== vorher?.gruen?.zeit) this.ereignis(null, `Nachtlauf grün auf ${h.gruen.commit.slice(0, 7)} nach dem Halt: die Schlange hält weiter, bis ein Mensch freigibt (${FREIGEBEN})`);
     }
     if (!h) return false;
     this.z.schlange.forEach((nr, i) => {
@@ -3632,14 +3640,21 @@ class Treiber {
     return true;
   }
 
-  /** the night run for the bridge: the halt and the last result, without the paths of their logs; null before the first night run */
+  /**
+   * the night run for the bridge: the halt and the last result, without the paths of their logs and filtered for local
+   * paths; a value the bridge would refuse (empty commit, negative duration) becomes null or 0, so the report still
+   * arrives. null before the first night run.
+   */
   nachtlaufBericht(): Bericht['nachtlauf'] {
     const h = this.z.schlangeHalt ?? null;
     const n = this.z.nachtlauf ?? null;
     if (!h && !n) return null;
+    const sha = (c: unknown) => (typeof c === 'string' && /^[0-9a-f]{7,40}$/.test(c) ? c : null);
+    const teile = (t: unknown) => (Array.isArray(t) ? t.slice(0, 20).map((x) => ohnePfade(String(x))) : []);
+    const gruen = h?.gruen && sha(h.gruen.commit);
     return {
-      halt: h ? { seit: h.seit, grund: h.grund.slice(0, 500), commit: h.commit, basis: h.basis, issue: h.issue, teile: h.teile.slice(0, 20), gruen: h.gruen ?? null } : null,
-      letzter: n ? { ergebnis: n.ergebnis, commit: n.commit, basis: n.basis, zeit: n.zeit, dauerS: n.dauerS, wiederholt: n.wiederholt, teile: n.teile.slice(0, 20), grund: n.grund?.slice(0, 500) ?? null } : null,
+      halt: h ? { seit: h.seit.slice(0, 40), grund: ohnePfade(h.grund).slice(0, 500), commit: sha(h.commit), basis: ohnePfade(h.basis).slice(0, 200), issue: h.issue && h.issue >= 1 ? h.issue : null, teile: teile(h.teile), gruen: gruen ? { zeit: h.gruen!.zeit.slice(0, 40), commit: gruen } : null } : null,
+      letzter: n ? { ergebnis: n.ergebnis, commit: sha(n.commit), basis: ohnePfade(String(n.basis ?? '')).slice(0, 200), zeit: n.zeit.slice(0, 40), dauerS: Math.max(0, Math.round(Number(n.dauerS)) || 0), wiederholt: Boolean(n.wiederholt), teile: teile(n.teile), grund: n.grund ? ohnePfade(String(n.grund)).slice(0, 500) : null } : null,
     };
   }
 

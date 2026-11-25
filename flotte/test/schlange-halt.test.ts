@@ -118,6 +118,84 @@ describe('Halt der Andock-Schlange (Nachtlauf rot)', () => {
     expect(texte(z)).toContain('Nachtlauf grün auf fedcba9 nach dem Halt: die Schlange hält weiter, bis ein Mensch freigibt (flotte nachtlauf --freigeben)');
   }, T);
 
+  it('a halt file that is there but unreadable or incomplete holds the queue; nothing throws out of the loop', async () => {
+    for (const inhalt of ['{kaputt', '{}', '{"seit": 5, "grund": null, "teile": "x"}']) {
+      const t = aufbau({ adapter: ADAPTER, pr: () => ({ state: 'OPEN' }) });
+      writeFileSync(join(flotteDir(t.repo), HALT_DATEI), inhalt);
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]), [3], { maxDauerMs: 2000 }), t.welt);
+      expect(t.p.merges).toEqual([]);
+      expect(z.epics['3'].notiz).toBe('PR #13: Andock-Schlange, Platz 1; die Schlange hält (Haltedatei unlesbar)');
+      expect(texte(z).some((x) => x.startsWith('Andock-Schlange hält: Haltedatei unlesbar'))).toBe(true);
+    }
+  }, T);
+
+  it('a halt file that turns unreadable keeps the halt read before: no release, no new halt', async () => {
+    const t = aufbau({ adapter: ADAPTER, pr: () => ({ state: 'OPEN' }) });
+    halten(t.repo);
+    let n = 0;
+    const frei = t.welt.freiGb;
+    t.welt.freiGb = (pfad) => {
+      if (++n === 3) writeFileSync(join(flotteDir(t.repo), HALT_DATEI), '{kaputt');
+      return frei(pfad);
+    };
+    const z = await fahre(t.einstellung(drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]), [3], { maxDauerMs: 3000 }), t.welt);
+    expect(n).toBeGreaterThan(3);
+    expect(t.p.merges).toEqual([]);
+    expect(z.schlangeHalt).toMatchObject({ seit: HALT.seit, issue: 77 });
+    expect(texte(z).filter((x) => x.startsWith('Andock-Schlange'))).toHaveLength(1);
+  }, T);
+
+  it('after a release the PRs still waiting drop the halt from their note', async () => {
+    let notiz4: string | undefined;
+    const t = aufbau({
+      adapter: ADAPTER,
+      pr: () => ({ state: 'OPEN' }),
+      merge: (pr) => {
+        if (pr === 13) notiz4 = JSON.parse(readFileSync(join(flotteDir(t.repo), 'zustand.json'), 'utf8')).epics['4']?.notiz;
+        return `GEMERGT #${pr} -> main`;
+      },
+    });
+    halten(t.repo);
+    let haeltNotiz: string | undefined;
+    const frei = t.welt.freiGb;
+    // released once both wait in the queue and #14 names the halt in its note
+    t.welt.freiGb = (pfad) => {
+      try {
+        const n = JSON.parse(readFileSync(join(flotteDir(t.repo), 'zustand.json'), 'utf8')).epics['4']?.notiz as string | undefined;
+        if (!haeltNotiz && n?.includes('die Schlange hält')) {
+          haeltNotiz = n;
+          rmSync(join(flotteDir(t.repo), HALT_DATEI), { force: true });
+        }
+      } catch {
+        /* no state yet */
+      }
+      return frei(pfad);
+    };
+    const buch = drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }]), lauf(4, [...gateGefahren(), { text: ende(4, 14) }])]);
+    await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: 20_000 }), t.welt);
+    expect(haeltNotiz).toBe('PR #14: Andock-Schlange, Platz 2; die Schlange hält (Nachtlauf rot auf abc1234 seit 2026-11-25 02:41, Issue #77)');
+    expect(t.p.merges).toEqual([13, 14]);
+    expect(notiz4).toBe('PR #14: Andock-Schlange, Platz 2');
+  }, T);
+
+  it('the bridge gets no path and nothing it would refuse: an old raw reason is filtered, an empty commit is null, a negative duration 0', async () => {
+    const t = aufbau({ adapter: ADAPTER, pr: () => ({ state: 'OPEN' }) });
+    halten(t.repo, { ...HALT, grund: 'Nachtlauf rot, siehe /home/jemand/log', commit: '', gruen: { zeit: '2026-11-26T02:50:00.000Z', commit: '' } });
+    const letzter = { ergebnis: 'fehler', commit: '', basis: 'main', zeit: '2026-11-25T02:30:00.000Z', dauerS: -5, log: null, wiederholt: false, teile: [], grund: "git fetch origin main scheiterte: fatal: 'C:\\Users\\jemand\\x'" };
+    writeFileSync(join(flotteDir(t.repo), STAND_DATEI), JSON.stringify({ letzter, verlauf: [letzter] }));
+    const b = await bruecke();
+    try {
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]), [3], { maxDauerMs: 2500, bruecke: b.url }), t.welt);
+      const n = b.berichte.at(-1)!.nachtlauf!;
+      expect(n.halt).toMatchObject({ commit: null, grund: 'Nachtlauf rot, siehe <pfad>', gruen: null });
+      expect(n.letzter).toMatchObject({ commit: null, dauerS: 0, grund: 'git fetch origin main scheiterte: fatal: \'<pfad>\'' });
+      expect(JSON.stringify(b.berichte.at(-1))).not.toContain('jemand');
+      expect(texte(z).join('\n')).not.toContain('jemand');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('without a halt nothing changes: the queue docks', async () => {
     const t = aufbau({ adapter: ADAPTER, pr: () => ({ state: 'OPEN' }) });
     const z = await fahre(t.einstellung(drehbuch([lauf(3, [...gateGefahren(), { text: ende(3, 13) }])]), [3]), t.welt);
