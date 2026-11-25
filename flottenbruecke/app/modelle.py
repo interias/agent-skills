@@ -245,6 +245,35 @@ class Lage(BaseModel):
     gate: LageGate | None = None
 
 
+class VerbrauchZahlen(BaseModel):
+    # tokens of a mission or of one role in it; gewichtet = eingabe + 1.25 cache_schreiben + 0.1 cache_lesen + 5 ausgabe,
+    # cache_quote = cache_lesen / all input (None: no input yet), anteil_woche an estimate in percent (None: none possible)
+    eingabe: int = Field(ge=0)
+    cache_schreiben: int = Field(ge=0)
+    cache_lesen: int = Field(ge=0)
+    ausgabe: int = Field(ge=0)
+    summe: int = Field(ge=0)
+    gewichtet: int = Field(ge=0)
+    cache_quote: float | None = Field(None, ge=0, le=1)
+    anteil_woche: float | None = Field(None, ge=0, le=1000)
+
+
+class VerbrauchRolle(VerbrauchZahlen):
+    # paket None: the whole mission (orchestrator, scouts, gate); the role a string, so a new one of the driver still arrives
+    paket: str | None = Field(None, max_length=100)
+    rolle: str = Field(max_length=40)
+
+
+class Verbrauch(VerbrauchZahlen):
+    """Tag Q: the usage of a mission so far, per package and role in the order the driver sends; a mark when
+    `warnung` names reasons (nothing halts)."""
+
+    stand: str | None = Field(None, max_length=40)
+    konten: list[Annotated[str, Field(max_length=100)]] = Field([], max_length=10)
+    rollen: list[VerbrauchRolle] = Field([], max_length=200)
+    warnung: list[Annotated[str, Field(max_length=300)]] = Field([], max_length=4)
+
+
 class Epic(BaseModel):
     nr: int
     titel: str = Field('', max_length=300)
@@ -289,6 +318,8 @@ class Epic(BaseModel):
     merge: Andocken | None = None
     # the line of the card under "Unterwegs" and of a blockade; an older driver has none (the cards as before)
     lage: Lage | None = None
+    # Tag Q: the usage of the mission so far; an older driver has none (the cards as before)
+    verbrauch: Verbrauch | None = None
 
 
 class Fenster(BaseModel):
@@ -327,6 +358,18 @@ class ForgeStatus(BaseModel):
     treiber: bool = True
 
 
+class KontoZeitraum(BaseModel):
+    summe: int = Field(ge=0)
+    anteil: float | None = Field(None, ge=0, le=1000)
+
+
+class KontoMission(BaseModel):
+    # a mission's tokens on the account today and since the start of the account's weekly window
+    epic: int = Field(ge=1)
+    heute: KontoZeitraum | None = None
+    woche: KontoZeitraum | None = None
+
+
 class Konto(BaseModel):
     konto: str = Field(max_length=100)
     stufe: Literal['gruen', 'gelb', 'rot']
@@ -339,6 +382,8 @@ class Konto(BaseModel):
     alterMin: float | None = None
     # why the driver brakes this account (only with gelb/rot); the driver cuts it to 4000 characters
     grund: str | None = Field(None, max_length=4000)
+    # Tag Q: the missions' usage on this account today and this week; an older driver has none
+    missionen: list[KontoMission] | None = Field(None, max_length=200)
 
 
 class Ereignis(BaseModel):
@@ -588,6 +633,43 @@ class Version(BaseModel):
     einspielen: Einspielen | None = None
 
 
+class NachtGruen(BaseModel):
+    zeit: str = Field(max_length=40)
+    commit: str = Field(pattern=r'^[0-9a-f]{7,40}$')
+
+
+class NachtHalt(BaseModel):
+    """Step 8 of the gate rework: the merge queue holds after a red night run (`flotte nachtlauf`); only a person
+    releases it at the machine. gruen: a later green night, noted but not releasing."""
+
+    seit: str = Field(max_length=40)
+    grund: str = Field(max_length=500)
+    # None: the halt file on the machine is unreadable, it holds all the same
+    commit: str | None = Field(None, pattern=r'^[0-9a-f]{7,40}$')
+    basis: str = Field(max_length=200)
+    issue: int | None = Field(None, ge=1)
+    teile: list[str] = Field([], max_length=20)
+    gruen: NachtGruen | None = None
+
+
+class NachtLetzter(BaseModel):
+    """The last night run: its result on which commit, when and how long; never the path of its log."""
+
+    ergebnis: Literal['gruen', 'rot', 'fehler']
+    commit: str | None = Field(None, pattern=r'^[0-9a-f]{7,40}$')
+    basis: str = Field(max_length=200)
+    zeit: str = Field(max_length=40)
+    dauerS: int = Field(ge=0)
+    wiederholt: bool = False
+    teile: list[str] = Field([], max_length=20)
+    grund: str | None = Field(None, max_length=500)
+
+
+class Nachtlauf(BaseModel):
+    halt: NachtHalt | None = None
+    letzter: NachtLetzter | None = None
+
+
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:
     """Why the driver would refuse the value, or None. `andere`: the value each other setting has or is about to get."""
     e = next((x for x in liste if x['name'] == name), None)
@@ -662,6 +744,8 @@ class Bericht(BaseModel):
     klonAngebot: KlonAngebot | None = None
     # the keys of the driver's adapter still in <…> as in the template: no mission starts while there are any
     adapterLuecken: list[str] = Field([], max_length=30)
+    # step 8 of the gate rework: the night run and the halt of the merge queue; an older driver has none (None)
+    nachtlauf: Nachtlauf | None = None
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it

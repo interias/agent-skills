@@ -264,6 +264,19 @@ Flotten-Treiber rechnet den Block nicht an, sondern fährt `gate_command` selbst
 `gate_partial` sperrt nur noch, die beiden anderen wirken nicht mehr. Ein Adapter, der sie noch
 nennt, bricht nichts ab; der Flotten-Treiber meldet sie einmal mit einem Hinweis im Logbuch.
 
+### Nachtlauf
+
+Der ganze Lauf ohne Cache, einmal je Nacht auf `origin/<base_branch>` (`flotte nachtlauf`, geplante
+Aufgabe; `flotte/README.md`, „Nachtlauf“). Ein Lauf liest ihn nicht.
+
+Der Worktree wird von Nacht zu Nacht weiterbenutzt, nur auf die Basis umgestellt (kein `git clean`):
+ignorierte Cache-Ordner und die einmal kopierten `env_files` bleiben liegen. „Ohne Cache“ ist Sache
+des Befehls.
+
+| Schlüssel | Bedeutung | Standard |
+|---|---|---|
+| `gate_night_command` | Befehl (PowerShell), der im eigenen Worktree des Nachtlaufs (`<worktree_root>/nachtlauf`, losgelöster HEAD, `env_files` und `link_dirs` wie bei `Up`) alles ohne Cache fährt; was er darüber hinaus braucht (etwa eine Installation), bringt er mit. Grün ist Exit 0 und, steht ein Andockblock in der Ausgabe, dessen Zeile `gate_green`; die roten Teile liest der Nachtlauf aus den Zeilen des Blocks. Rot auch in der Wiederholung hält die Andock-Schlange, bis ein Mensch freigibt | keiner: kein Nachtlauf |
+
 ### Werft (#88)
 
 Was nach dem Andocken auf `main_branch` nachgezogen wird, liest die Werft (`flotte werft`,

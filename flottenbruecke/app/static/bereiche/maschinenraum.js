@@ -17,6 +17,17 @@
   // the steps the driver brakes in: red is a colour only here, nothing blinks
   const STUFE = { gruen: 'frei', gelb: 'gebremst', rot: 'gestoppt' };
 
+  // Tag Q: which missions used how much on the account today and this week (since the start of its weekly window);
+  // the share is an estimate (≈). Without data nothing, as before
+  const missionenHtml = (k) => {
+    if (!k.missionen?.length) return '';
+    const wert = (z) => (z ? [anteilText(z.anteil), tokText(z.summe)].filter(Boolean).join(' · ') : '–');
+    // the project names the mission once several projects report on the account
+    const mehrere = new Set(k.missionen.map((m) => m.projekt)).size > 1;
+    const zeilen = k.missionen.map((m) => `<li><b>${mehrere && m.projekt ? `${esc(m.projekt)} ` : ''}#${esc(m.epic)}</b><span>heute ${esc(wert(m.heute))}</span><span>Woche ${esc(wert(m.woche))}</span></li>`).join('');
+    return `<dt title="${esc(VERBRAUCH_METHODE)}">Missionen</dt><dd><ul class="mr-missionen">${zeilen}</ul></dd>`;
+  };
+
   const kontoHtml = (k) => {
     const alt = k.veraltet || (k.alterMin != null && k.alterMin > 30);
     const fenster = (name, f) => (f ? fensterHtml(name, f) : `<span class="fenster mr-aus">${name}: ${nichts('Wert')}</span>`);
@@ -27,7 +38,7 @@
     return `<article class="mr-karte ${esc(k.stufe)}${alt ? ' veraltet' : ''}">
 <h3>${esc(k.konto)}</h3>
 ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
-<dl><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Vorsprung</dt><dd>${vorsprung}</dd><dt>Bremse</dt><dd>${bremse}</dd><dt>Wert</dt><dd>${k.alterMin != null ? `${Math.round(k.alterMin)} min alt` : nichts('Alter')}${k.veraltet ? ' · Treiber still' : ''}</dd></dl></article>`;
+<dl><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Vorsprung</dt><dd>${vorsprung}</dd><dt>Bremse</dt><dd>${bremse}</dd><dt>Wert</dt><dd>${k.alterMin != null ? `${Math.round(k.alterMin)} min alt` : nichts('Alter')}${k.veraltet ? ' · Treiber still' : ''}</dd>${missionenHtml(k)}</dl></article>`;
   };
 
   const rechnerHtml = (r, t) => {
@@ -105,6 +116,21 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     p.adapterLuecken?.length
       ? `<p class="dein-schritt"><b>Dein Schritt:</b> Adapter ausfüllen (in einem eigenen Chat)</p><p class="mr-hilfe">Noch auszufüllen in <code>.claude/epic.md</code>: ${p.adapterLuecken.map((k) => `<code>${esc(k)}</code>`).join(', ')}. Bis dahin startet hier keine Mission.</p>`
       : '';
+  // step 8 of the gate rework: a red night run holds the merge queue until the person releases it at the machine
+  const nachtZeit = (iso) => (iso ? iso.slice(0, 16).replace('T', ' ') : '');
+  const nachtlaufHtml = (p) => {
+    const n = p.nachtlauf;
+    if (!n) return '';
+    const h = n.halt;
+    const issue = h?.issue ? (p.url ? `<a href="${esc(p.url)}/issues/${h.issue}" target="_blank" rel="noopener">Issue #${h.issue}</a>` : `Issue #${h.issue}`) : 'kein Issue';
+    const halt = h
+      ? `<p class="dein-schritt"><b>Andock-Schlange hält</b> seit ${esc(nachtZeit(h.seit))}: ${esc(h.grund)}${h.commit ? ` (${esc(h.commit.slice(0, 7))})` : ''}, ${issue}.${h.gruen ? ` Danach grün auf ${esc(h.gruen.commit.slice(0, 7))}.` : ''}</p><p class="mr-hilfe">Missionen arbeiten weiter, neue Andockungen warten. Freigeben am Rechner im Projektordner: <code>flotte nachtlauf --freigeben</code>.</p>`
+      : '';
+    const l = n.letzter;
+    const wort = { gruen: 'grün', rot: 'rot', fehler: 'nicht gefahren' };
+    const letzter = l ? `<p class="mr-hilfe">Letzter Nachtlauf ${esc(nachtZeit(l.zeit))}: ${wort[l.ergebnis] ?? esc(l.ergebnis)}${l.commit ? ` auf ${esc(l.commit.slice(0, 7))}` : ''}${l.wiederholt ? ', wiederholt' : ''}${l.grund ? ` (${esc(l.grund)})` : ''}.</p>` : '';
+    return halt + letzter;
+  };
   const holtProjekte = (t) => t.projekte.filter((p) => p.meldetProjekte && !p.veraltet);
   const projektWartet = (h, was) => (h ? `<span class="mr-wartet">${was} wartet auf den Rechner${h.abgeholt ? ' · abgeholt' : ''}</span>` : '');
 
@@ -112,7 +138,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     if (!t.projekte.length) return '';
     const zu = !t.pin ? ' disabled' : '';
     const karten = t.projekte.map((p) => `<article class="mr-karte${p.veraltet ? ' veraltet' : ''}"><h3>${esc(p.kurz)}</h3>
-<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
+<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${nachtlaufHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
     const treiber = holtProjekte(t);
     const wartet = t.projekte.find((p) => p.hinzufuegen);
     const wahl = treiber.length > 1 ? `<label class="mr-feld">über den Treiber von<select class="mr-ordner" name="projekt-ueber"${zu}>${treiber.map((p) => `<option value="${esc(p.forge)}">${esc(p.kurz)}${p.rechner ? ` · ${esc(p.rechner)}` : ''}</option>`).join('')}</select></label>` : '';
@@ -722,7 +748,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
         if (!el.childElementCount) el.innerHTML = `${KOPF}<p class="bereich-leer">Lädt …</p>`;
         return;
       }
-      const konten = t.konten.length ? `<p class="mr-hinweis">Vorsprung: übrige Reserveenergie (Wochenlimit) minus übriger Anteil der Woche bis zu ihrem Reset, in Punkten. Eine neue Mission startet zuerst auf dem freien Konto mit dem größten Vorsprung, damit sich die Konten gleichmäßig leeren, auch mit Arbeit außerhalb der Flotte.</p><div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
+      const konten = t.konten.length ? `<p class="mr-hinweis">Vorsprung: übrige Reserveenergie (Wochenlimit) minus übriger Anteil der Woche bis zu ihrem Reset, in Punkten. Eine neue Mission startet zuerst auf dem freien Konto mit dem größten Vorsprung, damit sich die Konten gleichmäßig leeren, auch mit Arbeit außerhalb der Flotte.</p>${t.konten.some((k) => k.missionen?.length) ? `<p class="mr-hinweis">Missionen je Konto: heute und seit Beginn des Wochenfensters. ${esc(VERBRAUCH_METHODE)}</p>` : ''}<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
       const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${lernschleifeHtml(t)}${andockpruefungenHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;

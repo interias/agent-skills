@@ -103,6 +103,12 @@ Ein neues Ticket nur, wenn der Mensch gebraucht wird: ein Befund, der eine Entsc
   startet der Treiber nichts Neues, bei rotem hält er auch Fortsetzungen an. Das ist Mechanik, keine
   Frage an den Admiral.
 - **Aufräumen löscht nur**, was nachweislich im Basiszweig liegt, nie mit `-D` oder `--force`.
+- **Nachtlauf rot hält die Andock-Schlange.** Ist der Nachtlauf auf dem Basiszweig auch in der
+  Wiederholung rot, setzt er den Halt und legt ein Issue mit `needs-triage` an; der Treiber beginnt dann
+  kein neues Andocken, Missionen arbeiten weiter. Freigeben tust nur du, am Rechner mit
+  `flotte nachtlauf --freigeben`; der Admiral gibt nicht frei, ein späterer grüner Nachtlauf auch
+  nicht, und kein Commit wird von selbst zurückgenommen
+  ([`flotte/README.md`](../flotte/README.md), „Nachtlauf“).
 - **Die Lernschleife ist ab Werk aus**, je Projekt im Maschinenraum einschaltbar (mit PIN, nur mit `lern_issue`).
   Eingeschaltet schreibt sie Vorschläge nur an das `lern_issue` des eigenen Projekts; an ein anderes Repository
   (etwa agent-skills, wenn es nicht selbst das Projekt ist) geht nichts.

@@ -270,6 +270,32 @@ Describe 'worktree.ps1 Up' {
         $copy | Should Match '(?m)^COMPOSE_PROJECT_NAME=repo-1\r?$'
         git -C $t.Worktree status --porcelain | Should BeNullOrEmpty
     }
+
+    It 'lays out a worktree on a detached HEAD at -From with -Detach, without creating a branch (night run)' {
+        $t = New-AdapterRepo
+        $commit = (git -C $t.Repo rev-parse HEAD).Trim()
+        $r = Invoke-Worktree @('-Action', 'Up', '-RepoRoot', $t.Repo, '-Package', '1', '-Detach', '-From', 'main', '-SessionPid', $PID)
+        $r.Exit | Should Be 0
+        $j = $r.Out[0] | ConvertFrom-Json
+        $j.path | Should Be $t.Worktree
+        $j.branch | Should BeNullOrEmpty
+        (git -C $t.Worktree rev-parse HEAD).Trim() | Should Be $commit
+        git -C $t.Worktree symbolic-ref -q HEAD | Should BeNullOrEmpty
+        @(git -C $t.Repo branch --format '%(refname:short)') | Should Be @('main')
+        (Get-Item (Join-Path $t.Worktree 'server\node_modules') -Force).LinkType | Should Be 'Junction'
+        Get-Content (Join-Path $t.Worktree 'server\.env') -Raw | Should Match '(?m)^COMPOSE_PROJECT_NAME=repo-1\r?$'
+    }
+
+    It 'refuses -Detach without -From and -Detach together with -Branch' {
+        $t = New-AdapterRepo
+        $r = Invoke-Worktree @('-Action', 'Up', '-RepoRoot', $t.Repo, '-Package', '1', '-Detach', '-SessionPid', $PID)
+        $r.Exit | Should Be 1
+        $r.Err | Should Match '-Detach needs -From'
+        $r = Invoke-Worktree @('-Action', 'Up', '-RepoRoot', $t.Repo, '-Package', '1', '-Detach', '-Branch', 'x', '-From', 'main', '-SessionPid', $PID)
+        $r.Exit | Should Be 1
+        $r.Err | Should Match '-Detach takes no -Branch'
+        Test-Path $t.Worktree | Should Be $false
+    }
 }
 
 Describe 'worktree.ps1 Down' {

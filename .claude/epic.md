@@ -7,6 +7,7 @@ main_branch: main
 base_branch: main
 merge: nach_gate
 gate_command: pwsh -NoProfile -File ./gate.ps1
+gate_night_command: pwsh -NoProfile -Command "bun install --cwd flotte; ./gate.ps1"
 lern_issue: 119
 ready_label: ready-for-agent
 skip_labels: [needs-triage, needs-info, wontfix, ready-for-human]
@@ -22,6 +23,7 @@ test_commands:
   install: powershell -NoProfile -Command "Invoke-Pester .\install.Tests.ps1"
   bruecke_einrichten: powershell -NoProfile -Command "Invoke-Pester .\flottenbruecke\einrichten.Tests.ps1"
   startskript: powershell -NoProfile -Command "Invoke-Pester .\flotte\startskript.Tests.ps1"
+  nachtlauf_aufgabe: powershell -NoProfile -Command "Invoke-Pester .\flotte\nachtlauf-aufgabe.Tests.ps1"
   flotte: cd flotte && bun test
   bruecke: cd flottenbruecke && python -m pytest -q
 isolation: none-needed
@@ -56,4 +58,5 @@ laufende Stack `flottenbruecke` (4747) und ein laufender Treiber werden nie ange
   Worktree; Änderungen wirken erst nach `install.ps1`. Ein Lauf ruft `install.ps1` nie auf.
 - `install.ps1` installiert nur Skill-Ordner der obersten Ebene und `agents/*.md`.
 - Angedockt wird nach grüner Andockprüfung (`merge: nach_gate`, `gate.ps1`: bun test, pytest, Pester) vom Flotten-Treiber. Der Pester-Teil fährt die Suiten in Windows PowerShell 5.1 mit Pester 3.4 und ist nur grün, wenn `Invoke-Pester` ein Ergebnis mit einer Testzahl über 0 und ohne roten Test liefert; die Zeile `pester: Pester <version>, … Tests, … rot` im Log belegt die Zahl (#129, #165). Installiert (`install.ps1`) wird weiter von Hand, wenn kein Treiber läuft.
+- Der Nachtlauf (`gate_night_command`) ist hier derselbe Lauf wie `gate_command`, denn `gate.ps1` hat keinen Cache; davor `bun install` in `flotte/`, weil sein Worktree kein `node_modules` mitbringt (kein `link_dirs`). Scheitert `bun install`, läuft `gate.ps1` trotzdem und endet rot (Typprüfung): ein Rot mit Halt, kein Fehler des Nachtlaufs; der Nachtbefehl allein kann einen Fehler nicht vom Rot trennen.
 - Commit-Nachrichten englisch mit Scope (`feat(epic): …`, `fix(flotte): …`), PR-Titel deutsch.

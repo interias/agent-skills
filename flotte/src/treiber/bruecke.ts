@@ -149,6 +149,35 @@ export interface BerichtEpic {
   andockpruefung: AndockMessung | null;
   /** Tag H: what happens to the mission in one line: label, sentence, since, the person's step, the gate's contexts */
   lage: Lage;
+  /** Tag Q: what its runs used so far; missing before the first counted message (an older bridge ignores it) */
+  verbrauch?: BerichtVerbrauch;
+}
+
+/** Tag Q: tokens of the four kinds, their sum, weighted (tokens.ts), cache rate 0..1, estimated percent of the weekly limit */
+export interface VerbrauchReihe {
+  eingabe: number;
+  cache_schreiben: number;
+  cache_lesen: number;
+  ausgabe: number;
+  summe: number;
+  gewichtet: number;
+  cache_quote: number | null;
+  anteil_woche: number | null;
+}
+
+/** Tag Q: a mission's usage: the sum, the accounts it ran on, per package and role, the reasons of a mark (empty: none) */
+export interface BerichtVerbrauch extends VerbrauchReihe {
+  stand: string;
+  konten: string[];
+  rollen: (VerbrauchReihe & { paket: string | null; rolle: string })[];
+  warnung: string[];
+}
+
+/** Tag Q: a mission's tokens on an account today and in its weekly window, with the estimated share of the weekly limit */
+export interface BerichtKontoMission {
+  epic: number;
+  heute: { summe: number; anteil: number | null };
+  woche: { summe: number; anteil: number | null };
 }
 
 /** A decision for the bridge; von (#52): mensch, admiral, or lauf (the admiral followed the run's recommendation). */
@@ -197,7 +226,9 @@ export interface Bericht {
   schlange: number[];
   /** the last gate runs of the driver in this project, oldest first: the bridge's overview of duration and cache share */
   andockpruefungen: AndockMessung[];
-  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; vorsprung: number | null; alterMin: number | null; grund?: string }[];
+  /** step 8 of the gate rework: the halt of the merge queue after a red night run and the last night run; null before the first */
+  nachtlauf?: BerichtNachtlauf | null;
+  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; vorsprung: number | null; alterMin: number | null; grund?: string; missionen?: BerichtKontoMission[] }[];
   /** #95: the accounts of konten.json with aktiv and sign-in, never a path; null when the file cannot be read */
   kontenListe?: { nr: number; name: string; farbe: string; aktiv: boolean; anmeldung: string | null }[] | null;
   /** #125: the forge of the project linked at this machine: state and account name, never a token; null before the first check */
@@ -227,6 +258,13 @@ export interface Bericht {
   triage: BerichtTriage;
   /** #154: the stand the driver runs and a newer one on main of its source */
   version: BerichtVersion;
+}
+
+/** the night run (flotte nachtlauf) for the bridge: never a path; the issue as a number, the bridge links it */
+export interface BerichtNachtlauf {
+  /** commit null: the halt file is unreadable or names none */
+  halt: { seit: string; grund: string; commit: string | null; basis: string; issue: number | null; teile: string[]; gruen: { zeit: string; commit: string } | null } | null;
+  letzter: { ergebnis: 'gruen' | 'rot' | 'fehler'; commit: string | null; basis: string; zeit: string; dauerS: number; wiederholt: boolean; teile: string[]; grund: string | null } | null;
 }
 
 /**

@@ -17,6 +17,7 @@ export function tafelHtml(z: FlottenZustand, forge: string): string {
   const entscheidungen = (z.entscheidungen ?? []).slice(-50).reverse().map((d) => `<li>${d.einflussreich ? '<b>✔ einflussreich</b>' : '✔'} #${d.epic} F${d.nr}: ${esc(d.frage)} → <b>${esc(d.antwort)}</b> — ${esc(d.herkunft)}</li>`).join('\n');
   const ereignisse = z.ereignisse.slice(-60).reverse().map((e) => `<li><time>${esc(e.zeit.slice(11, 19))}</time> ${e.epic ? `#${e.epic} ` : ''}${esc(e.text)}</li>`).join('\n');
   const b = z.bremse;
+  const h = z.schlangeHalt;
   return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta http-equiv="refresh" content="15"><title>Flottentafel</title>
 <style>:root{color-scheme:light dark;--bg:#fff;--fg:#1d1d1f;--mu:#6e6e73;--li:#e5e5ea;--rot:#c62828;--gelb:#b26a00;--gruen:#2e7d32}
 @media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--fg:#f2f2f7;--mu:#a1a1a6;--li:#3a3a3c}}
@@ -28,6 +29,7 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--li
 <p>${z.aktiv ? 'läuft' : 'beendet'} · Stand ${esc(z.stand ?? '')} · Verbrauch: ${(b?.konten ?? []).map((k) => `<span class="${esc(k.stufe)}">${esc(basename(k.konto))} ${esc(k.stufe)}</span>`).join(', ')} · RAM: ${esc(b?.ram ?? '')}${b?.ramHalt ? ' (hält)' : ''} · Platte: ${b?.platteGenug === false ? '<span class="rot">zu wenig</span>' : 'genug'} · Obergrenze ${esc(b?.obergrenze ?? '')}</p>
 <table><tr><th>Mission</th><th>Stufe</th><th>Konto</th><th>PR</th><th>geparkt</th><th>Notiz</th><th>letzter Schritt</th></tr>
 ${zeilen}</table>
+${h ? `<p class="rot"><b>Andock-Schlange hält</b> seit ${esc(h.seit.slice(0, 16).replace('T', ' '))}: ${esc(h.grund)}${h.issue ? ` — <a href="https://github.com/${esc(forge)}/issues/${h.issue}">Issue #${h.issue}</a>` : ''}${h.gruen ? ` · danach grün auf ${esc(h.gruen.commit.slice(0, 7))}` : ''}. Neue Andockungen warten. Freigeben am Rechner: <code>flotte nachtlauf --freigeben</code></p>` : ''}
 ${z.schlange?.length ? `<p>Andock-Schlange: ${z.schlange.map((n, i) => `${i ? '' : '<b>'}#${n}${i ? '' : '</b>'}`).join(' → ')}</p>` : ''}
 <p><code>flotte zuschauen ${esc(z.repo)} &lt;mission&gt;</code> folgt dem Log eines Laufs.</p>
 <h2>Liegt beim Menschen</h2><ul>${fragen || '<li>nichts</li>'}</ul>

@@ -12,6 +12,7 @@ import { auftrag } from './befehle/auftrag.ts';
 import { chat } from './befehle/chat.ts';
 import { lernen } from './befehle/lernen.ts';
 import { messen } from './befehle/messen.ts';
+import { nachtlauf } from './befehle/nachtlauf.ts';
 import { triage } from './befehle/triage.ts';
 import { werft } from './befehle/werft.ts';
 import { zuschauen } from './befehle/zuschauen.ts';
@@ -41,6 +42,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   auftrag: (argv) => auftrag(argv),
   triage: (argv) => triage(argv),
   werft: (argv) => werft(argv),
+  nachtlauf: (argv) => nachtlauf(argv),
   chat: (argv) => chat(argv),
   konten: (argv) => konten(argv),
   forge: (argv) => forge(argv),

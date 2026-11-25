@@ -55,6 +55,31 @@ function dauer(s) {
 const zeitHtml = (ab, text, bis, cls = 'rel') => (datum(ab) ? `<span class="${cls}" data-ab="${esc(ab)}"${bis ? ` data-bis="${esc(bis)}"` : ''} data-text="${esc(text)}"></span>` : '');
 const seitS = (iso) => (datum(iso) ? (jetzt() - datum(iso)) / 1000 : null);
 
+// ---- Tag Q: the usage of a mission (tokens, cache share, estimated share of the week), shared with verlauf.js and the
+// Maschinenraum. The share is always an estimate, so it always carries ≈; no money value anywhere
+const VERBRAUCH_METHODE = '≈ geschätzt: Wochenanteil des Kontos geteilt durch die gewichteten Tokens aller Missionsläufe auf dem Konto in diesem Wochenfenster, mal die gewichteten Tokens der Mission; andere Arbeit auf dem Konto zählt mit, die Zahl liegt eher zu hoch.';
+const VERBRAUCH_MARKE = 'Markiert ab dem Doppelten des Mittels vergleichbarer abgeschlossener Missionen (gleiche Paketzahl ± 1, sonst alle) oder bei einer Cache-Quote unter 70 % (ab 500 000 Eingabe-Tokens).';
+const kontoKurz = (k) => String(k ?? '').replace(/^Konto (\d+)$/, 'K$1');
+function tokZahl(n) {
+  const z = (x, d) => x.toLocaleString('de-DE', { maximumFractionDigits: d });
+  if (n >= 999500) return `${z(n / 1e6, 1)} Mio`;
+  if (n >= 1000) return `${z(Math.round(n / 1e3), 0)} Tsd`;
+  return z(n ?? 0, 0);
+}
+function tokText(n) {
+  return `${tokZahl(n)} Tok`;
+}
+function anteilText(a) {
+  return a == null ? '' : `≈${a.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+}
+function cacheText(q) {
+  return q == null ? '' : `Cache ${Math.round(q * 100)} %`;
+}
+// the breakdown behind a sum, one kind per line (the title of the card's line, the sheet's sum and each row)
+function verbrauchTitel(v) {
+  return [`Eingabe ${tokZahl(v.eingabe)}`, `Cache-Schreiben ${tokZahl(v.cache_schreiben)}`, `Cache-Lesen ${tokZahl(v.cache_lesen)}`, `Ausgabe ${tokZahl(v.ausgabe)}`, `gewichtet ${tokZahl(v.gewichtet)} (Eingabe + 1,25 × Schreiben + 0,1 × Lesen + 5 × Ausgabe)`].join('\n');
+}
+
 // ---- header: clock, accounts as tanks, RAM and disk, projects
 
 function rest(f) {
@@ -462,7 +487,8 @@ function laufHtml(x) {
   // how long the epic runs (since its first run); a tap shows the start as clock time
   const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf der Mission"></button>` : '';
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
-  const titel = x.titel ? `<span class="titel">${esc(x.titel)}</span>` : '';
+  // Tag Q: the usage line stands under the title on every card under Unterwegs
+  const titel = `${x.titel ? `<span class="titel">${esc(x.titel)}</span>` : ''}${verbrauchHtml(x)}`;
   // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
   // Tag H: with the line of the mission the gate stands there once, not again above it
   const meta = x.form === 'lauf' ? [x.lage ? '' : gateLaufHtml(x.gateLauf), x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
@@ -478,6 +504,18 @@ function laufHtml(x) {
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
   const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
   return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}${VERLAUF_KNOPF}`;
+}
+
+// Tag Q: the usage of the mission so far in one line under the head with its running time: estimated share of the week,
+// accounts, tokens, cache share; the breakdown in the title. A mark only colours it and names why, nothing halts.
+// An older driver sends none: the card as before
+function verbrauchHtml(x) {
+  const v = x.verbrauch;
+  if (!v) return '';
+  const teile = [v.anteil_woche != null ? `${anteilText(v.anteil_woche)} Woche` : '', (v.konten ?? []).map(kontoKurz).join(', '), tokText(v.summe), cacheText(v.cache_quote)].filter(Boolean);
+  const warn = v.warnung?.length ? v.warnung : null;
+  const titel = [verbrauchTitel(v), v.anteil_woche != null ? VERBRAUCH_METHODE : '', warn ? `Markiert: ${warn.join('; ')}\n${VERBRAUCH_MARKE}` : ''].filter(Boolean).join('\n\n');
+  return `<p class="verbrauch${warn ? ' warnung' : ''}" title="${esc(titel)}">${teile.map((t) => `<span>${esc(t)}</span>`).join(' · ')}${warn ? `<span class="vb-warn">${esc(warn.join(' · '))}</span>` : ''}</p>`;
 }
 
 // the driver's line (lage): a label, the sentence with its reason, since when; below it the person's step with

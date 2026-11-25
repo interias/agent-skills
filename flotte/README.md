@@ -612,6 +612,68 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" werft [<ordner>...] [--bruecke http
   abgeschalteten Stack wird abgelehnt, die Migration wartet weiter auf eine neue. Der Bericht zeigt
   die wirksamen Werte (`flottenbruecke/SCHNITTSTELLE.md`, „Werft“).
 
+## Nachtlauf
+
+Vor dem Andocken prüft eine Mission nur, was sie berührt; unverändertes beantwortet die Andockprüfung
+aus ihrem Cache. Einmal je Nacht fährt deshalb der Nachtlauf den ganzen Lauf ohne Cache auf dem
+Basiszweig. Im Projektordner, ohne und neben einem laufenden Treiber:
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" nachtlauf              # fahren
+bun "$HOME\.claude\skills\flotte\src\cli.ts" nachtlauf --stand      # Halt, letzter Lauf, Sperre
+bun "$HOME\.claude\skills\flotte\src\cli.ts" nachtlauf --freigeben  # Halt lösen
+```
+
+- Befehl ist `gate_night_command` des Adapters (`mission/references/adapter.md`, „Nachtlauf“). Fehlt
+  er, sagt der Befehl das und endet ohne Fehler.
+- Er holt `origin/<base_branch>` (sonst `main_branch`, sonst der Standardzweig) und fährt den Befehl im
+  eigenen Worktree `<worktree_root>/nachtlauf` auf losgelöstem HEAD, angelegt mit `worktree.ps1 Up
+  -Detach` wie ein Paket-Worktree (`env_files` kopiert, `link_dirs` verlinkt) und von Nacht zu Nacht
+  weiterbenutzt (kein `git clean`: ignorierte Caches bleiben liegen). Was der Befehl sonst braucht
+  (Abhängigkeiten installieren, ohne Cache fahren), bringt er selbst mit. Höchstens 3 h je Lauf; an der
+  Grenze endet der ganze Prozessbaum, nicht nur das äußere pwsh. Die Sperre `nachtlauf.lock` lässt keinen
+  zweiten Nachtlauf desselben Projekts zu und verfällt nach 7 h (mehr als Holen, Worktree und zwei Läufe
+  an ihren Grenzen).
+- Kennt nur Git den Worktree oder nur seine Sperre (von Hand entfernt), baut der Nachtlauf ihn mit `Down`
+  ab und legt ihn neu an. Liegt dort ein Ordner, der kein Worktree ist, scheitert `Up` jede Nacht: den
+  Ordner `<worktree_root>/nachtlauf` von Hand löschen. Eine Sperre, die einen anderen Ordner nennt, stellt
+  er nie um, sondern endet mit Fehler.
+- Grün ist Exit 0 und, wenn die Ausgabe einen Andockblock hat, dessen grüne Schlusszeile. Rot wird
+  einmal wiederholt. Grün erst in der Wiederholung hält nichts an, steht aber im Logbuch.
+- Rot auch in der Wiederholung: Die **Andock-Schlange hält** (`schlange-halt.json` neben
+  `zustand.json`), und ein Issue mit `needs-triage` nennt den roten Teil aus dem Andockblock, den
+  Commit und wie freigegeben wird. Vom Log geht nur der Andockblock hinaus, und nur, wenn er mit
+  `gate_green` oder `Gate ROT.` endet; alles, was hinausgeht, läuft durch einen Pfadfilter (lokale Pfade
+  werden `<pfad>`). Solange der Halt steht, kommentiert ein weiterer roter Nachtlauf dieses Issue, statt
+  ein neues anzulegen.
+- Ein Schritt um den Befehl, der scheitert (Holen, Worktree), ist kein Rot der Basis: kein Halt, im
+  Logbuch und auf der Brücke nur seine Art („git fetch scheiterte“); der volle Text steht in
+  `nachtlauf.json` (`--stand`).
+- Exit-Code: Grün und Rot enden mit 0 (das Ergebnis steht im Zustand, nicht im Exit-Code der geplanten
+  Aufgabe), ein Fehler oder eine belegte Sperre mit 1.
+- Der Treiber liest den Halt in jedem Takt: Er beginnt kein neues Andocken. Eine Haltedatei, die da,
+  aber unlesbar ist, hält ebenso („Haltedatei unlesbar“). Die Mission, die schon Kopf
+  der Schlange ist, dockt zu Ende an (mit eigener Andockprüfung und Wiederholungen); Missionen arbeiten
+  weiter, fertige warten in der Schlange und nennen den Halt in ihrer Notiz. Tafel und Brücke
+  (Maschinenraum, Projektkarte) zeigen Grund, Commit, seit wann und das Issue.
+- Freigeben ist Sache des Menschen, mit `--freigeben`: Halt weg, Vermerk im Logbuch und am Issue; das
+  Issue bleibt offen, bis die Ursache behoben ist. Ein späterer grüner Nachtlauf wird am Halt und im
+  Issue vermerkt, gibt aber nicht frei. Kein Commit wird von selbst zurückgenommen.
+- Ergebnisse stehen in `nachtlauf.json` neben `zustand.json` (grün/rot, Commit, Dauer, Zeitpunkt,
+  Pfad des Logs unter `nachtlauf/`), im Logbuch und im Bericht an die Brücke (ohne Pfad).
+
+**Geplante Aufgabe.** Einmal je Projekt anlegen (aktualisiert eine vorhandene):
+
+```powershell
+pwsh -NoProfile -File "$HOME\.claude\skills\flotte\nachtlauf-aufgabe.ps1" -Projekt <projektordner> [-Uhrzeit 02:30]
+pwsh -NoProfile -File "$HOME\.claude\skills\flotte\nachtlauf-aufgabe.ps1" -Projekt <projektordner> -Entfernen
+```
+
+Die Aufgabe „Flotte Nachtlauf `<name>-<hash>`“ (Ordnername und ein kurzer Hash des vollen Pfads) ruft die installierte CLI mit `nachtlauf` im Projektordner, startet
+nie doppelt, holt eine verpasste Nacht nicht tagsüber nach und läuft **nur, solange du angemeldet bist**
+(gesperrter Bildschirm genügt): ohne Sitzung bräuchte sie ein gespeichertes Kennwort, und ohne Kennwort
+(S4U) fehlt ihr die Git- und gh-Anmeldung für Holen und Issue.
+
 ## Prognose
 
 Die Brücke sagt je wartender Mission „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
