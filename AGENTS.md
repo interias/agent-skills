@@ -49,7 +49,8 @@ Einige Regeln stehen an mehreren Stellen wortgleich; Tests halten sie zusammen. 
 - Angedockt wird nach grünem `gate.ps1` (`merge: nach_gate` im Adapter); Remote-Branches erst
   löschen, wenn der PR `merged` ist. Jedes Andocken auf `main` geht über `mission/scripts/merge.ps1`,
   auch von Hand und aus einer Sitzung, nie `gh pr merge` direkt. `gate.ps1` läuft einmal auf dem
-  Head; wer andockt, holt `main` unmittelbar davor nach und fährt es dann neu.
+  Head; wer andockt, holt `main` unmittelbar davor nach, fährt es neu, pusht und hängt den Block an
+  die PR-Beschreibung (Ablauf: [`adapter.md`](mission/references/adapter.md), „Andocken“).
 - Nach dem Andocken bringt `install.ps1` den Stand nach `~/.claude/skills` ([`INSTALL.md`](INSTALL.md)).
 
 ## Tickets

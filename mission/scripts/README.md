@@ -13,8 +13,8 @@ Jedes Skript hat Pester-Tests daneben und Hilfe im Kopfkommentar (`Get-Help <skr
 - **`fortsetzen.ps1`** setzt eine `/mission`-Sitzung außerhalb der Flotte mit `claude --resume` fort
   und gibt ihr `guard.ps1` als Hook mit; der Hook aus dem Frontmatter gilt nach `--resume` nicht mehr.
 - **`merge.ps1`** dockt einen Pull Request nur bei `merge: nach_gate` im Adapter an, mit gültigem Andockblock
-  auf aktueller Basis und Head, grünen Checks und immer mit Andock-Commit. Der Flotten-Treiber ruft
-  es auf; ein Lauf nie.
+  auf aktueller Basis und Head, grünen Checks und immer mit Andock-Commit. Es ist der eine Weg zum
+  Andocken: Der Flotten-Treiber ruft es auf, wer von Hand andockt, ebenso; ein Lauf nie.
 - **`ram.ps1`** misst den freien Speicher des Windows-Hosts und gibt `ok`, `warn` oder `hold`
   aus — die RAM-Bremse vor jedem Paketstart und unter der Flotte.
 - **`wecker.ps1`** endet, sobald die Endzeile im Log eines Hintergrundbefehls steht, spätestens nach

@@ -142,18 +142,27 @@ describe('check once, do not chase the base (24.11.2026): only the head of the m
 
   it('Phase 6: the mission runs the gate once on its head and does not merge the base afterwards', () => {
     expect(phase6).toContain('Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head');
-    expect(phase6).toContain('Ein eigener Commit danach verlangt einen neuen Lauf und einen neuen Block');
-    expect(phase6).toContain('Eine Bewegung der Basis verlangt keinen: Die Mission zieht die Basis nicht nach');
-    expect(phase6).toContain('nur der Treiber an der Spitze der Andock-Schlange');
-    expect(phase6).toContain('Ohne Treiber holt die Basis nach, wer andockt, unmittelbar vor `merge.ps1`');
+    expect(phase6).toContain('Ein eigener Commit danach verlangt einen neuen Lauf und Block');
+    expect(phase6).toContain('Eine Bewegung der Basis verlangt keinen: Die Basis holt erst nach, wer andockt, unter dem Treiber nur die Spitze der Andock-Schlange (`references/adapter.md`, „Andocken")');
     expect(phase6).not.toContain('gegen den aktuellen Stand der Basis');
   });
 
-  it('every merge onto the base goes through merge.ps1, by hand too; the adapter reference does not send the run back to the gate', () => {
-    expect(andocken).toContain('**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**');
+  it('by hand: bring the base in, gate, push and append the block, then merge.ps1 (adapter reference, short in AGENTS.md)', () => {
+    expect(andocken).toContain('ohne Treiber der Mensch oder die Sitzung, die andockt');
+    expect(andocken).toMatch(/1\. die Basis per `git merge <push_remote>\/<basis>` in den Missions-Branch holen, 2\. die Andockprüfung \(`gate_command`\) auf diesem Stand fahren, 3\. pushen und den neuen Block unter `gate_heading` an die PR-Beschreibung anhängen .* 4\. `merge\.ps1 -Repo <owner\/name> -Pr <nr>` aufrufen\./);
+    expect(lies('AGENTS.md')).toContain('fährt es neu, pusht und hängt den Block an die PR-Beschreibung');
+  });
+
+  it('every docking onto the base goes through merge.ps1, for the driver, a person and an admiral session alike; one way, not one actor', () => {
+    expect(andocken).toContain('**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**: Bei `merge: nach_gate` ist es der eine Weg für jeden, der andockt — den Treiber, einen Menschen, eine Sitzung, auch eine Admiral-Sitzung.');
+    expect(andocken).toContain('angedockt wird auf genau einem Weg, mit `merge.ps1`');
     expect(andocken).not.toContain('und der Lauf fährt die Andockprüfung neu');
-    expect(lies('docs/befugnisse.md')).toContain('Jedes Andocken auf den Basiszweig geht über `merge.ps1`');
+    expect(skill).toContain('`merge.ps1` außerhalb des Laufs (`nach_gate`), der eine Weg für jeden, der andockt: Treiber, Mensch, Admiral-Sitzung.');
+    const befugnisse = lies('docs/befugnisse.md');
+    expect(befugnisse).toContain('Der Admiral des Treibers und die Läufe **docken nie an**.');
+    expect(befugnisse).toContain('Jedes Andocken auf den Basiszweig geht über `merge.ps1`: Wer bei `nach_gate` doch von Hand andockt — du, eine Sitzung, auch eine Admiral-Sitzung —, nimmt dasselbe Skript wie der Treiber');
     expect(lies('AGENTS.md')).toContain('Jedes Andocken auf `main` geht über `mission/scripts/merge.ps1`');
+    for (const datei of ['mission/SKILL.md', 'mission/references/adapter.md', 'mission/README.md', 'mission/scripts/README.md']) expect(lies(datei), datei).not.toMatch(/genau ein(em)? Akteur/);
   });
 });
 

@@ -83,9 +83,9 @@ Flotten-Treiber.
 1. **Der Lauf dockt nie an den Hauptzweig und nie an `<basis>` an und pusht nie dorthin**, er endet mit einem
    offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
    freigibt. Wer den Pull Request andockt, sagt allein der Adapterschlüssel `merge`
-   (`references/adapter.md`, „Andocken"): ein Mensch (`mensch`, Standard) oder nach der Andockprüfung genau
-   ein Akteur außerhalb des Laufs (`nach_gate`). Der Lauf dockt nie an, auch nicht mit
-   `gh pr merge`. Durch Hook durchgesetzt.
+   (`references/adapter.md`, „Andocken"): ein Mensch (`mensch`, Standard) oder nach der Andockprüfung
+   `merge.ps1` außerhalb des Laufs (`nach_gate`), der eine Weg für jeden, der andockt: Treiber, Mensch,
+   Admiral-Sitzung. Der Lauf dockt nie an, auch nicht mit `gh pr merge`. Durch Hook durchgesetzt.
 2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
    Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
 3. **Der Erste Offizier legt keine Issues an**, Funde außerhalb des Pakets gehen an dich.
@@ -812,21 +812,19 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Ersten Offiziers; die offenen Punkte; die angelegten Tickets (Regel 3); je Missionsziel mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
-  - **Andockblock**, bei `merge: nach_gate`, auch in einem Repository mit Checks: Die Andockregel
-    (`merge.ps1`, der Flotten-Treiber) dockt nur mit ihm an (`references/adapter.md`, „Andocken").
-    Er steht unter genau der Überschrift `gate_heading`, Standard `## Gate`, nicht unter
-    „Verifikation" oder „Prüfung". Darunter steht die Ausgabe der Andockprüfung des Projekts als
-    Codeblock. Sie hat zwei Teile:
-    - **Kopfzeile:** Sie nennt die Basis und den Head, also `Basis <remote>/<basis> @ <sha>` und
-      `(HEAD <sha>)`. Hat der Adapter `gate_base` und `gate_head`, gilt deren Form.
+  - **Andockblock**, bei `merge: nach_gate`, auch mit Checks: `merge.ps1` dockt nur mit ihm an
+    (`references/adapter.md`, „Andocken"). Er steht unter genau `gate_heading` (Standard `## Gate`),
+    nicht unter „Verifikation" oder „Prüfung", als Codeblock mit der Ausgabe der Andockprüfung:
+    - **Kopfzeile:** `Basis <remote>/<basis> @ <sha>` und `(HEAD <sha>)`, sonst die Form von
+      `gate_base` und `gate_head`.
     - **Letzte Zeile:** `gate_green`, Standard `Gate grün.`.
 
-    Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head, und schreibt den Block. Nennt der Adapter `gate_command`, ist das der Befehl dafür.
-    Ein eigener Commit danach verlangt einen neuen Lauf und einen neuen Block, auch einer nur für die Doku oder den PR-Text; den alten Block ersetzt du.
-    Eine Bewegung der Basis verlangt keinen: Die Mission zieht die Basis nicht nach und wiederholt die Andockprüfung nicht, weil die Basis weitergezogen ist.
-    Unter dem Flotten-Treiber holt nur der Treiber an der Spitze der Andock-Schlange die Basis nach und fährt die Andockprüfung neu; ein Konflikt oder eine rote Andockprüfung kommt mit seiner Ausgabe zu dir zurück.
-    Ohne Treiber holt die Basis nach, wer andockt, unmittelbar vor `merge.ps1`, und fährt die Andockprüfung dann neu.
-    Gibt die Andockprüfung des Projekts keine Basis aus, ist das ein offener Punkt, und angedockt wird von Hand.
+    Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head
+    (`gate_command`). Ein eigener Commit danach verlangt einen neuen Lauf und Block, auch nur für Doku
+    oder PR-Text; den alten Block ersetzt du. Eine Bewegung der Basis verlangt keinen: Die Basis holt
+    erst nach, wer andockt, unter dem Treiber nur die Spitze der Andock-Schlange (`references/adapter.md`,
+    „Andocken"); ein Konflikt oder Rot dort kommt mit der Ausgabe zu dir zurück. Nennt die Ausgabe der
+    Andockprüfung keine Basis, ist das ein offener Punkt, und angedockt wird von Hand.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
     Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Missionsziel, in beiden Modi. **Ein
     Zielissue mit Missionszielen nie** (Begründung ebenda). Die

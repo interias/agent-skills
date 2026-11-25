@@ -17,7 +17,7 @@ Rückfrage; den Stand zeigt die Forge.
 2. **Freigeben:** Label `ready-for-agent` an der Spec oder an den Missionsziel-Tickets.
 3. **`/mission #<nr>` starten** und am Vorab-Tor einmal alle Fragen beantworten.
 4. **Pull Request prüfen und andocken.** Das tut kein Lauf. Ob ein Mensch andockt oder nach grüner
-   Andockprüfung genau ein Akteur außerhalb des Laufs, sagt der Adapterschlüssel `merge` (Standard: der Mensch).
+   Andockprüfung der Treiber mit `merge.ps1`, sagt der Adapterschlüssel `merge` (Standard: der Mensch).
 5. **`/mission-nacharbeit`** für die offenen Punkte, nach dem Andocken **`/mission-aufraeumen`**.
 
 Ein Missionsziel-Ticket braucht eine Abnahmeliste und einen Verifikationsweg, sonst überspringt der Lauf

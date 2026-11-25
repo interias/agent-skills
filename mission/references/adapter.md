@@ -205,7 +205,7 @@ Schlüssel. Ein Lauf dockt nie an, in keiner Einstellung.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `merge` | `mensch`: ein Mensch dockt an. `nach_gate`: genau ein Akteur dockt nach grünem Andockblock an und, wo es Checks gibt, nach grünen Checks — der Flotten-Treiber mit `merge.ps1`. Immer mit Andock-Commit (`gh pr merge --merge`) | `mensch` |
+| `merge` | `mensch`: ein Mensch dockt an. `nach_gate`: angedockt wird auf genau einem Weg, mit `merge.ps1` nach grünem Andockblock und, wo es Checks gibt, nach grünen Checks — vom Flotten-Treiber oder von Hand. Immer mit Andock-Commit (`gh pr merge --merge`) | `mensch` |
 | `gate_heading` | Überschrift des Abschnitts mit dem Andockblock in der PR-Beschreibung | `## Gate` |
 | `gate_green` | Zeile, die eine grüne Andockprüfung abschließt | `Gate grün.` |
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die die Andockprüfung lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
@@ -242,13 +242,21 @@ letzte Zeile, auf die `gate_base` passt, und was danach folgt. Angedockt wird nu
 5. der Head die aktuelle Basis enthält (Forge-Vergleich: 0 Commits hinter der Basis).
 
 Fehlt etwas davon, wird nicht angedockt. Ein eigener Commit der Mission nach der Andockprüfung, auch
-nur Doku, verlangt eine neue Andockprüfung durch den Lauf; eine Bewegung der Basis nicht: Die Basis
-holt erst nach, wer andockt — unter dem Flotten-Treiber nur der Treiber an der Spitze der
-Andock-Schlange —, und fährt dann die Andockprüfung neu (`mission/SKILL.md`, Phase 6).
+nur Doku, verlangt eine neue Andockprüfung durch den Lauf; eine Bewegung der Basis nicht. Die Basis
+holt erst nach, wer andockt: unter dem Flotten-Treiber nur der Treiber an der Spitze der
+Andock-Schlange, ohne Treiber der Mensch oder die Sitzung, die andockt. Von Hand, unmittelbar vor
+dem Andocken:
 
-**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**, bei `merge: nach_gate` auch das von
-Hand, nicht nur das des Treibers: Nur das Skript prüft, dass der Andockblock zur Spitze der Basis
-und zum Head passt. Ein `gh pr merge` oder der Knopf der Forge daneben umgeht diese Prüfung.
+1. die Basis per `git merge <push_remote>/<basis>` in den Missions-Branch holen,
+2. die Andockprüfung (`gate_command`) auf diesem Stand fahren,
+3. pushen und den neuen Block unter `gate_heading` an die PR-Beschreibung anhängen (der letzte Lauf
+   zählt), sonst meldet `merge.ps1` `GATE FEHLT`,
+4. `merge.ps1 -Repo <owner/name> -Pr <nr>` aufrufen.
+
+**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**: Bei `merge: nach_gate` ist es der eine
+Weg für jeden, der andockt — den Treiber, einen Menschen, eine Sitzung, auch eine Admiral-Sitzung.
+Nur das Skript prüft, dass der Andockblock zur Spitze der Basis und zum Head passt; ein
+`gh pr merge` oder der Knopf der Forge daneben umgeht diese Prüfung.
 
 **Der Teil-Lauf.** Ist der letzte Lauf ein Teil-Lauf (`gate_partial` in der Kopfzeile, nur
 `gate_always_command`), gelten 1 bis 5 auch für ihn, und dazu:

@@ -49,10 +49,11 @@ Softwareanteil, der Inhaltsanteil wird offener Punkt im PR.
 
 ## Was immer gilt
 
-- Admiral und Läufe **docken nie an**. Wer andockt, sagt allein der Adapterschlüssel `merge`:
-  `mensch` heißt du, `nach_gate` heißt der Andock-Akteur des Treibers nach grüner Andockprüfung.
-  Jedes Andocken auf den Basiszweig geht über `merge.ps1`, bei `nach_gate` auch deines von Hand: Nur das
-  Skript prüft, dass der Andockblock zur Spitze der Basis und zum Head passt
+- Der Admiral des Treibers und die Läufe **docken nie an**. Wer andockt, sagt allein der
+  Adapterschlüssel `merge`: `mensch` heißt du, `nach_gate` heißt der Treiber nach grüner Andockprüfung.
+  Jedes Andocken auf den Basiszweig geht über `merge.ps1`: Wer bei `nach_gate` doch von Hand andockt —
+  du, eine Sitzung, auch eine Admiral-Sitzung —, nimmt dasselbe Skript wie der Treiber; nur es prüft,
+  dass der Andockblock zur Spitze der Basis und zum Head passt
   ([`adapter.md`](../mission/references/adapter.md), „Andocken“).
 - **Keine Antwort lockert eine Regel** der Skills.
 - **Jede Entscheidung steht am Issue**, mit Herkunft (Projektregel, Skill-Empfehlung, Präzedenz mit
