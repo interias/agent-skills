@@ -55,7 +55,7 @@ function dauer(s) {
 const zeitHtml = (ab, text, bis, cls = 'rel') => (datum(ab) ? `<span class="${cls}" data-ab="${esc(ab)}"${bis ? ` data-bis="${esc(bis)}"` : ''} data-text="${esc(text)}"></span>` : '');
 const seitS = (iso) => (datum(iso) ? (jetzt() - datum(iso)) / 1000 : null);
 
-// ---- #225: the usage of a mission (tokens, cache share, estimated share of the week), shared with verlauf.js and the
+// ---- Tag Q: the usage of a mission (tokens, cache share, estimated share of the week), shared with verlauf.js and the
 // Maschinenraum. The share is always an estimate, so it always carries ≈; no money value anywhere
 const VERBRAUCH_METHODE = '≈ geschätzt: Wochenanteil des Kontos geteilt durch die gewichteten Tokens aller Missionsläufe auf dem Konto in diesem Wochenfenster, mal die gewichteten Tokens der Mission; andere Arbeit auf dem Konto zählt mit, die Zahl liegt eher zu hoch.';
 const VERBRAUCH_MARKE = 'Markiert ab dem Doppelten des Mittels vergleichbarer abgeschlossener Missionen (gleiche Paketzahl ± 1, sonst alle) oder bei einer Cache-Quote unter 70 % (ab 500 000 Eingabe-Tokens).';
@@ -468,7 +468,7 @@ function laufHtml(x) {
   // how long the epic runs (since its first run); a tap shows the start as clock time
   const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf der Mission"></button>` : '';
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
-  // #225: the usage line stands under the title on every card under Unterwegs
+  // Tag Q: the usage line stands under the title on every card under Unterwegs
   const titel = `${x.titel ? `<span class="titel">${esc(x.titel)}</span>` : ''}${verbrauchHtml(x)}`;
   // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
   // Tag H: with the line of the mission the gate stands there once, not again above it
@@ -487,7 +487,7 @@ function laufHtml(x) {
   return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}${VERLAUF_KNOPF}`;
 }
 
-// #225: the usage of the mission so far in one line under the head with its running time: estimated share of the week,
+// Tag Q: the usage of the mission so far in one line under the head with its running time: estimated share of the week,
 // accounts, tokens, cache share; the breakdown in the title. A mark only colours it and names why, nothing halts.
 // An older driver sends none: the card as before
 function verbrauchHtml(x) {

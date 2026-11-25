@@ -20,6 +20,7 @@ export const RATE_MIN_GEWICHTET = 1_000_000;
 export const CACHE_MIN_EINGABE = 500_000;
 export const CACHE_GRENZE = 0.7;
 const STUECK = 4 * 1024 * 1024;
+export const SUCHE_MS = 10 * 60_000;
 
 /** a transcript of a mission: the run's session (Orchestrator) or a subagent with role and package */
 export interface Quelle {
@@ -209,8 +210,11 @@ function rolleAus(typ: string, beschreibung: string): string {
 export class Fundstellen {
   private logs = new Map<string, { id: string; cwd: string } | 'nie'>();
   private sitzungen = new Map<string, { pfad: string; konto: string } | null>();
-  private gesucht = new Set<string>();
+  /** when the account was last searched for a session not found where its working directory says */
+  private gesucht = new Map<string, number>();
   private metas = new Map<string, { rolle: string; paket: string | null }>();
+
+  constructor(private jetzt: () => number = Date.now) {}
 
   quellen(laeufe: string, nr: number, konten: string[]): Quelle[] {
     let namen: string[] = [];
@@ -246,9 +250,9 @@ export class Fundstellen {
       const p = join(ausHeim(k), 'projects', projektOrdner(cwd), `${id}.jsonl`);
       if (existsSync(p)) return this.merke(id, { pfad: p, konto: k });
     }
-    // once per session: a transcript in another project folder of an account
-    if (this.gesucht.has(id)) return null;
-    this.gesucht.add(id);
+    // a transcript in another project folder of an account: searched at most every SUCHE_MS until found
+    if (this.jetzt() - (this.gesucht.get(id) ?? -Infinity) < SUCHE_MS) return null;
+    this.gesucht.set(id, this.jetzt());
     for (const k of konten) {
       const projekte = join(ausHeim(k), 'projects');
       let ordner: string[] = [];

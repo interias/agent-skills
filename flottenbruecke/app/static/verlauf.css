@@ -43,7 +43,7 @@
 .vl-luft { flex: 1; }
 .vl-stand { color: var(--zeitfarbe); font: 12px var(--disp); letter-spacing: .04em; white-space: nowrap; }
 .vl-griff { display: none; }
-/* #227: the usage of the mission, a sum line that opens the table per package and role; a mark takes the warning tone */
+/* Tag Q: the usage of the mission, a sum line that opens the table per package and role; a mark takes the warning tone */
 .vl-vb-summe { margin: 0; color: var(--matt); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .vl-vb-summe > span { white-space: nowrap; }
 .vl-vb-summe .vl-vb-name { margin-right: 8px; color: var(--pfirsich); font: 600 12px var(--disp); letter-spacing: .08em; text-transform: uppercase; }

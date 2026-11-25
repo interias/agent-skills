@@ -1,4 +1,4 @@
-"""#225, #227: the usage of each mission, also under way. The driver reports per mission `verbrauch` (tokens in four
+"""Tag Q: the usage of each mission, also under way. The driver reports per mission `verbrauch` (tokens in four
 kinds, a weighted sum, the cache share, the estimated share of the account's weekly limit, per package and role) and
 per account the missions of today and of this week. The bridge passes both on to the cards, the history sheet and the
 Maschinenraum; an older driver sends neither, and everything stays as before."""
@@ -84,7 +84,21 @@ def test_konto_traegt_seine_missionen(client, bericht):
     bericht['konten'][0]['missionen'] = [{'epic': 38, 'heute': {'summe': 1200000, 'anteil': 1.2}, 'woche': {'summe': 2432000, 'anteil': None}}]
     assert client.post('/api/bericht', json=bericht).status_code == 200
     k = {x['konto']: x for x in tafel(client)['konten']}
-    assert k['Konto 1']['missionen'] == [{'epic': 38, 'heute': {'summe': 1200000, 'anteil': 1.2}, 'woche': {'summe': 2432000, 'anteil': None}}]
+    kurz = bericht['forge'].split('/')[-1]
+    assert k['Konto 1']['missionen'] == [{'epic': 38, 'heute': {'summe': 1200000, 'anteil': 1.2}, 'woche': {'summe': 2432000, 'anteil': None}, 'projekt': kurz}]
+
+
+def test_konto_vereinigt_die_missionen_zweier_projekte(client, bericht):
+    # two projects on one account each report only their own missions: the engine room shows both, by project
+    eins = copy.deepcopy(bericht)
+    eins['konten'][0]['missionen'] = [{'epic': 38, 'heute': {'summe': 100, 'anteil': None}, 'woche': {'summe': 100, 'anteil': None}}]
+    zwei = copy.deepcopy(bericht)
+    zwei['forge'] = 'interias/zweites'
+    zwei['konten'][0]['missionen'] = [{'epic': 7, 'heute': {'summe': 500, 'anteil': 0.5}, 'woche': {'summe': 900, 'anteil': 0.9}}]
+    assert client.post('/api/bericht', json=eins).status_code == 200
+    assert client.post('/api/bericht', json=zwei).status_code == 200
+    m = {x['konto']: x for x in tafel(client)['konten']}['Konto 1']['missionen']
+    assert [(x['projekt'], x['epic']) for x in m] == [('zweites', 7), (eins['forge'].split('/')[-1], 38)]
 
 
 def test_aelterer_treiber_ohne_verbrauch(client, bericht):
@@ -210,7 +224,7 @@ def test_verlauf_zeigt_die_rollentabelle():
     v = _fn(VERLAUF_JS, 'function verbrauchHtml(x) {', '\n  }')
     assert "if (!x.verbrauch) return ''" in v
     assert '<table' in v and 'Rolle' in v and 'Paket' in v
-    assert "Orchestrator: 'Orchestrator (Vorab-Tor, Andocken)'" in VERLAUF_JS
+    assert "Orchestrator: 'Orchestrator (Lagebesprechung, Andocken)'" in VERLAUF_JS
     # the head draws it on desktop and phone
     kopf = _fn(VERLAUF_JS, 'function kopfHtml() {', '\n  }')
     assert kopf.count('verbrauchHtml(x)') == 2

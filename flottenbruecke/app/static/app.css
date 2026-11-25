@@ -217,7 +217,7 @@ textarea {
 .lauf.wartet .kopfz .nr { color: var(--lila); }
 .lauf.schlange { border-left-color: var(--blau); }
 .lauf.schlange .kopfz .nr { color: var(--himmel); }
-/* #225: the usage line; each part keeps together, the line wraps between them. A mark takes the warning tone */
+/* Tag Q: the usage line; each part keeps together, the line wraps between them. A mark takes the warning tone */
 .verbrauch { margin: 0; color: var(--matt); font: 12px/1.45 var(--lesen); font-variant-numeric: tabular-nums; cursor: help; }
 .verbrauch > span { white-space: nowrap; }
 .verbrauch.warnung { color: var(--gelb); }

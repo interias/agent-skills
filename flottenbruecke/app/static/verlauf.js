@@ -113,10 +113,10 @@
     return zeichne(oben, 0);
   }
 
-  // ---- #227: the usage of the mission per package and role, from the card (the board's report); the head's sum line
+  // ---- Tag Q: the usage of the mission per package and role, from the card (the board's report); the head's sum line
   // opens the table, a mark colours the sum. An older driver sends none: nothing here
 
-  const ROLLE = { Orchestrator: 'Orchestrator (Vorab-Tor, Andocken)' };
+  const ROLLE = { Orchestrator: 'Orchestrator (Lagebesprechung, Andocken)' };
   let vbAuf = true; // the table open, as the person left it
 
   function verbrauchHtml(x) {

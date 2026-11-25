@@ -17,12 +17,14 @@
   // the steps the driver brakes in: red is a colour only here, nothing blinks
   const STUFE = { gruen: 'frei', gelb: 'gebremst', rot: 'gestoppt' };
 
-  // #225: which missions used how much on the account today and this week (since the start of its weekly window);
+  // Tag Q: which missions used how much on the account today and this week (since the start of its weekly window);
   // the share is an estimate (≈). Without data nothing, as before
   const missionenHtml = (k) => {
     if (!k.missionen?.length) return '';
     const wert = (z) => (z ? [anteilText(z.anteil), tokText(z.summe)].filter(Boolean).join(' · ') : '–');
-    const zeilen = k.missionen.map((m) => `<li><b>#${esc(m.epic)}</b><span>heute ${esc(wert(m.heute))}</span><span>Woche ${esc(wert(m.woche))}</span></li>`).join('');
+    // the project names the mission once several projects report on the account
+    const mehrere = new Set(k.missionen.map((m) => m.projekt)).size > 1;
+    const zeilen = k.missionen.map((m) => `<li><b>${mehrere && m.projekt ? `${esc(m.projekt)} ` : ''}#${esc(m.epic)}</b><span>heute ${esc(wert(m.heute))}</span><span>Woche ${esc(wert(m.woche))}</span></li>`).join('');
     return `<dt title="${esc(VERBRAUCH_METHODE)}">Missionen</dt><dd><ul class="mr-missionen">${zeilen}</ul></dd>`;
   };
 

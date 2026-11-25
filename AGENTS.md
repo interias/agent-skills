@@ -8,6 +8,8 @@ Adapter für `/mission` in [`.claude/epic.md`](.claude/epic.md).
 
 - **Öffentliches Repository.** Keine lokalen Pfade mit Benutzernamen, keine IPs, keine
   Transkriptinhalte, keine Verbrauchs- oder Limitwerte in Issues, Kommentaren, Commits und PRs.
+  Ausnahme: die Zeile `Verbrauch: … Tok` des Treibers im PR einer Mission (nur Tokens, nie ein
+  Anteil an Plan- oder Wochenlimit; `flotte/references/bremsen.md`).
 - **Nur in Worktrees arbeiten**, unter `../agent-skills-worktrees/<name>` auf eigenem Branch ab
   `origin/main`. Im Hauptverzeichnis kein Branch-Wechsel, kein `stash`, keine Edits.
 - **Sprachraum** (agent-skills/ADR-0003): Texte, Oberfläche und Doku sprechen den Wortschatz aus

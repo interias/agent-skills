@@ -237,7 +237,7 @@ Drei Ebenen, sortiert danach, was du tun musst:
    Missionen mit `prio/hoch` zuerst, mit dem Grund, wenn sie warten, und ab fünf gemessenen Missionen
    mit „voraussichtlich 3–5 h“. Je Mission dort „N Tickets“ mit derselben Segmentleiste; antippen klappt
    die Tickets mit Links auf (im spec-Modus vor dem Start keine).
-   **Verbrauch** (#225): Meldet der Treiber ihn, steht unter dem Titel jeder Karte unter *Unterwegs* eine
+   **Verbrauch** (Tag Q): Meldet der Treiber ihn, steht unter dem Titel jeder Karte unter *Unterwegs* eine
    Zahlzeile, z. B. `≈3,1 % Woche · K2 · 2,4 Mio Tok · Cache 92 %` (die Laufzeit steht darüber im Kopf):
    geschätzter Anteil am Wochenlimit, Konten, Tokens, Cache-Quote; der Tooltip schlüsselt Eingabe,
    Cache-Schreiben, Cache-Lesen, Ausgabe und die gewichtete Summe auf. ≈ geschätzt: Wochenanteil des Kontos geteilt durch die gewichteten Tokens aller Missionsläufe auf dem Konto in diesem Wochenfenster, mal die gewichteten Tokens der Mission; andere Arbeit auf dem Konto zählt mit, die Zahl liegt eher zu hoch.
@@ -284,10 +284,10 @@ Auf dem Handy schiebt sich ein Blatt von unten hoch, Neuestes oben, Reiter Verla
 Entscheidungen ([`doku/verlauf-blatt-390.png`](doku/verlauf-blatt-390.png)). Lesen darf jedes gekoppelte
 Gerät, auch über den Fernweg; Werkzeugausgaben kommen nie auf die Brücke, Geheimnisse sind maskiert
 (`SCHNITTSTELLE.md`, Abschnitt 5a).
-Im Kopf von Schublade und Blatt steht der **Verbrauch** der Mission (#227): die Summenzeile wie auf der
+Im Kopf von Schublade und Blatt steht der **Verbrauch** der Mission (Tag Q): die Summenzeile wie auf der
 Karte (gelb mit Grund, wenn markiert), aufgeklappt eine kleine Tabelle je Paket und Rolle mit ≈Wochenanteil,
 Tokens (Tooltip: Aufschlüsselung) und Cache-Quote; Paket leer heißt ganze Mission, der Orchestrator steht
-als „Orchestrator (Vorab-Tor, Andocken)“. Bilder: [`doku/verbrauch-verlauf-1440.png`](doku/verbrauch-verlauf-1440.png),
+als „Orchestrator (Lagebesprechung, Andocken)“. Bilder: [`doku/verbrauch-verlauf-1440.png`](doku/verbrauch-verlauf-1440.png),
 [`doku/verbrauch-verlauf-390.png`](doku/verbrauch-verlauf-390.png).
 
 ## Holodeck
@@ -401,9 +401,10 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
   trägt, steht als „… meldet der Treiber nicht“. Die **Anmeldung** je Konto kommt aus `kontenListe`
   des Berichts (#95). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
   liefert der Treiber; bei `gruen` steht „keine“.
-  Meldet der Treiber je Konto `missionen` (#225), steht an der Kontokarte unter **Missionen**, welche
+  Meldet der Treiber je Konto `missionen` (Tag Q), steht an der Kontokarte unter **Missionen**, welche
   Mission heute und seit Beginn des Wochenfensters wie viel verbraucht hat (`#491 heute ≈1,2 % · 1,2 Mio Tok
-  Woche ≈3,1 % · 2,4 Mio Tok`), der Satz zur Schätzung steht darüber; ohne Daten nichts. Bilder:
+  Woche ≈3,1 % · 2,4 Mio Tok`), der Satz zur Schätzung steht darüber; ohne Daten nichts. Die Missionen aller
+  Projekte auf dem Konto stehen zusammen, bei mehreren Projekten mit dem Projektnamen vor der Nummer. Bilder:
   [`doku/verbrauch-maschinenraum-1440.png`](doku/verbrauch-maschinenraum-1440.png), [`doku/verbrauch-maschinenraum-390.png`](doku/verbrauch-maschinenraum-390.png).
   Über den Tanks (#96) je Konto aus `~/.claude/flotte/konten.json` Name, Farbe, Rechner, aktiv und
   Anmeldung mit den Knöpfen **Am Rechner anmelden**, **Deaktivieren**/**Aktivieren** und je Rechner

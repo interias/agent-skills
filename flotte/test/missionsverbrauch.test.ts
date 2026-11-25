@@ -7,7 +7,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { leseTokens } from '../src/tokens.ts';
-import { anteilWoche, auswerten, Fundstellen, imFenster, logbuchZeile, prBodyMitVerbrauch, prZeile, STUNDE, warnungen, wochenRate, Zaehler, type Quelle } from '../src/treiber/missionsverbrauch.ts';
+import { anteilWoche, auswerten, Fundstellen, imFenster, logbuchZeile, prBodyMitVerbrauch, prZeile, STUNDE, SUCHE_MS, warnungen, wochenRate, Zaehler, type Quelle } from '../src/treiber/missionsverbrauch.ts';
 
 const T0 = Date.parse('2026-11-25T08:00:00Z');
 
@@ -169,6 +169,23 @@ describe('Fundstellen: from the logs of the runs to the transcripts of the accou
     mkdirSync(join(konto, 'projects', 'woanders'), { recursive: true });
     writeFileSync(join(konto, 'projects', 'woanders', 's8.jsonl'), '');
     expect(new Fundstellen().quellen(laeufe, 8, [konto]).map((x) => x.pfad)).toEqual([join(konto, 'projects', 'woanders', 's8.jsonl')]);
+  });
+
+  it('a transcript not there at the first search is searched for again after SUCHE_MS, not every turn', () => {
+    const d = ordner();
+    const laeufe = join(d, 'laeufe');
+    const konto = join(d, 'konto');
+    mkdirSync(laeufe);
+    writeFileSync(join(laeufe, '9-1.jsonl'), `${JSON.stringify({ type: 'system', subtype: 'init', cwd: '/anders', session_id: 's9' })}\n`);
+    let jetzt = 0;
+    const f = new Fundstellen(() => jetzt);
+    expect(f.quellen(laeufe, 9, [konto])).toEqual([]);
+    mkdirSync(join(konto, 'projects', 'woanders'), { recursive: true });
+    writeFileSync(join(konto, 'projects', 'woanders', 's9.jsonl'), '');
+    jetzt = SUCHE_MS - 1;
+    expect(f.quellen(laeufe, 9, [konto])).toEqual([]);
+    jetzt = SUCHE_MS;
+    expect(f.quellen(laeufe, 9, [konto]).length).toBe(1);
   });
 });
 

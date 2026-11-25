@@ -220,7 +220,7 @@ class VerbrauchRolle(VerbrauchZahlen):
 
 
 class Verbrauch(VerbrauchZahlen):
-    """#225, #227: the usage of a mission so far, per package and role in the order the driver sends; a mark when
+    """Tag Q: the usage of a mission so far, per package and role in the order the driver sends; a mark when
     `warnung` names reasons (nothing halts)."""
 
     stand: str | None = Field(None, max_length=40)
@@ -271,7 +271,7 @@ class Epic(BaseModel):
     merge: Andocken | None = None
     # the line of the card under "Unterwegs" and of a blockade; an older driver has none (the cards as before)
     lage: Lage | None = None
-    # #225: the usage of the mission so far; an older driver has none (the cards as before)
+    # Tag Q: the usage of the mission so far; an older driver has none (the cards as before)
     verbrauch: Verbrauch | None = None
 
 
@@ -335,7 +335,7 @@ class Konto(BaseModel):
     alterMin: float | None = None
     # why the driver brakes this account (only with gelb/rot); the driver cuts it to 4000 characters
     grund: str | None = Field(None, max_length=4000)
-    # #225: the missions' usage on this account today and this week; an older driver has none
+    # Tag Q: the missions' usage on this account today and this week; an older driver has none
     missionen: list[KontoMission] | None = Field(None, max_length=200)
 
 

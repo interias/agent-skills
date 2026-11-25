@@ -112,7 +112,7 @@
   .bereich[data-bereich="maschinenraum"] .mr-auto-zeile { grid-template-columns: 1fr; }
   .bereich[data-bereich="maschinenraum"] .mr-auto-zeile .knopf { min-height: 48px; }
 }
-/* #225: the missions of an account, the number, beside it today and below that this week; never a number broken */
+/* Tag Q: the missions of an account, the number, beside it today and below that this week; never a number broken */
 .bereich[data-bereich="maschinenraum"] .mr-missionen { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
 .bereich[data-bereich="maschinenraum"] .mr-missionen li { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); column-gap: 8px; }
 .bereich[data-bereich="maschinenraum"] .mr-missionen li > span { grid-column: 2; white-space: nowrap; color: var(--matt); }
