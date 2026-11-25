@@ -105,6 +105,21 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     p.adapterLuecken?.length
       ? `<p class="dein-schritt"><b>Dein Schritt:</b> Adapter ausfüllen (in einem eigenen Chat)</p><p class="mr-hilfe">Noch auszufüllen in <code>.claude/epic.md</code>: ${p.adapterLuecken.map((k) => `<code>${esc(k)}</code>`).join(', ')}. Bis dahin startet hier keine Mission.</p>`
       : '';
+  // step 8 of the gate rework: a red night run holds the merge queue until the person releases it at the machine
+  const nachtZeit = (iso) => (iso ? iso.slice(0, 16).replace('T', ' ') : '');
+  const nachtlaufHtml = (p) => {
+    const n = p.nachtlauf;
+    if (!n) return '';
+    const h = n.halt;
+    const issue = h?.issue ? (p.url ? `<a href="${esc(p.url)}/issues/${h.issue}" target="_blank" rel="noopener">Issue #${h.issue}</a>` : `Issue #${h.issue}`) : 'kein Issue';
+    const halt = h
+      ? `<p class="dein-schritt"><b>Andock-Schlange hält</b> seit ${esc(nachtZeit(h.seit))}: ${esc(h.grund)} (${esc(h.commit.slice(0, 7))}), ${issue}.${h.gruen ? ` Danach grün auf ${esc(h.gruen.commit.slice(0, 7))}.` : ''}</p><p class="mr-hilfe">Missionen arbeiten weiter, neue Andockungen warten. Freigeben am Rechner im Projektordner: <code>flotte nachtlauf --freigeben</code>.</p>`
+      : '';
+    const l = n.letzter;
+    const wort = { gruen: 'grün', rot: 'rot', fehler: 'nicht gefahren' };
+    const letzter = l ? `<p class="mr-hilfe">Letzter Nachtlauf ${esc(nachtZeit(l.zeit))}: ${wort[l.ergebnis] ?? esc(l.ergebnis)}${l.commit ? ` auf ${esc(l.commit.slice(0, 7))}` : ''}${l.wiederholt ? ', wiederholt' : ''}${l.grund ? ` (${esc(l.grund)})` : ''}.</p>` : '';
+    return halt + letzter;
+  };
   const holtProjekte = (t) => t.projekte.filter((p) => p.meldetProjekte && !p.veraltet);
   const projektWartet = (h, was) => (h ? `<span class="mr-wartet">${was} wartet auf den Rechner${h.abgeholt ? ' · abgeholt' : ''}</span>` : '');
 
@@ -112,7 +127,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     if (!t.projekte.length) return '';
     const zu = !t.pin ? ' disabled' : '';
     const karten = t.projekte.map((p) => `<article class="mr-karte${p.veraltet ? ' veraltet' : ''}"><h3>${esc(p.kurz)}</h3>
-<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
+<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${nachtlaufHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
     const treiber = holtProjekte(t);
     const wartet = t.projekte.find((p) => p.hinzufuegen);
     const wahl = treiber.length > 1 ? `<label class="mr-feld">über den Treiber von<select class="mr-ordner" name="projekt-ueber"${zu}>${treiber.map((p) => `<option value="${esc(p.forge)}">${esc(p.kurz)}${p.rechner ? ` · ${esc(p.rechner)}` : ''}</option>`).join('')}</select></label>` : '';

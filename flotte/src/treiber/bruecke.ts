@@ -192,6 +192,8 @@ export interface Bericht {
   taktS: number;
   epics: BerichtEpic[];
   schlange: number[];
+  /** step 8 of the gate rework: the halt of the merge queue after a red night run and the last night run; null before the first */
+  nachtlauf?: BerichtNachtlauf | null;
   konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; vorsprung: number | null; alterMin: number | null; grund?: string }[];
   /** #95: the accounts of konten.json with aktiv and sign-in, never a path; null when the file cannot be read */
   kontenListe?: { nr: number; name: string; farbe: string; aktiv: boolean; anmeldung: string | null }[] | null;
@@ -222,6 +224,12 @@ export interface Bericht {
   triage: BerichtTriage;
   /** #154: the stand the driver runs and a newer one on main of its source */
   version: BerichtVersion;
+}
+
+/** the night run (flotte nachtlauf) for the bridge: never a path; the issue as a number, the bridge links it */
+export interface BerichtNachtlauf {
+  halt: { seit: string; grund: string; commit: string; basis: string; issue: number | null; teile: string[]; gruen: { zeit: string; commit: string } | null } | null;
+  letzter: { ergebnis: 'gruen' | 'rot' | 'fehler'; commit: string | null; basis: string; zeit: string; dauerS: number; wiederholt: boolean; teile: string[]; grund: string | null } | null;
 }
 
 /**

@@ -541,6 +541,42 @@ class Version(BaseModel):
     einspielen: Einspielen | None = None
 
 
+class NachtGruen(BaseModel):
+    zeit: str = Field(max_length=40)
+    commit: str = Field(pattern=r'^[0-9a-f]{7,40}$')
+
+
+class NachtHalt(BaseModel):
+    """Step 8 of the gate rework: the merge queue holds after a red night run (`flotte nachtlauf`); only a person
+    releases it at the machine. gruen: a later green night, noted but not releasing."""
+
+    seit: str = Field(max_length=40)
+    grund: str = Field(max_length=500)
+    commit: str = Field(pattern=r'^[0-9a-f]{7,40}$')
+    basis: str = Field(max_length=200)
+    issue: int | None = Field(None, ge=1)
+    teile: list[str] = Field([], max_length=20)
+    gruen: NachtGruen | None = None
+
+
+class NachtLetzter(BaseModel):
+    """The last night run: its result on which commit, when and how long; never the path of its log."""
+
+    ergebnis: Literal['gruen', 'rot', 'fehler']
+    commit: str | None = Field(None, pattern=r'^[0-9a-f]{7,40}$')
+    basis: str = Field(max_length=200)
+    zeit: str = Field(max_length=40)
+    dauerS: int = Field(ge=0)
+    wiederholt: bool = False
+    teile: list[str] = Field([], max_length=20)
+    grund: str | None = Field(None, max_length=500)
+
+
+class Nachtlauf(BaseModel):
+    halt: NachtHalt | None = None
+    letzter: NachtLetzter | None = None
+
+
 def einstellung_pruefen(liste: list[dict], name: str, wert: Any, andere: dict[str, Any]) -> str | None:
     """Why the driver would refuse the value, or None. `andere`: the value each other setting has or is about to get."""
     e = next((x for x in liste if x['name'] == name), None)
@@ -613,6 +649,8 @@ class Bericht(BaseModel):
     klonAngebot: KlonAngebot | None = None
     # the keys of the driver's adapter still in <…> as in the template: no mission starts while there are any
     adapterLuecken: list[str] = Field([], max_length=30)
+    # step 8 of the gate rework: the night run and the halt of the merge queue; an older driver has none (None)
+    nachtlauf: Nachtlauf | None = None
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it

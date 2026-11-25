@@ -305,6 +305,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         # the field "Link zum Repository" (None: this driver does not clone) and the gaps of its adapter
         liste[-1]['klonAngebot'] = b.get('klonAngebot')
         liste[-1]['adapterLuecken'] = b.get('adapterLuecken') or []
+        # step 8 of the gate rework: the last night run and the halt of the merge queue (None: an older driver or none yet)
+        liste[-1]['nachtlauf'] = b.get('nachtlauf')
         liste[-1]['entfernen'] = _handlung(offen_h.get((0, 'projekt_entfernen', None, None)))
         # #96: the accounts of the machine, the newest report wins; an action goes to the project that reported it
         if b.get('kontenListe') is not None:
