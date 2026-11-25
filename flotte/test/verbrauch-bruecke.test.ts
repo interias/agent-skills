@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { fahre } from '../src/treiber/treiber.ts';
 import { aufbau, drehbuch, ende, lauf } from './flotte-welt.ts';
 
@@ -62,6 +63,15 @@ describe('Tag Q: the usage of a mission on the bridge', () => {
       expect(v.warnung).toEqual([]);
       const konto = b.berichte.at(-1).konten.find((k: any) => k.missionen);
       expect(konto.missionen).toEqual([{ epic: 3, heute: { summe: 10_200_000, anteil: 10 }, woche: { summe: 10_200_000, anteil: 10 } }]);
+      // the shape of the shared contract flottenbruecke/beispiel/bericht.json
+      const muster = JSON.parse(readFileSync(fileURLToPath(new URL('../../flottenbruecke/beispiel/bericht.json', import.meta.url)), 'utf8'));
+      const mv = muster.epics.find((e: any) => e.verbrauch).verbrauch;
+      const keys = (x: object) => Object.keys(x).sort();
+      expect(keys(v)).toEqual(keys(mv));
+      expect(keys(v.rollen[0])).toEqual(keys(mv.rollen[0]));
+      const mk = muster.konten.find((k: any) => k.missionen).missionen[0];
+      expect(keys(konto.missionen[0])).toEqual(keys(mk));
+      expect(keys(konto.missionen[0].heute)).toEqual(keys(mk.heute));
 
       // the logbook of the bridge: the end sum after the merge
       expect(t.p.meldungen.some((m) => /^#3 Verbrauch der Mission: 10,2 Mio Tok \(Eingabe 100 Tsd, Cache-Schreiben 0, Cache-Lesen 10 Mio, Ausgabe 100 Tsd\), Cache 99 %, gewichtet 1,6 Mio, ≈10 % Woche$/.test(m))).toBe(true);
