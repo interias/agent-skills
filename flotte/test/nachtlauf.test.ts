@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, type AsyncAufrufer, type Aufrufer } from '../src/aufruf.ts';
-import { BEFEHL_MS, HALT_DATEI, liesHalt, liesNachtlauf, nachtlauf, type NachtWelt, ohnePfade, SPERRE, VERFALL_MS } from '../src/befehle/nachtlauf.ts';
+import { andockblock, BEFEHL_MS, HALT_DATEI, liesHalt, liesNachtlauf, nachtlauf, type NachtWelt, ohnePfade, SPERRE, VERFALL_MS } from '../src/befehle/nachtlauf.ts';
 import { githubZugriff } from '../src/forge/github.ts';
 import { giteaZugriff } from '../src/forge/gitea.ts';
 import type { ForgeZugriff } from '../src/forge/zugriff.ts';
@@ -398,4 +398,11 @@ describe('flotte nachtlauf (Schritt 8 des Gate-Umbaus)', () => {
     expect(t.b.issues.filter((i) => i.labels.includes('flotte'))).toHaveLength(0);
     expect(resolve(t.dir)).toBe(resolve(t.repo, '.git', 'flotte'));
   }, T);
+});
+
+describe('Nachtlauf: die roten Teile des Andockblocks', () => {
+  it('names only contexts at the first context indentation; a deeper detail line that says ROT is no part', () => {
+    const ausgabe = ['log davor', '== Gate: Basis origin/main @ 80b0ca3 (HEAD d38f3542)', '  alpha    grün     9:50', '    Gruppen: alle 11', '    Los 1 (Testbett): ROT', '    einheit   ROT   3 Tests','  beta     ROT      1:02', '    Fehler im Testbett: x', '  gamma    übersprungen', 'Gate ROT.'].join('\n');
+    expect(andockblock(ausgabe, '---\nmerge: nach_gate\n---\n')).toMatchObject({ gruen: false, vollstaendig: true, teile: ['beta'] });
+  });
 });
