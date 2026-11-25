@@ -3,8 +3,8 @@
     Creates, updates or removes the scheduled task of the night run (`flotte nachtlauf`) for one project.
 
 .DESCRIPTION
-    The task "Flotte Nachtlauf <name>" (name from the project folder, as `flotte projekt hinzufuegen` names its start
-    script) runs the installed flotte CLI with `nachtlauf` in the project folder every night at -Uhrzeit. It never
+    The task "Flotte Nachtlauf <name>-<hash>" (name from the project folder, hash: six hex digits of its full path, so
+    two projects with the same folder name do not share a task) runs the installed flotte CLI with `nachtlauf` in the project folder every night at -Uhrzeit. It never
     starts a second instance while one runs (IgnoreNew), does not catch up a missed run in the day (no
     StartWhenAvailable) and ends after 8 hours. It runs as the signed-in user, only while that user is signed in (a
     locked screen counts): running without a session would need a stored password, and with "do not store password"
@@ -30,7 +30,13 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $Projekt = $Projekt.Trim().Trim('"', "'")
-$name = 'Flotte Nachtlauf ' + ((Split-Path -Leaf $Projekt) -replace '[^A-Za-z0-9_.-]', '-')
+# the full path, also for a folder that is gone (-Entfernen): the task runs in it, and its name hangs on it
+if (-not [IO.Path]::IsPathRooted($Projekt)) { $Projekt = Join-Path (Get-Location).ProviderPath $Projekt }
+$Projekt = [IO.Path]::GetFullPath($Projekt).TrimEnd('\')
+# a short hash of the full path: two projects with the same folder name get a task each
+$sha = [Security.Cryptography.SHA256]::Create()
+$hash = (($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Projekt.ToLowerInvariant()))[0..2] | ForEach-Object { $_.ToString('x2') }) -join '')
+$name = 'Flotte Nachtlauf ' + ((Split-Path -Leaf $Projekt) -replace '[^A-Za-z0-9_.-]', '-') + "-$hash"
 
 if ($Entfernen) {
     if (-not (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue)) { "keine Aufgabe $name"; return }
