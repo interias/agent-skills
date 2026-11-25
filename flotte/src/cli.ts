@@ -8,6 +8,7 @@ import { epic } from './befehle/epic.ts';
 import { forge } from './befehle/forge.ts';
 import { konten } from './befehle/konten.ts';
 import { projekt } from './befehle/projekt.ts';
+import { pruefen } from './befehle/pruefen.ts';
 import { auftrag } from './befehle/auftrag.ts';
 import { chat } from './befehle/chat.ts';
 import { lernen } from './befehle/lernen.ts';
@@ -47,6 +48,7 @@ const befehle: Record<string, (argv: string[]) => unknown> = {
   konten: (argv) => konten(argv),
   forge: (argv) => forge(argv),
   projekt: (argv) => projekt(argv),
+  pruefen: (argv) => pruefen(argv),
 };
 
 export async function main(argv: string[]): Promise<number> {

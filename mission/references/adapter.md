@@ -53,6 +53,10 @@ Frontmatter (Abschnitt „Form").
 
 ## Vorlage
 
+Ein Repository, in dem die Flotte fahren soll, richtet `/flotte-einrichten` einmal ein (Adapter,
+Andockprüfung, Forge, Nachtlauf, Anmeldung); was einem bestehenden fehlt, meldet
+`flotte pruefen <ordner>` (`flotte/README.md`, „Repository prüfen“).
+
 Ein neuer Adapter beginnt mit diesem Block; `flotte projekt hinzufuegen` legt ihn wortgleich an, wenn
 `.claude/epic.md` fehlt (mit `--klonen` sind `forge` und `api` aus dem Link schon eingesetzt), und meldet die
 Schlüssel, deren Wert (oder Eintrag) noch in `<…>` steht. Solange es solche gibt, startet der Flotten-Treiber in
