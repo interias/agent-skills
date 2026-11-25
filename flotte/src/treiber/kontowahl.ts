@@ -22,7 +22,8 @@ export function vorsprung(b: Bewertung | undefined, jetzt: number): number | nul
   // a window whose reset lies in the past has started over: all left, all the time left
   if (reset <= jetzt) return 0;
   const zeit = Math.min(1, (reset - jetzt) / WOCHE_MS);
-  return Math.round(100 - s.verbraucht - 100 * zeit);
+  // a usage above 100 % is possible in the measurement; the bridge takes −100…100
+  return Math.max(-100, Math.min(100, Math.round(100 - s.verbraucht - 100 * zeit)));
 }
 
 /** points left in the 5-hour window; a window reset since the measurement is full again */

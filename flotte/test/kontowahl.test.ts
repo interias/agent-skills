@@ -1,6 +1,9 @@
 // Tag P: the driver evens out the use of the accounts, the largest lead in the weekly window first.
 
 import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { grund, rangfolge, vorsprung } from '../src/treiber/kontowahl.ts';
 import { fahre } from '../src/treiber/treiber.ts';
 import type { Bewertung } from '../src/werkzeuge/verbrauch.ts';
@@ -38,6 +41,8 @@ describe('Tag P: Vorsprung im Wochenfenster', () => {
     expect(vorsprung(mess(90, -1), jetzt)).toBe(0);
     expect(vorsprung(mess(null), jetzt)).toBeNull();
     expect(vorsprung(undefined, jetzt)).toBeNull();
+    // a measured usage above 100 % stays within the range the bridge takes
+    expect(vorsprung(mess(150, 6), jetzt)).toBe(-100);
   });
 
   it('names the reason in one sentence', () => {
@@ -91,13 +96,30 @@ describe('Tag P: der Treiber wählt nach der Rangfolge', () => {
     expect(texte(z).some((x) => /^#3 Start auf Konto 2: \d+ Punkte Vorsprung im Wochenfenster$/.test(x))).toBe(true);
   }, T);
 
-  it('a yellow or red account never takes the mission, however large its lead (inactive: bruecke.test.ts, #95)', async () => {
+  it('a yellow or red account never takes the mission, however large its lead (inactive: below)', async () => {
     const t = aufbau({ verbrauch: [0.1, 0.7, 0.95], woche: [0.6, 0.1, 0.1] });
     const [k1] = t.konten;
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3]), t.welt);
     expect(missionsLaeufe(buch.gesehen()).map((l) => l.konto)).toEqual([k1]);
     expect(texte(z).some((x) => /^#3 Start auf Konto 1: \d+ Punkte Rückstand im Wochenfenster$/.test(x))).toBe(true);
+  }, T);
+
+  it('a deactivated account takes nothing, however large its lead: no start, no move after a 429, no admiral call', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.1, 0.1, 0.95], woche: [0.6, 0.1, 0.6, 0.1] });
+    const [k1, aus, k3, admiralKonto] = t.konten;
+    const heim = mkdtempSync(join(tmpdir(), 'flotte-heim-'));
+    const datei = join(heim, '.claude', 'flotte', 'konten.json');
+    mkdirSync(join(heim, '.claude', 'flotte'), { recursive: true });
+    writeFileSync(datei, JSON.stringify([k1, aus, k3].map((k, i) => ({ nr: String(i + 1), ordner: k, name: `Konto ${i + 1}`, farbe: '#112233', aktiv: k !== aus }))));
+    t.welt.konten = { datei, heim, terminal: () => {} };
+    const buch = drehbuch([lauf(3, [{ text: 'API Error: 429 rate_limit_error', fehler: true }], 1), lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false }]), lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { konten: [k1, aus, k3], admiralKonto }), t.welt);
+    const g = buch.gesehen();
+    expect(missionsLaeufe(g)[0].konto).toBe(k1);
+    expect(missionsLaeufe(g)[1].konto).toBe(k3);
+    expect(g.filter((x) => x.eingabe.startsWith('FLOTTE-ADMIRAL')).map((x) => x.konto)).toEqual([k3]);
+    expect(z.epics['3'].stufe).toBe('fertig');
   }, T);
 
   it('after a 429 the mission moves by the same order, not to the next account of the list', async () => {

@@ -1494,7 +1494,8 @@ class Treiber {
     // the throttled account is held DROSSEL_MS, so two throttled accounts never hand a mission back and forth
     this.gedrosselt.set(konto, this.w.jetzt() + DROSSEL_MS);
     this.bewertung.set(konto, this.bewerten(konto));
-    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && (this.gedrosselt.get(k) ?? 0) <= this.w.jetzt() && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity));
+    // Tag P: like a start, a deactivated account (#95) takes none; unused, it would lead the order
+    const frei = this.e.konten.filter((k) => k !== konto && this.bewertung.get(k)?.stufe === 'gruen' && (this.gedrosselt.get(k) ?? 0) <= this.w.jetzt() && this.aktivAuf(k) < (this.e.kontoMax[k] ?? Infinity) && this.kontoAktiv(k));
     if (frei.length) {
       const neu = this.kontenReihe(frei)[0];
       await this.aufraeumen(nr);
@@ -1606,13 +1607,14 @@ class Treiber {
 
   /**
    * #111: the account of the admiral's call: his own unless it is red; then another account of the
-   * fleet with room, green before yellow, each in the order of kontenReihe (Tag P); null when all are red.
+   * fleet with room and active (#95), green before yellow, each in the order of kontenReihe (Tag P); null when
+   * all are red.
    * Without --admiral his own is the run's account (flotte/SKILL.md), which may turn red during the turn.
    */
   admiralKontoFuer(ep: FlottenEpic): string | null {
     const eigenes = this.e.admiralKonto ?? ep.konto!;
     if (this.bewertung.get(eigenes)?.stufe !== 'rot') return eigenes;
-    const andere = this.kontenReihe(this.e.konten.filter((k) => k !== eigenes));
+    const andere = this.kontenReihe(this.e.konten.filter((k) => k !== eigenes && this.kontoAktiv(k)));
     return andere.find((k) => this.bewertung.get(k)?.stufe === 'gruen') ?? andere.find((k) => this.bewertung.get(k)?.stufe === 'gelb') ?? null;
   }
 

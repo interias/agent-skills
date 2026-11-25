@@ -62,7 +62,8 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   gelten `~/.claude`, `~/.claude-arbeitspferd` und `~/.claude-arbeitspferd-3`. Ein deaktiviertes
   Konto fällt aus der Auswahl der Brücke, sein Ordner bleibt. Die Konten aus `--konten` sind
   gleichrangig; eine neue Mission geht auf das freie Konto mit dem größten Vorsprung im
-  Wochenfenster, bei Gleichstand auf das mit den wenigsten laufenden Läufen
+  Wochenfenster, bei Gleichstand auf das mit mehr Luft im 5-Stunden-Fenster, dann das mit den
+  wenigsten laufenden Läufen
   ([`references/bremsen.md`](references/bremsen.md), „Kontowahl“).
 
 Mögliche Schalter:
