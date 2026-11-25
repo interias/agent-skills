@@ -15,6 +15,7 @@ import { blockAus, blockEinsetzen, gateForm, gateLaeufe } from '../src/treiber/g
 import { belege, bildAus, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { beobachte, schrittAus } from '../src/werkzeuge/lauf.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
+import { HALT_DATEI } from '../src/befehle/nachtlauf.ts';
 import { aufbau, drehbuch, ende, lauf, type Optionen, gateAufruf } from './flotte-welt.ts';
 
 // upper bounds against a hang only (#141): the order comes from signals, not from the wall clock
@@ -199,6 +200,32 @@ describe('A: die Merge-Schlange', () => {
     ]);
     expect(z.andockpruefungen).toEqual([m]);
     expect(texte(z).some((x) => /^#3 Andockprüfung des Treibers grün nach \d+ s \(Exit 0\); 1 von 2 Kontexten aus dem Cache$/.test(x))).toBe(true);
+  }, T);
+
+  it('a halt that comes while the head gates itself: the head runs gate_command to the end, is measured and docks (step 8)', async () => {
+    const halt = { seit: '2026-11-25T02:41:00.000Z', grund: 'Nachtlauf rot', commit: 'abc1234def5678', basis: 'main', issue: null, teile: [], log: null };
+    // the night run sets the halt while the driver's gate of #3 runs
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      rot: () => {
+        writeFileSync(join(flotteDir(t.repo), HALT_DATEI), JSON.stringify(halt));
+        return false;
+      },
+    });
+    // #3 committed after its gate: the driver gates
+    writeFileSync(join(t.epics[0].wt, 'a', 'nach.txt'), 'nach dem Gate\n');
+    git(t.epics[0].wt, 'add', '-A');
+    git(t.epics[0].wt, 'commit', '-q', '-m', 'nach dem Gate');
+    git(t.epics[0].wt, 'push', '-q', 'origin', 'epic/3-x');
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
+    expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', t.epics[0].wt]]);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.epics['3'].andockpruefung).toMatchObject({ epic: 3, gruen: true });
+    expect(z.andockpruefungen).toHaveLength(1);
+    const e = texte(z);
+    // the halt was set during the gate; the driver reads it at its next tick and the docking under way ends
+    expect(index(e, /^#3 merge\.ps1: GEMERGT/)).toBeGreaterThan(index(e, /^#3 Andockprüfung des Treibers grün/));
+    expect(index(e, /^Andock-Schlange hält/)).toBeGreaterThan(index(e, /^#3 Andockprüfung des Treibers \(/));
   }, T);
 
   it('a block against another base than the merge-base is not counted, even with a gate call in the log (#191)', async () => {
