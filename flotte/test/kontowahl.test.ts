@@ -91,6 +91,15 @@ describe('Tag P: der Treiber wählt nach der Rangfolge', () => {
     expect(texte(z).some((x) => /^#3 Start auf Konto 2: \d+ Punkte Vorsprung im Wochenfenster$/.test(x))).toBe(true);
   }, T);
 
+  it('a yellow or red account never takes the mission, however large its lead (inactive: bruecke.test.ts, #95)', async () => {
+    const t = aufbau({ verbrauch: [0.1, 0.7, 0.95], woche: [0.6, 0.1, 0.1] });
+    const [k1] = t.konten;
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(missionsLaeufe(buch.gesehen()).map((l) => l.konto)).toEqual([k1]);
+    expect(texte(z).some((x) => /^#3 Start auf Konto 1: \d+ Punkte Rückstand im Wochenfenster$/.test(x))).toBe(true);
+  }, T);
+
   it('after a 429 the mission moves by the same order, not to the next account of the list', async () => {
     const t = aufbau({ verbrauch: [0.1, 0.1, 0.1], woche: [0.1, 0.6, 0.1] });
     const [k1, , k3] = t.konten;
