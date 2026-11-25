@@ -43,6 +43,22 @@
 .vl-luft { flex: 1; }
 .vl-stand { color: var(--zeitfarbe); font: 12px var(--disp); letter-spacing: .04em; white-space: nowrap; }
 .vl-griff { display: none; }
+/* #227: the usage of the mission, a sum line that opens the table per package and role; a mark takes the warning tone */
+.vl-vb-summe { margin: 0; color: var(--matt); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.vl-vb-summe > span { white-space: nowrap; }
+.vl-vb-summe .vl-vb-name { margin-right: 8px; color: var(--pfirsich); font: 600 12px var(--disp); letter-spacing: .08em; text-transform: uppercase; }
+.vl-vb-summe.warnung, .vl-vb-summe.warnung .vl-vb-name { color: var(--gelb); }
+.vl-vb-summe .vl-vb-warn { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
+summary.vl-vb-summe { list-style: none; cursor: pointer; }
+summary.vl-vb-summe::-webkit-details-marker { display: none; }
+.vl-vb[open] .vl-vb-summe .vl-pfeil { transform: rotate(90deg); }
+.vl-vb .vl-pfeil { display: inline-block; margin-right: 4px; }
+.vl-vb-tab { max-height: 13.2em; overflow: auto; margin-top: 4px; border: 1px solid var(--linie); border-radius: 6px; }
+.vl-vb-tab table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.vl-vb-tab th { position: sticky; top: 0; background: var(--flaeche3); color: var(--zeitfarbe); font: 600 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; text-align: left; }
+.vl-vb-tab th, .vl-vb-tab td { padding: 2px 8px; }
+.vl-vb-tab td { border-top: 1px solid var(--linie); overflow-wrap: anywhere; }
+.vl-vb-tab .z { text-align: right; white-space: nowrap; }
 .vl-reiter[hidden] { display: none; }
 
 /* ---- the entries */
