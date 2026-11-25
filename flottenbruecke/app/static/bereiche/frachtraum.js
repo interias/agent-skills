@@ -2,8 +2,8 @@
 // reads them from the forge, the bridge bundles them by project and topic). Per project: the critical
 // questions of the triage with a button per option (the recommendation marked) and a free text, the
 // decisions of the triage runs to read and revoke, (#148) the cut plan of the last run with "Widerrufen" per
-// mission, (#147) how the last run ended, the notes by topic, and "Triage-Lauf starten" (also for all projects). Tag N:
-// a checkbox per note chooses the notes of the next run (all by default, and again after the start). Every action needs the PIN; the driver carries it out from its next turn on, always
+// mission, (#147) how the last run ended, the notes by topic, and "Triage-Lauf starten" (also for all projects).
+// A checkbox per note chooses the notes of the next run (all by default, and again after the start). Every action needs the PIN; the driver carries it out from its next turn on, always
 // as a comment at the ticket. The shell (huelle.js) calls zeichne(t, el) on every load while the area is
 // visible; t is null before the first load, then the helpers of app.js do not exist yet. All scripts of
 // the page share one scope: keep every name inside this call.
@@ -23,7 +23,7 @@
   // drafts: question id -> { wahl, text }, decision id -> { text }; the 10 s load draws again
   const entwuerfe = new Map();
   const offen = new Set(); // opened revocation forms
-  // Tag N: forge -> the note numbers left out of the next triage run; a note new since the load is chosen
+  // forge -> the note numbers left out of the next triage run; a note new since the load is chosen
   const abgewaehlt = new Map();
   let letzte = null; // the board of the last drawing, for the clicks
   let flaeche = null; // the section of the area
@@ -132,7 +132,7 @@
     return `<section class="fr-thema fr-unsauber"><h5 class="fr-fehler">${zahl(a.abweichungen.length, 'Notiz', 'Notizen')} nicht sauber abgearbeitet <span class="fr-klein">Triage-Lauf unvollständig · ${esc(wann(a.zeit))}</span></h5><ul class="fr-tickets">${liste}</ul></section>`;
   }
 
-  // ---- the Sternzeit-Notizen by topic; a ticket with two topics stands in both (Tag N: with one choice)
+  // ---- the Sternzeit-Notizen by topic; a ticket with two topics stands in both (with one choice)
 
   const aus = (forge) => abgewaehlt.get(forge) ?? new Set();
   const nummernVon = (p) => [...new Set(p.themen.flatMap((t) => t.tickets.map((x) => x.nr)))];
@@ -149,9 +149,12 @@
     return `<span class="fr-wahl-knoepfe"><button type="button" class="fr-mini" data-wahl="alle"${t} aria-label="${esc(`${wo} wählen`)}">alle</button><button type="button" class="fr-mini" data-wahl="keine"${t} aria-label="${esc(`${wo} abwählen`)}">keine</button></span>`;
   };
 
-  const ticketHtml = (x, thema, forge, pin) => {
+  // the proposals of the learning loop share the number of the collecting issue and so one choice: one checkbox
+  // at the first of them (gleiche: how many rows of the topic carry the number), none at the others
+  const ticketHtml = (x, thema, forge, pin, gleiche = 1, erste = true) => {
     const an = !aus(forge).has(x.nr);
-    const haken = pin ? `<label class="fr-haken"><input type="checkbox" data-notiz="${x.nr}" data-schluessel="${esc(`${thema}#${x.nr}`)}"${an ? ' checked' : ''} aria-label="${esc(`#${x.nr} ${x.titel} im nächsten Triage-Lauf`)}"></label>` : '';
+    const was = gleiche > 1 ? `alle ${gleiche} Vorschläge von #${x.nr}` : `#${x.nr} ${x.titel}`;
+    const haken = !pin ? '' : erste ? `<label class="fr-haken"${gleiche > 1 ? ` title="${esc(`Gilt für ${was}`)}"` : ''}><input type="checkbox" data-notiz="${x.nr}" data-schluessel="${esc(`${thema}#${x.nr}`)}"${an ? ' checked' : ''} aria-label="${esc(`${was} im nächsten Triage-Lauf`)}"></label>` : '<span class="fr-haken" aria-hidden="true"></span>';
     return `<li class="fr-ticket${x.frage ? ' gefragt' : ''}${pin && !an ? ' abgewaehlt' : ''}">${haken}${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span>${x.frage ? '<span class="fr-marke">Frage an dich</span>' : ''}${x.themen.filter((t) => t !== thema).map((t) => `<span class="fr-label">${esc(t)}</span>`).join('')}</li>`;
   };
 
@@ -173,7 +176,7 @@
     return `<div class="fr-kurz beendet" role="status"><b>Triage-Lauf beendet: ${zahl(k.epics, 'Mission', 'Missionen')}, ${zahl(k.fragen, 'Frage', 'Fragen')} an dich</b>${seit}${sprung}</div>`;
   }
 
-  // Tag N: the button names the choice when it is not all of them; with none chosen it is locked
+  // the button names the choice when it is not all of them; with none chosen it is locked
   function startHtml(p, pin) {
     if (p.laeuft || p.handlung || !pin) return '';
     const m = nummernVon(p).length;
@@ -191,7 +194,7 @@
     const n = gewaehltVon(p).length;
     const wahl = pin && m ? `<div class="fr-wahl-zeile"><span class="fr-klein">Im nächsten Triage-Lauf: ${n === m ? `alle ${m}` : `${n} von ${m}`}</span>${wahlKnoepfe()}</div>` : '';
     const themen = p.themen.length
-      ? `<h4 class="fr-unter">Sternzeit-Notizen nach Thema</h4>${wahl}<div class="fr-themen">${p.themen.map((t) => `<section class="fr-thema"><div class="fr-thema-kopf"><h5>${esc(t.thema)} <span class="fr-anzahl">${t.tickets.length}</span></h5>${pin ? wahlKnoepfe(t.thema) : ''}</div><ul class="fr-tickets">${t.tickets.map((x) => ticketHtml(x, t.thema, p.forge, pin)).join('')}</ul></section>`).join('')}</div>`
+      ? `<h4 class="fr-unter">Sternzeit-Notizen nach Thema</h4>${wahl}<div class="fr-themen">${p.themen.map((t) => `<section class="fr-thema"><div class="fr-thema-kopf"><h5>${esc(t.thema)} <span class="fr-anzahl">${t.tickets.length}</span></h5>${pin ? wahlKnoepfe(t.thema) : ''}</div><ul class="fr-tickets">${t.tickets.map((x, i) => ticketHtml(x, t.thema, p.forge, pin, t.tickets.filter((y) => y.nr === x.nr).length, t.tickets.findIndex((y) => y.nr === x.nr) === i)).join('')}</ul></section>`).join('')}</div>`
       : '<p class="bereich-leer">Keine offene Sternzeit-Notiz.</p>';
     return `<section class="fr-projekt${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}">
 <h3 class="fr-kopf">${link(p.url, esc(p.kurz), 'fr-name')}<span class="fr-zahl">${zahl(p.zahl, 'Sternzeit-Notiz', 'Sternzeit-Notizen')}${p.fragen.length ? ` · ${zahl(p.fragen.length, 'Frage', 'Fragen')} an dich` : ''}${still}</span></h3>
@@ -204,10 +207,10 @@ ${abschlussHtml(p.abschluss)}${fragen}${schnittHtml(p.schnittplan, pin)}${entsch
     const ps = t.frachtraum ?? [];
     if (!ps.length) return `${KOPF}<p class="bereich-leer">Noch kein Treiber meldet Sternzeit-Notizen.</p>`;
     const frei = ps.filter((p) => !p.laeuft && !p.handlung);
-    // Tag N: each project with its choice; one with none chosen gets no run
+    // each project with its choice; one with none chosen gets no run
     const startbar = frei.filter((p) => !nummernVon(p).length || gewaehltVon(p).length);
     const alle = t.pin && ps.length > 1 ? `<div class="knoepfe fr-alle"><button type="button" class="knopf zweit" data-start="alle"${startbar.length ? '' : ' disabled'}>Triage-Lauf für alle</button><span class="status" role="status"></span></div>` : '';
-    const hinweis = `<p class="fr-hinweis">Der Triage-Lauf klärt jede gewählte Sternzeit-Notiz selbst; nur was nach der Liste „beim Menschen“ zu dir gehört, steht hier als Frage. Mit den Haken wählst du die Notizen des nächsten Laufs: vorgewählt sind alle, nach dem Start wieder alle; abgewählte bleiben unberührt für eine spätere Runde. Die Missionen seines Schnittplans gibt er selbst frei; du kannst jede widerrufen. Antworten und Widerrufe stehen als Kommentar am Ticket, nichts nur hier. ${t.pin ? 'Jede Handlung braucht die PIN und wirkt ab dem nächsten Takt des Treibers.' : `Handeln abgeschaltet: ${huelle.ohnePin(t)}.`}</p>`;
+    const hinweis = `<p class="fr-hinweis">Der Triage-Lauf klärt jede gewählte Sternzeit-Notiz selbst; nur was nach der Liste „beim Menschen“ zu dir gehört, steht hier als Frage. Mit den Haken wählst du die Notizen des nächsten Laufs: vorgewählt sind alle, nach dem Start wieder alle; abgewählte bleiben unberührt für eine spätere Runde. Die Lernvorschläge eines Sammel-Issues wählst du nur zusammen. Die Missionen seines Schnittplans gibt er selbst frei; du kannst jede widerrufen. Antworten und Widerrufe stehen als Kommentar am Ticket, nichts nur hier. ${t.pin ? 'Jede Handlung braucht die PIN und wirkt ab dem nächsten Takt des Treibers.' : `Handeln abgeschaltet: ${huelle.ohnePin(t)}.`}</p>`;
     return `${KOPF}${hinweis}${alle}${ps.map((p) => projektHtml(p, t.pin)).join('')}`;
   }
 
@@ -233,9 +236,9 @@ ${abschlussHtml(p.abschluss)}${fragen}${schnittHtml(p.schnittplan, pin)}${entsch
   async function starten(b) {
     const ziel = b.dataset.start;
     const ps = (letzte?.frachtraum ?? []).filter((x) => (ziel === 'alle' ? !x.laeuft && !x.handlung : x.forge === ziel));
-    // Tag N: null when every note is chosen, else the chosen numbers (for all: per project with a choice of its own, [] no run)
+    // null when every note is chosen, else the chosen numbers (for all: per project with a choice of its own, [] no run)
     const teil = ps.filter((p) => gewaehltVon(p).length < nummernVon(p).length);
-    const umfang = (p) => (teil.includes(p) ? `${gewaehltVon(p).length} von ${nummernVon(p).length}` : 'alle');
+    const umfang = (p) => (!teil.includes(p) ? 'alle' : gewaehltVon(p).length ? `${gewaehltVon(p).length} von ${nummernVon(p).length}` : 'kein Lauf');
     let text = null;
     if (teil.length) text = JSON.stringify({ nummern: ziel === 'alle' ? Object.fromEntries(teil.map((p) => [p.forge, gewaehltVon(p)])) : gewaehltVon(teil[0]) });
     const wer = ziel === 'alle' ? 'alle Projekte' : ps[0]?.kurz ?? ziel;
@@ -249,7 +252,7 @@ ${abschlussHtml(p.abschluss)}${fragen}${schnittHtml(p.schnittplan, pin)}${entsch
     }
   }
 
-  // Tag N: a checkbox, or "alle"/"keine" of a topic or the project; drawn again, the focus stays where it was
+  // a checkbox, or "alle"/"keine" of a topic or the project; drawn again, the focus stays where it was
   function waehlen(forge, nummern, an, fokus) {
     wahlSetzen(forge, nummern, an);
     zeichnen(flaeche, letzte, true);

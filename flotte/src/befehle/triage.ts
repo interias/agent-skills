@@ -36,7 +36,7 @@ export interface TriageZiel {
   regeln: AuftragsRegeln;
   /** #117: the collecting issue of the learning loop (adapter key lern_issue); its proposals are triaged too */
   lernIssue?: number | null;
-  /** Tag N: only these notes in this run (the choice in the Frachtraum; lernIssue stands for its proposals); without it all */
+  /** only these notes in this run (the choice in the Frachtraum; lernIssue stands for its proposals); without it all */
   nummern?: number[];
 }
 
@@ -246,7 +246,7 @@ export async function triagiere(o: TriageAuftrag, welt: TriageWelt) {
       fehler.push({ forge: z.forge, fehler: (err as Error).message });
       continue;
     }
-    // Tag N: the notes not chosen stay untouched with their label for the next run, outside the final check too
+    // the notes not chosen stay untouched with their label for the next run, outside the final check too
     const gewaehlt = z.nummern ? new Set(z.nummern) : null;
     if (gewaehlt) liste = liste.filter((t) => gewaehlt.has(t.nummer));
     // before the notes: only what an earlier run left; a release failing in this run waits for the next one

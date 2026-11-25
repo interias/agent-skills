@@ -2284,7 +2284,7 @@ class Treiber {
 
   /**
    * triage over the bridge: a triage run (`flotte triage`) for this project beside the loop, on the
-   * admiral's account (another with room when it is red). One at a time. Tag N: text {"nummern"} is the choice
+   * admiral's account (another with room when it is red). One at a time. Text {"nummern"} is the choice
    * of the Frachtraum, checked against the open notes read now; null (or no JSON, an older bridge) means all.
    */
   triageStarten(text: string | null = null): void {

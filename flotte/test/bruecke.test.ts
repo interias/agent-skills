@@ -1489,7 +1489,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   }, T);
 
-  /** Tag N: a forge with the open Sternzeit-Notizen #61, #62, #63 */
+  /** a forge with the open Sternzeit-Notizen #61, #62, #63 */
   const mitNotizen = (t: ReturnType<typeof aufbau>): Aufrufer => (p, a, o) => {
     if (p === 'gh' && a[0] === 'issue' && a[1] === 'list' && a.includes('needs-triage'))
       return ok(JSON.stringify([61, 62, 63].map((n) => ({ number: n, title: `Notiz ${n}`, body: 'Text', url: `https://github.com/o/r/issues/${n}`, labels: [{ name: 'needs-triage' }], comments: [] }))));
@@ -1507,14 +1507,14 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     }
   };
 
-  it('Tag N: triage with {"nummern"} runs only over the chosen open notes; the logbook names the count of all', async () => {
+  it('triage with {"nummern"} runs only over the chosen open notes; the logbook names the count of all', async () => {
     const { z, tr } = await mitWahl(JSON.stringify({ nummern: [63, 61] }));
     expect(tr.aufrufe).toHaveLength(1);
     expect(tr.aufrufe[0].ziele[0].nummern).toEqual([61, 63]);
     expect(texte(z)).toContain('Triage-Lauf gestartet über 2 von 3 Notizen, Mensch über die Brücke');
   }, T);
 
-  it('Tag N: a chosen number that is no open note (any more) is passed over and named; text null still means all', async () => {
+  it('a chosen number that is no open note (any more) is passed over and named; text null still means all', async () => {
     const { z, tr } = await mitWahl(JSON.stringify({ nummern: [62, 99, 7] }));
     expect(tr.aufrufe[0].ziele[0].nummern).toEqual([62]);
     expect(texte(z)).toContain('Triage-Lauf gestartet über 1 von 3 Notizen, Mensch über die Brücke; übergangen, keine offene Notiz: #7, #99');
@@ -1523,7 +1523,7 @@ describe('Frachtraum: die Triage über die Brücke (#116)', () => {
     expect(texte(alle.z)).toContain('Triage-Lauf gestartet, Mensch über die Brücke');
   }, T);
 
-  it('Tag N: a choice without an open note, an empty or a broken one is refused with its reason; no run', async () => {
+  it('a choice without an open note, an empty or a broken one is refused with its reason; no run', async () => {
     for (const [text, grund] of [
       [JSON.stringify({ nummern: [98, 99] }), 'Triage-Lauf über die Brücke abgelehnt: keine der gewählten Notizen ist offen (#98, #99)'],
       [JSON.stringify({ nummern: [] }), 'Triage-Lauf über die Brücke abgelehnt: keine Notiz gewählt'],

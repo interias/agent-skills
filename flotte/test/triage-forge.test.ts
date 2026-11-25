@@ -105,7 +105,7 @@ describe.each(FORGEN)('triage through the forge layer: $name', (f) => {
     expect(r.zustand).toBe('beendet');
   });
 
-  it('Tag N: with a selection only the chosen notes go to the plan; the others keep their label, the final check counts only the chosen', async () => {
+  it('with a selection only the chosen notes go to the plan; the others keep their label, the final check counts only the chosen', async () => {
     process.env[TOKEN_ENV] = 'geheim';
     const b = bestand();
     for (const l of ['needs-triage', 'epic', READY]) b.labels.push(l);

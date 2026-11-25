@@ -138,7 +138,7 @@ describe('#117: Lernvorschlag wird wie ein Triage-Ticket behandelt', () => {
     expect(t.gestartet[0].extraArgs).toEqual(expect.arrayContaining(['--tools', 'Read,Grep,Glob']));
   });
 
-  it('Tag N: a selection without the collecting issue leaves its proposals for the next run; with it they are triaged', async () => {
+  it('a selection without the collecting issue leaves its proposals for the next run; with it they are triaged', async () => {
     const ohne = welt([lern()], { [K(1)]: antwort.klar, [K(2)]: antwort.ueberfluessig, [K(3)]: antwort.kritisch });
     const r = await triagiere({ ...auftrag(), ziele: [{ ...auftrag().ziele[0], nummern: [5] }] }, ohne.w);
     expect(ohne.gestartet).toEqual([]);

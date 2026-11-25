@@ -107,7 +107,7 @@ def test_triage_fuer_alle_eine_handlung_je_projekt_mit_triage(zwei, bericht):
 
 
 def test_triage_mit_wahl_traegt_die_nummern_ohne_wahl_null(zwei):
-    # Tag N: the choice of the Frachtraum, sorted and each number once; pressed again before the driver fetches it: the last one counts
+    # the choice of the Frachtraum, sorted and each number once; pressed again before the driver fetches it: the last one counts
     assert handlung(zwei, 'triage', text=json.dumps({'nummern': [63, 61, 61]})).status_code == 200
     assert json.loads(frachtraum(zwei)[0]['handlung']['text']) == {'nummern': [61, 63]}
     assert handlung(zwei, 'triage', text=None).status_code == 200

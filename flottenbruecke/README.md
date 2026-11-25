@@ -176,6 +176,7 @@ ein Block mit der Zahl der Notizen und der offenen Fragen; Projekte mit Fragen s
   Projekt wählen die Notizen des nächsten Laufs: vorgewählt sind alle, auch eine neu hinzugekommene;
   die Wahl übersteht das Neuladen und gilt nur für den nächsten Start, danach ist wieder alles gewählt.
   Abgewählte bleiben unberührt mit ihrem Label für eine spätere Runde; nichts davon steht in der Forge.
+  Die Lernvorschläge eines Sammel-Issues tragen dessen Nummer und haben einen gemeinsamen Haken.
 
 **Triage-Lauf starten** je Projekt und **Triage-Lauf für alle**, nach einer Rückfrage, die die Wahl nennt:
 Der Knopf heißt bei einer Teilwahl „Triage-Lauf starten (12 von 15)“ und ist bei keiner gewählten Notiz
