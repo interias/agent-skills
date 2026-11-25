@@ -406,9 +406,24 @@ export const ANDOCK_VERSUCHE = 3;
  * a moved head, no reason at all). A moved base comes back on the next call as GATE FEHLT.
  */
 export function andockFehler(ursache: string): 'voruebergehend' | 'konflikt' | 'dauerhaft' {
-  if (/Base branch was modified|time ?out|timed out|Zeitüberschreitung|\bHTTP 5\d\d\b|\bStatus (0|5\d\d)\b|Server nicht erreicht|connection (reset|refused)|\bEOF\b|could not resolve|try again later|mergeable state unknown|still being (processed|checked)/i.test(ursache)) return 'voruebergehend';
+  if (/Base branch was modified|time ?out|timed out|Zeitüberschreitung|\bHTTP 5\d\d\b|\bStatus (0|5\d\d)\b|Server nicht erreicht|connection (reset|refused)|\bEOF\b|could not resolve host|try again later|mergeable state unknown|still being (processed|checked)/i.test(ursache)) return 'voruebergehend';
   if (/conflict|Konflikt|cannot be cleanly created/i.test(ursache)) return 'konflikt';
   return 'dauerhaft';
+}
+
+/** #229: the recommended option of ANDOCK_FRAGE: A again for a passing cause, B the gate for a moved head, else C a person */
+export function andockEmpfehlung(ursache: string, art: 'voruebergehend' | 'dauerhaft'): 'A' | 'B' | 'C' {
+  return art === 'voruebergehend' ? 'A' : /\bhead\b/i.test(ursache) ? 'B' : 'C';
+}
+
+/** #229: the option an answer to ANDOCK_FRAGE names, by its letter or its words; the bridge sends free text as "Antwort: …"; anything else is C */
+export function andockWahl(antwort: string): 'A' | 'B' | 'C' {
+  const t = antwort.trim().replace(/^Antwort:\s*/i, '');
+  const buchstabe = /^([ABC])\b/i.exec(t)?.[1];
+  if (buchstabe) return buchstabe.toUpperCase() as 'A' | 'B' | 'C';
+  if (/Andockprüfung|Prüfung neu|neu fahren/i.test(t)) return 'B';
+  if (/erneut|nochmal|noch einmal|neu versuchen|wiederhol/i.test(t)) return 'A';
+  return 'C';
 }
 
 /** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
@@ -710,6 +725,8 @@ class Treiber {
       if (!halt) {
         this.pings();
         await this.mergeWache();
+        // #229: a question about docking ends once its mission works again, halts or docked
+        this.andockFragenSchliessen();
         this.schlangeWeiter();
         await this.wartendeFragen();
         this.verteile();
@@ -1732,8 +1749,9 @@ class Treiber {
     f.beantwortetAm = am;
     if (ueberBruecke) f.brueckeId = a.brueckeId;
     // #52: the answer is a decision of the person, revocable on the bridge until the merge like the admiral's
-    this.z.entscheidungen.push({ epic: a.epic, nr: a.nr, frage: f.frage || `Frage ${a.nr}`, antwort: a.anzeige ?? a.text, herkunft: ueberBruecke ? HERKUNFT_BRUECKE : HERKUNFT_FLOTTE, einflussreich: false, zeit: am, von: 'mensch' });
-    // #229: the driver's own question about docking is not the run's; the driver acts on it below
+    // #229: the driver's own question about docking is not the run's: no revocable decision, nothing to
+    // hand to the run; the driver acts on it below
+    if (f.nr !== ANDOCK_FRAGE) this.z.entscheidungen.push({ epic: a.epic, nr: a.nr, frage: f.frage || `Frage ${a.nr}`, antwort: a.anzeige ?? a.text, herkunft: ueberBruecke ? HERKUNFT_BRUECKE : HERKUNFT_FLOTTE, einflussreich: false, zeit: am, von: 'mensch' });
     if (f.nr !== ANDOCK_FRAGE) ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
@@ -3619,17 +3637,20 @@ class Treiber {
       if (/^CHECKS ROT/.test(zeile)) return this.zurueck(ep, `Das Andocken wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung, dann FLOTTE-ENDE.`);
       // #229: the forge refused the merge itself; merge.ps1 checks base and head again on every call, so a
       // repeat never docks a state the gate did not see (a moved base comes back as GATE FEHLT)
+      let forgeKonflikt: string | null = null;
       if (/^MERGE FEHLGESCHLAGEN/.test(zeile)) {
         const ursache = zeile.replace(/^MERGE FEHLGESCHLAGEN #\d+:?\s*/, '') || 'keine Ausgabe der Forge';
         const art = andockFehler(ursache);
         if (art === 'voruebergehend' && versuche < ANDOCK_VERSUCHE) {
           versuche++;
+          ep.notiz = `PR #${ep.pr}: Andocken vorübergehend fehlgeschlagen, Wiederholung ${versuche} von ${ANDOCK_VERSUCHE} (${ursache})`;
           this.ereignis(ep.nr, `Andocken vorübergehend fehlgeschlagen (${ursache}): Wiederholung ${versuche} von ${ANDOCK_VERSUCHE} nach einem Takt, ohne neue Andockprüfung`);
           await pause(this.e.taktMs);
           continue;
         }
         if (art !== 'konflikt') return this.andockFrage(ep, ursache, art, versuche, (ep.gateWiederholungen ?? 0) - gatesVorher);
         this.ereignis(ep.nr, `Andocken fehlgeschlagen mit Konflikt (${ursache}): der Treiber holt die Basis nach`);
+        forgeKonflikt = ursache;
         zeile = `KONFLIKT #${ep.pr}: ${ursache}`;
       }
       if (!/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT)/.test(zeile)) return this.prBereit(ep, zeile);
@@ -3637,7 +3658,9 @@ class Treiber {
       let voll = false;
       if (selbst) {
         // the driver's own block was refused: the base moved again (a person merged), or the forge
-        // judged the areas differently; then once the full gate, else a person looks
+        // judged the areas differently; then once the full gate, else a person looks (#229: a refusal
+        // of the forge itself as a question with its reason)
+        if (!basisWeg && selbst === 'voll' && forgeKonflikt) return this.andockFrage(ep, forgeKonflikt, 'dauerhaft', versuche, (ep.gateWiederholungen ?? 0) - gatesVorher);
         if (!basisWeg && selbst === 'voll') return this.prBereit(ep, `${zeile} (nach der Andockprüfung des Treibers)`);
         voll = !basisWeg;
       }
@@ -3899,19 +3922,33 @@ class Treiber {
       { buchstabe: 'B', text: 'Andockprüfung neu fahren: der Treiber holt die Basis nach, fährt gate_command und dockt an' },
       { buchstabe: 'C', text: 'Mensch dockt an: der Treiber lässt den PR liegen' },
     ];
-    const empfehlung = art === 'voruebergehend' ? 'A' : /head/i.test(ursache) ? 'B' : 'C';
+    const empfehlung = andockEmpfehlung(ursache, art);
     const grund = art === 'voruebergehend' ? 'die Ursache sieht vorübergehend aus, blieb aber über alle Wiederholungen' : empfehlung === 'B' ? 'der Head hat sich bewegt; eine neue Andockprüfung prüft den neuen Stand' : 'die Forge lehnt aus einem Grund ab, den der Treiber nicht selbst beheben kann';
     const frage = `Andocken von PR #${ep.pr} fehlgeschlagen: ${ursache}. Wie weiter?`;
     const lage = `Ursache (merge.ps1): ${ursache}\nVersucht: ${versucht.join('; ')}`;
+    // never two open questions about docking per mission
+    this.andockFragenSchliessen(ep.nr, 'überholt: eine neue Frage zum Andocken');
     this.z.fragen.push({ epic: nr, nr: ANDOCK_FRAGE, frage, lage, optionen, grund, herkunft: 'Treiber: Andocken fehlgeschlagen', marke: 'Andocken', betrifft: 'Lauf', roh: frage, empfehlung, wartet: 'das Andocken', ganzerLauf: true, seit: new Date(this.w.jetzt()).toISOString() });
     kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\n${lage}\nOptionen: ${optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' — ')}\nEmpfehlung: ${empfehlung} (${grund})\nAntworten, im Repository: \`flotte antworten . ${nr} ${ANDOCK_FRAGE} "<A, B oder C>"\``);
     ep.notiz = `PR #${ep.pr}: Andocken fehlgeschlagen, Frage an dich (${ursache})`;
     this.ereignis(nr, `❓ Andocken fehlgeschlagen (${ursache}): Frage ${ANDOCK_FRAGE} an den Menschen, Empfehlung ${empfehlung}`);
   }
 
+  /** #229: closes the open ANDOCK_FRAGE of one mission with the given text, or of every mission that left 'pr' */
+  andockFragenSchliessen(nr: number | null = null, text: string | null = null): void {
+    for (const f of this.z.fragen) {
+      if (f.nr !== ANDOCK_FRAGE || f.beantwortet || (nr !== null && f.epic !== nr)) continue;
+      const ep = this.epic(f.epic);
+      if (nr === null && ep?.stufe === 'pr') continue;
+      f.beantwortet = text ?? `überholt: die Mission steht auf ${ep?.stufe ?? '?'}`;
+      f.beantwortetAm = new Date(this.w.jetzt()).toISOString();
+      this.geaendert = true;
+    }
+  }
+
   /** #229: the person's answer to ANDOCK_FRAGE: A again, B the gate first, C (or anything else) a person docks */
   andockAntwort(ep: FlottenEpic, f: MenschFrage, text: string): void {
-    const wahl = /^\s*(A\b|erneut)/i.test(text) ? 'A' : /^\s*(B\b|Andockprüfung|neu)/i.test(text) ? 'B' : 'C';
+    const wahl = andockWahl(text);
     if (ep.stufe !== 'pr' || !ep.pr) return this.ereignis(ep.nr, `Antwort ${wahl} auf Frage ${ANDOCK_FRAGE} kommt zu spät: die Mission steht auf ${ep.stufe}`);
     const ursache = /^Ursache \(merge\.ps1\): (.*)$/m.exec(f.lage ?? '')?.[1] ?? f.frage;
     if (wahl === 'C') return this.prBereit(ep, `Andocken fehlgeschlagen: ${ursache}`);
@@ -3943,11 +3980,7 @@ class Treiber {
   async nachMerge(ep: FlottenEpic): Promise<void> {
     ep.stufe = 'gemergt';
     // #229: a person docked without answering the driver's question about it
-    for (const f of this.z.fragen) {
-      if (f.epic !== ep.nr || f.nr !== ANDOCK_FRAGE || f.beantwortet) continue;
-      f.beantwortet = 'von Hand angedockt';
-      f.beantwortetAm = new Date(this.w.jetzt()).toISOString();
-    }
+    this.andockFragenSchliessen(ep.nr, 'von Hand angedockt');
     for (const befehl of this.adapter.nach_merge) {
       const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', befehl], { cwd: this.e.repo, timeoutMs: 30 * 60_000 });
       // D21: reported, cleanup still runs
