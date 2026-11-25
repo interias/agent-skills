@@ -63,6 +63,7 @@ Tabellen, Wortlaut, die Grenze „nur Software“ (Inhaltsziele bekommen `ready-
 | `mission-nacharbeit` | Offene Punkte eines Laufs in Fragerunden klären und erledigen | [für Menschen](mission-nacharbeit/README.md), [Skill](mission-nacharbeit/SKILL.md) |
 | `mission-aufraeumen` | Nach dem Andocken Worktrees und Branches abräumen, nur nachweislich Angedocktes | [für Menschen](mission-aufraeumen/README.md), [Skill](mission-aufraeumen/SKILL.md) |
 | `flotte` | Treiber: mehrere Läufe als `claude -p` auf mehreren Konten, Bremsen, Andock-Schlange, Logbuch | [für Menschen](flotte/README.md), [Skill](flotte/SKILL.md) |
+| `flotte-einrichten` | Ein Repository in einem Zug flottentauglich machen; `flotte pruefen` sagt, was fehlt | [Skill](flotte-einrichten/SKILL.md) |
 | `flottenbruecke/` | Dauerdienst im LAN: fünf Bereiche über alle Einsätze, Antworten per PIN; steuert sonst nichts | [README](flottenbruecke/README.md), [Schnittstelle](flottenbruecke/SCHNITTSTELLE.md) |
 | `bereitschaftsraum` | Gespräch in Fragerunden, aus dem eine Mission, ein Missionsziel oder nichts entsteht; angelegt wird über `flotte auftrag` | [Skill](bereitschaftsraum/SKILL.md) |
 | `codebase-design` | Wortschatz für tiefe Module: Schnittstelle, Naht, Tiefe, Löschprobe | [Skill](codebase-design/SKILL.md) |

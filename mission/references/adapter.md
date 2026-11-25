@@ -53,6 +53,10 @@ Frontmatter (Abschnitt „Form").
 
 ## Vorlage
 
+Ein Repository, in dem die Flotte fahren soll, richtet `/flotte-einrichten` einmal ein (Adapter,
+Andockprüfung, Forge, Nachtlauf, Anmeldung); was einem bestehenden fehlt, meldet
+`flotte pruefen <ordner>` (`flotte/README.md`, „Repository prüfen“).
+
 Ein neuer Adapter beginnt mit diesem Block; `flotte projekt hinzufuegen` legt ihn wortgleich an, wenn
 `.claude/epic.md` fehlt (mit `--klonen` sind `forge` und `api` aus dem Link schon eingesetzt), und meldet die
 Schlüssel, deren Wert (oder Eintrag) noch in `<…>` steht. Solange es solche gibt, startet der Flotten-Treiber in
@@ -211,7 +215,16 @@ Schlüssel. Ein Lauf dockt nie an, in keiner Einstellung.
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die die Andockprüfung lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
 | `gate_head` | regulärer Ausdruck mit einer Gruppe: die SHA, auf der die Andockprüfung lief | `\(HEAD ([0-9a-f]{7,40})\)` |
 | `gate_command` | Befehl (PowerShell), der die ganze Andockprüfung im Worktree fährt und den Block ausgibt; mit ihm fährt der Flotten-Treiber die Andockprüfung in seiner Andockschlange selbst. Rot von außen meldet er in einer eigenen Zeile, die mit `Testsperre belegt` oder `Zeitgrenze des Gates` beginnt (Vertrag mit dem Treiber: einmal wiederholt, zählt nicht gegen den Lauf) | keiner |
-| `gate_cached` | regulärer Ausdruck auf die Zeile eines Kontexts im Andockblock: passt er, nahm die Andockprüfung das Ergebnis des Kontexts aus ihrem Cache. Der Flotten-Treiber misst damit je Andockprüfung, wie viele Kontexte aus dem Cache kamen (Brücke, Maschinenraum); fehlt er, misst er nur die Dauern. Groß- und Kleinschreibung zählen. Etwa `aus dem Cache` | keiner |
+| `gate_cached` | regulärer Ausdruck auf die Zeile eines Kontexts im Andockblock: passt er, nahm die Andockprüfung das Ergebnis des Kontexts aus ihrem Cache. Der Flotten-Treiber misst damit je Andockprüfung, wie viele Kontexte aus dem Cache kamen (Brücke, Maschinenraum); fehlt er, misst er nur die Dauern. Groß- und Kleinschreibung zählen. Etwa `aus dem Cache`. `flotte pruefen` meldet ihn als fehlend, solange er fehlt (Vertrag unten) | keiner |
+
+**Der Vertrag der Andockprüfung** (was `/flotte-einrichten` baut und `flotte pruefen` prüft):
+
+1. **Gegen eine Basis:** Sie bestimmt, was sich gegenüber `origin/<basis>` geändert hat, und fährt
+   die Kontexte, deren Eingaben berührt sind.
+2. **Cache:** Ein grünes Ergebnis eines Kontexts gilt wieder, solange seine Eingaben unverändert
+   sind; seine Zeile im Block sagt das, und `gate_cached` erkennt die Zeile.
+3. **Nachweisblock:** Kopfzeile mit Basis und HEAD (`gate_base`, `gate_head`), je Kontext eine
+   Zeile, die Schlusszeile `gate_green`.
 
 **Der Andockblock** gilt bei `merge: nach_gate` immer, auch in Repositorys mit Checks: Ein Check
 prüft oft etwas anderes (in hexanite baut er nur die Website) und ersetzt die Andockprüfung nie; ein roter

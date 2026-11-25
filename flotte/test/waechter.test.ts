@@ -53,6 +53,8 @@ const AUSNAHMEN = {
     ...['forge', 'api', 'token_env', 'token_file', 'push_remote', 'forbidden_remotes', 'issue_offset', 'issue_form', 'ready_label', 'prognose_ab', 'prio_label', 'prototype_dir', 'skip_labels', 'epic_label', 'dependency_source', 'write_back_dependencies', 'transitive', 'acceptance_section', 'verification_section', 'modules_section', 'base_branch', 'main_branch', 'glossary', 'glossary_forbidden_marker', 'adr_dir', 'read_all_adrs', 'must_read', 'out_of_scope_dir', 'test_commands', 'known_red', 'lint_commands', 'writers', 'test_isolation_env', 'isolation', 'window', 'max_rounds', 'code_graph', 'min_package_class', 'exclusive_paths', 'always_collide', 'pre_commit_checks', 'worktree_root', 'env_files', 'link_dirs', 'always_link', 'port_env', 'shared_services', 'service_start', 'worktree_may_start', 'acceptance_commands', 'ram_warn_percent', 'ram_hold_percent', 'ram_min_free_gb', 'commit_style', 'commit_language', 'commit_umlauts', 'plan_artifact', 'gate_approvals', 'no_access', 'lern_issue', 'merge', 'gate_heading', 'gate_green', 'gate_base', 'gate_head', 'gate_command', 'gate_always_command', 'gate_areas', 'gate_partial'].map((wort) => ({ wort, grund: 'adapter key (ADR-0003: keys stay technical)' })),
     // step 8 of the gate rework: the night run
     { wort: 'gate_night_command', grund: 'adapter key (ADR-0003: keys stay technical)' },
+    // step 7 of the gate rework: the cache statement of a context line
+    { wort: 'gate_cached', grund: 'adapter key (ADR-0003: keys stay technical)' },
     // script and role names
     { wort: 'gate', grund: 'script name `gate.ps1`, CSS class' },
     { wort: 'implementer', grund: 'role key in the driver protocol' },

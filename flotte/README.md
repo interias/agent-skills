@@ -674,6 +674,22 @@ nie doppelt, holt eine verpasste Nacht nicht tagsüber nach und läuft **nur, so
 (gesperrter Bildschirm genügt): ohne Sitzung bräuchte sie ein gespeichertes Kennwort, und ohne Kennwort
 (S4U) fehlt ihr die Git- und gh-Anmeldung für Holen und Issue.
 
+## Repository prüfen
+
+Was einem Repository fehlt, damit die Flotte dort fährt, sagt ein Befehl, der nur liest (kein Holen,
+kein Label, keine Datei):
+
+```powershell
+bun "$HOME\.claude\skills\flotte\src\cli.ts" pruefen <ordner>
+```
+
+Je Punkt steht `ok`, `fehlt`, `empfohlen` oder `offen` (nicht prüfbar, etwa ohne Anmeldung an der
+Forge) und der Schritt aus [`/flotte-einrichten`](../flotte-einrichten/SKILL.md), der ihn schließt:
+Adapter (gelesen von `origin/HEAD`), Vertrag der Andockprüfung (`gate_command`, `gate_cached`,
+Andockblock mit Basis und HEAD in einem angedockten Pull Request), Rechte und Labels, `merge:
+nach_gate` mit `merge.ps1` als einzigem Weg, Nachtlauf mit geplanter Aufgabe, Startskript von
+„Projekt hinzufügen“. Flottentauglich ist ein Repository bei `fehlt: 0`; `empfohlen` hält nichts an.
+
 ## Prognose
 
 Die Brücke sagt je wartender Mission „voraussichtlich 3–5 h“ und oben in „Erledigt heute“, wann der
