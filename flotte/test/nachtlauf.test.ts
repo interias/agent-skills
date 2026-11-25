@@ -2,11 +2,11 @@
 // own worktree. A real repository with a bare origin; worktree.ps1, the night command and the forge are stand-ins.
 
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { aufrufen, type AsyncAufrufer, type Aufrufer } from '../src/aufruf.ts';
-import { HALT_DATEI, liesHalt, liesNachtlauf, nachtlauf, type NachtWelt, SPERRE, VERFALL_MS } from '../src/befehle/nachtlauf.ts';
+import { BEFEHL_MS, HALT_DATEI, liesHalt, liesNachtlauf, nachtlauf, type NachtWelt, ohnePfade, SPERRE, VERFALL_MS } from '../src/befehle/nachtlauf.ts';
 import { githubZugriff } from '../src/forge/github.ts';
 import { giteaZugriff } from '../src/forge/gitea.ts';
 import type { ForgeZugriff } from '../src/forge/zugriff.ts';
@@ -43,8 +43,26 @@ function welt(o: { adapter?: string; ausgaben?: ((commit: string) => { code: num
   git(repo, 'push', '-q', '-u', 'origin', 'main');
   const b: Bestand = bestand();
   if (o.logbuch !== false) issueAnlegen(b, { titel: 'Flottenlogbuch', labels: ['flotte'] });
-  const forge: ForgeZugriff = o.forge === 'gitea' ? giteaZugriff(giteaAttrappe(b), GITEA_API(b), () => 'token geheim', 'epic', 0) : githubZugriff(ghAttrappe(b), 'o/r');
+  const roh: ForgeZugriff = o.forge === 'gitea' ? giteaZugriff(giteaAttrappe(b), GITEA_API(b), () => 'token geheim', 'epic', 0) : githubZugriff(ghAttrappe(b), 'o/r');
+  // haken: runs once at the first call of the forge after the night command ran (a person acting meanwhile)
+  let haken: (() => void) | null = null;
+  let befehlGelaufen = false;
+  const forge = new Proxy(roh, {
+    get(z, k) {
+      const f = (z as unknown as Record<string | symbol, unknown>)[k];
+      if (typeof f !== 'function') return f;
+      return (...a: unknown[]) => {
+        if (befehlGelaufen && haken) {
+          const h = haken;
+          haken = null;
+          h();
+        }
+        return f.apply(z, a);
+      };
+    },
+  });
   const befehle: { befehl: string; cwd: string; commit: string }[] = [];
+  const optionen: { timeoutMs?: number; baum?: boolean }[] = [];
   const skripte: { aktion: string; args: string[]; env?: Record<string, string> }[] = [];
   const ausgaben = o.ausgaben ?? [(c) => ({ code: 0, stdout: `bun test ...\n${block(c, [['flotte', true]])}\n` })];
   const aufrufer: Aufrufer = (p, a, opts) => aufrufen(p, a, opts);
@@ -62,10 +80,17 @@ function welt(o: { adapter?: string; ausgaben?: ((commit: string) => { code: num
         writeFileSync(lock, JSON.stringify({ package: 'nachtlauf', worktree: pfad, holder: opts?.env?.EPIC_LOCK_HOLDER ?? null }));
         return { code: 0, stdout: `${JSON.stringify({ path: pfad, branch: null })}\n`, stderr: '' };
       }
+      if (aktion === 'Down') {
+        aufrufen('git', ['-C', repo, 'worktree', 'remove', '--force', pfad]);
+        rmSync(lock, { force: true });
+        return { code: 0, stdout: '{}\n', stderr: '' };
+      }
       return { code: 1, stdout: '', stderr: `unerwartet: ${aktion}` };
     }
     if (p === 'pwsh' && a.includes('-Command')) {
       const commit = git(opts!.cwd!, 'rev-parse', 'HEAD');
+      befehlGelaufen = true;
+      optionen.push({ timeoutMs: opts?.timeoutMs, baum: opts?.baum });
       befehle.push({ befehl: a[a.indexOf('-Command') + 1], cwd: opts!.cwd!, commit });
       const f = ausgaben[Math.min(befehle.length - 1, ausgaben.length - 1)];
       return { ...f(commit), stderr: '' };
@@ -83,7 +108,12 @@ function welt(o: { adapter?: string; ausgaben?: ((commit: string) => { code: num
   };
   const dir = flotteDir(repo);
   const kommentare = (nr: number) => b.issues.find((i) => i.nummer === nr)!.kommentare.map((k) => k.body);
-  return { wurzel, repo, b, w, befehle, skripte, weiter, dir, kommentare, kopf: () => git(repo, 'rev-parse', 'origin/main') };
+  /** fn runs at the first call of the forge after the next night command */
+  const nachDemBefehl = (fn: () => void) => {
+    befehlGelaufen = false;
+    haken = fn;
+  };
+  return { wurzel, repo, b, w, befehle, optionen, skripte, weiter, dir, kommentare, nachDemBefehl, kopf: () => git(repo, 'rev-parse', 'origin/main') };
 }
 
 const fahre = (t: ReturnType<typeof welt>, ...argv: string[]) => nachtlauf([t.repo, '--forge', 'o/r', ...argv], t.w) as Promise<Record<string, unknown>>;
@@ -113,6 +143,8 @@ describe('flotte nachtlauf (Schritt 8 des Gate-Umbaus)', () => {
     expect(up).not.toContain('-Branch');
     expect(existsSync(t.skripte[0].env!.EPIC_LOCK_HOLDER)).toBe(true);
     expect(t.befehle).toEqual([{ befehl: 'pwsh -NoProfile -File ./gate.ps1', cwd: join(t.wurzel, 'wt', 'nachtlauf'), commit: t.kopf() }]);
+    // at its time limit the whole process tree ends, not only the outer pwsh (a hanging test would hold the worktree)
+    expect(t.optionen).toEqual([{ timeoutMs: BEFEHL_MS, baum: true }]);
     const s = liesNachtlauf(t.dir);
     expect(s.letzter).toMatchObject({ ergebnis: 'gruen', commit: t.kopf(), basis: 'main', wiederholt: false, teile: [] });
     expect(s.letzter!.dauerS).toBeGreaterThanOrEqual(0);
@@ -249,8 +281,106 @@ describe('flotte nachtlauf (Schritt 8 des Gate-Umbaus)', () => {
     await expect(fahre(t)).rejects.toThrow(/Worktree des Nachtlaufs nicht angelegt: worktree\.ps1: Env file x/);
     expect(liesHalt(t.dir)).toBeNull();
     expect(triage(t.b)).toHaveLength(0);
-    expect(liesNachtlauf(t.dir).letzter).toMatchObject({ ergebnis: 'fehler' });
+    expect(liesNachtlauf(t.dir).letzter).toMatchObject({ ergebnis: 'fehler', grund: 'Worktree nicht angelegt' });
     expect(t.kommentare(1).at(-1)).toMatch(/Nachtlauf nicht gefahren/);
+  }, T);
+
+  it('an error leaves the machine as its category only; the full text with its local path stays in nachtlauf.json', async () => {
+    const t = welt();
+    const pfad = 'C:\\Users\\jemand\\git\\app\\.git';
+    t.w.langsam = async (p) => (p === 'git' ? { code: 128, stdout: '', stderr: `fatal: unable to access '${pfad}': Permission denied` } : { code: 1, stdout: '', stderr: 'unerwartet' });
+    // the person at the terminal sees the full text
+    await expect(fahre(t)).rejects.toThrow(/git fetch origin main scheiterte: .*jemand/);
+    const l = liesNachtlauf(t.dir).letzter!;
+    expect(l).toMatchObject({ ergebnis: 'fehler', grund: 'git fetch scheiterte' });
+    expect(l.detail).toContain(pfad);
+    expect(t.kommentare(1).at(-1)).toBe('**Flotte (Nachtlauf)** — Nachtlauf nicht gefahren: git fetch scheiterte; Einzelheiten am Rechner mit `flotte nachtlauf --stand`.');
+  }, T);
+
+  it('the path filter: drive, UNC and home paths become a placeholder, the rest of the line stays', () => {
+    expect(ohnePfade('pytest --basetemp=C:\\Users\\jemand\\tmp\\x -> Exit 1')).toBe('pytest --basetemp=<pfad> -> Exit 1');
+    expect(ohnePfade("fatal: 'd:/git/app' und \\\\server\\freigabe\\x, /home/jemand/y; /Users/jemand/z")).toBe("fatal: '<pfad>' und <pfad>, <pfad>; <pfad>");
+    expect(ohnePfade('origin/main @ abc1234 https://github.com/o/r/issues/5 und src/a.ts')).toBe('origin/main @ abc1234 https://github.com/o/r/issues/5 und src/a.ts');
+  });
+
+  it('a line of the gate block with a local path goes into the issue filtered', async () => {
+    const t = welt({
+      ausgaben: [(c) => ({ code: 1, stdout: `== Gate: Basis origin/main @ ${c.slice(0, 7)} (HEAD ${c.slice(0, 8)})\n  bruecke  ROT     python -m pytest --basetemp=C:\\Users\\jemand\\tmp\\x -> Exit 1\n  skripte  ROT     \\\\server\\freigabe\\x, /home/jemand/y\nGate ROT.\n` })],
+    });
+    await fahre(t);
+    const issue = triage(t.b)[0];
+    expect(issue.body).toContain('  bruecke  ROT     python -m pytest --basetemp=<pfad> -> Exit 1');
+    for (const s of ['jemand', 'C:\\', '\\\\server']) expect(issue.body).not.toContain(s);
+    expect(liesHalt(t.dir)!.teile).toEqual(['bruecke', 'skripte']);
+    t.weiter('zwei');
+    await fahre(t);
+    expect(t.kommentare(issue.nummer).at(-1)).toContain('--basetemp=<pfad>');
+    expect(t.kommentare(issue.nummer).at(-1)).not.toContain('jemand');
+  }, T);
+
+  it('a gate block without its closing line leaves the machine as the fixed sentence only', async () => {
+    const t = welt({ ausgaben: [(c) => ({ code: 1, stdout: `== Gate: Basis origin/main @ ${c.slice(0, 7)} (HEAD ${c.slice(0, 8)})\n  flotte   ROT     abgebrochen\n` })] });
+    const r = await fahre(t);
+    expect(r.ergebnis).toBe('rot');
+    const issue = triage(t.b)[0];
+    expect(issue.body).not.toContain('```');
+    expect(issue.body).not.toContain('abgebrochen');
+    expect(issue.body).toMatch(/^Der Nachtlauf \(`gate_night_command`\) ist auf `origin\/main @ [0-9a-f]{7}` rot, auch in der Wiederholung\./);
+  }, T);
+
+  it('a release while the night run is green does not bring the halt back', async () => {
+    const t = welt({ ausgaben: [rot('flotte'), rot('flotte'), gruen] });
+    await fahre(t);
+    t.nachDemBefehl(() => rmSync(join(t.dir, HALT_DATEI)));
+    await fahre(t);
+    expect(liesHalt(t.dir)).toBeNull();
+  }, T);
+
+  it('a release while the night run is red again sets a fresh halt with a new start; the open issue is reused', async () => {
+    const t = welt({ ausgaben: [rot('flotte')] });
+    await fahre(t);
+    const alt = liesHalt(t.dir)!;
+    t.weiter('zwei');
+    t.nachDemBefehl(() => rmSync(join(t.dir, HALT_DATEI)));
+    await fahre(t);
+    const neu = liesHalt(t.dir)!;
+    expect(neu.seit).not.toBe(alt.seit);
+    expect(neu).toMatchObject({ issue: alt.issue, commit: t.kopf() });
+    expect(triage(t.b)).toHaveLength(1);
+  }, T);
+
+  it('--freigeben waits for the short lock around the halt file instead of racing a night run writing it', async () => {
+    const t = welt({ ausgaben: [rot('flotte')] });
+    await fahre(t);
+    writeFileSync(join(t.dir, 'schlange-halt.lock'), JSON.stringify({ pid: 4242, seit: new Date().toISOString() }));
+    const lauf = nachtlauf([t.repo, '--forge', 'o/r', '--freigeben'], { ...t.w, lebt: () => true }) as Promise<Record<string, unknown>>;
+    await new Promise((w) => setTimeout(w, 300));
+    expect(existsSync(join(t.dir, HALT_DATEI))).toBe(true);
+    rmSync(join(t.dir, 'schlange-halt.lock'));
+    expect((await lauf).freigegeben).toBe(true);
+    expect(existsSync(join(t.dir, HALT_DATEI))).toBe(false);
+  }, T);
+
+  it('its own worktree registered without its lock (lost by hand) is laid out anew, not an error every night', async () => {
+    const t = welt();
+    await fahre(t);
+    rmSync(join(t.repo, '.git', 'epic-locks', 'nachtlauf.json'));
+    const r = await fahre(t);
+    expect(r.ergebnis).toBe('gruen');
+    expect(t.skripte.map((s) => s.aktion)).toEqual(['Up', 'Down', 'Up']);
+  }, T);
+
+  it('a lock that names another worktree (the main checkout) is never forced onto the base: an error, no halt', async () => {
+    const t = welt();
+    mkdirSync(join(t.repo, '.git', 'epic-locks'), { recursive: true });
+    writeFileSync(join(t.repo, '.git', 'epic-locks', 'nachtlauf.json'), JSON.stringify({ package: 'nachtlauf', worktree: t.repo }));
+    writeFileSync(join(t.repo, 'ungesichert.txt'), 'x');
+    await expect(fahre(t)).rejects.toThrow(/nicht der eigene/);
+    expect(git(t.repo, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('main');
+    expect(existsSync(join(t.repo, 'ungesichert.txt'))).toBe(true);
+    expect(t.befehle).toHaveLength(0);
+    expect(liesHalt(t.dir)).toBeNull();
+    expect(liesNachtlauf(t.dir).letzter).toMatchObject({ ergebnis: 'fehler', grund: 'Worktree an unerwarteter Stelle' });
   }, T);
 
   it('the issue goes through the forge layer on Gitea as well', async () => {

@@ -73,6 +73,7 @@ const AUSNAHMEN = {
     { muster: /--(epics|gemergt)\b/g, grund: 'options `--epics` of `flotte fahren` and `--gemergt` of `flotte belegung`' },
     { muster: /\bepics\//g, grund: 'folder `epics/` in the state of the driver' },
     { muster: /## Gate\b|\bGate grün\./g, grund: 'defaults of the adapter keys `gate_heading` and `gate_green`: what gate.ps1 prints and runs copy into the pull request; the driver reads them' },
+    { muster: /\bGate ROT\./g, grund: 'the red closing line gate.ps1 prints; the night run reads it to take a gate block as complete' },
   ],
   // Parts of a file that are not checked.
   bereiche: [
