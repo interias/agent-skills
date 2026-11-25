@@ -198,7 +198,9 @@ function reste(u: Umgebung, e: Einsatz): Reste {
   }
   let container: number | null = null;
   const name = e.repo.split('/')[1];
-  const d = u.aufrufer('docker', ['ps', '-a', '--format', '{{.Names}}']);
+  let d = u.aufrufer('docker', ['ps', '-a', '--format', '{{.Names}}']);
+  // 127: no docker on PATH, docker in WSL then
+  if (d.code === 127) d = u.aufrufer('wsl.exe', ['-e', 'docker', 'ps', '-a', '--format', '{{.Names}}']);
   if (!d.code) container = d.stdout.split(/\r?\n/).filter((n) => n.includes(name) && /epic|agent|wt|-\d+-/.test(n)).length;
   else hinweise.push('docker nicht erreichbar');
   return { worktrees, branches, container, hinweise };

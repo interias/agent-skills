@@ -19,6 +19,7 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 |---|---|---|
 | `BRUECKE_PORT` | `4747` | Port auf dem Rechner |
 | `BRUECKE_BIND` | `0.0.0.0` | `127.0.0.1`: nur am Rechner |
+| `BRUECKE_FERNZUGRIFF` | `an` | `aus`: der Eingang für Tailscale wird gar nicht geöffnet. `einrichten.ps1` setzt für den Arbeitsrechner `127.0.0.1` und `aus` ([`INSTALL.md`](../INSTALL.md), Schritt 2) |
 | `BRUECKE_RECHNER_PORT` | `4748` | Eingang des Rechners (#46), nur auf `127.0.0.1`: Rechte der Geräte, Not-Aus lösen |
 | `BRUECKE_PIN` | leer | PIN zum Koppeln eines Geräts und, mit gekoppeltem Gerät, für jede Antwort und Handlung; leer schaltet Schreiben ab |
 | `BRUECKE_TOKEN` | leer | optional: Treiber muss ihn als `X-Bruecke-Token` schicken |
@@ -56,7 +57,8 @@ gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht 
 Unterwegs zeigt die Brücke die Lage über [Tailscale](https://tailscale.com) (#48, agent-skills/ADR-0006):
 nur für Geräte im eigenen Tailnet, keine öffentliche Adresse, kein Port im Router. Der Zusatz ist ein
 eigener Container im Compose-Profil `fernzugriff` und standardmäßig aus; `docker compose up -d` startet
-wie bisher nur die Brücke.
+wie bisher nur die Brücke. Mit `BRUECKE_FERNZUGRIFF=aus` (Arbeitsrechner) öffnet die Brücke den Eingang
+dafür nicht; der Zusatz erreicht dann nichts.
 
 **Einschalten** (einmal, im Ordner `flottenbruecke/`):
 

@@ -16,7 +16,9 @@ selbst (`Get-Help .\install.ps1 -Detailed`).
   läuft `/mission` ohne Graph.
 - **Bun** im Benutzer-`PATH` für den Flotten-Treiber `flotte` (`bun --version`); zur Laufzeit braucht er
   keine Pakete.
-- **Docker** für die [Flottenbrücke](flottenbruecke/README.md); ohne Docker scheitert ihr Einrichten mit einer Meldung, die Skills installiert `install.ps1` trotzdem.
+- **Docker** für die [Flottenbrücke](flottenbruecke/README.md): Docker Desktop oder Docker in WSL (`wsl -e docker version`
+  antwortet). Ohne `docker` im `PATH` nehmen `einrichten.ps1` und der Treiber das in WSL. Ohne Docker
+  scheitert ihr Einrichten mit einer Meldung, die Skills installiert `install.ps1` trotzdem.
 - **Python mit Pillow** für die Skripte von `mail-antwort`.
 - **Python mit Playwright und Chromium** für das Kit von `persona-review`; prüfen mit
   `python -P persona-review/scripts/selftest.py`.
@@ -31,15 +33,28 @@ und anmelden, Forge verknüpfen, Projekt hinzufügen).
 2. **Brücke einrichten** (fehlt `flottenbruecke/.env`, macht `install.ps1` das in Schritt 4 selbst):
 
    ```powershell
-   powershell -File flottenbruecke\einrichten.ps1            # oder mit -Autostart
+   powershell -File flottenbruecke\einrichten.ps1                           # Arbeitsrechner
+   powershell -File flottenbruecke\einrichten.ps1 -Variante privatrechner   # Privatrechner
    ```
 
-   Legt `flottenbruecke/.env` aus `.env.example` an und fragt die PIN verdeckt ab (leer: Antworten
-   bleiben abgeschaltet; sie wird nie ausgegeben), startet `docker compose up -d --build --wait`, legt
-   `~/.claude/flotte/konten.json` mit den Konten 1–3 an, wenn sie fehlt, und öffnet die Brücke im
-   Browser. Nur mit `-Autostart` legt es geplante Aufgaben beim Anmelden an: `Flottenbruecke` und je
-   Startskript in `~/.claude/flotte/start/*.ps1` eine `Flotte <name>`, je für den angemeldeten Benutzer;
-   Docker Desktop muss dafür selbst beim Anmelden starten. Ein zweiter Lauf ändert nichts Bestehendes.
+   Zwei Wege, die sich in der Reichweite der Brücke unterscheiden:
+
+   | Variante | Brücke erreichbar | Wofür |
+   |---|---|---|
+   | `arbeitsrechner` (Standard) | nur am Rechner selbst (`BRUECKE_BIND=127.0.0.1`), kein Fernweg (`BRUECKE_FERNZUGRIFF=aus`) | Arbeits- und Industrierechner: kein Gerät im Netz, kein Handy, kein Tailscale |
+   | `privatrechner` | im LAN, auf Wunsch über Tailscale | eigener Rechner: Handy im WLAN, Push, Fernzugriff ([Brücke](flottenbruecke/README.md#fernzugriff-optional), „Optional: Meldungen“ unten) |
+
+   Legt `flottenbruecke/.env` aus `.env.example` mit den Werten der Variante an und fragt die PIN
+   verdeckt ab (leer: Antworten bleiben abgeschaltet; sie wird nie ausgegeben), startet
+   `docker compose up -d --build --wait` (mit `docker` aus dem `PATH`, sonst in WSL; erzwingen mit
+   `-Docker windows` oder `-Docker wsl`), legt `~/.claude/flotte/konten.json` mit den Konten 1–3 an,
+   wenn sie fehlt, und öffnet die Brücke im Browser. Nur mit `-Autostart` legt es geplante Aufgaben
+   beim Anmelden an: `Flottenbruecke` und je Startskript in `~/.claude/flotte/start/*.ps1` eine
+   `Flotte <name>`, je für den angemeldeten Benutzer. Docker Desktop muss dafür selbst beim Anmelden
+   starten; mit Docker in WSL startet die Aufgabe den Container dort und hält WSL wach, sonst beendet
+   WSL ihn im Leerlauf. Ein zweiter Lauf ändert nichts Bestehendes, auch nicht die Variante einer
+   vorhandenen `.env`: die Werte `BRUECKE_BIND` und `BRUECKE_FERNZUGRIFF` dort von Hand ändern, dann
+   `docker compose up -d`.
    Ein Startskript schreibt man nicht von Hand: `flotte projekt hinzufuegen <ordner> [--autostart]` (oder
    „Projekt hinzufügen“ im Maschinenraum) legt es dort an, mit `--autostart` samt Aufgabe `Flotte <name>`;
    mit `--klonen <https-Link>` (oder dem Link im Maschinenraum) klont der Rechner das Repository vorher selbst.

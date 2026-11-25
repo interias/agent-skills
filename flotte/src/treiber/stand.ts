@@ -109,7 +109,11 @@ export function einspielen(a: Aufrufer, s: SkillStand, brueckeCommit: string | n
   // exit 0: unchanged since the image; 1: changed; anything else (an unknown commit): rebuilt to be sure
   const diff = brueckeCommit ? git('diff', '--quiet', brueckeCommit, 'HEAD', '--', 'flottenbruecke/').code : 1;
   if (diff === 0) return { ...r, bruecke: 'unveraendert' };
-  const bau = a('docker', ['compose', 'up', '-d', '--build'], { cwd: join(s.quelle, 'flottenbruecke'), env: { ...process.env, BRUECKE_COMMIT: r.auf, BRUECKE_DATUM: r.datum } });
+  const cwd = join(s.quelle, 'flottenbruecke');
+  const env = { ...process.env, BRUECKE_COMMIT: r.auf, BRUECKE_DATUM: r.datum };
+  let bau = a('docker', ['compose', 'up', '-d', '--build'], { cwd, env });
+  // 127: no docker on PATH; docker in WSL then (einrichten.ps1 -Docker wsl), WSLENV carries commit and date into it
+  if (bau.code === 127) bau = a('wsl.exe', ['-e', 'docker', 'compose', 'up', '-d', '--build'], { cwd, env: { ...env, WSLENV: [process.env.WSLENV, 'BRUECKE_COMMIT', 'BRUECKE_DATUM'].filter(Boolean).join(':') } });
   if (bau.code) return { ...nein(`docker compose: ${(bau.stderr || bau.stdout).trim().split(/\r?\n/).pop() ?? ''}`), auf: r.auf, datum: r.datum };
   return { ...r, bruecke: 'gebaut' };
 }
