@@ -475,6 +475,7 @@
         "verbraucht": 52.0,
         "reset": "2026-11-24T08:00:00Z"
       },
+      "vorsprung": -7,
       "alterMin": 3.2
     },
     {
@@ -488,6 +489,7 @@
         "verbraucht": 64.5,
         "reset": "2026-11-23T19:00:00Z"
       },
+      "vorsprung": -12,
       "alterMin": 6.0,
       "grund": "verbraucht 71 %, Hochrechnung 96 %"
     }

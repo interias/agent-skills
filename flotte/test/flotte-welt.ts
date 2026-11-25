@@ -39,6 +39,8 @@ export interface Optionen {
   nachMerge?: number;
   /** usage share of the 5-hour window per account; null: no file; 'alt': 40 min old */
   verbrauch?: (number | null | 'alt')[];
+  /** usage share of the weekly window per account (reset in 5 days); default 0.1 */
+  woche?: number[];
   /** text of the installed merge.ps1; default: a version that knows the key merge */
   mergeSkript?: string;
   /** how long merge.ps1 takes (it waits for checks) */
@@ -102,7 +104,7 @@ export function aufbau(o: Optionen = {}) {
     const k = mkdtempSync(join(tmpdir(), `flotte-konto${i + 1}-`));
     if (anteil !== null) {
       const zeit = anteil === 'alt' ? Date.now() - 40 * 60_000 : Date.now();
-      schreibeVerbrauch(k, { zeit, fuenf: { anteil: anteil === 'alt' ? 0.1 : anteil, reset: Date.now() + 3 * H }, sieben: { anteil: 0.1, reset: Date.now() + 5 * 24 * H } });
+      schreibeVerbrauch(k, { zeit, fuenf: { anteil: anteil === 'alt' ? 0.1 : anteil, reset: Date.now() + 3 * H }, sieben: { anteil: o.woche?.[i] ?? 0.1, reset: Date.now() + 5 * 24 * H } });
     }
     return k;
   });

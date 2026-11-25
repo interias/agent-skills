@@ -286,6 +286,9 @@ class Konto(BaseModel):
     # the usage windows from the driver's verbrauch.json (5 hours, 7 days) and the age of the value
     fuenf: Fenster | None = None
     woche: Fenster | None = None
+    # Tag P: share of the weekly limit left minus share of the week left until its reset, in points; the
+    # driver starts new missions on the account with the largest lead first
+    vorsprung: float | None = Field(None, ge=-100, le=100)
     alterMin: float | None = None
     # why the driver brakes this account (only with gelb/rot); the driver cuts it to 4000 characters
     grund: str | None = Field(None, max_length=4000)
