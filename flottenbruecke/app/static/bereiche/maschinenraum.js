@@ -113,7 +113,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     const h = n.halt;
     const issue = h?.issue ? (p.url ? `<a href="${esc(p.url)}/issues/${h.issue}" target="_blank" rel="noopener">Issue #${h.issue}</a>` : `Issue #${h.issue}`) : 'kein Issue';
     const halt = h
-      ? `<p class="dein-schritt"><b>Andock-Schlange hält</b> seit ${esc(nachtZeit(h.seit))}: ${esc(h.grund)} (${esc(h.commit.slice(0, 7))}), ${issue}.${h.gruen ? ` Danach grün auf ${esc(h.gruen.commit.slice(0, 7))}.` : ''}</p><p class="mr-hilfe">Missionen arbeiten weiter, neue Andockungen warten. Freigeben am Rechner im Projektordner: <code>flotte nachtlauf --freigeben</code>.</p>`
+      ? `<p class="dein-schritt"><b>Andock-Schlange hält</b> seit ${esc(nachtZeit(h.seit))}: ${esc(h.grund)}${h.commit ? ` (${esc(h.commit.slice(0, 7))})` : ''}, ${issue}.${h.gruen ? ` Danach grün auf ${esc(h.gruen.commit.slice(0, 7))}.` : ''}</p><p class="mr-hilfe">Missionen arbeiten weiter, neue Andockungen warten. Freigeben am Rechner im Projektordner: <code>flotte nachtlauf --freigeben</code>.</p>`
       : '';
     const l = n.letzter;
     const wort = { gruen: 'grün', rot: 'rot', fehler: 'nicht gefahren' };

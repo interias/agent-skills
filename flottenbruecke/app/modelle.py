@@ -552,7 +552,8 @@ class NachtHalt(BaseModel):
 
     seit: str = Field(max_length=40)
     grund: str = Field(max_length=500)
-    commit: str = Field(pattern=r'^[0-9a-f]{7,40}$')
+    # None: the halt file on the machine is unreadable, it holds all the same
+    commit: str | None = Field(None, pattern=r'^[0-9a-f]{7,40}$')
     basis: str = Field(max_length=200)
     issue: int | None = Field(None, ge=1)
     teile: list[str] = Field([], max_length=20)
