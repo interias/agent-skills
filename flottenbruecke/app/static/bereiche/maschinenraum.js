@@ -21,11 +21,13 @@
     const alt = k.veraltet || (k.alterMin != null && k.alterMin > 30);
     const fenster = (name, f) => (f ? fensterHtml(name, f) : `<span class="fenster mr-aus">${name}: ${nichts('Wert')}</span>`);
     const anmeldung = k.anmeldung ? `<b>${esc(k.anmeldung)}</b>` : nichts('Anmeldung');
+    // Tag P: the weekly lead the driver chooses the account by, whole points with a sign
+    const vorsprung = k.vorsprung == null ? nichts('Vorsprung') : `<b class="${k.vorsprung >= 0 ? 'ok' : ''}">${k.vorsprung > 0 ? '+' : k.vorsprung < 0 ? '−' : ''}${Math.abs(Math.round(k.vorsprung))} Punkte</b> <span>Reserveenergie</span>`;
     const bremse = k.stufe === 'gruen' ? '<b class="ok">keine</b>' : `<b class="${esc(k.stufe)}">${esc(STUFE[k.stufe] ?? k.stufe)}</b> ${k.grund ? `<span>${esc(k.grund)}</span>` : nichts('Grund')}`;
     return `<article class="mr-karte ${esc(k.stufe)}${alt ? ' veraltet' : ''}">
 <h3>${esc(k.konto)}</h3>
 ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
-<dl><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Bremse</dt><dd>${bremse}</dd><dt>Wert</dt><dd>${k.alterMin != null ? `${Math.round(k.alterMin)} min alt` : nichts('Alter')}${k.veraltet ? ' · Treiber still' : ''}</dd></dl></article>`;
+<dl><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Vorsprung</dt><dd>${vorsprung}</dd><dt>Bremse</dt><dd>${bremse}</dd><dt>Wert</dt><dd>${k.alterMin != null ? `${Math.round(k.alterMin)} min alt` : nichts('Alter')}${k.veraltet ? ' · Treiber still' : ''}</dd></dl></article>`;
   };
 
   const rechnerHtml = (r, t) => {
@@ -709,7 +711,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
         if (!el.childElementCount) el.innerHTML = `${KOPF}<p class="bereich-leer">Lädt …</p>`;
         return;
       }
-      const konten = t.konten.length ? `<div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
+      const konten = t.konten.length ? `<p class="mr-hinweis">Vorsprung: übrige Reserveenergie (Wochenlimit) minus übriger Anteil der Woche bis zu ihrem Reset, in Punkten. Eine neue Mission startet zuerst auf dem freien Konto mit dem größten Vorsprung, damit sich die Konten gleichmäßig leeren, auch mit Arbeit außerhalb der Flotte.</p><div class="mr-reihe">${t.konten.map(kontoHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Konto gemeldet.</p>';
       const rechner = t.rechner.length ? `<div class="mr-reihe">${t.rechner.map((r) => rechnerHtml(r, t)).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>';
       const html = `${KOPF}${einrichtenHtml(t)}${geraeteHtml(t)}<h3 class="mr-titel">Konten</h3>${kontenListeHtml(t)}${konten}<h3 class="mr-titel">Rechner und Treiber</h3>${rechner}${projekteHtml(t)}${automatikHtml(t)}${lernschleifeHtml(t)}${forgeHtml(t)}${werftHtml(t)}${standHtml(t)}${einstellungenHtml(t)}${pushHtml(t)}`;
       letzte = t;

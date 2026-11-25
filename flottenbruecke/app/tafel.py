@@ -282,7 +282,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         for k in b.get('konten', []):
             alt = konten.get(k['konto'])
             if alt is None or alt['empfangen'] < p['empfangen']:
-                konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'alterMin': k.get('alterMin'), 'grund': k.get('grund'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
+                konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'vorsprung': k.get('vorsprung'), 'alterMin': k.get('alterMin'), 'grund': k.get('grund'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
         # the sessions of a silent project are old: only live reports count, the newest one wins a session
         for s in b.get('sitzungen', []) if not veraltet else []:
             schluessel = (s['konto'], s['projekt'], s['name'], s['seit'])

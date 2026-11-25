@@ -26,6 +26,19 @@ auf 2, über 130 % auf 1 — unabhängig von der Kollisionsstufe.
 
 Der Treiber schätzt nicht, was ein Paket kosten wird; er bremst nur nach diesen Stufen.
 
+**Kontowahl:** Die Stufen entscheiden, welche Konten einen Lauf nehmen dürfen (grün, aktiv, unter
+`--konto-max`, nicht nach einem 429 gedrosselt); die Reihenfolge darunter gleicht den Verbrauch aus.
+Der gemessene Verbrauch enthält auch Arbeit außerhalb der Flotte (eigene Chats). Der **Vorsprung**
+eines Kontos ist der übrige Anteil des Wochenlimits minus der übrige Anteil der Zeit bis zu seinem
+Reset, in Punkten; was mehr übrig ist, als die Zeit verlangt, verfiele sonst ungenutzt. Zuerst kommt
+das Konto mit dem größten Vorsprung; liegen Konten bis 5 Punkte darunter, gewinnt das mit mehr Luft im
+5-Stunden-Fenster, dann das mit weniger laufenden Läufen, dann weniger Missionen. Ein Konto ohne
+Messwert der Woche steht hinten. So wählt der Treiber beim Start einer Mission, beim Ausweichen nach
+einem 429 und beim Ausweichkonto des Admirals und des Triage-Laufs; eine laufende Mission wechselt
+deshalb nie das Konto. Das Ereignis beim Start nennt den Grund („Start auf Konto 2: 24 Punkte
+Vorsprung im Wochenfenster“), der Maschinenraum den Vorsprung je Konto. Im Programm:
+`src/treiber/kontowahl.ts`.
+
 Die Schwellen sind ein **Entwurf** wie die Kollisionsstufen (`belegung.md`) und werden an echten
 Einsätzen geschärft. Gemessene Kosten je Paket sammelt `verbrauch.md`; eine neue Zeile kommt per
 Pull Request ins Skill-Repository.

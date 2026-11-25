@@ -18,7 +18,9 @@ def test_bereichsdateien_werden_ausgeliefert(client):
 def test_maschinenraum_liest_diese_felder_aus_dem_beispielbericht(client, bericht):
     client.post('/api/bericht', json=bericht)
     t = tafel(client)
-    assert {'konto', 'stufe', 'fuenf', 'woche', 'alterMin', 'veraltet'} <= set(t['konten'][0])
+    assert {'konto', 'stufe', 'fuenf', 'woche', 'vorsprung', 'alterMin', 'veraltet'} <= set(t['konten'][0])
+    # Tag P: the weekly lead the driver chooses the account by
+    assert [k['vorsprung'] for k in t['konten']] == [-7, -12]
     assert {'verbraucht', 'reset'} <= set(t['konten'][0]['fuenf'])
     r = t['rechner'][0]
     assert r['ram']['prozent'] == 61.4 and r['platte']['genug'] is True and r['obergrenze'] == 3

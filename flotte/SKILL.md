@@ -61,7 +61,9 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   (je Konto `nr`, `ordner`, `name`, `farbe`, `aktiv`; `install.ps1` schreibt sie nie); ohne die Datei
   gelten `~/.claude`, `~/.claude-arbeitspferd` und `~/.claude-arbeitspferd-3`. Ein deaktiviertes
   Konto fällt aus der Auswahl der Brücke, sein Ordner bleibt. Die Konten aus `--konten` sind
-  gleichrangig; eine neue Mission geht auf das Konto mit den wenigsten laufenden Läufen.
+  gleichrangig; eine neue Mission geht auf das freie Konto mit dem größten Vorsprung im
+  Wochenfenster, bei Gleichstand auf das mit den wenigsten laufenden Läufen
+  ([`references/bremsen.md`](references/bremsen.md), „Kontowahl“).
 
 Mögliche Schalter:
 

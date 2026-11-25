@@ -192,7 +192,7 @@ export interface Bericht {
   taktS: number;
   epics: BerichtEpic[];
   schlange: number[];
-  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; alterMin: number | null; grund?: string }[];
+  konten: { konto: string; stufe: string; fuenf: BerichtFenster | null; woche: BerichtFenster | null; vorsprung: number | null; alterMin: number | null; grund?: string }[];
   /** #95: the accounts of konten.json with aktiv and sign-in, never a path; null when the file cannot be read */
   kontenListe?: { nr: number; name: string; farbe: string; aktiv: boolean; anmeldung: string | null }[] | null;
   /** #125: the forge of the project linked at this machine: state and account name, never a token; null before the first check */
