@@ -3,15 +3,13 @@
 # the compose service.
 #   (no switch)  the contexts the change touches since the merge-base with origin/main, plus wurzel
 #   -Alle        all contexts
-#   -Immer       only wurzel, the part that always runs (head line "Immer-Teil")
 # Every area: a .txt file must not be empty and must not contain ROT (upper case). Further rules of
 # the probe come from <git common dir>/probe-regeln.ps1 when it exists.
-param([switch]$Alle, [switch]$Immer)
+param([switch]$Alle)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $gruen = "gr$([char]0xFC)n"
 
-if ($Alle -and $Immer) { Write-Error 'Gate: -Alle und -Immer schliessen sich aus'; exit 2 }
 $common = (git rev-parse --path-format=absolute --git-common-dir).Trim()
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
 
@@ -20,7 +18,7 @@ if ($LASTEXITCODE) { Write-Error 'Gate: kein merge-base mit origin/main'; exit 2
 $head = (git rev-parse --short=8 HEAD).Trim()
 $dateien = @(git diff --name-only $mb) + @(git ls-files --others --exclude-standard) | Where-Object { $_ } | Select-Object -Unique
 $bereiche = 'obst', 'verse', 'thema'
-$beruehrt = if ($Alle) { $bereiche } elseif ($Immer) { @() } else { $bereiche | Where-Object { $b = $_; $dateien | Where-Object { $_ -like "$b/*" } } }
+$beruehrt = if ($Alle) { $bereiche } else { $bereiche | Where-Object { $b = $_; $dateien | Where-Object { $_ -like "$b/*" } } }
 
 function Test-ProbeRegel([string]$bereich) { $null }
 $regeln = Join-Path $common 'probe-regeln.ps1'
@@ -61,7 +59,6 @@ if ($grund) { $rot = $true }
 $zeilen += Zeile 'wurzel' $grund $start
 
 $kopf = if ($Alle) { "--alle, Basis origin/main @ $($mb.Substring(0, 7)) (HEAD $head)" }
-elseif ($Immer) { "Immer-Teil, Basis origin/main @ $($mb.Substring(0, 7)) (HEAD $head)" }
 else { "Basis origin/main @ $($mb.Substring(0, 7)), $(@($dateien).Count) ge$([char]0xE4)nderte Dateien (HEAD $head)" }
 Write-Output ''
 Write-Output "== Gate: $kopf"
