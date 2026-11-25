@@ -289,9 +289,21 @@ $info = Get-PrInfo mergeable
 if ($gitea -and $info.mergeable -eq 'CONFLICTING') { Start-Sleep ([math]::Min(5, $TaktSekunden)); $info = Get-PrInfo mergeable }
 if ($info.mergeable -eq 'CONFLICTING') { "KONFLIKT #${Pr}: nicht mergebar"; exit 1 }
 # only the head that was checked: a push between the check and the merge makes the forge refuse
-if ($gitea) { $ok = Test-Ok (Invoke-Gitea POST "/pulls/$Pr/merge" @{ Do = 'merge'; head_commit_id = $head }) }
-else { gh pr merge $Pr --repo $Repo --merge --match-head-commit $head | Out-Null; $ok = -not $LASTEXITCODE }
-if (-not $ok) { "MERGE FEHLGESCHLAGEN #$Pr"; exit 1 }
+if ($gitea) {
+    $r = Invoke-Gitea POST "/pulls/$Pr/merge" @{ Do = 'merge'; head_commit_id = $head }
+    $ok = Test-Ok $r
+    $grund = if ($r.Status -eq 0) { 'Server nicht erreicht' } else { "Status $($r.Status): $($r.Json.message)" }
+} else {
+    $grund = @(gh pr merge $Pr --repo $Repo --merge --match-head-commit $head 2>&1 | ForEach-Object { "$_" }) -join ' '
+    $ok = -not $LASTEXITCODE
+}
+# the reason of the forge on the same line (#229): the driver sorts it into passing, conflict or lasting
+if (-not $ok) {
+    $grund = ($grund -replace '\s+', ' ').Trim().TrimEnd(':').Trim()
+    if (-not $grund) { $grund = 'keine Ausgabe der Forge' }
+    if ($grund.Length -gt 300) { $grund = $grund.Substring(0, 297) + '...' }
+    "MERGE FEHLGESCHLAGEN #${Pr}: $grund"; exit 1
+}
 
 $info = Get-PrInfo 'state,headRefName,baseRefName,closingIssuesReferences'
 if ($info.state -ne 'MERGED') { "MERGE UNKLAR #${Pr}: Zustand $($info.state), Branch $($info.headRefName) bleibt"; exit 1 }

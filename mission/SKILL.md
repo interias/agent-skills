@@ -83,9 +83,9 @@ Flotten-Treiber.
 1. **Der Lauf dockt nie an den Hauptzweig und nie an `<basis>` an und pusht nie dorthin**, er endet mit einem
    offenen Pull Request — am Hauptzweig hängt meist ein Deploy mit Migrationen, den ein Mensch
    freigibt. Wer den Pull Request andockt, sagt allein der Adapterschlüssel `merge`
-   (`references/adapter.md`, „Andocken"): ein Mensch (`mensch`, Standard) oder nach der Andockprüfung genau
-   ein Akteur außerhalb des Laufs (`nach_gate`). Der Lauf dockt nie an, auch nicht mit
-   `gh pr merge`. Durch Hook durchgesetzt.
+   (`references/adapter.md`, „Andocken"): ein Mensch (`mensch`, Standard) oder nach der Andockprüfung
+   `merge.ps1` außerhalb des Laufs (`nach_gate`), der eine Weg für jeden, der andockt: Treiber, Mensch,
+   Admiral-Sitzung. Der Lauf dockt nie an, auch nicht mit `gh pr merge`. Durch Hook durchgesetzt.
 2. **Gepusht wird nur nach `push_remote`**, nie auf eines der `forbidden_remotes` — jedes andere
    Remote liegt außerhalb der Forge, in der der Pull Request geprüft wird. Durch Hook durchgesetzt.
 3. **Der Erste Offizier legt keine Issues an**, Funde außerhalb des Pakets gehen an dich.
@@ -116,7 +116,7 @@ Flotten-Treiber.
     Diensten; den vollen Stack fährt der Orchestrator, einer nach dem anderen (Phase 4, „Gestufte
     Verifikation und der Slot"). Herkunft: Mission #34, der RAM des Rechners läuft voll (#38).
 13. **Wer einen Dev-Server oder Stack außerhalb von `Up` startet, beendet ihn am Ende des Pakets**; `Down` fängt den Rest ab (`references/worktree.md`). Ein Server, der das Paket überlebt, hält Speicher und Port, bis die nächste Sitzung ihn mit `CleanupStale` findet (#38).
-14. **Die Mission baut Software, keinen Inhalt.** Code, Tests und Doku der Software entstehen im Lauf; Inhalt — Konzepte, Konstruktion, Recherche, gestaltete Motive oder Texte — erarbeitet der Mensch in einem eigenen Chat, auch wenn die Mission die Software dafür baut. Ein Inhaltsziel ist ein Punkt fürs Vorab-Tor (2c, Punkt 15). Herkunft: Entscheidung des Menschen vom 24.11.2026.
+14. **Die Mission baut Software, keinen Inhalt.** Was für die Software gemacht wird, baut die Flotte, auch Testdaten und beschlossene Gestaltung wie Piktogramme, Farben oder Oberflächentexte. Herausgelöst wird nur Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten des Betriebs, Recherche dafür —; ihn erarbeitet der Mensch in einem eigenen Chat. Ein Inhaltsziel ist ein Punkt fürs Vorab-Tor (2c, Punkt 15). Herkunft: Entscheidung des Menschen vom 24.11.2026.
 
 ---
 
@@ -404,7 +404,7 @@ Vorzulegen ist:
     kein eigener DB-Server); `shared_services` ist gesetzt, `service_start` fehlt; ein Paket
     ändert das Lockfile eines `link_dirs`-Verzeichnisses und bräuchte eine echte Installation —
     **ein solches Paket ist per `Up` nicht rüstbar**, `Up` verlinkt immer alle `link_dirs`.
-15. **Ein Inhaltsziel** (Regel 14): Das Ergebnis der Mission oder eines Missionsziels ist Inhalt statt Code und Doku der Software, die ihn ermöglicht. Maßstab ist das Ergebnis, nicht ein Wort im Text: Eine Konzeptschleife zu bauen ist Software, die erste Konzeptrunde darin auszuarbeiten ist Inhalt. Empfehlung: herauslösen — das Ticket bekommt `ready-for-human` statt des Freigabelabels, ausgearbeitet wird davon nichts. Ein **gemischtes** Ziel ist kein Tor-Punkt: Die Abnahmeliste des Pakets enthält nur den Softwareanteil, der Inhaltsanteil wird offener Punkt im Pull Request.
+15. **Ein Inhaltsziel** (Regel 14): Das Ergebnis der Mission oder eines Missionsziels ist Inhalt, den der Mensch in der Software erarbeitet und dort pflegt — Konzeptrunden, Konstruktionen, Stamm- und Geschäftsdaten des Betriebs, Recherche dafür —, statt Software. Maßstab ist das Ergebnis, nicht ein Wort im Text: Eine Konzeptschleife zu bauen ist Software, die erste Konzeptrunde darin auszuarbeiten ist Inhalt. Empfehlung: herauslösen — das Ticket bekommt `ready-for-human` statt des Freigabelabels, ausgearbeitet wird davon nichts. Ein **gemischtes** Ziel ist kein Tor-Punkt: Die Abnahmeliste des Pakets enthält nur den Softwareanteil, der Inhaltsanteil wird offener Punkt im Pull Request.
 
 **Fehlt der Adapter,** legt das Tor die abgeleiteten Werte immer als eigene Liste vor, auch wenn
 sonst nichts zu melden ist.
@@ -812,21 +812,19 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
     „übernommen von <Autor> aus <Branch>, <Original-Hash>"; Link auf die Lauftafel; die Stil-Checkliste des
     Ersten Offiziers; die offenen Punkte; die angelegten Tickets (Regel 3); je Missionsziel mit offenem Blocker der Satz aus `references/forge.md`,
     „Diese Gitea-Instanz" (412).
-  - **Andockblock**, bei `merge: nach_gate`, auch in einem Repository mit Checks: Die Andockregel
-    (`merge.ps1`, der Flotten-Treiber) dockt nur mit ihm an (`references/adapter.md`, „Andocken").
-    Er steht unter genau der Überschrift `gate_heading`, Standard `## Gate`, nicht unter
-    „Verifikation" oder „Prüfung". Darunter steht die Ausgabe der Andockprüfung des Projekts als
-    Codeblock. Sie hat zwei Teile:
-    - **Kopfzeile:** Sie nennt die Basis und den Head, also `Basis <remote>/<basis> @ <sha>` und
-      `(HEAD <sha>)`. Hat der Adapter `gate_base` und `gate_head`, gilt deren Form.
+  - **Andockblock**, bei `merge: nach_gate`, auch mit Checks: `merge.ps1` dockt nur mit ihm an
+    (`references/adapter.md`, „Andocken"). Er steht unter genau `gate_heading` (Standard `## Gate`),
+    nicht unter „Verifikation" oder „Prüfung", als Codeblock mit der Ausgabe der Andockprüfung:
+    - **Kopfzeile:** `Basis <remote>/<basis> @ <sha>` und `(HEAD <sha>)`, sonst die Form von
+      `gate_base` und `gate_head`.
     - **Letzte Zeile:** `gate_green`, Standard `Gate grün.`.
 
-    Die Andockprüfung läuft nach dem letzten Commit und gegen den aktuellen Stand der Basis. Jeder Commit
-    danach verlangt einen neuen Lauf und einen neuen Block, auch einer nur für die Doku oder den
-    PR-Text. Den alten Block ersetzt du. Gibt die Andockprüfung des Projekts keine Basis aus, ist das ein
-    offener Punkt, und angedockt wird von Hand. Nennt der Adapter `gate_command`, ist das der Befehl
-    für die Andockprüfung. Unter dem Flotten-Treiber holt danach der Treiber die Basis nach und fährt die
-    Andockprüfung selbst; ein Konflikt oder eine rote Andockprüfung kommt mit seiner Ausgabe zu dir zurück.
+    Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head
+    (`gate_command`). Ein eigener Commit danach verlangt einen neuen Lauf und Block, auch nur für Doku
+    oder PR-Text; den alten Block ersetzt du. Eine Bewegung der Basis verlangt keinen: Die Basis holt
+    erst nach, wer andockt, unter dem Treiber nur die Spitze der Andock-Schlange (`references/adapter.md`,
+    „Andocken"); ein Konflikt oder Rot dort kommt mit der Ausgabe zu dir zurück. Nennt die Ausgabe der
+    Andockprüfung keine Basis, ist das ein offener Punkt, und angedockt wird von Hand.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
     Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Missionsziel, in beiden Modi. **Ein
     Zielissue mit Missionszielen nie** (Begründung ebenda). Die

@@ -195,7 +195,7 @@ Schlüssel ist kein Fehler. Vorrang: Parameter vor Adapter vor Standard.
 | `plan_artifact` | `publish` (Lauftafel als Artifact veröffentlicht) oder `file` (Lauftafel nur als Datei, Pfad im Eröffnungskommentar) | `publish` |
 | `gate_approvals` | zusätzliche Punkte fürs Vorab-Tor, etwa bezahlte Läufe oder Blindsatz | keine |
 | `no_access` | Systeme, auf die ein Lauf keinen Zugriff hat. Ein Paket, das sie braucht, ist ein Tor-Punkt | keine |
-| `lern_issue` | Nummer des Sammel-Issues „Lernvorschläge“. Nach jedem angedockten Missions-PR schreibt die Lernschleife (`flotte lernen`, billiges Modell) dort höchstens drei Vorschläge mit Beleg als einen Kommentar; umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet `flotte triage` wie eine Sternzeit-Notiz (`flotte/README.md`, „Triage“). Eine übernommene Regel trägt die Herkunft `Lernschleife L<n>, <Datum>` | keines: keine Lernschleife |
+| `lern_issue` | Nummer des Sammel-Issues „Lernvorschläge“; sagt nur, wohin die Vorschläge gehen. Die Lernschleife ist ab Werk aus und wird je Projekt eingeschaltet (Maschinenraum der Brücke, „Lernschleife je Projekt“, mit PIN, oder `flotte fahren --lernschleife an`); einschalten geht nur, wenn dieser Schlüssel gesetzt ist; eine Einrichtung, deren Treiber schon vor dem Schalter lief und deren Adapter den Schlüssel nennt, behält einmalig „an“ (mit Ereignis). Eingeschaltet schreibt sie nach jedem angedockten Missions-PR (`flotte lernen`, billiges Modell) dort höchstens drei Vorschläge mit Beleg als einen Kommentar; umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet `flotte triage` wie eine Sternzeit-Notiz (`flotte/README.md`, „Triage“). Eine übernommene Regel trägt die Herkunft `Lernschleife L<n>, <Datum>` | keines: keine Lernschleife einschaltbar |
 
 ### Andocken (#14)
 
@@ -205,7 +205,7 @@ Schlüssel. Ein Lauf dockt nie an, in keiner Einstellung.
 
 | Schlüssel | Bedeutung | Standard |
 |---|---|---|
-| `merge` | `mensch`: ein Mensch dockt an. `nach_gate`: genau ein Akteur dockt nach grünem Andockblock an und, wo es Checks gibt, nach grünen Checks — der Flotten-Treiber mit `merge.ps1`. Immer mit Andock-Commit (`gh pr merge --merge`) | `mensch` |
+| `merge` | `mensch`: ein Mensch dockt an. `nach_gate`: angedockt wird auf genau einem Weg, mit `merge.ps1` nach grünem Andockblock und, wo es Checks gibt, nach grünen Checks — vom Flotten-Treiber oder von Hand. Immer mit Andock-Commit (`gh pr merge --merge`) | `mensch` |
 | `gate_heading` | Überschrift des Abschnitts mit dem Andockblock in der PR-Beschreibung | `## Gate` |
 | `gate_green` | Zeile, die eine grüne Andockprüfung abschließt | `Gate grün.` |
 | `gate_base` | regulärer Ausdruck mit einer Gruppe: die Basis-SHA, gegen die die Andockprüfung lief | `Basis \S+ @ ([0-9a-f]{7,40})` |
@@ -241,8 +241,22 @@ letzte Zeile, auf die `gate_base` passt, und was danach folgt. Angedockt wird nu
 4. die HEAD-SHA des Blocks der aktuelle Head des Pull Requests ist (Präfix), und
 5. der Head die aktuelle Basis enthält (Forge-Vergleich: 0 Commits hinter der Basis).
 
-Fehlt etwas davon, wird nicht angedockt, und der Lauf fährt die Andockprüfung neu (`mission/SKILL.md`, Phase 6).
-Ein Commit nach der Andockprüfung, auch nur Doku, verlangt eine neue Andockprüfung.
+Fehlt etwas davon, wird nicht angedockt. Ein eigener Commit der Mission nach der Andockprüfung, auch
+nur Doku, verlangt eine neue Andockprüfung durch den Lauf; eine Bewegung der Basis nicht. Die Basis
+holt erst nach, wer andockt: unter dem Flotten-Treiber nur der Treiber an der Spitze der
+Andock-Schlange, ohne Treiber der Mensch oder die Sitzung, die andockt. Von Hand, unmittelbar vor
+dem Andocken:
+
+1. die Basis per `git merge <push_remote>/<basis>` in den Missions-Branch holen,
+2. die Andockprüfung (`gate_command`) auf diesem Stand fahren,
+3. pushen und den neuen Block unter `gate_heading` an die PR-Beschreibung anhängen (der letzte Lauf
+   zählt), sonst meldet `merge.ps1` `GATE FEHLT`,
+4. `merge.ps1 -Repo <owner/name> -Pr <nr>` aufrufen.
+
+**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**: Bei `merge: nach_gate` ist es der eine
+Weg für jeden, der andockt — den Treiber, einen Menschen, eine Sitzung, auch eine Admiral-Sitzung.
+Nur das Skript prüft, dass der Andockblock zur Spitze der Basis und zum Head passt; ein
+`gh pr merge` oder der Knopf der Forge daneben umgeht diese Prüfung.
 
 **Der Teil-Lauf.** Ist der letzte Lauf ein Teil-Lauf (`gate_partial` in der Kopfzeile, nur
 `gate_always_command`), gelten 1 bis 5 auch für ihn, und dazu:
