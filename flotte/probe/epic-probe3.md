@@ -17,6 +17,7 @@ ram_warn_percent: 85
 ram_hold_percent: 90
 ram_min_free_gb: 3
 gate_command: pwsh -NoProfile -File werkzeug/gate.ps1 -Alle
+# Protokoll: gate_always_command und gate_areas sind seit dem Umbau der Andockprüfung abgeschafft, ein Teil-Lauf zählt nicht mehr
 gate_always_command: pwsh -NoProfile -File werkzeug/gate.ps1 -Immer
 gate_areas:
   - alpha/ = alpha
