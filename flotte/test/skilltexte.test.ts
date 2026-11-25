@@ -135,6 +135,28 @@ describe('#211: a long own wait stays warm, the rule stands word for word in 4a 
   });
 });
 
+describe('check once, do not chase the base (24.11.2026): only the head of the merge queue merges the base and checks again', () => {
+  const phase6 = abschnitt('## Phase 6 — Abschluss', '- **Nicht andocken.**');
+  const adapterMd = lies('mission/references/adapter.md');
+  const andocken = adapterMd.slice(adapterMd.indexOf('### Andocken'), adapterMd.indexOf('### Werft'));
+
+  it('Phase 6: the mission runs the gate once on its head and does not merge the base afterwards', () => {
+    expect(phase6).toContain('Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head');
+    expect(phase6).toContain('Ein eigener Commit danach verlangt einen neuen Lauf und einen neuen Block');
+    expect(phase6).toContain('Eine Bewegung der Basis verlangt keinen: Die Mission zieht die Basis nicht nach');
+    expect(phase6).toContain('nur der Treiber an der Spitze der Andock-Schlange');
+    expect(phase6).toContain('Ohne Treiber holt die Basis nach, wer andockt, unmittelbar vor `merge.ps1`');
+    expect(phase6).not.toContain('gegen den aktuellen Stand der Basis');
+  });
+
+  it('every merge onto the base goes through merge.ps1, by hand too; the adapter reference does not send the run back to the gate', () => {
+    expect(andocken).toContain('**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**');
+    expect(andocken).not.toContain('und der Lauf fährt die Andockprüfung neu');
+    expect(lies('docs/befugnisse.md')).toContain('Jedes Andocken auf den Basiszweig geht über `merge.ps1`');
+    expect(lies('AGENTS.md')).toContain('Jedes Andocken auf `main` geht über `mission/scripts/merge.ps1`');
+  });
+});
+
 describe('only software (24.11.2026): content goals go to the person, every place that releases or cuts says it', () => {
   const regeln = abschnitt('## Die Regeln, die nicht verhandelbar sind', '## Die Statuslabels');
   const tor = abschnitt('### 2c — Das Vorab-Tor', '### 2d');

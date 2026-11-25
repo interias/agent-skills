@@ -241,8 +241,14 @@ letzte Zeile, auf die `gate_base` passt, und was danach folgt. Angedockt wird nu
 4. die HEAD-SHA des Blocks der aktuelle Head des Pull Requests ist (Präfix), und
 5. der Head die aktuelle Basis enthält (Forge-Vergleich: 0 Commits hinter der Basis).
 
-Fehlt etwas davon, wird nicht angedockt, und der Lauf fährt die Andockprüfung neu (`mission/SKILL.md`, Phase 6).
-Ein Commit nach der Andockprüfung, auch nur Doku, verlangt eine neue Andockprüfung.
+Fehlt etwas davon, wird nicht angedockt. Ein eigener Commit der Mission nach der Andockprüfung, auch
+nur Doku, verlangt eine neue Andockprüfung durch den Lauf; eine Bewegung der Basis nicht: Die Basis
+holt erst nach, wer andockt — unter dem Flotten-Treiber nur der Treiber an der Spitze der
+Andock-Schlange —, und fährt dann die Andockprüfung neu (`mission/SKILL.md`, Phase 6).
+
+**Jedes Andocken auf den Basiszweig geht über `merge.ps1`**, bei `merge: nach_gate` auch das von
+Hand, nicht nur das des Treibers: Nur das Skript prüft, dass der Andockblock zur Spitze der Basis
+und zum Head passt. Ein `gh pr merge` oder der Knopf der Forge daneben umgeht diese Prüfung.
 
 **Der Teil-Lauf.** Ist der letzte Lauf ein Teil-Lauf (`gate_partial` in der Kopfzeile, nur
 `gate_always_command`), gelten 1 bis 5 auch für ihn, und dazu:

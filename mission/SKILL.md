@@ -821,12 +821,16 @@ Lauf hält deswegen **nicht** an — nichts davon ist angedockt, alles ist folge
       `(HEAD <sha>)`. Hat der Adapter `gate_base` und `gate_head`, gilt deren Form.
     - **Letzte Zeile:** `gate_green`, Standard `Gate grün.`.
 
-    Die Andockprüfung läuft nach dem letzten Commit und gegen den aktuellen Stand der Basis. Jeder Commit
+    Die Mission fährt die Andockprüfung **einmal**, nach ihrem letzten Commit auf ihrem Head, und
+    schreibt den Block. Nennt der Adapter `gate_command`, ist das der Befehl dafür. Ein eigener Commit
     danach verlangt einen neuen Lauf und einen neuen Block, auch einer nur für die Doku oder den
-    PR-Text. Den alten Block ersetzt du. Gibt die Andockprüfung des Projekts keine Basis aus, ist das ein
-    offener Punkt, und angedockt wird von Hand. Nennt der Adapter `gate_command`, ist das der Befehl
-    für die Andockprüfung. Unter dem Flotten-Treiber holt danach der Treiber die Basis nach und fährt die
-    Andockprüfung selbst; ein Konflikt oder eine rote Andockprüfung kommt mit seiner Ausgabe zu dir zurück.
+    PR-Text; den alten Block ersetzt du. Eine Bewegung der Basis verlangt keinen: Die Mission zieht die
+    Basis nicht nach und wiederholt die Andockprüfung nicht, weil die Basis weitergezogen ist. Unter
+    dem Flotten-Treiber holt nur der Treiber an der Spitze der Andock-Schlange die Basis nach und fährt
+    die Andockprüfung neu; ein Konflikt oder eine rote Andockprüfung kommt mit seiner Ausgabe zu dir
+    zurück. Ohne Treiber holt die Basis nach, wer andockt, unmittelbar vor `merge.ps1`, und fährt die
+    Andockprüfung dann neu. Gibt die Andockprüfung des Projekts keine Basis aus, ist das ein offener
+    Punkt, und angedockt wird von Hand.
   - **`Closes`** (Schließwörter und Reihenfolge der Zeilen: `references/forge.md`, „Diese
     Gitea-Instanz"): `Closes #<kind>` je vollständig abgenommenem Missionsziel, in beiden Modi. **Ein
     Zielissue mit Missionszielen nie** (Begründung ebenda). Die
