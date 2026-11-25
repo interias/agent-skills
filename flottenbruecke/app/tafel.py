@@ -261,6 +261,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
     liste, rechner, konten, lager = [], {}, {}, []
+    missionen_je: dict[str, list[dict]] = {}
     sitzungen = {}
     kontenliste: dict[tuple[str, int], dict] = {}
     anlegen: dict[str, dict] = {}
@@ -280,9 +281,11 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         if r is None or r['empfangen'] < p['empfangen']:
             rechner[b.get('rechner', '')] = {'name': b.get('rechner', ''), 'empfangen': p['empfangen'], 'ram': b.get('ram'), 'platte': b.get('platte'), 'obergrenze': b.get('obergrenze'), 'veraltet': veraltet}
         for k in b.get('konten', []):
+            # Tag Q: each project reports only its own missions on the account: they are joined, with the project
+            missionen_je.setdefault(k['konto'], []).extend({**m, 'projekt': kurz} for m in k.get('missionen') or [])
             alt = konten.get(k['konto'])
             if alt is None or alt['empfangen'] < p['empfangen']:
-                konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'vorsprung': k.get('vorsprung'), 'alterMin': k.get('alterMin'), 'grund': k.get('grund'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
+                konten[k['konto']] = {'konto': k['konto'], 'stufe': k['stufe'], 'fuenf': k.get('fuenf'), 'woche': k.get('woche'), 'vorsprung': k.get('vorsprung'), 'alterMin': k.get('alterMin'), 'grund': k.get('grund'), 'missionen': k.get('missionen'), 'empfangen': p['empfangen'], 'veraltet': veraltet}
         # the sessions of a silent project are old: only live reports count, the newest one wins a session
         for s in b.get('sitzungen', []) if not veraltet else []:
             schluessel = (s['konto'], s['projekt'], s['name'], s['seit'])
@@ -390,6 +393,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'entscheidungen': entscheidungen.get(nr, []),
                 # the line of the card from the driver; None from an older one: the card as before
                 'lage': ep.get('lage'),
+                # Tag Q: the usage of the mission so far; None from an older driver
+                'verbrauch': ep.get('verbrauch'),
             }
             if stufe in HALT and ep.get('aufgegebenAm'):
                 t = zeit(ep['aufgegebenAm'])
@@ -567,7 +572,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'herkunft': HERKUNFT,
         'projekte': liste,
         'rechner': sorted(rechner.values(), key=lambda r: r['name']),
-        'konten': sorted(konten.values(), key=lambda k: k['konto']),
+        'konten': sorted(({**k, 'missionen': sorted(missionen_je[k['konto']], key=lambda m: -((m.get('woche') or {}).get('summe') or 0)) or None} for k in konten.values()), key=lambda k: k['konto']),
         'braucht': braucht,
         'unterwegs': {'laeufe': laeufe, 'schlange': schlange_karten, 'bereit': bereit},
         'erledigt': erledigt,
