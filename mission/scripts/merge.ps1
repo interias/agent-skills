@@ -7,13 +7,11 @@
 # a workflow and without checks on the base it does not wait at all). Checks or not, the gate block in
 # the pull request description must be there, green, run against the current base on the current head,
 # and the head must contain the current base: a check of something else (a website build) never stands
-# in for the gate (acceptance 3, #14). A last run of only the part that always runs (gate_partial) counts when the base moved,
-# since the last full green run, only in gate_areas the pull request does not touch.
+# in for the gate (acceptance 3, #14). The last run counts as it stands; there is no partial run.
 # Usage: merge.ps1 -Repo <owner/name> -Pr 164 [-MaxMinuten 30] [-BranchBehalten] [-Api <host>/api/v1/repos/<owner>/<repo>]
 # With -Api the forge is Gitea (#127): every call goes through curl against its API; the Authorization header
 # comes from the variable FLOTTE_FORGE_KOPF (the driver sets it for this process), else `token $GITEA_TOKEN`.
-# Gitea knows no checks but commit statuses, and no file list per compare: there a partial gate run
-# (gate_partial) is never enough, a full green run is.
+# Gitea knows no checks but commit statuses.
 # -GhCommand, -CurlCommand, -LeerMinuten and -TaktSekunden exist for the tests (merge.Tests.ps1).
 param(
     [Parameter(Mandatory)][string]$Repo,
@@ -57,7 +55,7 @@ function Test-Ok($r) { $r.Status -ge 200 -and $r.Status -le 299 }
 
 # Flat `key: value` entries of the YAML frontmatter; quotes around a value are removed, an
 # unquoted value loses a trailing ` # comment`. A key without a value followed by `  - item` lines
-# is a list (gate_areas).
+# is a list.
 function Read-Frontmatter([string]$text) {
     $values = @{}
     $lines = $text -split "`r?`n"
@@ -79,34 +77,6 @@ function Read-Frontmatter([string]$text) {
         $values[$key] = $value
     }
     $values
-}
-
-# gate_areas: `<pattern> = <name>`; ** spans folders, * and ? stay inside one, a trailing / is the folder.
-function ConvertTo-GlobRegex([string]$pattern) {
-    if ($pattern.EndsWith('/')) { $pattern += '**' }
-    $r = [regex]::Escape($pattern) -replace '\\\*\\\*/', '(.*/)?' -replace '\\\*\\\*', '.*' -replace '\\\*', '[^/]*' -replace '\\\?', '[^/]'
-    "^$r$"
-}
-
-# The areas of a list of files; a file in no area is '(ohne Bereich)' and counts as touching every area.
-function Get-Areas([string[]]$files, $areas) {
-    $names = New-Object Collections.Generic.HashSet[string]
-    foreach ($f in $files) {
-        $hit = @($areas | Where-Object { $f -match $_.Regex } | ForEach-Object Name)
-        if ($hit) { foreach ($h in $hit) { [void]$names.Add($h) } } else { [void]$names.Add('(ohne Bereich)') }
-    }
-    , @($names)
-}
-
-# Files of a compare (three dots: from the merge base to $to), a rename with both names, or $null
-# when the forge cuts the list.
-function Get-CompareFiles([string]$from, [string]$to) {
-    if ($gitea) { return $null }
-    $out = gh api "repos/$Repo/compare/$from...$to" --jq '[(.files | length), (.files[] | .filename, (.previous_filename // empty))] | .[]' 2>$null
-    if ($LASTEXITCODE) { return $null }
-    $all = @($out | ForEach-Object { "$_" -split "\r?\n" } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    if (-not $all.Count -or [int]$all[0] -ge 300) { return $null }
-    , @($all | Select-Object -Skip 1)
 }
 
 # The reason why the gate block does not allow the merge, or $null.
@@ -131,34 +101,13 @@ function Test-GateBlock([string]$body, $settings, [string]$baseSha, [string]$hea
         $h = [regex]::Match($section[$at], $settings.Head)
         $g = $false
         for ($k = $at + 1; $k -lt $until; $k++) { if ($section[$k].Trim() -eq $settings.Green) { $g = $true; break } }
-        @{ Base = ([regex]::Match($section[$at], $settings.Base)).Groups[1].Value; Head = $(if ($h.Success) { $h.Groups[1].Value } else { $null })
-           Green = $g; Partial = [bool]($section[$at] -match $settings.Partial) }
+        @{ Base = ([regex]::Match($section[$at], $settings.Base)).Groups[1].Value; Head = $(if ($h.Success) { $h.Groups[1].Value } else { $null }); Green = $g }
     }
     $last = & $run ($runs.Count - 1)
     if (-not $last.Head) { return 'der letzte Gate-Lauf nennt keinen HEAD' }
     if (-not $last.Green) { return "der letzte Gate-Lauf endet nicht mit '$($settings.Green)'" }
     if (-not $baseSha.StartsWith($last.Base, [StringComparison]::OrdinalIgnoreCase)) { return "Gate lief gegen $($last.Base), die Basis steht auf $($baseSha.Substring(0, 7))" }
     if (-not $headSha.StartsWith($last.Head, [StringComparison]::OrdinalIgnoreCase)) { return "Gate lief auf $($last.Head), der Pull Request steht auf $($headSha.Substring(0, 8))" }
-    if (-not $last.Partial) { return $null }
-
-    # Only the part that always runs ran on the last state. That is enough when the base moved, since
-    # the last full green run, only in areas the epic does not touch (#14, merge queue). Checked here
-    # on the forge, not taken from whoever wrote the block.
-    if (-not $settings.Areas.Count) { return 'der letzte Gate-Lauf ist ein Teil-Lauf, der Adapter nennt keine gate_areas' }
-    $full = $null
-    for ($i = $runs.Count - 2; $i -ge 0; $i--) { $r = & $run $i; if (-not $r.Partial) { if ($r.Green -and $r.Head) { $full = $r }; break } }
-    if (-not $full) { return 'vor dem Teil-Lauf steht kein gruener Voll-Lauf' }
-    $moved = Get-CompareFiles $full.Base $baseSha
-    $epic = Get-CompareFiles $baseSha $headSha
-    $since = Get-CompareFiles $full.Head $headSha
-    if ($null -eq $moved -or $null -eq $epic -or $null -eq $since) { return 'Dateilisten fuer die Bereiche nicht lesbar' }
-    $own = @($since | Where-Object { $_ -notin $moved })
-    if ($own) { return "nach dem Voll-Lauf kamen eigene Aenderungen: $(($own | Select-Object -First 5) -join ', ')" }
-    $movedAreas = Get-Areas $moved $settings.Areas
-    $epicAreas = Get-Areas $epic $settings.Areas
-    $both = @($movedAreas | Where-Object { $_ -in $epicAreas -or $_ -eq '(ohne Bereich)' })
-    if (@($epicAreas) -contains '(ohne Bereich)' -and $movedAreas.Count) { $both += '(ohne Bereich)' }
-    if ($both) { return "die Basis bewegte sich seit dem Voll-Lauf in Bereichen des Epics: $((@($both) | Select-Object -Unique) -join ', ')" }
     $null
 }
 
@@ -270,9 +219,6 @@ $settings = @{
     Green   = if ($adapter['gate_green']) { $adapter['gate_green'] } else { "Gate gr$([char]0x00FC)n." }
     Base    = if ($adapter['gate_base']) { $adapter['gate_base'] } else { 'Basis \S+ @ ([0-9a-f]{7,40})' }
     Head    = if ($adapter['gate_head']) { $adapter['gate_head'] } else { '\(HEAD ([0-9a-f]{7,40})\)' }
-    Partial = if ($adapter['gate_partial']) { $adapter['gate_partial'] } else { 'Immer-Teil' }
-    Areas   = @(@($adapter['gate_areas']) | Where-Object { $_ -match '^\s*(\S+)\s*=\s*(\S+)\s*$' } | ForEach-Object {
-        @{ Regex = (ConvertTo-GlobRegex $Matches[1]); Name = $Matches[2] } })
 }
 $baseSha = Get-BranchSha $info.baseRefName
 if (-not $baseSha) { "GATE UNGEPRUEFT #${Pr}: Basis $($info.baseRefName) nicht lesbar"; exit 1 }

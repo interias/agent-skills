@@ -228,72 +228,28 @@ Describe 'merge.ps1: a repository without CI (#14, C2)' {
     }
 }
 
-Describe 'merge.ps1: a last run of only the part that always runs (#14, B)' {
-    $areas = "---`nmerge: nach_gate`ngate_areas:`n  - 'apps/web/ = web'`n  - apps/api/** = api   # the server`ngate_always_command: npm run gate -- --immer`n---`n"
-    # full green run on base ccccccc and head eeeeeeee, then the part that always runs on the current state
+Describe 'merge.ps1: one gate block, one way (step 7 of the gate rebuild; was the part run of #14, B)' {
+    # an adapter of before: the abolished keys gate_areas, gate_always_command and gate_partial, a list among them
+    $alt = "---`nmerge: nach_gate`ngate_areas:`n  - 'apps/web/ = web'`n  - apps/api/** = api   # the server`ngate_always_command: npm run gate -- --immer`ngate_partial: Immer-Teil`n---`n"
+    # a full green run on an older state, then a run whose heading still says Immer-Teil on the current state
     $body = "## Gate`n``````n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`n$green`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n  wurzel gr$([char]0x00FC)n`n$green`n``````"
-    function New-Compare([string]$moved = 'apps/api/x.ts', [string]$epic = 'apps/web/y.ts', [string]$since = 'apps/api/x.ts') {
-        $list = { param($f) $l = @($f -split ',' | Where-Object { $_ }); (@("$($l.Count)") + $l) -join "`n" }
-        @(
-            @{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = (& $list $moved); exit = 0 }
-            @{ match = "^api repos/o/r/compare/$baseSha\.\.\.$headSha"; out = (& $list $epic); exit = 0 }
-            @{ match = "^api repos/o/r/compare/eeeeeeee\.\.\.$headSha"; out = (& $list $since); exit = 0 }
-        )
-    }
+    $compare = @(@{ match = '^api repos/o/r/compare/(ccccccc|eeeeeeee|aaaaaaa1)'; out = "1`napps/web/z.ts"; exit = 0 })
 
-    It 'merges when the base moved only in an area the epic does not touch' {
-        $r = Invoke-Merge ((New-Compare) + (New-Rules $body $areas))
+    It 'the last run counts as it stands: green on the current base and head merges, no file list is read' {
+        $r = Invoke-Merge ($compare + (New-Rules $body $alt))
         $r.Out | Should Match 'GEMERGT #7'
+        @($r.Calls | Where-Object { $_ -match '^api repos/o/r/compare/(ccccccc|eeeeeeee|aaaaaaa1)' }).Count | Should Be 0
     }
 
-    It 'refuses when the base moved in an area of the epic' {
-        $r = Invoke-Merge ((New-Compare -moved 'apps/web/z.ts' -since 'apps/web/z.ts') + (New-Rules $body $areas))
-        $r.Out | Should Match 'GATE FEHLT #7: die Basis bewegte sich seit dem Voll-Lauf in Bereichen des Epics: web'
+    It 'the abolished keys change nothing: the same body merges with and without them' {
+        (Invoke-Merge ($compare + (New-Rules $body))).Out | Should Match 'GEMERGT #7'
+    }
+
+    It 'a last run on an old base never counts, whatever the base moved in' {
+        $alt2 = "## Gate`n``````n== Gate: Basis origin/main @ aaaaaaa (HEAD eeeeeeee)`n$green`n== Gate: Immer-Teil, Basis origin/main @ ccccccc (HEAD bbbbbbbb)`n$green`n``````"
+        $r = Invoke-Merge ($compare + (New-Rules $alt2 $alt))
+        $r.Out | Should Match 'GATE FEHLT #7: Gate lief gegen ccccccc, die Basis steht auf aaaaaaa'
         (Get-MergeCalls $r).Count | Should Be 0
-    }
-
-    It 'refuses when the base moved a file outside every area' {
-        $r = Invoke-Merge ((New-Compare -moved 'package.json' -since 'package.json') + (New-Rules $body $areas))
-        $r.Out | Should Match 'Bereichen des Epics: \(ohne Bereich\)'
-    }
-
-    It 'refuses when the epic touches a file outside every area and the base moved' {
-        $r = Invoke-Merge ((New-Compare -epic 'apps/web/y.ts,README.md') + (New-Rules $body $areas))
-        $r.Out | Should Match 'Bereichen des Epics: .*\(ohne Bereich\)'
-    }
-
-    It 'refuses own changes after the full run' {
-        $r = Invoke-Merge ((New-Compare -since 'apps/api/x.ts,apps/web/neu.ts') + (New-Rules $body $areas))
-        $r.Out | Should Match 'nach dem Voll-Lauf kamen eigene Aenderungen: apps/web/neu.ts'
-    }
-
-    It 'refuses a renamed file whose old name lies in the area of the epic' {
-        $r = Invoke-Merge ((New-Compare -moved 'apps/api/x.ts,apps/web/alt.ts' -since 'apps/api/x.ts,apps/web/alt.ts') + (New-Rules $body $areas))
-        $r.Out | Should Match 'Bereichen des Epics: web'
-    }
-
-    It 'refuses when the forge cuts a file list' {
-        $cut = @(@{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = "300`napps/api/x.ts"; exit = 0 }) + (New-Compare)
-        $r = Invoke-Merge ($cut + (New-Rules $body $areas))
-        $r.Out | Should Match 'Dateilisten fuer die Bereiche nicht lesbar'
-    }
-
-    It 'never merges when the check itself fails (an unreadable answer of the forge)' {
-        $kaputt = @(@{ match = "^api repos/o/r/compare/ccccccc\.\.\.$baseSha"; out = "keine Zahl`napps/api/x.ts"; exit = 0 }) + (New-Compare)
-        $r = Invoke-Merge ($kaputt + (New-Rules $body $areas))
-        $r.Out | Should Match 'GATE FEHLT #7: Pruefung gescheitert'
-        (Get-MergeCalls $r).Count | Should Be 0
-    }
-
-    It 'refuses a part run without gate_areas in the adapter' {
-        $r = Invoke-Merge ((New-Compare) + (New-Rules $body))
-        $r.Out | Should Match 'Teil-Lauf, der Adapter nennt keine gate_areas'
-    }
-
-    It 'refuses a part run without a green full run before it' {
-        $nurTeil = "## Gate`n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`nGate ROT.`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green"
-        $r = Invoke-Merge ((New-Compare) + (New-Rules $nurTeil $areas))
-        $r.Out | Should Match 'vor dem Teil-Lauf steht kein gruener Voll-Lauf'
     }
 }
 
@@ -310,6 +266,7 @@ Describe 'merge.ps1: the head branch' {
         $r.Out | Should Match 'Branch epic/7-x behalten \(2 Commits nicht in main\)'
         (Get-DeleteCalls $r).Count | Should Be 0
     }
+
 }
 
 # Gitea (#127): curl is a stub script (-CurlCommand) that reads the request from its config on stdin, logs

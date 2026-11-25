@@ -28,7 +28,7 @@ import { GESCHLOSSEN, LERN_THEMA, missionszielAngelegt, missionszielFehlt, offen
 import { admiralArgs, admiralAuftrag, admiralWerkzeuge, antwortenAus, LAUF_VERBOTEN, laufWerkzeuge } from './admiral.ts';
 import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschliessen, prZustand } from './forge.ts';
 import { fehlerText, type ForgeZugriff, forgeRepoFuer, type Issue, zugriffFuer } from '../forge/zugriff.ts';
-import { type AndockMessung, bereicheAus, blockAus, blockEinsetzen, cacheAnteil, gateForm, gateLaeufe, gateLaeufeImLog, gemeinsameBereiche, gleich, kontexteAus, letzterVollLauf } from './gate.ts';
+import { type AndockMessung, blockAus, blockEinsetzen, cacheAnteil, gateForm, gateLaeufe, gateLaeufeImLog, gleich, kontexteAus } from './gate.ts';
 import { antwortZeile, type Bericht, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { gateStand, missionsWorktrees } from './pruefprotokolle.ts';
@@ -378,7 +378,7 @@ export interface FlottenZustand extends Zustand {
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
 /** #25: basis: a conflict with the base (not the run's doing); aussen: a red gate whose output names a cause outside the diff */
-type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; teil?: boolean; gepusht?: boolean; basis?: boolean; aussen?: string };
+type GateErgebnis = { art: 'gruen' | 'zurueck' | 'mensch'; text: string; gepusht?: boolean; basis?: boolean; aussen?: string };
 
 /**
  * #25: causes of a red gate outside the diff, only as the gate itself says them on a line of their own
@@ -709,6 +709,8 @@ class Treiber {
       this.mergeAlt = this.pruefeMergeSkript();
       if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch dockt an`);
     }
+    // the partial gate run is gone: its keys stop nothing, they only get a hint
+    if (this.adapter.abgeschafft.length) this.ereignis(null, `Hinweis: der Adapter nennt ${this.adapter.abgeschafft.join(', ')}; die Schlüssel wirken nicht mehr, die Andockprüfung des Treibers fährt immer gate_command`);
     this.messungen = liesMessungen(this.dir);
     this.eingespieltMelden();
     this.wiederaufnehmen();
@@ -1174,7 +1176,7 @@ class Treiber {
       } catch { /* no line of JSON */ }
     }
     if (!zeile.includes('"tool_use') && !zeile.includes('"parent_tool_use_id":"')) return;
-    const gate = [this.adapter?.gate_command, this.adapter?.gate_always_command].filter((b): b is string => Boolean(b));
+    const gate = this.adapter?.gate_command ? [this.adapter.gate_command] : [];
     const neu = eintraegeAus(zeile, zeit, gate).filter((e) => !(nachlese && e.art === 'unter'));
     if (neu.length) fuegeAn((ep.agenten ??= []), neu);
   }
@@ -2970,7 +2972,7 @@ class Treiber {
 
   /** Tag J: gate commands and the roots below which a path of the mission becomes relative */
   verlaufOptionen(ep: FlottenEpic): { gate: string[]; wurzeln: string[] } {
-    return { gate: [this.adapter?.gate_command, this.adapter?.gate_always_command].filter((b): b is string => Boolean(b)), wurzeln: [...this.missionsWts(ep), this.e.repo] };
+    return { gate: this.adapter?.gate_command ? [this.adapter.gate_command] : [], wurzeln: [...this.missionsWts(ep), this.e.repo] };
   }
 
   /**
@@ -3619,16 +3621,15 @@ class Treiber {
 
   /**
    * The head of the queue: a gate block that is still valid is merged. Otherwise the driver merges
-   * the base into the epic branch, runs the gate of the adapter in the epic worktree (only the part
-   * that always runs when the base moved beside the epic's areas), writes the block into the PR,
-   * pushes and merges. A conflict or a red gate goes back to the run; the epic queues up again at
+   * the base into the epic branch, runs gate_command of the adapter in the epic worktree (a gate with a
+   * cache of its own answers a repeat quickly), writes the block into the PR, pushes and merges. A conflict or a red gate goes back to the run; the epic queues up again at
    * its next FLOTTE-ENDE. Without gate_command in the adapter a person merges: nothing proves the gate.
    */
   async kopf(ep: FlottenEpic): Promise<void> {
     // #112: switched to mensch on the bridge while it waited in the queue
     const mensch = this.menschPrueft(ep);
     if (mensch) return this.prBereit(ep, mensch);
-    let selbst: 'voll' | 'teil' | null = null;
+    let selbst = false;
     const info = this.prInfo(ep.pr!);
     // follow-up check of #27: only a PR on the expected base is merged
     const basis = this.erwarteteBasis();
@@ -3647,7 +3648,7 @@ class Treiber {
       if (this.nochmal(ep, g)) g = await this.nachziehen(ep, nachweis);
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
       if (g.art === 'zurueck') return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
-      selbst = 'voll';
+      selbst = true;
     }
     let versuche = 0;
     for (;;) {
@@ -3676,19 +3677,14 @@ class Treiber {
       }
       if (!/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT)/.test(zeile)) return this.prBereit(ep, zeile);
       const basisWeg = /Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile);
-      let voll = false;
-      if (selbst) {
-        // the driver's own block was refused: the base moved again (a person merged), or the forge
-        // judged the areas differently; then once the full gate, else a person looks (#229: a refusal
-        // of the forge itself as a question with its reason)
-        if (!basisWeg && selbst === 'voll' && forgeKonflikt) return this.andockFrage(ep, forgeKonflikt, 'dauerhaft', versuche, (ep.gateWiederholungen ?? 0) - gatesVorher);
-        if (!basisWeg && selbst === 'voll') return this.prBereit(ep, `${zeile} (nach der Andockprüfung des Treibers)`);
-        voll = !basisWeg;
-      }
+      // the driver's own block was refused without a moved base: a person looks (#229: a refusal of the
+      // forge itself as a question with its reason); a moved base (a person merged) means gating again
+      if (selbst && !basisWeg && forgeKonflikt) return this.andockFrage(ep, forgeKonflikt, 'dauerhaft', versuche, (ep.gateWiederholungen ?? 0) - gatesVorher);
+      if (selbst && !basisWeg) return this.prBereit(ep, `${zeile} (nach der Andockprüfung des Treibers)`);
       if ((ep.gateWiederholungen ?? 0) >= GATE_GRENZE) return this.halt(ep, 'blockiert', `${GATE_GRENZE} Andockprüfungen des Treibers, die Basis zog jedes Mal davon: ${zeile}`);
-      const g = await this.nachziehen(ep, voll ? 'Teil-Lauf von merge.ps1 abgelehnt' : null);
+      const g = await this.nachziehen(ep, forgeKonflikt ? 'Konflikt beim Andocken' : basisWeg ? 'die Basis zog davon' : 'merge.ps1 fand keinen gültigen Andockblock');
       if (g.art === 'gruen') {
-        selbst = g.teil ? 'teil' : 'voll';
+        selbst = true;
         ep.gateAussenWiederholt = false;
         continue;
       }
@@ -3724,15 +3720,15 @@ class Treiber {
   /**
    * null when the last run of the PR's gate section is green and either names the PR's head and the
    * merge-base of that head with the base (#191: the run's gate on this state counts, whatever form
-   * of the command ran it) or appears, with the same base, head and kind, as the output of a Bash or
-   * PowerShell call of gate_command or gate_always_command in a log of this epic's runs; else why not.
+   * of the command ran it) or appears, with the same base and head, as the output of a Bash or
+   * PowerShell call of gate_command in a log of this epic's runs; else why not.
    * A block on another head or against another base is never counted: the driver gates.
    */
   async gateNachweis(ep: FlottenEpic, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }): Promise<string | null> {
     const form = gateForm(this.adapter);
     const letzter = gateLaeufe(info.body ?? '', form)?.at(-1);
     if (!letzter || !letzter.gruen || !letzter.head) return 'keine grüne Andockprüfung in der PR-Beschreibung';
-    if (!letzter.teil && info.headRefOid) {
+    if (info.headRefOid) {
       if (!gleich(letzter.head, info.headRefOid)) return `Andockblock auf HEAD ${letzter.head.slice(0, 8)}, der PR steht auf ${info.headRefOid.slice(0, 8)}`;
       await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', info.baseRefName, info.headRefName], { timeoutMs: 5 * 60_000 });
       const mb = this.w.aufrufer('git', ['-C', this.e.repo, 'merge-base', `origin/${info.baseRefName}`, info.headRefOid]);
@@ -3743,12 +3739,12 @@ class Treiber {
         return null;
       }
     }
-    const befehle = [this.adapter.gate_command, this.adapter.gate_always_command].filter((b): b is string => Boolean(b));
+    const befehle = this.adapter.gate_command ? [this.adapter.gate_command] : [];
     const laeufe = join(this.dir, 'laeufe');
     const logs = existsSync(laeufe) ? readdirSync(laeufe).filter((d) => d.startsWith(`${ep.nr}-`) && d.endsWith('.jsonl')) : [];
     for (const d of logs) {
       const im = gateLaeufeImLog(readFileSync(join(laeufe, d), 'utf8'), form, befehle);
-      if (im.some((l) => l.gruen && l.teil === letzter.teil && gleich(l.base, letzter.base) && gleich(l.head, letzter.head))) return null;
+      if (im.some((l) => l.gruen && gleich(l.base, letzter.base) && gleich(l.head, letzter.head))) return null;
     }
     return `kein Aufruf der Andockprüfung im Log des Laufs zum Andockblock (Basis ${letzter.base}, HEAD ${letzter.head})`;
   }
@@ -3818,7 +3814,7 @@ class Treiber {
    * pushed and the block appended to the gate section of the PR. Red or a conflict: nothing pushed,
    * the text goes to the run. 'mensch': the gate cannot give a block merge.ps1 would read.
    */
-  async nachziehen(ep: FlottenEpic, voll: string | null): Promise<GateErgebnis> {
+  async nachziehen(ep: FlottenEpic, warum: string): Promise<GateErgebnis> {
     const nr = ep.nr;
     let info: PrInfo;
     try {
@@ -3846,7 +3842,7 @@ class Treiber {
     }
     // from here the worktree holds the driver's merge commit; unless it is green and pushed, the
     // worktree goes back to the head the run left (checked clean above), so the run finds its state
-    const r = await this.gateFahren(ep, wt, info, ziel, voll);
+    const r = await this.gateFahren(ep, wt, info, ziel, warum);
     if (!r.gepusht) {
       const z = git('reset', '--hard', info.headRefOid);
       if (z.code) this.ereignis(nr, `Missions-Worktree nicht zurückgesetzt: ${z.stderr.trim().slice(0, 200)}`);
@@ -3854,36 +3850,15 @@ class Treiber {
     return r;
   }
 
-  /** voll: why the full gate runs regardless of the areas, or null */
-  async gateFahren(ep: FlottenEpic, wt: string, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }, ziel: string, voll: string | null): Promise<GateErgebnis> {
+  /** warum: why the driver gates, for the logbook; it always runs gate_command, the gate's cache makes a repeat quick */
+  async gateFahren(ep: FlottenEpic, wt: string, info: { headRefName: string; baseRefName: string; headRefOid: string; body: string }, ziel: string, warum: string): Promise<GateErgebnis> {
     const nr = ep.nr;
     const git = (...a: string[]) => this.w.aufrufer('git', ['-C', wt, ...a]);
     const form = gateForm(this.adapter);
-    let teil = false;
-    let warum = 'Adapter ohne gate_always_command oder gate_areas';
-    if (voll) warum = voll;
-    else if (this.adapter.gate_always_command && this.adapter.gate_areas.length) {
-      const vorher = letzterVollLauf(gateLaeufe(info.body, form) ?? []);
-      const d = (...a: string[]) => {
-        const r = git('diff', '--name-only', '--no-renames', ...a);
-        return r.code ? null : r.stdout.split(/\r?\n/).filter(Boolean);
-      };
-      const bewegt = vorher ? d(vorher.base, ziel) : null;
-      const epic = d(`${ziel}...HEAD`);
-      const seit = vorher ? d(vorher.head!, 'HEAD') : null;
-      if (!vorher) warum = 'kein grüner Voll-Lauf im Andockblock';
-      else if (!bewegt || !epic || !seit) warum = 'Dateilisten nicht lesbar';
-      else {
-        const eigene = seit.filter((x) => !bewegt.includes(x));
-        const beide = gemeinsameBereiche(bewegt, epic, bereicheAus(this.adapter.gate_areas));
-        teil = !eigene.length && !beide.length;
-        warum = eigene.length ? `eigene Änderungen seit dem Voll-Lauf: ${eigene.slice(0, 3).join(', ')}` : beide.length ? `Basis bewegte sich in Bereichen der Mission: ${beide.join(', ')}` : 'Basis bewegte sich nur in fremden Bereichen';
-      }
-    }
-    const befehl = teil ? this.adapter.gate_always_command! : this.adapter.gate_command!;
+    const befehl = this.adapter.gate_command!;
     const kopf = git('rev-parse', 'HEAD').stdout.trim();
     const basis = git('rev-parse', ziel).stdout.trim();
-    this.ereignis(nr, `Andockprüfung des Treibers (${teil ? 'Immer-Teil' : 'voll'}, ${warum}) auf ${kopf.slice(0, 8)} gegen ${ziel} @ ${basis.slice(0, 7)}`);
+    this.ereignis(nr, `Andockprüfung des Treibers (${warum}) auf ${kopf.slice(0, 8)} gegen ${ziel} @ ${basis.slice(0, 7)}`);
     const t0 = this.w.jetzt();
     ep.gateSeit = new Date(t0).toISOString();
     this.tafelAlt = true;
@@ -3908,7 +3883,6 @@ class Treiber {
     this.ereignis(nr, `Andockprüfung des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})${anteil ? `; ${anteil.n} von ${anteil.m} Kontexten aus dem Cache` : ''}`);
     const aussen = gruen ? undefined : AUSSEN.find(([re]) => re.test(ende))?.[1];
     if (!gruen) return { art: 'zurueck', ...(aussen ? { aussen } : {}), text: `Die Basis zog davon. Der Treiber hat ${ziel} per \`git merge\` in den Missions-Branch geholt und die Andockprüfung gefahren (\`${befehl}\`): rot. Nichts gepusht, der Missions-Worktree steht wieder auf deinem Head.\n\n\`\`\`\n${ende}\n\`\`\`\n\nBasis selbst per \`git merge\` in den Missions-Branch holen, die Andockprüfung grün machen, Andockblock in der PR-Beschreibung ersetzen, pushen. Dann FLOTTE-ENDE.` };
-    if (b.teil !== teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ${b.teil ? '' : 'k'}ein Teil-Lauf (gate_partial); der Treiber schreibt sie nicht in den PR` };
     const [bBase, bHead] = [form.base.exec(b.block)?.[1] ?? '', form.head.exec(b.block)?.[1] ?? ''];
     if (!basis.startsWith(bBase) || !bHead || !kopf.startsWith(bHead)) return { art: 'mensch', text: `Die Ausgabe der Andockprüfung nennt Basis ${bBase} und HEAD ${bHead || '?'}, der Worktree steht auf ${basis.slice(0, 7)} und ${kopf.slice(0, 8)}` };
     const p = await this.w.langsam('git', ['-C', wt, 'push', 'origin', `HEAD:refs/heads/${info.headRefName}`], { timeoutMs: 5 * 60_000 });
@@ -3919,7 +3893,7 @@ class Treiber {
       // pushed but without a block: a person looks; the worktree keeps the pushed state
       return { art: 'mensch', text: `gepusht, aber die PR-Beschreibung nicht geschrieben: ${fehlerText(err).slice(0, 200)}`, gepusht: true };
     }
-    return { art: 'gruen', text: '', teil, gepusht: true };
+    return { art: 'gruen', text: '', gepusht: true };
   }
 
   prBereit(ep: FlottenEpic, warum: string): void {

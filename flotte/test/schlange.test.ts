@@ -1,4 +1,4 @@
-// Round 5 of #14: the merge queue (A), the areas of the gate (B), silence with a living child (C1),
+// Round 5 of #14: the merge queue (A), the gate block (B), silence with a living child (C1),
 // adapters without the key merge (C3), the last step of a run (C4). The queue tests run against a
 // real git repository with a bare origin and real epic worktrees; merge.ps1 and the gate are stand-ins
 // that read the real branches.
@@ -11,7 +11,7 @@ import { aufrufen } from '../src/aufruf.ts';
 import { adapter, schluessel } from '../src/befehle/adapter.ts';
 import { zuschauen } from '../src/befehle/zuschauen.ts';
 import { ANDOCK_FRAGE, ANDOCK_VERSUCHE, andockEmpfehlung, andockFehler, andockWahl, antworten, fahre, type Welt } from '../src/treiber/treiber.ts';
-import { blockAus, blockEinsetzen, gateForm, gateLaeufe, gemeinsameBereiche, globRegex, bereicheAus, letzterVollLauf } from '../src/treiber/gate.ts';
+import { blockAus, blockEinsetzen, gateForm, gateLaeufe } from '../src/treiber/gate.ts';
 import { belege, bildAus, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { beobachte, schrittAus } from '../src/werkzeuge/lauf.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
@@ -20,7 +20,7 @@ import { aufbau, drehbuch, ende, lauf, type Optionen, gateAufruf } from './flott
 // upper bounds against a hang only (#141): the order comes from signals, not from the wall clock
 const T = 180_000;
 const GRENZE = 120_000;
-const ADAPTER = 'merge: nach_gate\ngate_command: gate voll\ngate_always_command: gate teil\ngate_areas:\n  - a/ = A\n  - b/ = B';
+const ADAPTER = 'merge: nach_gate\ngate_command: gate voll';
 const form = gateForm(liesAdapter(`---\n${ADAPTER}\n---\n`));
 
 const git = (cwd: string, ...a: string[]) => {
@@ -58,9 +58,9 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
       const kopf = git(cwd, 'rev-parse', 'HEAD');
       const basis = git(cwd, 'rev-parse', 'origin/main');
       const gruen = !o.rot?.(cwd, n);
-      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: ${befehl === 'gate teil' ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n${o.kontexte ?? `  wurzel ${gruen ? 'grün' : 'ROT'}`}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
+      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n${o.kontexte ?? `  wurzel ${gruen ? 'grün' : 'ROT'}`}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
     },
-    // merge.ps1: the last run must name the current base and head (merge.Tests.ps1 checks the areas)
+    // merge.ps1: the last run must name the current base and head (merge.Tests.ps1 checks the rest)
     mergeEcht: (pr, n) => {
       // #229: a refusal of the forge as merge.ps1 prints it, before any check of the stand-in
       const s = o.stoerung?.(pr, n);
@@ -115,26 +115,27 @@ const texte = (z: { ereignisse: { epic: number | null; text: string }[] }) => z.
 const index = (liste: string[], muster: RegExp) => liste.findIndex((z) => muster.test(z));
 
 describe('A: die Merge-Schlange', () => {
-  it('merges in the order of FLOTTE-ENDE; n epics need n−1 gate runs of the driver, the part that always runs when the areas allow', async () => {
+  it('merges in the order of FLOTTE-ENDE; n epics need n−1 gate runs of the driver, each one gate_command', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }, { nr: 5, datei: 'a/fuenf.txt' }]);
     // #4 ends while #3 is the head of the queue, #5 while #4 is
     const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ signal: 'kopf-13' }, ...t.nachweis(4), { text: ende(4, 14) }]), lauf(5, [{ signal: 'kopf-14' }, ...t.nachweis(5), { text: ende(5, 15) }])]);
     const z = await fahre(t.einstellung(buch, [3, 4, 5], { maxDauerMs: GRENZE }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig', 'fertig']);
     expect(z.statistik.gateWiederholungen).toBe(2);
-    // #4 (area B) after #3 (area A): only the part that always runs; #5 (A) after #3 (A): the full gate
+    // whatever the files of the base touched (#4 in b/, #5 in a/ after #3 in a/): the head of the queue
+    // merges the base and runs gate_command (step 7 of the gate rebuild: one way only)
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([
-      ['gate teil', t.epics[1].wt],
+      ['gate voll', t.epics[1].wt],
       ['gate voll', t.epics[2].wt],
     ]);
     const e = texte(z);
     expect(e.filter((x) => /Kopf der Schlange/.test(x)).map((x) => x.slice(0, 2))).toEqual(['#3', '#4', '#5']);
-    expect(e.some((x) => /^#4 Andockprüfung des Treibers \(Immer-Teil, Basis bewegte sich nur in fremden Bereichen\)/.test(x))).toBe(true);
-    expect(e.some((x) => /^#5 Andockprüfung des Treibers \(voll, Basis bewegte sich in Bereichen der Mission: A\)/.test(x))).toBe(true);
+    expect(e.some((x) => /^#4 Andockprüfung des Treibers \(die Basis zog davon\) auf [0-9a-f]{8} gegen /.test(x))).toBe(true);
+    expect(e.some((x) => /^#5 Andockprüfung des Treibers \(die Basis zog davon\) auf [0-9a-f]{8} gegen /.test(x))).toBe(true);
     // the driver pushed its merge of the base and wrote the block below the run's block
     const body4 = t.p.prEdits.find((x) => x.pr === 14)!.body;
-    expect(gateLaeufe(body4, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [true, true]]);
-    expect(body4).toMatch(/Gate grün\.\n```\n```\n== Gate: Immer-Teil[\s\S]*Gate grün\.\n```\n\nCloses #4/);
+    expect(gateLaeufe(body4, form)!.map((l) => l.gruen)).toEqual([true, true]);
+    expect(body4).toMatch(/Gate grün\.\n```\n```\n== Gate: Basis[\s\S]*Gate grün\.\n```\n\nCloses #4/);
     git(t.repo, 'fetch', '-q', 'origin');
     expect(git(t.repo, 'ls-tree', '-r', '--name-only', 'origin/main').split('\n')).toEqual(expect.arrayContaining(['a/drei.txt', 'b/vier.txt', 'a/fuenf.txt']));
     // the runs never got a merge order back
@@ -171,7 +172,7 @@ describe('A: die Merge-Schlange', () => {
     expect(ohne).toBeGreaterThanOrEqual(0);
     expect(ohne).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
     // the driver's block is the last run of the PR, and merge.ps1 merged on it
-    expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => [l.teil, l.gruen])).toEqual([[false, true], [false, true]]);
+    expect(gateLaeufe(t.p.prEdits.find((x) => x.pr === 13)!.body, form)!.map((l) => l.gruen)).toEqual([true, true]);
   }, T);
 
   it('measures each gate run of the driver: duration, contexts and cache hits (gate_cached); the logbook and the state keep it', async () => {
@@ -217,7 +218,7 @@ describe('A: die Merge-Schlange', () => {
     const z = await fahre(t.einstellung(buch, [3, 4, 5], { maxDauerMs: GRENZE }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig', 'fertig']);
     const zuege4 = buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe));
-    expect(zuege4[1].eingabe).toMatch(/die Andockprüfung gefahren \(`gate teil`\): rot\. Nichts gepusht[\s\S]*wurzel ROT/);
+    expect(zuege4[1].eingabe).toMatch(/die Andockprüfung gefahren \(`gate voll`\): rot\. Nichts gepusht[\s\S]*wurzel ROT/);
     const e = texte(z);
     // #5 was merged while #4 was back at its run, then #4 at the end
     const merges = e.filter((x) => /merge\.ps1: GEMERGT/.test(x)).map((x) => x.slice(0, 2));
@@ -249,7 +250,7 @@ describe('A: die Merge-Schlange', () => {
       const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ signal: 'kopf-13' }, ...t.nachweis(4), { text: ende(4, 14) }])]);
       const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: GRENZE }), t.welt);
       const zuege4 = buch.gesehen().filter((g) => /^Flotte, Mission #4\b/.test(g.eingabe));
-      expect(zuege4[1].eingabe).toMatch(/die Andockprüfung gefahren \(`gate teil`\): rot\. Nichts gepusht/);
+      expect(zuege4[1].eingabe).toMatch(/die Andockprüfung gefahren \(`gate voll`\): rot\. Nichts gepusht/);
       // the gate runs before the first return: one, or two with the repeat
       const zurueck = texte(z).findIndex((x) => /^#4 zurück an den Lauf \(1 von 2\)/.test(x));
       expect(zurueck).toBeGreaterThanOrEqual(0);
@@ -357,7 +358,7 @@ describe('A: die Merge-Schlange', () => {
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
     expect(aufrufe.map((a) => a.aktion)).toEqual(['Up', 'Down']);
     expect(aufrufe[0].holder).toMatch(/halten[\\/]4\.json$/);
-    expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate teil', resolve(neu)]]);
+    expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', resolve(neu)]]);
     expect(texte(z).some((x) => /#4 Missions-Worktree neu angelegt/.test(x))).toBe(true);
     expect(git(t.repo, 'worktree', 'list')).not.toContain('epic-4');
   }, T);
@@ -430,7 +431,7 @@ describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
       stoerung: (_pr, n) => {
         if (n !== 1) return null;
-        // another PR docked meanwhile (area B): the forge refuses the first call
+        // another PR docked meanwhile: the forge refuses the first call
         git(t.repo, 'fetch', '-q', 'origin');
         git(t.repo, 'merge', '-q', '--ff-only', 'origin/main');
         writeFileSync(join(t.repo, 'b', 'anders.txt'), 'anders\n');
@@ -443,11 +444,11 @@ describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
     const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
-    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate teil']);
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
     const e = texte(z);
     const vorbei = index(e, /^#3 Andocken vorübergehend fehlgeschlagen \(GraphQL: Base branch was modified/);
     const fehlt = index(e, /^#3 merge\.ps1: GATE FEHLT #13: Gate lief gegen/);
-    const gate = index(e, /^#3 Andockprüfung des Treibers \(Immer-Teil/);
+    const gate = index(e, /^#3 Andockprüfung des Treibers \(die Basis zog davon\)/);
     expect(vorbei).toBeGreaterThanOrEqual(0);
     expect(vorbei).toBeLessThan(fehlt);
     expect(fehlt).toBeLessThan(gate);
@@ -556,40 +557,20 @@ describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
     const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), mitAntwort(t, 'B'));
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
-    expect(texte(z).some((x) => /^#3 Andockprüfung des Treibers \(voll, der Mensch will die Andockprüfung neu\)/.test(x))).toBe(true);
+    expect(texte(z).some((x) => /^#3 Andockprüfung des Treibers \(der Mensch will die Andockprüfung neu\)/.test(x))).toBe(true);
   }, T);
 });
 
-describe('B: Gate-Block und Bereiche', () => {
-  it('globs: ** spans folders, * stays inside one, a trailing / is the folder', () => {
-    expect(globRegex('apps/web/').test('apps/web/src/a.ts')).toBe(true);
-    expect(globRegex('apps/*/x.ts').test('apps/web/x.ts')).toBe(true);
-    expect(globRegex('apps/*/x.ts').test('apps/web/sub/x.ts')).toBe(false);
-    expect(globRegex('**/package.json').test('package.json')).toBe(true);
-    expect(globRegex('**/package.json').test('a/b/package.json')).toBe(true);
-    expect(globRegex('a.ts').test('aXts')).toBe(false);
-  });
-
-  it('a file outside every area touches every area', () => {
-    const b = bereicheAus(['a/ = A', 'b/ = B']);
-    expect(gemeinsameBereiche(['b/1'], ['a/1'], b)).toEqual([]);
-    expect(gemeinsameBereiche(['a/2'], ['a/1'], b)).toEqual(['A']);
-    expect(gemeinsameBereiche(['README.md'], ['a/1'], b)).toEqual(['(ohne Bereich)']);
-    expect(gemeinsameBereiche(['b/1'], ['a/1', 'package.json'], b)).toEqual(['(ohne Bereich)']);
-  });
-
-  it('reads the runs of the section; a part run needs a full green run before it', () => {
-    const body = '## Gate\n== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\nGate grün.\n== Gate: Immer-Teil, Basis origin/main @ ccccccc (HEAD dddddddd)\nGate grün.\n## Danach\n== Gate: Basis origin/main @ eeeeeee (HEAD ffffffff)';
-    const l = gateLaeufe(body, form)!;
-    expect(l).toEqual([{ base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true, teil: false }, { base: 'ccccccc', head: 'dddddddd', gruen: true, teil: true }]);
-    expect(letzterVollLauf(l)?.base).toBe('aaaaaaa');
-    expect(letzterVollLauf([{ ...l[0], gruen: false }, l[1]])).toBeNull();
+describe('B: Gate-Block', () => {
+  it('reads the runs of the section in order; the last one counts as it stands', () => {
+    const body = '## Gate\n== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\nGate grün.\n== Gate: Basis origin/main @ ccccccc (HEAD dddddddd)\nGate ROT.\n## Danach\n== Gate: Basis origin/main @ eeeeeee (HEAD ffffffff)';
+    expect(gateLaeufe(body, form)).toEqual([{ base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true }, { base: 'ccccccc', head: 'dddddddd', gruen: false }]);
     expect(gateLaeufe('kein Gate', form)).toBeNull();
   });
 
   it('takes the block from the last line with a base and appends it to the section, or adds the section', () => {
-    const b = blockAus('\x1b[32mlog\x1b[0m\n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.\n', form)!;
-    expect(b).toEqual({ block: '== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.', gruen: true, teil: true });
+    const b = blockAus('\x1b[32mlog\x1b[0m\n== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.\n', form)!;
+    expect(b).toEqual({ block: '== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.', gruen: true });
     expect(blockAus('kein Kopf\nGate grün.', form)).toBeNull();
     expect(blockEinsetzen('## Gate\n```\nalt\n```\n\n## Rest\nx', form, 'neu')).toBe('## Gate\n```\nalt\n```\n```\nneu\n```\n\n## Rest\nx');
     expect(blockEinsetzen('Text', form, 'neu')).toBe('Text\n\n## Gate\n\n```\nneu\n```\n');
@@ -598,15 +579,24 @@ describe('B: Gate-Block und Bereiche', () => {
     expect(blockEinsetzen('## Gate\nalt\n\n## Rest', form, 'neu')).toBe('## Gate\nalt\n```\nneu\n```\n\n## Rest');
   });
 
-  it('on a tie the occupancy prefers epics from different areas', () => {
-    const ad = liesAdapter(`---\n${ADAPTER}\n---\n`);
-    const bilder = [bildAus(3, ['Ändert `a/eins.ts`.'], ad, [3, 4, 5]), bildAus(4, ['Ändert `a/zwei.ts`.'], ad, [3, 4, 5]), bildAus(5, ['Ändert `b/drei.ts`.'], ad, [3, 4, 5])];
-    expect(bilder.map((b) => b.bereiche)).toEqual([['A'], ['A'], ['B']]);
-    expect(belege(bilder, ad, { laufend: [], gemergt: [], obergrenze: 2 }).neu).toEqual([3, 5]);
-    // without areas the smaller numbers win, as before
-    const ohne = liesAdapter('---\nmerge: nach_gate\n---\n');
-    expect(belege([3, 4, 5].map((n, i) => bildAus(n, [`Ändert \`${'aab'[i]}/${n}.ts\`.`], ohne, [3, 4, 5])), ohne, { laufend: [], gemergt: [], obergrenze: 2 }).neu).toEqual([3, 4]);
+  it('the keys gate_areas, gate_always_command and gate_partial no longer act: the occupancy stays the same, the adapter names them as abolished', () => {
+    const alt = liesAdapter(`---\n${ADAPTER}\ngate_always_command: gate teil\ngate_partial: true\ngate_areas:\n  - a/ = A\n  - b/ = B\n---\n`);
+    const ohne = liesAdapter(`---\n${ADAPTER}\n---\n`);
+    expect(alt.abgeschafft).toEqual(['gate_areas', 'gate_always_command', 'gate_partial']);
+    expect(ohne.abgeschafft).toEqual([]);
+    expect(alt.gate_command).toBe('gate voll');
+    // the smaller numbers win; areas no longer pull #5 (b/) in front of #4 (a/)
+    for (const ad of [alt, ohne]) expect(belege([3, 4, 5].map((n, i) => bildAus(n, [`Ändert \`${'aab'[i]}/${n}.ts\`.`], ad, [3, 4, 5])), ad, { laufend: [], gemergt: [], obergrenze: 2 }).neu).toEqual([3, 4]);
   });
+
+  it('an adapter with the abolished keys runs on and gets one note in the logbook; the gate of the driver is gate_command', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }], { adapterZusatz: '\ngate_always_command: gate teil\ngate_areas:\n  - a/ = A\n  - b/ = B' });
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ signal: 'kopf-13' }, ...t.nachweis(4), { text: ende(4, 14) }])]);
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: GRENZE }), t.welt);
+    expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
+    expect(texte(z).filter((x) => /^Hinweis: der Adapter nennt gate_areas, gate_always_command; die Schlüssel wirken nicht mehr/.test(x))).toHaveLength(1);
+  }, T);
 });
 
 describe('C1: Stille mit lebendem Kindprozess', () => {

@@ -13,10 +13,10 @@ const form = gateForm(liesAdapter('---\nmerge: nach_gate\n---\n'));
 const texte = (z: { ereignisse: { epic: number | null; text: string }[] }) => z.ereignisse.map((e) => `${e.epic ? `#${e.epic} ` : ''}${e.text}`);
 
 describe('Befund 2: Gate-Nachweis im Log des Laufs', () => {
-  const BEFEHLE = ["$env:HIVE_TESTBETT='0'; npm run gate -- --voll", 'npm run gate:immer'];
+  const BEFEHLE = ["$env:HIVE_TESTBETT='0'; npm run gate -- --voll"];
   const imLog = (schritte: { zeile?: unknown; text?: string }[]) =>
     gateLaeufeImLog(schritte.map((s) => JSON.stringify(s.zeile ?? { type: 'assistant', message: { content: [{ type: 'text', text: s.text }] } })).join('\n') + '\nkein json', form, BEFEHLE);
-  const voll = { base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true, teil: false };
+  const voll = { base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true };
 
   it('the core of a gate command drops leading environment assignments', () => {
     expect(gateKern("$env:HIVE_TESTBETT='0'; npm run gate -- --voll")).toBe('npm run gate -- --voll');
@@ -42,14 +42,14 @@ describe('Befund 2: Gate-Nachweis im Log des Laufs', () => {
   });
 
   it('a real gate call counts: Bash or PowerShell, with or without the env prefix, also in a subagent, as text parts', () => {
-    const teile = werkzeug('PowerShell', { command: 'npm run gate:immer' }, '');
-    (teile[1].zeile.message.content[0] as { content: unknown }).content = [{ type: 'text', text: '\x1b[32m== Gate: Immer-Teil, Basis origin/main @ ccccccc (HEAD dddddddd)\x1b[0m\nGate grün.' }];
+    const teile = werkzeug('PowerShell', { command: 'npm run gate -- --voll' }, '');
+    (teile[1].zeile.message.content[0] as { content: unknown }).content = [{ type: 'text', text: '\x1b[32m== Gate: Basis origin/main @ ccccccc (HEAD dddddddd)\x1b[0m\nGate grün.' }];
     const l = imLog([
       ...werkzeug('Bash', { command: 'npm run gate -- --voll 2>&1 | tail -40' }, `> gate\n${GATE_BLOCK}`),
       ...werkzeug('PowerShell', { command: "$env:HIVE_TESTBETT='0'; npm run gate -- --voll" }, '== Gate: Basis origin/main @ 1111111 (HEAD 22222222)\nGate ROT.', { parent: 'toolu_sub' }),
       ...teile,
     ]);
-    expect(l).toEqual([voll, { base: '1111111', head: '22222222', gruen: false, teil: false }, { base: 'ccccccc', head: 'dddddddd', gruen: true, teil: true }]);
+    expect(l).toEqual([voll, { base: '1111111', head: '22222222', gruen: false }, { base: 'ccccccc', head: 'dddddddd', gruen: true }]);
   });
 
   it('without gate commands nothing counts', () => {
