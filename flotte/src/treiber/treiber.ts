@@ -272,6 +272,8 @@ export interface FlottenEpic extends EpicZustand {
   basisKonflikte?: number;
   /** #25: a red gate with a cause outside the diff was run once more already */
   gateAussenWiederholt?: boolean;
+  /** #229: the person chose to run the gate again after a failed docking; the next head of the queue does */
+  andockNeu?: boolean;
   /** the driver laid out the epic worktree again (worktree.ps1 Up) and takes it down after the merge */
   worktreeSelbst?: boolean;
   /** the last step of the run from its log, for the board (#14, round 5, C4) */
@@ -392,6 +394,22 @@ const MENSCH_PRUEFT = 'Andocken: Mensch prüft';
 
 /** number of the driver's own question when the PR of FLOTTE-ENDE is not the epic's */
 export const PR_FRAGE = 99;
+
+/** #229: number of the driver's own question when docking failed and it could not solve it itself */
+export const ANDOCK_FRAGE = 98;
+/** #229: repeats of a passing refusal of the forge, a tick apart, before the person is asked */
+export const ANDOCK_VERSUCHE = 3;
+
+/**
+ * #229: the reason of `MERGE FEHLGESCHLAGEN` (merge.ps1 prints the forge's output): passing (network, time
+ * limit, the forge still checks, the base moved under the call), a conflict, or lasting (rules, approvals,
+ * a moved head, no reason at all). A moved base comes back on the next call as GATE FEHLT.
+ */
+export function andockFehler(ursache: string): 'voruebergehend' | 'konflikt' | 'dauerhaft' {
+  if (/Base branch was modified|time ?out|timed out|Zeitüberschreitung|\bHTTP 5\d\d\b|\bStatus (0|5\d\d)\b|Server nicht erreicht|connection (reset|refused)|\bEOF\b|could not resolve|try again later|mergeable state unknown|still being (processed|checked)/i.test(ursache)) return 'voruebergehend';
+  if (/conflict|Konflikt|cannot be cleanly created/i.test(ursache)) return 'konflikt';
+  return 'dauerhaft';
+}
 
 /** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
 export const GATE_GRENZE = 3;
@@ -1715,10 +1733,15 @@ class Treiber {
     if (ueberBruecke) f.brueckeId = a.brueckeId;
     // #52: the answer is a decision of the person, revocable on the bridge until the merge like the admiral's
     this.z.entscheidungen.push({ epic: a.epic, nr: a.nr, frage: f.frage || `Frage ${a.nr}`, antwort: a.anzeige ?? a.text, herkunft: ueberBruecke ? HERKUNFT_BRUECKE : HERKUNFT_FLOTTE, einflussreich: false, zeit: am, von: 'mensch' });
-    ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
+    // #229: the driver's own question about docking is not the run's; the driver acts on it below
+    if (f.nr !== ANDOCK_FRAGE) ep.nachzureichen = [...(ep.nachzureichen ?? []), `${a.nr}. ${a.text}`];
     kommentar(this.forge, a.epic, ueberBruecke ? `**Antwort des Menschen (${HERKUNFT_BRUECKE})** — ${f.frage || `Frage ${a.nr}`}\nAntwort: ${a.anzeige ?? a.text}\nHerkunft: ${HERKUNFT_BRUECKE}` : `**Antwort des Menschen (über die Flotte)** — ${f.frage}\nAntwort: ${a.text}`);
     this.ereignis(a.epic, `Antwort des Menschen auf Frage ${a.nr}${ueberBruecke ? ' (über die Brücke)' : ''}`);
     this.wiederholungenSchliessen();
+    if (f.nr === ANDOCK_FRAGE) {
+      this.andockAntwort(ep, f, a.text);
+      return true;
+    }
     const offen = this.z.fragen.some((x) => x.epic === a.epic && x.ganzerLauf && !x.beantwortet);
     if (ep.stufe === 'frage' && !offen) {
       ep.stufe = 'laeuft';
@@ -3573,7 +3596,11 @@ class Treiber {
     if (info && info.baseRefName !== basis) return this.prBereit(ep, basis === null ? 'base_branch: from-issue, die erwartete Basis ist nicht lesbar' : `Basis des PRs ist ${info.baseRefName}, erwartet ${basis}`);
     // #191: a green block on the PR's head and merge-base counts; else the last run of the gate section
     // must appear in the run's log as the output of a gate call (acceptance 3, finding 2); else the driver gates.
-    const nachweis = info ? await this.gateNachweis(ep, info) : 'PR nicht lesbar';
+    // #229: the person chose to run the gate again after a failed docking
+    const neu = ep.andockNeu;
+    ep.andockNeu = false;
+    const gatesVorher = ep.gateWiederholungen ?? 0;
+    const nachweis = neu ? 'der Mensch will die Andockprüfung neu' : info ? await this.gateNachweis(ep, info) : 'PR nicht lesbar';
     if (nachweis) {
       if (!this.adapter.gate_command) return this.prBereit(ep, `${nachweis}, und der Adapter hat kein gate_command`);
       this.ereignis(ep.nr, `${nachweis}: der Treiber fährt die Andockprüfung selbst`);
@@ -3583,12 +3610,28 @@ class Treiber {
       if (g.art === 'zurueck') return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
       selbst = 'voll';
     }
+    let versuche = 0;
     for (;;) {
-      const zeile = await this.mergeAufruf(ep);
+      let zeile = await this.mergeAufruf(ep);
       if (/^GEMERGT/.test(zeile)) return this.nachMerge(ep);
       if (/^NICHT GEMERGT.*Zustand MERGED/.test(zeile)) return this.nachMerge(ep);
       if (/^NICHT GEMERGT.*merge:/.test(zeile)) return this.prBereit(ep, 'Adapter auf der Basis sagt merge: mensch');
       if (/^CHECKS ROT/.test(zeile)) return this.zurueck(ep, `Das Andocken wurde abgelehnt: ${zeile}. Bring den Pull Request in Ordnung, dann FLOTTE-ENDE.`);
+      // #229: the forge refused the merge itself; merge.ps1 checks base and head again on every call, so a
+      // repeat never docks a state the gate did not see (a moved base comes back as GATE FEHLT)
+      if (/^MERGE FEHLGESCHLAGEN/.test(zeile)) {
+        const ursache = zeile.replace(/^MERGE FEHLGESCHLAGEN #\d+:?\s*/, '') || 'keine Ausgabe der Forge';
+        const art = andockFehler(ursache);
+        if (art === 'voruebergehend' && versuche < ANDOCK_VERSUCHE) {
+          versuche++;
+          this.ereignis(ep.nr, `Andocken vorübergehend fehlgeschlagen (${ursache}): Wiederholung ${versuche} von ${ANDOCK_VERSUCHE} nach einem Takt, ohne neue Andockprüfung`);
+          await pause(this.e.taktMs);
+          continue;
+        }
+        if (art !== 'konflikt') return this.andockFrage(ep, ursache, art, versuche, (ep.gateWiederholungen ?? 0) - gatesVorher);
+        this.ereignis(ep.nr, `Andocken fehlgeschlagen mit Konflikt (${ursache}): der Treiber holt die Basis nach`);
+        zeile = `KONFLIKT #${ep.pr}: ${ursache}`;
+      }
       if (!/^(GATE FEHLT|GATE UNGEPRUEFT|KONFLIKT)/.test(zeile)) return this.prBereit(ep, zeile);
       const basisWeg = /Basis steht auf|enthaelt die aktuelle Basis nicht/.test(zeile);
       let voll = false;
@@ -3840,6 +3883,43 @@ class Treiber {
     this.ereignis(ep.nr, `PR #${ep.pr} bereit, ein Mensch dockt an`);
   }
 
+  /**
+   * #229: docking failed and the driver could not solve it itself: a question for the person with the
+   * reason word for word, what was tried, the options and a recommendation. The PR stays open in 'pr';
+   * the answer (andockAntwort) puts it back into the queue, runs the gate again first, or leaves it to the person.
+   */
+  andockFrage(ep: FlottenEpic, ursache: string, art: 'voruebergehend' | 'dauerhaft', versuche: number, gates: number): void {
+    const nr = ep.nr;
+    const versucht = [
+      `merge.ps1 ${versuche + 1}-mal aufgerufen${versuche ? ` (${versuche} Wiederholung${versuche === 1 ? '' : 'en'} im Abstand eines Takts, Basis und Head unverändert)` : ''}`,
+      ...(gates ? [`${gates} Andockprüfung${gates === 1 ? '' : 'en'} des Treibers auf dem nachgezogenen Stand`] : []),
+    ];
+    const optionen: Option[] = [
+      { buchstabe: 'A', text: 'erneut versuchen: zurück in die Andock-Schlange, ohne neue Andockprüfung' },
+      { buchstabe: 'B', text: 'Andockprüfung neu fahren: der Treiber holt die Basis nach, fährt gate_command und dockt an' },
+      { buchstabe: 'C', text: 'Mensch dockt an: der Treiber lässt den PR liegen' },
+    ];
+    const empfehlung = art === 'voruebergehend' ? 'A' : /head/i.test(ursache) ? 'B' : 'C';
+    const grund = art === 'voruebergehend' ? 'die Ursache sieht vorübergehend aus, blieb aber über alle Wiederholungen' : empfehlung === 'B' ? 'der Head hat sich bewegt; eine neue Andockprüfung prüft den neuen Stand' : 'die Forge lehnt aus einem Grund ab, den der Treiber nicht selbst beheben kann';
+    const frage = `Andocken von PR #${ep.pr} fehlgeschlagen: ${ursache}. Wie weiter?`;
+    const lage = `Ursache (merge.ps1): ${ursache}\nVersucht: ${versucht.join('; ')}`;
+    this.z.fragen.push({ epic: nr, nr: ANDOCK_FRAGE, frage, lage, optionen, grund, herkunft: 'Treiber: Andocken fehlgeschlagen', marke: 'Andocken', betrifft: 'Lauf', roh: frage, empfehlung, wartet: 'das Andocken', ganzerLauf: true, seit: new Date(this.w.jetzt()).toISOString() });
+    kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\n${lage}\nOptionen: ${optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' — ')}\nEmpfehlung: ${empfehlung} (${grund})\nAntworten, im Repository: \`flotte antworten . ${nr} ${ANDOCK_FRAGE} "<A, B oder C>"\``);
+    ep.notiz = `PR #${ep.pr}: Andocken fehlgeschlagen, Frage an dich (${ursache})`;
+    this.ereignis(nr, `❓ Andocken fehlgeschlagen (${ursache}): Frage ${ANDOCK_FRAGE} an den Menschen, Empfehlung ${empfehlung}`);
+  }
+
+  /** #229: the person's answer to ANDOCK_FRAGE: A again, B the gate first, C (or anything else) a person docks */
+  andockAntwort(ep: FlottenEpic, f: MenschFrage, text: string): void {
+    const wahl = /^\s*(A\b|erneut)/i.test(text) ? 'A' : /^\s*(B\b|Andockprüfung|neu)/i.test(text) ? 'B' : 'C';
+    if (ep.stufe !== 'pr' || !ep.pr) return this.ereignis(ep.nr, `Antwort ${wahl} auf Frage ${ANDOCK_FRAGE} kommt zu spät: die Mission steht auf ${ep.stufe}`);
+    const ursache = /^Ursache \(merge\.ps1\): (.*)$/m.exec(f.lage ?? '')?.[1] ?? f.frage;
+    if (wahl === 'C') return this.prBereit(ep, `Andocken fehlgeschlagen: ${ursache}`);
+    ep.andockNeu = wahl === 'B';
+    this.ereignis(ep.nr, `Antwort ${wahl}: ${wahl === 'B' ? 'der Treiber fährt die Andockprüfung neu und dockt an' : 'zurück in die Andock-Schlange'}`);
+    this.andocken(ep);
+  }
+
   /** D12/D13: merged by a person, or a conflict after another merge (the queue handles its own conflicts). */
   async mergeWache(): Promise<void> {
     for (const ep of Object.values(this.z.epics)) {
@@ -3862,6 +3942,12 @@ class Treiber {
 
   async nachMerge(ep: FlottenEpic): Promise<void> {
     ep.stufe = 'gemergt';
+    // #229: a person docked without answering the driver's question about it
+    for (const f of this.z.fragen) {
+      if (f.epic !== ep.nr || f.nr !== ANDOCK_FRAGE || f.beantwortet) continue;
+      f.beantwortet = 'von Hand angedockt';
+      f.beantwortetAm = new Date(this.w.jetzt()).toISOString();
+    }
     for (const befehl of this.adapter.nach_merge) {
       const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', befehl], { cwd: this.e.repo, timeoutMs: 30 * 60_000 });
       // D21: reported, cleanup still runs
