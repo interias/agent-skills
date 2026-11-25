@@ -104,4 +104,34 @@ describe.each(FORGEN)('triage through the forge layer: $name', (f) => {
     expect(r.abschluss.abweichungen).toEqual([]);
     expect(r.zustand).toBe('beendet');
   });
+
+  it('with a selection only the chosen notes go to the plan; the others keep their label, the final check counts only the chosen', async () => {
+    process.env[TOKEN_ENV] = 'geheim';
+    const b = bestand();
+    for (const l of ['needs-triage', 'epic', READY]) b.labels.push(l);
+    const m = issueAnlegen(b, { titel: 'Sammelmission', body: '## Missionsziele\n', labels: ['epic'] });
+    const eins = issueAnlegen(b, { titel: 'Gewählt', body: 'Der Port soll geprüft werden.', labels: ['needs-triage'] });
+    const zwei = issueAnlegen(b, { titel: 'Abgewählt', body: 'Die Tafel zeigt den Port.', labels: ['needs-triage'] });
+    const drei = issueAnlegen(b, { titel: 'Auch gewählt', body: 'Das Log nennt den Port.', labels: ['needs-triage'] });
+    const geplant: number[][] = [];
+    const repo = repoMit(f.adapter(b));
+    const r = await triagiere(
+      { ziele: [{ repo, forge: 'o/r', regeln: REGELN, nummern: [eins.nummer, drei.nummer] }], konto: 'k', modell: 'fable', trocken: false },
+      {
+        aufrufer: f.aufrufer(b),
+        ...(f.abruf ? { abruf: f.abruf(b) } : {}),
+        starte: async (s: Start): Promise<LaufErgebnis> => {
+          const notizen = [...s.auftrag.matchAll(/^## Sternzeit-Notiz #(\d+)/gm)].map((x) => Number(x[1]));
+          geplant.push(notizen);
+          return { code: 0, sitzung: 'plan', dauerMs: 1000, strukturiert: { neue_missionen: [], zuordnungen: notizen.map((notiz) => ({ notiz, art: 'mission', mission: m.nummer, ...KLAR })) } } as LaufErgebnis;
+        },
+      },
+    );
+    expect(r.fehler).toEqual([]);
+    expect(geplant).toEqual([[eins.nummer, drei.nummer]]);
+    expect(r.tickets.map((t) => t.nummer)).toEqual([eins.nummer, drei.nummer]);
+    expect(zwei).toMatchObject({ labels: ['needs-triage'], kommentare: [] });
+    expect(m.kinder).not.toContain(zwei.nummer);
+    expect(r.abschluss).toMatchObject({ geprueft: 2, sauber: 2, abweichungen: [] });
+  });
 });

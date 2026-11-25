@@ -36,6 +36,8 @@ export interface TriageZiel {
   regeln: AuftragsRegeln;
   /** #117: the collecting issue of the learning loop (adapter key lern_issue); its proposals are triaged too */
   lernIssue?: number | null;
+  /** only these notes in this run (the choice in the Frachtraum; lernIssue stands for its proposals); without it all */
+  nummern?: number[];
 }
 
 export interface TriageAuftrag {
@@ -244,6 +246,9 @@ export async function triagiere(o: TriageAuftrag, welt: TriageWelt) {
       fehler.push({ forge: z.forge, fehler: (err as Error).message });
       continue;
     }
+    // the notes not chosen stay untouched with their label for the next run, outside the final check too
+    const gewaehlt = z.nummern ? new Set(z.nummern) : null;
+    if (gewaehlt) liste = liste.filter((t) => gewaehlt.has(t.nummer));
     // before the notes: only what an earlier run left; a release failing in this run waits for the next one
     try {
       if (!ab()) nachgeholt.push(...nachfreigeben(o, f.zugriff, z));
@@ -281,7 +286,7 @@ export async function triagiere(o: TriageAuftrag, welt: TriageWelt) {
     let gelesen: Kontext | undefined;
     const kontext = () => (gelesen ??= { fakten: faktenpaket(z.repo, f.zugriff, notizen), lesenMax: o.lesenMax ?? LESEN_MAX });
     // #170: before the plan, so a clear proposal joins it as a note and never stands loose with ready_label
-    if (z.lernIssue && !ab()) notizen.push(...(await lernTriage(o, w, f, z, z.lernIssue, { tickets, fragen, offen, fehler }, kontext)));
+    if (z.lernIssue && (!gewaehlt || gewaehlt.has(z.lernIssue)) && !ab()) notizen.push(...(await lernTriage(o, w, f, z, z.lernIssue, { tickets, fragen, offen, fehler }, kontext)));
     const plan = notizen.length && !ab() ? await schneide(o, w, f.zugriff, z, notizen, schnittplan, kontext) : null;
     // #146: the plan has cleared every note that stays (no call per note); #147: the clear ones per mission of the
     // plan, written mission by mission below

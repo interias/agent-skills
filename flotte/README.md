@@ -246,6 +246,12 @@ Sternzeit-Notizen (`needs-triage`, `needs-info`) klärt der Admiral selbst:
 bun "$HOME\.claude\skills\flotte\src\cli.ts" triage [<repo>...] [--forge <owner/name>] [--konto <k>] [--modell fable] [--trocken]
 ```
 
+**Gewählte Notizen**: Ein Lauf über die Brücke kann auf die im Frachtraum gewählten Notizen
+beschränkt sein (`nummern` im Ziel von `triagiere`). Dann gehen nur sie in Schnittplan und Abschlussprüfung,
+die Lern-Triage nur, wenn das Sammel-Issue gewählt ist; die übrigen bleiben unberührt mit ihrem Label.
+Der Treiber prüft die Wahl beim Start gegen die offenen Notizen (`flottenbruecke/SCHNITTSTELLE.md`,
+Handlung `triage`). Die Befehlszeile nimmt immer alle.
+
 **Ein Aufruf je Projekt** (#146): Ein einziger `claude -p` je Projekt (Werkzeuge nur
 `Read,Grep,Glob`, Schema `schnittplanSchema()` in `src/triage.ts`) liest alle Notizen, die ins Modell gehen
 (Autor berechtigt, keine Mission, nicht `wartet`; Lernvorschläge nicht), dazu die offenen Missionen
