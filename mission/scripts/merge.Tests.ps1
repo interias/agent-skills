@@ -236,18 +236,25 @@ Describe 'merge.ps1: one gate block, one way (step 7 of the gate rebuild; was th
     $body = "## Gate`n``````n== Gate: Basis origin/main @ ccccccc (HEAD eeeeeeee)`n$green`n== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n  wurzel gr$([char]0x00FC)n`n$green`n``````"
     $compare = @(@{ match = '^api repos/o/r/compare/(ccccccc|eeeeeeee|aaaaaaa1)'; out = "1`napps/web/z.ts"; exit = 0 })
 
-    It 'the last run counts as it stands: green on the current base and head merges, no file list is read' {
+    It 'a partial run never counts, even green on the current base and head; no file list is read' {
         $r = Invoke-Merge ($compare + (New-Rules $body $alt))
-        $r.Out | Should Match 'GEMERGT #7'
+        $r.Out | Should Be 'GATE FEHLT #7: der letzte Gate-Lauf ist ein Teil-Lauf, er zaehlt nicht'
+        (Get-MergeCalls $r).Count | Should Be 0
         @($r.Calls | Where-Object { $_ -match '^api repos/o/r/compare/(ccccccc|eeeeeeee|aaaaaaa1)' }).Count | Should Be 0
     }
 
-    It 'the abolished keys change nothing: the same body merges with and without them' {
-        (Invoke-Merge ($compare + (New-Rules $body))).Out | Should Match 'GEMERGT #7'
+    It 'without gate_partial the heading Immer-Teil marks a partial run; with it, its pattern does' {
+        (Invoke-Merge ($compare + (New-Rules $body))).Out | Should Match 'Teil-Lauf, er zaehlt nicht'
+        $eigen = "---`nmerge: nach_gate`ngate_partial: Nur-Wurzel`n---`n"
+        $nurWurzel = "## Gate`n== Gate: Nur-Wurzel, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green"
+        (Invoke-Merge (New-Rules $nurWurzel $eigen)).Out | Should Match 'Teil-Lauf, er zaehlt nicht'
+        # a full run after the partial one counts as usual
+        $danach = $body -replace '```$',"== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)`n$green`n``````"
+        (Invoke-Merge ($compare + (New-Rules $danach $alt))).Out | Should Match 'GEMERGT #7'
     }
 
     It 'a last run on an old base never counts, whatever the base moved in' {
-        $alt2 = "## Gate`n``````n== Gate: Basis origin/main @ aaaaaaa (HEAD eeeeeeee)`n$green`n== Gate: Immer-Teil, Basis origin/main @ ccccccc (HEAD bbbbbbbb)`n$green`n``````"
+        $alt2 = "## Gate`n``````n== Gate: Basis origin/main @ aaaaaaa (HEAD eeeeeeee)`n$green`n== Gate: Basis origin/main @ ccccccc (HEAD bbbbbbbb)`n$green`n``````"
         $r = Invoke-Merge ($compare + (New-Rules $alt2 $alt))
         $r.Out | Should Match 'GATE FEHLT #7: Gate lief gegen ccccccc, die Basis steht auf aaaaaaa'
         (Get-MergeCalls $r).Count | Should Be 0

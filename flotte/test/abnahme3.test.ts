@@ -16,7 +16,7 @@ describe('Befund 2: Gate-Nachweis im Log des Laufs', () => {
   const BEFEHLE = ["$env:HIVE_TESTBETT='0'; npm run gate -- --voll"];
   const imLog = (schritte: { zeile?: unknown; text?: string }[]) =>
     gateLaeufeImLog(schritte.map((s) => JSON.stringify(s.zeile ?? { type: 'assistant', message: { content: [{ type: 'text', text: s.text }] } })).join('\n') + '\nkein json', form, BEFEHLE);
-  const voll = { base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true };
+  const voll = { base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true, teil: false };
 
   it('the core of a gate command drops leading environment assignments', () => {
     expect(gateKern("$env:HIVE_TESTBETT='0'; npm run gate -- --voll")).toBe('npm run gate -- --voll');
@@ -49,7 +49,7 @@ describe('Befund 2: Gate-Nachweis im Log des Laufs', () => {
       ...werkzeug('PowerShell', { command: "$env:HIVE_TESTBETT='0'; npm run gate -- --voll" }, '== Gate: Basis origin/main @ 1111111 (HEAD 22222222)\nGate ROT.', { parent: 'toolu_sub' }),
       ...teile,
     ]);
-    expect(l).toEqual([voll, { base: '1111111', head: '22222222', gruen: false }, { base: 'ccccccc', head: 'dddddddd', gruen: true }]);
+    expect(l).toEqual([voll, { base: '1111111', head: '22222222', gruen: false, teil: false }, { base: 'ccccccc', head: 'dddddddd', gruen: true, teil: false }]);
   });
 
   it('without gate commands nothing counts', () => {

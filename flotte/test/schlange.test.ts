@@ -40,7 +40,7 @@ interface EpicGit {
  * A repository with origin, main (a/x.txt, b/y.txt) and per epic a branch in its own worktree with
  * one commit and a PR body that holds a full green gate run on that state.
  */
-function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null; adapterZusatz?: string; kontexte?: string } = {}) {
+function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null; adapterZusatz?: string; kontexte?: string; teilKopf?: boolean } = {}) {
   const bodies = new Map<number, string>();
   const liste: EpicGit[] = [];
   const t = aufbau({
@@ -58,7 +58,7 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
       const kopf = git(cwd, 'rev-parse', 'HEAD');
       const basis = git(cwd, 'rev-parse', 'origin/main');
       const gruen = !o.rot?.(cwd, n);
-      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n${o.kontexte ?? `  wurzel ${gruen ? 'grün' : 'ROT'}`}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
+      return { code: gruen ? 0 : 1, stdout: `${gruen ? 'vorher' : (o.rotText ?? 'vorher')}\n== Gate: ${o.teilKopf ? 'Immer-Teil, ' : ''}Basis origin/main @ ${basis.slice(0, 7)} (HEAD ${kopf.slice(0, 8)})\n${o.kontexte ?? `  wurzel ${gruen ? 'grün' : 'ROT'}`}\n${gruen ? 'Gate grün.' : 'Gate ROT.'}\n` };
     },
     // merge.ps1: the last run must name the current base and head (merge.Tests.ps1 checks the rest)
     mergeEcht: (pr, n) => {
@@ -564,13 +564,13 @@ describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
 describe('B: Gate-Block', () => {
   it('reads the runs of the section in order; the last one counts as it stands', () => {
     const body = '## Gate\n== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\nGate grün.\n== Gate: Basis origin/main @ ccccccc (HEAD dddddddd)\nGate ROT.\n## Danach\n== Gate: Basis origin/main @ eeeeeee (HEAD ffffffff)';
-    expect(gateLaeufe(body, form)).toEqual([{ base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true }, { base: 'ccccccc', head: 'dddddddd', gruen: false }]);
+    expect(gateLaeufe(body, form)).toEqual([{ base: 'aaaaaaa', head: 'bbbbbbbb', gruen: true, teil: false }, { base: 'ccccccc', head: 'dddddddd', gruen: false, teil: false }]);
     expect(gateLaeufe('kein Gate', form)).toBeNull();
   });
 
   it('takes the block from the last line with a base and appends it to the section, or adds the section', () => {
     const b = blockAus('\x1b[32mlog\x1b[0m\n== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.\n', form)!;
-    expect(b).toEqual({ block: '== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.', gruen: true });
+    expect(b).toEqual({ block: '== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.', gruen: true, teil: false });
     expect(blockAus('kein Kopf\nGate grün.', form)).toBeNull();
     expect(blockEinsetzen('## Gate\n```\nalt\n```\n\n## Rest\nx', form, 'neu')).toBe('## Gate\n```\nalt\n```\n```\nneu\n```\n\n## Rest\nx');
     expect(blockEinsetzen('Text', form, 'neu')).toBe('Text\n\n## Gate\n\n```\nneu\n```\n');
@@ -578,6 +578,33 @@ describe('B: Gate-Block', () => {
     expect(blockEinsetzen('## Gate\n```\nalt\n```\n\nCloses #4\n', form, 'neu')).toBe('## Gate\n```\nalt\n```\n```\nneu\n```\n\nCloses #4\n');
     expect(blockEinsetzen('## Gate\nalt\n\n## Rest', form, 'neu')).toBe('## Gate\nalt\n```\nneu\n```\n\n## Rest');
   });
+
+  it('a partial run never counts: the heading Immer-Teil, or the pattern gate_partial of an adapter that still names it, marks it', () => {
+    const teil = '## Gate\n== Gate: Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\nGate grün.\n== Gate: Immer-Teil, Basis origin/main @ ccccccc (HEAD dddddddd)\nGate grün.';
+    expect(gateLaeufe(teil, form)!.map((l) => l.teil)).toEqual([false, true]);
+    expect(blockAus('== Gate: Immer-Teil, Basis origin/main @ aaaaaaa (HEAD bbbbbbbb)\n  wurzel grün\nGate grün.', form)!.teil).toBe(true);
+    const eigen = gateForm(liesAdapter(`---\n${ADAPTER}\ngate_partial: Nur-Wurzel\n---\n`));
+    expect(gateLaeufe('## Gate\n== Gate: Nur-Wurzel, Basis origin/main @ ccccccc (HEAD dddddddd)\nGate grün.', eigen)![0].teil).toBe(true);
+  });
+
+  it('a partial run as the last block of the PR is no proof: the driver runs gate_command and docks on its own block', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }]);
+    t.bodies.set(13, t.bodies.get(13)!.replace('== Gate: Basis', '== Gate: Immer-Teil, Basis'));
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
+    expect(texte(z).some((x) => /^#3 der letzte Lauf im Andockblock ist ein Teil-Lauf, er zählt nicht: der Treiber fährt die Andockprüfung selbst$/.test(x))).toBe(true);
+  }, T);
+
+  it('gate_command that prints a partial run gives no block merge.ps1 may take: a person looks, nothing is docked', async () => {
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { teilKopf: true, pr: () => ({ state: 'OPEN' }) });
+    t.bodies.set(13, t.bodies.get(13)!.replace('== Gate: Basis', '== Gate: Immer-Teil, Basis'));
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 10_000 }), t.welt);
+    expect(t.p.merges).toEqual([]);
+    expect(z.epics['3'].notiz).toMatch(/Die Ausgabe von `gate voll` ist ein Teil-Lauf; er zählt nicht/);
+  }, T);
 
   it('the keys gate_areas, gate_always_command and gate_partial no longer act: the occupancy stays the same, the adapter names them as abolished', () => {
     const alt = liesAdapter(`---\n${ADAPTER}\ngate_always_command: gate teil\ngate_partial: true\ngate_areas:\n  - a/ = A\n  - b/ = B\n---\n`);
@@ -595,7 +622,7 @@ describe('B: Gate-Block', () => {
     const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: GRENZE }), t.welt);
     expect(Object.values(z.epics).map((e) => e.stufe)).toEqual(['fertig', 'fertig']);
     expect(t.p.gates.map((g) => g.befehl)).toEqual(['gate voll']);
-    expect(texte(z).filter((x) => /^Hinweis: der Adapter nennt gate_areas, gate_always_command; die Schlüssel wirken nicht mehr/.test(x))).toHaveLength(1);
+    expect(texte(z).filter((x) => /^Hinweis: der Adapter nennt gate_areas, gate_always_command; die Schlüssel steuern nichts mehr, .*ein Teil-Lauf zählt nie$/.test(x))).toHaveLength(1);
   }, T);
 });
 

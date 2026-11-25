@@ -7,7 +7,8 @@
 # a workflow and without checks on the base it does not wait at all). Checks or not, the gate block in
 # the pull request description must be there, green, run against the current base on the current head,
 # and the head must contain the current base: a check of something else (a website build) never stands
-# in for the gate (acceptance 3, #14). The last run counts as it stands; there is no partial run.
+# in for the gate (acceptance 3, #14). The last run counts as it stands, but a partial run never counts: its heading
+# matches gate_partial of the adapter, else 'Immer-Teil' (the key steers nothing any more, it only refuses).
 # Usage: merge.ps1 -Repo <owner/name> -Pr 164 [-MaxMinuten 30] [-BranchBehalten] [-Api <host>/api/v1/repos/<owner>/<repo>]
 # With -Api the forge is Gitea (#127): every call goes through curl against its API; the Authorization header
 # comes from the variable FLOTTE_FORGE_KOPF (the driver sets it for this process), else `token $GITEA_TOKEN`.
@@ -101,9 +102,11 @@ function Test-GateBlock([string]$body, $settings, [string]$baseSha, [string]$hea
         $h = [regex]::Match($section[$at], $settings.Head)
         $g = $false
         for ($k = $at + 1; $k -lt $until; $k++) { if ($section[$k].Trim() -eq $settings.Green) { $g = $true; break } }
-        @{ Base = ([regex]::Match($section[$at], $settings.Base)).Groups[1].Value; Head = $(if ($h.Success) { $h.Groups[1].Value } else { $null }); Green = $g }
+        @{ Base = ([regex]::Match($section[$at], $settings.Base)).Groups[1].Value; Head = $(if ($h.Success) { $h.Groups[1].Value } else { $null }); Green = $g
+           Partial = [bool]($section[$at] -match $settings.Partial) }
     }
     $last = & $run ($runs.Count - 1)
+    if ($last.Partial) { return 'der letzte Gate-Lauf ist ein Teil-Lauf, er zaehlt nicht' }
     if (-not $last.Head) { return 'der letzte Gate-Lauf nennt keinen HEAD' }
     if (-not $last.Green) { return "der letzte Gate-Lauf endet nicht mit '$($settings.Green)'" }
     if (-not $baseSha.StartsWith($last.Base, [StringComparison]::OrdinalIgnoreCase)) { return "Gate lief gegen $($last.Base), die Basis steht auf $($baseSha.Substring(0, 7))" }
@@ -219,6 +222,8 @@ $settings = @{
     Green   = if ($adapter['gate_green']) { $adapter['gate_green'] } else { "Gate gr$([char]0x00FC)n." }
     Base    = if ($adapter['gate_base']) { $adapter['gate_base'] } else { 'Basis \S+ @ ([0-9a-f]{7,40})' }
     Head    = if ($adapter['gate_head']) { $adapter['gate_head'] } else { '\(HEAD ([0-9a-f]{7,40})\)' }
+    # gate_partial is abolished as a control; its pattern only marks a partial run, which never counts
+    Partial = if ($adapter['gate_partial']) { $adapter['gate_partial'] } else { 'Immer-Teil' }
 }
 $baseSha = Get-BranchSha $info.baseRefName
 if (-not $baseSha) { "GATE UNGEPRUEFT #${Pr}: Basis $($info.baseRefName) nicht lesbar"; exit 1 }

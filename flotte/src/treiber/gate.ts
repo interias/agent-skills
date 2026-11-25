@@ -13,6 +13,8 @@ export interface GateForm {
   head: RegExp;
   /** gate_cached: a context line it matches took its result from the gate's cache; null: the adapter says nothing */
   cached: RegExp | null;
+  /** the heading of a partial run (gate_partial, else Immer-Teil): such a run never counts */
+  teil: RegExp;
 }
 
 /** A context of the gate block: result gruen, rot or the block's own word (übersprungen …), duration and cache as read; null: unknown. */
@@ -37,6 +39,8 @@ export interface GateLauf {
   base: string;
   head: string | null;
   gruen: boolean;
+  /** a partial run (GateForm.teil): never a proof, whatever it says */
+  teil: boolean;
 }
 
 export function gateForm(a: Adapter): GateForm {
@@ -46,6 +50,7 @@ export function gateForm(a: Adapter): GateForm {
     base: new RegExp(a.gate_base ?? 'Basis \\S+ @ ([0-9a-f]{7,40})'),
     head: new RegExp(a.gate_head ?? '\\(HEAD ([0-9a-f]{7,40})\\)'),
     cached: muster(a.gate_cached),
+    teil: muster(a.gate_partial) ?? /Immer-Teil/,
   };
 }
 
@@ -107,6 +112,7 @@ function laeufeIn(zeilen: string[], f: GateForm): GateLauf[] {
       base: f.base.exec(zeilen[s])![1],
       head: f.head.exec(zeilen[s])?.[1] ?? null,
       gruen: zeilen.slice(s + 1, bis).some((z) => z.trim() === f.green),
+      teil: f.teil.test(zeilen[s]),
     };
   });
 }
@@ -168,7 +174,7 @@ export const gleich = (a: string | null, b: string | null) => !!a && !!b && (a.l
 
 
 /** The block of a gate output: from its last line with a base to the end; null when no line names a base. */
-export function blockAus(ausgabe: string, f: GateForm): { block: string; gruen: boolean } | null {
+export function blockAus(ausgabe: string, f: GateForm): { block: string; gruen: boolean; teil: boolean } | null {
   const zeilen = ausgabe.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
   let s = -1;
   zeilen.forEach((z, i) => {
@@ -176,7 +182,7 @@ export function blockAus(ausgabe: string, f: GateForm): { block: string; gruen: 
   });
   if (s < 0) return null;
   const block = zeilen.slice(s).join('\n').trimEnd();
-  return { block, gruen: zeilen.slice(s + 1).some((z) => z.trim() === f.green) };
+  return { block, gruen: zeilen.slice(s + 1).some((z) => z.trim() === f.green), teil: f.teil.test(zeilen[s]) };
 }
 
 /**

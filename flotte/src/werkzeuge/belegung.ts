@@ -63,6 +63,8 @@ export interface Adapter {
   gate_head: string | null;
   /** a regular expression on a context line of the gate block: that context came from the gate's cache */
   gate_cached: string | null;
+  /** abolished as a control (ABGESCHAFFT); its pattern still marks a partial run, which never counts */
+  gate_partial: string | null;
   /** abolished keys the adapter still names (ABGESCHAFFT): they act no more, the driver says so once */
   abgeschafft: string[];
 }
@@ -101,6 +103,7 @@ export function liesAdapter(text: string): Adapter {
     gate_base: werte.get('gate_base')?.[0] ?? null,
     gate_head: werte.get('gate_head')?.[0] ?? null,
     gate_cached: werte.get('gate_cached')?.[0] ?? null,
+    gate_partial: werte.get('gate_partial')?.[0] ?? null,
     abgeschafft: ABGESCHAFFT.filter((k) => werte.has(k)),
   };
 }

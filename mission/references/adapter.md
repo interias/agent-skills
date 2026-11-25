@@ -256,10 +256,13 @@ Weg für jeden, der andockt — den Treiber, einen Menschen, eine Sitzung, auch 
 Nur das Skript prüft, dass der Andockblock zur Spitze der Basis und zum Head passt; ein
 `gh pr merge` oder der Knopf der Forge daneben umgeht diese Prüfung.
 
-Den Andockblock gibt es in einer Form: Ein Lauf zählt so, wie er dasteht, auch wenn seine
-Kopfzeile ein früheres Wort wie `Immer-Teil` trägt. Die Schlüssel `gate_always_command`,
-`gate_areas` und `gate_partial` sind abgeschafft; ein Adapter, der sie noch nennt, bricht nichts ab,
-der Flotten-Treiber meldet sie einmal mit einem Hinweis im Logbuch.
+**Ein Teil-Lauf zählt nie.** Passt die Kopfzeile des letzten Laufs auf das Teil-Muster, meldet
+`merge.ps1` `GATE FEHLT … der letzte Gate-Lauf ist ein Teil-Lauf, er zählt nicht`, und der
+Flotten-Treiber rechnet den Block nicht an, sondern fährt `gate_command` selbst. Das Muster ist
+`Immer-Teil`; nennt ein Adapter noch `gate_partial`, gilt dessen Wert. Die Schlüssel
+`gate_always_command`, `gate_areas` und `gate_partial` sind als Steuerung abgeschafft:
+`gate_partial` sperrt nur noch, die beiden anderen wirken nicht mehr. Ein Adapter, der sie noch
+nennt, bricht nichts ab; der Flotten-Treiber meldet sie einmal mit einem Hinweis im Logbuch.
 
 ### Werft (#88)
 

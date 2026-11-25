@@ -710,7 +710,7 @@ class Treiber {
       if (this.mergeAlt) this.ereignis(null, `${this.mergeAlt}: ein Mensch dockt an`);
     }
     // the partial gate run is gone: its keys stop nothing, they only get a hint
-    if (this.adapter.abgeschafft.length) this.ereignis(null, `Hinweis: der Adapter nennt ${this.adapter.abgeschafft.join(', ')}; die Schlüssel wirken nicht mehr, die Andockprüfung des Treibers fährt immer gate_command`);
+    if (this.adapter.abgeschafft.length) this.ereignis(null, `Hinweis: der Adapter nennt ${this.adapter.abgeschafft.join(', ')}; die Schlüssel steuern nichts mehr, die Andockprüfung des Treibers fährt immer gate_command, und ein Teil-Lauf zählt nie`);
     this.messungen = liesMessungen(this.dir);
     this.eingespieltMelden();
     this.wiederaufnehmen();
@@ -3728,6 +3728,7 @@ class Treiber {
     const form = gateForm(this.adapter);
     const letzter = gateLaeufe(info.body ?? '', form)?.at(-1);
     if (!letzter || !letzter.gruen || !letzter.head) return 'keine grüne Andockprüfung in der PR-Beschreibung';
+    if (letzter.teil) return 'der letzte Lauf im Andockblock ist ein Teil-Lauf, er zählt nicht';
     if (info.headRefOid) {
       if (!gleich(letzter.head, info.headRefOid)) return `Andockblock auf HEAD ${letzter.head.slice(0, 8)}, der PR steht auf ${info.headRefOid.slice(0, 8)}`;
       await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', info.baseRefName, info.headRefName], { timeoutMs: 5 * 60_000 });
@@ -3744,7 +3745,7 @@ class Treiber {
     const logs = existsSync(laeufe) ? readdirSync(laeufe).filter((d) => d.startsWith(`${ep.nr}-`) && d.endsWith('.jsonl')) : [];
     for (const d of logs) {
       const im = gateLaeufeImLog(readFileSync(join(laeufe, d), 'utf8'), form, befehle);
-      if (im.some((l) => l.gruen && gleich(l.base, letzter.base) && gleich(l.head, letzter.head))) return null;
+      if (im.some((l) => l.gruen && !l.teil && gleich(l.base, letzter.base) && gleich(l.head, letzter.head))) return null;
     }
     return `kein Aufruf der Andockprüfung im Log des Laufs zum Andockblock (Basis ${letzter.base}, HEAD ${letzter.head})`;
   }
@@ -3874,11 +3875,12 @@ class Treiber {
     const b = blockAus(r.stdout, form);
     const s = Math.round((this.w.jetzt() - t0) / 1000);
     const ende = (r.stdout + r.stderr).trim().split(/\r?\n/).slice(-25).join('\n');
-    const gruen = Boolean(b?.gruen) && r.code === 0;
+    const gruen = Boolean(b?.gruen) && !b?.teil && r.code === 0;
     const messung: AndockMessung = { zeit: new Date(this.w.jetzt()).toISOString(), epic: nr, pr: ep.pr ?? null, dauerS: s, gruen, kontexte: b ? kontexteAus(b.block, form) : [] };
     ep.andockpruefung = messung;
     this.z.andockpruefungen = [...(this.z.andockpruefungen ?? []), messung].slice(-ANDOCK_MESSUNGEN);
     if (!b) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` nennt keine Basis (gate_base); merge.ps1 kann sie nicht prüfen` };
+    if (b.teil) return { art: 'mensch', text: `Die Ausgabe von \`${befehl}\` ist ein Teil-Lauf; er zählt nicht, gate_command muss die ganze Andockprüfung fahren` };
     const anteil = cacheAnteil(messung.kontexte);
     this.ereignis(nr, `Andockprüfung des Treibers ${gruen ? 'grün' : 'rot'} nach ${s} s (Exit ${r.code})${anteil ? `; ${anteil.n} von ${anteil.m} Kontexten aus dem Cache` : ''}`);
     const aussen = gruen ? undefined : AUSSEN.find(([re]) => re.test(ende))?.[1];
