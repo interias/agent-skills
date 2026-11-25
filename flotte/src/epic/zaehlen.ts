@@ -100,7 +100,8 @@ function pytest(text: string, ort: (p: string) => string): Gezaehlt | null {
 export function dauerSekunden(text: string): number | null {
   const t = text.trim();
   const uhr = /^(?:(\d+):)?(\d+):(\d{2})$/.exec(t);
-  if (uhr) return Number(uhr[1] ?? 0) * 3600 + Number(uhr[2]) * 60 + Number(uhr[3]);
+  // seconds above 59, or minutes above 59 under hours, are not guessed
+  if (uhr) return Number(uhr[3]) > 59 || (uhr[1] !== undefined && Number(uhr[2]) > 59) ? null : Number(uhr[1] ?? 0) * 3600 + Number(uhr[2]) * 60 + Number(uhr[3]);
   const s = /^(\d+(?:[.,']\d+)*)\s*s$/.exec(t);
   if (!s) return null;
   if (/^\d{1,3}(?:[.,']\d{3})+$/.test(s[1])) return Number(s[1].replace(/[.,']/g, ''));
@@ -123,6 +124,21 @@ export function gateKontext(zeile: string): { name: string; ergebnis: string; da
 }
 
 /**
+ * The context lines below the heading of a gate block: those indented like the first context line.
+ * Deeper ones are detail of a context (`    Gruppen: alle 11`, `    Log: …`), never a context of their own.
+ */
+export function gateKontexte(zeilen: string[]): { zeile: string; kontext: NonNullable<ReturnType<typeof gateKontext>> }[] {
+  let tiefe: number | null = null;
+  return zeilen.flatMap((zeile) => {
+    const kontext = gateKontext(zeile);
+    if (!kontext) return [];
+    const t = /^\s*/.exec(zeile)![0].length;
+    tiefe ??= t;
+    return t === tiefe ? [{ zeile, kontext }] : [];
+  });
+}
+
+/**
  * The summary of a context gate (the form of hexanite's gate, of flotte-probe's werkzeug/gate.ps1 and of
  * this repository's gate.ps1): after the last `== Gate: …` line one line per context (gateKontext),
  * skipped contexts without a time, then `Gate grün.` or `Gate rot.`. A context with a result and a time
@@ -135,9 +151,8 @@ function gate(text: string): Gezaehlt | null {
   const kopf = zeilen.map((z) => /^== Gate: /.test(z)).lastIndexOf(true);
   let tests = 0;
   const rot: Gezaehlt['rot'] = [];
-  for (const z of zeilen.slice(kopf + 1)) {
-    const k = gateKontext(z);
-    if (!k || k.dauerS === null || (k.ergebnis !== 'gruen' && k.ergebnis !== 'rot')) continue;
+  for (const { kontext: k } of gateKontexte(zeilen.slice(kopf + 1))) {
+    if (k.dauerS === null || (k.ergebnis !== 'gruen' && k.ergebnis !== 'rot')) continue;
     tests++;
     if (k.ergebnis === 'rot') rot.push({ datei: k.name, test: k.rest.trim() || 'rot' });
   }

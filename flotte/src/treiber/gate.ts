@@ -4,7 +4,7 @@
 // take the driver's word.
 
 import type { Adapter } from '../werkzeuge/belegung.ts';
-import { gateKontext } from '../epic/zaehlen.ts';
+import { gateKontexte } from '../epic/zaehlen.ts';
 
 export interface GateForm {
   heading: string;
@@ -64,15 +64,21 @@ function muster(text: string | null): RegExp | null {
   }
 }
 
-/** The contexts of a gate block: its context lines (gateKontext) between the line with the base and the end. */
+/**
+ * The contexts of a gate block: its context lines (gateKontexte) below the line with the base, at most
+ * KONTEXTE_MAX; the cache pattern sees the first 500 characters of a line (an adapter pattern never
+ * runs long on a long line).
+ */
+/** as many contexts as the bridge takes per gate run (flottenbruecke/app/modelle.py) */
+export const KONTEXTE_MAX = 40;
+
 export function kontexteAus(block: string, f: GateForm): GateKontext[] {
   const zeilen = block.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
   const s = zeilen.findIndex((z) => f.base.test(z));
   if (s < 0) return [];
-  return zeilen.slice(s + 1).flatMap((z) => {
-    const k = gateKontext(z);
-    return k ? [{ name: k.name.slice(0, 100), ergebnis: k.ergebnis.slice(0, 40), dauerS: k.dauerS, cache: f.cached ? f.cached.test(z) : null }] : [];
-  });
+  return gateKontexte(zeilen.slice(s + 1))
+    .slice(0, KONTEXTE_MAX)
+    .map(({ zeile, kontext: k }) => ({ name: k.name.slice(0, 100), ergebnis: k.ergebnis.slice(0, 40), dauerS: k.dauerS, cache: f.cached ? f.cached.test(zeile.slice(0, 500)) : null }));
 }
 
 /** n of m contexts from the cache, counted over the contexts that ran (green or red); null without a cache statement. */
