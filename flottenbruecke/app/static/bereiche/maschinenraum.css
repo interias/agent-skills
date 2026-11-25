@@ -108,7 +108,16 @@
 /* the switch reads like a pill of the cards above: green when on */
 .bereich[data-bereich="maschinenraum"] .mr-auto-zeile .mr-stand > b { color: #000; padding: 1px 8px; border-radius: var(--rund); font-size: 12px; text-transform: uppercase; background: var(--lila); }
 .bereich[data-bereich="maschinenraum"] .mr-auto-zeile .mr-stand > b.ok { background: var(--gruen); }
+/* the last Andockprüfungen per project: one line per run, mission, result, duration, cache share, time; wraps on a phone */
+.bereich[data-bereich="maschinenraum"] .mr-andock { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font: 13px/1.5 var(--lesen); }
+.bereich[data-bereich="maschinenraum"] .mr-andock li { display: grid; grid-template-columns: 3.5em 3.5em 4.5em minmax(0, 1fr) auto; align-items: baseline; column-gap: 10px; }
+.bereich[data-bereich="maschinenraum"] .mr-andock b { justify-self: start; color: #000; padding: 0 7px; border-radius: var(--rund); font-size: 11px; text-transform: uppercase; background: var(--rot); }
+.bereich[data-bereich="maschinenraum"] .mr-andock b.ok { background: var(--gruen); }
+.bereich[data-bereich="maschinenraum"] .mr-andock .zahl { font-variant-numeric: tabular-nums; text-align: right; }
+.bereich[data-bereich="maschinenraum"] .mr-andock-cache { color: var(--matt); }
 @media (max-width: 700px) {
+  .bereich[data-bereich="maschinenraum"] .mr-andock li { grid-template-columns: 3.5em 3.5em 4.5em minmax(0, 1fr); row-gap: 0; }
+  .bereich[data-bereich="maschinenraum"] .mr-andock .mr-andock-cache { grid-column: 2 / -1; grid-row: 2; }
   .bereich[data-bereich="maschinenraum"] .mr-auto-zeile { grid-template-columns: 1fr; }
   .bereich[data-bereich="maschinenraum"] .mr-auto-zeile .knopf { min-height: 48px; }
 }

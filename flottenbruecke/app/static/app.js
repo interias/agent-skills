@@ -396,12 +396,31 @@ function lageDetailHtml(x) {
   return `${schritt}<section class="d-gate" aria-label="Andockprüfung"><h4>${kopf}</h4><ul>${g.kontexte.map((k) => `<li class="${esc(k.stand)}"><span class="punkt"></span><span>${esc(k.name)}</span><span class="ps">${k.stand === 'fertig' ? 'fertig' : 'läuft'}</span></li>`).join('')}</ul></section>`;
 }
 
+// a duration as the block of the Andockprüfung prints it: m:ss, from an hour on h:mm:ss
+function gateDauer(s) {
+  if (s == null) return '';
+  const t = Math.round(s);
+  const [h, m, sek] = [Math.floor(t / 3600), Math.floor((t % 3600) / 60), String(t % 60).padStart(2, '0')];
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sek}` : `${m}:${sek}`;
+}
+// n of the contexts that ran took their result from the cache; empty when the adapter says nothing about it
+const cacheText = (a) => (a?.mitCache ? `${a.ausCache} von ${a.mitCache} Kontexten aus dem Cache` : '');
+const ERGEBNIS = { gruen: 'grün', rot: 'rot' };
+
+// the last Andockprüfung of the driver for the mission: duration, result, cache share, the contexts
+function andockHtml(a) {
+  if (!a) return '';
+  const kopf = ['Letzte Andockprüfung', gateDauer(a.dauerS), a.gruen ? 'grün' : 'rot', cacheText(a), uhrzeit(a.zeit)].filter(Boolean).join(' · ');
+  const li = (a.kontexte ?? []).map((k) => `<li class="${k.ergebnis === 'gruen' ? 'fertig' : k.ergebnis === 'rot' ? 'rot' : 'aus'}"><span class="punkt"></span><span>${esc(k.name)}</span><span class="ps">${esc([ERGEBNIS[k.ergebnis] ?? k.ergebnis, gateDauer(k.dauerS), k.cache ? 'Cache' : ''].filter(Boolean).join(' '))}</span></li>`).join('');
+  return `<section class="d-gate d-andock" aria-label="Letzte Andockprüfung"><h4>${esc(kopf)}</h4>${li ? `<ul>${li}</ul>` : ''}</section>`;
+}
+
 // the opened detail of an epic: one section per entry
-const abschnitte = (x) => [lageDetailHtml(x), x.pakete?.length ? paketeListe(x) : '', entscheidungenHtml(x)];
+const abschnitte = (x) => [lageDetailHtml(x), andockHtml(x.andockpruefung), x.pakete?.length ? paketeListe(x) : '', entscheidungenHtml(x)];
 
 function paketeHtml(x) {
   const e = x.entscheidungen?.length ?? 0;
-  const mehr = Boolean(x.lage && (x.schritt || x.lage.gate?.kontexte?.length));
+  const mehr = Boolean((x.lage && (x.schritt || x.lage.gate?.kontexte?.length)) || x.andockpruefung);
   if (!x.pakete?.length && !e && !mehr) return '';
   const n = x.pakete?.length ?? 0;
   const fertig = (x.pakete ?? []).filter((p) => p.stand === 'fertig').length;

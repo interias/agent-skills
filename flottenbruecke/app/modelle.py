@@ -191,6 +191,25 @@ class LageGate(BaseModel):
     seit: str | None = Field(None, max_length=40)
 
 
+class AndockKontext(BaseModel):
+    # a context of the gate block as the driver read it: result gruen, rot or the block's own word; None: not readable
+    name: str = Field(max_length=100)
+    ergebnis: str = Field(max_length=40)
+    dauerS: float | None = Field(None, ge=0)
+    cache: bool | None = None
+
+
+class Andockpruefung(BaseModel):
+    """One gate run of the driver: when it ended, for which mission and PR, how long, green or not, its contexts."""
+
+    zeit: str = Field(max_length=40)
+    epic: int
+    pr: int | None = None
+    dauerS: float = Field(ge=0)
+    gruen: bool
+    kontexte: list[AndockKontext] = Field([], max_length=40)
+
+
 class Lage(BaseModel):
     """What happens with the epic, in one line: a label, the driver's sentence with its reason, since when; the person's step."""
     etikett: Literal['arbeitet', 'prueft', 'wartet_auf_dich', 'wartet', 'gestoppt', 'fertig']
@@ -234,6 +253,8 @@ class Epic(BaseModel):
     neustarts: int | None = Field(None, ge=0)
     plaetze: Plaetze | None = None
     gateLauf: GateLauf | None = None
+    # the last gate run of the driver for the mission; an older driver has none
+    andockpruefung: Andockpruefung | None = None
     # #61: in the driver's deployment (an older driver: always); paused by the person since; the priority set on the bridge, None: the label's
     imEinsatz: bool = True
     pausiert: str | None = Field(None, max_length=40)
@@ -582,6 +603,8 @@ class Bericht(BaseModel):
     taktS: int = Field(60, ge=1, le=3600)
     epics: list[Epic] = Field([], max_length=200)
     schlange: list[int] = []
+    # the last gate runs of the driver in the project, oldest first; an older driver has none
+    andockpruefungen: list[Andockpruefung] = Field([], max_length=50)
     konten: list[Konto] = []
     ram: Ram | None = None
     platte: Platte | None = None

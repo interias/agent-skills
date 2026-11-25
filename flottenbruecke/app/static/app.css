@@ -239,6 +239,8 @@ a.dein-schritt:hover, button.dein-schritt:hover { background: #2a1d36; text-deco
 .d-gate li { display: inline-flex; align-items: center; gap: 6px; }
 .d-gate .punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
 .d-gate .fertig .punkt { background: var(--gruen); }
+.d-gate .rot .punkt { background: var(--rot); }
+.d-gate .aus .punkt { background: #2c2c3a; }
 .d-gate .ps { color: var(--matt); font: 11px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
 .segmente { display: flex; gap: 3px; height: 5px; }
 .segment { flex: 1; border-radius: 3px; background: #2c2c3a; }
