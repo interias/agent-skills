@@ -172,3 +172,34 @@ def test_tafel_traegt_klonangebot_und_adapterluecken(client, bericht):
     p = client.get('/api/tafel').json()['projekte'][0]
     assert p['klonAngebot'] is None
     assert p['adapterLuecken'] == []
+
+
+def test_tafel_traegt_den_nachtlauf_und_den_halt_der_schlange(client, bericht):
+    """Step 8 of the gate rework: a red night run holds the merge queue; the project card shows why, since when and the issue."""
+    b = mit_projekten(bericht)
+    b['nachtlauf'] = {
+        'halt': {'seit': '2026-11-25T02:41:00.000Z', 'grund': 'Nachtlauf rot auf origin/main @ abc1234, auch in der Wiederholung (rot: flotte)', 'commit': 'abc1234def', 'basis': 'main', 'issue': 77, 'teile': ['flotte'], 'gruen': None},
+        'letzter': {'ergebnis': 'rot', 'commit': 'abc1234def', 'basis': 'main', 'zeit': '2026-11-25T02:30:00.000Z', 'dauerS': 660, 'wiederholt': True, 'teile': ['flotte'], 'grund': None},
+    }
+    assert client.post('/api/bericht', json=b).json()['ok']
+    p = client.get('/api/tafel').json()['projekte'][0]
+    assert p['nachtlauf']['halt']['issue'] == 77
+    assert p['nachtlauf']['letzter']['ergebnis'] == 'rot'
+    # an older driver reports none
+    b.pop('nachtlauf')
+    client.post('/api/bericht', json=b)
+    assert client.get('/api/tafel').json()['projekte'][0]['nachtlauf'] is None
+
+
+def test_nachtlauf_ohne_gueltigen_commit_abgelehnt(client, bericht):
+    b = mit_projekten(bericht)
+    b['nachtlauf'] = {'halt': {'seit': '2026-11-25T02:41:00Z', 'grund': 'rot', 'commit': r'C:\pfad', 'basis': 'main', 'issue': None, 'teile': []}, 'letzter': None}
+    assert client.post('/api/bericht', json=b).status_code == 422
+
+
+def test_nachtlauf_halt_ohne_commit_angenommen(client, bericht):
+    # an unreadable halt file on the machine holds all the same; the driver reports it without a commit
+    b = mit_projekten(bericht)
+    b['nachtlauf'] = {'halt': {'seit': '2026-11-25T02:41:00Z', 'grund': 'Haltedatei unlesbar', 'commit': None, 'basis': '', 'issue': None, 'teile': [], 'gruen': None}, 'letzter': None}
+    assert client.post('/api/bericht', json=b).status_code == 200
+    assert client.get('/api/tafel').json()['projekte'][0]['nachtlauf']['halt']['commit'] is None

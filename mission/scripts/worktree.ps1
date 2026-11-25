@@ -111,6 +111,10 @@
 .PARAMETER From
     Up only. Start point for a new branch, e.g. the current epic head.
 
+.PARAMETER Detach
+    Up only. The worktree stands on a detached HEAD at -From instead of on a branch; no branch is
+    created (the night run of `flotte nachtlauf` on origin/<base>). Takes -From, no -Branch.
+
 .PARAMETER AdapterFile
     Up, Down and CleanupStale. Absolute path of the adapter file to read instead of
     <RepoRoot>/.claude/epic.md (#38). It exists for the switch-over only: while the adapter's
@@ -136,6 +140,7 @@ param(
     [int]$SessionPid = 0,
     [string]$Branch,
     [string]$From,
+    [switch]$Detach,
     [string]$AdapterFile
 )
 
@@ -861,7 +866,10 @@ if ($Action -eq 'Down') {
 }
 
 if ($Action -eq 'Up') {
-    if (-not $Branch) { Fail "$Action needs -Branch." }
+    if ($Detach) {
+        if ($Branch) { Fail '-Detach takes no -Branch: the worktree stands on a detached HEAD at -From.' }
+        if (-not $From) { Fail '-Detach needs -From, the commit the detached HEAD stands on.' }
+    } elseif (-not $Branch) { Fail "$Action needs -Branch." }
     if (Test-Path -LiteralPath $WorktreePath) { Fail "$WorktreePath already exists. Not reusing or overwriting it." }
 
     # Check every input before the worktree exists, so a bad call leaves nothing behind.
@@ -874,12 +882,16 @@ if ($Action -eq 'Up') {
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { Fail "Env file $source does not exist in the main checkout." }
     }
 
-    & git -C $RepoRoot rev-parse --verify --quiet "refs/heads/$Branch" | Out-Null
-    if ($LASTEXITCODE -eq 0) {
-        Invoke-Git @('-C', $RepoRoot, 'worktree', 'add', $WorktreePath, $Branch) | Out-Null
+    if ($Detach) {
+        Invoke-Git @('-C', $RepoRoot, 'worktree', 'add', '--detach', $WorktreePath, $From) | Out-Null
     } else {
-        if (-not $From) { Fail "Branch $Branch does not exist and no -From was given." }
-        Invoke-Git @('-C', $RepoRoot, 'worktree', 'add', $WorktreePath, '-b', $Branch, $From) | Out-Null
+        & git -C $RepoRoot rev-parse --verify --quiet "refs/heads/$Branch" | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Invoke-Git @('-C', $RepoRoot, 'worktree', 'add', $WorktreePath, $Branch) | Out-Null
+        } else {
+            if (-not $From) { Fail "Branch $Branch does not exist and no -From was given." }
+            Invoke-Git @('-C', $RepoRoot, 'worktree', 'add', $WorktreePath, '-b', $Branch, $From) | Out-Null
+        }
     }
 
     foreach ($file in $EnvFiles) {

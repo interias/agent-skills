@@ -73,8 +73,11 @@ export function startZeit(pid: number, aufrufer: Aufrufer = aufrufen): number | 
 
 export type Sperre ={ ok: true; datei: string } | { ok: false; pid: number; seit: string };
 
-/** Takes the driver lock of the repository (D20), or another lock by name (#88: werft.lock). A lock of a dead process is stale and taken over. */
-export function sperren(dir: string, pid = process.pid, istLebendig: (p: number) => boolean = lebt, name = 'treiber.lock'): Sperre {
+/**
+ * Takes the driver lock of the repository (D20), or another lock by name (#88: werft.lock). A lock of a dead process is stale and taken over;
+ * with verfallMs (nachtlauf.lock) also a lock older than that, whatever its process does.
+ */
+export function sperren(dir: string, pid = process.pid, istLebendig: (p: number) => boolean = lebt, name = 'treiber.lock', verfallMs: number | null = null, jetzt = Date.now()): Sperre {
   const datei = join(dir, name);
   for (let versuch = 0; versuch < 2; versuch++) {
     try {
@@ -90,7 +93,8 @@ export function sperren(dir: string, pid = process.pid, istLebendig: (p: number)
       } catch {
         /* half-written lock: treat as stale */
       }
-      if (alt.pid && alt.pid !== pid && istLebendig(alt.pid)) return { ok: false, pid: alt.pid, seit: alt.seit ?? '' };
+      const verfallen = verfallMs !== null && jetzt - Date.parse(alt.seit ?? '') > verfallMs;
+      if (alt.pid && alt.pid !== pid && istLebendig(alt.pid) && !verfallen) return { ok: false, pid: alt.pid, seit: alt.seit ?? '' };
       unlinkSync(datei);
     }
   }

@@ -47,6 +47,15 @@ describe('Zeitgrenze mit shell: true (#108)', () => {
     expect(lebt(kind)).toBe(false);
   }, 30_000);
 
+  it('without a shell, baum: true ends the grandchildren at the limit as well (the night command: pwsh -> gate -> bun test)', async () => {
+    const { dir, skript, pidDatei } = baum();
+    const r = await aufrufenAsync('pwsh', ['-NoProfile', '-Command', `& '${process.execPath}' '${skript}'`], { cwd: dir, timeoutMs: 3000, baum: true });
+    expect(r.stderr).toMatch(/Zeitgrenze 3000 ms/);
+    const kind = Number(readFileSync(pidDatei, 'utf8'));
+    for (let i = 0; i < 40 && lebt(kind); i++) await new Promise((w) => setTimeout(w, 100));
+    expect(lebt(kind)).toBe(false);
+  }, 30_000);
+
   it.skipIf(process.platform === 'win32')('the program exiting ends the process group of a shell call still running (Ctrl+C, SIGTERM)', async () => {
     const { dir, skript, pidDatei } = baum();
     const lauf = aufrufenAsync(`"${process.execPath}" "${skript}"`, [], { cwd: dir, shell: true, timeoutMs: 60_000 });

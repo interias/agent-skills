@@ -113,14 +113,18 @@ function jsonAus(r: Ergebnis): { code: number; json: unknown; stderr: string } {
   return { code: r.code, json, stderr: r.stderr };
 }
 
-/** shell: the program is a command line for the system shell (cmd.exe on Windows), as the adapter's test_commands are written */
-export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number; env?: Record<string, string>; shell?: boolean }) => Promise<Ergebnis>;
+/**
+ * shell: the program is a command line for the system shell (cmd.exe on Windows), as the adapter's test_commands are written.
+ * baum: the program starts children of its own (pwsh -Command running a gate); the time limit ends all of them. A shell call always does.
+ */
+export type AsyncAufrufer = (programm: string, args: string[], opts?: { cwd?: string; eingabe?: string; timeoutMs?: number; env?: Record<string, string>; shell?: boolean; baum?: boolean }) => Promise<Ergebnis>;
 
 /** For the slow scripts (merge.ps1 waits for checks): the event loop keeps reading the runs meanwhile. */
 export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
   new Promise((fertig) => {
-    // a shell command line starts children of its own: on POSIX the shell leads a process group, so the time limit can end all of them
-    const gruppe = process.platform !== 'win32' && opts.shell === true && Boolean(opts.timeoutMs);
+    const baum = opts.shell === true || opts.baum === true;
+    // children of their own: on POSIX the program leads a process group, so the time limit can end all of them
+    const gruppe = process.platform !== 'win32' && baum && Boolean(opts.timeoutMs);
     const kind = spawn(programm === 'pwsh' ? pwshPfad() : programm, args, { cwd: opts.cwd, env: opts.env ? { ...process.env, ...opts.env } : process.env, shell: opts.shell, stdio: [opts.eingabe === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true, detached: gruppe });
     if (gruppe && kind.pid) {
       gruppen.add(kind.pid);
@@ -134,8 +138,8 @@ export const aufrufenAsync: AsyncAufrufer = (programm, args, opts = {}) =>
     const uhr = opts.timeoutMs
       ? setTimeout(() => {
           stderr += `Zeitgrenze ${opts.timeoutMs} ms`;
-          // with a shell, kill() ends only the shell; its children keep running and hold the pipes open
-          if (opts.shell && kind.pid) beende(kind.pid);
+          // kill() ends only the program; its children keep running and hold the pipes open
+          if (baum && kind.pid) beende(kind.pid);
           else kind.kill();
         }, opts.timeoutMs)
       : null;

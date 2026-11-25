@@ -43,6 +43,7 @@ import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as m
 import { EINGESPIELT, type Eingespielt, einspielen, liesStand, type MainStand, mainStand, mitSperre, HUELLE, NEUSTART, neustarten, type SkillStand, STAND_MS } from './stand.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
+import { FREIGEBEN, haltKurz, liesHalt, liesNachtlauf, type NachtErgebnis, ohnePfade, type SchlangeHalt } from '../befehle/nachtlauf.ts';
 
 export interface Einstellung {
   repo: string;
@@ -376,6 +377,10 @@ export interface FlottenZustand extends Zustand {
   gemeldet?: string[];
   /** #154: only in the state fahre returns, never saved: the driver halted for an update the person asked for on the bridge */
   einspielen?: { bruecke: string | null };
+  /** step 8 of the gate rework: the halt of the merge queue as last read from schlange-halt.json (flotte nachtlauf writes it, never this field) */
+  schlangeHalt?: SchlangeHalt | null;
+  /** the last night run as last read from nachtlauf.json; its start (zeit) keeps it from being reported twice */
+  nachtlauf?: NachtErgebnis | null;
 }
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
@@ -3517,6 +3522,7 @@ class Treiber {
         };
       }),
       schlange: this.z.schlange,
+      nachtlauf: this.nachtlaufBericht(),
       // usage per account (#28, v2): stage, both windows with reset, the weekly lead the account choice
       // goes by (Tag P); the logbook keeps the stage only
       kontenListe: this.kontenListe(),
@@ -3665,12 +3671,16 @@ class Treiber {
 
   /** Starts the head of the merge queue when nothing works on it; an epic that left 'pr' drops out. */
   schlangeWeiter(): void {
+    // step 8 of the gate rework: a red night run holds the queue; read in every tick, also while a head docks
+    const haelt = this.schlangeHaelt();
     if (this.kopfAktiv !== null) return;
     while (this.z.schlange.length) {
       const ep = this.epic(this.z.schlange[0]);
       if (ep?.stufe === 'pr' && ep.pr && !ep.auftrag && !this.laufend.has(ep.nr)) break;
       this.z.schlange.shift();
     }
+    // no new docking starts while it holds; the head already docking (kopfAktiv above) ends
+    if (haelt) return;
     // #133: a PR whose predecessor (an order edge, maybe added later) is not merged yet stays in the
     // queue and lets the next one by; it docks only after its predecessors
     const nr = this.z.schlange.find((n) => {
@@ -3703,6 +3713,61 @@ class Treiber {
           this.schlangeWeiter();
         }),
     );
+  }
+
+  /**
+   * Step 8 of the gate rework: reads the halt (schlange-halt.json) and the last night run (nachtlauf.json) that
+   * `flotte nachtlauf` writes beside the state; a change is an event. True while the queue holds: every PR waiting in
+   * it says so in its note. Only the person releases (`flotte nachtlauf --freigeben`), read here in the next tick.
+   */
+  schlangeHaelt(): boolean {
+    const n = liesNachtlauf(this.dir).letzter;
+    if (n && n.zeit !== this.z.nachtlauf?.zeit) {
+      this.z.nachtlauf = n;
+      if (n.ergebnis !== 'fehler') this.ereignis(null, ohnePfade(`Nachtlauf ${n.ergebnis === 'gruen' ? 'grün' : 'rot'} auf origin/${n.basis} @ ${(n.commit ?? '').slice(0, 7)} nach ${Math.round(n.dauerS / 60)} min${n.wiederholt ? ', wiederholt' : ''}`));
+      else this.ereignis(null, ohnePfade(`Nachtlauf nicht gefahren: ${n.grund ?? '?'}`));
+    }
+    const vorher = this.z.schlangeHalt ?? null;
+    let h = liesHalt(this.dir);
+    // a file that turns unreadable keeps the halt read before (never fail open)
+    if (h?.unlesbar && vorher && !vorher.unlesbar) h = vorher;
+    if (JSON.stringify(h) !== JSON.stringify(vorher)) {
+      this.z.schlangeHalt = h;
+      this.geaendert = true;
+      if (h && (!vorher || vorher.seit !== h.seit)) this.ereignis(null, ohnePfade(`Andock-Schlange hält: ${h.grund}${h.issue ? `, Issue #${h.issue}` : ''}; neue Andockungen warten, laufende Missionen arbeiten weiter; freigeben am Rechner: ${FREIGEBEN}`));
+      if (!h) {
+        this.ereignis(null, 'Andock-Schlange freigegeben: das Andocken geht weiter');
+        // the waiting PRs drop the halt from their note at once, not only when they become the head
+        this.z.schlange.forEach((nr, i) => {
+          const ep = this.epic(nr);
+          if (ep?.stufe === 'pr' && ep.pr && nr !== this.kopfAktiv && ep.notiz?.includes('; die Schlange hält (')) ep.notiz = `PR #${ep.pr}: Andock-Schlange, Platz ${i + 1}`;
+        });
+      } else if (h.gruen && h.gruen.zeit !== vorher?.gruen?.zeit) this.ereignis(null, `Nachtlauf grün auf ${h.gruen.commit.slice(0, 7)} nach dem Halt: die Schlange hält weiter, bis ein Mensch freigibt (${FREIGEBEN})`);
+    }
+    if (!h) return false;
+    this.z.schlange.forEach((nr, i) => {
+      const ep = this.epic(nr);
+      if (ep?.stufe === 'pr' && ep.pr && nr !== this.kopfAktiv) ep.notiz = `PR #${ep.pr}: Andock-Schlange, Platz ${i + 1}; die Schlange hält (${haltKurz(h)})`;
+    });
+    return true;
+  }
+
+  /**
+   * the night run for the bridge: the halt and the last result, without the paths of their logs and filtered for local
+   * paths; a value the bridge would refuse (empty commit, negative duration) becomes null or 0, so the report still
+   * arrives. null before the first night run.
+   */
+  nachtlaufBericht(): Bericht['nachtlauf'] {
+    const h = this.z.schlangeHalt ?? null;
+    const n = this.z.nachtlauf ?? null;
+    if (!h && !n) return null;
+    const sha = (c: unknown) => (typeof c === 'string' && /^[0-9a-f]{7,40}$/.test(c) ? c : null);
+    const teile = (t: unknown) => (Array.isArray(t) ? t.slice(0, 20).map((x) => ohnePfade(String(x))) : []);
+    const gruen = h?.gruen && sha(h.gruen.commit);
+    return {
+      halt: h ? { seit: h.seit.slice(0, 40), grund: ohnePfade(h.grund).slice(0, 500), commit: sha(h.commit), basis: ohnePfade(h.basis).slice(0, 200), issue: h.issue && h.issue >= 1 ? h.issue : null, teile: teile(h.teile), gruen: gruen ? { zeit: h.gruen!.zeit.slice(0, 40), commit: gruen } : null } : null,
+      letzter: n ? { ergebnis: n.ergebnis, commit: sha(n.commit), basis: ohnePfade(String(n.basis ?? '')).slice(0, 200), zeit: n.zeit.slice(0, 40), dauerS: Math.max(0, Math.round(Number(n.dauerS)) || 0), wiederholt: Boolean(n.wiederholt), teile: teile(n.teile), grund: n.grund ? ohnePfade(String(n.grund)).slice(0, 500) : null } : null,
+    };
   }
 
   async mergeAufruf(ep: FlottenEpic): Promise<string> {

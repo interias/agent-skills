@@ -503,6 +503,19 @@
     36,
     37
   ],
+  "nachtlauf": {
+    "halt": null,
+    "letzter": {
+      "ergebnis": "gruen",
+      "commit": "a7d3a91c0ffee0000000000000000000000000aa",
+      "basis": "main",
+      "zeit": "2026-11-25T02:30:00.000Z",
+      "dauerS": 1260,
+      "wiederholt": false,
+      "teile": [],
+      "grund": null
+    }
+  },
   "konten": [
     {
       "konto": "Konto 1",
