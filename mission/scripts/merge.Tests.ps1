@@ -373,6 +373,14 @@ Describe 'merge.ps1: Gitea through its API (#127)' {
         @($r.Calls | Where-Object { $_ -match 'geheim\s*$' -or ($_ -split ' \| ')[2] -match 'geheim' }).Count | Should Be 0
     }
 
+    It 'says when Gitea already deleted the branch (404): no error, no delete call' {
+        $weg = @(@{ match = '^GET /branches/epic%2F7-x$'; out = '{"message":"not found"}'; status = 404 })
+        $r = Invoke-GiteaMerge ($weg + (New-GiteaRules (New-GateBody)))
+        $r.Exit | Should Be 0
+        $r.Out | Should Be 'GEMERGT #7 -> main; Branch epic/7-x war schon geloescht (von der Forge)'
+        @($r.Calls | Where-Object { $_ -match '^DELETE ' }).Count | Should Be 0
+    }
+
     It 'names a Missionsziel that stayed open (HTTP 412 at a blocker) as still open' {
         $r = Invoke-GiteaMerge (New-GiteaRules ((New-GateBody) + "`n`nCloses #3") -issue3 'open')
         $r.Out | Should Match 'Issues zu: ; NOCH OFFEN: #3'
