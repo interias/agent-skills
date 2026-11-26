@@ -13,7 +13,7 @@ import { aktiveAuswahl, KONTEN_DATEI, kontenTafel, kontoAus, kurzname, liesKonte
 import { anmeldung, konten as kontenBefehl, type KontenWelt } from '../befehle/konten.ts';
 import { forgeStatus, type ForgeStatus, type ForgeWelt, verknuepfen } from '../befehle/forge.ts';
 import { hinzufuegen as projektHinzufuegen, klonAngebot, offeneSchluessel, type ProjektWelt } from '../befehle/projekt.ts';
-import { type EndeBlock, type FrageBlock, leseBlock, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
+import { type EndeBlock, type FrageBlock, leseBlock, type MenschSchritt, nurBuchstaben, type Option } from '../werkzeuge/bloecke.ts';
 import { beende, beobachte, type LaufErgebnis, limitReset, type Start, starte } from '../werkzeuge/lauf.ts';
 import { type Bremse, freiGb, messeRam, naechsteBremse, type Ram, SKRIPTE } from '../werkzeuge/ressourcen.ts';
 import { type Bewertung, bewerte, lies as liesVerbrauch, type Schwellen } from '../werkzeuge/verbrauch.ts';
@@ -326,7 +326,9 @@ export interface FlottenEpic extends EpicZustand {
   /** #199: after a limit with a reset time or a 429: nothing runs on the mission or its account before this time, ISO */
   limitBis?: string | null;
   /** #199: the cause of a block, shown before its reason on the bridge */
-  haltUrsache?: 'Limit' | 'Erlaubnis' | 'anderes' | null;
+  haltUrsache?: 'Limit' | 'Erlaubnis' | 'anderes' | 'Mensch' | null;
+  /** parked: the run ended without a PR and named the person's step (`Mensch:` in FLOTTE-ENDE) */
+  mensch?: MenschSchritt | null;
   /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
   endeAm?: string | null;
   gateS?: number;
@@ -1103,7 +1105,7 @@ class Treiber {
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
   blockForm(nr: number): string {
-    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, jede in einer Zeile: \`1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe> — Grund: … — Regel/Quelle: …\`, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter.`;
+    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, jede in einer Zeile: \`1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe> — Grund: … — Regel/Quelle: …\`, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter. Endest du ohne Pull Request, weil der Mensch erst etwas tun muss, steht unter der Kopfzeile \`Mensch: <warten-auf | pr-andocken | label-setzen | entscheiden> [#<n> | <owner/repo>#<n>] — <ein Satz, was der Mensch tun muss>\`.`;
   }
 
   an(nr: number, text: string): string {
@@ -1576,6 +1578,7 @@ class Treiber {
     ep.stufe = stufe;
     ep.notiz = grund.split('\n')[0];
     ep.haltUrsache = null;
+    ep.mensch = null;
     if (stufe === 'blockiert') {
       // #199: the cause on the bridge (before the reason in the report) and in the logbook
       ep.haltUrsache = ursache(grund);
@@ -1934,7 +1937,7 @@ class Treiber {
     // einreihen: the counters start over; with a session the run continues where it stopped,
     // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, mensch: null, notiz: 'neu eingereiht vom Menschen' });
     // #135: a mission of an earlier deployment joins this one, so occupancy, order edges and the end count it
     if (!this.e.epics.includes(ep.nr)) {
       this.e.epics = [...this.e.epics, ep.nr];
@@ -1975,6 +1978,18 @@ class Treiber {
       }
     }
     return (this.bilder.find((b) => b.nr === nr)?.nach ?? []).filter((n) => !['gemergt', 'fertig'].includes(this.epic(n)?.stufe ?? ''));
+  }
+
+  /**
+   * A run ended without a PR and named the person's step: parked for her, not blocked with cause other. The bridge
+   * shows her step and the ticket it waits for, the mission gets it as a comment; she requeues once it is done.
+   */
+  parken(ep: FlottenEpic, m: MenschSchritt): void {
+    this.loslassen(ep.nr);
+    const worauf = `wartet auf ${m.ref ?? 'dich'}`;
+    Object.assign(ep, { stufe: 'blockiert', notiz: `geparkt, ${worauf}`, haltUrsache: 'Mensch', haltGrund: `FLOTTE-ENDE ohne Pull Request, geparkt: ${m.text}`, haltZeit: new Date(this.w.jetzt()).toISOString(), aufgegebenAm: null, mensch: m });
+    this.ereignis(ep.nr, `geparkt, ${worauf}: ${m.text}`);
+    kommentar(this.forge, ep.nr, `**Flotte (${this.e.admiralName})** — Mission geparkt, wartet auf den Menschen.\n\nDein Schritt: ${m.text}\nDanach die Mission auf der Brücke neu einreihen.`);
   }
 
   /** #133: back to waiting for its predecessors; the session is dropped, so the later start is a new one, no --resume */
@@ -3461,6 +3476,7 @@ class Treiber {
       haltUrsache: ep.haltUrsache ?? null,
       haltGrund: ep.haltGrund ?? null,
       haltZeit: ep.haltZeit ?? null,
+      mensch: ep.mensch ?? null,
       gemergtAm: null,
       gestartetAm: ep.gestartetAm ?? null,
     });
@@ -3474,7 +3490,7 @@ class Treiber {
       ...x,
       satz: x.satz.slice(0, 500),
       seit: x.seit ?? ep.lageSeit ?? null,
-      deinSchritt: x.deinSchritt ? { ...x.deinSchritt, text: x.deinSchritt.text.slice(0, 300) } : null,
+      deinSchritt: x.deinSchritt ? { ...x.deinSchritt, text: x.deinSchritt.text.slice(0, 300), ...(x.deinSchritt.ref ? { ref: x.deinSchritt.ref.slice(0, 100) } : {}) } : null,
       gate: x.gate ? { ...x.gate, kontexte: x.gate.kontexte.slice(-40).map((k) => ({ ...k, name: k.name.slice(0, 100) })) } : null,
     };
   }
@@ -3594,6 +3610,7 @@ class Treiber {
       // anew decides, not the wording of the block: a predecessor not merged yet means waiting.
       const vor = this.offeneVorgaenger(nr);
       if (vor.length) return this.wartenAuf(ep, vor, 'FLOTTE-ENDE ohne Pull Request');
+      if (block.mensch) return this.parken(ep, block.mensch);
     }
     const offen = block.offen.trim();
     if (this.e.nacharbeit && !ep.nacharbeitGemacht && offen && !/^[-–—]?\s*(keine|nichts)?\.?$/i.test(offen)) {

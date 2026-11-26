@@ -122,6 +122,14 @@ describe('Tag H: die Lage einer Mission in einer Zeile', () => {
     expect(kurz(basis({ stufe: 'gemergt', pr: 478, prozess: false }))).toBe('fertig · PR #478 angedockt');
   });
 
+  it('parked for the person: her step from the run, no requeue as her step (the loop of three requeues)', () => {
+    const geparkt = (mensch: LageEingang['mensch']) => lageVon(basis({ stufe: 'blockiert', prozess: false, haltUrsache: 'Mensch', haltGrund: 'FLOTTE-ENDE ohne Pull Request', haltZeit: vor(30), mensch }));
+    expect(geparkt({ art: 'warten-auf', ref: 'o/infra#45', text: 'Ticket o/infra#45 ausrollen, dann `ready-for-agent` wieder setzen' })).toEqual({ etikett: 'wartet_auf_dich', satz: 'Geparkt, wartet auf o/infra#45', seit: vor(30), deinSchritt: { text: 'Ticket o/infra#45 ausrollen, dann `ready-for-agent` wieder setzen', ziel: 'issue', ref: 'o/infra#45' }, gate: null });
+    expect(geparkt({ art: 'pr-andocken', ref: '#123', text: 'PR #123 andocken' })).toMatchObject({ satz: 'Geparkt, wartet auf das Andocken von #123', deinSchritt: { ziel: 'pr', ref: '#123' } });
+    expect(geparkt({ art: 'label-setzen', ref: null, text: '`ready-for-agent` an #7 setzen' })).toMatchObject({ satz: 'Geparkt, wartet auf ein Label von dir', deinSchritt: { ziel: 'issue', ref: null } });
+    expect(geparkt({ art: 'entscheiden', ref: null, text: 'ob die Schnittstelle bleibt' })).toMatchObject({ etikett: 'wartet_auf_dich', satz: 'Geparkt, wartet auf deine Entscheidung', deinSchritt: { text: 'ob die Schnittstelle bleibt', ziel: 'issue' } });
+  });
+
   it('the kind of a line keeps its time while only the step or a number moves', () => {
     const a = lageVon(basis({ schritt: 'Bash: a' }));
     const b = lageVon(basis({ schritt: 'Read: b' }));

@@ -31,7 +31,18 @@ describe('leseBlock', () => {
 
   it('reads an end block with the pull request and what stays open', () => {
     const b = leseBlock('FLOTTE-ENDE 299 https://github.com/o/r/pull/347\nPR offen.\n\n### Was das Epic offen lässt\n- #243 wartet\n- Doku');
-    expect(b).toEqual({ art: 'ende', epic: 299, pr: 347, prUrl: 'https://github.com/o/r/pull/347', offen: '- #243 wartet\n- Doku' });
+    expect(b).toEqual({ art: 'ende', epic: 299, pr: 347, prUrl: 'https://github.com/o/r/pull/347', offen: '- #243 wartet\n- Doku', mensch: null });
+  });
+
+  it('reads the line for the person of an end block without a pull request: kind, reference and her step', () => {
+    const b = leseBlock('Geparkt.\n\nFLOTTE-ENDE 12\nMensch: warten-auf o/infra#45 — Ticket o/infra#45 ausrollen, dann `ready-for-agent` an #12 wieder setzen\n\n### Was das Epic offen lässt\n- alles');
+    expect(b).toMatchObject({ art: 'ende', epic: 12, pr: null, mensch: { art: 'warten-auf', ref: 'o/infra#45', text: 'Ticket o/infra#45 ausrollen, dann `ready-for-agent` an #12 wieder setzen' }, offen: '- alles' });
+    expect(leseBlock('FLOTTE-ENDE 12\n**Mensch:** pr-andocken #123 – PR #123 andocken')).toMatchObject({ pr: null, mensch: { art: 'pr-andocken', ref: '#123', text: 'PR #123 andocken' } });
+    expect(leseBlock('FLOTTE-ENDE 12\nMensch: entscheiden — ob die Schnittstelle bleibt')).toMatchObject({ mensch: { art: 'entscheiden', ref: null, text: 'ob die Schnittstelle bleibt' } });
+    // an unknown kind is a decision of the person, the sentence kept whole
+    expect(leseBlock('FLOTTE-ENDE 12\nMensch: bitte Zugang zur Forge freischalten')).toMatchObject({ mensch: { art: 'entscheiden', ref: null, text: 'bitte Zugang zur Forge freischalten' } });
+    // a line in the open points is no line for the person
+    expect(leseBlock('FLOTTE-ENDE 12\n\n### Was das Epic offen lässt\nMensch: entscheiden — x')).toMatchObject({ mensch: null });
   });
 
   it('reads the PR number without a link and a bold header', () => {
