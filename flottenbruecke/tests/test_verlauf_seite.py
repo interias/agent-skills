@@ -17,6 +17,17 @@ def test_verlauf_wird_mit_inhaltsstand_nach_dem_board_geladen(client):
     assert html.index('/static/app.js?v=') < html.index('/static/verlauf.js?v=')
 
 
+def test_die_skripte_der_seite_deklarieren_keinen_namen_doppelt():
+    # classic scripts share one global scope: a second top-level const or let of a name stops the whole page
+    seite = (STATIC / 'index.html').read_text(encoding='utf-8')
+    namen = {}
+    for src in re.findall(r'<script src="/static/([^"?]+)"', seite):
+        js = (STATIC / src).read_text(encoding='utf-8')
+        for n in re.findall(r'^(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z_$][\w$]*)', js, re.M):
+            namen.setdefault(n, []).append(src)
+    assert {n: q for n, q in namen.items() if len(q) > 1} == {}
+
+
 def test_verlauf_liest_nur():
     js = (STATIC / 'verlauf.js').read_text(encoding='utf-8')
     # one request, a GET of the history; nothing goes to a run

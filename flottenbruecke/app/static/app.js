@@ -431,13 +431,13 @@ function gateDauer(s) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${sek}` : `${m}:${sek}`;
 }
 // n of the contexts that ran took their result from the cache; empty when the adapter says nothing about it
-const cacheText = (a) => (a?.mitCache ? `${a.ausCache} von ${a.mitCache} Kontexten aus dem Cache` : '');
+const gateCacheText = (a) => (a?.mitCache ? `${a.ausCache} von ${a.mitCache} Kontexten aus dem Cache` : '');
 const ERGEBNIS = { gruen: 'grün', rot: 'rot' };
 
 // the last Andockprüfung of the driver for the mission: duration, result, cache share, the contexts
 function andockHtml(a) {
   if (!a) return '';
-  const kopf = ['Letzte Andockprüfung', gateDauer(a.dauerS), a.gruen ? 'grün' : 'rot', cacheText(a), uhrzeit(a.zeit)].filter(Boolean).join(' · ');
+  const kopf = ['Letzte Andockprüfung', gateDauer(a.dauerS), a.gruen ? 'grün' : 'rot', gateCacheText(a), uhrzeit(a.zeit)].filter(Boolean).join(' · ');
   const li = (a.kontexte ?? []).map((k) => `<li class="${k.ergebnis === 'gruen' ? 'fertig' : k.ergebnis === 'rot' ? 'rot' : 'aus'}"><span class="punkt"></span><span>${esc(k.name)}</span><span class="ps">${esc([ERGEBNIS[k.ergebnis] ?? k.ergebnis, gateDauer(k.dauerS), k.cache ? 'Cache' : ''].filter(Boolean).join(' '))}</span></li>`).join('');
   return `<section class="d-gate d-andock" aria-label="Letzte Andockprüfung"><h4>${esc(kopf)}</h4>${li ? `<ul>${li}</ul>` : ''}</section>`;
 }
