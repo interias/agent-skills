@@ -56,7 +56,8 @@ und anmelden, Forge verknüpfen, Projekt hinzufügen).
    vorhandenen `.env`: die Werte `BRUECKE_BIND` und `BRUECKE_FERNZUGRIFF` dort von Hand ändern, dann
    `docker compose up -d`.
    Ein Startskript schreibt man nicht von Hand: `flotte projekt hinzufuegen <ordner> [--autostart]` (oder
-   „Projekt hinzufügen“ im Maschinenraum) legt es dort an, mit `--autostart` samt Aufgabe `Flotte <name>`;
+   „Projekt hinzufügen“ im Maschinenraum) legt es dort an, mit `--autostart` samt Aufgabe `Flotte <name>`
+   ohne Fenster (Log, Neustart, Beenden: [`flotte/SKILL.md`](flotte/SKILL.md), `flotte projekt`);
    mit `--klonen <https-Link>` (oder dem Link im Maschinenraum) klont der Rechner das Repository vorher selbst.
    `install.ps1 -OhneBruecke` lässt die Brücke aus; so ruft der Treiber es beim Einspielen auf.
 3. **Trocken prüfen** und die Ausgabe lesen:

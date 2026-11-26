@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { aufrufen, type Aufrufer } from '../src/aufruf.ts';
-import { adapterVorlage, offeneSchluessel, projekt, type ProjektWelt, startskript } from '../src/befehle/projekt.ts';
+import { adapterVorlage, autostartEchtMit, offeneSchluessel, projekt, type ProjektWelt, startskript } from '../src/befehle/projekt.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
 
 const VORLAGE = adapterVorlage(readFileSync(new URL('../../mission/references/adapter.md', import.meta.url), 'utf8'));
@@ -133,6 +133,27 @@ describe('#126 Projekt hinzufügen', () => {
     expect(r.meldung).toContain('; Autostart fehlgeschlagen: Zugriff verweigert;');
     expect(r.logbuch).toContain('; Autostart fehlgeschlagen');
     expect(r.logbuch).not.toContain('Zugriff');
+  });
+
+  it('the real autostart calls autostart.ps1 with the start script and the home folder; umgestellt comes through', async () => {
+    const aufrufe: string[][] = [];
+    const w = welt({ gh: (p, args) => (aufrufe.push([p, ...args]), { code: 0, stdout: 'Warnung\r\numgestellt\r\n', stderr: '' }) });
+    w.autostart = autostartEchtMit(w.aufrufer, w.heim);
+    const dir = repo('alte-aufgabe', null);
+    const r = (await projekt(['hinzufuegen', dir, '--autostart'], w)) as Record<string, any>;
+    expect(r.autostart).toBe('umgestellt');
+    expect(r.meldung).toContain('; Autostart umgestellt;');
+    const [p, ...args] = aufrufe[0];
+    expect(p).toBe('powershell');
+    expect(args.slice(0, 5)).toEqual(['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File']);
+    expect(args[5].replace(/\\/g, '/').endsWith('/flotte/autostart.ps1')).toBe(true);
+    expect(existsSync(args[5])).toBe(true);
+    expect(args.slice(6)).toEqual(['-Skript', join(w.heim, '.claude', 'flotte', 'start', 'alte-aufgabe.ps1'), '-Heim', w.heim]);
+  });
+
+  it('the real autostart: an answer other than angelegt, vorhanden or umgestellt is a failure', () => {
+    const a: Aufrufer = () => ({ code: 0, stdout: 'Zugriff verweigert', stderr: '' });
+    expect(() => autostartEchtMit(a, 'C:\\heim')('Flotte x', 'C:\\heim\\x.ps1')).toThrow('Die geplante Aufgabe Flotte x ließ sich nicht anlegen: Zugriff verweigert');
   });
 
   it('a folder in surrounding quotes is taken without them; a relative folder is refused', async () => {
