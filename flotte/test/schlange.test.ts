@@ -722,6 +722,13 @@ describe('C4: der letzte Schritt eines Laufs', () => {
     expect(schrittAus({ type: 'assistant', message: { content: [{ type: 'text', text: '\nPaket 1 fertig.\n' }] } })).toBe('Paket 1 fertig.');
     expect(schrittAus({ type: 'result', is_error: false, result: 'FLOTTE-ENDE 3' })).toBe('Zugende: FLOTTE-ENDE 3');
     expect(schrittAus({ type: 'user' })).toBeNull();
+    // the end of a turn keeps its sentence (the bridge folds it); a cut falls between words, marked
+    const satz = 'Mission geparkt bis Ticket #45 in infra ausgerollt ist, dann `ready-for-agent` an der Mission wieder setzen und neu einreihen.';
+    expect(schrittAus({ type: 'result', is_error: false, result: satz })).toBe(`Zugende: ${satz}`);
+    const lang = schrittAus({ type: 'result', is_error: false, result: `${'Wort '.repeat(80)}Ende` })!;
+    expect(lang).toMatch(/^Zugende: (Wort )+Wort…$/);
+    expect(lang.length).toBeLessThanOrEqual(310);
+    expect(schrittAus({ type: 'assistant', message: { content: [{ type: 'text', text: `${'abcdefghi '.repeat(12)}` }] } })).toMatch(/^(abcdefghi )+abcdefghi…$/);
   });
 
   it('the board shows the last step; flotte zuschauen prints the steps of the log', async () => {

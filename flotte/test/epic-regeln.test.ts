@@ -68,7 +68,7 @@ describe('flotte mission, Regeln', () => {
 
   it('branch names and the end block in the form the driver reads', () => {
     expect(paketBranch({ nr: '69-p2', titel: 'Zustand: Größe & Übergänge prüfen jetzt' })).toBe('agent/69-p2-zustand-groesse-uebergaenge-pruefen');
-    expect(leseBlock(endeBlock(69, 'https://github.com/o/r/pull/7', 'fertig', '- nichts'))).toEqual({ art: 'ende', epic: 69, pr: 7, prUrl: 'https://github.com/o/r/pull/7', offen: '- nichts' });
+    expect(leseBlock(endeBlock(69, 'https://github.com/o/r/pull/7', 'fertig', '- nichts'))).toEqual({ art: 'ende', epic: 69, pr: 7, prUrl: 'https://github.com/o/r/pull/7', offen: '- nichts', mensch: null });
   });
 
   // #195: the real cut wrote dashes into its fields and its own letters before the options; the Admiral got one option

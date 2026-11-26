@@ -38,11 +38,18 @@ export function hookRegel(text: string): string {
 
 export type Fehlerart = 'netz' | 'anmeldung' | 'limit' | 'drossel' | 'leerlauf' | 'werkzeuge' | 'kein_ergebnis' | 'exit' | 'abbruch' | null;
 
-const kurz = (s: unknown, n = 100) => String(s ?? '').split(/\r?\n/).find((z) => z.trim())?.trim().slice(0, n) ?? '';
+/** the first line, cut between two words with a mark, never inside one */
+const kurz = (s: unknown, n = 100) => {
+  const z = String(s ?? '').split(/\r?\n/).find((x) => x.trim())?.trim() ?? '';
+  if (z.length <= n) return z;
+  const bis = z.lastIndexOf(' ', n - 1);
+  return `${z.slice(0, bis > n / 2 ? bis : n - 1).trimEnd()}…`;
+};
 
 /** What a stream-json line shows of the run's work, for the board and `flotte zuschauen` (C4); null: nothing. */
 export function schrittAus(d: any): string | null {
-  if (d?.type === 'result') return `Zugende${d.is_error ? ' (Fehler)' : ''}: ${kurz(d.result, 80)}`;
+  // the end of a turn often says what the person has to do: the sentence whole, the bridge folds it
+  if (d?.type === 'result') return `Zugende${d.is_error ? ' (Fehler)' : ''}: ${kurz(d.result, 300)}`;
   if (d?.type !== 'assistant' || !Array.isArray(d.message?.content)) return null;
   const unter = d.parent_tool_use_id ? '↳ ' : '';
   let s: string | null = null;

@@ -178,6 +178,8 @@ class DeinSchritt(BaseModel):
     text: str = Field(max_length=300)
     # where the link of the card goes: the first open question, the PR, the blockade with "Neu einreihen", the issue
     ziel: Literal['frage', 'pr', 'einreihen', 'issue']
+    # the ticket or PR the run named for the step (`#123`, `owner/repo#123`): the card links there instead
+    ref: str | None = Field(None, max_length=100)
 
 
 class GateKontext(BaseModel):

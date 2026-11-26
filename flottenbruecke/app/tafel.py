@@ -50,6 +50,17 @@ def zeit(text: str | None) -> datetime | None:
     return t if t.tzinfo else t.replace(tzinfo=ZoneInfo('UTC'))
 
 
+def _lage(lage: dict | None, url: str | None) -> dict | None:
+    """The driver's line as it came; the person's step gets the link to the ticket or PR the run named (`ref`)."""
+    d = (lage or {}).get('deinSchritt')
+    if not d:
+        return lage
+    m = re.fullmatch(r'(?:([\w.-]+/[\w.-]+))?#(\d+)', d.get('ref') or '')
+    basis = url and m and (f"{url.rsplit('/', 2)[0]}/{m.group(1)}" if m.group(1) else url)
+    link = f"{basis}/{'pull' if d['ziel'] == 'pr' else 'issues'}/{m.group(2)}" if basis else None
+    return {**lage, 'deinSchritt': {**d, 'ref': d.get('ref'), 'url': link}}
+
+
 def buchstaben(text: str | None) -> list[str]:
     """The letters at the start of an answer or recommendation: 'B', 'A, C', 'B) mit Zusatz'."""
     m = re.match(r'\s*([A-Z](?:\s*[,;]\s*[A-Z])*)(?![\wÄÖÜäöüß])', text or '')
@@ -404,7 +415,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'gestartetAm': ep.get('gestartetAm'),
                 'entscheidungen': entscheidungen.get(nr, []),
                 # the line of the card from the driver; None from an older one: the card as before
-                'lage': ep.get('lage'),
+                'lage': _lage(ep.get('lage'), url),
                 # Tag Q: the usage of the mission so far; None from an older driver
                 'verbrauch': ep.get('verbrauch'),
             }
@@ -432,7 +443,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     erledigt.append({**karte, 'art': 'gemergt', 'zeit': t.isoformat()})
                 continue
             if stufe == 'wartend':
-                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert'), 'lage': ep.get('lage')})
+                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert'), 'lage': karte['lage']})
                 continue
             if stufe == 'pr':
                 rein = zeit(ep.get('schlangeSeit')) or seit_stufe
@@ -474,7 +485,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 # #112: how it merges now (an older driver: None, no switch) and the switch on its way
                 'merge': ep.get('merge'),
                 'andocken': _handlung(offen_h.get((nr, 'merge', None, None))),
-                'lage': ep.get('lage'),
+                'lage': _lage(ep.get('lage'), url),
             })
         karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte

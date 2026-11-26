@@ -4,6 +4,7 @@
 // No language model. The bridge draws it as it comes (flottenbruecke/SCHNITTSTELLE.md, `lage`).
 
 import type { AgentEintrag } from '../werkzeuge/detail.ts';
+import type { MenschSchritt } from '../werkzeuge/bloecke.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { GateStand } from './pruefprotokolle.ts';
 import type { Klartext } from './verlauf.ts';
@@ -15,8 +16,8 @@ export interface Lage {
   satz: string;
   /** since when this state holds (ISO); the driver keeps it while label and kind stay the same */
   seit: string | null;
-  /** the person's step, only when the mission needs her */
-  deinSchritt: { text: string; ziel: 'frage' | 'pr' | 'einreihen' | 'issue' } | null;
+  /** the person's step, only when the mission needs her; `ref` the ticket or PR the run named for it (`#123`, `owner/repo#123`) */
+  deinSchritt: { text: string; ziel: 'frage' | 'pr' | 'einreihen' | 'issue'; ref?: string | null } | null;
   /** the gate of the run or the driver's Andockprüfung, its contexts from the gate logs */
   gate: { kontexte: { name: string; stand: 'fertig' | 'laeuft' }[]; von: number | null; seit: string | null } | null;
 }
@@ -63,6 +64,8 @@ export interface LageEingang {
   haltUrsache: string | null;
   haltGrund: string | null;
   haltZeit: string | null;
+  /** parked: the run ended without a PR and named the person's step (`Mensch:` in FLOTTE-ENDE) */
+  mensch?: MenschSchritt | null;
   gemergtAm: string | null;
   gestartetAm: string | null;
 }
@@ -115,6 +118,12 @@ function grundLage(e: LageEingang): Lage {
 
   if (e.stufe === 'gemergt' || e.stufe === 'fertig') return l('fertig', e.pr ? `${pr} angedockt` : 'fertig', e.gemergtAm);
   if (e.stufe === 'abgebrochen') return l('gestoppt', `Abgebrochen: ${erste(e.haltGrund) || erste(e.notiz) || 'ohne Grund'}`, e.haltZeit, { text: 'Ursache prüfen, dann neu einreihen oder aufgeben', ziel: 'einreihen' });
+  if (e.stufe === 'blockiert' && e.mensch) {
+    // her step is the run's sentence; requeueing before it only repeats the same end
+    const m = e.mensch;
+    const worauf = { 'warten-auf': m.ref ?? 'ein Ticket', 'pr-andocken': `das Andocken von ${m.ref ?? 'einem PR'}`, 'label-setzen': 'ein Label von dir', entscheiden: 'deine Entscheidung' }[m.art];
+    return l('wartet_auf_dich', `Geparkt, wartet auf ${worauf}`, e.haltZeit, { text: m.text, ziel: m.art === 'pr-andocken' ? 'pr' : 'issue', ref: m.ref });
+  }
   if (e.stufe === 'blockiert') return l('gestoppt', `Blockiert${e.haltUrsache ? `, Ursache ${e.haltUrsache}` : ''}: ${erste(e.haltGrund) || erste(e.notiz) || 'ohne Grund'}`, e.haltZeit, { text: 'Ursache beheben, dann neu einreihen oder aufgeben', ziel: 'einreihen' });
   if (e.pausiert && !e.prozess) return l('wartet', 'von dir pausiert', e.pausiert);
   if (e.fragen.anzahl && (e.fragen.ganz || !e.prozess)) return l('wartet_auf_dich', `${e.fragen.anzahl === 1 ? 'eine Frage' : `${e.fragen.anzahl} Fragen`} an dich`, e.fragen.seit, { text: e.fragen.anzahl === 1 ? 'Frage beantworten' : 'Fragen beantworten', ziel: 'frage' });

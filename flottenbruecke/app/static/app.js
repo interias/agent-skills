@@ -319,9 +319,11 @@ async function antworten(x, el) {
 function blockadeHtml(x, t) {
   const grund = x.grund || x.notiz || 'ohne Grund gemeldet';
   const [erste, ...rest] = grund.split('\n');
-  const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">${x.stufe === 'abgebrochen' ? 'Abgebrochen' : 'Blockiert'} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · Mission steht ganz</span></div>`;
+  // parked for the person: her step leads to the ticket; requeueing before it only repeats the same end
+  const geparkt = x.lage?.etikett === 'wartet_auf_dich';
+  const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">${x.stufe === 'abgebrochen' ? 'Abgebrochen' : geparkt ? 'Geparkt' : 'Blockiert'} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · Mission steht ganz</span></div>`;
   const titel = x.titel ? `<p class="lage">${esc(x.titel)}${x.prUrl ? ` · <a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : ''}</p>` : '';
-  const lage = rest.join('\n').trim() ? `<p class="lage kurz">${esc(rest.join('\n').trim())}</p>` : '';
+  const lage = rest.join('\n').trim() ? `<p class="lage kurz${auf.has(`kurz:${x.id}`) ? ' auf' : ''}">${esc(rest.join('\n').trim())}</p>` : '';
   const log = auf.has(`log:${x.id}`) ? `<ol class="log">${(x.log.length ? x.log : ['(keine Ereignisse gemeldet)']).map((z) => `<li>${esc(z)}</li>`).join('')}</ol>` : '';
   let unten;
   if (x.handlung) {
@@ -329,10 +331,10 @@ function blockadeHtml(x, t) {
     unten = `<div class="angekommen"><span>${esc(HANDLUNG[x.handlung.art])}</span><span class="status gut">${uhrzeit(x.handlung.zeit)} · ${st}</span></div>`;
   } else {
     const zu = t.pin ? '' : ' disabled';
-    unten = `<div class="knoepfe"><button type="button" class="knopf haupt" data-h="einreihen"${zu}>Neu einreihen</button><button type="button" class="knopf zweit" data-log aria-expanded="${auf.has(`log:${x.id}`)}">Log ansehen</button><button type="button" class="knopf zweit" data-h="aufgeben"${zu}>Aufgeben</button><span class="status"></span></div>${x.aktiv ? '' : '<span class="hinweis">Der Treiber meldet sich gerade nicht: die Handlung wirkt bei seinem nächsten Start.</span>'}`;
+    unten = `<div class="knoepfe"><button type="button" class="knopf ${geparkt ? 'zweit' : 'haupt'}" data-h="einreihen"${zu}>Neu einreihen</button><button type="button" class="knopf zweit" data-log aria-expanded="${auf.has(`log:${x.id}`)}">Log ansehen</button><button type="button" class="knopf zweit" data-h="aufgeben"${zu}>Aufgeben</button><span class="status"></span></div>${x.aktiv ? '' : '<span class="hinweis">Der Treiber meldet sich gerade nicht: die Handlung wirkt bei seinem nächsten Start.</span>'}`;
   }
-  // the driver's sentence usually names the reason already: then no heading repeats it
-  const kopf = x.lage?.satz.includes(erste) ? '' : `<h3>${esc(erste)}</h3>`;
+  // the driver's sentence usually names the reason already, a parked card its step: then no heading repeats it
+  const kopf = geparkt || x.lage?.satz.includes(erste) ? '' : `<h3>${esc(erste)}</h3>`;
   return `${kopfz}${lageHtml(x)}${kopf}${titel}${lage}${log}${unten}`;
 }
 
@@ -502,7 +504,8 @@ function laufHtml(x) {
   }
   if (x.lage) return `${kopfz}${titel}${kopfmeta}${lageHtml(x)}${paketeHtml(x)}${lebenHtml(x)}${VERLAUF_KNOPF}`;
   const was = x.wartetAufDich ? `wartet auf dich${x.fragen ? ` (${x.fragen} ${x.fragen === 1 ? 'Frage' : 'Fragen'})` : ''}` : x.notiz && x.notiz !== x.schritt ? x.notiz : '';
-  const schritt = x.schritt ? `<span class="schritt">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt">${esc(was)}</span>` : '';
+  const offen = auf.has(`kurz:${x.id}`) ? ' auf' : '';
+  const schritt = x.schritt ? `<span class="schritt${offen}">${esc(x.schritt)}${was ? ` · ${esc(was)}` : ''}</span>` : was ? `<span class="schritt${offen}">${esc(was)}</span>` : '';
   return `${kopfz}${titel}${kopfmeta}${schritt}${paketeHtml(x)}${lebenHtml(x)}${VERLAUF_KNOPF}`;
 }
 
@@ -535,11 +538,21 @@ function deinSchrittHtml(x) {
   if (!d) return '';
   const inhalt = `<b>Dein Schritt:</b> ${esc(d.text)}`;
   const pfeil = ' <span class="pfeil" aria-hidden="true">›</span>';
-  const url = { pr: x.prUrl, issue: x.issueUrl }[d.ziel];
+  const url = d.url ?? { pr: x.prUrl, issue: x.issueUrl }[d.ziel];
   if (url) return `<a class="dein-schritt" href="${esc(url)}">${inhalt}${pfeil}</a>`;
   if (d.ziel === 'frage' || d.ziel === 'einreihen') return `<button type="button" class="dein-schritt" data-dein="${esc(d.ziel)}" data-forge="${esc(x.forge)}" data-nr="${esc(x.nr ?? x.epic)}">${inhalt}${pfeil}</button>`;
   return `<p class="dein-schritt">${inhalt}</p>`;
 }
+
+// a text the card cuts (the step, the reason of a blockade) opens on a click and stays open across refreshes
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('.schritt, .lage.kurz');
+  const id = t?.closest('[data-id]')?.dataset.id;
+  if (!id || ev.target.closest('a, button')) return;
+  const k = `kurz:${id}`;
+  auf.has(k) ? auf.delete(k) : auf.add(k);
+  t.classList.toggle('auf', auf.has(k));
+});
 
 // where "Dein Schritt" leads on the board: the first open question of the mission, or its blockade with "Neu einreihen"
 function deinZiel(b) {

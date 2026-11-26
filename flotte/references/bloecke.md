@@ -43,3 +43,16 @@ sondern beendet seinen Zug mit einem Frageblock der Phase `ram`: Messwert, Optio
 
 Endet ein Lauf regulär, beendet er seinen Zug mit `FLOTTE-ENDE <epic>`, dem Link auf den Pull
 Request und dem Abschnitt `### Was das Epic offen lässt` im Wortlaut.
+
+Endet er ohne Pull Request, weil erst der Mensch etwas tun muss (die Mission parkt), steht direkt
+unter der Kopfzeile eine Zeile für ihn:
+
+```
+FLOTTE-ENDE <epic>
+Mensch: <warten-auf | pr-andocken | label-setzen | entscheiden> [#<n> | <owner/repo>#<n>] — <ein Satz, was der Mensch tun muss>
+```
+
+Der Treiber setzt die Mission dann auf „geparkt, wartet auf dich“ statt „blockiert“; der Satz ist
+auf der Brücke „Dein Schritt“ und führt zum genannten Ticket oder PR, an der Mission steht er als
+Kommentar. Neu eingereiht wird erst, wenn der Schritt getan ist. Ohne die Zeile bleibt es bei
+„blockiert, Ursache anderes“.
