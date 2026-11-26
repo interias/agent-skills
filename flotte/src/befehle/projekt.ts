@@ -5,7 +5,8 @@
 // two files: the adapter .claude/epic.md from the template of mission/references/adapter.md ("Vorlage"; an
 // existing adapter is never overwritten) and the start script ~/.claude/flotte/start/<name>.ps1 (never over an
 // existing one), where flottenbruecke/einrichten.ps1 -Autostart looks for it. The forge is only read. With
-// --autostart the scheduled task "Flotte <name>" at logon, like einrichten.ps1 step 4, only when it is missing.
+// --autostart the scheduled task "Flotte <name>" at logon through autostart.ps1, like einrichten.ps1 step 4: it runs the
+// start script without a window (hintergrund.ps1), and an existing task with an older action is switched over.
 // entfernen halts the driver like `flotte anhalten` and deletes nothing.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { flotteDir } from '../werkzeuge/zustand.ts';
 import { forgeStatus, type ForgeStatus, type ForgeWelt } from './forge.ts';
 import { einrichtenUmschau, giteaHerkuenfte, klonen, ordnerVorschlag, originPasst, pruefeQuelle, type Quelle, vorlageMitQuelle, type Zugang, zugangPruefen, zugangText } from './klonen.ts';
 
-export type Autostart = 'angelegt' | 'vorhanden';
+export type Autostart = 'angelegt' | 'vorhanden' | 'umgestellt';
 
 export interface ProjektWelt {
   aufrufer: Aufrufer;
@@ -28,7 +29,7 @@ export interface ProjektWelt {
   kontenDatei: string;
   /** mission/references/adapter.md; default the one next to this skill */
   vorlage?: string;
-  /** the scheduled task at logon, only when missing; default the real one (tests never register one) */
+  /** the scheduled task at logon (autostart.ps1): registered when missing, switched over when its action differs; default the real one (tests never register one) */
   autostart?: (aufgabe: string, skript: string) => Autostart;
   abruf?: ForgeWelt['abruf'];
   /** the clone (--klonen); default the real git */
@@ -58,6 +59,7 @@ export interface ProjektErgebnis {
 }
 
 const VORLAGE = fileURLToPath(new URL('../../../mission/references/adapter.md', import.meta.url));
+const AUTOSTART = fileURLToPath(new URL('../../autostart.ps1', import.meta.url));
 const STANDARD_BRUECKE = 'http://127.0.0.1:4747';
 const AUFRUF = 'Aufruf: flotte projekt hinzufuegen <ordner> [--autostart] [--konten 1,2] [--bruecke <url>] | hinzufuegen [<ordner>] --klonen <https-Link> [--autostart] … | entfernen [<ordner>]';
 
@@ -103,19 +105,15 @@ export function startskript(o: { name: string; ordner: string; konten: string[];
   ].join('\r\n');
 }
 
-/** The scheduled task "Flotte <name>" at logon for the signed-in user, as einrichten.ps1 step 4 does it; only when missing. */
-export function autostartEchtMit(aufrufer: Aufrufer): (aufgabe: string, skript: string) => Autostart {
+/**
+ * The scheduled task "Flotte <name>" at logon for the signed-in user: autostart.ps1, shared with einrichten.ps1 -Autostart.
+ * It runs the start script without a window through hintergrund.ps1; an existing task with another action is switched over.
+ */
+export function autostartEchtMit(aufrufer: Aufrufer, heim: string): (aufgabe: string, skript: string) => Autostart {
   return (aufgabe, skript) => {
-    const befehl = [
-      `$n = ${inAnfuehrung(aufgabe)}`,
-      "if (Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue) { 'vorhanden'; exit 0 }",
-      `$a = New-ScheduledTaskAction -Execute 'pwsh' -Argument ${inAnfuehrung(`-NoProfile -File "${skript}"`)} -WorkingDirectory ${inAnfuehrung(join(skript, '..'))}`,
-      'Register-ScheduledTask -TaskName $n -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $a -User $env:USERNAME | Out-Null',
-      "'angelegt'",
-    ].join('; ');
-    const r = aufrufer('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(befehl, 'utf16le').toString('base64')]);
+    const r = aufrufer('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', AUTOSTART, '-Skript', skript, '-Heim', heim]);
     const aus = r.stdout.trim().split(/\r?\n/).at(-1);
-    if (r.code || (aus !== 'angelegt' && aus !== 'vorhanden')) throw new Error(`Die geplante Aufgabe ${aufgabe} ließ sich nicht anlegen: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+    if (r.code || (aus !== 'angelegt' && aus !== 'vorhanden' && aus !== 'umgestellt')) throw new Error(`Die geplante Aufgabe ${aufgabe} ließ sich nicht anlegen: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
     return aus;
   };
 }
@@ -262,7 +260,7 @@ export async function hinzufuegen(ordner: string | null, o: { autostart: boolean
   let autostartGrund: string | undefined;
   if (o.autostart) {
     try {
-      autostart = (w.autostart ?? autostartEchtMit(w.aufrufer))(`Flotte ${name}`, skriptDatei);
+      autostart = (w.autostart ?? autostartEchtMit(w.aufrufer, w.heim))(`Flotte ${name}`, skriptDatei);
     } catch (e) {
       autostart = 'fehlgeschlagen';
       autostartGrund = (e as Error).message.slice(0, 300);
