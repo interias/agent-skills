@@ -120,7 +120,7 @@ describe('auftrag: building blocks', () => {
   it('adapter keys with their defaults, a single or listed acceptance section', () => {
     expect(regelnAus('')).toEqual(REGELN);
     const r = regelnAus('---\nready_label: los\nepic_label: type/epic\nacceptance_section: "## Abnahme"\nverification_section: ## Prüfung\nmodules_section: ## Module\n---\n');
-    expect(r).toEqual({ epic_label: 'type/epic', ready_label: 'los', acceptance_section: ['## Abnahme'], verification_section: '## Prüfung', modules_section: '## Module' });
+    expect(r).toEqual({ epic_label: 'type/epic', ready_label: 'los', acceptance_section: ['## Abnahme'], verification_section: '## Prüfung', modules_section: '## Module', spec: false });
     expect(regelnAus('---\nacceptance_section: ["## A", "## B"]\n---\n').acceptance_section).toEqual(['## A', '## B']);
   });
 

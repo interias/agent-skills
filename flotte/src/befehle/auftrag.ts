@@ -27,6 +27,7 @@ export function regelnAus(adapterText: string): AuftragsRegeln {
     acceptance_section: abnahme ? (abnahme.startsWith('[') ? abnahme.slice(1, -1).split(',').map((x) => x.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean) : [abnahme]) : ABNAHME_STANDARD,
     verification_section: schluessel(adapterText, 'verification_section') ?? '## Verifikationsweg',
     modules_section: a.modules_section,
+    spec: schluessel(adapterText, 'issue_form') === 'spec',
   };
 }
 

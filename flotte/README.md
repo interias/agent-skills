@@ -195,7 +195,8 @@ im Body bleibt.
 
 **Entwurf:** Markdown. Jede Überschrift erster Ebene beginnt ein Issue: höchstens eine
 `# Mission: <Titel>` ganz oben, darunter ein oder mehrere `# Missionsziel: <Titel>`. Ohne Mission
-ist genau ein Missionsziel erlaubt. Was unter einer Überschrift steht, wird der Text des Issues;
+ist genau ein Missionsziel erlaubt; sagt der Adapter `issue_form: spec`, ist es die Spec, also selbst die Mission, und trägt
+auch `epic_label`. Was unter einer Überschrift steht, wird der Text des Issues;
 Abschnitte darin sind `##`-Überschriften.
 
 ```markdown
