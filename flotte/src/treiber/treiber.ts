@@ -410,6 +410,8 @@ const MENSCH_PRUEFT = 'Andocken: Mensch prüft';
 
 /** number of the driver's own question when the PR of FLOTTE-ENDE is not the epic's */
 export const PR_FRAGE = 99;
+/** fremderPr: the PR of FLOTTE-ENDE is the epic's own and already merged */
+const SCHON_ANGEDOCKT = Symbol('schon angedockt');
 
 /** #229: number of the driver's own question when docking failed and it could not solve it itself */
 export const ANDOCK_FRAGE = 98;
@@ -3606,6 +3608,13 @@ class Treiber {
     ep.stufe = 'pr';
     if (!ep.pr) return this.halt(ep, 'blockiert', 'FLOTTE-ENDE ohne Pull Request');
     const fremd = this.fremderPr(ep);
+    if (fremd === SCHON_ANGEDOCKT) {
+      // the mission's PR was docked before this turn (a mission started again): close it like a docking seen by mergeWache
+      this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr} angedockt (schon vor diesem Zug)`);
+      ep.endeAm = new Date(this.w.jetzt()).toISOString();
+      this.verbrauchZaehlen(ep);
+      return void this.nebenbei(this.nachMerge(ep));
+    }
     if (fremd) return this.prFrage(ep, fremd);
     this.ereignis(nr, `FLOTTE-ENDE, PR #${ep.pr}`);
     ep.endeAm = new Date(this.w.jetzt()).toISOString();
@@ -3655,12 +3664,17 @@ class Treiber {
 
   /**
    * Acceptance 3, finding 4: the PR of FLOTTE-ENDE must be the open PR of this epic's branch
-   * (epic/<nr>-<slug>, mission/SKILL.md, Phase 3); a foreign one is never watched or merged.
+   * (epic/<nr>-<slug>, mission/SKILL.md, Phase 3); a foreign one is never watched or merged. The epic's
+   * own PR, merged already (a mission started again), is SCHON_ANGEDOCKT.
    */
-  fremderPr(ep: FlottenEpic): string | null {
+  fremderPr(ep: FlottenEpic): string | typeof SCHON_ANGEDOCKT | null {
     const info = this.prInfo(ep.pr!);
     if (!info) return `PR #${ep.pr} aus FLOTTE-ENDE ist nicht lesbar`;
-    if (!new RegExp(`^epic/${ep.nr}(-|$)`).test(info.headRefName ?? '')) return `PR #${ep.pr} aus FLOTTE-ENDE hat den Head ${info.headRefName ?? '?'}, nicht den Missions-Branch epic/${ep.nr}-…`;
+    const eigen = new RegExp(`^epic/${ep.nr}(-|$)`).test(info.headRefName ?? '');
+    if (eigen && info.state === 'MERGED') return SCHON_ANGEDOCKT;
+    // the forge names a merged PR with a deleted branch only by its pull ref (seen on Gitea without head.label)
+    if (info.state === 'MERGED' && /^refs\/pull\//.test(info.headRefName ?? '')) return `PR #${ep.pr} aus FLOTTE-ENDE ist bereits angedockt, sein Branch auf der Forge gelöscht (Head ${info.headRefName}); ob er der Missions-Branch epic/${ep.nr}-… war, ist nicht lesbar`;
+    if (!eigen) return `PR #${ep.pr} aus FLOTTE-ENDE hat den Head ${info.headRefName ?? '?'}, nicht den Missions-Branch epic/${ep.nr}-…`;
     if (info.state !== 'OPEN') return `PR #${ep.pr} aus FLOTTE-ENDE ist nicht offen (${info.state ?? '?'})`;
     return null;
   }
@@ -3669,7 +3683,10 @@ class Treiber {
   prFrage(ep: FlottenEpic, grund: string): void {
     const nr = ep.nr;
     const zeit = new Date(this.w.jetzt()).toISOString();
-    const frage = `${grund}. Welcher Pull Request gehört zu Mission #${nr}?`;
+    const angedockt = /ist bereits angedockt/.test(grund)
+      ? ` Gehört er zur Mission, ist ihre Arbeit schon in der Basis: dann die Mission von Hand abschließen (offene Missionsziele bleiben beim Menschen), der Treiber dockt nichts erneut an. Eine Antwort geht an den Lauf, der den genannten PR prüft und den Zug neu mit FLOTTE-ENDE beendet.`
+      : '';
+    const frage = `${grund}. Welcher Pull Request gehört zu Mission #${nr}?${angedockt}`;
     this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, lage: '', optionen: [], grund, herkunft: 'Treiber: fremder Pull Request', marke: 'fremder PR', betrifft: 'Lauf', roh: frage, empfehlung: 'den PR des Missions-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
     kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber dockt diesen PR nicht an und beobachtet ihn nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
     this.ereignis(nr, `❓ ${grund}: kein Andocken, Frage an den Menschen`);
