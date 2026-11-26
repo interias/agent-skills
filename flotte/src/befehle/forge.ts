@@ -57,9 +57,11 @@ export async function forgeStatus(repo: string, w: ForgeWelt, github?: string): 
       return 'fehler' in r ? null : r.info;
     };
     const ich = hole(`${new URL(api).origin}/api/v1/user`);
-    if (!ich?.login) return nicht;
     const r = hole(api);
-    return { ...nicht, angemeldet: true, konto: String(ich.login).slice(0, 100), rechte: r?.permissions?.push === true ? 'ok' : 'fehlt' };
+    // a token scoped to the repository (no read:user) gets 403 on /user but reads the repository: signed in,
+    // only the account name stays unknown
+    if (!ich?.login && !r) return nicht;
+    return { ...nicht, angemeldet: true, konto: ich?.login ? String(ich.login).slice(0, 100) : null, rechte: r?.permissions?.push === true ? 'ok' : 'fehlt' };
   }
   const forge = github ?? githubRepoAus(adapter, repo, w.aufrufer);
   const auth = w.aufrufer('gh', ['auth', 'status', '--hostname', 'github.com']);

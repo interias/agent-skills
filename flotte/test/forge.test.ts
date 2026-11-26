@@ -64,6 +64,9 @@ describe('#125 Status der Forge', () => {
       expect(ohne).toMatchObject({ angemeldet: true, rechte: 'fehlt' });
       const abgelehnt = await forgeStatus(repo, { aufrufer: gitea({ 'https://gitea.example/api/v1/user': { status: 401 } }) });
       expect(abgelehnt).toMatchObject({ angemeldet: false, konto: null, rechte: null });
+      // a token without read:user: /user refuses, the repository answers; signed in, the account name unknown
+      const ohneNutzer = await forgeStatus(repo, { aufrufer: gitea({ 'https://gitea.example/api/v1/user': { status: 403 }, 'https://gitea.example/api/v1/repos/o/r': { status: 200, body: { permissions: { push: true } } } }) });
+      expect(ohneNutzer).toEqual({ art: 'gitea', forge: 'o/r', angemeldet: true, konto: null, rechte: 'ok', treiber: true });
     } finally {
       delete process.env.FORGE_TEST_TOKEN;
     }
