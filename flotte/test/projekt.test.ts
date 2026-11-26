@@ -46,7 +46,7 @@ describe('#126 Projekt hinzufügen', () => {
     expect(r.forge).toEqual({ origin: true, status: null });
     expect(r.autostart).toBeNull();
     expect(w.aufgaben).toEqual([]);
-    expect(r.meldung).toBe('Projekt kleines-projekt: Adapter angelegt, noch auszufüllen: forge, api, gate_command, test_commands, commit_style, commit_language; Startskript kleines-projekt.ps1 angelegt; Forge: origin vorhanden');
+    expect(r.meldung).toBe('Projekt kleines-projekt: Adapter angelegt, noch auszufüllen: forge, api, gate_command, test_commands, commit_style, commit_language; Startskript kleines-projekt.ps1 angelegt; Forge: origin vorhanden; eigener Treiber für kleines-projekt, nicht gestartet: startet von Hand mit ~/.claude/flotte/start/kleines-projekt.ps1');
     expect(r.meldung).not.toContain(dir);
   });
 
@@ -65,6 +65,7 @@ describe('#126 Projekt hinzufügen', () => {
     expect(r.forge.status).toEqual({ art: 'github', forge: 'o/r', angemeldet: true, konto: 'octo', rechte: 'ok', treiber: true });
     expect(r.autostart).toBe('angelegt');
     expect(w.aufgaben).toEqual([['Flotte mit-adapter', skriptVon(w, 'mit-adapter')]]);
+    expect(r.meldung).toContain('; eigener Treiber für mit-adapter, nicht gestartet: startet bei der nächsten Anmeldung (Autostart) oder von Hand mit ~/.claude/flotte/start/mit-adapter.ps1');
     // a second call overwrites nothing: the start script stays as it is
     writeFileSync(skriptVon(w, 'mit-adapter'), '# von Hand\n');
     const zwei = (await projekt(['hinzufuegen', dir], w)) as Record<string, any>;
