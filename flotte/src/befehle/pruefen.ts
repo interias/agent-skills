@@ -34,7 +34,6 @@ export interface PruefWelt {
   aufrufer: Aufrufer;
   /** the home folder: ~/.claude/flotte/start holds the start scripts of the bridge */
   heim: string;
-  abruf?: typeof fetch;
 }
 
 /** The steps of /flotte-einrichten (flotte-einrichten/SKILL.md, headings "## Schritt <n>: <name>"). */

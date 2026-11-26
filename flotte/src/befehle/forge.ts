@@ -1,7 +1,9 @@
 // flotte forge pruefen|verknuepfen [<repo>] (#125): is the forge of a project linked at this machine?
 // GitHub through `gh auth status` and a probe of the push right on the repository; Gitea with the access
 // `flotte auftrag` uses (token_env, token_file or the Git credential store) against /user and the
-// repository. Only the state and the account name leave this module, never a token. verknuepfen opens
+// repository, through curl like every other Gitea call of the driver (a long-running driver stayed on "not
+// signed in" after a network outage while it read through fetch). A host that curl does not reach is no
+// verdict on the sign-in: forgeStatus fails then, and the driver keeps the state it last read. Only the state and the account name leave this module, never a token. verknuepfen opens
 // a terminal at the machine (gh auth login, or a hidden prompt for the Gitea token into the credential
 // store); nothing of it goes through the bridge (ADR-0005).
 
@@ -11,6 +13,7 @@ import { aufrufen, type Aufrufer } from '../aufruf.ts';
 import { schluessel } from './adapter.ts';
 import { giteaRepoAus, giteaZugang, githubRepoAus } from './auftrag.ts';
 import { oeffneTerminal } from './konten.ts';
+import { curl } from '../forge/curl.ts';
 
 export interface ForgeStatus {
   art: 'github' | 'gitea';
@@ -26,7 +29,6 @@ export interface ForgeStatus {
 
 export interface ForgeWelt {
   aufrufer: Aufrufer;
-  abruf?: typeof fetch;
   /** verknuepfen: the terminal at the machine; default the real one */
   terminal?: (befehl: string) => void;
 }
@@ -49,17 +51,14 @@ export async function forgeStatus(repo: string, w: ForgeWelt, github?: string): 
       return nicht;
     }
     const api = schluessel(adapter, 'api')!.replace(/\/+$/, '');
-    const hole = async (url: string) => {
-      try {
-        const r = await (w.abruf ?? fetch)(url, { headers: { Authorization: kopf } });
-        return r.ok ? ((await r.json()) as Record<string, any>) : null;
-      } catch {
-        return null;
-      }
+    const hole = (url: string) => {
+      const r = giteaLesen(w.aufrufer, url, kopf);
+      if ('fehler' in r && r.status === 0) throw new Error(r.fehler);
+      return 'fehler' in r ? null : r.info;
     };
-    const ich = await hole(`${new URL(api).origin}/api/v1/user`);
+    const ich = hole(`${new URL(api).origin}/api/v1/user`);
     if (!ich?.login) return nicht;
-    const r = await hole(api);
+    const r = hole(api);
     return { ...nicht, angemeldet: true, konto: String(ich.login).slice(0, 100), rechte: r?.permissions?.push === true ? 'ok' : 'fehlt' };
   }
   const forge = github ?? githubRepoAus(adapter, repo, w.aufrufer);
@@ -70,8 +69,20 @@ export async function forgeStatus(repo: string, w: ForgeWelt, github?: string): 
   return { art: 'github', forge, angemeldet: true, konto, rechte: !push.code && push.stdout.trim() === 'true' ? 'ok' : 'fehlt', treiber: true };
 }
 
+/** A GET against the Gitea API through curl; status 0 is a host curl did not reach. */
+function giteaLesen(a: Aufrufer, url: string, kopf: string): { info: Record<string, any> } | { status: number; fehler: string } {
+  const r = curl(a, { methode: 'GET', url, kopf });
+  if (r.status === 0) return { status: 0, fehler: `Gitea nicht erreichbar (${r.text.slice(0, 160)})` };
+  if (r.status < 200 || r.status >= 300) return { status: r.status, fehler: `Gitea antwortete ${r.status}` };
+  try {
+    return { info: JSON.parse(r.text) as Record<string, any> };
+  } catch {
+    return { status: r.status, fehler: 'Gitea antwortete unlesbar' };
+  }
+}
+
 /** Push right and issues of a repository (adding a project by link): gh on GitHub, the Gitea access of `flotte auftrag` on Gitea. */
-export async function repoRechte(repo: string, q: { art: 'github' | 'gitea'; forge: string; api: string }, w: { aufrufer: Aufrufer; abruf?: typeof fetch }): Promise<{ push: boolean; issues: boolean } | { fehler: string }> {
+export async function repoRechte(repo: string, q: { art: 'github' | 'gitea'; forge: string; api: string }, w: { aufrufer: Aufrufer }): Promise<{ push: boolean; issues: boolean } | { fehler: string }> {
   let info: Record<string, any>;
   if (q.art === 'github') {
     const r = w.aufrufer('gh', ['api', `repos/${q.forge}`]);
@@ -83,10 +94,9 @@ export async function repoRechte(repo: string, q: { art: 'github' | 'gitea'; for
     }
   } else {
     try {
-      const kopf = giteaZugang(adapterVon(repo), repo, w.aufrufer);
-      const r = await (w.abruf ?? fetch)(q.api, { headers: { Authorization: kopf } });
-      if (!r.ok) return { fehler: `Gitea antwortete ${r.status}` };
-      info = (await r.json()) as Record<string, any>;
+      const r = giteaLesen(w.aufrufer, q.api, giteaZugang(adapterVon(repo), repo, w.aufrufer));
+      if ('fehler' in r) return { fehler: r.fehler };
+      info = r.info;
     } catch (e) {
       return { fehler: (e as Error).message.slice(0, 200) };
     }
