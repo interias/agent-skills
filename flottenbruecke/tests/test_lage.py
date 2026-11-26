@@ -114,6 +114,17 @@ def test_geparkte_mission_verlinkt_das_genannte_ticket(client, bericht, ref, zie
     assert d['ref'] == ref and d['url'] == url
 
 
+def test_eine_gitea_forge_verlinkt_ihre_eigene_seite_und_pulls(client, bericht):
+    # the driver reports the forge's own page; Gitea shows a pull request under /pulls/<nr>, not GitHub's /pull/
+    bericht['url'] = 'http://gitea.example:3003/interias/flotte-probe'
+    ep = next(x for x in bericht['epics'] if x['nr'] == 40)
+    ep['lage'] = {**GEPARKT, 'deinSchritt': {**GEPARKT['deinSchritt'], 'ref': '#46', 'ziel': 'pr'}}
+    assert client.post('/api/bericht', json=bericht).status_code == 200
+    k = karten(tafel(client))['blockade'][40]
+    assert k['lage']['deinSchritt']['url'] == 'http://gitea.example:3003/interias/flotte-probe/pulls/46'
+    assert k['issueUrl'] == 'http://gitea.example:3003/interias/flotte-probe/issues/40'
+
+
 def test_dein_schritt_ohne_ref_bleibt_wie_zuvor(client, bericht):
     assert client.post('/api/bericht', json=bericht).status_code == 200
     assert karten(tafel(client))['blockade'][40]['lage']['deinSchritt'] == {'text': 'Ursache prüfen, dann neu einreihen oder aufgeben', 'ziel': 'einreihen', 'ref': None, 'url': None}

@@ -50,6 +50,11 @@ def zeit(text: str | None) -> datetime | None:
     return t if t.tzinfo else t.replace(tzinfo=ZoneInfo('UTC'))
 
 
+def pr_pfad(url: str) -> str:
+    """GitHub shows a pull request under /pull/<nr>, Gitea under /pulls/<nr>."""
+    return 'pull' if url.startswith('https://github.com/') else 'pulls'
+
+
 def _lage(lage: dict | None, url: str | None) -> dict | None:
     """The driver's line as it came; the person's step gets the link to the ticket or PR the run named (`ref`)."""
     d = (lage or {}).get('deinSchritt')
@@ -57,7 +62,7 @@ def _lage(lage: dict | None, url: str | None) -> dict | None:
         return lage
     m = re.fullmatch(r'(?:([\w.-]+/[\w.-]+))?#(\d+)', d.get('ref') or '')
     basis = url and m and (f"{url.rsplit('/', 2)[0]}/{m.group(1)}" if m.group(1) else url)
-    link = f"{basis}/{'pull' if d['ziel'] == 'pr' else 'issues'}/{m.group(2)}" if basis else None
+    link = f"{basis}/{pr_pfad(basis) if d['ziel'] == 'pr' else 'issues'}/{m.group(2)}" if basis else None
     return {**lage, 'deinSchritt': {**d, 'ref': d.get('ref'), 'url': link}}
 
 
@@ -402,7 +407,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'nr': nr,
                 'stufe': stufe,
                 'pr': ep.get('pr'),
-                'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
+                'prUrl': f"{url}/{pr_pfad(url)}/{ep['pr']}" if url and ep.get('pr') else None,
                 'notiz': ep.get('notiz', ''),
                 'geparkt': ep.get('geparkt', []),
                 'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
@@ -468,7 +473,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'konto': ep.get('konto'),
                 'issueUrl': f'{url}/issues/{nr}' if url else None,
                 'pr': ep.get('pr'),
-                'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
+                'prUrl': f"{url}/{pr_pfad(url)}/{ep['pr']}" if url and ep.get('pr') else None,
                 # why it waits or halts: the whole reason of a blockade, else the note
                 'warum': (ep.get('grund') or ep.get('notiz', '')) if ep['stufe'] in HALT else ep.get('notiz', ''),
                 'fragen': offen_je_epic.get(nr, 0),

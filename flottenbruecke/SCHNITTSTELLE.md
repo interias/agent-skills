@@ -53,7 +53,7 @@ Der erste Bericht legt das Projekt an (Schlüssel `forge`). Antwort `{"ok": true
 
 | Feld | Woher im Treiber |
 |---|---|
-| `forge`, `url` | `Einstellung.forge`, `https://github.com/<forge>` |
+| `forge`, `url` | `Einstellung.forge`, die Seite des Repositorys auf seiner Forge (`https://github.com/<forge>` oder die des Gitea-Hosts); die Brücke baut daraus `<url>/issues/<nr>` und für Pull Requests `<url>/pull/<nr>` (GitHub) bzw. `<url>/pulls/<nr>` (Gitea) |
 | `rechner` | `os.hostname()`; trennt RAM und Platte mehrerer Rechner |
 | `stand`, `aktiv` | `FlottenZustand.stand`, `.aktiv` (der letzte Bericht eines Einsatzes hat `aktiv: false`) |
 | `taktS` | `--takt-s`; der Takt im Ellbogen läuft über, nach drei Takten (mindestens 3 min) Stille gilt das Projekt als still |

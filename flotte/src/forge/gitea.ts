@@ -118,6 +118,7 @@ export function giteaZugriff(a: Aufrufer, api: string, kopf: () => string, epicL
   return {
     art: 'gitea',
     repo: `${owner}/${name}`,
+    web,
     prLink: (nr) => `${web}/pulls/${nr}`,
     issue: (nr, felder) => issueAus(aufruf('GET', `/issues/${nr}`), felder),
     issues: (label, felder, limit = 500) => alle(`/issues?state=open&type=issues&labels=${encodeURIComponent(label)}`, limit).map((j) => issueAus(j, felder)),

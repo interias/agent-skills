@@ -3501,7 +3501,7 @@ class Treiber {
     const konto = (k: string) => kurzname(k, this.e.admiralKonto);
     return {
       forge: this.e.forge,
-      url: `https://github.com/${this.e.forge}`,
+      url: this.forge.web,
       rechner: rechnerName(),
       stand: this.z.stand,
       aktiv: this.z.aktiv,

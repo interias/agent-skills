@@ -91,7 +91,7 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     const gitea = f && !f.treiber ? '<p class="mr-hilfe">Der Treiber spricht noch kein Gitea (#127): Missionen dieses Projekts fährt er noch nicht.</p>' : '';
     const knopf = p.meldetForge ? `<div class="knoepfe"><button type="button" class="knopf ${f && f.angemeldet && f.rechte === 'ok' ? 'zweit' : 'haupt'}" data-forge-verknuepfen="${esc(p.forge)}"${zu}>Am Rechner verknüpfen</button><span class="status" role="status">${p.verknuepfen ? `<span class="mr-wartet">Verknüpfen wartet auf den Rechner${p.verknuepfen.abgeholt ? ' · abgeholt' : ''}</span>` : ''}</span></div>` : '';
     return `<article class="mr-karte mr-forge${p.veraltet ? ' veraltet' : ''}"><h3>${esc(f ? FORGE_NAME[f.art] ?? f.art : 'Forge')} · ${esc(p.kurz)}</h3>
-<dl><dt>Repository</dt><dd>${esc(f ? f.forge : p.forge)}</dd><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Rechte</dt><dd>${rechte}</dd></dl>${gitea}${knopf}</article>`;
+<dl><dt>Repository</dt><dd>${quelle(p, f ? f.forge : p.forge)}</dd><dt>Anmeldung</dt><dd>${anmeldung}</dd><dt>Rechte</dt><dd>${rechte}</dd></dl>${gitea}${knopf}</article>`;
   }
 
   const forgeHtml = (t) => (t.projekte.length ? `<h3 class="mr-titel">Forge</h3><div class="mr-reihe">${t.projekte.map((p) => forgeKarteHtml(t, p)).join('')}</div>` : '');
@@ -133,13 +133,15 @@ ${fenster('Hauptenergie', k.fuenf)}${fenster('Reserveenergie', k.woche)}
     return halt + letzter;
   };
   const holtProjekte = (t) => t.projekte.filter((p) => p.meldetProjekte && !p.veraltet);
+  // the repository with its source: a link to the forge's page (the internal Gitea or GitHub), else the name
+  const quelle = (p, name) => (p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.url.replace(/^https?:\/\//, ''))}</a>` : esc(name));
   const projektWartet = (h, was) => (h ? `<span class="mr-wartet">${was} wartet auf den Rechner${h.abgeholt ? ' · abgeholt' : ''}</span>` : '');
 
   function projekteHtml(t) {
     if (!t.projekte.length) return '';
     const zu = !t.pin ? ' disabled' : '';
     const karten = t.projekte.map((p) => `<article class="mr-karte${p.veraltet ? ' veraltet' : ''}"><h3>${esc(p.kurz)}</h3>
-<dl><dt>Repository</dt><dd>${esc(p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${nachtlaufHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
+<dl><dt>Repository</dt><dd>${quelle(p, p.forge)}</dd><dt>Rechner</dt><dd>${esc(p.rechner || '–')}</dd></dl>${lueckenHtml(p)}${nachtlaufHtml(p)}${p.meldetProjekte ? `<div class="knoepfe"><button type="button" class="knopf zweit" data-projekt-entfernen="${esc(p.forge)}"${zu || (p.entfernen ? ' disabled' : '')}>Entfernen</button><span class="status" role="status">${projektWartet(p.entfernen, 'Entfernen')}</span></div>` : ''}</article>`).join('');
     const treiber = holtProjekte(t);
     const wartet = t.projekte.find((p) => p.hinzufuegen);
     const wahl = treiber.length > 1 ? `<label class="mr-feld">am Rechner des Treibers von<select class="mr-ordner" name="projekt-ueber"${zu}>${treiber.map((p) => `<option value="${esc(p.forge)}">${esc(p.kurz)}${p.rechner ? ` · ${esc(p.rechner)}` : ''}</option>`).join('')}</select></label>` : '';

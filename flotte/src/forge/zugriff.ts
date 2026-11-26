@@ -64,6 +64,8 @@ export interface ForgeZugriff {
   art: 'github' | 'gitea';
   /** owner/name */
   repo: string;
+  /** the web page of the repository, https://github.com/<owner>/<name> or the Gitea host's */
+  web: string;
   /** the web link of a pull request */
   prLink(nr: number): string;
   issue(nr: number, felder: string[]): Issue;
