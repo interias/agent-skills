@@ -480,7 +480,9 @@ def test_handlung_nur_fuer_blockierte_epics(client, bericht):
     assert handlung(client, epic=99).status_code == 404
     bericht['epics'][6]['aufgegebenAm'] = '2026-11-20T14:30:00Z'
     client.post('/api/bericht', json=bericht)
-    assert handlung(client).status_code == 409
+    # given up: only einreihen takes it back, a second aufgeben is refused
+    assert handlung(client, 'aufgeben').status_code == 409
+    assert handlung(client).status_code == 200
 
 
 def test_widerruf_einer_admiral_entscheidung(client, bericht):

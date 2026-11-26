@@ -129,7 +129,8 @@ Titel, die Stufe (läuft, wartet, Frage, blockiert, PR), `prio` bei `prio/hoch`,
 hält, die Reihenfolge („nach #38“ springt zur Zeile des Vorgängers, „danach #41“ zeigt die wartenden
 Nachfolger; ein erledigter Vorgänger ist ein Link aufs Issue) und eine aufklappbare Liste seiner
 Missionsziel-Tickets mit Stand und Links. Ein Klick auf die Stufe führt zur Karte der Mission auf der Brücke.
-Angedockte und aufgegebene Missionen gehören nicht in den Backlog. Die Daten stehen im Bericht des Treibers
+Angedockte Missionen gehören nicht in den Backlog; aufgegebene stehen am Ende als „aufgegeben“, solange ihr Issue offen
+ist, mit „Neu einreihen“. Die Daten stehen im Bericht des Treibers
 (`nach[]` je Mission ist neu, siehe `SCHNITTSTELLE.md`); die Brücke fragt keine Forge. Ein älterer Treiber
 ohne `nach[]` zeigt die Missionen ohne Kanten.
 
@@ -342,8 +343,8 @@ Eine Blockadekarte zeigt Grund, Lage und auf Wunsch das Log der Mission. Dazu zw
 PIN, die der Treiber im nächsten Takt abholt und ausführt:
 
 - **Neu einreihen** — Zähler zurück; der Lauf setzt fort und erfährt den Grund der Blockade.
-- **Aufgeben** — nach einer Rückfrage: Die Mission wird `abgebrochen` und nicht mehr gestartet.
-  Branch, Pull Request und Issue bleiben.
+- **Aufgeben** — nach einer Rückfrage: Die Mission wird `abgebrochen` und nicht mehr gestartet, bis sie in der
+  Sternenkarte neu eingereiht wird. Branch, Pull Request und Issue bleiben.
 
 **Zurücknehmen** in der Detailansicht der Mission (und für die Entscheidungen des Admirals von heute
 auch in „Erledigt heute“) widerruft eine Entscheidung des Admirals oder deine eigene Antwort bis zum

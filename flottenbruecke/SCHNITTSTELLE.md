@@ -351,8 +351,8 @@ alle vier Abholwege (Antworten, Handlungen, Werft, Chat) eine leere Liste, ohne 
 
 | `art` | wann die Brücke sie annimmt | was der Treiber tut |
 |---|---|---|
-| `einreihen` | Mission `blockiert` oder `abgebrochen`, nicht aufgegeben | Zähler auf null; mit Sitzung zurück auf `laeuft` mit einer Fortsetzung, die den Grund der Blockade und die noch unbeantworteten Fragen des Laufs als offen nennt, sonst `wartend` |
-| `aufgeben` | wie `einreihen` | Stufe `abgebrochen`, `aufgegebenAm`; Branch, PR und Issue bleiben |
+| `einreihen` | Mission `blockiert` oder `abgebrochen`, auch aufgegeben (hebt `aufgegebenAm` auf) | Zähler auf null; mit Sitzung zurück auf `laeuft` mit einer Fortsetzung, die den Grund der Blockade und die noch unbeantworteten Fragen des Laufs als offen nennt, sonst `wartend` |
+| `aufgeben` | Mission `blockiert` oder `abgebrochen`, nicht aufgegeben | Stufe `abgebrochen`, `aufgegebenAm`; Branch, PR und Issue bleiben |
 | `widerruf` | `nr`, `seit` (= `zeit` der Entscheidung) und `text`; Mission nicht `gemergt`/`fertig`, noch kein Widerruf; eine Entscheidung des Admirals oder (#52) eine Antwort des Menschen | Kommentar am Issue, bei einflussreichen Entscheidungen auch ins Protokoll; der Lauf bekommt `widerruf: <Frage> → <Text>` im nächsten Zug, eine Mission in `pr` geht dafür zurück auf `laeuft`. Nach dem Andocken nur der Kommentar und ein Ereignis, nichts an den Lauf; ein zweiter Widerruf derselben Entscheidung bleibt ein Ereignis |
 | `einstellen` | `epic` `0`, `text` = `{"name", "wert"}` als JSON (unten), Gerät mit Recht Handeln | prüft die Grenzen, setzt den Wert ab diesem Takt, speichert ihn im Zustand, Ereignis und Flottenlogbuch; ein ungültiger Wert wird ein Ereignis |
 | `aufnehmen` | `epic` steht in `freigegeben[]` des Berichts, Gerät mit Recht Handeln | prüft an der Forge: offen, `epic_label`, `ready_label` an der Mission oder einem Missionsziel, noch nicht im Einsatz; nimmt sie in den Einsatz (Belegung wie jede Mission), merkt sie im Zustand (`aufgenommen`, gilt nach einem Neustart bis zum Andocken), Ereignis und Flottenlogbuch |
@@ -500,9 +500,10 @@ kind, seit, forge}`. `forge` ist das Projekt, dessen Repository-Name (letzter Te
 Sitzung aus mehreren Berichten steht einmal (der neuere gilt); Berichte stiller Projekte zählen nicht.
 
 In `GET /api/tafel` trägt jedes Projekt in `projekte[]` zusätzlich `epics[]` (Sternenkarte, #43), die
-flache Sicht seiner **offenen** Missionen (ohne `gemergt`, `fertig` und die aufgegebenen), sortiert nach
-Stufe (blockiert, Frage, läuft, PR, wartend), `prio` zuerst, Nummer: `{id, nr, titel, stufe, prio,
-konto, issueUrl, pr, prUrl, warum, fragen, prognose, pakete[], nach[], folgen[]}`. `warum` ist bei
+flache Sicht seiner **offenen** Missionen (ohne `gemergt` und `fertig`), sortiert nach
+Stufe (blockiert, Frage, läuft, PR, wartend, zuletzt die aufgegebenen), `prio` zuerst, Nummer: `{id, nr, titel, stufe, prio,
+konto, issueUrl, pr, prUrl, warum, fragen, prognose, pakete[], nach[], folgen[], aufgegeben, einreihen}`; `aufgegeben` ist
+`aufgegebenAm` einer aufgegebenen Mission, sonst `null`, `einreihen` ihre Handlung unterwegs. `warum` ist bei
 `blockiert` der ganze `grund`, sonst die `notiz`; `pakete[]` wie auf der Brücke samt `url`; `nach[]`
 sind die Kanten `{nr, titel, stufe, offen, issueUrl}`, `offen` sagt, ob der Vorgänger selbst noch
 offen ist (sonst erledigt oder dem Bericht unbekannt, `stufe` dann `null`); `folgen[]` die Nummern

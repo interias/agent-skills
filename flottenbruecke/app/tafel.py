@@ -457,8 +457,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             # laeuft, nacharbeit, frage: a run; one that waits for the person entirely has no life sign
             laeufe.append({**karte, 'prozess': bool(ep.get('prozess')), 'leerlaufS': b.get('leerlaufS'), 'fragen': offen_je_epic.get(nr, 0), 'wartetAufDich': stufe == 'frage'})
 
-        # ---- the Sternenkarte: the open epics of this project, merged and given-up ones are no backlog
-        offen = [ep for ep in b.get('epics', []) if ep['stufe'] not in FERTIG and not (ep['stufe'] in HALT and ep.get('aufgegebenAm'))]
+        # ---- the Sternenkarte: the open epics of this project; merged ones are no backlog, given-up ones stay
+        # (their issue is open) at the end, with einreihen to take them back
+        offen = [ep for ep in b.get('epics', []) if ep['stufe'] not in FERTIG]
         offene_nr = {ep['nr'] for ep in offen}
         karte = []
         for ep in offen:
@@ -491,8 +492,10 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'merge': ep.get('merge'),
                 'andocken': _handlung(offen_h.get((nr, 'merge', None, None))),
                 'lage': _lage(ep.get('lage'), url),
+                'aufgegeben': ep.get('aufgegebenAm') if ep['stufe'] in HALT else None,
+                'einreihen': _handlung(offen_h.get((nr, 'halt', None, None))),
             })
-        karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
+        karte.sort(key=lambda k: (6 if k['aufgegeben'] else KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
         if b.get('triage'):

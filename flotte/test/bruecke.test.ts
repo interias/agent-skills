@@ -463,6 +463,22 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('a given-up mission requeued on the bridge: the giving up is lifted, it joins this deployment and runs', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.epics.find((e) => e.nr === 7)?.aufgegebenAm ? { epic: 7, art: 'einreihen' } : null) });
+    try {
+      const t = aufbau({ signale: { 'laeuft-7': /^#7 Lauf gestartet/ } });
+      const z0 = leer(t.repo);
+      z0.epics['7'] = { ...neuesEpic(7), stufe: 'abgebrochen', notiz: 'aufgegeben vom Menschen', aufgegebenAm: '2026-11-20T10:00:00Z' } as never;
+      schreibeZustand(flotteDir(t.repo), z0);
+      const buch = drehbuch([lauf(3, [{ signal: 'laeuft-7' }, { text: ende(3, 13) }]), lauf(7, [{ text: ende(7, 17) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, maxDauerMs: 120_000 }), t.welt);
+      expect(z.epics['7']).toMatchObject({ stufe: 'fertig', aufgegebenAm: null });
+      expect(z.ereignisse.some((e) => /^#7 neu eingereiht vom Menschen/.test(e.text) || (e.epic === 7 && /neu eingereiht vom Menschen/.test(e.text)))).toBe(true);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#133: requeued after an order edge to an open epic was added: waiting with the session dropped; after the merge of #4 a new start without --resume', async () => {
     const bodies: Record<number, string> = { 3: '## Betroffene Module\n- a', 4: '## Betroffene Module\n- b' };
     const b = await attrappe(() => null, {

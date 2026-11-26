@@ -1926,7 +1926,8 @@ class Treiber {
     }
     if (h.art === 'pausieren' || h.art === 'fortsetzen' || h.art === 'prioritaet') return this.steuern(h, ep);
     if (h.art === 'merge') return this.mergeStellen(h, ep);
-    if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || ep.aufgegebenAm) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Mission ist ${stufeText(ep.stufe)}, nichts zu tun`);
+    // a given-up mission whose issue stays open comes back only through einreihen, which lifts the giving up
+    if (!['blockiert', 'abgebrochen'].includes(ep.stufe) || (ep.aufgegebenAm && h.art !== 'einreihen')) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Mission ist ${ep.aufgegebenAm ? 'aufgegeben' : stufeText(ep.stufe)}, nichts zu tun`);
     if (h.art === 'aufgeben') {
       ep.stufe = 'abgebrochen';
       ep.aufgegebenAm = jetzt;
@@ -1939,7 +1940,7 @@ class Treiber {
     // einreihen: the counters start over; with a session the run continues where it stopped,
     // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, mensch: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, mensch: null, aufgegebenAm: null, notiz: 'neu eingereiht vom Menschen' });
     // #135: a mission of an earlier deployment joins this one, so occupancy, order edges and the end count it
     if (!this.e.epics.includes(ep.nr)) {
       this.e.epics = [...this.e.epics, ep.nr];

@@ -457,7 +457,8 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
                 raise HTTPException(404, 'Diese Entscheidung kennt die Brücke nicht.')
             if ep['stufe'] in ('gemergt', 'fertig') or d.get('widerrufen'):
                 raise HTTPException(409, 'Nach dem Andocken oder ein zweites Mal geht kein Widerruf mehr über die Brücke.')
-        elif ep['stufe'] not in ('blockiert', 'abgebrochen') or ep.get('aufgegebenAm'):
+        elif ep['stufe'] not in ('blockiert', 'abgebrochen') or (ep.get('aufgegebenAm') and h.art != 'einreihen'):
+            # a given-up mission takes only einreihen, which lifts the giving up
             raise HTTPException(409, 'Die Mission ist nicht blockiert.')
         gespeichert = speicher.handlung_setzen(h.forge, h.epic, h.art, h.nr, h.seit, h.text, stempel(), geraet)
         if gespeichert is None:
