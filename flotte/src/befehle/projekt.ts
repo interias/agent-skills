@@ -5,7 +5,7 @@
 // two files: the adapter .claude/epic.md from the template of mission/references/adapter.md ("Vorlage"; an
 // existing adapter is never overwritten) and the start script ~/.claude/flotte/start/<name>.ps1 (never over an
 // existing one), where flottenbruecke/einrichten.ps1 -Autostart looks for it. The forge is only read. With
-// --autostart the scheduled task "Flotte <name>" at logon through autostart.ps1, like einrichten.ps1 step 4: it runs the
+// --autostart the scheduled task "Flotte <name>" at logon through autostart.ps1: it runs the
 // start script without a window (hintergrund.ps1), and an existing task with an older action is switched over.
 // entfernen halts the driver like `flotte anhalten` and deletes nothing.
 
@@ -106,7 +106,7 @@ export function startskript(o: { name: string; ordner: string; konten: string[];
 }
 
 /**
- * The scheduled task "Flotte <name>" at logon for the signed-in user: autostart.ps1, shared with einrichten.ps1 -Autostart.
+ * The scheduled task "Flotte <name>" at logon for the signed-in user, through autostart.ps1.
  * It runs the start script without a window through hintergrund.ps1; an existing task with another action is switched over.
  */
 export function autostartEchtMit(aufrufer: Aufrufer, heim: string): (aufgabe: string, skript: string) => Autostart {

@@ -5,15 +5,12 @@
 # Before each run the test checks that every stand-in is in place, so nothing real is ever called.
 
 $quelle = $PSScriptRoot
-$attrappen = 'docker', 'Read-Host', 'Start-Process', 'Get-ScheduledTask', 'Register-ScheduledTask', 'Set-ScheduledTask', 'New-ScheduledTaskAction', 'New-ScheduledTaskTrigger', 'New-ScheduledTaskSettingsSet'
+$attrappen = 'docker', 'Read-Host', 'Start-Process', 'Get-ScheduledTask', 'Register-ScheduledTask', 'New-ScheduledTaskAction', 'New-ScheduledTaskTrigger'
 
 function New-Bruecke {
     $dir = Join-Path $TestDrive "bruecke-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     New-Item -ItemType Directory -Path $dir, "$dir\heim" | Out-Null
     Copy-Item (Join-Path $quelle 'einrichten.ps1'), (Join-Path $quelle '.env.example') $dir
-    # the driver tasks go through ../flotte/autostart.ps1, as in the repository
-    if (-not (Test-Path "$TestDrive\flotte")) { New-Item -ItemType Directory -Path "$TestDrive\flotte" | Out-Null }
-    Copy-Item (Join-Path $quelle '..\flotte\autostart.ps1') "$TestDrive\flotte" -Force
     $dir
 }
 
@@ -25,11 +22,9 @@ function Set-Attrappen([string]$pin = '', [int]$dockerCode = 0, [string[]]$vorha
     function global:Read-Host { [void]$global:eProtokoll.Add('pin'); $s = New-Object Security.SecureString; foreach ($c in $global:ePin.ToCharArray()) { $s.AppendChar($c) }; $s }
     function global:Start-Process { param($FilePath) [void]$global:eProtokoll.Add("browser $FilePath") }
     function global:Get-ScheduledTask { param($TaskName, $ErrorAction) if ($global:eVorhanden -contains $TaskName) { $TaskName } }
-    function global:Register-ScheduledTask { param($TaskName, $Trigger, $Action, $Settings, $User) [void]$global:eProtokoll.Add("aufgabe $TaskName") }
-    function global:Set-ScheduledTask { param($TaskName, $Action, $Settings) [void]$global:eProtokoll.Add("umgestellt $TaskName") }
+    function global:Register-ScheduledTask { param($TaskName, $Trigger, $Action, $User) [void]$global:eProtokoll.Add("aufgabe $TaskName") }
     function global:New-ScheduledTaskAction { 'aktion' }
     function global:New-ScheduledTaskTrigger { param([switch]$AtLogOn, $User) 'ausloeser' }
-    function global:New-ScheduledTaskSettingsSet { [pscustomobject]@{ Enabled = $true } }
     foreach ($n in $attrappen) { if ((Get-Command $n).CommandType -ne 'Function') { throw "Attrappe $n fehlt" } }
 }
 
@@ -93,26 +88,11 @@ Describe 'einrichten.ps1 -Autostart' {
     It 'registers only the missing tasks: one per driver start script, the existing bridge task stays' {
         @($protokoll | Where-Object { $_ -like 'aufgabe *' }) -join ',' | Should Be 'aufgabe Flotte flotte-probe'
         $out -contains 'Aufgabe vorhanden: Flottenbruecke' | Should Be $true
-        $out -contains 'Aufgabe angelegt: Flotte flotte-probe (beim Anmelden, ohne Fenster)' | Should Be $true
     }
 
     It 'an empty PIN leaves answering switched off; -OhneBrowser opens nothing' {
         (Get-Content "$dir\.env") -contains 'BRUECKE_PIN=' | Should Be $true
         @($protokoll | Where-Object { $_ -like 'browser *' }).Count | Should Be 0
-    }
-}
-
-Describe 'einrichten.ps1 -Autostart with an older driver task' {
-    $dir = New-Bruecke
-    New-Item -ItemType Directory -Path "$dir\heim\.claude\flotte\start" | Out-Null
-    Set-Content -Path "$dir\heim\.claude\flotte\start\flotte-probe.ps1" -Value '# start'
-    Set-Attrappen -vorhanden 'Flottenbruecke', 'Flotte flotte-probe'
-    try { $out = & "$dir\einrichten.ps1" -Heim "$dir\heim" -Autostart -OhneBrowser }
-    finally { Remove-Attrappen }
-
-    It 'switches the driver task over to run without a window, registers nothing new' {
-        @($global:eProtokoll | Where-Object { $_ -like 'aufgabe *' -or $_ -like 'umgestellt *' }) -join ',' | Should Be 'umgestellt Flotte flotte-probe'
-        $out -contains 'Aufgabe umgestellt: Flotte flotte-probe (ohne Fenster)' | Should Be $true
     }
 }
 

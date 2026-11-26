@@ -1,17 +1,15 @@
 <#
 .SYNOPSIS
     Sets up the Flottenbruecke on this machine: .env with the PIN, the container, the accounts list and,
-    only with -Autostart, scheduled tasks at logon. A second run changes nothing that exists, except a driver
-    task with an older action, which it switches over to run without a window.
+    only with -Autostart, scheduled tasks at logon. A second run changes nothing that exists.
 
 .DESCRIPTION
     - Creates .env from .env.example when it is missing and asks for the PIN (hidden input, never shown
       or logged; empty: answering stays switched off). An existing .env is left alone, no PIN is asked.
     - docker compose up -d --build --wait in this folder.
     - Writes ~/.claude/flotte/konten.json with the accounts 1-3 once, when the file is missing (#94).
-    - Only with -Autostart: a scheduled task at logon for the bridge ("Flottenbruecke", only when missing) and
-      one per driver start script in ~/.claude/flotte/start/*.ps1 ("Flotte <name>", ../flotte/autostart.ps1:
-      without a window, an existing one with an older action switched over).
+    - Only with -Autostart: a scheduled task at logon for the bridge ("Flottenbruecke") and one per driver
+      start script in ~/.claude/flotte/start/*.ps1 ("Flotte <name>"), each only when it is missing.
       Without the switch the task scheduler is not touched.
     - At the end opens the bridge in the browser; it guides through the rest (accounts, forge, projects).
     install.ps1 calls this script when the bridge is missing (no .env here). Runs in Windows PowerShell
@@ -86,21 +84,19 @@ if (Test-Path -LiteralPath $kontenDatei) {
     "angelegt: $kontenDatei (Konten 1-3)"
 }
 
-# 4. only with -Autostart: scheduled tasks at logon. The bridge task only when missing; the driver tasks through
-# flotte/autostart.ps1 (shared with `flotte projekt hinzufuegen --autostart`): no window, an older one switched over
+# 4. only with -Autostart: scheduled tasks at logon, each only when missing
 if ($Autostart) {
-    if (Get-ScheduledTask -TaskName 'Flottenbruecke' -ErrorAction SilentlyContinue) { 'Aufgabe vorhanden: Flottenbruecke' } else {
-        $aktion = New-ScheduledTaskAction -Execute 'docker' -Argument 'compose up -d' -WorkingDirectory $ordner
-        # for the signed-in user: no admin rights needed
-        Register-ScheduledTask -TaskName 'Flottenbruecke' -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $aktion -User $env:USERNAME | Out-Null
-        'Aufgabe angelegt: Flottenbruecke (beim Anmelden)'
-    }
-    $autostartSkript = Join-Path $ordner '..\flotte\autostart.ps1'
+    $aufgaben = @(@{ Name = 'Flottenbruecke'; Ausfuehren = 'docker'; Argumente = 'compose up -d'; Ordner = $ordner })
     $startOrdner = Join-Path $Heim '.claude\flotte\start'
     foreach ($s in @(Get-ChildItem -LiteralPath $startOrdner -Filter '*.ps1' -File -ErrorAction SilentlyContinue)) {
-        $wie = & $autostartSkript -Skript $s.FullName -Heim $Heim
-        $text = @{ angelegt = 'angelegt: {0} (beim Anmelden, ohne Fenster)'; vorhanden = 'vorhanden: {0}'; umgestellt = 'umgestellt: {0} (ohne Fenster)' }[[string]$wie]
-        'Aufgabe ' + ($text -f "Flotte $($s.BaseName)")
+        $aufgaben += @{ Name = "Flotte $($s.BaseName)"; Ausfuehren = 'pwsh'; Argumente = "-NoProfile -File `"$($s.FullName)`""; Ordner = $s.DirectoryName }
+    }
+    foreach ($a in $aufgaben) {
+        if (Get-ScheduledTask -TaskName $a.Name -ErrorAction SilentlyContinue) { "Aufgabe vorhanden: $($a.Name)"; continue }
+        $aktion = New-ScheduledTaskAction -Execute $a.Ausfuehren -Argument $a.Argumente -WorkingDirectory $a.Ordner
+        # for the signed-in user: no admin rights needed
+        Register-ScheduledTask -TaskName $a.Name -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $aktion -User $env:USERNAME | Out-Null
+        "Aufgabe angelegt: $($a.Name) (beim Anmelden)"
     }
 }
 

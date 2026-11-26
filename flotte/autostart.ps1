@@ -2,7 +2,7 @@
 .SYNOPSIS
     The scheduled task "Flotte <name>" at logon for a driver start script: runs it without a window via hintergrund.ps1.
 .DESCRIPTION
-    Used by `flotte projekt hinzufuegen --autostart` and flottenbruecke/einrichten.ps1 -Autostart. Prints one word:
+    Used by `flotte projekt hinzufuegen --autostart`. Prints one word:
     - angelegt:   the task was missing and is registered for the signed-in user (no admin rights needed).
     - vorhanden:  the task exists with this very action; nothing changed.
     - umgestellt: the task exists with another action (an older one with a visible window): action and settings are
