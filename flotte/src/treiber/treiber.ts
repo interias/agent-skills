@@ -182,8 +182,8 @@ export interface Welt {
   stand?: () => SkillStand | null;
   /** #95: konten.json, the home folder of new accounts and the terminal for a sign-in; default the real ones */
   konten?: Partial<Pick<KontenWelt, 'datei' | 'heim' | 'terminal'>>;
-  /** #125: the Gitea API and the terminal for linking the forge; default the real ones */
-  forge?: Partial<Pick<ForgeWelt, 'abruf' | 'terminal'>>;
+  /** #125: the terminal for linking the forge; default the real one */
+  forge?: Partial<Pick<ForgeWelt, 'terminal'>>;
   /** #126: home folder, konten.json, adapter template and the scheduled task of a new project; default the real ones */
   projekt?: Partial<Pick<ProjektWelt, 'heim' | 'kontenDatei' | 'vorlage' | 'autostart' | 'aufrufAsync' | 'quelleUmleiten'>>;
 }
@@ -2094,7 +2094,7 @@ class Treiber {
   // ---- projects (#126): the machine writes adapter and start script of another folder; the logbook names only its folder
 
   get projektWelt(): ProjektWelt {
-    return { aufrufer: this.w.aufrufer, heim: homedir(), kontenDatei: this.kontenWelt.datei, abruf: this.w.forge?.abruf, eigenesRepo: this.e.repo, ...this.w.projekt };
+    return { aufrufer: this.w.aufrufer, heim: homedir(), kontenDatei: this.kontenWelt.datei, eigenesRepo: this.e.repo, ...this.w.projekt };
   }
 
   /** projekt_hinzufuegen over the bridge, with the PIN: like `flotte projekt hinzufuegen`, the start script reports to this bridge */

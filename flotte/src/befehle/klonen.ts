@@ -182,7 +182,7 @@ export interface Zugang {
 }
 
 /** Write and issue rights on the repository, then the labels of the fleet: missing ones are created when the right is there. */
-export async function zugangPruefen(repo: string, q: Quelle, w: { aufrufer: Aufrufer; abruf?: typeof fetch }): Promise<Zugang> {
+export async function zugangPruefen(repo: string, q: Quelle, w: { aufrufer: Aufrufer }): Promise<Zugang> {
   const z: Zugang = { push: null, issues: null, labelsAngelegt: [], labelsFehlen: [] };
   const r = await repoRechte(repo, q, w);
   if ('fehler' in r) z.fehler = r.fehler;

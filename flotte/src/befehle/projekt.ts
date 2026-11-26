@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { aufrufen, type AsyncAufrufer, type Aufrufer } from '../aufruf.ts';
 import { KONTEN_DATEI, kontenTafel, kontoAus, liesKonten } from '../werkzeuge/konten.ts';
 import { flotteDir } from '../werkzeuge/zustand.ts';
-import { forgeStatus, type ForgeStatus, type ForgeWelt } from './forge.ts';
+import { forgeStatus, type ForgeStatus } from './forge.ts';
 import { einrichtenUmschau, giteaHerkuenfte, klonen, ordnerVorschlag, originPasst, pruefeQuelle, type Quelle, vorlageMitQuelle, type Zugang, zugangPruefen, zugangText } from './klonen.ts';
 
 export type Autostart = 'angelegt' | 'vorhanden';
@@ -30,7 +30,6 @@ export interface ProjektWelt {
   vorlage?: string;
   /** the scheduled task at logon, only when missing; default the real one (tests never register one) */
   autostart?: (aufgabe: string, skript: string) => Autostart;
-  abruf?: ForgeWelt['abruf'];
   /** the clone (--klonen); default the real git */
   aufrufAsync?: AsyncAufrufer;
   /** test hatch only: the local source the clone really reads (src/befehle/klonen.ts) */
@@ -247,7 +246,7 @@ export async function hinzufuegen(ordner: string | null, o: { autostart: boolean
   let status: ForgeStatus | null = null;
   if (vorhanden && origin) {
     try {
-      status = await forgeStatus(abs, { aufrufer: w.aufrufer, abruf: w.abruf });
+      status = await forgeStatus(abs, { aufrufer: w.aufrufer });
     } catch {
       status = null;
     }
