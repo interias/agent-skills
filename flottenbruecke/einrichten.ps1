@@ -11,8 +11,9 @@
     - docker compose up -d --build --wait in this folder, with docker from PATH or, without one, docker in
       WSL (wsl -e docker, the default distribution).
     - Writes ~/.claude/flotte/konten.json with the accounts 1-3 once, when the file is missing (#94).
-    - Only with -Autostart: a scheduled task at logon for the bridge ("Flottenbruecke") and one per driver
-      start script in ~/.claude/flotte/start/*.ps1 ("Flotte <name>"), each only when it is missing.
+    - Only with -Autostart: a scheduled task at logon for the bridge ("Flottenbruecke"), only when it is
+      missing, and one per driver start script in ~/.claude/flotte/start/*.ps1 ("Flotte <name>") through
+      the installed flotte/autostart.ps1: without a window, an older task with a window is switched over.
       With docker in WSL the bridge task keeps WSL running (sleep infinity), else WSL stops the container.
       Without the switch the task scheduler is not touched.
     - At the end opens the bridge in the browser; it guides through the rest (accounts, forge, projects).
@@ -119,12 +120,7 @@ if ($Autostart) {
     # WSL ends its VM when no process holds it, and the container with it: the task stays and holds it, without a time limit
     $bruecke = if ($wsl) { @{ Name = 'Flottenbruecke'; Ausfuehren = 'wsl.exe'; Argumente = '-e sh -c "docker compose up -d; exec sleep infinity"'; Ordner = $ordner; Dauernd = $true } }
                else { @{ Name = 'Flottenbruecke'; Ausfuehren = 'docker'; Argumente = 'compose up -d'; Ordner = $ordner } }
-    $aufgaben = @($bruecke)
-    $startOrdner = Join-Path $Heim '.claude\flotte\start'
-    foreach ($s in @(Get-ChildItem -LiteralPath $startOrdner -Filter '*.ps1' -File -ErrorAction SilentlyContinue)) {
-        $aufgaben += @{ Name = "Flotte $($s.BaseName)"; Ausfuehren = 'pwsh'; Argumente = "-NoProfile -File `"$($s.FullName)`""; Ordner = $s.DirectoryName }
-    }
-    foreach ($a in $aufgaben) {
+    foreach ($a in @($bruecke)) {
         if (Get-ScheduledTask -TaskName $a.Name -ErrorAction SilentlyContinue) { "Aufgabe vorhanden: $($a.Name)"; continue }
         $aktion = New-ScheduledTaskAction -Execute $a.Ausfuehren -Argument $a.Argumente -WorkingDirectory $a.Ordner
         # for the signed-in user: no admin rights needed
@@ -132,6 +128,13 @@ if ($Autostart) {
         if ($a.Dauernd) { $mehr.Settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) }
         Register-ScheduledTask -TaskName $a.Name -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $aktion -User $env:USERNAME @mehr | Out-Null
         "Aufgabe angelegt: $($a.Name) (beim Anmelden)"
+    }
+    # one task per driver start script, through the driver's own autostart.ps1: without a window, and an older task
+    # with a window is switched over
+    $autostartSkript = Join-Path $Heim '.claude\skills\flotte\autostart.ps1'
+    foreach ($s in @(Get-ChildItem -LiteralPath (Join-Path $Heim '.claude\flotte\start') -Filter '*.ps1' -File -ErrorAction SilentlyContinue)) {
+        if (-not (Test-Path -LiteralPath $autostartSkript)) { "Aufgabe Flotte $($s.BaseName): nicht angelegt, autostart.ps1 fehlt (erst install.ps1)"; continue }
+        "Aufgabe Flotte $($s.BaseName): $(& $autostartSkript -Skript $s.FullName -Heim $Heim)"
     }
 }
 

@@ -88,14 +88,37 @@ Describe 'einrichten.ps1 -Autostart' {
     $dir = New-Bruecke
     New-Item -ItemType Directory -Path "$dir\heim\.claude\flotte\start" | Out-Null
     Set-Content -Path "$dir\heim\.claude\flotte\start\flotte-probe.ps1" -Value '# start'
+    # the installed autostart.ps1 of the driver, as a stand-in that only records its call
+    New-Item -ItemType Directory -Path "$dir\heim\.claude\skills\flotte" | Out-Null
+    Set-Content -Path "$dir\heim\.claude\skills\flotte\autostart.ps1" -Value 'param($Skript, $Heim) [void]$global:eProtokoll.Add("autostart $([IO.Path]::GetFileName($Skript)) $Heim"); ''angelegt'''
     Set-Attrappen -vorhanden 'Flottenbruecke'
     try { $out = & "$dir\einrichten.ps1" -Heim "$dir\heim" -Autostart -OhneBrowser }
     finally { Remove-Attrappen }
     $protokoll = @($global:eProtokoll)
 
-    It 'registers only the missing tasks: one per driver start script, the existing bridge task stays' {
-        @($protokoll | Where-Object { $_ -like 'aufgabe *' }) -join ',' | Should Be 'aufgabe Flotte flotte-probe'
+    It 'registers only the missing bridge task, the existing one stays' {
+        @($protokoll | Where-Object { $_ -like 'aufgabe *' }).Count | Should Be 0
         $out -contains 'Aufgabe vorhanden: Flottenbruecke' | Should Be $true
+    }
+
+    It 'hands each driver start script to the installed autostart.ps1 (without a window), never registers it with one' {
+        @($protokoll | Where-Object { $_ -like 'autostart *' }) -join ',' | Should Be "autostart flotte-probe.ps1 $dir\heim"
+        @($protokoll | Where-Object { $_ -like 'aktion pwsh*' }).Count | Should Be 0
+        $out -contains 'Aufgabe Flotte flotte-probe: angelegt' | Should Be $true
+    }
+}
+
+Describe 'einrichten.ps1 -Autostart without the installed driver' {
+    $dir = New-Bruecke
+    New-Item -ItemType Directory -Path "$dir\heim\.claude\flotte\start" | Out-Null
+    Set-Content -Path "$dir\heim\.claude\flotte\start\flotte-probe.ps1" -Value '# start'
+    Set-Attrappen -vorhanden 'Flottenbruecke'
+    try { $out = & "$dir\einrichten.ps1" -Heim "$dir\heim" -Autostart -OhneBrowser }
+    finally { Remove-Attrappen }
+
+    It 'registers no driver task and says that install.ps1 comes first' {
+        @($global:eProtokoll | Where-Object { $_ -like 'aufgabe *' -or $_ -like 'aktion pwsh*' }).Count | Should Be 0
+        $out -contains 'Aufgabe Flotte flotte-probe: nicht angelegt, autostart.ps1 fehlt (erst install.ps1)' | Should Be $true
     }
 
     It 'an empty PIN leaves answering switched off; -OhneBrowser opens nothing' {
