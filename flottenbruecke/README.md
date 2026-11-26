@@ -422,9 +422,12 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
   Davor (#126) **Projekte**: je Projekt Repository, Rechner und **Entfernen** (PIN): Der Treiber hält an wie
   `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; ein neuer Start des
   Treibers bringt es zurück. Eine geplante Aufgabe „Flotte <name>“ (Autostart) bleibt und startet den Treiber bei jeder Anmeldung wieder, damit kehrt das Projekt zurück; abschalten in der Aufgabenplanung (Aufgabe „Flotte <name>“ deaktivieren oder löschen). Darunter **Projekt hinzufügen** (PIN) mit dem Ordner am Rechner und dem
-  Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar) prüft den Ordner,
+  Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar, „am Rechner des Treibers von“) prüft den Ordner,
   legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
-  was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.
+  was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband. Er fährt
+  das neue Repository nicht selbst: Jedes Projekt bekommt einen eigenen Treiber, der nicht gleich startet, sondern
+  mit Autostart bei der nächsten Anmeldung oder von Hand über das Startskript; sein erster Bericht legt das Projekt
+  in der Liste an.
   Statt des Ordners geht **oder Link zum Repository** (nur `https://` auf github.com oder die Gitea-Forge
   eines Projekts): Der Treiber klont mit der Anmeldung des Rechners in den vorgeschlagenen Ordner (änderbar),
   prüft Rechte und Labels und nennt, was zum Einrichten fehlt, ohne es auszuführen. Hat der Adapter eines

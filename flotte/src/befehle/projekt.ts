@@ -277,6 +277,8 @@ export async function hinzufuegen(ordner: string | null, o: { autostart: boolean
   const forge = { origin, status };
   const klonText = klon ? `${klon.geklont ? `geklont aus ${klon.quelle}` : `Ordner schon da, origin passt zu ${klon.quelle}`}; ` : '';
   const klonRest = klon ? `; ${zugangText(klon.zugang)}; Einrichten: ${klon.einrichten.length ? `gefunden ${klon.einrichten.join(', ')}; nichts davon ausgeführt` : 'nichts gefunden'}` : '';
+  // one project, one driver of its own: nothing here starts it, the logon or the person does
+  const startText = `; eigener Treiber für ${name}, nicht gestartet: ${autostart === 'angelegt' || autostart === 'vorhanden' ? 'startet bei der nächsten Anmeldung (Autostart) oder ' : 'startet '}von Hand mit ~/.claude/flotte/start/${name}.ps1`;
   return {
     projekt: name,
     ordner: abs,
@@ -287,7 +289,7 @@ export async function hinzufuegen(ordner: string | null, o: { autostart: boolean
     forge,
     ...(klon ? { klon } : {}),
     // the reason only here (the bridge and the CLI), not in the public logbook
-    meldung: `Projekt ${name}: ${klonText}${adapterText}; ${skriptText}${autoText}${autostartGrund ? `: ${autostartGrund}` : ''}; Forge: ${forgeText(forge)}${klonRest}`,
+    meldung: `Projekt ${name}: ${klonText}${adapterText}; ${skriptText}${autoText}${autostartGrund ? `: ${autostartGrund}` : ''}; Forge: ${forgeText(forge)}${klonRest}${startText}`,
     logbuch: `Projekt ${name} hinzugefügt: ${klon?.geklont ? 'geklont; ' : ''}${adapterText}; ${skriptText}${autoText}`,
   };
 }
