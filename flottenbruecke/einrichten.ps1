@@ -6,14 +6,27 @@
 .DESCRIPTION
     - Creates .env from .env.example when it is missing and asks for the PIN (hidden input, never shown
       or logged; empty: answering stays switched off). An existing .env is left alone, no PIN is asked.
-    - docker compose up -d --build --wait in this folder.
+      The variant decides how far the bridge reaches: arbeitsrechner (default) only this machine
+      (BRUECKE_BIND=127.0.0.1, BRUECKE_FERNZUGRIFF=aus), privatrechner the LAN and optionally Tailscale.
+    - docker compose up -d --build --wait in this folder, with docker from PATH or, without one, docker in
+      WSL (wsl -e docker, the default distribution).
     - Writes ~/.claude/flotte/konten.json with the accounts 1-3 once, when the file is missing (#94).
-    - Only with -Autostart: a scheduled task at logon for the bridge ("Flottenbruecke") and one per driver
-      start script in ~/.claude/flotte/start/*.ps1 ("Flotte <name>"), each only when it is missing.
+    - Only with -Autostart: a scheduled task at logon for the bridge ("Flottenbruecke"), only when it is
+      missing, and one per driver start script in ~/.claude/flotte/start/*.ps1 ("Flotte <name>") through
+      the installed flotte/autostart.ps1: without a window, an older task with a window is switched over.
+      With docker in WSL the bridge task keeps WSL running (sleep infinity), else WSL stops the container.
       Without the switch the task scheduler is not touched.
     - At the end opens the bridge in the browser; it guides through the rest (accounts, forge, projects).
     install.ps1 calls this script when the bridge is missing (no .env here). Runs in Windows PowerShell
     5.1 and pwsh 7.
+
+.PARAMETER Variante
+    arbeitsrechner (default): the bridge only on this machine, no LAN, no remote access.
+    privatrechner: reachable in the LAN (phone in the WLAN), remote access over Tailscale possible.
+    Only applies when .env is created; an existing .env keeps its values.
+
+.PARAMETER Docker
+    auto (default): docker from PATH, otherwise docker in WSL. windows or wsl forces one of them.
 
 .PARAMETER Autostart
     Register the scheduled tasks at logon for the bridge and the driver start scripts.
@@ -28,10 +41,14 @@
     pwsh -File flottenbruecke\einrichten.ps1
 
 .EXAMPLE
-    pwsh -File flottenbruecke\einrichten.ps1 -Autostart
+    pwsh -File flottenbruecke\einrichten.ps1 -Variante privatrechner -Autostart
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('arbeitsrechner', 'privatrechner')]
+    [string]$Variante = 'arbeitsrechner',
+    [ValidateSet('auto', 'windows', 'wsl')]
+    [string]$Docker = 'auto',
     [switch]$Autostart,
     [string]$Heim = $HOME,
     [switch]$OhneBrowser
@@ -42,31 +59,45 @@ $ordner = $PSScriptRoot
 # no BOM: docker compose reads .env, Node reads konten.json
 $utf8 = New-Object Text.UTF8Encoding $false
 
-# 1. .env with the PIN, only when it is missing
+# 1. .env with the PIN and the variant, only when it is missing
 $envDatei = Join-Path $ordner '.env'
+$lokal = $Variante -eq 'arbeitsrechner'
+$werte = @{ BRUECKE_BIND = $(if ($lokal) { '127.0.0.1' } else { '0.0.0.0' }); BRUECKE_FERNZUGRIFF = $(if ($lokal) { 'aus' } else { 'an' }) }
 if (Test-Path -LiteralPath $envDatei) {
-    'behalten: .env (PIN unveraendert)'
+    'behalten: .env (PIN und Variante unveraendert)'
+    if ($PSBoundParameters.ContainsKey('Variante')) { "Hinweis: -Variante gilt nur fuer eine neue .env; BRUECKE_BIND und BRUECKE_FERNZUGRIFF dort von Hand aendern." }
 } else {
     $sicher = Read-Host -AsSecureString 'PIN fuer die Bruecke (leer: Antworten abgeschaltet)'
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sicher)
     try {
         $pin = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-        $zeilen = Get-Content -LiteralPath (Join-Path $ordner '.env.example') | ForEach-Object { if ($_ -match '^BRUECKE_PIN=') { "BRUECKE_PIN=$pin" } else { $_ } }
+        $zeilen = Get-Content -LiteralPath (Join-Path $ordner '.env.example') | ForEach-Object {
+            if ($_ -match '^BRUECKE_PIN=') { "BRUECKE_PIN=$pin" }
+            elseif ($_ -match '^(BRUECKE_BIND|BRUECKE_FERNZUGRIFF)=') { "$($Matches[1])=$($werte[$Matches[1]])" }
+            else { $_ }
+        }
         [IO.File]::WriteAllText($envDatei, (($zeilen -join "`n") + "`n"), $utf8)
     } finally {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
         $pin = $null
     }
-    "angelegt: .env$(if ($sicher.Length) { ' mit PIN' } else { ' ohne PIN (Antworten abgeschaltet)' })"
+    "angelegt: .env ($Variante)$(if ($sicher.Length) { ' mit PIN' } else { ' ohne PIN (Antworten abgeschaltet)' })"
 }
 
-# 2. the container; compose leaves a running, unchanged one as it is
+# 2. the container; compose leaves a running, unchanged one as it is. docker from PATH, else docker in WSL:
+# wsl runs it in this folder as /mnt/<drive>/..., compose reads .env and compose.yaml from there.
+$wsl = $Docker -eq 'wsl' -or ($Docker -eq 'auto' -and -not (Get-Command docker -ErrorAction SilentlyContinue))
+if ($wsl) {
+    if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) { throw 'docker nicht gefunden: weder im PATH noch WSL.' }
+    wsl -e docker version --format '{{.Server.Version}}' *> $null
+    if ($LASTEXITCODE) { throw 'docker nicht erreichbar: weder im PATH noch in WSL (wsl -e docker version).' }
+}
 Push-Location $ordner
 try {
-    docker compose up -d --build --wait
+    if ($wsl) { wsl -e docker compose up -d --build --wait } else { docker compose up -d --build --wait }
     if ($LASTEXITCODE) { throw "docker compose up endete mit Code $LASTEXITCODE." }
 } finally { Pop-Location }
-'Bruecke laeuft (docker compose)'
+"Bruecke laeuft (docker compose$(if ($wsl) { ' in WSL' }))"
 
 # 3. the accounts 1-3 once (#94), the same standard flotte uses without the file
 $kontenDatei = Join-Path $Heim '.claude\flotte\konten.json'
@@ -86,17 +117,24 @@ if (Test-Path -LiteralPath $kontenDatei) {
 
 # 4. only with -Autostart: scheduled tasks at logon, each only when missing
 if ($Autostart) {
-    $aufgaben = @(@{ Name = 'Flottenbruecke'; Ausfuehren = 'docker'; Argumente = 'compose up -d'; Ordner = $ordner })
-    $startOrdner = Join-Path $Heim '.claude\flotte\start'
-    foreach ($s in @(Get-ChildItem -LiteralPath $startOrdner -Filter '*.ps1' -File -ErrorAction SilentlyContinue)) {
-        $aufgaben += @{ Name = "Flotte $($s.BaseName)"; Ausfuehren = 'pwsh'; Argumente = "-NoProfile -File `"$($s.FullName)`""; Ordner = $s.DirectoryName }
-    }
-    foreach ($a in $aufgaben) {
+    # WSL ends its VM when no process holds it, and the container with it: the task stays and holds it, without a time limit
+    $bruecke = if ($wsl) { @{ Name = 'Flottenbruecke'; Ausfuehren = 'wsl.exe'; Argumente = '-e sh -c "docker compose up -d; exec sleep infinity"'; Ordner = $ordner; Dauernd = $true } }
+               else { @{ Name = 'Flottenbruecke'; Ausfuehren = 'docker'; Argumente = 'compose up -d'; Ordner = $ordner } }
+    foreach ($a in @($bruecke)) {
         if (Get-ScheduledTask -TaskName $a.Name -ErrorAction SilentlyContinue) { "Aufgabe vorhanden: $($a.Name)"; continue }
         $aktion = New-ScheduledTaskAction -Execute $a.Ausfuehren -Argument $a.Argumente -WorkingDirectory $a.Ordner
         # for the signed-in user: no admin rights needed
-        Register-ScheduledTask -TaskName $a.Name -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $aktion -User $env:USERNAME | Out-Null
+        $mehr = @{}
+        if ($a.Dauernd) { $mehr.Settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) }
+        Register-ScheduledTask -TaskName $a.Name -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME) -Action $aktion -User $env:USERNAME @mehr | Out-Null
         "Aufgabe angelegt: $($a.Name) (beim Anmelden)"
+    }
+    # one task per driver start script, through the driver's own autostart.ps1: without a window, and an older task
+    # with a window is switched over
+    $autostartSkript = Join-Path $Heim '.claude\skills\flotte\autostart.ps1'
+    foreach ($s in @(Get-ChildItem -LiteralPath (Join-Path $Heim '.claude\flotte\start') -Filter '*.ps1' -File -ErrorAction SilentlyContinue)) {
+        if (-not (Test-Path -LiteralPath $autostartSkript)) { "Aufgabe Flotte $($s.BaseName): nicht angelegt, autostart.ps1 fehlt (erst install.ps1)"; continue }
+        "Aufgabe Flotte $($s.BaseName): $(& $autostartSkript -Skript $s.FullName -Heim $Heim)"
     }
 }
 

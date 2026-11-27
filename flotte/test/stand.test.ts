@@ -50,7 +50,7 @@ describe('Einspielen (#154): die Schritte in ihrer Reihenfolge, als Attrappe', (
   writeFileSync(join(quelle, 'install.ps1'), '# attrappe');
   mkdirSync(join(quelle, 'flottenbruecke'), { recursive: true });
   const s: SkillStand = { commit: 'aaaaaaa1111111111111111111111111111111111', datum: '', installiert: null, quelle };
-  function attrappe(o: { status?: string; zweig?: string; diff?: number; install?: number } = {}) {
+  function attrappe(o: { status?: string; zweig?: string; diff?: number; install?: number; docker?: number } = {}) {
     const schritte: string[] = [];
     const umgebung: Record<string, string | undefined>[] = [];
     const ok = (stdout = ''): Ergebnis => ({ code: 0, stdout, stderr: '' });
@@ -59,6 +59,8 @@ describe('Einspielen (#154): die Schritte in ihrer Reihenfolge, als Attrappe', (
       if (programm === 'git') schritte.push(`git ${g.join(' ')}`);
       else schritte.push(`${programm} ${args.join(' ')} @${opts?.cwd ?? ''}`);
       if (programm === 'docker') umgebung.push({ BRUECKE_COMMIT: opts?.env?.BRUECKE_COMMIT, BRUECKE_DATUM: opts?.env?.BRUECKE_DATUM });
+      if (programm === 'wsl.exe') umgebung.push({ BRUECKE_COMMIT: opts?.env?.BRUECKE_COMMIT, WSLENV: opts?.env?.WSLENV });
+      if (programm === 'docker' && o.docker) return { code: o.docker, stdout: '', stderr: 'ENOENT' };
       if (g[0] === 'status') return ok(o.status ?? '');
       if (g[0] === 'rev-parse' && g[1] === '--abbrev-ref') return ok(`${o.zweig ?? 'main'}\n`);
       if (g[0] === 'rev-parse') return ok('bbbbbbb2222222222222222222222222222222222\n');
@@ -86,6 +88,18 @@ describe('Einspielen (#154): die Schritte in ihrer Reihenfolge, als Attrappe', (
     ]);
     expect(x.umgebung).toEqual([{ BRUECKE_COMMIT: 'bbbbbbb2222222222222222222222222222222222', BRUECKE_DATUM: '2026-11-23T09:00:00+01:00' }]);
     expect(r).toEqual({ zeit: '2026-11-23T10:00:00.000Z', von: s.commit, auf: 'bbbbbbb2222222222222222222222222222222222', datum: '2026-11-23T09:00:00+01:00', bruecke: 'gebaut', fehler: null });
+  });
+
+  it('no docker on PATH (127): the bridge is built by docker in WSL, WSLENV carries commit and date; another docker error is no reason', () => {
+    const x = attrappe({ diff: 1, docker: 127 });
+    const r = einspielen(x.a, s, 'ccccccc', jetzt);
+    expect(x.schritte.slice(-2)).toEqual([`docker compose up -d --build @${join(quelle, 'flottenbruecke')}`, `wsl.exe -e docker compose up -d --build @${join(quelle, 'flottenbruecke')}`]);
+    expect(x.umgebung[1].BRUECKE_COMMIT).toBe('bbbbbbb2222222222222222222222222222222222');
+    expect(x.umgebung[1].WSLENV?.split(':').slice(-2)).toEqual(['BRUECKE_COMMIT', 'BRUECKE_DATUM']);
+    expect(r).toMatchObject({ bruecke: 'gebaut', fehler: null });
+    const y = attrappe({ diff: 1, docker: 1 });
+    expect(einspielen(y.a, s, 'ccccccc', jetzt).fehler).toMatch(/^docker compose/);
+    expect(y.schritte.some((z) => z.startsWith('wsl.exe'))).toBe(false);
   });
 
   it('flottenbruecke/ unchanged: no build; a bridge without a known commit is built', () => {

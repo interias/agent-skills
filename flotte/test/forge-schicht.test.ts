@@ -75,6 +75,13 @@ describe('forge layer: Gitea through its API (stand-in)', () => {
     expect([1, 2, 3].map((n) => z.pr(n, ['mergeable']).mergebar)).toEqual(['UNKNOWN', 'MERGEABLE', 'CONFLICTING']);
   });
 
+  it('a merged pull request whose branch was deleted keeps its branch name as head (Gitea: head.label)', () => {
+    const b = bestand();
+    b.prs.push({ nummer: 7, titel: 'Mission', body: '', kopf: 'epic/3-a', basis: 'main', zustand: 'MERGED', kopfGeloescht: true });
+    const z = giteaZugriff(giteaAttrappe(b), GITEA_API(b), () => 'token geheim');
+    expect(z.pr(7, ['state', 'headRefName'])).toMatchObject({ zustand: 'MERGED', kopf: 'epic/3-a' });
+  });
+
   it('a label someone else made after the first read is found by reading the list again', () => {
     const b = bestand();
     const i = issueAnlegen(b, { titel: 'A', labels: ['epic'] });

@@ -28,6 +28,7 @@ export const REGELN: AuftragsRegeln = {
   acceptance_section: ['## Abnahmekriterien', '## Akzeptanzkriterien', '## Acceptance criteria'],
   verification_section: '## Verifikationsweg',
   modules_section: '## Betroffene Module',
+  spec: false,
 };
 
 /** Mission with three Missionsziele; also the draft of the real probe. */
@@ -165,6 +166,21 @@ export function auftragFaelle(neu: () => Pruefstand | Promise<Pruefstand>) {
       expect(neue).toHaveLength(1);
       expect(neue[0]).toMatchObject({ titel: 'Einzelnes Ziel', labels: ['needs-triage'] });
       expect(neue[0].body.startsWith('## Abnahmekriterien')).toBe(true);
+    },
+    T,
+  );
+
+  it(
+    'issue_form spec: the single issue is the spec, the mission itself, and carries epic next to ready_label',
+    async () => {
+      const p = await neu();
+      const vorher = new Set((await p.issues()).map((i) => i.nummer));
+      const r = await auftragAusfuehren(ENTWURF_EINZELN, { ...REGELN, spec: true }, p.forge, { starten: true, trocken: false });
+      const neue = (await p.issues()).filter((i) => !vorher.has(i.nummer));
+      expect(r.mission).toBeNull();
+      expect(neue).toHaveLength(1);
+      expect([...neue[0].labels].sort()).toEqual(['epic', 'ready-for-agent']);
+      expect(r.labels?.ziele).toEqual(['epic', 'ready-for-agent']);
     },
     T,
   );

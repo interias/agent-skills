@@ -29,7 +29,7 @@ def test_beispiel_zeigt_nur_offene_epics_mit_stufe_prio_und_pakete(client, beric
     assert k[41]['issueUrl'].endswith('/issues/41')
     assert len(k[41]['pakete']) == 3 and all('url' in p for p in k[41]['pakete'])
     assert k[41]['prognose'] == {'p50': 10800, 'p90': 18000}
-    assert set(k[41]) == {'id', 'nr', 'titel', 'stufe', 'prio', 'konto', 'issueUrl', 'pr', 'prUrl', 'warum', 'fragen', 'prognose', 'pakete', 'nach', 'folgen', 'imEinsatz', 'pausiert', 'prioritaet', 'pause', 'vorrang', 'merge', 'andocken', 'lage'}
+    assert set(k[41]) == {'id', 'nr', 'titel', 'stufe', 'prio', 'konto', 'issueUrl', 'pr', 'prUrl', 'warum', 'fragen', 'prognose', 'pakete', 'nach', 'folgen', 'imEinsatz', 'pausiert', 'prioritaet', 'pause', 'vorrang', 'merge', 'andocken', 'lage', 'aufgegeben', 'einreihen'}
 
 
 def test_sortiert_nach_stufe_dann_prio_dann_nummer(client, bericht):
@@ -56,14 +56,16 @@ def test_kante_auf_unbekanntes_epic_ist_markiert_und_selbstkante_faellt_weg(clie
     assert k[6]['folgen'] == []
 
 
-def test_aufgegeben_und_gemergt_sind_kein_backlog(client, bericht):
+def test_gemergt_ist_kein_backlog_aufgegeben_bleibt_am_ende(client, bericht):
     bericht['epics'] = [epic(1, 'fertig'), epic(2, 'gemergt'), epic(3, 'abgebrochen', aufgegebenAm='2026-11-20T10:00:00Z'), epic(4, 'abgebrochen', grund='Gate rot'), epic(5, nach=[3])]
     melde(client, bericht)
     k = karte(client)
-    assert sorted(k) == [4, 5]
-    assert k[4]['warum'] == 'Gate rot'
-    # the given-up predecessor is no open one
-    assert k[5]['nach'][0]['offen'] is False
+    assert sorted(k) == [3, 4, 5]
+    assert k[4]['warum'] == 'Gate rot' and k[4]['aufgegeben'] is None
+    # its issue is open: the given-up mission stays on the map, last, with einreihen to take it back
+    assert k[3]['aufgegeben'] == '2026-11-20T10:00:00Z' and k[3]['einreihen'] is None
+    assert list(k)[-1] == 3
+    assert k[5]['nach'][0]['offen'] is True
 
 
 def test_warum_und_offene_fragen(client, bericht):

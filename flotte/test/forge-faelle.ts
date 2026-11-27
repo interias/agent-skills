@@ -105,6 +105,8 @@ export function forgeFaelle(neu: () => Promise<ForgeStand>) {
     const url = s.zugriff.prAnlegen(basis, 'epic/1-probe', 'WIP: Probe', 'Gate grün.');
     const nr = Number(/\/pulls?\/(\d+)$/.exec(url)![1]);
     expect(s.zugriff.prLink(nr)).toBe(url);
+    // the bridge builds every issue and PR link from this page, so it is the forge's own host, never github.com for Gitea
+    expect(url.startsWith(`${s.zugriff.web}/`)).toBe(true);
     expect(s.zugriff.pr(nr, ['state', 'mergeable', 'url', 'headRefName', 'baseRefName', 'headRefOid', 'body'])).toMatchObject({ nummer: nr, zustand: 'OPEN', kopf: 'epic/1-probe', basis, body: 'Gate grün.', url });
     expect(s.zugriff.pr(nr, ['headRefOid']).kopfSha).not.toBe('');
     // Gitea calls a WIP pull request not mergeable; that is no conflict (review of #127)

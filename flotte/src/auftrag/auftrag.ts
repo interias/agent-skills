@@ -28,6 +28,8 @@ export interface AuftragsRegeln {
   acceptance_section: string[];
   verification_section: string;
   modules_section: string;
+  /** issue_form: spec — a draft without mission is one spec, the mission itself, and carries epic_label */
+  spec: boolean;
 }
 
 export const TRIAGE_LABEL = 'needs-triage';
@@ -160,7 +162,9 @@ export interface Auftrag {
 export async function auftragAusfuehren(text: string, r: AuftragsRegeln, forge: Forge, o: Auftrag) {
   const e = entwurfLesen(text);
   const hinweise = pruefen(e, r);
-  const zielLabels = labelsFuer('ziel', r, o.starten);
+  // a spec stands alone and is the mission itself: without epic_label the driver never starts it
+  const zielLabels = labelsFuer(!e.mission && r.spec ? 'mission' : 'ziel', r, o.starten);
+  if (!e.mission && !r.spec && o.starten) hinweise.push('Missionsziel ohne Mission: freigegeben startet es kein Außeneinsatz, bis es an einer Mission hängt (oder der Adapter `issue_form: spec` sagt).');
   if (o.trocken) {
     return {
       trocken: true as const,

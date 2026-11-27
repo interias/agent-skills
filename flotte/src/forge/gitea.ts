@@ -89,7 +89,8 @@ export function giteaZugriff(a: Aufrufer, api: string, kopf: () => string, epicL
     zustand: j.merged ? 'MERGED' : zustandAus(j.state),
     // Gitea says mergeable false also for a WIP title and while it checks after a push to the base: no conflict
     mergebar: j.mergeable === true ? 'MERGEABLE' : j.mergeable === false && !/^\s*WIP:/i.test(String(j.title ?? '')) ? 'CONFLICTING' : 'UNKNOWN',
-    kopf: String(j.head?.ref ?? ''),
+    // a deleted head branch turns head.ref into refs/pull/<n>/head; head.label keeps the branch name
+    kopf: String((/^refs\/pull\//.test(String(j.head?.ref ?? '')) && j.head?.label) || (j.head?.ref ?? '')),
     basis: String(j.base?.ref ?? ''),
     kopfSha: String(j.head?.sha ?? ''),
     erstellt: String(j.created_at ?? ''),
@@ -117,6 +118,7 @@ export function giteaZugriff(a: Aufrufer, api: string, kopf: () => string, epicL
   return {
     art: 'gitea',
     repo: `${owner}/${name}`,
+    web,
     prLink: (nr) => `${web}/pulls/${nr}`,
     issue: (nr, felder) => issueAus(aufruf('GET', `/issues/${nr}`), felder),
     issues: (label, felder, limit = 500) => alle(`/issues?state=open&type=issues&labels=${encodeURIComponent(label)}`, limit).map((j) => issueAus(j, felder)),

@@ -302,7 +302,9 @@ Steht `base_branch` auf `from-issue`, läuft 0b erst, nachdem Phase 1 die Basis 
     Missions-Worktree räumt `Down` ab); ein Kommentar an der Mission nennt den Grund (welche Mission
     offen ist) und die Wiederaufnahme (ihr Andocken). Unter dem Flotten-Treiber endet der Zug mit
     `FLOTTE-ENDE` ohne Pull Request, das jede offene Vorbedingung als `#<n>` nennt; der Treiber setzt
-    die Mission dann auf wartend und startet sie nach dem Andocken neu (#133).
+    die Mission dann auf wartend und startet sie nach dem Andocken neu (#133). Muss erst der Mensch
+    etwas tun (ein Ticket in einem anderen Repository, ein Label, ein PR), nennt der Block das in der
+    Zeile `Mensch:` (`flotte/references/bloecke.md`).
 - **Basis bestimmen**, wenn `base_branch: from-issue`: aus der Kopfzeile oder den Further Notes,
   sonst der Branch, von dem die vorausgesetzten Missionen abgezweigt sind (`git log --merges`). Nicht
   raten.

@@ -112,7 +112,7 @@ describe('Befund 3: Grenze des Admirals bei merge: nach_gate', () => {
 describe('Befund 4: der PR aus FLOTTE-ENDE gehört zum Epic', () => {
   for (const [fall, info] of [
     ['a foreign branch', { headRefName: 'epic/49-fremd', state: 'OPEN' }],
-    ['a PR of the epic that is no longer open', { headRefName: 'epic/3-x', state: 'MERGED' }],
+    ['a PR of the epic closed without docking', { headRefName: 'epic/3-x', state: 'CLOSED' }],
   ] as const) {
     it(`${fall}: no merge, nothing watched, a question to the person; the answer resumes the run`, async () => {
       const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', prInfo: () => ({ ...info, baseRefName: 'main', headRefOid: 'b'.repeat(40), body: GATE_BODY }) });
@@ -125,6 +125,26 @@ describe('Befund 4: der PR aus FLOTTE-ENDE gehört zum Epic', () => {
       expect(texte(z).some((x) => /PR #49 angedockt/.test(x))).toBe(false);
     }, T);
   }
+
+  it('a PR of the epic docked before (its branch deleted since): the mission counts as docked, no question', async () => {
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', pr: () => ({ state: 'MERGED' }), prInfo: () => ({ headRefName: 'epic/3-x', state: 'MERGED', baseRefName: 'main', headRefOid: 'b'.repeat(40), body: GATE_BODY }) });
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 49) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 2500 }), t.welt);
+    expect(t.p.merges).toEqual([]);
+    expect(z.fragen).toEqual([]);
+    expect(z.epics['3']).toMatchObject({ stufe: 'fertig', pr: 49 });
+    expect(texte(z).some((x) => /PR #49 angedockt/.test(x))).toBe(true);
+  }, T);
+
+  it('a merged PR whose head the forge no longer names: the question says it is docked and what an answer does', async () => {
+    const t = aufbau({ adapter: 'merge: nach_gate\ngate_command: gate voll', prInfo: () => ({ headRefName: 'refs/pull/49/head', state: 'MERGED', baseRefName: 'main', headRefOid: 'b'.repeat(40), body: GATE_BODY }) });
+    const buch = drehbuch([lauf(3, [{ text: ende(3, 49) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: 2500 }), t.welt);
+    expect(t.p.merges).toEqual([]);
+    expect(z.fragen).toEqual([expect.objectContaining({ epic: 3, nr: PR_FRAGE })]);
+    expect(z.fragen[0].frage).toMatch(/PR #49 aus FLOTTE-ENDE ist bereits angedockt.*Branch.*gelöscht/);
+    expect(z.fragen[0].frage).toMatch(/Antwort/);
+  }, T);
 });
 
 describe('Befund 7: Konto des Admirals und --konto-max', () => {

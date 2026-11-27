@@ -50,6 +50,22 @@ def zeit(text: str | None) -> datetime | None:
     return t if t.tzinfo else t.replace(tzinfo=ZoneInfo('UTC'))
 
 
+def pr_pfad(url: str) -> str:
+    """GitHub shows a pull request under /pull/<nr>, Gitea under /pulls/<nr>."""
+    return 'pull' if url.startswith('https://github.com/') else 'pulls'
+
+
+def _lage(lage: dict | None, url: str | None) -> dict | None:
+    """The driver's line as it came; the person's step gets the link to the ticket or PR the run named (`ref`)."""
+    d = (lage or {}).get('deinSchritt')
+    if not d:
+        return lage
+    m = re.fullmatch(r'(?:([\w.-]+/[\w.-]+))?#(\d+)', d.get('ref') or '')
+    basis = url and m and (f"{url.rsplit('/', 2)[0]}/{m.group(1)}" if m.group(1) else url)
+    link = f"{basis}/{pr_pfad(basis) if d['ziel'] == 'pr' else 'issues'}/{m.group(2)}" if basis else None
+    return {**lage, 'deinSchritt': {**d, 'ref': d.get('ref'), 'url': link}}
+
+
 def buchstaben(text: str | None) -> list[str]:
     """The letters at the start of an answer or recommendation: 'B', 'A, C', 'B) mit Zusatz'."""
     m = re.match(r'\s*([A-Z](?:\s*[,;]\s*[A-Z])*)(?![\wÄÖÜäöüß])', text or '')
@@ -391,7 +407,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'nr': nr,
                 'stufe': stufe,
                 'pr': ep.get('pr'),
-                'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
+                'prUrl': f"{url}/{pr_pfad(url)}/{ep['pr']}" if url and ep.get('pr') else None,
                 'notiz': ep.get('notiz', ''),
                 'geparkt': ep.get('geparkt', []),
                 'pakete': _pakete(ep.get('pakete', []), url, schwelle, jetzt),
@@ -404,7 +420,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'gestartetAm': ep.get('gestartetAm'),
                 'entscheidungen': entscheidungen.get(nr, []),
                 # the line of the card from the driver; None from an older one: the card as before
-                'lage': ep.get('lage'),
+                'lage': _lage(ep.get('lage'), url),
                 # Tag Q: the usage of the mission so far; None from an older driver
                 'verbrauch': ep.get('verbrauch'),
             }
@@ -432,7 +448,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     erledigt.append({**karte, 'art': 'gemergt', 'zeit': t.isoformat()})
                 continue
             if stufe == 'wartend':
-                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert'), 'lage': ep.get('lage')})
+                bereit.append({'forge': forge, 'repo': kurz, 'id': karte['id'], 'nr': nr, 'titel': ep.get('titel', ''), 'issueUrl': karte['issueUrl'], 'notiz': ep.get('notiz', ''), 'prio': bool(ep.get('prio')), 'prognose': ep.get('prognose'), 'pakete': karte['pakete'], 'entscheidungen': karte['entscheidungen'], 'pausiert': ep.get('pausiert'), 'lage': karte['lage']})
                 continue
             if stufe == 'pr':
                 rein = zeit(ep.get('schlangeSeit')) or seit_stufe
@@ -441,8 +457,9 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             # laeuft, nacharbeit, frage: a run; one that waits for the person entirely has no life sign
             laeufe.append({**karte, 'prozess': bool(ep.get('prozess')), 'leerlaufS': b.get('leerlaufS'), 'fragen': offen_je_epic.get(nr, 0), 'wartetAufDich': stufe == 'frage'})
 
-        # ---- the Sternenkarte: the open epics of this project, merged and given-up ones are no backlog
-        offen = [ep for ep in b.get('epics', []) if ep['stufe'] not in FERTIG and not (ep['stufe'] in HALT and ep.get('aufgegebenAm'))]
+        # ---- the Sternenkarte: the open epics of this project; merged ones are no backlog, given-up ones stay
+        # (their issue is open) at the end, with einreihen to take them back
+        offen = [ep for ep in b.get('epics', []) if ep['stufe'] not in FERTIG]
         offene_nr = {ep['nr'] for ep in offen}
         karte = []
         for ep in offen:
@@ -457,7 +474,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 'konto': ep.get('konto'),
                 'issueUrl': f'{url}/issues/{nr}' if url else None,
                 'pr': ep.get('pr'),
-                'prUrl': f"{url}/pull/{ep['pr']}" if url and ep.get('pr') else None,
+                'prUrl': f"{url}/{pr_pfad(url)}/{ep['pr']}" if url and ep.get('pr') else None,
                 # why it waits or halts: the whole reason of a blockade, else the note
                 'warum': (ep.get('grund') or ep.get('notiz', '')) if ep['stufe'] in HALT else ep.get('notiz', ''),
                 'fragen': offen_je_epic.get(nr, 0),
@@ -474,9 +491,11 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 # #112: how it merges now (an older driver: None, no switch) and the switch on its way
                 'merge': ep.get('merge'),
                 'andocken': _handlung(offen_h.get((nr, 'merge', None, None))),
-                'lage': ep.get('lage'),
+                'lage': _lage(ep.get('lage'), url),
+                'aufgegeben': ep.get('aufgegebenAm') if ep['stufe'] in HALT else None,
+                'einreihen': _handlung(offen_h.get((nr, 'halt', None, None))),
             })
-        karte.sort(key=lambda k: (KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
+        karte.sort(key=lambda k: (6 if k['aufgegeben'] else KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
         if b.get('triage'):

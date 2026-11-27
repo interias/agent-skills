@@ -19,6 +19,7 @@ Handy im WLAN. Daten liegen im Docker-Volume `flottenbruecke_daten` (SQLite).
 |---|---|---|
 | `BRUECKE_PORT` | `4747` | Port auf dem Rechner |
 | `BRUECKE_BIND` | `0.0.0.0` | `127.0.0.1`: nur am Rechner |
+| `BRUECKE_FERNZUGRIFF` | `an` | `aus`: der Eingang für Tailscale wird gar nicht geöffnet. `einrichten.ps1` setzt für den Arbeitsrechner `127.0.0.1` und `aus` ([`INSTALL.md`](../INSTALL.md), Schritt 2) |
 | `BRUECKE_RECHNER_PORT` | `4748` | Eingang des Rechners (#46), nur auf `127.0.0.1`: Rechte der Geräte, Not-Aus lösen |
 | `BRUECKE_PIN` | leer | PIN zum Koppeln eines Geräts und, mit gekoppeltem Gerät, für jede Antwort und Handlung; leer schaltet Schreiben ab |
 | `BRUECKE_TOKEN` | leer | optional: Treiber muss ihn als `X-Bruecke-Token` schicken |
@@ -56,7 +57,8 @@ gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht 
 Unterwegs zeigt die Brücke die Lage über [Tailscale](https://tailscale.com) (#48, agent-skills/ADR-0006):
 nur für Geräte im eigenen Tailnet, keine öffentliche Adresse, kein Port im Router. Der Zusatz ist ein
 eigener Container im Compose-Profil `fernzugriff` und standardmäßig aus; `docker compose up -d` startet
-wie bisher nur die Brücke.
+wie bisher nur die Brücke. Mit `BRUECKE_FERNZUGRIFF=aus` (Arbeitsrechner) öffnet die Brücke den Eingang
+dafür nicht; der Zusatz erreicht dann nichts.
 
 **Einschalten** (einmal, im Ordner `flottenbruecke/`):
 
@@ -127,7 +129,8 @@ Titel, die Stufe (läuft, wartet, Frage, blockiert, PR), `prio` bei `prio/hoch`,
 hält, die Reihenfolge („nach #38“ springt zur Zeile des Vorgängers, „danach #41“ zeigt die wartenden
 Nachfolger; ein erledigter Vorgänger ist ein Link aufs Issue) und eine aufklappbare Liste seiner
 Missionsziel-Tickets mit Stand und Links. Ein Klick auf die Stufe führt zur Karte der Mission auf der Brücke.
-Angedockte und aufgegebene Missionen gehören nicht in den Backlog. Die Daten stehen im Bericht des Treibers
+Angedockte Missionen gehören nicht in den Backlog; aufgegebene stehen am Ende als „aufgegeben“, solange ihr Issue offen
+ist, mit „Neu einreihen“. Die Daten stehen im Bericht des Treibers
 (`nach[]` je Mission ist neu, siehe `SCHNITTSTELLE.md`); die Brücke fragt keine Forge. Ein älterer Treiber
 ohne `nach[]` zeigt die Missionen ohne Kanten.
 
@@ -340,8 +343,8 @@ Eine Blockadekarte zeigt Grund, Lage und auf Wunsch das Log der Mission. Dazu zw
 PIN, die der Treiber im nächsten Takt abholt und ausführt:
 
 - **Neu einreihen** — Zähler zurück; der Lauf setzt fort und erfährt den Grund der Blockade.
-- **Aufgeben** — nach einer Rückfrage: Die Mission wird `abgebrochen` und nicht mehr gestartet.
-  Branch, Pull Request und Issue bleiben.
+- **Aufgeben** — nach einer Rückfrage: Die Mission wird `abgebrochen` und nicht mehr gestartet, bis sie in der
+  Sternenkarte neu eingereiht wird. Branch, Pull Request und Issue bleiben.
 
 **Zurücknehmen** in der Detailansicht der Mission (und für die Entscheidungen des Admirals von heute
 auch in „Erledigt heute“) widerruft eine Entscheidung des Admirals oder deine eigene Antwort bis zum
@@ -420,9 +423,12 @@ Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-
   Davor (#126) **Projekte**: je Projekt Repository, Rechner und **Entfernen** (PIN): Der Treiber hält an wie
   `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; ein neuer Start des
   Treibers bringt es zurück. Eine geplante Aufgabe „Flotte <name>“ (Autostart) bleibt und startet den Treiber bei jeder Anmeldung wieder, damit kehrt das Projekt zurück; abschalten in der Aufgabenplanung (Aufgabe „Flotte <name>“ deaktivieren oder löschen). Darunter **Projekt hinzufügen** (PIN) mit dem Ordner am Rechner und dem
-  Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar) prüft den Ordner,
+  Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar, „am Rechner des Treibers von“) prüft den Ordner,
   legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
-  was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband.
+  was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband. Er fährt
+  das neue Repository nicht selbst: Jedes Projekt bekommt einen eigenen Treiber, der nicht gleich startet, sondern
+  mit Autostart bei der nächsten Anmeldung oder von Hand über das Startskript; sein erster Bericht legt das Projekt
+  in der Liste an.
   Statt des Ordners geht **oder Link zum Repository** (nur `https://` auf github.com oder die Gitea-Forge
   eines Projekts): Der Treiber klont mit der Anmeldung des Rechners in den vorgeschlagenen Ordner (änderbar),
   prüft Rechte und Labels und nennt, was zum Einrichten fehlt, ohne es auszuführen. Hat der Adapter eines

@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { auftragAusfuehren } from '../src/auftrag/auftrag.ts';
 import { giteaForge } from '../src/auftrag/gitea.ts';
@@ -30,7 +30,13 @@ const ADMIN = 'flotte-test';
 const PASSWORT = `pw-${crypto.randomUUID()}`;
 
 const docker = (args: string[], env: Record<string, string> = {}) => {
-  const r = spawnSync('docker', args, { encoding: 'utf8', env: { ...process.env, ...env }, windowsHide: true });
+  let r = spawnSync('docker', args, { encoding: 'utf8', env: { ...process.env, ...env }, windowsHide: true });
+  // no docker in PATH: docker in WSL, from the folder of the compose file (WSL does not read a Windows path
+  // in the arguments) and with the variables handed over through WSLENV
+  if ((r.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+    const wslenv = [process.env.WSLENV, ...Object.keys(env)].filter(Boolean).join(':');
+    r = spawnSync('wsl.exe', ['-e', 'docker', ...args.map((a) => (a === COMPOSE ? basename(COMPOSE) : a))], { cwd: dirname(COMPOSE), encoding: 'utf8', env: { ...process.env, ...env, WSLENV: wslenv }, windowsHide: true });
+  }
   // up to the subcommand of compose (index 5), never further: later arguments carry the password
   if (r.status !== 0) throw new Error(`docker ${args.slice(0, 6).join(' ')}: ${(r.stderr || String(r.error ?? r.stdout)).trim()}`);
   return r.stdout;

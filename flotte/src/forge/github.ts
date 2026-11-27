@@ -53,6 +53,7 @@ export function githubZugriff(a: Aufrufer, repo: string): ForgeZugriff {
   return {
     art: 'github',
     repo,
+    web: `https://github.com/${repo}`,
     prLink: (nr) => `https://github.com/${repo}/pull/${nr}`,
     issue: (nr, felder) => issueAus(json(['issue', 'view', String(nr), '--repo', repo, '--json', felder.join(',')])),
     issues: (label, felder, limit = 500) => ((json(['issue', 'list', '--repo', repo, '--label', label, '--state', 'open', '--limit', String(limit), '--json', felder.join(',')]) ?? []) as any[]).map(issueAus),

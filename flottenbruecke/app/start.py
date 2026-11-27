@@ -34,6 +34,13 @@ def eingaenge(env) -> tuple[dict, dict, dict]:
     return lan, {'host': '0.0.0.0', 'port': FERNPORT, 'server_header': False}, {'host': '0.0.0.0', 'port': RECHNERPORT, 'server_header': False}
 
 
+def offene_eingaenge(env) -> list[dict]:
+    """The entries served: without the remote entry when BRUECKE_FERNZUGRIFF=aus (the work machine variant of
+    einrichten.ps1), so not even a started Tailscale add-on reaches the bridge."""
+    lan, fern, rechner = eingaenge(env)
+    return [lan, rechner] if env.get('BRUECKE_FERNZUGRIFF', '').strip().lower() == 'aus' else [lan, fern, rechner]
+
+
 async def beide(env) -> None:
     import asyncio
 
@@ -42,7 +49,7 @@ async def beide(env) -> None:
     from .main import erzeuge
 
     app = erzeuge()
-    await asyncio.gather(*(uvicorn.Server(uvicorn.Config(app, **o)).serve() for o in eingaenge(env)))
+    await asyncio.gather(*(uvicorn.Server(uvicorn.Config(app, **o)).serve() for o in offene_eingaenge(env)))
 
 
 def adresse(env) -> str:

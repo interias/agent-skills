@@ -204,6 +204,13 @@ def test_start_oeffnet_lan_und_fernweg():
     assert 'factory' not in lan_o and 'factory' not in fern_o and 'factory' not in rechner_o
 
 
+def test_ohne_fernzugriff_oeffnet_die_bruecke_den_fernweg_nicht():
+    # einrichten.ps1 -Variante arbeitsrechner writes BRUECKE_FERNZUGRIFF=aus: only the LAN entry and the machine's own
+    assert [o['port'] for o in start.offene_eingaenge({'BRUECKE_FERNZUGRIFF': 'aus'})] == [start.PORT, RECHNERPORT]
+    assert [o['port'] for o in start.offene_eingaenge({})] == [start.PORT, FERNPORT, RECHNERPORT]
+    assert [o['port'] for o in start.offene_eingaenge({'BRUECKE_FERNZUGRIFF': 'an'})] == [start.PORT, FERNPORT, RECHNERPORT]
+
+
 def test_fernweg_bleibt_http_wenn_das_lan_https_spricht():
     # Tailscale ends TLS itself and talks plain HTTP to the remote entry inside the compose network; the machine's own
     # entry stays plain HTTP too (#46)

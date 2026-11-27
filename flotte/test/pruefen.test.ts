@@ -158,7 +158,8 @@ describe('flotte pruefen', () => {
   });
 
   it('every step named stands as a heading in flotte-einrichten/SKILL.md', () => {
-    const skill = readFileSync(new URL('../../flotte-einrichten/SKILL.md', import.meta.url), 'utf8');
+    // a Windows checkout with core.autocrlf carries CRLF
+    const skill = readFileSync(new URL('../../flotte-einrichten/SKILL.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
     for (const [n, name] of Object.entries(SCHRITTE)) expect(skill).toContain(`\n## Schritt ${n}: ${name}\n`);
   });
 

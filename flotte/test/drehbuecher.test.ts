@@ -435,6 +435,16 @@ describe('Drehbücher (#14)', () => {
       expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', notiz: 'FLOTTE-ENDE ohne Pull Request' });
     }, T);
 
+    it('FLOTTE-ENDE without a PR naming the step of the person: parked for her with that step, not blocked with cause other', async () => {
+      const t = aufbau();
+      const block = 'Geparkt.\n\nFLOTTE-ENDE 3\nMensch: warten-auf o/infra#45 — Ticket o/infra#45 ausrollen, dann `ready-for-agent` an #3 wieder setzen\n\n### Was das Epic offen lässt\nalles';
+      const z = await fahre(t.einstellung(drehbuch([lauf(3, [{ text: block }])]), [3]), t.welt);
+      expect(z.epics['3']).toMatchObject({ stufe: 'blockiert', haltUrsache: 'Mensch', notiz: 'geparkt, wartet auf o/infra#45', mensch: { art: 'warten-auf', ref: 'o/infra#45', text: 'Ticket o/infra#45 ausrollen, dann `ready-for-agent` an #3 wieder setzen' } });
+      const an3 = t.p.kommentare.filter((k) => k.nr === 3).map((k) => k.text);
+      expect(an3.some((k) => /Mission geparkt, wartet auf den Menschen/.test(k) && /Dein Schritt: Ticket o\/infra#45 ausrollen/.test(k))).toBe(true);
+      expect(an3.some((k) => /blockiert/.test(k))).toBe(false);
+    }, T);
+
     it('before a resume (an answer of the admiral): waiting, no resumed turn; after the merge of #4 a new start', async () => {
       const t = aufbau({ bodies: spaeteKante(), signale: { 'wartet-3': /^#3 vor dem Fortsetzen, Vorgänger #4 noch nicht angedockt, wartet/ } });
       const buch = drehbuch([

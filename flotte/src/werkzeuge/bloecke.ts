@@ -41,11 +41,33 @@ export interface EndeBlock {
   pr: number | null;
   prUrl: string | null;
   offen: string;
+  /** an end without a pull request: what the person has to do before the mission goes on (`Mensch:` line) */
+  mensch: MenschSchritt | null;
+}
+
+export const MENSCH_ARTEN = ['warten-auf', 'pr-andocken', 'label-setzen', 'entscheiden'] as const;
+
+export interface MenschSchritt {
+  art: (typeof MENSCH_ARTEN)[number];
+  /** the ticket or PR it waits for: `#123` of the own forge or `owner/repo#123` */
+  ref: string | null;
+  /** her step in one sentence */
+  text: string;
 }
 
 export type Block = FrageBlock | EndeBlock;
 
 const KOPF = /^\s*(?:\*\*)?FLOTTE-(FRAGE|ENDE)(?:\*\*)?\s+#?(\d+)\b(.*)$/;
+const MENSCH = /^\s*(?:\*\*)?Mensch:(?:\*\*)?\s*(.*)$/;
+
+/** `Mensch: <art> [<ref>] — <sentence>`; an unknown kind is a decision of the person with the whole text */
+function menschAus(zeile: string | undefined): MenschSchritt | null {
+  const wert = zeile ? MENSCH.exec(zeile)![1].trim() : '';
+  if (!wert) return null;
+  const m = new RegExp(`^(${MENSCH_ARTEN.join('|')})\\b\\s*((?:[\\w.-]+\\/[\\w.-]+)?#\\d+)?\\s*(?:[—–-]\\s*)?(.*)$`, 's').exec(wert);
+  if (!m) return { art: 'entscheiden', ref: null, text: wert.slice(0, 300) };
+  return { art: m[1] as MenschSchritt['art'], ref: m[2] ?? null, text: (m[3].trim() || wert).slice(0, 300) };
+}
 
 function felder(zeile: string): Map<string, string> {
   const out = new Map<string, string>();
@@ -164,12 +186,15 @@ export function leseBlock(text: string): Block | null {
   const rest = zeilen.slice(start + 1);
 
   if (kopf[1] === 'ENDE') {
-    const ganz = [kopf[3], ...rest].join('\n');
+    const offenStart = rest.findIndex((z) => /^###\s+Was das Epic offen lässt/.test(z.trim()));
+    const oben = offenStart >= 0 ? rest.slice(0, offenStart) : rest;
+    const menschZeile = oben.find((z) => MENSCH.test(z));
+    // the person's line names PRs of others ("PR #123 andocken"): never the run's own
+    const ganz = [kopf[3], ...rest.filter((z) => z !== menschZeile)].join('\n');
     const url = /https?:\/\/\S+\/pull(?:s)?\/(\d+)/.exec(ganz);
     const nummer = url ? Number(url[1]) : /\bPR\s*#(\d+)/i.exec(ganz) ? Number(/\bPR\s*#(\d+)/i.exec(ganz)![1]) : null;
-    const offenStart = rest.findIndex((z) => /^###\s+Was das Epic offen lässt/.test(z.trim()));
     const offen = offenStart >= 0 ? rest.slice(offenStart + 1).join('\n').trim() : '';
-    return { art: 'ende', epic, pr: nummer, prUrl: url ? url[0].replace(/[).,]+$/, '') : null, offen };
+    return { art: 'ende', epic, pr: nummer, prUrl: url ? url[0].replace(/[).,]+$/, '') : null, offen, mensch: menschAus(menschZeile) };
   }
 
   const phase = (kopf[3].trim().split(/\s+/)[0] ?? '').toLowerCase();
