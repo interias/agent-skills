@@ -185,7 +185,7 @@
   .bereich[data-bereich="maschinenraum"] .mr-kopf .bereich-kopf { font-size: 16px; }
   .bereich[data-bereich="maschinenraum"] .mr-geraet { order: 3; flex-basis: 100%; }
   .bereich[data-bereich="maschinenraum"] .mr-reiter { gap: 4px; }
-  .bereich[data-bereich="maschinenraum"] .mr-reiter a { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 4px; gap: 4px; font-size: 13px; letter-spacing: 0; }
+  .bereich[data-bereich="maschinenraum"] .mr-reiter a { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 0 4px; gap: 4px; font-size: 13px; letter-spacing: 0; }
   .bereich[data-bereich="maschinenraum"] .mr-tank { grid-template-columns: minmax(0, 1fr) auto; }
   .bereich[data-bereich="maschinenraum"] .mr-tank > span:first-child, .bereich[data-bereich="maschinenraum"] .mr-tank .mr-reset, .bereich[data-bereich="maschinenraum"] .mr-tank > .mr-leer { grid-column: 1 / -1; }
   .bereich[data-bereich="maschinenraum"] .mr-andock li { grid-template-columns: 3.2em 3em 3.6em minmax(0, 1fr); gap: 6px; }
