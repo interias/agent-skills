@@ -114,6 +114,8 @@ export interface Einstellung {
   brueckeToken: string | null;
   /** while questions wait for the person: how often the driver asks the bridge for answers */
   brueckeAbfrageMs: number;
+  /** #243: how long the push of an unknown cause waits for its summary before it rings with the catalog's line; default URSACHE_WARTEN_MS */
+  ursacheWartenMs?: number;
 }
 
 /** #183: a stage in a visible text; the state key gemergt stays, the text says angedockt */
@@ -475,6 +477,9 @@ export function andockWahl(antwort: string): 'A' | 'B' | 'C' {
 /** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
 export const GATE_GRENZE = 3;
 const GATE_MAX_MS = 90 * 60_000;
+/** #243: the push of an unknown cause waits this long for the model's summary, then rings with the catalog's line */
+export const URSACHE_WARTEN_MS = 3 * 60_000;
+
 /** #243: the package name of the worktree in which the driver gates the base alone (main rot) */
 const MAIN_PROBE = 'hauptprobe';
 /** #243: while the base is red, every this many ticks the driver looks for a new commit of it (5 min at a 60 s tick) */
@@ -599,6 +604,8 @@ class Treiber {
   kopfAktiv: number | null = null;
   /** #243: the gate on the red base alone is under way */
   mainPruefung = false;
+  /** #243: the missions whose unknown cause the model summarizes now, since when (ms): their push waits for it */
+  zusammenfassungSeit = new Map<number, number>();
   /** #243: the base of each PR read while a red base holds the queue (prBasis) */
   prBasen = new Map<number, string>();
   mergesOffen = new Set<number>();
@@ -831,6 +838,9 @@ class Treiber {
       wache?.stop();
       while (this.fertig.length) await this.verarbeite(this.fertig.shift()!);
     }
+    await Promise.all(this.nebenher);
+    // #243: a push that waited for the summary of an unknown cause goes out before the end
+    this.brauchtDichMelden();
     await Promise.all(this.nebenher);
     await this.abschluss();
     return this.z;
@@ -1655,6 +1665,7 @@ class Treiber {
     const vorher = ep.ursache!;
     const konto = this.e.admiralKonto ?? ep.konto ?? this.e.konten[0];
     const log = this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => x.text);
+    this.zusammenfassungSeit.set(ep.nr, this.w.jetzt());
     this.nebenbei(
       this.w
         .starte({ ...this.programm(), repo: this.e.repo, konto, auftrag: zusammenfassungsAuftrag(grund, log), modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--json-schema', JSON.stringify(ZUSAMMENFASSUNG_SCHEMA), '--tools', ''] })
@@ -1672,7 +1683,8 @@ class Treiber {
             this.ereignis(ep.nr, ep.ursache.quelle === 'zusammengefasst' ? `Ursache zusammengefasst: ${ep.ursache.kurz}` : 'Ursache nicht zusammengefasst: es bleibt die Zeile des Katalogs');
           }
           if (kommentieren) this.haltKommentar({ ...ep, ursache: ep.ursache ?? vorher }, kommentieren, grund);
-        }),
+        })
+        .finally(() => this.zusammenfassungSeit.delete(ep.nr)),
     );
   }
 
@@ -3078,10 +3090,15 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
    * the events reported, with the switch off too: switching it on later rings nothing old.
    */
   brauchtDichMelden(): void {
+    // #243: an unknown cause rings with the model's summary, or with the catalog's line once the model is late
+    const warten = this.e.ursacheWartenMs ?? URSACHE_WARTEN_MS;
+    const wartet = (nr: number) => this.w.jetzt() - (this.zusammenfassungSeit.get(nr) ?? -Infinity) < warten;
     const alle = meldungsEreignisse(
       this.e.forge,
       this.z.fragen.filter((f) => !f.beantwortet),
-      Object.values(this.z.epics).map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, haltZeit: ep.haltZeit, aufgegebenAm: ep.aufgegebenAm, ursache: ep.ursache })),
+      Object.values(this.z.epics)
+        .filter((ep) => !wartet(ep.nr))
+        .map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, haltZeit: ep.haltZeit, aufgegebenAm: ep.aufgegebenAm, ursache: ep.ursache })),
     );
     const gemeldet = new Set(this.z.gemeldet ?? []);
     this.z.gemeldet = alle.map((x) => x.schluessel);

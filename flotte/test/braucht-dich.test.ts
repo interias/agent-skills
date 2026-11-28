@@ -40,6 +40,26 @@ describe('an unknown cause, summarized by the model', () => {
   }, T);
 });
 
+describe('the push of an unknown cause (#243 Nacharbeit)', () => {
+  const antwort = { kurz: 'Der Lauf hatte ein fremdes Werkzeug und wurde beendet.', wer: 'du', warum: 'w', schritt: 'MCP-Server aus dem Konto nehmen, dann neu einreihen.' };
+
+  it('waits for the summary and rings once, with its line', async () => {
+    const t = aufbau();
+    const buch = drehbuch([fremdeWerkzeuge(3), { ...zusammenfassung(antwort), schritte: [{ warte: 400 }, ...zusammenfassung(antwort).schritte] }]);
+    await fahre(t.einstellung(buch, [3], { meldung: 'an', ursacheWartenMs: 20_000 }), t.welt);
+    expect(t.p.toasts.map((x) => x.env?.FLOTTE_MELDUNG_TITEL)).toEqual(['Der Lauf hatte ein fremdes Werkzeug und wurde beendet.']);
+  }, T);
+
+  it('a model that does not answer in time: the catalog line rings, the late summary rings nothing again', async () => {
+    const t = aufbau();
+    const buch = drehbuch([fremdeWerkzeuge(3), { ...zusammenfassung(antwort), schritte: [{ warte: 1500 }, ...zusammenfassung(antwort).schritte] }]);
+    const z = await fahre(t.einstellung(buch, [3], { meldung: 'an', ursacheWartenMs: 200, dauerhaft: true, maxDauerMs: 3000 }), t.welt);
+    expect(z.epics['3'].ursache?.quelle).toBe('zusammengefasst');
+    expect(t.p.toasts).toHaveLength(1);
+    expect(t.p.toasts[0].env?.FLOTTE_MELDUNG_TITEL).toBe('Die Mission ist blockiert, der Grund steht im Log.');
+  }, T);
+});
+
 describe('the comments of "Braucht dich"', () => {
   it('a question for the person: the three lines first, the run\'s short line as what, situation and command folded', async () => {
     const t = aufbau();

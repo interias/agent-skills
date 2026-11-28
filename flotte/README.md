@@ -165,7 +165,9 @@ statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste St
    aus einem Katalog (`src/treiber/ursache.ts`: main rot, Konflikt mit main, Andockprüfung der Mission rot, Lauf
    ohne Ergebnis, PR fehlt oder falsch, Anmeldung oder Rechte) zu einer Kurzzeile (höchstens 90 Zeichen), wer dran
    ist und dem Schritt; Unbekanntes fasst das kleinste Modell in dieselben Felder (als „zusammengefasst“
-   gekennzeichnet; für eine aufgegebene Mission verfällt die Zusammenfassung). Der Kommentar am Issue beginnt mit diesen drei Zeilen, Log und Befehl stehen in `<details>`.
+   gekennzeichnet; die Windows-Meldung wartet darauf, höchstens drei Minuten, dann kommt die Zeile des Katalogs;
+   für eine aufgegebene Mission verfällt die Zusammenfassung). Der Kommentar am Issue beginnt mit diesen drei
+   Zeilen, Log und Befehl stehen in `<details>`.
    Ist die Andockprüfung einer Mission rot, fährt er sie auf `origin/<basis>` allein in einem eigenen Worktree
    (`worktree.ps1 -Package hauptprobe -Detach`): Ist die Basis im selben Kontext rot, wartet die Mission in der
    Schlange statt zurück an den Lauf, kein PR auf dieser Basis dockt an (PRs auf einer anderen Basis gehen weiter),
