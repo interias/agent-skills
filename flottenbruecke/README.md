@@ -468,7 +468,7 @@ Bilder: [Geräte im LAN](doku/maschinenraum-einrichtung-1440.png) ([390](doku/ma
   hinzufuegen`). **Konten und Projekte verwalten:** **Konto anlegen** je Rechner und **… entfernen** je Projekt
   (der Treiber hält an wie `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; eine
   geplante Aufgabe „Flotte <name>“ startet ihn bei jeder Anmeldung wieder, abschalten in der Aufgabenplanung).
-  **Geräte** (#46, oben) mit ihren Rechten, am Rechner mit **Antworten/Handeln geben/nehmen**, **Entkoppeln**
+  **Geräte** (#46, siehe „Geräte, Rechte und Not-Aus“) mit ihren Rechten, am Rechner mit **Antworten/Handeln geben/nehmen**, **Entkoppeln**
   und **Not-Aus lösen**. **Meldungen auf diesem Gerät** (#37). **Stand** (#154): die Brücke mit Commit und Datum
   ihres Images, je Treiber Commit und Datum des installierten Skill-Satzes, wann er eingespielt wurde und wann er
   startete, ein neuerer Stand in Gold, je Treiber **Einspielen und Treiber neu starten** und bei mehreren

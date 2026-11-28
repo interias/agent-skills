@@ -165,3 +165,20 @@ def test_handy_teilt_die_breite_und_hat_daumengrosse_knoepfe():
     handy = MR_CSS[MR_CSS.index('@media (max-width: 700px)'):]
     assert '.mr-reiter a { flex: 1 1 0' in handy
     assert 'min-height: 44px' in handy
+
+
+def test_verwerfen_zeichnet_neu_auch_ohne_neue_tafel():
+    # a draft changes the DOM directly, the signature of the last drawing stays: Verwerfen must not compare against it
+    verwerfen = _fn(MR, 'function verwerfen(')
+    assert 'delete el.dataset.sig' in verwerfen and 'entwuerfe.clear()' in verwerfen
+
+
+def test_fehler_der_leiste_bleibt_stehen():
+    alle = _fn(MR, 'async function alleUebernehmen(')
+    # the reason a request failed survives the redraw of the bar
+    assert alle.index('leisteZeigen(el)') < alle.rindex('fehler')
+
+
+def test_offene_details_merken_nur_abweichungen_vom_standard():
+    # a step that becomes fertig folds away again unless the person opened it
+    assert "'standard' in d.dataset" in MR and 'aufDetails.delete(key)' in MR

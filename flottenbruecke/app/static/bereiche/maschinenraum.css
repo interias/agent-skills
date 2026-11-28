@@ -157,6 +157,7 @@
 /* the bar for every draft, fixed at the bottom above the safe area */
 .bereich[data-bereich="maschinenraum"] .mr-leiste { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; justify-content: center; padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--flaeche); border-top: 2px solid var(--gold); }
 .bereich[data-bereich="maschinenraum"] .mr-leiste[hidden] { display: none; }
+.bereich[data-bereich="maschinenraum"]:has(> .mr-leiste:not([hidden])) .mr-ansicht { padding-bottom: 120px; }
 .bereich[data-bereich="maschinenraum"] .mr-leiste-innen { width: 100%; max-width: 1180px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .bereich[data-bereich="maschinenraum"] .mr-leiste-innen p { margin: 0; flex: 1 1 260px; min-width: 0; font: 13.5px/1.4 var(--lesen); overflow-wrap: anywhere; }
 .bereich[data-bereich="maschinenraum"] .mr-leiste-innen p > b:first-child { color: var(--gold); }

@@ -30,7 +30,8 @@
   const offeneZeilen = new Set();
   const info = (id, label) => `<button type="button" class="mr-info" aria-expanded="${aufInfo.has(id)}" aria-controls="${esc(id)}" aria-label="${esc(label)}">i</button>`;
   const infoText = (id, html) => `<p class="mr-info-text" id="${esc(id)}"${aufInfo.has(id) ? '' : ' hidden'}>${html}</p>`;
-  const auf = (key, standard = false) => ((aufDetails.has(key) ? aufDetails.get(key) : standard) ? ' open' : '');
+  // data-auf names a <details>, data-standard its drawn default; only a state that differs from it is kept
+  const auf = (key, standard = false) => ` data-auf="${esc(key)}"${standard ? ' data-standard' : ''}${(aufDetails.has(key) ? aufDetails.get(key) : standard) ? ' open' : ''}`;
   const marke = (farbe, text) => `<b class="mr-marke ${farbe}">${esc(text)}</b>`;
 
   // ---- head: this device and the emergency stop, on every sub-tab
@@ -41,7 +42,7 @@
     const geraet = g
       ? `Dieses Gerät <b>${esc(g.name)}</b> ${recht(g.antworten, 'Antworten')} ${recht(g.handeln, 'Handeln')}`
       : t.amRechner ? 'Dieses Gerät <b>der Rechner selbst</b>' : 'Dieses Gerät <b>nicht gekoppelt</b>';
-    const koppeln = !g && t.pin && !t.amRechner ? '<button type="button" class="knopf haupt klein" data-geraet-koppeln>Koppeln</button>' : '';
+    const koppeln = !g && t.pin ? '<button type="button" class="knopf haupt klein" data-geraet-koppeln>Koppeln</button>' : '';
     const n = t.notaus;
     const notaus = n
       ? `<p class="mr-notaus" role="status"><b>Not-Aus</b> seit ${esc(wann(n.seit))} (${esc(n.geraet)}): die Brücke nimmt keine Antwort und keine Handlung an.</p>`
@@ -65,7 +66,7 @@
     // the project names the mission once several projects report on the account
     const mehrere = new Set(k.missionen.map((m) => m.projekt)).size > 1;
     const zeilen = k.missionen.map((m) => `<li><b>${mehrere && m.projekt ? `${esc(m.projekt)} ` : ''}#${esc(m.epic)}</b><span>heute ${esc(wert(m.heute))}</span><span>Woche ${esc(wert(m.woche))}</span></li>`).join('');
-    return `<details class="mr-mehr" data-auf="missionen:${esc(k.konto)}"${auf(`missionen:${k.konto}`)}><summary>Missionen (${k.missionen.length})</summary><ul class="mr-missionen">${zeilen}</ul></details>`;
+    return `<details class="mr-mehr"${auf(`missionen:${k.konto}`)}><summary>Missionen (${k.missionen.length})</summary><ul class="mr-missionen">${zeilen}</ul></details>`;
   };
 
   // a tank: name, tube, "x % übrig", reset; on a phone the name stands above tube and value
@@ -96,7 +97,7 @@
     const tank = k.stufe !== undefined;
     const alt = k.veraltet || (k.alterMin != null && k.alterMin > 30);
     const vorsprung = !tank || k.vorsprung == null ? nichts() : marke(k.vorsprung >= 0 ? 'gruen' : '', `${k.vorsprung > 0 ? '+' : k.vorsprung < 0 ? '−' : ''}${Math.abs(Math.round(k.vorsprung))} Punkte`);
-    const wertAlter = k.alterMin != null ? `<span class="mr-leer">Wert ${Math.round(k.alterMin)} min alt${k.veraltet ? ' · Treiber still' : ''}</span>` : '';
+    const wertAlter = !tank ? '' : `<span class="mr-leer">${k.alterMin != null ? `Wert ${Math.round(k.alterMin)} min alt` : 'Alter nicht gemeldet'}${k.veraltet ? ' · Treiber still' : ''}</span>`;
     const bremse = !tank ? nichts() : k.stufe === 'gruen' ? `${marke('gruen', 'keine')} ${wertAlter}` : `${marke(k.stufe, STUFE[k.stufe] ?? k.stufe)} ${k.grund ? esc(k.grund) : nichts('Grund')} ${wertAlter}`;
     const anm = e?.anmeldung ?? k.anmeldung;
     const anmeldung = anm ? marke(anm === 'angemeldet' ? 'gruen' : 'rot', ANMELDUNG[anm] ?? anm) : nichts();
@@ -218,7 +219,7 @@ ${missionenHtml(k)}${knoepfe}</article>`;
     const gitea = p.forgeStatus && !p.forgeStatus.treiber ? '<p class="mr-hilfe">Der Treiber spricht noch kein Gitea (#127): Missionen dieses Projekts fährt er noch nicht.</p>' : '';
     const a = (p.andockpruefungen ?? []).slice(0, 10);
     const andock = a.length
-      ? `<div class="mr-andock-block"><h4>Letzte Andockprüfungen ${info(`mr-i-andock-${p.forge}`, 'Was zeigen die Andockprüfungen?')}</h4>${infoText(`mr-i-andock-${p.forge}`, 'Die Andockprüfungen, die der Treiber an der Spitze der Andock-Schlange fuhr, neueste zuerst: Ergebnis, Dauer und wie viele der gelaufenen Kontexte ihr Ergebnis aus dem Cache nahmen; nennt der Adapter dafür kein Muster, steht nur die Dauer da.')}<ol class="mr-andock">${a.slice(0, 3).map(andockZeile).join('')}</ol>${a.length > 3 ? `<details class="mr-mehr" data-auf="andock:${esc(p.forge)}"${auf(`andock:${p.forge}`)}><summary>Mehr (${a.length - 3})</summary><ol class="mr-andock">${a.slice(3).map(andockZeile).join('')}</ol></details>` : ''}</div>`
+      ? `<div class="mr-andock-block"><h4>Letzte Andockprüfungen ${info(`mr-i-andock-${p.forge}`, 'Was zeigen die Andockprüfungen?')}</h4>${infoText(`mr-i-andock-${p.forge}`, 'Die Andockprüfungen, die der Treiber an der Spitze der Andock-Schlange fuhr, neueste zuerst: Ergebnis, Dauer und wie viele der gelaufenen Kontexte ihr Ergebnis aus dem Cache nahmen; nennt der Adapter dafür kein Muster, steht nur die Dauer da.')}<ol class="mr-andock">${a.slice(0, 3).map(andockZeile).join('')}</ol>${a.length > 3 ? `<details class="mr-mehr"${auf(`andock:${p.forge}`)}><summary>Mehr (${a.length - 3})</summary><ol class="mr-andock">${a.slice(3).map(andockZeile).join('')}</ol></details>` : ''}</div>`
       : '<p class="mr-hilfe">Noch keine Andockprüfung.</p>';
     const zahl = (n, was) => `<span><b class="zahl">${n}</b> ${was}</span>`;
     return `<article class="mr-karte mr-projekt${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}"><h3>${esc(p.kurz)} <span class="mr-leise">${kopf}</span></h3>
@@ -259,7 +260,7 @@ ${andock}</article>`;
     const migration = s.migration?.arbeit ? `<dt>Arbeits-Migration</dt><dd>${a ? ARBEIT[a.zustand]?.(a) ?? esc(a.zustand) : '<span class="mr-leer">noch keine</span>'}${a?.commit ? ` · <code>${esc(kurzSha(a.commit))}</code>` : ''}</dd>` : '';
     const test = s.migration?.test ? `<dt>Test-Migration</dt><dd>${w.migrationTest ? 'läuft nach jedem Nachziehen selbst' : 'aus'}</dd>` : '';
     const key = `protokoll:${w.id}:${s.name}`;
-    const protokoll = s.protokoll ? `<details class="mr-protokoll" data-auf="${esc(key)}"${auf(key, s.status === 'rot')}><summary>Letztes Protokoll</summary><pre>${esc(s.protokoll)}</pre></details>` : '';
+    const protokoll = s.protokoll ? `<details class="mr-protokoll"${auf(key, s.status === 'rot')}><summary>Letztes Protokoll</summary><pre>${esc(s.protokoll)}</pre></details>` : '';
     return `<article class="mr-karte mr-stack ${farbe}" data-werft="${esc(w.id)}" data-stack="${esc(s.name)}">
 <h4>${esc(s.name)} ${marke(farbe || 'aus', STAND[stand])}</h4>
 <dl><dt>Stand</dt><dd>${s.commit ? `<code>${esc(kurzSha(s.commit))}</code> · ${esc(wann(s.zeit))}` : '<span class="mr-leer">noch nicht gezogen</span>'}${s.commit && w.stand && s.commit !== w.stand && !aus ? ' · <span class="mr-leer">älter als der Stand</span>' : ''}</dd>${test}${migration}</dl>
@@ -454,7 +455,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
   function zeileHtml(p, i, e, darf, t) {
     const k = `${p.forge}|${e.name}`;
     const entwurf = entwuerfe.has(k);
-    const w = entwurf ? entwuerfe.get(k) : basis(e);
+    const w = entwurf ? entwuerfe.get(k) : e.je && !e.einig ? undefined : basis(e);
     const geholt = e.offen?.abgeholt ?? false;
     const id = esc(`mr-e-${i}-${e.name}`);
     const aufZeile = offeneZeilen.has(k);
@@ -465,7 +466,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
       ? `<span class="mr-wartet">wartet auf ${istWerft(p.forge) ? 'die Werft' : 'den Treiber'}</span> · neu <b>${esc(anzeige(e, e.offen.wert))}</b>${geholt ? ' · abgeholt, Quittung folgt' : ''} <span class="mr-seit">(jetzt <b>${esc(anzeige(e, e.wert))}</b>)</span>`
       : '';
     return `<div class="mr-einst-zeile${e.offen ? ' wartet' : ''}${entwurf ? ' entwurf-da' : ''}" data-forge="${esc(p.forge)}" data-name="${esc(e.name)}">
-<button type="button" class="mr-zeile-kopf" aria-expanded="${aufZeile}" aria-controls="${id}-o"><span class="mr-name" id="${id}-t">${esc(e.titel)}</span><span class="mr-wert">${esc(anzeige(e, w))}</span><span class="mr-herkunft ${esc(e.herkunft)}">${esc(HERKUNFT[e.herkunft] ?? e.herkunft)}</span></button>
+<button type="button" class="mr-zeile-kopf" aria-expanded="${aufZeile}" aria-controls="${id}-o"><span class="mr-name" id="${id}-t">${esc(e.titel)}</span><span class="mr-wert">${esc(w === undefined ? 'unterschiedlich' : anzeige(e, w))}</span><span class="mr-herkunft ${esc(e.herkunft)}">${esc(HERKUNFT[e.herkunft] ?? e.herkunft)}</span></button>
 ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id}-o" role="group" aria-labelledby="${id}-t"${aufZeile ? '' : ' hidden'}><p class="mr-hilfe">${esc(HILFE[e.name] ?? '')}${e.seit && !e.offen ? ` <span class="mr-seit">Wirksam seit ${esc(wann(e.seit))}.</span>` : ''}</p>${e.hinweis ? `<p class="mr-hilfe mr-grenze">${esc(e.hinweis)}</p>` : ''}
 <div class="mr-regler">${reglerHtml(e, id, w, !darf || geholt)}</div></div></div>`;
   }
@@ -485,7 +486,7 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
     const mehrere = t.projekte.length > 1;
     const still = mitEinstellungen(t).some((p) => p.veraltet);
     const fuer = geteilt ? `Gilt für alle Treiber (${mitEinstellungen(t).map((p) => esc(p.kurz)).join(' und ')}) ab ihrem nächsten Takt` : 'Gilt ab dem nächsten Takt des Treibers';
-    const text = `Nichts Laufendes bricht ab; jede Änderung steht im Logbuch.${geteilt ? ' „Missionen gleichzeitig“ zählt je Treiber.' : ''}${still ? ' Ein Treiber meldet sich gerade nicht: dort wirkt eine Änderung ab seinem nächsten Takt.' : ''}`;
+    const text = `Nichts Laufendes bricht ab; jede Änderung steht im Logbuch.${geteilt ? ' „Missionen gleichzeitig“ zählt je Treiber.' : ''}${(t.werft ?? []).length ? ' Die Werft holt eine Änderung in ihrem nächsten Takt ab (alle 15 s).' : ''}${still ? ' Ein Treiber meldet sich gerade nicht: dort wirkt eine Änderung ab seinem nächsten Takt.' : ''}`;
     let html = `<p class="mr-hinweis">${fuer}; Zeile antippen zum Ändern. ${info('mr-i-einst', 'Mehr zu den Einstellungen')}</p>${infoText('mr-i-einst', esc(text))}`;
     let gruppen = '';
     if (geteilt) {
@@ -600,12 +601,20 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
       if (!gut) break;
       entwuerfe.delete(k);
     }
+    const fehler = status.className.includes('schlecht') ? status.textContent : '';
     leisteZeigen(el);
+    const neu = el.querySelector('.mr-leiste .status');
+    if (fehler && neu) {
+      neu.className = 'status schlecht';
+      neu.textContent = fehler;
+    }
     await laden();
   }
 
   function verwerfen(el) {
     entwuerfe.clear();
+    // a draft changed the DOM directly; the signature of the last drawing does not know it
+    delete el.dataset.sig;
     malen(letzte, el, true);
   }
 
@@ -622,9 +631,9 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
     const e = t.einrichten;
     if (!e) return '';
     const fertig = e.schritte.filter((s) => s.stand === 'fertig').length;
-    const schritte = `<ol class="mr-schritte">${e.schritte.map((s) => `<li class="mr-schritt ${esc(s.stand)}"><details data-auf="schritt:${esc(s.schritt)}"${auf(`schritt:${s.schritt}`, s.stand !== 'fertig')}><summary>${marke(s.stand === 'fertig' ? 'gruen' : s.stand === 'wartet' ? 'gelb' : 'aus', STAND_SCHRITT[s.stand] ?? s.stand)} ${esc(SCHRITT[s.schritt]?.titel ?? s.schritt)}</summary><p class="mr-hilfe">${SCHRITT[s.schritt]?.text ?? ''}</p></details></li>`).join('')}</ol>`;
+    const schritte = `<ol class="mr-schritte">${e.schritte.map((s) => `<li class="mr-schritt ${esc(s.stand)}"><details${auf(`schritt:${s.schritt}`, s.stand !== 'fertig')}><summary>${marke(s.stand === 'fertig' ? 'gruen' : s.stand === 'wartet' ? 'gelb' : 'aus', STAND_SCHRITT[s.stand] ?? s.stand)} ${esc(SCHRITT[s.schritt]?.titel ?? s.schritt)}</summary><p class="mr-hilfe">${SCHRITT[s.schritt]?.text ?? ''}</p></details></li>`).join('')}</ol>`;
     if (!e.fertig) return `<h3 class="mr-titel">Einrichten <small>${fertig} von ${e.schritte.length} Schritten fertig</small></h3>${schritte}`;
-    return `<h3 class="mr-titel">Einrichten <small>alles erledigt</small></h3><details class="mr-mehr" data-auf="einrichten"${auf('einrichten')}><summary>${fertig} von ${e.schritte.length} Schritten fertig</summary>${schritte}</details>`;
+    return `<h3 class="mr-titel">Einrichten <small>alles erledigt</small></h3><details class="mr-mehr"${auf('einrichten')}><summary>${fertig} von ${e.schritte.length} Schritten fertig</summary>${schritte}</details>`;
   }
 
   // ---- Einrichtung: adding a project (#126) goes to a running driver of a reported project, which writes adapter and
@@ -653,7 +662,7 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
     const mehr = `Der laufende Treiber richtet das Projekt an seinem Rechner nur ein: Er prüft den Ordner (vorhanden, ein Git-Repository), schreibt den Adapter <code>.claude/epic.md</code> aus der Vorlage, wenn er fehlt, und das Startskript <code>~/.claude/flotte/start/&lt;name&gt;.ps1</code>, fährt das neue Repository aber nicht selbst. Der neue Treiber startet mit Autostart bei der nächsten Anmeldung, sonst von Hand mit dem Startskript; erst sein erster Bericht legt das Projekt hier an, und solange der Adapter Lücken der Vorlage hat, startet dort keine Mission.${linkMehr} „Entfernen“ hält den Treiber an; eine geplante Aufgabe „Flotte &lt;name&gt;“ (Autostart) startet ihn bei jeder Anmeldung wieder, abschalten in der Aufgabenplanung.`;
     return `<h3 class="mr-titel">Projekt hinzufügen</h3><article class="mr-karte mr-projekt-neu" data-ueber="${esc(treiber[0].forge)}"><div class="knoepfe">${wahl}${linkFeld}<label class="mr-feld">${klont ? 'oder Ordner am Rechner (bei Link: Vorschlag)' : 'Ordner am Rechner'}<input type="text" class="mr-ordner" name="projekt-ordner" maxlength="260" autocomplete="off" spellcheck="false" placeholder="C:\\pfad\\zum\\repository" value="${esc(ordnerEntwurf)}"${zu}></label></div>
 <div class="knoepfe"><label class="mr-chip"><input type="checkbox" name="projekt-autostart"${zu}><span>Autostart beim Anmelden</span></label><button type="button" class="knopf haupt" data-projekt-hinzufuegen${zu || (wartet ? ' disabled' : '')}>Projekt hinzufügen</button><span class="status" role="status">${projektWartet(wartet?.hinzufuegen, 'Hinzufügen')}</span></div>
-<p class="mr-hilfe">Der Rechner legt Adapter und Startskript an; das Projekt bekommt einen eigenen Treiber.</p><details class="mr-mehr" data-auf="hinzufuegen"${auf('hinzufuegen')}><summary>Mehr</summary><p class="mr-hilfe">${mehr}</p></details></article>`;
+<p class="mr-hilfe">Der Rechner legt Adapter und Startskript an; das Projekt bekommt einen eigenen Treiber.</p><details class="mr-mehr"${auf('hinzufuegen')}><summary>Mehr</summary><p class="mr-hilfe">${mehr}</p></details></article>`;
   }
 
   // Konto anlegen per machine and Entfernen per project, together
@@ -868,8 +877,11 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
     });
     // <details> do not bubble their toggle: listen while it comes down
     el.addEventListener('toggle', (ev) => {
-      const key = ev.target.dataset?.auf;
-      if (key) aufDetails.set(key, ev.target.open);
+      const d = ev.target;
+      const key = d.dataset?.auf;
+      if (!key) return;
+      if (d.open === 'standard' in d.dataset) aufDetails.delete(key);
+      else aufDetails.set(key, d.open);
     }, true);
     el.addEventListener('click', (ev) => {
       const i = ev.target.closest('.mr-info');
