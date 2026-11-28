@@ -83,7 +83,8 @@ def test_der_name_flottenbruecke_bleibt():
 
 
 def test_satzanfang_grossgeschrieben():
-    assert klartext.ersetze('Die Mission ist fertig. Der Mission fehlt nichts.') == 'Das Epic ist fertig. Des Epics fehlt nichts.'
+    # "der Mission" is taken as genitive; a dative "der Mission" would read wrong (a known limit of word forms)
+    assert klartext.ersetze('Die Mission ist fertig. Der Stand der Mission ist grün.') == 'Das Epic ist fertig. Der Stand des Epics ist grün.'
 
 
 def test_feste_texte_haben_ihre_zweite_fassung():
@@ -177,9 +178,28 @@ def test_push_in_der_anzeige_des_geraets(tmp_path, uhr, bericht):
     _abo(zweit, 'raum')
     r = c.post('/api/bericht', json=bericht)
     assert r.status_code == 200, r.text
+    # the answer to the driver stays as in SCHNITTSTELLE.md: neu says whether the project is new
+    assert r.json()['neu'] is True
     je = {e.rsplit('/', 1)[1]: d for e, d in post.gesendet}
     assert set(je) == {'klar', 'raum'}
     klar = je['klar']['titel'] + '\n' + je['klar']['text']
     raum = je['raum']['titel'] + '\n' + je['raum']['text']
     assert not klartext.sprachraum_in(klar), klar
     assert klar != raum
+
+
+def test_ein_altes_abo_bindet_sich_beim_umschalten(tmp_path, uhr, bericht):
+    """An abo from before #246 has no device and pushes in the Sprachraum; sent again by its device (the page does it on
+    a switch of the display), it speaks the display of that device."""
+    from app.speicher import Speicher
+
+    post = Postbote()
+    c = TestClient(erzeuge(Einstellung(db=str(tmp_path / 'b.db'), pin='4711', uhr=uhr, vapid=schluessel_erzeugen(), push_senden=post)))
+    koppeln(c, name='Handy')
+    a = {**ABO, 'endpoint': ABO['endpoint'].format('alt')}
+    Speicher(str(tmp_path / 'b.db')).abo_setzen(a['endpoint'], a['keys']['p256dh'], a['keys']['auth'], '2026-11-01T00:00:00Z')
+    c.post('/api/geraete/anzeige', json={'anzeige': 'klartext'})
+    assert c.post('/api/push', json=a).status_code == 200
+    assert c.post('/api/bericht', json=bericht).status_code == 200
+    (_, d), = post.gesendet
+    assert not klartext.sprachraum_in(d['titel'] + '\n' + d['text'])

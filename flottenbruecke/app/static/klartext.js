@@ -9,7 +9,7 @@
 //   muster  separable verbs ("dockt erst an")
 //
 // Never replaced: what stands in [translate="no"] (titles, answers, chat, project names, drafts), code, pre, kbd,
-// textarea, and inside a text code in backticks, links and paths. The name "Flottenbrücke" stays (it is no term of
+// textarea, a title named in data-klar-fest inside an attribute, and inside a text code in backticks, links and paths. The name "Flottenbrücke" stays (it is no term of
 // the left column).
 //
 // Per device: a paired device keeps its choice in the bridge (POST /api/geraete/anzeige, the board names it in
@@ -145,7 +145,9 @@ const klartext = (() => {
     }
     if (e) je.delete(name);
     if (modus !== 'klartext' || wert == null || nie(el)) return;
-    const k = klar(wert);
+    // data-klar-fest: a title inside the attribute stays as it is, the rest around it is replaced
+    const fest = el.getAttribute('data-klar-fest');
+    const k = fest ? wert.split(fest).map(klar).join(fest) : klar(wert);
     if (k === wert) return;
     if (!attribute.has(el)) attribute.set(el, new Map());
     attribute.get(el).set(name, { roh: wert, klar: k });

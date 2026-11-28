@@ -47,15 +47,19 @@ SAMMELN = """(alles) => {
     if (n.nodeType === Node.TEXT_NODE) {
       if (n.data.trim() && !n.parentElement.closest(NIE)) aus.push(n.data.trim());
     } else if (!n.closest(NIE)) {
-      for (const a of ['aria-label', 'title', 'placeholder', 'alt', 'aria-description']) if (n.getAttribute(a)) aus.push(n.getAttribute(a));
+      // a title named in data-klar-fest stays inside the attribute
+      const fest = alles ? null : n.getAttribute('data-klar-fest');
+      for (const a of ['aria-label', 'title', 'placeholder', 'alt', 'aria-description']) if (n.getAttribute(a)) aus.push(fest ? n.getAttribute(a).split(fest).join(' ') : n.getAttribute(a));
     }
   }
   return aus;
 }"""
 
-# open what a person can open: every <details>, the info texts, the ship list, the history of the first mission
+# open what a person can open: every <details>, the info texts, the ship list with its resting entries (one merged
+# today), the history of the first mission
 AUFKLAPPEN = """() => {
   document.querySelectorAll('details').forEach((d) => { d.open = true; });
+  document.querySelectorAll('.sp-mehr[aria-expanded="false"]').forEach((b) => b.click());
   document.querySelectorAll('[hidden].mr-info-text, .mr-offen[hidden]').forEach((e) => { e.hidden = false; });
 }"""
 
@@ -157,6 +161,21 @@ def test_titel_antworten_und_projektnamen_bleiben(welt):
     seite.wait_for_timeout(200)
     # the chat speaks as it spoke
     assert 'Die Probe soll eine Seite mit den letzten Läufen bekommen.' in seite.inner_text('main')
+    seite.context.close()
+
+
+def test_in_der_schiffsliste_bleibt_nur_der_titel(welt):
+    """Only the title of an entry stays: its state ("gemergt" for #35) and the tooltip around the title are Klartext."""
+    seite, _ = _seite(welt, cookie=welt['cookie'])
+    _anzeige(seite, 'klartext')
+    seite.evaluate(AUFKLAPPEN)
+    seite.evaluate("() => { const b = document.getElementById('seite-auf'); if (b && b.getAttribute('aria-expanded') !== 'true') b.click(); }")
+    seite.wait_for_timeout(200)
+    eintraege = seite.evaluate("""() => [...document.querySelectorAll('button.si[data-klar-fest]')].map((b) => [
+      b.title.split(b.dataset.klarFest).join(' '), b.querySelector('small').textContent])""")
+    assert any('gemergt' in z for _, z in eintraege), eintraege
+    assert [e for e in eintraege if any(klartext.sprachraum_in(x) for x in e)] == []
+    _anzeige(seite, 'sprachraum')
     seite.context.close()
 
 

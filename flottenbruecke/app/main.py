@@ -240,9 +240,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         alle = ereignisse(speicher.projekt(b.forge), speicher.stufen_seit(), jetzt(), tz)
         frisch = speicher.neu_gemeldet(b.forge, [x['schluessel'] for x in alle])
         if push and frisch:
-            neu = [x for x in alle if x['schluessel'] in frisch]
+            melden = [x for x in alle if x['schluessel'] in frisch]
             # #246: each device gets the push in its display
-            hinterher.add_task(push.verschicke, speicher, {'sprachraum': inhalt(neu), 'klartext': inhalt(neu, klar=True)})
+            hinterher.add_task(push.verschicke, speicher, {'sprachraum': inhalt(melden), 'klartext': inhalt(melden, klar=True)})
         return {'ok': True, 'neu': neu}
 
     @app.get('/api/antworten')

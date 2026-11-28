@@ -543,7 +543,8 @@ Treiber und Forge bleiben gleich, ebenso Titel, Antworten, Chats, Code, Pfade, L
   ein ungekoppeltes im Browser. Neu ist immer die gewohnte Anzeige.
 - **Texte des Treibers** und der Läufe ersetzt die Brücke beim Anzeigen nach der Tabelle; feste Texte
   der Seite haben dort eine ganze zweite Fassung (`texte`).
-- **Meldungen** aufs Handy kommen in der Anzeige des Geräts, das sie abonniert hat.
+- **Meldungen** aufs Handy kommen in der Anzeige des Geräts, das sie abonniert hat. Ein Abo von vor diesem
+  Stand kennt sein Gerät nicht; das Umschalten schickt es der Brücke neu und bindet es so ans Gerät.
 - **Die Suche** findet in beiden Wortschätzen.
 - Fehlt ein Begriff, gehört er in die Tabelle; der Test `tests/test_klartext_seite.py` rendert jede
   Ansicht mit den Beispieldaten und schlägt an, wenn in der Klartext-Anzeige ein Wort der linken

@@ -811,7 +811,18 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
       status.textContent = 'Ging nicht: Brücke nicht erreichbar.';
       return;
     }
+    aboBinden();
     malen(letzte, el, true);
+  }
+
+  // a subscription from before #246 does not know its device and stays in the Sprachraum: on a switch, the own one
+  // goes to the bridge again, now tied to this device (quietly; without one or without the right nothing happens)
+  async function aboBinden() {
+    if (!kannPush() || !letzte?.push || !letzte?.geraet?.antworten) return;
+    try {
+      const abo = await (await navigator.serviceWorker.getRegistration('/'))?.pushManager.getSubscription();
+      if (abo) await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abo.toJSON()) });
+    } catch { /* no service worker: nothing to tie */ }
   }
 
   // ---- Einrichtung: Web-Push (#37); this device subscribes (a paired device with the right Antworten), the bridge

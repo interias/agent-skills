@@ -824,7 +824,12 @@ Kopf `X-Bruecke-Grund: geraet`; Recht fehlt `403` (`recht`); Not-Aus `423`. `POS
   `POST /api/notaus/loesen` (`409`, wenn keiner ausgelöst ist).
 - `POST /api/notaus`: jedes gekoppelte Gerät, ohne PIN und ohne Recht; danach `423` für jede Antwort,
   Handlung und Kopplung, auch nach einem Neustart, bis zum Lösen.
-- In `GET /api/tafel`: `geraete[{id, name, antworten, handeln, gekoppelt, zuletzt}]`, `geraet` (das
-  anfragende Gerät oder `null`), `amRechner`, `notaus` (`{seit, geraet}` oder `null`) und
+- `POST /api/geraete/anzeige` `{anzeige: "sprachraum" | "klartext"}` (#246, agent-skills/ADR-0008): jedes
+  gekoppelte Gerät für sich selbst, ohne PIN und ohne Recht, auch unter Not-Aus (nur die Anzeige), über den
+  Fernzugriff wie oben (`PERSON_FERN`); ohne Gerät `401`, ein anderer Wert `422`. Gespeichert in
+  `geraete.anzeige`. Ein Abo (`POST /api/push`) gehört dem Gerät, das es schickt (`push_abos.geraet`); jede
+  Meldung kommt in dessen Anzeige, ein Abo ohne Gerät (von vor #246) im Sprachraum.
+- In `GET /api/tafel`: `geraete[{id, name, antworten, handeln, gekoppelt, zuletzt, anzeige}]`, `geraet` (das
+  anfragende Gerät mit `anzeige` oder `null`), `amRechner`, `notaus` (`{seit, geraet}` oder `null`) und
   `geraeteLogbuch[{zeit, geraet, befehl}]` (neueste zuerst, höchstens 200; `befehl` ist Pfad und Body,
   wie sie ankamen).
