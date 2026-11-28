@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from .modelle import BEZUG, HANDLUNG_GRUPPE
+from .modelle import BEZUG, BEZUG_TEXT, HANDLUNG_GRUPPE
 
 SCHEMA = """
 create table if not exists projekte (
@@ -281,8 +281,9 @@ class Speicher:
                 # of a group counts until the driver fetches it
                 gruppe = [a for a, g in HANDLUNG_GRUPPE.items() if g == HANDLUNG_GRUPPE[art]]
                 # a revocation or (#116) an answer to a question of the triage points at its question or decision
-                ziel = 'art = ? and nr is ? and seit is ?' if art in BEZUG else f"art in ({', '.join('?' * len(gruppe))})"
-                ziel_args = [art, nr, seit] if art in BEZUG else gruppe
+                # #243: "Erledigt" points at its cause or step by the text
+                ziel = 'art = ? and nr is ? and seit is ?' if art in BEZUG else 'art = ? and text is ?' if art in BEZUG_TEXT else f"art in ({', '.join('?' * len(gruppe))})"
+                ziel_args = [art, nr, seit] if art in BEZUG else [art, text] if art in BEZUG_TEXT else gruppe
                 alt = self.db.execute(f'select * from handlungen where forge = ? and epic = ? and quittiert is null and {ziel}', [forge, epic, *ziel_args]).fetchone()
             if alt is not None and alt['abgeholt']:
                 return None

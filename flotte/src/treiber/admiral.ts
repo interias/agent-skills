@@ -15,6 +15,8 @@ export interface AdmiralAntwort {
   /** for the person (#28, v2): why it lies with them, in a word or two, and whether it stays revocable until the merge */
   marke?: string;
   umkehrbar?: boolean;
+  /** #243: a decided answer that needs a step of the person later, in one sentence ("Dein Schritt bald") */
+  mensch_spaeter?: string;
 }
 
 /** The answer schema of one block: nr can only be a number of its questions (acceptance finding 1). */
@@ -40,6 +42,7 @@ export const SCHEMA = {
           einflussreich: { type: 'boolean' },
           marke: { type: 'string' },
           umkehrbar: { type: 'boolean' },
+          mensch_spaeter: { type: 'string' },
         },
         required: ['nr', 'antwort', 'herkunft', 'grund', 'beim_menschen', 'einflussreich'],
       },
@@ -138,7 +141,9 @@ ${HERKUNFT_REGEL}
 
 einflussreich ist eine Entscheidung, die von der Empfehlung des Laufs abweicht oder eine eigene Antwort ist, sich nur auf eigenes Urteil stützt, einen Widerspruch auflöst, den Umfang ändert, etwas ungeprüft lässt oder mehr als ein Paket betrifft. Im Zweifel true.
 
-antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „nach außen", „Geld", „Produktivdaten", „Zugang", „Kundentext", „Architektur"), und umkehrbar sagt, ob sich seine Antwort bis zum Andocken des Missions-PRs noch ändern lässt.`;
+antwort ist der Buchstabe einer Option oder ein eigener Text, so genau, dass der Lauf nicht nachfragen muss. Liegt die Frage beim Menschen, ist antwort deine Empfehlung an ihn. Dann nennt marke den Grund in ein, zwei Wörtern (etwa „nach außen", „Geld", „Produktivdaten", „Zugang", „Kundentext", „Architektur"), und umkehrbar sagt, ob sich seine Antwort bis zum Andocken des Missions-PRs noch ändern lässt.
+
+Entscheidest du selbst, aber die Mission kommt erst weiter, wenn der Mensch später etwas tut, das nur er kann (etwa eine Datei auf main bringen, die nur bei ihm liegt), nennt mensch_spaeter diesen Schritt in einem Satz von höchstens 90 Zeichen. Sonst fehlt das Feld.`;
 
 export function admiralAuftrag(block: FrageBlock, kontext: string): string {
   const fragen = block.fragen
@@ -200,6 +205,7 @@ export function antwortenAus(strukturiert: unknown, block: FrageBlock): AdmiralA
       einflussreich: a.einflussreich !== false,
       ...(typeof a.marke === 'string' && a.marke.trim() ? { marke: a.marke.trim().slice(0, 60) } : {}),
       ...(typeof a.umkehrbar === 'boolean' ? { umkehrbar: a.umkehrbar } : {}),
+      ...(typeof a.mensch_spaeter === 'string' && a.mensch_spaeter.trim() ? { mensch_spaeter: a.mensch_spaeter.trim().slice(0, 300) } : {}),
     };
   });
 }

@@ -127,7 +127,7 @@ def test_eine_gitea_forge_verlinkt_ihre_eigene_seite_und_pulls(client, bericht):
 
 def test_dein_schritt_ohne_ref_bleibt_wie_zuvor(client, bericht):
     assert client.post('/api/bericht', json=bericht).status_code == 200
-    assert karten(tafel(client))['blockade'][40]['lage']['deinSchritt'] == {'text': 'Ursache prüfen, dann neu einreihen oder aufgeben', 'ziel': 'einreihen', 'ref': None, 'url': None}
+    assert karten(tafel(client))['blockade'][40]['lage']['deinSchritt'] == {'text': 'Fehler ansehen, dann neu einreihen: die Mission bessert nach.', 'ziel': 'einreihen', 'ref': None, 'url': None}
 
 
 @pytest.mark.parametrize('ref,code', [('x' * 100, 200), ('x' * 101, 422)])

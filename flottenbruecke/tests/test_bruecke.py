@@ -70,8 +70,9 @@ def test_erster_bericht_legt_projekt_an(client, bericht):
 def test_drei_ebenen(client, bericht):
     client.post('/api/bericht', json=bericht)
     e = ebenen(client)
-    # the blockade holds a whole epic: before the question that parks one package, though that waits longer
-    assert e['braucht'] == [('blockade', 40), ('frage', 39)]
+    # the blockade holds a whole epic: before the question that parks one package, though that waits longer;
+    # #243: so does the red base #37 waits for (one card per cause)
+    assert e['braucht'] == [('blockade', 40), ('ursache', 37), ('frage', 39)]
     assert (e['laeufe'], e['schlange'], e['bereit']) == ([38, 39], [36, 37], [41, 42])
     assert e['erledigt'] == [('admiral', 38), ('admiral', 39), ('gemergt', 35)]
 
@@ -83,8 +84,8 @@ def test_kosten_des_wartens(client, bericht):
     bericht['fragen'] += [zwei, drei]
     client.post('/api/bericht', json=bericht)
     t = tafel(client)
-    assert [(x['art'], x['epic'], x.get('nr')) for x in t['braucht']] == [('blockade', 40, 40), ('frage', 38, 2), ('frage', 38, 3), ('frage', 39, 1)]
-    assert [x['wartetS'] for x in t['braucht']] == [1526, 670, 5470, 2320]
+    assert [(x['art'], x['epic'], x.get('nr')) for x in t['braucht']] == [('blockade', 40, 40), ('frage', 38, 2), ('ursache', 37, None), ('frage', 38, 3), ('frage', 39, 1)]
+    assert [x['wartetS'] for x in t['braucht']] == [1526, 670, 550, 5470, 2320]
 
 
 def test_fragekarte_traegt_was_der_mensch_braucht(client, bericht):
@@ -136,7 +137,7 @@ def test_epic_das_ganz_auf_den_menschen_wartet_steht_unterwegs_hinten(client, be
 def test_beantwortete_frage_verschwindet(client, bericht):
     bericht['fragen'][0]['beantwortet'] = 'A'
     client.post('/api/bericht', json=bericht)
-    assert ebenen(client)['braucht'] == [('blockade', 40)]
+    assert ebenen(client)['braucht'] == [('blockade', 40), ('ursache', 37)]
 
 
 def test_gemergt_nur_heute(client, bericht, uhr):
@@ -160,7 +161,7 @@ def test_aufgegeben_wandert_nach_erledigt(client, bericht):
     bericht['epics'][6]['aufgegebenAm'] = '2026-11-20T14:30:00Z'
     client.post('/api/bericht', json=bericht)
     e = ebenen(client)
-    assert e['braucht'] == [('frage', 39)] and e['erledigt'][0] == ('aufgegeben', 40)
+    assert e['braucht'] == [('ursache', 37), ('frage', 39)] and e['erledigt'][0] == ('aufgegeben', 40)
 
 
 def test_admiral_entscheidung_mit_widerruf(client, bericht):
@@ -186,8 +187,10 @@ def test_bericht_eines_alten_treibers_ohne_neue_felder(client, bericht):
     for ep in bericht['epics']:
         for k in ('prozess', 'grund', 'haltZeit', 'log', 'aufgegebenAm', 'prio'):
             del ep[k]
-    for k in ('herkunft', 'marke', 'umkehrbar', 'geparkt'):
+        ep.pop('ursache', None)
+    for k in ('herkunft', 'marke', 'umkehrbar', 'geparkt', 'kurz'):
         del bericht['fragen'][0][k]
+    del bericht['bald']
     assert client.post('/api/bericht', json=bericht).status_code == 200
     assert ebenen(client)['braucht'] == [('blockade', 40), ('frage', 39)]
     assert tafel(client)['braucht'][0]['grund'].startswith('Andockprüfung dreimal rot')
@@ -564,8 +567,9 @@ def test_v2_startet_auf_dem_volume_von_v1(tmp_path, uhr, bericht):
 
     alt = {k: v for k, v in bericht.items() if k not in ('leerlaufS', 'ereignisse', 'entscheidungen')}
     alt['konten'] = [{'konto': k['konto'], 'stufe': k['stufe']} for k in alt['konten']]
-    alt['epics'] = [{k: v for k, v in ep.items() if k not in ('prozess', 'grund', 'haltZeit', 'log', 'aufgegebenAm', 'prio')} for ep in alt['epics']]
-    alt['fragen'] = [{k: v for k, v in f.items() if k not in ('herkunft', 'marke', 'umkehrbar', 'geparkt')} for f in alt['fragen']]
+    alt['epics'] = [{k: v for k, v in ep.items() if k not in ('prozess', 'grund', 'haltZeit', 'log', 'aufgegebenAm', 'prio', 'ursache')} for ep in alt['epics']]
+    alt['fragen'] = [{k: v for k, v in f.items() if k not in ('herkunft', 'marke', 'umkehrbar', 'geparkt', 'kurz')} for f in alt['fragen']]
+    del alt['bald']
     db = tmp_path / 'v1.db'
     con = sqlite3.connect(db)
     con.executescript("""

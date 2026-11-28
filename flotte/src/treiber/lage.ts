@@ -8,6 +8,7 @@ import type { MenschSchritt } from '../werkzeuge/bloecke.ts';
 import type { EpicStufe } from '../werkzeuge/zustand.ts';
 import type { GateStand } from './pruefprotokolle.ts';
 import type { Klartext } from './verlauf.ts';
+import type { Ursache } from './ursache.ts';
 
 export type Etikett = 'arbeitet' | 'prueft' | 'wartet_auf_dich' | 'wartet' | 'gestoppt' | 'fertig';
 
@@ -66,6 +67,8 @@ export interface LageEingang {
   haltZeit: string | null;
   /** parked: the run ended without a PR and named the person's step (`Mensch:` in FLOTTE-ENDE) */
   mensch?: MenschSchritt | null;
+  /** #243: the cause of a halt or of a wait for the red base: its short line and the person's step replace the fixed ones */
+  ursache?: Ursache | null;
   gemergtAm: string | null;
   gestartetAm: string | null;
 }
@@ -117,6 +120,10 @@ function grundLage(e: LageEingang): Lage {
   const pr = e.pr ? `PR #${e.pr}` : 'der PR';
 
   if (e.stufe === 'gemergt' || e.stufe === 'fertig') return l('fertig', e.pr ? `${pr} angedockt` : 'fertig', e.gemergtAm);
+  const u = e.ursache;
+  // #243: requeueing is the step only where the catalog says so; otherwise the cause has to go first ("Erledigt")
+  const uZiel = u?.knopf === 'einreihen' ? 'einreihen' : 'issue';
+  if (e.stufe === 'abgebrochen' && u) return l('gestoppt', `Abgebrochen: ${u.kurz}`, e.haltZeit, { text: u.schritt, ziel: uZiel });
   if (e.stufe === 'abgebrochen') return l('gestoppt', `Abgebrochen: ${erste(e.haltGrund) || erste(e.notiz) || 'ohne Grund'}`, e.haltZeit, { text: 'Ursache prüfen, dann neu einreihen oder aufgeben', ziel: 'einreihen' });
   if (e.stufe === 'blockiert' && e.mensch) {
     // her step is the run's sentence; requeueing before it only repeats the same end
@@ -124,6 +131,7 @@ function grundLage(e: LageEingang): Lage {
     const worauf = { 'warten-auf': m.ref ?? 'ein Ticket', 'pr-andocken': `das Andocken von ${m.ref ?? 'einem PR'}`, 'label-setzen': 'ein Label von dir', entscheiden: 'deine Entscheidung' }[m.art];
     return l('wartet_auf_dich', `Geparkt, wartet auf ${worauf}`, e.haltZeit, { text: m.text, ziel: m.art === 'pr-andocken' ? 'pr' : 'issue', ref: m.ref });
   }
+  if (e.stufe === 'blockiert' && u) return l('gestoppt', `Blockiert: ${u.kurz}`, e.haltZeit, { text: u.schritt, ziel: uZiel });
   if (e.stufe === 'blockiert') return l('gestoppt', `Blockiert${e.haltUrsache ? `, Ursache ${e.haltUrsache}` : ''}: ${erste(e.haltGrund) || erste(e.notiz) || 'ohne Grund'}`, e.haltZeit, { text: 'Ursache beheben, dann neu einreihen oder aufgeben', ziel: 'einreihen' });
   if (e.pausiert && !e.prozess) return l('wartet', 'von dir pausiert', e.pausiert);
   if (e.fragen.anzahl && (e.fragen.ganz || !e.prozess)) return l('wartet_auf_dich', `${e.fragen.anzahl === 1 ? 'eine Frage' : `${e.fragen.anzahl} Fragen`} an dich`, e.fragen.seit, { text: e.fragen.anzahl === 1 ? 'Frage beantworten' : 'Fragen beantworten', ziel: 'frage' });
@@ -131,6 +139,8 @@ function grundLage(e: LageEingang): Lage {
   if (e.frageWartet) return l('wartet', 'Frage beim Admiral, wartet auf ein Konto mit Luft');
 
   if (e.stufe === 'pr') {
+    // #243: the base is red on its own: the mission waits for it, the step is the person's
+    if (u?.art === 'main_rot') return l('wartet_auf_dich', `Wartet: ${u.kurz}`, u.seit, { text: u.schritt, ziel: 'issue' });
     if (e.andockpruefung) return l('prueft', `${gateSatz(e.gateStand, 'Andockprüfung des Treibers')} (${pr})`, e.andockpruefung, null, gate(e.andockpruefung));
     const mensch = MENSCH_DOCKT.exec(e.notiz);
     if (mensch) {

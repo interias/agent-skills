@@ -312,6 +312,9 @@ describe('Flottenbrücke (#28)', () => {
     expect(handlungenAusJson([{ id: 8, epic: 3, art: 'triage' }, { id: 9, epic: 61, art: 'triage-antwort', nr: null, seit: 'x', text: '{}' }, { id: 10, epic: 58, art: 'triage-widerruf', nr: null, seit: 'x', text: ' ' }])).toEqual([]);
     // #148: a revocation of a mission needs the mission and the objection
     expect(handlungenAusJson([{ id: 11, epic: 0, art: 'schnitt-widerruf', text: 'x' }, { id: 12, epic: 70, art: 'schnitt-widerruf', text: ' ' }])).toEqual([]);
+    // #243: "Erledigt" names the cause or the step it means
+    expect(handlungenAusJson([{ id: 13, epic: 3, art: 'erledigt', text: ' ' }, { id: 14, epic: 3, art: 'erledigt', text: null }])).toEqual([]);
+    expect(handlungenAusJson([{ id: 15, epic: 3, art: 'erledigt', text: 'main_rot:wurzel' }])).toHaveLength(1);
   });
 
   it('usage per account: both windows with reset in the report', async () => {
@@ -341,6 +344,59 @@ describe('Flottenbrücke (#28)', () => {
       expect(rot?.grund).toMatch(/verbraucht 90 %/);
       expect(rot!.grund!.length).toBeLessThanOrEqual(4000);
       for (const k of konten) expect('grund' in k).toBe(k.stufe !== 'gruen');
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#243: the cause in the report; "Erledigt" checks it again: still there, the card says why in one sentence; gone, the driver requeues', async () => {
+    let geprueft = 0;
+    let konto = '';
+    const b = await attrappe(() => null, {
+      handlung: (x) => {
+        const e = x.epics.find((y) => y.nr === 3);
+        if (e?.stufe !== 'blockiert' || !e.ursache) return null;
+        // the first "Erledigt" while the account is still signed out; then the person signs it in and says done again
+        if (e.ursache.geprueft && !geprueft) {
+          geprueft = 1;
+          writeFileSync(join(konto, '.credentials.json'), '{}');
+        }
+        return { epic: 3, art: 'erledigt', text: e.ursache.schluessel, nr: geprueft };
+      },
+    });
+    try {
+      const t = aufbau();
+      konto = t.konten[0];
+      const abgemeldet = { zeile: { type: 'result', subtype: 'success', is_error: true, result: 'Please run /login' } };
+      const buch = drehbuch([lauf(3, [abgemeldet], 1), lauf(3, [{ text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url, dauerhaft: true, maxDauerMs: 6000 }), t.welt);
+      const u = b.berichte.find((x) => x.epics[0].ursache)!.epics[0].ursache!;
+      expect(u).toMatchObject({ art: 'anmeldung', schluessel: 'anmeldung:#3', wer: 'du', knopf: 'erledigt', quelle: 'katalog' });
+      expect(u.kurz).toMatch(/^Konto 1 ist nicht angemeldet\.$/);
+      const noch = b.berichte.map((x) => x.epics[0].ursache?.geprueft).find(Boolean);
+      expect(noch).toMatch(/^Geprüft \d\d:\d\d: Konto 1 ist noch nicht angemeldet\.$/);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['3'].ursache ?? null).toBeNull();
+      const e = z.ereignisse.map((x) => x.text);
+      expect(e.filter((x) => /^Erledigt über die Brücke: der Treiber prüft/.test(x))).toHaveLength(2);
+      // the issue comment begins with the three lines
+      const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**Braucht dich'))!.text.split('\n');
+      expect(k.slice(2, 5)).toEqual(['**Was:** Konto 1 ist nicht angemeldet.', '**Wer:** Du · nur du kannst ein Konto anmelden', '**Schritt:** Konto 1 am Rechner anmelden (Maschinenraum › Konten › Anmelden), dann „Erledigt“.']);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#243: "Dein Schritt bald" in the report; "Erledigt" takes it away', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.bald?.length ? { epic: x.bald[0].epic, art: 'erledigt', text: `bald:${x.bald[0].id}` } : null) });
+    try {
+      const t = aufbau();
+      const antwort = { nr: 1, antwort: 'A', beim_menschen: false, mensch_spaeter: 'ADR-0013 vor #543 auf main bringen.' };
+      const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [antwort]), lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(b.berichte.find((x) => x.bald.length)!.bald[0]).toMatchObject({ epic: 3, kurz: 'ADR-0013 vor #543 auf main bringen.' });
+      expect(z.bald).toEqual([]);
+      expect(b.berichte.at(-1)!.bald).toEqual([]);
     } finally {
       await b.zu();
     }

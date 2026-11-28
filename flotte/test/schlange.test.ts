@@ -296,6 +296,8 @@ describe('A: die Merge-Schlange', () => {
     expect(z.epics['5']).toMatchObject({ stufe: 'blockiert', basisKonflikte: 5 });
     expect(z.epics['5'].mergeVersuche ?? 0).toBe(0);
     expect(z.epics['5'].haltGrund).toMatch(/^Nachziehen der Basis nach 5 Konflikten weiter nicht möglich/);
+    // #243: the conflicts before were the fleet's to solve; the fifth is the person's, with the command
+    expect(z.epics['5'].ursache).toMatchObject({ art: 'konflikt', wer: 'du', knopf: 'erledigt', befehl: 'git merge origin/main' });
     const zuege5 = buch.gesehen().filter((g) => /^Flotte, Mission #5\b/.test(g.eingabe));
     expect(zuege5[1].eingabe).toMatch(/Konflikt in a\/x\.txt\. Der Treiber hat `git merge` abgebrochen, nichts gepusht/);
     expect(t.p.gates).toHaveLength(0);
@@ -390,6 +392,51 @@ describe('A: die Merge-Schlange', () => {
     expect(t.p.gates.map((g) => [g.befehl, resolve(g.cwd)])).toEqual([['gate voll', resolve(neu)]]);
     expect(texte(z).some((x) => /#4 Missions-Worktree neu angelegt/.test(x))).toBe(true);
     expect(git(t.repo, 'worktree', 'list')).not.toContain('epic-4');
+  }, T);
+
+  it('#243: red on the base alone: the mission waits instead of going back to its run, one card, and docks by itself once the base is green', async () => {
+    const probes: string[] = [];
+    let wt = '';
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      // red wherever the broken file lies: on the base and on every branch that brought it in
+      rot: (cwd) => existsSync(join(cwd, 'KAPUTT')),
+      // open on the forge until merge.ps1 docked it
+      pr: () => ({ state: git(t.repo, 'log', '--oneline', '--grep', 'Merge #13', 'origin/main') ? 'MERGED' : 'OPEN' }),
+      worktree: (aktion, args) => {
+        if (aktion === 'Up') {
+          probes.push(args[args.indexOf('-From') + 1]);
+          wt = join(mkdtempSync(join(tmpdir(), 'flotte-probe-')), 'hauptprobe');
+          git(t.repo, 'worktree', 'add', '-q', '--detach', wt, args[args.indexOf('-From') + 1]);
+          // while the first probe runs, someone repairs the base
+          if (probes.length === 1) {
+            git(t.repo, 'rm', '-q', 'KAPUTT');
+            git(t.repo, 'commit', '-q', '-m', 'fix');
+            git(t.repo, 'push', '-q', 'origin', 'main');
+          }
+          return JSON.stringify({ path: wt });
+        }
+        git(t.repo, 'worktree', 'remove', '--force', wt);
+        return '';
+      },
+    });
+    writeFileSync(join(t.repo, 'KAPUTT'), 'rot\n');
+    git(t.repo, 'add', '-A');
+    git(t.repo, 'commit', '-q', '-m', 'broken');
+    git(t.repo, 'push', '-q', 'origin', 'main');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.epics['3'].ursache ?? null).toBeNull();
+    expect(z.mainRot ?? null).toBeNull();
+    expect(probes).toEqual(['origin/main', 'origin/main']);
+    const e = texte(z);
+    expect(e.some((x) => /zurück an den Lauf/.test(x))).toBe(false);
+    expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
+    expect(index(e, /^#3 main @ \w{7} ist allein rot in wurzel: die Mission wartet/)).toBeLessThan(index(e, /^main @ \w{7} ist in wurzel wieder grün: das Andocken geht weiter \(#3\)$/));
+    expect(index(e, /wieder grün/)).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+    const karten = t.p.kommentare.filter((k) => k.text.startsWith('**Braucht dich · main rot'));
+    expect(karten).toHaveLength(1);
+    expect(karten[0].text.split('\n')[2]).toMatch(/^\*\*Was:\*\* main ist rot: wurzel scheitert\.$/);
   }, T);
 
   it('blocks after three gate runs of the driver when the base keeps moving', async () => {

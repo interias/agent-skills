@@ -17,6 +17,9 @@ const HANDLUNG = { einreihen: 'Neu einreihen', aufgeben: 'Aufgeben', widerruf: '
 const ANDOCKEN = { automatisch: 'automatisch nach Andockprüfung', mensch: 'Mensch prüft jedes Andocken' };
 const andockenWort = (text) => (text ? ANDOCKEN[text] ?? text : 'zurück zum Vorschlag');
 const VON = { mensch: 'Mensch', admiral: 'Admiral', lauf: 'Lauf' };
+// #243: the cause of a card in one or two words (its pill), and who is on
+const URSACHE = { main_rot: 'main rot', konflikt: 'Konflikt mit main', gate_rot: 'Andockprüfung rot', ohne_ergebnis: 'ohne Ergebnis', pr: 'Pull Request', anmeldung: 'Anmeldung', unbekannt: 'blockiert' };
+const WER = { du: 'Du', flotte: 'Flotte', mission: 'Mission' };
 // the label of a card's line (lage), from the driver
 const ETIKETT = { arbeitet: 'Arbeitet', prueft: 'Prüft', wartet_auf_dich: 'Wartet auf dich', wartet: 'Wartet', gestoppt: 'Gestoppt', fertig: 'Fertig' };
 
@@ -157,7 +160,7 @@ function liste(box, items, html, verdrahten, tag = 'article') {
 
 function klasse(it) {
   return {
-    frage: 'karte frage', blockade: 'karte blockade',
+    frage: 'karte frage', blockade: 'karte blockade', ursache: 'karte blockade', bald: 'karte bald',
     lauf: `karte lauf${wartetAufDich(it) ? ' wartet' : ''}`, schlange: 'karte lauf schlange', bereit: 'b-ep',
   }[it.form] ?? (it.form === 'zeile' ? `${it.art}${it.neu ? ' neu' : ''}` : '');
 }
@@ -181,12 +184,16 @@ function ebene1(t) {
   const aeltest = Math.max(0, ...t.braucht.map((x) => seitS(x.seit) ?? 0));
   $('e1-klein').textContent = n ? `älteste wartet ${dauer(aeltest)}` : '';
   const box = $('e1-liste');
-  if (!n) {
+  // #243: "Dein Schritt bald" stands after the cards, yellow and not counted: nothing waits on it yet
+  const bald = t.bald ?? [];
+  if (!n && !bald.length) {
     setze(box, '<p class="ruhe">Nichts wartet auf dich.</p>');
     return;
   }
   if (box.dataset.sig) { box.innerHTML = ''; delete box.dataset.sig; }
-  liste(box, t.braucht.map((x) => ({ ...x, form: x.art, flip: x.art === 'blockade' ? x.id : x.id })), (x) => (x.art === 'frage' ? frageHtml(x, t) : blockadeHtml(x, t)), (el, x) => (x.art === 'frage' ? frageVerdrahten(el, x) : blockadeVerdrahten(el, x)));
+  const html = (x) => (x.art === 'frage' ? frageHtml(x, t) : x.form === 'bald' ? baldHtml(x, t) : blockadeHtml(x, t));
+  const verdrahten = (el, x) => (x.art === 'frage' ? frageVerdrahten(el, x) : blockadeVerdrahten(el, x));
+  liste(box, [...t.braucht.map((x) => ({ ...x, form: x.art, flip: x.id })), ...bald.map((x) => ({ ...x, form: 'bald' }))], html, verdrahten);
 }
 
 function nrLink(x, nr = x.epic) {
@@ -215,14 +222,17 @@ function marken(x) {
 
 function frageHtml(x, t) {
   const e = entwurf.get(x.id) || {};
-  const titel = x.frage ? esc(x.frage) : 'Der Lauf fragt (Wortlaut)';
+  // #243: the run's short line first; the whole question goes with situation and reason into the fold
+  const titel = x.kurz ? esc(x.kurz) : x.frage ? esc(x.frage) : 'Der Lauf fragt (Wortlaut)';
   const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">Frage ${x.nr} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'wartet {}')} · ${esc(haelt(x))}</span></div>`;
-  const lage = x.frage
-    ? (x.lage ? `<p class="lage kurz${auf.has(`lage:${x.id}`) ? ' auf' : ''}">${esc(x.lage)}</p>${x.lage.length > 220 ? `<button type="button" class="mehr-lage" data-lage>${auf.has(`lage:${x.id}`) ? 'weniger' : 'ganze Lage'}</button>` : ''}` : '')
-    : `<div class="roh">${esc(x.roh || '(leer)')}</div>`;
+  const ganz = x.kurz && x.frage && x.kurz !== x.frage ? `<p class="lage"><b>Frage:</b> ${esc(x.frage)}</p>` : '';
   const warum = x.grund ? `<p class="warum"><b>Liegt bei dir:</b> ${esc(x.grund)}</p>` : '';
+  const innen = `${ganz}${x.lage ? `<p class="lage">${esc(x.lage)}</p>` : ''}${warum}`;
+  const lage = x.frage
+    ? (innen ? `<details class="falte" data-falte="lage:${esc(x.id)}"${auf.has(`lage:${x.id}`) ? ' open' : ''}><summary>Lage und Begründung</summary>${innen}</details>` : '')
+    : `<div class="roh">${esc(x.roh || '(leer)')}</div>`;
   const wortlaut = x.frage && x.roh ? `<details class="wortlaut"><summary>Wortlaut des Laufs</summary><div class="roh">${esc(x.roh)}</div></details>` : '';
-  const vorne = `${kopfz}<h3>${titel}</h3>${lage}${marken(x)}${warum}`;
+  const vorne = `${kopfz}<h3>${titel}</h3>${marken(x)}`;
   if (x.antwort && (x.antwort.abgeholt || !e.aendern)) {
     const st = x.antwort.abgeholt ? 'Angekommen, Lauf setzt fort' : x.aktiv ? 'Angekommen · der Treiber holt sie im nächsten Takt ab' : 'Angekommen · kein Treiber läuft, er holt sie bei seinem nächsten Start ab';
     const aendern = x.antwort.abgeholt ? '' : '<button type="button" class="knopf zweit klein" data-aendern>ändern</button>';
@@ -241,8 +251,8 @@ function frageHtml(x, t) {
   const zu = t.pin ? '' : ' disabled';
   const empf = !x.empfohlen.length && x.empfehlung ? `<p class="warum"><b>Empfehlung:</b> ${esc(x.empfehlung)}</p>` : '';
   return `${vorne}${x.mehrfach && x.optionen.length ? '<span class="hinweis">mehrere möglich</span>' : ''}${opts ? `<div class="optionen">${opts}</div>` : ''}${empf}
-${frei ? `<textarea placeholder="${x.optionen.length ? 'Freitext, erreicht den Lauf unverändert (optional)' : 'Deine Antwort, erreicht den Lauf unverändert'}" aria-label="Freitext"${zu}>${esc(e.text || '')}</textarea>` : ''}
-<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Freitext</button>` : ''}<span class="status">${t.pin ? '' : `Antworten abgeschaltet: ${huelle.ohnePin(t)}`}</span></div>${wortlaut}`;
+${frei ? `<textarea placeholder="${x.optionen.length ? 'Andere Antwort, erreicht den Lauf unverändert (optional)' : 'Deine Antwort, erreicht den Lauf unverändert'}" aria-label="Andere Antwort"${zu}>${esc(e.text || '')}</textarea>` : ''}
+<div class="knoepfe"><button type="button" class="knopf haupt" data-senden${zu}>${esc(sendeText(x, e))}</button>${x.optionen.length && !frei ? `<button type="button" class="knopf zweit" data-frei${zu}>Andere Antwort …</button>` : ''}<span class="status">${t.pin ? '' : `Antworten abgeschaltet: ${huelle.ohnePin(t)}`}</span></div>${lage}${wortlaut}`;
 }
 
 function sendeText(x, e) {
@@ -262,10 +272,7 @@ function frageVerdrahten(el, x) {
     frageVerdrahten(el, x);
     lebenszeichen();
   };
-  el.querySelector('[data-lage]')?.addEventListener('click', () => {
-    auf.has(`lage:${x.id}`) ? auf.delete(`lage:${x.id}`) : auf.add(`lage:${x.id}`);
-    neuZeichnen();
-  });
+  falteMerken(el);
   el.querySelector('[data-aendern]')?.addEventListener('click', () => {
     neu({ aendern: true, wahl: x.antwort?.option ? x.antwort.option.split(', ') : [], text: x.antwort?.text || '', frei: Boolean(x.antwort?.text) });
     neuZeichnen();
@@ -316,7 +323,61 @@ async function antworten(x, el) {
   }
 }
 
+// a fold (<details>) stays open across refreshes of the card
+function falteMerken(el) {
+  for (const d of el.querySelectorAll('details[data-falte]')) d.addEventListener('toggle', () => (d.open ? auf.add(d.dataset.falte) : auf.delete(d.dataset.falte)));
+}
+
+// an action of the person on its way to the driver, on a card of level 1
+function angekommenHtml(h, x, wort) {
+  const st = h.abgeholt ? 'Angekommen, der Treiber führt es aus' : x.aktiv ? 'Angekommen · der Treiber holt es im nächsten Takt ab' : 'Angekommen · kein Treiber läuft, er holt es bei seinem nächsten Start ab';
+  return `<div class="angekommen"><span>${esc(wort)}</span><span class="status gut">${uhrzeit(h.zeit)} · ${st}</span></div>`;
+}
+
+const missionHtml = (m) => `${m.issueUrl ? `<a href="${esc(m.issueUrl)}">#${m.nr}</a>` : `#${m.nr}`} ${esc(m.titel)}${m.pr ? ` · ${m.prUrl ? `<a href="${esc(m.prUrl)}">PR #${m.pr}</a>` : `PR #${m.pr}`}` : ''}`;
+
+// #243: a card with a cause: what is wrong (one line), who is on, the step with the button it names; the missions it
+// holds; the error line and where the short line comes from folded under "Details"
+function ursacheHtml(x, t) {
+  const u = x.ursache;
+  const m = x.missionen ?? [];
+  const blockade = x.art === 'blockade';
+  const kopfz = `<div class="kopfz"><span class="pill">${esc(URSACHE[u.art] ?? u.art)}</span>${blockade ? nrLink(x) : ''}<span class="art">${blockade && x.stufe === 'abgebrochen' ? 'Abgebrochen · ' : ''}${esc(x.repo)}${blockade && x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · hält ${m.length} ${m.length === 1 ? 'Mission' : 'Missionen'}</span></div>`;
+  const wer = `<dl class="zeilen"><dt>Wer</dt><dd><b>${esc(WER[u.wer] ?? u.wer)}</b>${u.warum ? ` · ${esc(u.warum)}` : ''}</dd></dl>`;
+  const schritt = `<div class="u-schritt"><b>${u.wer === 'du' ? 'Dein Schritt' : 'Nächster Schritt'}:</b> ${esc(u.schritt)}</div>`;
+  const befehl = u.befehl ? `<div class="befehl"><code>${esc(u.befehl)}</code><button type="button" class="knopf zweit klein" data-kopieren>Kopieren</button></div>` : '';
+  const geprueft = u.geprueft ? `<p class="geprueft" role="status">${esc(u.geprueft)}</p>` : '';
+  const wartet = !blockade && u.art === 'main_rot' ? '. Läuft von selbst weiter, sobald die Basis wieder grün ist.' : '';
+  const betrifft = m.length ? `<p class="betrifft">${blockade ? '' : 'Wartet: '}${m.map(missionHtml).join('; ')}${wartet}</p>` : '';
+  let unten;
+  const h = x.erledigt || x.handlung;
+  if (h) unten = angekommenHtml(h, x, x.erledigt ? 'Erledigt · der Treiber prüft nach' : HANDLUNG[h.art]);
+  else {
+    const zu = t.pin ? '' : ' disabled';
+    // the main button follows the step: "Erledigt" checks the cause again and requeues itself; requeueing before it only repeats the end
+    const k = [];
+    if (u.knopf === 'erledigt') k.push(`<button type="button" class="knopf haupt" data-erledigt${zu}>Erledigt</button>`);
+    if (blockade && u.knopf !== 'erledigt') k.push(`<button type="button" class="knopf ${u.knopf === 'einreihen' ? 'haupt' : 'zweit'}" data-h="einreihen"${zu}>Neu einreihen</button>`);
+    if (blockade) k.push(`<button type="button" class="knopf zweit" data-h="aufgeben"${zu}>Aufgeben</button>`);
+    unten = k.length ? `<div class="knoepfe">${k.join('')}<span class="status">${t.pin ? '' : `Handeln abgeschaltet: ${huelle.ohnePin(t)}`}</span></div>${x.aktiv ? '' : '<span class="hinweis">Der Treiber meldet sich gerade nicht: die Handlung wirkt bei seinem nächsten Start.</span>'}` : '';
+  }
+  const fehler = u.fehler || (x.grund || '').split('\n')[0];
+  const quelle = u.quelle === 'zusammengefasst' ? 'Kurzzeile zusammengefasst von einem kleinen Modell' : `Ursache aus dem Katalog: ${esc(URSACHE[u.art] ?? u.art)}`;
+  const log = x.issueUrl ? ` · <a href="${esc(x.issueUrl)}">ganzer Grund am Issue</a>` : '';
+  const details = `<details class="falte" data-falte="details:${esc(x.id)}"${auf.has(`details:${x.id}`) ? ' open' : ''}><summary>Details</summary>${fehler ? `<pre class="fehler">${esc(fehler)}</pre>` : ''}<p class="quelle">${quelle}${log}</p></details>`;
+  return `${kopfz}<p class="was">${esc(u.kurz)}</p>${wer}${schritt}${befehl}${geprueft}${unten}${betrifft}${details}`;
+}
+
+// #243: a step of the person a decision of the admiral announced; yellow, "Erledigt" takes it away
+function baldHtml(x, t) {
+  const kopfz = `<div class="kopfz"><span class="pill">Dein Schritt bald</span>${nrLink(x)}<span class="art">${esc(x.repo)}</span><span class="warte">Admiral · ${zeitHtml(x.zeit, 'vor {}')}</span></div>`;
+  const wer = `<dl class="zeilen"><dt>Wer</dt><dd><b>Du</b>${x.warum ? ` · ${esc(x.warum)}` : ''}</dd></dl>`;
+  const unten = x.erledigt ? angekommenHtml(x.erledigt, x, 'Erledigt') : `<div class="knoepfe"><button type="button" class="knopf zweit" data-erledigt${t.pin ? '' : ' disabled'}>Erledigt</button><span class="status"></span></div>`;
+  return `${kopfz}<p class="was">${esc(x.kurz)}</p>${wer}${unten}`;
+}
+
 function blockadeHtml(x, t) {
+  if (x.ursache) return ursacheHtml(x, t);
   const grund = x.grund || x.notiz || 'ohne Grund gemeldet';
   const [erste, ...rest] = grund.split('\n');
   // parked for the person: her step leads to the ticket; requeueing before it only repeats the same end
@@ -339,6 +400,21 @@ function blockadeHtml(x, t) {
 }
 
 function blockadeVerdrahten(el, x) {
+  falteMerken(el);
+  el.querySelector('[data-erledigt]')?.addEventListener('click', async () => {
+    const text = x.form === 'bald' ? x.schluessel : x.ursache.schluessel;
+    // main red holds several missions: the first one carries "Erledigt", the driver checks the base once
+    const epic = x.form === 'bald' ? x.epic : (x.missionen?.[0]?.nr ?? x.epic);
+    if (await senden('/api/handlung', { forge: x.forge, epic, art: 'erledigt', text }, el, el.querySelector('.status'))) await laden();
+  });
+  el.querySelector('[data-kopieren]')?.addEventListener('click', async (ev) => {
+    try {
+      await navigator.clipboard.writeText(x.ursache.befehl);
+      ev.target.textContent = 'Kopiert';
+    } catch {
+      ev.target.textContent = 'Kopieren geht hier nicht';
+    }
+  });
   el.querySelector('[data-log]')?.addEventListener('click', () => {
     auf.has(`log:${x.id}`) ? auf.delete(`log:${x.id}`) : auf.add(`log:${x.id}`);
     el.dataset.sig = '';
@@ -367,6 +443,8 @@ function ebene2(t) {
   $('e2-klein').textContent = [laufen ? `${laufen} ${laufen === 1 ? 'läuft' : 'laufen'}` : '', warten ? `${warten} wartet auf dich` : '', schlange ? `${schlange} in der Schlange` : '', u.bereit.length ? `${u.bereit.length} bereit` : ''].filter(Boolean).join(' · ') || 'nichts unterwegs';
   const items = [...u.laeufe.map((l) => ({ ...l, form: 'lauf', flip: l.id })), ...u.schlange.map((s) => ({ ...s, id: `${s.id}:s`, form: 'schlange', flip: s.id }))];
   liste($('e2-liste'), items, laufHtml, paketeVerdrahten);
+  // #243: what the fleet repairs itself: one yellow line each, no card, no push
+  setze($('e2-selbst'), (u.selbst ?? []).map((s) => `<p class="selbst"><b>Unterwegs</b><span>${nrLink(s)} ${esc(s.kurz)}${s.warum ? ` <small>· ${esc(s.warum)}</small>` : ''}</span></p>`).join(''));
   const box = $('bereit');
   if (!u.bereit.length) {
     setze(box, '<span class="b-ep"><small>keins wartet</small></span>');

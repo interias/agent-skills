@@ -7,7 +7,7 @@ from pywebpush import WebPushException
 
 from app import start
 from app.main import Einstellung, erzeuge
-from app.meldung import inhalt, schluessel_erzeugen
+from app.meldung import _meldung, inhalt, schluessel_erzeugen
 from conftest import fremd, koppeln
 
 PIN = {'X-Bruecke-Pin': '4711'}
@@ -124,11 +124,11 @@ def test_anderer_fehler_laesst_abo_stehen(baue, bericht, dienst):
 def test_einmal_je_ereignis_gebuendelt_und_nach_neustart_still(baue, bericht, dienst):
     c = baue()
     abonnieren(c)
-    # the example: question of #39 and blockade of #40 in one report
+    # the example: question of #39, blockade of #40 and the red base #37 waits for, in one report
     c.post('/api/bericht', json=bericht)
-    assert [g['daten']['titel'] for g in dienst.gesendet] == ['Braucht dich: 2 neue Meldungen']
-    # in the order of level 1: the longest wait first
-    assert dienst.gesendet[0]['daten']['text'] == 'flotte-probe #40 Blockade · Mini-Mission: Startskript\nflotte-probe #39 Frage · Mini-Mission: Konfigurationsdatei'
+    assert [g['daten']['titel'] for g in dienst.gesendet] == ['Braucht dich: 3 neue Meldungen (flotte-probe)']
+    # in the order of level 1, one short line each: what holds a whole mission first, then the longest wait
+    assert dienst.gesendet[0]['daten']['text'] == 'Die Andockprüfung der Mission ist rot.\nmain ist rot: tests/routen.test.ts scheitert in api.\nWo soll die Konfigurationsdatei liegen?'
     c.post('/api/bericht', json=bericht)
     # a restart of the bridge on the same database
     baue().post('/api/bericht', json=bericht)
@@ -136,7 +136,8 @@ def test_einmal_je_ereignis_gebuendelt_und_nach_neustart_still(baue, bericht, di
     # a new question rings alone
     bericht['fragen'].append({**bericht['fragen'][0], 'nr': 2, 'seit': '2026-11-20T14:30:00Z'})
     c.post('/api/bericht', json=bericht)
-    assert dienst.gesendet[1]['daten'] == {'titel': 'Braucht dich: flotte-probe #39', 'text': 'Frage · Mini-Mission: Konfigurationsdatei'}
+    # #243: the question in one sentence and the recommendation
+    assert dienst.gesendet[1]['daten'] == {'titel': 'Wo soll die Konfigurationsdatei liegen?', 'text': '→ Empfohlen: A · config/flotte.json neben den Skript-Konfigurationen, folgt dem vorhandenen Muster · #39 (flotte-probe)'}
     assert dienst.gesendet[1]['claims']['sub'].startswith('mailto:')
 
 
@@ -147,7 +148,10 @@ def test_nur_braucht_dich(baue, bericht, dienst):
     for ep in bericht['epics']:
         if ep['stufe'] == 'blockiert':
             ep['stufe'] = 'laeuft'
-    # running, queued, merged and waiting epics, the decisions and events: nothing for the person
+        # the red base needs the person (its own test); a conflict the fleet solves itself (#38) does not
+        if (ep.get('ursache') or {}).get('art') == 'main_rot':
+            ep['ursache'] = None
+    # running, queued, merged and waiting epics, the decisions and events, "Dein Schritt bald": nothing for the person
     c.post('/api/bericht', json=bericht)
     assert dienst.gesendet == []
     # a blocked epic given up does not ring either
@@ -167,30 +171,57 @@ def test_neu_blockiert_klingelt_wieder(baue, bericht, dienst):
     c.post('/api/bericht', json=bericht)
     ep.update(stufe='abgebrochen', haltZeit='2026-11-20T14:25:00Z')
     c.post('/api/bericht', json=bericht)
-    assert [g['daten']['titel'] for g in dienst.gesendet] == ['Braucht dich: flotte-probe #40', 'Braucht dich: flotte-probe #40']
+    assert [g['daten']['titel'] for g in dienst.gesendet] == ['Braucht dich: 2 neue Meldungen (flotte-probe)', 'Die Andockprüfung der Mission ist rot.']
 
 
-# ---- content: short name, number, kind, short title; no question, no path, no transcript
+# ---- content (#243): what the card says, the short line and the step; no path, no transcript
 
 
-def test_inhalt_ohne_fragetext_pfade_und_transkript(baue, bericht, dienst):
+def test_inhalt_ohne_pfade_und_transkript(baue, bericht, dienst):
     c = baue()
     abonnieren(c)
     f = bericht['fragen'][0]
-    f.update(frage=r'Soll C:\Users\jemand\geheim.txt gelöscht werden?', lage='Im Transkript steht /home/jemand/.ssh/id_rsa', roh='Wortlaut des Laufs', grund='weil')
+    f.update(frage=r'Soll C:\Users\jemand\geheim.txt gelöscht werden?', kurz=None, lage='Im Transkript steht /home/jemand/.ssh/id_rsa', roh='Wortlaut des Laufs', grund='weil')
+    # a blockade of an older driver without a cause: its title, cut for the notification
     ep = next(e for e in bericht['epics'] if e['nr'] == 40)
-    ep.update(grund=r'Gate rot in D:\repo\x', log=['10:00 Transkriptzeile'], titel='Ein sehr langer Titel einer Mission, der weit über sechzig Zeichen hinausgeht und gekürzt wird')
+    ep.update(ursache=None, grund=r'Gate rot in D:\repo\x', log=['10:00 Transkriptzeile'], titel='Ein sehr langer Titel einer Mission, der weit über sechzig Zeichen hinausgeht und gekürzt wird')
     c.post('/api/bericht', json=bericht)
     daten = dienst.gesendet[0]['daten']
     assert set(daten) == {'titel', 'text'}
     text = daten['titel'] + ' ' + daten['text']
-    for verboten in ['geheim', 'Users', '.ssh', 'Transkript', 'Wortlaut', 'Gate rot', 'repo', 'interias/', '\\', '/']:
+    for verboten in ['geheim', 'Users', '.ssh', 'Transkript', 'Wortlaut', 'Gate rot', 'repo', 'interias/', '\\']:
         assert verboten not in text
-    assert 'flotte-probe #40 Blockade · Ein sehr langer Titel einer Mission, der weit über sechzig…\n' in daten['text']
+    zeilen = daten['text'].split('\n')
+    assert zeilen[0] == 'Blockiert: Ein sehr langer Titel einer Mission, der weit über sechzig Zeichen hinausgeht und gekürzt wird'[:89].rstrip() + '…'
+    assert zeilen[2] == 'Soll <pfad> gelöscht werden?'
 
 
 def test_inhalt_einzeln_und_ohne_titel():
-    assert inhalt([{'kurz': 'werft', 'epic': 7, 'art': 'blockade', 'titel': ''}]) == {'titel': 'Braucht dich: werft #7', 'text': 'Blockade'}
+    assert _meldung({'art': 'blockade', 'epic': 7, 'titel': '', 'stufe': 'abgebrochen'}) == ('Abgebrochen: #7', '→ Ursache ansehen · hält #7')
+    assert inhalt([{'kurz': 'werft', 'epic': 7, 'art': 'blockade', 'titel': 'Abgebrochen: #7', 'text': '→ Ursache ansehen · hält #7'}]) == {'titel': 'Abgebrochen: #7', 'text': '→ Ursache ansehen · hält #7 (werft)'}
+
+
+def test_eine_meldung_je_ursache_und_flotte_klingelt_nicht(baue, bericht, dienst):
+    # #243: the red base holds #36 and #37: one push with both; the conflict the fleet solves itself rings nothing
+    c = baue()
+    abonnieren(c)
+    bericht['fragen'] = []
+    rot = next(e for e in bericht['epics'] if e['nr'] == 37)['ursache']
+    for ep in bericht['epics']:
+        if ep['nr'] == 40:
+            ep['stufe'] = 'laeuft'
+        if ep['nr'] == 36:
+            ep['ursache'] = rot
+    c.post('/api/bericht', json=bericht)
+    assert [g['daten'] for g in dienst.gesendet] == [{'titel': 'main ist rot: tests/routen.test.ts scheitert in api.', 'text': '→ main reparieren (tests/routen.test.ts in api), dann „Erledigt“ · hält #36, #37 (flotte-probe)'}]
+    # the same red base again: still; red again later (a new since): it rings anew
+    c.post('/api/bericht', json=bericht)
+    assert len(dienst.gesendet) == 1
+    for ep in bericht['epics']:
+        if ep['nr'] in (36, 37):
+            ep['ursache'] = {**rot, 'seit': '2026-11-20T14:30:00Z'}
+    c.post('/api/bericht', json=bericht)
+    assert len(dienst.gesendet) == 2
 
 
 # ---- optional: without the VAPID key no push, no service, the bridge as before
