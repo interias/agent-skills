@@ -38,7 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .meldung import Push, ereignisse, inhalt
-from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, Verlauf, WerftBericht, WerftHandlung, einstellung_pruefen, link_erlaubt
+from .modelle import CHAT_KONTO, KONTO_HANDLUNGEN, Antwort, Bericht, ChatAnlegen, ChatAntwort, ChatArchiv, ChatBeginn, ChatEinstellung, ChatQuittung, ChatText, GeraetAnzeige, GeraetKoppeln, GeraetRechte, Handlung, Holodeck, PushAbmeldung, PushAbo, Verlauf, WerftBericht, WerftHandlung, einstellung_pruefen, link_erlaubt
 from .speicher import Speicher
 from .tafel import HERKUNFT, bereitschaftsraum, tafel
 
@@ -109,7 +109,7 @@ class Einstellung:
 # ADR-0007: over the remote entry the person writes like in the LAN (paired device with the right); every other
 # writing route stays refused there: the services' report, fetching and receipts, the holodeck, and the machine's own
 # rights, unpairing and releasing the emergency stop. An allow list, so a later endpoint is refused until named here.
-PERSON_FERN = re.compile(r'^/api/(antwort|handlung|werft/handlung|pin|notaus|push|push/abmelden|geraete/koppeln|chat|chat/\d+/(nachricht|einstellung|anlegen|verwerfen|stoppen|fortsetzen|archivieren))$')
+PERSON_FERN = re.compile(r'^/api/(antwort|handlung|werft/handlung|pin|notaus|push|push/abmelden|geraete/koppeln|geraete/anzeige|chat|chat/\d+/(nachricht|einstellung|anlegen|verwerfen|stoppen|fortsetzen|archivieren))$')
 
 
 def fernweg(request: Request) -> bool:
@@ -240,7 +240,9 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         alle = ereignisse(speicher.projekt(b.forge), speicher.stufen_seit(), jetzt(), tz)
         frisch = speicher.neu_gemeldet(b.forge, [x['schluessel'] for x in alle])
         if push and frisch:
-            hinterher.add_task(push.verschicke, speicher, inhalt([x for x in alle if x['schluessel'] in frisch]))
+            neu = [x for x in alle if x['schluessel'] in frisch]
+            # #246: each device gets the push in its display
+            hinterher.add_task(push.verschicke, speicher, {'sprachraum': inhalt(neu), 'klartext': inhalt(neu, klar=True)})
         return {'ok': True, 'neu': neu}
 
     @app.get('/api/antworten')
@@ -701,6 +703,17 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
         protokoll(g, request, k)
         return {'ok': True, 'geraet': g}
 
+    @app.post('/api/geraete/anzeige')
+    def anzeige(a: GeraetAnzeige, request: Request) -> dict:
+        """#246, agent-skills/ADR-0008: Sprachraum or Klartext for this device, kept in the bridge so the push speaks it
+        too. A display only: any paired device, without PIN or right, also under the emergency stop."""
+        g = geraet_von(request)
+        if g is None:
+            raise HTTPException(401, 'Dieses Gerät ist nicht gekoppelt: einmal mit der PIN koppeln.', headers={'X-Bruecke-Grund': 'geraet'})
+        speicher.geraet_anzeige(g['id'], a.anzeige)
+        protokoll(g, request, a)
+        return {'ok': True, 'anzeige': a.anzeige}
+
     @app.post('/api/geraete/{id_}/rechte')
     def rechte(id_: int, r: GeraetRechte, request: Request, x_bruecke_pin: str | None = Header(None)) -> dict:
         g = rechner(request, x_bruecke_pin)
@@ -761,10 +774,10 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
 
     @app.post('/api/push')
     def abonnieren(a: PushAbo, request: Request) -> dict:
-        person(request, 'antworten')
+        g = person(request, 'antworten')
         if not push:
             raise HTTPException(409, 'Web-Push ist aus: kein VAPID-Schlüssel (BRUECKE_VAPID_SCHLUESSEL in .env).')
-        speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel())
+        speicher.abo_setzen(a.endpoint, a.keys.p256dh, a.keys.auth, stempel(), g['id'])
         return {'ok': True}
 
     @app.post('/api/push/abmelden')

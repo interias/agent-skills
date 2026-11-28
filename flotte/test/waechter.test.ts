@@ -44,6 +44,7 @@ const AUSNAHMEN = {
     { muster: /^docs\/adr\//, grund: 'ADRs are history; ADR-0003 itself has to name the old terms' },
     { muster: /(^|\/)UMSTELLUNG\.md$/, grund: 'the migration guide (#82) names every old command, old → new' },
     { muster: /(^|\/)(node_modules|\.git)(\/|$)/, grund: 'not part of the repository texts' },
+    { muster: /^flottenbruecke\/app\/static\/klartext\.json$/, grund: 'the term table of the Klartext display (#246, agent-skills/ADR-0008): the one file that carries the plain developer terms' },
   ],
   // Whole words (after splitting at spaces and punctuation, hyphens kept) that are technical names.
   woerter: [
@@ -95,7 +96,7 @@ const AUSNAHMEN = {
 // Every Markdown file of the repository, plus the texts of the Brücke a person sees and the string
 // literals of the driver source flotte/src (#183: log book, events, forge comments, Tafel, the
 // prompts it hands to runs) and the HTML sources of the pictures under assets/ (#183).
-const BRUECKE = /^flottenbruecke\/app\/([^/]+\.py|static\/.+\.(html|js|css|svg|webmanifest))$/;
+const BRUECKE = /^flottenbruecke\/app\/([^/]+\.py|static\/.+\.(html|js|css|svg|webmanifest|json))$/;
 const TREIBER = /^flotte\/src\/.+\.ts$/;
 const BILDER = /^assets\/.+\.html$/;
 
@@ -332,6 +333,15 @@ describe('Wächter gegen Altbegriffe', () => {
 
   it('checks the HTML sources of the pictures under assets/ (#183)', () => {
     expect(dateien().filter((d) => d.startsWith('assets/') && d.endsWith('.html'))).toContain('assets/readme/ablauf.html');
+  });
+
+  it('takes out the term table of the Klartext display and nothing else of the Brücke (#246)', () => {
+    const tabelle = 'flottenbruecke/app/static/klartext.json';
+    expect(BRUECKE.test(tabelle)).toBe(true);
+    expect(dateien()).not.toContain(tabelle);
+    // the table does carry the plain terms: without the exception the guard would hit it
+    expect(literale(readFileSync(join(WURZEL, tabelle), 'utf8'), 'js').flatMap((s) => treffer(s.text)).length).toBeGreaterThan(0);
+    expect(AUSNAHMEN.pfade.filter((a) => a.muster.source.startsWith('^flottenbruecke'))).toHaveLength(1);
   });
 
   it('every exception names its reason', () => {
