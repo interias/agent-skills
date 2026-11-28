@@ -125,8 +125,9 @@ Describe 'hintergrund.ps1: the output of bun in the log (#244)' {
     It 'keeps umlauts: bun writes UTF-8, the log is UTF-8' {
         $s = New-Start 0
         $bun = (Get-Command bun -CommandType Application | Select-Object -First 1).Source
-        Set-Content -LiteralPath $s.Skript -Value "& '$bun' -e `"console.log('Flottenbrücke erreichbar')`""
-        # the console of the task has the OEM code page (850), not UTF-8
+        # the umlaut as an escape of JavaScript: this file stays ASCII for 5.1
+        Set-Content -LiteralPath $s.Skript -Value "& '$bun' -e `"console.log('Flottenbr\u00fccke erreichbar')`""
+        # the code page of the task's console: OEM (850), not UTF-8
         $cp = [Console]::OutputEncoding.CodePage
         $befehl = "chcp 850 >nul & `"$shell`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $wurzel 'hintergrund.ps1')`" -Skript `"$($s.Skript)`" -PauseS 0 & chcp $cp >nul"
         cmd /c $befehl | Out-Null
