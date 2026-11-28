@@ -65,6 +65,9 @@ if (-not $env:NODE_EXTRA_CA_CERTS) {
     if ($caWurzel -and (Test-Path -LiteralPath (Join-Path $caWurzel 'rootCA.pem'))) { $env:NODE_EXTRA_CA_CERTS = Join-Path $caWurzel 'rootCA.pem' }
 }
 
+# #244: bun writes UTF-8; the console of the task has the OEM code page, which turned every umlaut in the log into two signs
+try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding $false } catch { }
+
 $fehlstarts = 0
 for (;;) {
     $beginn = Get-Date

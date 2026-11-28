@@ -121,6 +121,20 @@ Describe 'hintergrund.ps1: the root certificate of mkcert (#244)' {
     }
 }
 
+Describe 'hintergrund.ps1: the output of bun in the log (#244)' {
+    It 'keeps umlauts: bun writes UTF-8, the log is UTF-8' {
+        $s = New-Start 0
+        $bun = (Get-Command bun -CommandType Application | Select-Object -First 1).Source
+        Set-Content -LiteralPath $s.Skript -Value "& '$bun' -e `"console.log('Flottenbrücke erreichbar')`""
+        # the console of the task has the OEM code page (850), not UTF-8
+        $cp = [Console]::OutputEncoding.CodePage
+        $befehl = "chcp 850 >nul & `"$shell`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $wurzel 'hintergrund.ps1')`" -Skript `"$($s.Skript)`" -PauseS 0 & chcp $cp >nul"
+        cmd /c $befehl | Out-Null
+        $text = [IO.File]::ReadAllText($s.Log, [Text.Encoding]::UTF8)
+        $text.Contains("Flottenbr$([char]0x00FC)cke erreichbar") | Should Be $true
+    }
+}
+
 Describe 'hintergrund.ps1: the task is stopped' {
     # the parent stands in for conhost: it starts hintergrund.ps1 and is killed like Stop-ScheduledTask does it.
     # The start script runs a long child (the driver), which itself starts a grandchild (a run of the driver).
