@@ -147,7 +147,8 @@ Nur im LAN: kein Tunnel, keine Portfreigabe im Router. Im Ordner `flottenbruecke
 4. **Treiber umstellen:** Die Brücke spricht auf ihrem Port jetzt nur HTTPS. Der Treiber meldet sich mit
    `--bruecke https://127.0.0.1:4747` und braucht die Umgebung
    `NODE_EXTRA_CA_CERTS` auf `rootCA.pem` im Ordner von `mkcert -CAROOT`, sonst lehnt er das
-   Zertifikat ab.
+   Zertifikat ab. Ein Treiber aus der Autostart-Aufgabe (`hintergrund.ps1`) bekommt sie von selbst, wenn
+   sie fehlt und `rootCA.pem` dort liegt; im Log steht sonst `nicht erreichbar (…): UNABLE_TO_VERIFY_…`.
 5. **Web-App installieren und Meldungen erlauben:** Auf dem Handy in Chrome
    `https://<rechnername>:4747/` öffnen, im Menü „App installieren“ (oder „Zum Startbildschirm
    hinzufügen“), die App öffnen, das Gerät einmal mit Namen und PIN koppeln (#46; handeln darf es erst,

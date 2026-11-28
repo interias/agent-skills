@@ -81,6 +81,61 @@ Describe 'hintergrund.ps1: the log file' {
     }
 }
 
+Describe 'hintergrund.ps1: the root certificate of mkcert (#244)' {
+    # the task runs pwsh -NoProfile: a NODE_EXTRA_CA_CERTS set in the profile is missing, bun refuses the bridge's certificate
+    function Invoke-MitUmgebung($s, $werte) {
+        $vorher = @{}
+        foreach ($n in $werte.Keys) { $vorher[$n] = [Environment]::GetEnvironmentVariable($n); [Environment]::SetEnvironmentVariable($n, $werte[$n]) }
+        try { Invoke-Hintergrund $s } finally { foreach ($n in $vorher.Keys) { [Environment]::SetEnvironmentVariable($n, $vorher[$n]) } }
+    }
+    function New-CaStart {
+        $s = New-Start 0
+        Set-Content -LiteralPath $s.Skript -Value '"ca=$env:NODE_EXTRA_CA_CERTS"'
+        $s
+    }
+
+    It 'points NODE_EXTRA_CA_CERTS at rootCA.pem of mkcert when it is unset' {
+        $s = New-CaStart
+        $ca = Join-Path $s.Dir 'lokal\mkcert\rootCA.pem'
+        New-Item -ItemType File -Force -Path $ca | Out-Null
+        Invoke-MitUmgebung $s @{ NODE_EXTRA_CA_CERTS = $null; CAROOT = $null; LOCALAPPDATA = (Join-Path $s.Dir 'lokal') } | Should Be 0
+        (Get-Content -LiteralPath $s.Log) -contains "ca=$ca" | Should Be $true
+    }
+
+    It 'takes the folder of CAROOT when it is set' {
+        $s = New-CaStart
+        $ca = Join-Path $s.Dir 'wurzel\rootCA.pem'
+        New-Item -ItemType File -Force -Path $ca | Out-Null
+        Invoke-MitUmgebung $s @{ NODE_EXTRA_CA_CERTS = $null; CAROOT = (Join-Path $s.Dir 'wurzel'); LOCALAPPDATA = (Join-Path $s.Dir 'lokal') } | Should Be 0
+        (Get-Content -LiteralPath $s.Log) -contains "ca=$ca" | Should Be $true
+    }
+
+    It 'keeps a value set already, and sets none without mkcert' {
+        $s = New-CaStart
+        New-Item -ItemType File -Force -Path (Join-Path $s.Dir 'lokal\mkcert\rootCA.pem') | Out-Null
+        Invoke-MitUmgebung $s @{ NODE_EXTRA_CA_CERTS = 'C:\eigen\ca.pem'; CAROOT = $null; LOCALAPPDATA = (Join-Path $s.Dir 'lokal') } | Should Be 0
+        (Get-Content -LiteralPath $s.Log) -contains 'ca=C:\eigen\ca.pem' | Should Be $true
+        $ohne = New-CaStart
+        Invoke-MitUmgebung $ohne @{ NODE_EXTRA_CA_CERTS = $null; CAROOT = $null; LOCALAPPDATA = (Join-Path $ohne.Dir 'leer') } | Should Be 0
+        (Get-Content -LiteralPath $ohne.Log) -contains 'ca=' | Should Be $true
+    }
+}
+
+Describe 'hintergrund.ps1: the output of bun in the log (#244)' {
+    It 'keeps umlauts: bun writes UTF-8, the log is UTF-8' {
+        $s = New-Start 0
+        $bun = (Get-Command bun -CommandType Application | Select-Object -First 1).Source
+        # the umlaut as an escape of JavaScript: this file stays ASCII for 5.1
+        Set-Content -LiteralPath $s.Skript -Value "& '$bun' -e `"console.log('Flottenbr\u00fccke erreichbar')`""
+        # the code page of the task's console: OEM (850), not UTF-8
+        $cp = [Console]::OutputEncoding.CodePage
+        $befehl = "chcp 850 >nul & `"$shell`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $wurzel 'hintergrund.ps1')`" -Skript `"$($s.Skript)`" -PauseS 0 & chcp $cp >nul"
+        cmd /c $befehl | Out-Null
+        $text = [IO.File]::ReadAllText($s.Log, [Text.Encoding]::UTF8)
+        $text.Contains("Flottenbr$([char]0x00FC)cke erreichbar") | Should Be $true
+    }
+}
+
 Describe 'hintergrund.ps1: the task is stopped' {
     # the parent stands in for conhost: it starts hintergrund.ps1 and is killed like Stop-ScheduledTask does it.
     # The start script runs a long child (the driver), which itself starts a grandchild (a run of the driver).

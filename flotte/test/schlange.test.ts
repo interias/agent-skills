@@ -4,6 +4,8 @@
 // that read the real branches.
 
 import { describe, expect, it } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -12,6 +14,7 @@ import { adapter, schluessel } from '../src/befehle/adapter.ts';
 import { zuschauen } from '../src/befehle/zuschauen.ts';
 import { ANDOCK_FRAGE, ANDOCK_VERSUCHE, andockEmpfehlung, andockFehler, andockWahl, antworten, fahre, type Welt } from '../src/treiber/treiber.ts';
 import { blockAus, blockEinsetzen, gateForm, gateLaeufe } from '../src/treiber/gate.ts';
+import type { Bericht, BrueckenHandlung } from '../src/treiber/bruecke.ts';
 import { belege, bildAus, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { beobachte, schrittAus } from '../src/werkzeuge/lauf.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
@@ -41,7 +44,7 @@ interface EpicGit {
  * A repository with origin, main (a/x.txt, b/y.txt) and per epic a branch in its own worktree with
  * one commit and a PR body that holds a full green gate run on that state.
  */
-function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null; adapterZusatz?: string; kontexte?: string; teilKopf?: boolean } = {}) {
+function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omit<Optionen, 'adapter'> & { rot?: (cwd: string, n: number) => boolean; rotText?: string; mergeImmerAbgelehnt?: number; stoerung?: (pr: number, n: number) => string | null; adapterZusatz?: string; kontexte?: string; teilKopf?: boolean; basis?: (pr: number) => string } = {}) {
   const bodies = new Map<number, string>();
   const liste: EpicGit[] = [];
   const t = aufbau({
@@ -53,7 +56,7 @@ function gitWelt(epics: { nr: number; datei: string; inhalt?: string }[], o: Omi
       const e = liste.find((x) => x.pr === pr)!;
       git(t.repo, 'fetch', '-q', 'origin');
       const edit = [...t.p.prEdits].reverse().find((x) => x.pr === pr);
-      return { headRefName: e.branch, baseRefName: 'main', headRefOid: git(t.repo, 'rev-parse', `origin/${e.branch}`), body: edit?.body ?? bodies.get(pr)! };
+      return { headRefName: e.branch, baseRefName: o.basis?.(pr) ?? 'main', headRefOid: git(t.repo, 'rev-parse', `origin/${e.branch}`), body: edit?.body ?? bodies.get(pr)! };
     },
     gate: (befehl, cwd, n) => {
       const kopf = git(cwd, 'rev-parse', 'HEAD');
@@ -439,6 +442,125 @@ describe('A: die Merge-Schlange', () => {
     expect(karten[0].text.split('\n')[2]).toMatch(/^\*\*Was:\*\* main ist rot: wurzel scheitert\.$/);
   }, T);
 
+  it('#243 Nacharbeit: a red base holds only the PRs on that base; a PR on another base goes its own way meanwhile', async () => {
+    let wt = '';
+    const bereit4 = () => t.p.kommentare.some((k) => k.nr === 4 && k.text.startsWith('**PR bereit'));
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }, { nr: 4, datei: 'b/vier.txt' }], {
+      rot: (cwd) => existsSync(join(cwd, 'KAPUTT')),
+      // #13 is open until merge.ps1 docked it; #14 a person docks by hand once it was handed over
+      pr: (pr) => ({ state: (pr === 14 ? bereit4() : t.p.zeitleiste.includes(`gemergt ${pr}`)) ? 'MERGED' : 'OPEN' }),
+      basis: (pr) => (pr === 14 ? 'release' : 'main'),
+      // #4 ends its turn only once main is red for #3
+      signale: { rot: /^#3 main @ \w{7} ist allein rot/ },
+      worktree: (aktion, args) => {
+        if (aktion === 'Up') {
+          wt = join(mkdtempSync(join(tmpdir(), 'flotte-probe-')), 'hauptprobe');
+          git(t.repo, 'worktree', 'add', '-q', '--detach', wt, args[args.indexOf('-From') + 1]);
+          return JSON.stringify({ path: wt });
+        }
+        git(t.repo, 'worktree', 'remove', '--force', wt);
+        return '';
+      },
+    });
+    writeFileSync(join(t.repo, 'KAPUTT'), 'rot\n');
+    git(t.repo, 'add', '-A');
+    git(t.repo, 'commit', '-q', '-m', 'broken');
+    git(t.repo, 'push', '-q', 'origin', 'main');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }]), lauf(4, [{ signal: 'rot' }, ...t.nachweis(4), { text: ende(4, 14) }])]);
+    let aus = false;
+    // the base is repaired only once #4 was handed over: held behind main, #4 would wait to the end
+    const reparatur = (async () => {
+      while (!aus && !bereit4()) await new Promise((r) => setTimeout(r, 50));
+      if (aus) return;
+      git(t.repo, 'rm', '-q', 'KAPUTT');
+      git(t.repo, 'commit', '-q', '-m', 'fix');
+      git(t.repo, 'push', '-q', 'origin', 'main');
+    })();
+    // a slower tick: the stand-in runs git synchronously, and a probe every five ticks of 20 ms would starve the end of #4's run
+    const z = await fahre(t.einstellung(buch, [3, 4], { maxDauerMs: GRENZE, taktMs: 200 }), t.welt);
+    aus = true;
+    await reparatur;
+    const e = texte(z);
+    expect(t.p.kommentare.find((k) => k.nr === 4 && k.text.startsWith('**PR bereit'))?.text).toMatch(/Basis des PRs ist release, erwartet main/);
+    expect(e.some((x) => /^#4 .*wartet, main ist rot/.test(x))).toBe(false);
+    expect(index(e, /^#4 Kopf der Schlange/)).toBeLessThan(index(e, /^main @ \w{7} ist in wurzel wieder grün/));
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.epics['4'].stufe).toBe('fertig');
+  }, T);
+
+  it('#243 Nacharbeit: "Erledigt" on main rot: still red, the card says so in one sentence; repaired, the mission docks', async () => {
+    let wt = '';
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      rot: (cwd) => existsSync(join(cwd, 'KAPUTT')),
+      pr: (pr) => ({ state: t.p.zeitleiste.includes(`gemergt ${pr}`) ? 'MERGED' : 'OPEN' }),
+      worktree: (aktion, args) => {
+        if (aktion === 'Up') {
+          wt = join(mkdtempSync(join(tmpdir(), 'flotte-probe-')), 'hauptprobe');
+          git(t.repo, 'worktree', 'add', '-q', '--detach', wt, args[args.indexOf('-From') + 1]);
+          return JSON.stringify({ path: wt });
+        }
+        git(t.repo, 'worktree', 'remove', '--force', wt);
+        return '';
+      },
+    });
+    writeFileSync(join(t.repo, 'KAPUTT'), 'rot\n');
+    git(t.repo, 'add', '-A');
+    git(t.repo, 'commit', '-q', '-m', 'broken');
+    git(t.repo, 'push', '-q', 'origin', 'main');
+    // a bridge: "Erledigt" at the card of main rot, once while main is still red, once after the person repaired it
+    const berichte: Bericht[] = [];
+    const offen = new Map<number, BrueckenHandlung>();
+    let gedrueckt = 0;
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        const json = (x: unknown) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(x));
+        };
+        if (req.url === '/api/bericht') {
+          const b = JSON.parse(body) as Bericht;
+          berichte.push(b);
+          const u = b.epics.find((e) => e.nr === 3)?.ursache;
+          const knopf = (text: string) => offen.set(++gedrueckt, { id: gedrueckt, epic: 3, art: 'erledigt', nr: null, seit: null, text, zeit: new Date().toISOString(), herkunft: 'Mensch über die Brücke' });
+          if (u?.art === 'main_rot' && gedrueckt === 0) knopf(u.schluessel);
+          if (u?.art === 'main_rot' && u.geprueft && gedrueckt === 1) {
+            git(t.repo, 'rm', '-q', 'KAPUTT');
+            git(t.repo, 'commit', '-q', '-m', 'fix');
+            git(t.repo, 'push', '-q', 'origin', 'main');
+            knopf(u.schluessel);
+          }
+          return json({ ok: true });
+        }
+        if (req.url?.startsWith('/api/handlungen?')) return json([...offen.values()]);
+        const q = /^\/api\/handlungen\/(\d+)\/quittung$/.exec(req.url ?? '');
+        if (q) offen.delete(Number(q[1]));
+        json(req.url?.startsWith('/api/antworten?') ? [] : { ok: true });
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const bruecke = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+      // a slower tick: the stand-in runs git synchronously (see above)
+      const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE, taktMs: 200, bruecke }), t.welt);
+      expect(gedrueckt).toBe(2);
+      const geprueft = berichte.map((b) => b.epics.find((e) => e.nr === 3)?.ursache?.geprueft).find(Boolean);
+      expect(geprueft).toMatch(/^Geprüft \d\d:\d\d: main ist noch rot \(wurzel\)\.$/);
+      const e = texte(z);
+      expect(e.filter((x) => /^#3 Erledigt über die Brücke: der Treiber prüft „main ist rot/.test(x))).toHaveLength(2);
+      expect(index(e, /^#3 Geprüft \d\d:\d\d: main ist noch rot/)).toBeLessThan(index(e, /^main @ \w{7} ist in wurzel wieder grün/));
+      expect(index(e, /wieder grün/)).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+      // main red is no reason to send the mission back to its run
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['3'].ursache ?? null).toBeNull();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  }, T);
+
   it('#243: a probe of the base that cannot run three times in a row frees the queue: nothing holds for good', async () => {
     let ups = 0;
     let wt = '';
@@ -594,9 +716,12 @@ describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
     expect(f.lage).toMatch(/Versucht: merge\.ps1 1-mal aufgerufen/);
     expect(f.optionen!.map((o) => o.buchstabe)).toEqual(['A', 'B', 'C']);
     expect(f.optionen!.map((o) => o.text).join(' | ')).toMatch(/erneut versuchen.*\| Andockprüfung neu fahren.*\| Mensch dockt an/);
-    const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**FRAGE AN DEN MENSCHEN (Flotte)**'))!;
+    const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**FRAGE AN DEN MENSCHEN (Flotte)'))!;
+    // #243: the three lines first, the reason, what was tried and the command folded below
+    expect(k.text.split('\n').slice(0, 5)).toEqual([`**FRAGE AN DEN MENSCHEN (Flotte) · Frage ${ANDOCK_FRAGE}**`, '', '**Was:** Andocken von PR #13 fehlgeschlagen, wie weiter?', '**Wer:** Du · der Treiber dockt nicht selbst an', '**Schritt:** In der Brücke antworten; Empfehlung: C · Mensch dockt an: der Treiber lässt den PR liegen.']);
+    expect(k.text).toMatch(/<details><summary>Details<\/summary>\n\nFrage: Andocken von PR #13 fehlgeschlagen: [\s\S]*Versucht: merge\.ps1 1-mal aufgerufen[\s\S]*\n\n<\/details>$/);
+    expect(k.text).toContain('Antworten, im Repository: `flotte antworten . 3 ' + ANDOCK_FRAGE + ' "<A, B oder C>"`');
     expect(k.text).toContain(ursache);
-    expect(k.text).toContain(`flotte antworten . 3 ${ANDOCK_FRAGE}`);
     // C: the PR waits for the person, with the reason on the board and the bridge card
     expect(z.epics['3'].stufe).toBe('pr');
     expect(z.epics['3'].notiz).toBe(`PR #13 bereit, ein Mensch dockt an (Andocken fehlgeschlagen: ${ursache})`);

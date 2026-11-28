@@ -10,6 +10,7 @@
     most -Neustarts times in a row; a run longer than -LaufS seconds counts as healthy and resets the count. A new
     start after `flotte anhalten` ends at once, since the driver reads the halt file left next to its state.
     When the task is stopped, a watch ends the driver and this script too (below), so no hidden shell stays behind.
+    NODE_EXTRA_CA_CERTS, when unset, points at rootCA.pem of mkcert (#244), so the driver trusts a bridge on HTTPS.
 .PARAMETER Skript
     The start script, ~/.claude/flotte/start/<name>.ps1.
 .PARAMETER Protokoll
@@ -56,6 +57,16 @@ if ($eltern) {
     }).AddArgument($eltern).AddArgument($PID).AddArgument($Protokoll)
     [void]$wache.BeginInvoke()
 }
+
+# #244: the task runs pwsh -NoProfile, so a NODE_EXTRA_CA_CERTS set in the profile is missing and bun refuses the
+# certificate of a bridge on HTTPS (mkcert). The root certificate of mkcert, where it exists, unless a value is set.
+if (-not $env:NODE_EXTRA_CA_CERTS) {
+    $caWurzel = if ($env:CAROOT) { $env:CAROOT } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'mkcert' }
+    if ($caWurzel -and (Test-Path -LiteralPath (Join-Path $caWurzel 'rootCA.pem'))) { $env:NODE_EXTRA_CA_CERTS = Join-Path $caWurzel 'rootCA.pem' }
+}
+
+# #244: bun writes UTF-8; the console of the task has the OEM code page, which turned every umlaut in the log into two signs
+try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding $false } catch { }
 
 $fehlstarts = 0
 for (;;) {
