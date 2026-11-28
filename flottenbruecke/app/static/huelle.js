@@ -20,7 +20,8 @@
 // (#48) view only over the remote entry, where the board comes with nurAnsicht and the page never asks for the PIN.
 //
 // Routing over location.hash (#bruecke is the default, an unknown hash shows the bridge); a jump
-// sets the hash, so the Back button goes back. All scripts of the page share one global scope: the
+// sets the hash, so the Back button goes back. #242: after a slash the hash names a sub-tab of the area
+// (#maschinenraum/einstellungen); huelle.unter() gives it to the area, a new one draws the area again. All scripts of the page share one global scope: the
 // shell keeps its names inside this function, an area inside its registration.
 'use strict';
 
@@ -32,14 +33,18 @@ const huelle = (() => {
   const defs = new Map();
   let stand = null;
   let aktiv = null;
+  let aktivUnter = '';
 
   // ---- areas and routing
 
-  const ausHash = () => {
+  // the area and its sub-tab: "maschinenraum/einrichtung" -> ['maschinenraum', 'einrichtung']
+  const teile = () => {
     let h = location.hash.slice(1);
     try { h = decodeURIComponent(h); } catch { /* malformed: the bridge */ }
-    return sektionen.has(h) ? h : 'bruecke';
+    const [name, ...rest] = h.split('/');
+    return sektionen.has(name) ? [name, rest.join('/')] : ['bruecke', ''];
   };
+  const ausHash = () => teile()[0];
   const titel = (name) => defs.get(name)?.titel ?? sektionen.get(name)?.getAttribute('aria-label') ?? name;
 
   function zeichnen(name) {
@@ -49,9 +54,15 @@ const huelle = (() => {
   }
 
   function zeigen() {
-    const name = ausHash();
-    if (name === aktiv) return;
+    const [name, unter] = teile();
+    if (name === aktiv && unter === aktivUnter) return;
     const erst = aktiv === null;
+    aktivUnter = unter;
+    if (name === aktiv) {
+      scrollTo(0, 0);
+      zeichnen(name);
+      return;
+    }
     aktiv = name;
     for (const [n, el] of sektionen) el.hidden = n !== name;
     for (const a of document.querySelectorAll('.pille[data-bereich]')) {
@@ -62,8 +73,9 @@ const huelle = (() => {
     zeichnen(name);
   }
 
+  // a name with a sub-tab goes there; a bare area name keeps the sub-tab that is open
   function gehe(name) {
-    if (ausHash() !== name) location.hash = name;
+    if (name.includes('/') ? teile().join('/') !== name : ausHash() !== name) location.hash = name;
     zeigen();
   }
 
@@ -99,8 +111,9 @@ const huelle = (() => {
   }
 
   function tafel(t) {
-    // #96: a bridge that is not set up yet opens the Maschinenraum with its steps; a link to an area stays where it points
-    if (stand === null && !location.hash && t.einrichten && !t.einrichten.fertig) gehe('maschinenraum');
+    // #96: a bridge that is not set up yet opens the Maschinenraum with its steps (#242: the sub-tab Einrichtung); a link
+    // to an area stays where it points
+    if (stand === null && !location.hash && t.einrichten && !t.einrichten.fertig) gehe('maschinenraum/einrichtung');
     stand = t;
     id('nur-ansicht').hidden = !t.nurAnsicht;
     // #46: the emergency stop holds until the machine releases it
@@ -223,6 +236,6 @@ const huelle = (() => {
   addEventListener('hashchange', zeigen);
   zeigen();
 
-  return { bereich, tafel, springe, beiTafel };
+  return { bereich, tafel, springe, beiTafel, unter: () => teile()[1] };
 })();
 huelle.ohnePin = (t) => (t?.nurAnsicht ? 'nur Ansicht über den Fernweg' : 'keine PIN gesetzt');

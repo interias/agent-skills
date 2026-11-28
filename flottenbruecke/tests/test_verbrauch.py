@@ -242,4 +242,4 @@ def test_maschinenraum_zeigt_missionen_je_konto_nur_mit_daten():
 def test_hilfetexte_nennen_die_methode():
     for text in (README, SCHNITTSTELLE):
         assert METHODE in text and MARKE in text
-    assert 'verbrauch-unterwegs-1440.png' in README and 'verbrauch-maschinenraum-390.png' in README
+    assert 'verbrauch-unterwegs-1440.png' in README and 'maschinenraum-betrieb-390.png' in README

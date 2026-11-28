@@ -54,7 +54,7 @@ Grenzen selbst und lehnt einen ungültigen Wert mit einem Ereignis ab.
 - **Lernschleife je Projekt (Tag O):** ab Werk aus, auch für ein neu hinzugefügtes Projekt. Aus heißt: nach dem
   Andocken kein Lernaufruf (kein Modell, kein Kommentar), die Triage liest `lern_issue` nicht, der Frachtraum zeigt
   keine Lernvorschläge; `flotte lernen` und `flotte triage` ohne Treiber lesen denselben Schalter aus `zustand.json`.
-  Einschalten (Maschinenraum, „Lernschleife je Projekt“, mit PIN, oder `--lernschleife an`) geht nur, wenn der
+  Einschalten (Maschinenraum, Schalter an der Projektkarte, mit PIN, oder `--lernschleife an`) geht nur, wenn der
   Adapter `lern_issue` nennt; `lern_issue` sagt nur, wohin die Vorschläge gehen. Übergang: Ein Treiber, der schon
   vor dem Schalter lief und dessen Adapter `lern_issue` nennt, übernimmt einmalig „an“ (Ereignis `Lernschleife bleibt
   an: …`). Nichts geht an ein anderes Repository als das des Projekts.
