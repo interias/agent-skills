@@ -21,13 +21,13 @@
     if (!e.pakete.length) return '';
     const fertig = e.pakete.filter((p) => p.stand === 'fertig').length;
     const n = e.pakete.length;
-    const liste = e.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${link(p.url, esc(p.name))} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}</span></li>`).join('');
+    const liste = e.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${link(p.url, esc(p.name))} <span class="pt" translate="no">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}</span></li>`).join('');
     return `<details class="sk-pakete" data-k="${esc(k)}"${offen.has(k) ? ' open' : ''}><summary><span class="segmente">${e.pakete.map((p) => `<span class="segment ${esc(p.stand)}"></span>`).join('')}</span><span class="pz">${n} ${n === 1 ? 'Ticket' : 'Tickets'} · ${fertig} fertig</span></summary><ol class="pakete">${liste}</ol></details>`;
   };
 
   // order edges: an open predecessor jumps to its row, a finished or unknown one links its issue
   const kanteHtml = (x, p) => (x.offen
-    ? `<button type="button" class="sk-kante" data-sprung="${esc(`${p.forge}#${x.nr}`)}" title="${esc(x.titel)}">#${x.nr}<small> ${esc(STUFE[x.stufe] ?? x.stufe)}</small></button>`
+    ? `<button type="button" class="sk-kante" translate="no" data-sprung="${esc(`${p.forge}#${x.nr}`)}" title="${esc(x.titel)}">#${x.nr}<small> ${esc(STUFE[x.stufe] ?? x.stufe)}</small></button>`
     : link(x.issueUrl, `#${x.nr}<small> ${x.stufe === 'abgebrochen' ? 'aufgegeben' : x.stufe ? 'erledigt' : 'nicht mehr offen'}</small>`, 'sk-kante erledigt'));
 
   // #61: an action on its way to the driver, in place of its buttons until the driver acknowledges it
@@ -80,14 +80,14 @@
     const pr = e.pr ? link(e.prUrl, `PR #${e.pr}`) : '';
     const prognose = e.prognose ? `<span class="sk-prog" title="Prognose aus den gemessenen Missionen dieses Projekts, ohne Wartezeit auf Fragen">voraussichtlich ${esc(spanne(e.prognose))}</span>` : '';
     return `<li class="sk-epic ${esc(e.stufe)}${e.prio ? ' prio-hoch' : ''}${e.pausiert ? ' pausiert' : ''}" data-k="${esc(k)}">
-<div class="sk-zeile">${link(e.issueUrl, `#${e.nr}`, 'nr')}<span class="sk-titel">${esc(e.titel)}</span><span class="sk-marken">${markenHtml(e)}${e.aufgegeben ? `<span class="sk-stufe ${esc(e.stufe)}" title="aufgegeben ${esc(uhrzeit(e.aufgegeben))}: das Issue ist offen, die Flotte fasst es nicht an">aufgegeben</span>` : `<button type="button" class="sk-stufe ${esc(e.stufe)}" data-karte="${esc(k)}" title="Karte auf der Brücke zeigen">${esc(STUFE[e.stufe] ?? e.stufe)}</button>`}</span></div>
+<div class="sk-zeile">${link(e.issueUrl, `#${e.nr}`, 'nr')}<span class="sk-titel" translate="no">${esc(e.titel)}</span><span class="sk-marken">${markenHtml(e)}${e.aufgegeben ? `<span class="sk-stufe ${esc(e.stufe)}" title="aufgegeben ${esc(uhrzeit(e.aufgegeben))}: das Issue ist offen, die Flotte fasst es nicht an">aufgegeben</span>` : `<button type="button" class="sk-stufe ${esc(e.stufe)}" data-karte="${esc(k)}" title="Karte auf der Brücke zeigen">${esc(STUFE[e.stufe] ?? e.stufe)}</button>`}</span></div>
 ${warum || pause || e.konto || pr || prognose ? `<div class="sk-warum">${[warum ? esc(warum) : '', pause ? esc(pause) : '', e.konto && e.stufe !== 'wartend' ? esc(e.konto) : '', pr, prognose].filter(Boolean).join(' · ')}</div>` : ''}
 ${andockenHtml(e)}${kanten ? `<div class="sk-kantenzeile">${kanten}</div>` : ''}${paketeHtml(e, k)}${steuernHtml(e, p, pin)}</li>`;
   };
 
   // #61: released, not in the deployment: the driver checks label and release again when it takes it in
   const freiHtml = (f, p, pin) => `<li class="sk-epic frei" data-k="${esc(`${p.forge}#${f.nr}`)}">
-<div class="sk-zeile">${link(f.issueUrl, `#${f.nr}`, 'nr')}<span class="sk-titel">${esc(f.titel)}</span><span class="sk-marken"><span class="sk-marke">nicht im Einsatz</span></span></div>
+<div class="sk-zeile">${link(f.issueUrl, `#${f.nr}`, 'nr')}<span class="sk-titel" translate="no">${esc(f.titel)}</span><span class="sk-marken"><span class="sk-marke">nicht im Einsatz</span></span></div>
 ${pin ? `<div class="knoepfe sk-steuern">${f.handlung ? unterwegsHtml(f.handlung, p) : knopfHtml(p, f.nr, 'aufnehmen', null, 'Aufnehmen', 'haupt')}<span class="status"></span></div>` : ''}</li>`;
 
   const projektHtml = (p, pin) => {

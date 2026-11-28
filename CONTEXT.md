@@ -61,6 +61,11 @@ Seit agent-skills/ADR-0003 gilt dieser Wortschatz überall außer in Labels und 
 
 _Avoid_: Epic, Gate, Merge, Implementer, Reviewer, Grilling, Kind (für ein Missionsziel) in Oberfläche und Texten.
 
+**Klartext-Anzeige**:
+Eine Anzeige der Brücke je Gerät, die statt des Sprachraums die üblichen Entwicklerbegriffe zeigt
+(agent-skills/ADR-0008). Der Sprachraum bleibt Quelle und Standard; alle Klartext-Begriffe stehen in
+der Begriffstabelle [`flottenbruecke/app/static/klartext.json`](flottenbruecke/app/static/klartext.json).
+
 ### Wer handelt
 
 **Orchestrator**:

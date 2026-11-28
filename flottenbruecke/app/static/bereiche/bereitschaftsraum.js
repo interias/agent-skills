@@ -55,7 +55,7 @@
       gruppen.get(x.forge).push(x);
     }
     const zeile = (x) => `<li><button type="button" class="br-chat${c && x.id === c.id ? ' aktiv' : ''}" data-chat="${x.id}"${c && x.id === c.id ? ' aria-current="true"' : ''}>
-<span class="br-chat-titel">${esc(x.titel)}</span>${marke(x.stand)}${x.archiviert ? '<span class="br-stand archiviert">Archiv</span>' : ''}
+<span class="br-chat-titel" translate="no">${esc(x.titel)}</span>${marke(x.stand)}${x.archiviert ? '<span class="br-stand archiviert">Archiv</span>' : ''}
 <small>${x.wartet ? '<b class="br-wartet">wartet</b> · ' : ''}Konto ${esc(x.konto)} · ${esc(x.modell || r.modell)} · ${esc(wann(x.geaendert))}</small></button></li>`;
     const neu = `<button type="button" class="knopf haupt br-neu" data-neu${gewaehlt === 'neu' ? ' aria-pressed="true"' : ''}>Neuer Chat</button>`;
     if (!r.chats.length) return `${neu}<p class="br-klein">Noch kein Chat.</p>`;
@@ -92,7 +92,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     return c.verlauf.map((n) => {
       const mensch = n.art === 'anlegen'
         ? `<li class="br-mensch anlegen"><b>${n.starten ? 'Anlegen und starten' : 'Anlegen'}</b> — der Entwurf unten<small>${esc(wann(n.zeit))}</small></li>`
-        : `<li class="br-mensch"><div class="br-text">${absatz(n.text)}</div><small>${esc(wann(n.zeit))}</small></li>`;
+        : `<li class="br-mensch"><div class="br-text" translate="no">${absatz(n.text)}</div><small>${esc(wann(n.zeit))}</small></li>`;
       if (!n.antwort && c.stand === 'gestoppt' && !n.quittiert) return `${mensch}<li class="br-antwort warten">Angehalten: geht nach „Fortsetzen“ an den Dienst.</li>`;
       if (!n.antwort && c.stand !== 'offen' && !n.quittiert) return `${mensch}<li class="br-antwort warten">Nicht mehr an den Dienst gegangen.</li>`;
       if (!n.antwort) {
@@ -101,7 +101,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
       }
       const a = n.antwort;
       const fehler = a.fehler ? `<p class="br-fehler"><b>Fehler:</b> ${esc(a.fehler)}</p>` : '';
-      const text = a.text ? `<div class="br-text">${absatz(a.text)}</div>` : '';
+      const text = a.text ? `<div class="br-text" translate="no">${absatz(a.text)}</div>` : '';
       const entwurf = a.entwurf ? `<p class="br-klein">${c.entwurf?.von === n.id ? 'Mit Entwurf (unten).' : 'Mit einem älteren Entwurf.'}</p>` : '';
       return `${mensch}<li class="br-antwort${a.fehler ? ' fehler' : ''}">${fehler}${text}${entwurf}<small>${esc(wann(a.zeit))}${n.rechner ? ` · ${esc(n.rechner)}` : ''}</small></li>`;
     }).join('');
@@ -118,7 +118,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
         const gew = an.includes(b);
         return `<button type="button" class="opt${mehrfach(k) ? ' kaestchen' : ''}${gew ? ' gewaehlt' : ''}" data-karte="${i}" data-option="${esc(b)}" aria-pressed="${gew}"${zu}><span class="b">${esc(b.length === 1 ? b : '·')}</span><span>${esc(o.replace(/^\s*[A-Z]\s*[—–-]\s*/, ''))}</span></button>`;
       }).join('');
-      return `<article class="br-karte"><h4>${esc(k.frage)}</h4>${mehrfach(k) ? '<p class="br-klein">Mehrfachwahl</p>' : ''}<div class="optionen" role="group" aria-label="${esc(kartenLabel(k, i))}">${opts}</div></article>`;
+      return `<article class="br-karte" translate="no"><h4>${esc(k.frage)}</h4>${mehrfach(k) ? '<p class="br-klein">Mehrfachwahl</p>' : ''}<div class="optionen" role="group" aria-label="${esc(kartenLabel(k, i))}">${opts}</div></article>`;
     }).join('')}</div>`;
   }
 
@@ -133,7 +133,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
 
   function missionenHtml(c) {
     if (!c.missionen.length) return '';
-    return `<section class="br-missionen" aria-label="Angelegt"><h4 class="br-unter">Angelegt</h4><ul>${c.missionen.map((m) => `<li><a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer"><b>#${esc(m.nummer)}</b> ${esc(m.titel)}</a></li>`).join('')}</ul></section>`;
+    return `<section class="br-missionen" aria-label="Angelegt"><h4 class="br-unter">Angelegt</h4><ul>${c.missionen.map((m) => `<li><a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer"><b>#${esc(m.nummer)}</b> <span translate="no">${esc(m.titel)}</span></a></li>`).join('')}</ul></section>`;
   }
 
   function chatHtml(c, r) {
@@ -150,7 +150,7 @@ ${hinweis ? `<p class="br-klein br-achtung">${hinweis}</p>` : ''}
     const lauf = c.stand === 'offen' ? `<button type="button" class="knopf klein zweit" data-steuern="stoppen"${zu}>Stoppen</button>`
       : c.stand === 'gestoppt' ? `<button type="button" class="knopf klein haupt" data-steuern="fortsetzen"${zu}>Fortsetzen</button>` : '';
     const steuern = `<div class="knoepfe br-steuern">${lauf}<button type="button" class="knopf klein zweit" data-steuern="archivieren"${zu}>${c.archiviert ? 'Aus dem Archiv' : 'Archivieren'}</button><span class="status" role="status"></span></div>`;
-    const kopf = `<header class="br-kopf"><h3><span class="br-repo-name">${esc(c.kurz)}</span> ${esc(c.titel)}</h3>${marke(c.stand)}${c.archiviert ? '<span class="br-stand archiviert">Archiv</span>' : ''}
+    const kopf = `<header class="br-kopf"><h3><span class="br-repo-name">${esc(c.kurz)}</span> <span translate="no">${esc(c.titel)}</span></h3>${marke(c.stand)}${c.archiviert ? '<span class="br-stand archiviert">Archiv</span>' : ''}
 <small class="br-klein">${c.rechner ? `Rechner ${esc(c.rechner)}` : 'noch an keinen Rechner gebunden'} · begonnen ${esc(wann(c.angelegt))}</small>${wahl}${steuern}</header>`;
     const nWahl = Object.values(e.wahl || {}).filter((x) => x.length).length;
     const schreiben = c.stand === 'offen' ? `<form class="br-schreiben" data-form="schreiben">

@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives import serialization
 from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 
+from .klartext import ersetze, klartext
 from .tafel import tafel
 
 TITEL_MAX = 90
@@ -55,15 +56,19 @@ def empfehlung(x: dict) -> str:
     return f"{e} · {o['text']}" if o else e
 
 
-def _meldung(x: dict) -> tuple[str, str]:
-    """Title and text of one card: the question and its recommendation, or the short line and the step with the missions it holds."""
+def _meldung(x: dict, klar: bool = False) -> tuple[str, str]:
+    """Title and text of one card: the question and its recommendation, or the short line and the step with the missions it holds.
+    klar (#246): in Klartext, the texts of the driver by word forms, the fixed ones by their second version; the title
+    of a mission never."""
+    treiber = ersetze if klar else str
+    fest = klartext if klar else str
     if x['art'] == 'frage':
-        e = empfehlung(x)
-        return x.get('kurz') or x['frage'] or f"Frage zu #{x['epic']}", f"→ {f'Empfohlen: {e}' if e else 'Antwort in der Brücke'} · #{x['epic']}"
+        e = treiber(empfehlung(x))
+        return treiber(x.get('kurz') or x['frage'] or '') or f"Frage zu #{x['epic']}", f"→ {f'Empfohlen: {e}' if e else fest('Antwort in der Brücke')} · #{x['epic']}"
     haelt = ', '.join(f"#{m['nr']}" for m in x.get('missionen') or [{'nr': x['epic']}])
     u = x.get('ursache')
     if u:
-        return u['kurz'], f"→ {u['schritt'].removesuffix('.')} · hält {haelt}"
+        return treiber(u['kurz']), f"→ {treiber(u['schritt']).removesuffix('.')} · hält {haelt}"
     # an older driver without a cause: the mission's title as before
     return f"{'Abgebrochen' if x.get('stufe') == 'abgebrochen' else 'Blockiert'}: {x['titel'] or '#' + str(x['epic'])}", f'→ Ursache ansehen · hält {haelt}'
 
@@ -75,8 +80,9 @@ def ereignisse(projekt: dict, stufen_seit: dict, jetzt, tz) -> list[dict]:
     aus = []
     for x in braucht:
         titel, text = _meldung(x)
+        k_titel, k_text = _meldung(x, klar=True)
         schluessel = x['id'] if x['art'] == 'frage' else f"{x['id']}#{x['seit']}" if x['art'] == 'ursache' else f"{x['id']}#{x['stufe']}#{x['seit']}"
-        aus.append({'schluessel': schluessel, 'kurz': x['repo'], 'epic': x['epic'], 'art': x['art'], 'titel': ohne_pfade(titel), 'text': ohne_pfade(text)})
+        aus.append({'schluessel': schluessel, 'kurz': x['repo'], 'epic': x['epic'], 'art': x['art'], 'titel': ohne_pfade(titel), 'text': ohne_pfade(text), 'klartext': {'titel': ohne_pfade(k_titel), 'text': ohne_pfade(k_text)}})
     return aus
 
 
@@ -84,8 +90,11 @@ def kuerze(titel: str, n: int = TITEL_MAX) -> str:
     return titel if len(titel) <= n else titel[: n - 1].rstrip() + '…'
 
 
-def inhalt(neu: list[dict]) -> dict:
-    """One push: a single event as the card says it, with the project; several with their number and one title per line."""
+def inhalt(neu: list[dict], klar: bool = False) -> dict:
+    """One push: a single event as the card says it, with the project; several with their number and one title per line.
+    klar (#246): the Klartext of each event, where ereignisse() gave one."""
+    if klar:
+        neu = [{**x, **x.get('klartext', {})} for x in neu]
     if len(neu) == 1:
         x = neu[0]
         return {'titel': kuerze(x['titel']), 'text': kuerze(f"{x['text']} ({x['kurz']})", TEXT_MAX)}
@@ -101,9 +110,11 @@ class Push:
         self.oeffentlich = oeffentlich(schluessel)
 
     def verschicke(self, speicher, nachricht: dict) -> None:
-        """To every subscription; one the push service reports gone (404, 410) is deleted, any other failure leaves it."""
-        daten = json.dumps(nachricht, ensure_ascii=False)
+        """To every subscription; one the push service reports gone (404, 410) is deleted, any other failure leaves it.
+        #246: nachricht per display ({'sprachraum': …, 'klartext': …}); each subscription gets the one of its device."""
+        je = nachricht if 'sprachraum' in nachricht else {'sprachraum': nachricht}
         for abo in speicher.abos():
+            daten = json.dumps(je.get(abo.get('anzeige')) or je['sprachraum'], ensure_ascii=False)
             try:
                 self.senden(subscription_info={'endpoint': abo['endpoint'], 'keys': {'p256dh': abo['p256dh'], 'auth': abo['auth']}}, data=daten, vapid_private_key=self.schluessel, vapid_claims={'sub': self.kontakt}, ttl=TTL_S, timeout=TIMEOUT_S)
             except WebPushException as x:

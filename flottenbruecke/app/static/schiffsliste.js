@@ -89,10 +89,10 @@
     const punkt = `<span class="punkt ${e.farbe}" aria-hidden="true"></span>`;
     if (e.art === 'lauf') {
       const nr = `#${e.nr}`;
-      const kopf = `<span class="si-titel">${e.prio ? '<span class="prio">prio</span>' : ''}<b>${esc(nr)}</b> ${esc(e.titel)}</span>`;
+      const kopf = `<span class="si-titel" translate="no">${e.prio ? '<span class="prio">prio</span>' : ''}<b>${esc(nr)}</b> ${esc(e.titel)}</span>`;
       const zustand = [e.text, e.pausiert ? 'pausiert' : ''].filter(Boolean).join(' · ');
       const klein = `<small>${[e.konto, zustand].filter(Boolean).map(esc).join(' · ')}</small>`;
-      return `<li><button type="button" class="si" data-aktion="lauf" data-k="${esc(e.k)}" title="${esc(`${nr} ${e.titel} · ${zustand}${e.prio ? ' · Priorität hoch' : ''}`)}">${punkt}<span class="si-text">${kopf}${klein}</span></button></li>`;
+      return `<li><button type="button" class="si" data-aktion="lauf" data-k="${esc(e.k)}" data-klar-fest="${esc(e.titel)}" title="${esc(`${nr} ${e.titel} · ${zustand}${e.prio ? ' · Priorität hoch' : ''}`)}">${punkt}<span class="si-text">${kopf}${klein}</span></button></li>`;
     }
     const s = e.s;
     const zeile = (n, w) => (w ? `<dt>${n}</dt><dd>${esc(w)}</dd>` : '');

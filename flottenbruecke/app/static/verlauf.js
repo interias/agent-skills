@@ -143,7 +143,7 @@
 
   function kopfHtml() {
     const x = z.x;
-    const titel = `<h2 class="vl-titel" title="${esc(x.titel ?? '')}">#${esc(x.nr)}${x.titel ? ` · ${esc(x.titel)}` : ''}</h2>`;
+    const titel = `<h2 class="vl-titel" translate="no" title="${esc(x.titel ?? '')}">#${esc(x.nr)}${x.titel ? ` · ${esc(x.titel)}` : ''}</h2>`;
     const zu = '<button type="button" class="vl-knopf" data-vl-zu aria-label="Verlauf schließen" title="Schließen (Esc)">✕</button>';
     if (!BREIT.matches) return `<div class="vl-oben">${titel}${zu}</div>${lageZeile(x)}${verbrauchHtml(x)}`;
     const i = karten.findIndex((k) => schluessel(k.x) === z.schluessel);
@@ -163,7 +163,7 @@
 
   function paketeHtml(x) {
     if (!x.pakete?.length) return '<p class="vl-leer">Noch keine Pakete geschnitten.</p>';
-    return `<ol class="vl-pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="vl-punkt" aria-hidden="true"></span><span class="vl-pn">${esc(p.name)}</span><span class="vl-pt">${esc(p.titel)}</span><span class="vl-ps">${esc(PAKET[p.stand] ?? p.stand)}</span></li>`).join('')}</ol>`;
+    return `<ol class="vl-pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="vl-punkt" aria-hidden="true"></span><span class="vl-pn">${esc(p.name)}</span><span class="vl-pt" translate="no">${esc(p.titel)}</span><span class="vl-ps">${esc(PAKET[p.stand] ?? p.stand)}</span></li>`).join('')}</ol>`;
   }
 
   function listeHtml() {
