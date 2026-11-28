@@ -1,7 +1,9 @@
 // flotte pruefen [<ordner>]: what an existing repository lacks to be driven by the fleet as of today, each point with
 // the step of /flotte-einrichten that closes it. Only reads: the adapter and the agent notes from origin/HEAD (else
 // the working copy), rights, labels and the last merged pull requests from the forge, the scheduled task of the night
-// run, the start script of the bridge. Writes nothing, fetches nothing, creates no label.
+// run, the start script of the bridge. Writes nothing, fetches nothing, creates no label. Also the four steps of setting
+// up the machine (account, sign-in, forge, project) as a checklist in the terminal, without a driver (#240): accounts
+// from konten.json, the sign-in only by the existence of .credentials.json (never read).
 
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -17,6 +19,7 @@ import { schluessel } from './adapter.ts';
 import { giteaRepoAus, giteaZugang, githubRepoAus } from './auftrag.ts';
 import { repoRechte } from './forge.ts';
 import { flottenLabels } from './klonen.ts';
+import { kontenTafel, kontoAus, liesKonten } from '../werkzeuge/konten.ts';
 import { bekannteProjekte, offeneSchluessel } from './projekt.ts';
 
 export type Stand = 'ok' | 'fehlt' | 'empfohlen' | 'offen';
@@ -32,8 +35,42 @@ export interface Punkt {
 
 export interface PruefWelt {
   aufrufer: Aufrufer;
-  /** the home folder: ~/.claude/flotte/start holds the start scripts of the bridge */
+  /** the home folder: ~/.claude/flotte/start holds the start scripts of the bridge, ~/.claude/flotte/konten.json the accounts */
   heim: string;
+  /** a line of the checklist for the person at the terminal (stderr; stdout carries the JSON) */
+  melde?: (zeile: string) => void;
+}
+
+/** One step of setting up, in the order and with the titles of the bridge's checklist "Einrichten". */
+export interface EinrichtSchritt {
+  schritt: 'konto' | 'anmeldung' | 'forge' | 'projekt';
+  stand: 'fertig' | 'offen';
+  text: string;
+}
+
+const EINRICHT_TITEL: Record<EinrichtSchritt['schritt'], string> = { konto: 'Konto anlegen', anmeldung: 'Am Rechner anmelden', forge: 'Forge verknüpfen', projekt: 'Projekt hinzufügen' };
+
+/** Account and sign-in from konten.json: an active account whose folder exists; signed in when its .credentials.json exists (never read). */
+function kontoSchritte(heim: string): EinrichtSchritt[] {
+  const datei = join(heim, '.claude', 'flotte', 'konten.json');
+  let liste;
+  try {
+    liste = liesKonten(datei);
+  } catch {
+    const text = 'konten.json unlesbar: flotte konten liste zeigt den Fehler';
+    return [{ schritt: 'konto', stand: 'offen', text }, { schritt: 'anmeldung', stand: 'offen', text }];
+  }
+  const tafel = kontenTafel(datei);
+  const da = liste.filter((k) => k.aktiv && existsSync(kontoAus(k.nr, tafel, heim)));
+  const an = da.filter((k) => existsSync(join(kontoAus(k.nr, tafel, heim), '.credentials.json')));
+  const namen = (l: typeof liste) => l.map((k) => `Konto ${k.nr}`).join(', ');
+  const ohne = da.filter((k) => !an.includes(k));
+  return [
+    da.length ? { schritt: 'konto', stand: 'fertig', text: `aktiv: ${namen(da)}` } : { schritt: 'konto', stand: 'offen', text: 'kein aktives Konto mit Ordner: flotte konten anlegen' },
+    an.length
+      ? { schritt: 'anmeldung', stand: 'fertig', text: `angemeldet: ${namen(an)}${ohne.length ? `; nicht angemeldet: ${namen(ohne)}` : ''}` }
+      : { schritt: 'anmeldung', stand: 'offen', text: `${da.length ? `nicht angemeldet: ${namen(da)}` : 'kein Konto'}: flotte konten anmelden <nr>, dort /login` },
+  ];
 }
 
 /** The steps of /flotte-einrichten (flotte-einrichten/SKILL.md, headings "## Schritt <n>: <name>"). */
@@ -171,6 +208,15 @@ export async function pruefeRepo(ordner: string, w: PruefWelt): Promise<unknown>
   // a driver started by hand reports to the bridge as well; only "Projekt hinzufügen" leaves a start script behind
   p('bruecke', 'startskript', angemeldet, 'über „Projekt hinzufügen“ angemeldet (Startskript da)', 'kein Startskript von „Projekt hinzufügen“: der Treiber startet nur von Hand, nicht von der Brücke oder beim Anmelden', schritt(6, 'Projekt hinzufügen'), 'empfohlen');
 
+  const rechte = punkte.find((x) => x.punkt === 'rechte')!;
+  const skript = punkte.find((x) => x.punkt === 'startskript')!;
+  const schritte: EinrichtSchritt[] = [
+    ...kontoSchritte(w.heim),
+    rechte.stand === 'ok' ? { schritt: 'forge', stand: 'fertig', text: rechte.text } : { schritt: 'forge', stand: 'offen', text: `${rechte.text}: ${/Issues sind/.test(rechte.text) ? 'Issues in den Einstellungen des Repositorys einschalten' : 'flotte forge verknuepfen <repo>'}` },
+    skript.stand === 'ok' ? { schritt: 'projekt', stand: 'fertig', text: 'Startskript da' } : { schritt: 'projekt', stand: 'offen', text: 'kein Startskript: flotte projekt hinzufuegen <ordner> [--autostart]' },
+  ];
+  w.melde?.([`Einrichten (${basename(repo)}):`, ...schritte.map((x) => `  [${x.stand === 'fertig' ? 'x' : ' '}] ${EINRICHT_TITEL[x.schritt]} — ${x.text}`)].join('\n'));
+
   const zahl = (s: Stand) => punkte.filter((x) => x.stand === s).length;
   const fehlt = punkte.filter((x) => x.stand === 'fehlt');
   const naechster = [...fehlt, ...punkte.filter((x) => x.stand === 'offen')].map((x) => x.schritt).sort()[0];
@@ -178,6 +224,7 @@ export async function pruefeRepo(ordner: string, w: PruefWelt): Promise<unknown>
     projekt: basename(repo),
     adapterQuelle: quelle,
     punkte,
+    einrichten: { schritte, fertig: schritte.every((x) => x.stand === 'fertig') },
     fehlt: fehlt.length,
     empfohlen: zahl('empfohlen'),
     offen: zahl('offen'),
@@ -187,7 +234,7 @@ export async function pruefeRepo(ordner: string, w: PruefWelt): Promise<unknown>
   };
 }
 
-export async function pruefen(argv: string[], w: PruefWelt = { aufrufer: aufrufen, heim: homedir() }): Promise<unknown> {
+export async function pruefen(argv: string[], w: PruefWelt = { aufrufer: aufrufen, heim: homedir(), melde: (z) => process.stderr.write(`${z}\n`) }): Promise<unknown> {
   if (argv.length > 1 || argv.some((x) => x.startsWith('--'))) throw new Error('Aufruf: flotte pruefen [<ordner>]');
   return pruefeRepo(argv[0] ?? '.', w);
 }

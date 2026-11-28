@@ -69,3 +69,27 @@ def test_huelle_startet_ohne_anker_im_maschinenraum_wenn_nicht_eingerichtet():
     js = (Path(__file__).parent.parent / 'app' / 'static' / 'huelle.js').read_text(encoding='utf-8')
     # #242: in the sub-tab Einrichtung, where the steps stand
     assert "if (stand === null && !location.hash && t.einrichten && !t.einrichten.fertig) gehe('maschinenraum/einrichtung');" in js
+
+
+# ---- #240: without any driver report the four steps are unknown, not open; the page names the check at the machine
+
+def test_ohne_treiber_meldet_die_tafel_ohne_treiber(client):
+    t = client.get('/api/tafel').json()
+    assert t['einrichten']['ohneTreiber'] is True
+
+
+def test_mit_bericht_eines_treibers_nicht_ohne_treiber(client, bericht):
+    client.post('/api/bericht', json=mit_konten(bericht, konto(1, 'nicht angemeldet')))
+    t = client.get('/api/tafel').json()
+    assert t['einrichten']['ohneTreiber'] is False
+
+
+def test_seite_zeigt_ohne_treiber_den_hinweis_statt_viermal_offen():
+    from pathlib import Path
+    js = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'maschinenraum.js').read_text(encoding='utf-8')
+    i = js.index('function einrichtenHtml(t) {')
+    fn = js[i:js.index('\n  }\n', i)]
+    assert 'e.ohneTreiber' in fn
+    assert 'ohne Treiber: <code>flotte pruefen</code> am Rechner' in fn
+    # the hint comes before the list of steps is drawn
+    assert fn.index('e.ohneTreiber') < fn.index('const schritte =')
