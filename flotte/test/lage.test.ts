@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gateSatz, type LageEingang, lageArt, lageVon } from '../src/treiber/lage.ts';
+import { einordnen, mainRot } from '../src/treiber/ursache.ts';
 import { GATE_STILL_MS, gateStand, missionsWorktrees } from '../src/treiber/pruefprotokolle.ts';
 
 const JETZT = Date.parse('2026-11-24T10:00:00Z');
@@ -120,6 +121,15 @@ describe('Tag H: die Lage einer Mission in einer Zeile', () => {
     expect(lageVon(basis({ stufe: 'blockiert', prozess: false, haltUrsache: 'Limit', haltGrund: 'Konto 2 ist nicht angemeldet.\nmehr', haltZeit: vor(30) }))).toMatchObject({ etikett: 'gestoppt', satz: 'Blockiert, Ursache Limit: Konto 2 ist nicht angemeldet.', seit: vor(30), deinSchritt: { ziel: 'einreihen' } });
     expect(kurz(basis({ stufe: 'abgebrochen', prozess: false, haltGrund: 'Leerlauf: 60 min ohne Ausgabe' }))).toBe('gestoppt · Abgebrochen: Leerlauf: 60 min ohne Ausgabe → einreihen: Ursache prüfen, dann neu einreihen oder aufgeben');
     expect(kurz(basis({ stufe: 'gemergt', pr: 478, prozess: false }))).toBe('fertig · PR #478 angedockt');
+  });
+
+  it('#243: with a cause the line is its short line and the step its step; requeue only where the catalog says so', () => {
+    const anmeldung = einordnen({ nr: 482, grund: 'Konto 2 ist nicht angemeldet.', konto: 'Konto 2', pr: null, seit: vor(30) });
+    expect(lageVon(basis({ stufe: 'blockiert', prozess: false, haltGrund: 'Konto 2 ist nicht angemeldet.', haltZeit: vor(30), ursache: anmeldung }))).toMatchObject({ etikett: 'gestoppt', satz: `Blockiert: ${anmeldung.kurz}`, deinSchritt: { text: anmeldung.schritt, ziel: 'issue' } });
+    const leer = einordnen({ nr: 482, grund: 'Leerlauf: 60 min ohne Ausgabe', konto: null, pr: null, seit: vor(30) });
+    expect(lageVon(basis({ stufe: 'abgebrochen', prozess: false, haltZeit: vor(30), ursache: leer })).deinSchritt).toEqual({ text: leer.schritt, ziel: 'einreihen' });
+    const rot = mainRot({ basis: 'main', fehler: { kontext: 'wurzel', test: 'tests/adr.test.mts', meldung: null, zeile: 'wurzel ROT' }, seit: vor(10) });
+    expect(lageVon(basis({ stufe: 'pr', pr: 548, prozess: false, schlangePlatz: 1, ursache: rot }))).toMatchObject({ etikett: 'wartet_auf_dich', satz: 'Wartet: main ist rot: tests/adr.test.mts scheitert in wurzel.', seit: vor(10), deinSchritt: { text: rot.schritt, ziel: 'issue' } });
   });
 
   it('parked for the person: her step from the run, no requeue as her step (the loop of three requeues)', () => {

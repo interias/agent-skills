@@ -10,7 +10,7 @@ from pydantic import BaseModel, BeforeValidator, Field, ValidationError, model_v
 
 EpicStufe = Literal['wartend', 'laeuft', 'frage', 'pr', 'gemergt', 'nacharbeit', 'fertig', 'blockiert', 'abgebrochen']
 # the actions that exclude each other until the driver fetches them: the last one of a group counts (#61)
-HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden', 'forge_verknuepfen': 'forge_verknuepfen', 'projekt_hinzufuegen': 'projekt_hinzufuegen', 'projekt_entfernen': 'projekt_entfernen'}
+HANDLUNG_GRUPPE = {'einreihen': 'halt', 'aufgeben': 'halt', 'pausieren': 'pause', 'fortsetzen': 'pause', 'prioritaet': 'prioritaet', 'aufnehmen': 'aufnehmen', 'widerruf': 'widerruf', 'einstellen': 'einstellen', 'merge': 'merge', 'triage': 'triage', 'triage-antwort': 'triage-antwort', 'triage-widerruf': 'triage-widerruf', 'schnitt-widerruf': 'schnitt-widerruf', 'einspielen': 'einspielen', 'konto_anlegen': 'konto_anlegen', 'konto_deaktivieren': 'konto_aktiv', 'konto_aktivieren': 'konto_aktiv', 'konto_anmelden': 'konto_anmelden', 'forge_verknuepfen': 'forge_verknuepfen', 'projekt_hinzufuegen': 'projekt_hinzufuegen', 'projekt_entfernen': 'projekt_entfernen', 'erledigt': 'erledigt'}
 # #126: the longest folder path of projekt_hinzufuegen (the classic Windows limit)
 PROJEKT_ORDNER_MAX = 260
 # the link of projekt_hinzufuegen: https://<host>/<owner>/<name>; the hosts allowed are github.com and the Gitea forges the driver reports
@@ -88,6 +88,8 @@ def link_erlaubt(url: str, gitea: list[str]) -> None:
 KONTO_HANDLUNGEN = ('konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden')
 # #116: the actions that point at one question or decision (nr, seit), not at the whole epic
 BEZUG = ('widerruf', 'triage-antwort', 'triage-widerruf')
+# #243: the actions that point at their target by their text (the key of a cause, `bald:<id>`)
+BEZUG_TEXT = ('erledigt',)
 # #112: how an epic merges (Andocken): the driver after the gate, or a person looks at every PR
 STELLUNGEN = ('automatisch', 'mensch')
 
@@ -101,6 +103,8 @@ class Frage(BaseModel):
     epic: int
     nr: int
     frage: str = Field(max_length=4000)
+    # #243: the question in one sentence (`— Kurz:` of the block, at most 90 characters); an older driver or a run without it: None
+    kurz: str | None = Field(None, max_length=200)
     lage: str = Field('', max_length=8000)
     optionen: list[Option] = Field([], max_length=26)
     # `— Auswahl: mehrere`: several options at once
@@ -247,6 +251,36 @@ class Lage(BaseModel):
     gate: LageGate | None = None
 
 
+class Ursache(BaseModel):
+    """#243: why a mission needs someone, in the three lines of the card: what (kurz), who (wer, warum), the step; the
+    button that follows the step, where the short line comes from, the error line for "Details"."""
+    # one card per key: the missions with the same key (main red: all it holds) share it
+    schluessel: str = Field(max_length=200)
+    art: str = Field(max_length=40)
+    kurz: str = Field(max_length=200)
+    wer: Literal['du', 'flotte', 'mission']
+    warum: str = Field('', max_length=300)
+    schritt: str = Field('', max_length=300)
+    # a command to copy (the step at the machine); None: none
+    befehl: str | None = Field(None, max_length=300)
+    # erledigt: the driver checks the cause again; einreihen: requeue is the step; None: nothing to press (the fleet does it)
+    knopf: Literal['erledigt', 'einreihen'] | None = None
+    quelle: Literal['katalog', 'zusammengefasst'] = 'katalog'
+    fehler: str | None = Field(None, max_length=1000)
+    seit: str | None = Field(None, max_length=40)
+    # after "Erledigt" while the cause holds: the sentence why
+    geprueft: str | None = Field(None, max_length=300)
+
+
+class BaldSchritt(BaseModel):
+    """#243: a decision of the admiral that needs a step of the person later ("Dein Schritt bald")."""
+    id: str = Field(max_length=100)
+    epic: int
+    kurz: str = Field(max_length=200)
+    warum: str = Field('', max_length=300)
+    zeit: str = Field(max_length=40)
+
+
 class VerbrauchZahlen(BaseModel):
     # tokens of a mission or of one role in it; gewichtet = eingabe + 1.25 cache_schreiben + 0.1 cache_lesen + 5 ausgabe,
     # cache_quote = cache_lesen / all input (None: no input yet), anteil_woche an estimate in percent (None: none possible)
@@ -320,6 +354,8 @@ class Epic(BaseModel):
     merge: Andocken | None = None
     # the line of the card under "Unterwegs" and of a blockade; an older driver has none (the cards as before)
     lage: Lage | None = None
+    # #243: why it needs someone (a halt, main red, what the fleet repairs itself); None: nothing, or an older driver
+    ursache: Ursache | None = None
     # Tag Q: the usage of the mission so far; an older driver has none (the cards as before)
     verbrauch: Verbrauch | None = None
 
@@ -748,6 +784,8 @@ class Bericht(BaseModel):
     adapterLuecken: list[str] = Field([], max_length=30)
     # step 8 of the gate rework: the night run and the halt of the merge queue; an older driver has none (None)
     nachtlauf: Nachtlauf | None = None
+    # #243: the steps of the person the admiral's decisions announced ("Dein Schritt bald"); an older driver has none
+    bald: list[BaldSchritt] = Field([], max_length=50)
 
 
 # ---- Werft (#90, agent-skills/ADR-0005): the report of the Werft of a machine and the actions of the person for it
@@ -922,13 +960,13 @@ class Handlung(BaseModel):
     forge: str = Field(max_length=200)
     # the epic; triage-antwort and triage-widerruf: the ticket; schnitt-widerruf: the mission; einstellen, triage and einspielen: 0
     epic: int
-    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden', 'forge_verknuepfen', 'projekt_hinzufuegen', 'projekt_entfernen']
+    art: Literal['einreihen', 'aufgeben', 'widerruf', 'einstellen', 'aufnehmen', 'pausieren', 'fortsetzen', 'prioritaet', 'merge', 'triage', 'triage-antwort', 'triage-widerruf', 'schnitt-widerruf', 'einspielen', 'konto_anlegen', 'konto_deaktivieren', 'konto_aktivieren', 'konto_anmelden', 'forge_verknuepfen', 'projekt_hinzufuegen', 'projekt_entfernen', 'erledigt']
     # widerruf: the decision (its nr and zeit); triage-antwort: the question (nr, seit); triage-widerruf: the decision (seit = its zeit)
     nr: int | None = None
     seit: str | None = Field(None, max_length=40)
     # widerruf: the new decision, unchanged to the run; einstellen: {"name", "wert"} as JSON; prioritaet: hoch or normal;
     # merge (#112): automatisch or mensch, None back to the proposal; triage-antwort: {"option", "text"} as JSON;
-    # triage-widerruf and schnitt-widerruf: the person's objection
+    # triage-widerruf and schnitt-widerruf: the person's objection; erledigt (#243): the key of the cause or `bald:<id>`
     text: str | None = Field(None, max_length=4000)
 
     @model_validator(mode='after')
@@ -954,6 +992,11 @@ class Handlung(BaseModel):
             if self.epic < 1 or self.nr is None or self.nr < 1 or not self.seit or (option is not None and not re.fullmatch(r'[A-Z]', option)) or not (option or text):
                 raise ValueError('Triage-Antwort: Ticket, Frage (nr, seit) und eine Option oder eigener Text')
             self.text = json.dumps({'option': option, 'text': text}, ensure_ascii=False)
+        elif self.art == 'erledigt':
+            # #243: the card's cause (its key) or a step of the admiral's (bald:<id>); the bridge checks it against the report
+            if self.epic < 0 or not self.text or len(self.text) > 200:
+                raise ValueError('Erledigt: eine Mission und der Schlüssel der Ursache oder bald:<id>')
+            self.nr, self.seit = None, None
         elif self.art == 'triage-widerruf':
             if self.epic < 1 or not self.seit or not self.text:
                 raise ValueError('Widerruf einer Triage-Entscheidung: Ticket, seit (= zeit der Entscheidung) und der Einwand')

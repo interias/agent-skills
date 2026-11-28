@@ -173,6 +173,7 @@
       "merge": { "stellung": "mensch", "herkunft": "epic", "grund": null },
       "andockpruefung": null,
       "lage": { "etikett": "prueft", "satz": "Erster Offizier prüft #54", "seit": "2026-11-20T14:20:00Z", "deinSchritt": null, "gate": null },
+      "ursache": {"schluessel": "konflikt:#38", "art": "konflikt", "kurz": "Konflikt mit main, die Flotte holt main selbst nach.", "wer": "flotte", "warum": "ein mechanischer Konflikt, der Lauf löst ihn", "schritt": "Nichts zu tun.", "befehl": null, "knopf": null, "quelle": "katalog", "fehler": null, "seit": "2026-11-20T14:24:00Z"},
       "gestartetAm": "2026-11-20T12:06:40Z",
       "schlangeSeit": null,
       "gateSeit": null,
@@ -365,7 +366,8 @@
       "prioritaet": null,
       "merge": { "stellung": "automatisch", "herkunft": "epic", "grund": "Architektur: „neue Abhängigkeit“ in #37" },
       "andockpruefung": {"zeit": "2026-11-20T14:11:50Z", "epic": 37, "pr": 45, "dauerS": 14, "gruen": true, "kontexte": [{"name": "web", "ergebnis": "gruen", "dauerS": 2, "cache": true}, {"name": "api", "ergebnis": "gruen", "dauerS": 3, "cache": true}, {"name": "docs", "ergebnis": "gruen", "dauerS": 590, "cache": false}]},
-      "lage": { "etikett": "wartet", "satz": "Andock-Schlange Platz 2, PR #45", "seit": "2026-11-20T14:12:00Z", "deinSchritt": null, "gate": null },
+      "lage": {"etikett": "wartet_auf_dich", "satz": "Wartet: main ist rot: tests/routen.test.ts scheitert in api.", "seit": "2026-11-20T14:22:00Z", "deinSchritt": {"text": "main reparieren (tests/routen.test.ts in api), dann „Erledigt“.", "ziel": "issue"}, "gate": null},
+      "ursache": {"schluessel": "main_rot:api", "art": "main_rot", "kurz": "main ist rot: tests/routen.test.ts scheitert in api.", "wer": "du", "warum": "die Mission ist es nicht: main ist auch ohne sie rot", "schritt": "main reparieren (tests/routen.test.ts in api), dann „Erledigt“.", "befehl": null, "knopf": "erledigt", "quelle": "katalog", "fehler": "api ROT · tests/routen.test.ts > liefert 404 für alte Pfade\nAssertionError: expected 200 to be 404", "seit": "2026-11-20T14:22:00Z"},
       "gestartetAm": "2026-11-20T10:40:00Z",
       "schlangeSeit": "2026-11-20T14:12:00Z",
       "gateSeit": null,
@@ -466,7 +468,8 @@
       "prioritaet": null,
       "merge": { "stellung": "automatisch", "herkunft": "projekt", "grund": null },
       "andockpruefung": {"zeit": "2026-11-20T14:05:30Z", "epic": 40, "pr": null, "dauerS": 1355, "gruen": false, "kontexte": [{"name": "web", "ergebnis": "gruen", "dauerS": 2, "cache": true}, {"name": "api", "ergebnis": "rot", "dauerS": 1349, "cache": false}, {"name": "docs", "ergebnis": "übersprungen", "dauerS": null, "cache": false}]},
-      "lage": { "etikett": "gestoppt", "satz": "Blockiert, Ursache Andockprüfung: dreimal rot", "seit": "2026-11-20T14:05:44Z", "deinSchritt": { "text": "Ursache prüfen, dann neu einreihen oder aufgeben", "ziel": "einreihen" }, "gate": null },
+      "lage": {"etikett": "gestoppt", "satz": "Blockiert: Die Andockprüfung der Mission ist rot.", "seit": "2026-11-20T14:05:44Z", "deinSchritt": {"text": "Fehler ansehen, dann neu einreihen: die Mission bessert nach.", "ziel": "einreihen"}, "gate": null},
+      "ursache": {"schluessel": "gate_rot:#40", "art": "gate_rot", "kurz": "Die Andockprüfung der Mission ist rot.", "wer": "mission", "warum": "ihr Stand bricht die Prüfung, zwei Nachbesserungen halfen nicht", "schritt": "Fehler ansehen, dann neu einreihen: die Mission bessert nach.", "befehl": null, "knopf": "einreihen", "quelle": "katalog", "fehler": "api ROT · tests/start.test.ts > startet ohne Argumente\nError: Skript endet mit Exit 2", "seit": "2026-11-20T14:05:44Z"},
       "gestartetAm": "2026-11-20T11:20:00Z",
       "schlangeSeit": null,
       "gateSeit": null,
@@ -576,6 +579,7 @@
       "epic": 39,
       "nr": 1,
       "frage": "Wo liegt die neue Konfigurationsdatei?",
+      "kurz": "Wo soll die Konfigurationsdatei liegen?",
       "lage": "Die Mission nennt nur „eine Konfigurationsdatei“. Im Repository gibt es schon config/ für Skripte und das Wurzelverzeichnis für Werkzeuge.",
       "optionen": [
         {
@@ -779,6 +783,7 @@
   "projektHandlungen": true,
   "klonAngebot": { "gitea": [], "eltern": "~\\git" },
   "adapterLuecken": [],
+  "bald": [{"id": "39-1763647200000-0", "epic": 39, "kurz": "#41 dockt erst an, wenn config/flotte.json auf main liegt.", "warum": "Admiral zu Frage 2: Darf #41 vor der Konfigurationsdatei andocken?", "zeit": "2026-11-20T13:40:00Z"}],
   "version": {
     "commit": "698cb10f3a2e4d5c6b7a8f9e0d1c2b3a4f5e6d7c",
     "datum": "2026-11-22T21:14:00+01:00",

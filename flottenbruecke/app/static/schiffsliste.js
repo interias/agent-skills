@@ -62,7 +62,7 @@
       if (nr == null || da.has(k)) return;
       da.set(k, { art: 'lauf', k, forge: x.forge, nr, titel: x.titel || '', konto: x.konto || '', farbe, text, box, id, pausiert: Boolean(x.pausiert), prio: Boolean(x.prio) });
     };
-    for (const x of t.braucht) dazu(x, x.epic, 'lila', x.art === 'blockade' ? (x.stufe === 'abgebrochen' ? 'abgebrochen' : 'blockiert') : ZUORDNUNG.lila.text, 'e1-liste', x.id);
+    for (const x of t.braucht) dazu(x, x.epic, 'lila', x.art === 'blockade' ? (x.stufe === 'abgebrochen' ? 'abgebrochen' : 'blockiert') : x.art === 'ursache' ? 'wartet auf dich' : ZUORDNUNG.lila.text, 'e1-liste', x.id);
     for (const l of t.unterwegs.laeufe) {
       const frage = l.stufe === 'frage';
       const farbe = frage && !l.fragen ? (l.prozess ? 'gruen' : 'grau') : frage ? 'lila' : 'gruen';
