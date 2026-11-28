@@ -77,7 +77,9 @@ def test_nie_ersetzt_code_pfade_und_links():
 
 
 def test_der_name_flottenbruecke_bleibt():
-    assert klartext.ersetze('Flottenbrücke: zur Brücke') == 'Flottenbrücke: zur Übersicht'
+    # the bridge as a program is called by its name, which stays; the area Brücke is the Übersicht (a fixed text)
+    assert klartext.ersetze('Mensch über die Brücke') == 'Mensch über die Flottenbrücke'
+    assert klartext.klartext('Flottenbrücke: zur Brücke') == 'Flottenbrücke: zur Übersicht'
 
 
 def test_satzanfang_grossgeschrieben():
@@ -94,6 +96,9 @@ def test_feste_texte_haben_ihre_zweite_fassung():
     if eintrag:
         s, k = eintrag
         assert klartext.fassung(s.replace('{}', '7')) == k.replace('{}', '7')
+    # a part in {} comes by word forms
+    assert klartext.fassung('Missionsziele von #41') == 'Tickets von #41'
+    assert klartext.fassung('Hauptenergie: 29 % übrig, zurückgesetzt 17:10') == '5-Stunden-Limit: 29 % übrig, zurückgesetzt 17:10'
 
 
 def test_ein_titel_mit_mission_bleibt_im_push():

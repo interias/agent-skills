@@ -484,7 +484,7 @@ Bilder: [Geräte im LAN](doku/maschinenraum-einrichtung-1440.png) ([390](doku/ma
   (der Treiber hält an wie `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; eine
   geplante Aufgabe „Flotte <name>“ startet ihn bei jeder Anmeldung wieder, abschalten in der Aufgabenplanung).
   **Geräte** (#46, siehe „Geräte, Rechte und Not-Aus“) mit ihren Rechten, am Rechner mit **Antworten/Handeln geben/nehmen**, **Entkoppeln**
-  und **Not-Aus lösen**. **Meldungen auf diesem Gerät** (#37). **Stand** (#154): die Brücke mit Commit und Datum
+  und **Not-Aus lösen**. **Meldungen auf diesem Gerät** (#37). **Anzeige** (#246, siehe „Klartext-Anzeige“). **Stand** (#154): die Brücke mit Commit und Datum
   ihres Images, je Treiber Commit und Datum des installierten Skill-Satzes, wann er eingespielt wurde und wann er
   startete, ein neuerer Stand in Gold, je Treiber **Einspielen und Treiber neu starten** und bei mehreren
   **Einspielen und alle Treiber neu starten** (nach einer Rückfrage). Die Brücke legt nur die Handlung ab
@@ -531,6 +531,30 @@ Brücke speichert nur Nachrichten, Antworten und Stand, keine Anmeldedaten.
 Schreiben braucht ein gekoppeltes Gerät, „Anlegen“ das Recht Handeln (oben „Geräte“); ohne
 gesetzte PIN ist Schreiben abgeschaltet. Ansehen ist frei im LAN.
 
+## Klartext-Anzeige (#246)
+
+Eine zweite Anzeige für Leser ohne den Wortschatz der Flotte (agent-skills/ADR-0008): Sie zeigt die
+Wörter aus der Begriffstabelle [`app/static/klartext.json`](app/static/klartext.json) in der rechten
+Spalte, etwa `Epic`, `Merge`, `Gate`, `Triage`. Nur die Anzeige wechselt: Adressen, API, Datenbank,
+Treiber und Forge bleiben gleich, ebenso Titel, Antworten, Chats, Code, Pfade, Links und Projektnamen.
+
+- **Umschalten** im Maschinenraum unter Einrichtung, Karte **Anzeige**. Die Wahl gilt je Gerät: ein
+  gekoppeltes Gerät speichert sie in der Brücke (`POST /api/geraete/anzeige`, Spalte `geraete.anzeige`),
+  ein ungekoppeltes im Browser. Neu ist immer die gewohnte Anzeige.
+- **Texte des Treibers** und der Läufe ersetzt die Brücke beim Anzeigen nach der Tabelle; feste Texte
+  der Seite haben dort eine ganze zweite Fassung (`texte`).
+- **Meldungen** aufs Handy kommen in der Anzeige des Geräts, das sie abonniert hat.
+- **Die Suche** findet in beiden Wortschätzen.
+- Fehlt ein Begriff, gehört er in die Tabelle; der Test `tests/test_klartext_seite.py` rendert jede
+  Ansicht mit den Beispieldaten und schlägt an, wenn in der Klartext-Anzeige ein Wort der linken
+  Spalte stehen bleibt.
+
+Bilder: [Übersicht](doku/klartext-bruecke-1440.png) ([390](doku/klartext-bruecke-390.png)),
+[Karte](doku/klartext-sternenkarte-1440.png) ([390](doku/klartext-sternenkarte-390.png)),
+[Triage](doku/klartext-frachtraum-1440.png) ([390](doku/klartext-frachtraum-390.png)),
+[Einrichtung mit dem Schalter](doku/klartext-maschinenraum-einrichtung-1440.png) ([390](doku/klartext-maschinenraum-einrichtung-390.png)),
+[Log](doku/klartext-logbuch-1440.png) ([390](doku/klartext-logbuch-390.png)).
+
 ## Aktualisieren
 
 Am einfachsten über den Knopf im Maschinenraum (#154: Banner unter Betrieb oder Stand unter Einrichtung). Von Hand: `git pull`, dann
@@ -569,8 +593,12 @@ drei geschlossene Notizen).
 ```
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements-dev.txt   # Linux/macOS: .venv/bin/python
+.venv/Scripts/python -m playwright install chromium   # einmal, für die Browser-Tests der Anzeige (#246)
 .venv/Scripts/python -m pytest
 ```
+
+Eine eigene Brücke mit den Beispieldaten für Bilder und Versuche, nie die laufende: `python -m tests.seite 4797`
+(LAN auf 4797, am Rechner 4798, Daten im Temp-Ordner).
 
 Backend: FastAPI (`app/main.py`), Board-Logik `app/tafel.py`, Speicher `app/speicher.py`, Web-Push
 `app/meldung.py`, Start mit HTTP oder HTTPS samt den Eingängen für den Fernzugriff und den Rechner (#46) `app/start.py`.

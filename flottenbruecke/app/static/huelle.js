@@ -156,6 +156,8 @@ const huelle = (() => {
     return t;
   }
 
+  // hits whose title is a name or the title of an issue: the Klartext display leaves them as they are (#246)
+  const WORTLAUT = new Set(['Mission', 'Projekt', 'Sternzeit-Notiz', 'Prototyp', 'Chat']);
   const norm = (s) => String(s ?? '').toLocaleLowerCase('de-DE').replace(/#/g, '');
 
   function suchen() {
@@ -163,10 +165,11 @@ const huelle = (() => {
     const liste = alle(feld.value);
     treffer = [...liste.filter((x) => x.ausfuehren), ...liste.filter((x) => {
       if (x.ausfuehren) return false;
-      const h = norm(`${x.art} ${x.titel} ${x.info ?? ''}`);
+      // #246: both vocabularies, whatever the display of this device
+      const h = norm(klartext.beide(`${x.art} ${x.titel} ${x.info ?? ''}`));
       return worte.every((w) => h.includes(w));
     })].slice(0, 12);
-    box.innerHTML = treffer.map((x, i) => `<li role="option" id="treffer-${i}" aria-selected="false"><span class="t-art">${esc(x.art)}</span><span class="t-titel">${esc(x.titel)}</span>${x.info ? `<small>${esc(x.info)}</small>` : ''}</li>`).join('')
+    box.innerHTML = treffer.map((x, i) => `<li role="option" id="treffer-${i}" aria-selected="false"><span class="t-art">${esc(x.art)}</span><span class="t-titel"${WORTLAUT.has(x.art) ? ' translate="no"' : ''}>${esc(x.titel)}</span>${x.info ? `<small>${esc(x.info)}</small>` : ''}</li>`).join('')
       || '<li class="t-leer">Kein Treffer</li>';
     oeffnen(true);
     waehlen(treffer.length ? 0 : -1);

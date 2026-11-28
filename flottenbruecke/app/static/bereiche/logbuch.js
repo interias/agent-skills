@@ -24,7 +24,7 @@
       else if (x.art === 'antwort') liste.push(e(x, 'Mensch', `Frage ${x.nr} → <b>${esc([x.option, x.text].filter(Boolean).join(' — '))}</b>`));
       else if (x.art === 'handlung' && x.handlung === 'einstellen') liste.push(e(x, 'Mensch', `Einstellung ${esc(x.titel)} → <b>${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b>`));
       else if (x.art === 'handlung') liste.push(e(x, 'Mensch', x.handlung === 'widerruf' ? `Widerruf Frage ${x.nr} → <b>${esc(x.text)}</b>` : `<b>${handlungWort(x)}</b>`));
-      else if (x.art === 'aufgegeben') liste.push(e(x, 'Mensch', `<b>aufgegeben</b> · ${esc(x.titel)}`));
+      else if (x.art === 'aufgegeben') liste.push(e(x, 'Mensch', `<b>aufgegeben</b> · <span translate="no">${esc(x.titel)}</span>`));
     }
     // #46: what each device did, with the command as sent
     for (const x of t.geraeteLogbuch ?? []) liste.push({ zeit: x.zeit, forge: '', kurz: '', epic: null, art: 'Gerät', html: `<b>${esc(x.geraet)}</b> <code>${esc(x.befehl)}</code>`, url: null });

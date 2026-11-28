@@ -41,7 +41,7 @@ def _texte() -> tuple[dict[str, str], list[tuple[re.Pattern, str]]]:
     fest, mit = {}, []
     for s, k in TABELLE['texte'].items():
         if '{}' in s:
-            mit.append((re.compile('^' + re.escape(s).replace(r'\{\}', '(.+?)') + '$'), k))
+            mit.append((re.compile('^' + re.escape(s).replace(r'\{\}', '(.*?)') + '$'), k))
         else:
             fest[s] = k
     return fest, mit
@@ -71,7 +71,8 @@ def ersetze(text: str) -> str:
 
 
 def fassung(text: str) -> str | None:
-    """The second version of a fixed text, or None; {} carries a part over unchanged."""
+    """The second version of a fixed text, or None; {} stands for a part that comes by word forms (a number, a name, a
+    text of the driver)."""
     t = ' '.join(text.split())
     if t in TEXTE:
         return TEXTE[t]
@@ -79,7 +80,7 @@ def fassung(text: str) -> str | None:
         x = m.match(t)
         if x:
             teile = iter(x.groups())
-            return re.sub(r'\{\}', lambda _: next(teile), k)
+            return re.sub(r'\{\}', lambda _: ersetze(next(teile)), k)
     return None
 
 

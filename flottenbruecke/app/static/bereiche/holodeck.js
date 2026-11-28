@@ -115,7 +115,7 @@
     if (!r?.pin || stand.nurAnsicht) { ziel.innerHTML = `<p class="holo-hinweis">Rückmeldung an den Chat abgeschaltet: ${esc(huelle.ohnePin(stand))}.</p>`; return; }
     if (!chats.length) { ziel.innerHTML = '<p class="holo-hinweis">Kein offener Chat: im Bereitschaftsraum einen beginnen, dann geht die Rückmeldung von hier hinein.</p>'; return; }
     ziel.innerHTML = `<form class="holo-rueck-form" data-form="rueck">
-      <label>Chat<select name="chat">${chats.map((c) => `<option value="${c.id}"${c.id === rueckChat ? ' selected' : ''}>${esc(c.kurz)} · ${esc(c.titel)}</option>`).join('')}</select></label>
+      <label>Chat<select name="chat">${chats.map((c) => `<option translate="no" value="${c.id}"${c.id === rueckChat ? ' selected' : ''}>${esc(c.kurz)} · ${esc(c.titel)}</option>`).join('')}</select></label>
       <textarea name="text" aria-label="Rückmeldung zum Prototyp" placeholder="Was passt, was nicht?">${esc(rueckText)}</textarea>
       <div class="knoepfe"><button type="submit" class="knopf klein haupt">Rückmeldung an den Chat</button><span class="status" role="status"></span></div>
     </form>`;
