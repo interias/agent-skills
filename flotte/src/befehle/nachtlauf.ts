@@ -47,6 +47,8 @@ export class NachtFehler extends Error {
   constructor(
     readonly kategorie: string,
     text: string,
+    /** what is known of the run when the command itself ran (commit, log, repeat) */
+    readonly stand: Partial<NachtErgebnis> = {},
   ) {
     super(text);
   }
@@ -362,16 +364,20 @@ async function fahren(repo: string, dir: string, z: ForgeZugriff, w: NachtWelt):
     const commit = w.aufrufer('git', ['-C', wt, 'rev-parse', 'HEAD']).stdout.trim();
     const stempel = stempelVon(zeit);
     mkdirSync(join(dir, 'nachtlauf'), { recursive: true });
+    // an adapter that names its gate block wants one: Exit 0 without a complete block is no green, the command checked nothing (#238)
+    const blockPflicht = Boolean(schluessel(adapter, 'gate_base') || schluessel(adapter, 'gate_green'));
     const lauf = async (n: number) => {
       const r = await w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', befehl], { cwd: wt, timeoutMs: BEFEHL_MS, baum: true });
       const log = join('nachtlauf', `${stempel}-${n}.log`);
       writeFileSync(join(dir, log), `> ${befehl}\n# origin/${basis} @ ${commit}, Exit ${r.code}\n${r.stdout}${r.stderr ? `\n--- stderr\n${r.stderr}` : ''}`);
       const b = andockblock(r.stdout, adapter);
-      return { gruen: r.code === 0 && (b ? b.gruen : true), block: b, log };
+      const ohneBlock = blockPflicht && r.code === 0 && !b?.vollstaendig;
+      return { gruen: r.code === 0 && !ohneBlock && (b ? b.gruen : true), ohneBlock, block: b, log };
     };
     const erster = await lauf(1);
-    const zweiter = erster.gruen ? null : await lauf(2);
+    const zweiter = erster.gruen || erster.ohneBlock ? null : await lauf(2);
     const letzter = zweiter ?? erster;
+    if (letzter.ohneBlock) throw new NachtFehler('kein Andockblock', `Der Nachtbefehl endete mit Exit 0, seine Ausgabe enthält aber keinen vollständigen Andockblock (gate_base bis gate_green): nicht als grün gewertet. Log: ${letzter.log}`, { commit, log: letzter.log, wiederholt: Boolean(zweiter) });
     const e: NachtErgebnis = { ergebnis: letzter.gruen ? 'gruen' : 'rot', commit, basis, zeit, dauerS: Math.round((w.jetzt() - t0) / 1000), log: letzter.log, wiederholt: Boolean(zweiter), teile: letzter.gruen ? [] : (letzter.block?.teile ?? []), ...(zweiter ? { erstesRot: erster.block?.teile ?? [] } : {}) };
     merke(dir, e);
     const auf = `origin/${basis} @ ${commit.slice(0, 7)}`;
@@ -405,7 +411,7 @@ async function fahren(repo: string, dir: string, z: ForgeZugriff, w: NachtWelt):
   } catch (err) {
     // only the category leaves the machine; the full text (paths, stderr) stays in nachtlauf.json and the terminal
     const kategorie = err instanceof NachtFehler ? err.kategorie : 'unerwarteter Fehler';
-    merke(dir, { ergebnis: 'fehler', commit: null, basis: basis ?? '', zeit, dauerS: Math.round((w.jetzt() - t0) / 1000), log: null, wiederholt: false, teile: [], grund: kategorie, detail: fehlerText(err) });
+    merke(dir, { ergebnis: 'fehler', commit: null, basis: basis ?? '', zeit, dauerS: Math.round((w.jetzt() - t0) / 1000), log: null, wiederholt: false, teile: [], ...(err instanceof NachtFehler ? err.stand : {}), grund: kategorie, detail: fehlerText(err) });
     logbuch(z, `Nachtlauf nicht gefahren: ${kategorie}; Einzelheiten am Rechner mit \`${STAND}\``);
     throw err;
   } finally {
