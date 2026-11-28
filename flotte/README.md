@@ -642,7 +642,8 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" nachtlauf --freigeben  # Halt löse
 - Grün ist Exit 0 und, wenn die Ausgabe einen Andockblock hat, dessen grüne Schlusszeile. Nennt der
   Adapter `gate_base` oder `gate_green`, ist nur ein vollständiger grüner Block grün; Exit 0 ohne ihn
   heißt „nicht gefahren“ (Art `kein Andockblock`, wie ein gescheiterter Schritt unten: kein Halt, eine
-  Meldung im Logbuch, keine Wiederholung). Rot wird einmal wiederholt. Grün erst in der Wiederholung
+  Meldung im Logbuch, keine Wiederholung); fehlt der Block erst in der Wiederholung eines roten Laufs,
+  gilt das Rot des ersten Laufs. Rot wird einmal wiederholt. Grün erst in der Wiederholung
   hält nichts an, steht aber im Logbuch.
 - Rot auch in der Wiederholung: Die **Andock-Schlange hält** (`schlange-halt.json` neben
   `zustand.json`), und ein Issue mit `needs-triage` nennt den roten Teil aus dem Andockblock, den
@@ -693,6 +694,11 @@ Adapter (gelesen von `origin/HEAD`), Vertrag der Andockprüfung (`gate_command`,
 Andockblock mit Basis und HEAD in einem angedockten Pull Request), Rechte und Labels, `merge:
 nach_gate` mit `merge.ps1` als einzigem Weg, Nachtlauf mit geplanter Aufgabe, Startskript von
 „Projekt hinzufügen“. Flottentauglich ist ein Repository bei `fehlt: 0`; `empfohlen` hält nichts an.
+Dazu prüft er die vier Schritte des Einrichtens am Rechner, auch ohne laufenden Treiber (#240):
+Konto (aktives Konto aus `konten.json` mit Ordner), Anmeldung (`.credentials.json` vorhanden, der
+Inhalt wird nie gelesen), Forge (Schreibrecht und Issues), Projekt (Startskript). Sie stehen als
+`einrichten` im Ergebnis und als Checkliste im Terminal, jeder offene Schritt mit dem Befehl, der ihn
+schließt.
 
 ## Prognose
 

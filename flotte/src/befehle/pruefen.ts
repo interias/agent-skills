@@ -212,7 +212,7 @@ export async function pruefeRepo(ordner: string, w: PruefWelt): Promise<unknown>
   const skript = punkte.find((x) => x.punkt === 'startskript')!;
   const schritte: EinrichtSchritt[] = [
     ...kontoSchritte(w.heim),
-    rechte.stand === 'ok' ? { schritt: 'forge', stand: 'fertig', text: rechte.text } : { schritt: 'forge', stand: 'offen', text: `${rechte.text}: flotte forge verknuepfen <repo>` },
+    rechte.stand === 'ok' ? { schritt: 'forge', stand: 'fertig', text: rechte.text } : { schritt: 'forge', stand: 'offen', text: `${rechte.text}: ${/Issues sind/.test(rechte.text) ? 'Issues in den Einstellungen des Repositorys einschalten' : 'flotte forge verknuepfen <repo>'}` },
     skript.stand === 'ok' ? { schritt: 'projekt', stand: 'fertig', text: 'Startskript da' } : { schritt: 'projekt', stand: 'offen', text: 'kein Startskript: flotte projekt hinzufuegen <ordner> [--autostart]' },
   ];
   w.melde?.([`Einrichten (${basename(repo)}):`, ...schritte.map((x) => `  [${x.stand === 'fertig' ? 'x' : ' '}] ${EINRICHT_TITEL[x.schritt]} — ${x.text}`)].join('\n'));
