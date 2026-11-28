@@ -1665,7 +1665,8 @@ class Treiber {
     const vorher = ep.ursache!;
     const konto = this.e.admiralKonto ?? ep.konto ?? this.e.konten[0];
     const log = this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => x.text);
-    this.zusammenfassungSeit.set(ep.nr, this.w.jetzt());
+    const seit = this.w.jetzt();
+    this.zusammenfassungSeit.set(ep.nr, seit);
     this.nebenbei(
       this.w
         .starte({ ...this.programm(), repo: this.e.repo, konto, auftrag: zusammenfassungsAuftrag(grund, log), modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--json-schema', JSON.stringify(ZUSAMMENFASSUNG_SCHEMA), '--tools', ''] })
@@ -1684,7 +1685,10 @@ class Treiber {
           }
           if (kommentieren) this.haltKommentar({ ...ep, ursache: ep.ursache ?? vorher }, kommentieren, grund);
         })
-        .finally(() => this.zusammenfassungSeit.delete(ep.nr)),
+        // a later summary of the same mission (requeued, halted again) keeps its own wait
+        .finally(() => {
+          if (this.zusammenfassungSeit.get(ep.nr) === seit) this.zusammenfassungSeit.delete(ep.nr);
+        }),
     );
   }
 
