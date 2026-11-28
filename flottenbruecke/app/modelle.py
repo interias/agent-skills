@@ -1107,6 +1107,11 @@ class GeraetRechte(BaseModel):
     handeln: bool
 
 
+class GeraetAnzeige(BaseModel):
+    # #246, agent-skills/ADR-0008: Sprachraum (default) or Klartext, per device
+    anzeige: Literal['sprachraum', 'klartext']
+
+
 # ---- Bereitschaftsraum (#85, agent-skills/ADR-0004): the chat. SCHNITTSTELLE.md, section 8, and beispiel/chat.json.
 # Only texts and short names: never a path, an account folder or credentials.
 

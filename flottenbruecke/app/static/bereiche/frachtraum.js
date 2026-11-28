@@ -49,7 +49,7 @@
 
   function frageHtml(f, pin) {
     const e = entwuerfe.get(f.id) || {};
-    const kopf = `<div class="fr-zeile">${link(f.issueUrl, `#${f.ticket}`, 'nr')}<span class="fr-titel">${esc(f.titel)}</span><span class="fr-seit">Frage ${f.nr} · seit ${esc(wann(f.seit))}</span></div>`;
+    const kopf = `<div class="fr-zeile">${link(f.issueUrl, `#${f.ticket}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(f.titel)}</span></span><span class="fr-seit">Frage ${f.nr} · seit ${esc(wann(f.seit))}</span></div>`;
     const marke = f.marke ? `<div class="marken"><span class="m">${esc(f.marke)}</span></div>` : '';
     const vorne = `${kopf}<h4 class="fr-frage">${esc(f.frage)}</h4>${marke}${f.grund ? `<p class="warum"><b>Liegt bei dir:</b> ${esc(f.grund)}</p>` : ''}${f.herkunft ? `<p class="warum"><b>Herkunft:</b> ${esc(f.herkunft)}</p>` : ''}`;
     if (f.handlung) {
@@ -72,7 +72,7 @@
   // ---- a decision of a triage run: what, why, from where, and "Widerrufen" with the objection
 
   function entscheidungHtml(d, pin) {
-    const kopf = `<div class="fr-zeile">${link(d.issueUrl, `#${d.nr}`, 'nr')}<span class="fr-titel">${esc(d.titel)}</span><span class="fr-ergebnis ${esc(d.ergebnis)}">${esc(ERGEBNIS[d.ergebnis] ?? d.ergebnis)}</span><span class="fr-seit">${esc(wann(d.zeit))}</span></div>`;
+    const kopf = `<div class="fr-zeile">${link(d.issueUrl, `#${d.nr}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(d.titel)}</span></span><span class="fr-ergebnis ${esc(d.ergebnis)}">${esc(ERGEBNIS[d.ergebnis] ?? d.ergebnis)}</span><span class="fr-seit">${esc(wann(d.zeit))}</span></div>`;
     const warum = `<p class="warum">${esc(d.grund)}${d.herkunft ? ` <span class="fr-herkunft">(${esc(d.herkunft)})</span>` : ''}</p>`;
     let fuss = '';
     if (d.widerrufen) fuss = `<p class="warum widerrufen">widerrufen → ${esc(d.widerrufen)}</p>`;
@@ -91,11 +91,11 @@
   }
 
   function missionHtml(m, pin) {
-    const kopf = `<div class="fr-zeile">${link(m.issueUrl, `#${m.nr}`, 'nr')}<span class="fr-titel">${esc(m.titel)}</span><span class="fr-ergebnis ${esc(m.zustand)}">${esc(ZUSTAND[m.zustand] ?? m.zustand)}</span><span class="fr-seit">${m.neu ? 'neue Mission' : 'bestehende Mission'}</span></div>`;
+    const kopf = `<div class="fr-zeile">${link(m.issueUrl, `#${m.nr}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(m.titel)}</span></span><span class="fr-ergebnis ${esc(m.zustand)}">${esc(ZUSTAND[m.zustand] ?? m.zustand)}</span><span class="fr-seit">${m.neu ? 'neue Mission' : 'bestehende Mission'}</span></div>`;
     const warum = m.begruendung ? `<p class="warum">${esc(m.begruendung)}</p>` : '';
     const fehler = m.fehler ? `<p class="warum fr-fehler"><b>Fehler:</b> ${esc(m.fehler)}</p>` : '';
     const kinder = m.kinder.length
-      ? `<ul class="fr-tickets fr-kinder" aria-label="Missionsziele von #${m.nr}">${m.kinder.map((k) => `<li class="fr-ticket">${link(k.issueUrl, `#${k.nr}`, 'nr')}<span class="fr-titel">${esc(k.titel)}${k.grund ? ` <span class="fr-herkunft">— ${esc(k.grund)}</span>` : ''}</span></li>`).join('')}</ul>`
+      ? `<ul class="fr-tickets fr-kinder" aria-label="Missionsziele von #${m.nr}">${m.kinder.map((k) => `<li class="fr-ticket">${link(k.issueUrl, `#${k.nr}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(k.titel)}</span>${k.grund ? ` <span class="fr-herkunft">— ${esc(k.grund)}</span>` : ''}</span></li>`).join('')}</ul>`
       : '<p class="fr-klein">Kein Missionsziel angehängt.</p>';
     let fuss = '';
     if (m.widerrufen) fuss = `<p class="warum widerrufen">widerrufen → ${esc(m.widerrufen)}</p>`;
@@ -109,8 +109,8 @@
 
   function notizHtml(n) {
     const wie = n.art === 'zusammengefuehrt' && n.verweis ? `zusammengeführt in ${link(n.verweisUrl, `#${n.verweis}`)}` : esc(GESCHLOSSEN[n.art] ?? n.art);
-    const fund = n.fundstelle ? ` <span class="fr-herkunft">(Fundstelle: ${esc(n.fundstelle)})</span>` : '';
-    return `<li class="fr-ticket">${link(n.issueUrl, `#${n.nr}`, 'nr')}<span class="fr-titel">${esc(n.titel)}</span><span class="fr-label">${wie}</span><span class="fr-grund">${esc(n.grund)}${fund}${n.fehler ? ` <span class="fr-fehler">Fehler: ${esc(n.fehler)}</span>` : ''}</span></li>`;
+    const fund = n.fundstelle ? ` <span class="fr-herkunft">(Fundstelle: <span translate="no">${esc(n.fundstelle)}</span>)</span>` : '';
+    return `<li class="fr-ticket">${link(n.issueUrl, `#${n.nr}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(n.titel)}</span></span><span class="fr-label">${wie}</span><span class="fr-grund">${esc(n.grund)}${fund}${n.fehler ? ` <span class="fr-fehler">Fehler: ${esc(n.fehler)}</span>` : ''}</span></li>`;
   }
 
   function schnittHtml(s, pin) {
@@ -128,7 +128,7 @@
   function abschlussHtml(a) {
     if (!a || a.zustand === 'beendet') return '';
     if (a.zustand === 'abgebrochen') return `<p class="warum fr-fehler"><b>Triage-Lauf abgebrochen</b> · ${esc(wann(a.zeit))}${a.grund ? `: ${esc(a.grund)}` : ''}</p>`;
-    const liste = a.abweichungen.map((x) => `<li class="fr-ticket">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span><span class="fr-label">${esc(x.zustand)}</span><span class="fr-grund fr-fehler">${esc(x.grund)}</span></li>`).join('');
+    const liste = a.abweichungen.map((x) => `<li class="fr-ticket">${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(x.titel)}</span></span><span class="fr-label">${esc(x.zustand)}</span><span class="fr-grund fr-fehler">${esc(x.grund)}</span></li>`).join('');
     return `<section class="fr-thema fr-unsauber"><h5 class="fr-fehler">${zahl(a.abweichungen.length, 'Notiz', 'Notizen')} nicht sauber abgearbeitet <span class="fr-klein">Triage-Lauf unvollständig · ${esc(wann(a.zeit))}</span></h5><ul class="fr-tickets">${liste}</ul></section>`;
   }
 
@@ -154,8 +154,8 @@
   const ticketHtml = (x, thema, forge, pin, gleiche = 1, erste = true) => {
     const an = !aus(forge).has(x.nr);
     const was = gleiche > 1 ? `alle ${gleiche} Vorschläge von #${x.nr}` : `#${x.nr} ${x.titel}`;
-    const haken = !pin ? '' : erste ? `<label class="fr-haken"${gleiche > 1 ? ` title="${esc(`Gilt für ${was}`)}"` : ''}><input type="checkbox" data-notiz="${x.nr}" data-schluessel="${esc(`${thema}#${x.nr}`)}"${an ? ' checked' : ''} aria-label="${esc(`${was} im nächsten Triage-Lauf`)}"></label>` : '<span class="fr-haken" aria-hidden="true"></span>';
-    return `<li class="fr-ticket${x.frage ? ' gefragt' : ''}${pin && !an ? ' abgewaehlt' : ''}">${haken}${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel">${esc(x.titel)}</span>${x.frage ? '<span class="fr-marke">Frage an dich</span>' : ''}${x.themen.filter((t) => t !== thema).map((t) => `<span class="fr-label">${esc(t)}</span>`).join('')}</li>`;
+    const haken = !pin ? '' : erste ? `<label class="fr-haken" translate="no"${gleiche > 1 ? ` title="${esc(`Gilt für ${was}`)}"` : ''}><input type="checkbox" data-notiz="${x.nr}" data-schluessel="${esc(`${thema}#${x.nr}`)}"${an ? ' checked' : ''} aria-label="${esc(`${was} im nächsten Triage-Lauf`)}"></label>` : '<span class="fr-haken" aria-hidden="true"></span>';
+    return `<li class="fr-ticket${x.frage ? ' gefragt' : ''}${pin && !an ? ' abgewaehlt' : ''}">${haken}${link(x.issueUrl, `#${x.nr}`, 'nr')}<span class="fr-titel"><span translate="no">${esc(x.titel)}</span></span>${x.frage ? '<span class="fr-marke">Frage an dich</span>' : ''}${x.themen.filter((t) => t !== thema).map((t) => `<span class="fr-label">${esc(t)}</span>`).join('')}</li>`;
   };
 
   // #148: the short info in the head of the project: started (waits for the driver), running, ended; the board decides which

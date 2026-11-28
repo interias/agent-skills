@@ -319,14 +319,14 @@ ${protokoll}${unterwegs(s.nachziehen, 'Nachziehen')}${unterwegs(s.freigabe, 'Fre
     const ziel = alle ? 'alle' : neu[0].forge;
     const kann = alle ? ps.some((p) => kannEinspielen(t, p)) : kannEinspielen(t, neu[0]);
     const status = ps.map((p) => einspielenStand(t, p)).find(Boolean) ?? '';
-    return `<div class="mr-banner" role="status"><p><b>Neuer Stand verfügbar</b> · <code>${esc(kurz(n.commit))}</code>, ${esc(wann(n.datum))} · ${esc(n.titel)}${alle && neu.length < ps.length ? ` <span class="mr-leer">(${neu.map((p) => esc(p.kurz)).join(', ')})</span>` : ''}</p><div class="knoepfe"><button type="button" class="knopf haupt klein" data-einspielen="${esc(ziel)}"${kann ? '' : ' disabled'}>${alle ? 'Einspielen und alle Treiber neu starten' : 'Einspielen und Treiber neu starten'}</button><span class="status" role="status">${status}</span></div></div>`;
+    return `<div class="mr-banner" role="status"><p><b>Neuer Stand verfügbar</b> · <code>${esc(kurz(n.commit))}</code>, ${esc(wann(n.datum))} · <span translate="no">${esc(n.titel)}</span>${alle && neu.length < ps.length ? ` <span class="mr-leer">(${neu.map((p) => esc(p.kurz)).join(', ')})</span>` : ''}</p><div class="knoepfe"><button type="button" class="knopf haupt klein" data-einspielen="${esc(ziel)}"${kann ? '' : ' disabled'}>${alle ? 'Einspielen und alle Treiber neu starten' : 'Einspielen und Treiber neu starten'}</button><span class="status" role="status">${status}</span></div></div>`;
   }
 
   function treiberStandHtml(t, p) {
     const v = p.version;
     if (!v) return `<article class="mr-karte mr-stand-karte${p.veraltet ? ' veraltet' : ''}"><h3>Treiber · ${esc(p.kurz)}</h3><p class="mr-hilfe">Dieser Treiber meldet keinen Stand (älterer Stand): einspielen von Hand.</p></article>`;
     const neu = v.neu
-      ? `<p class="mr-neu">Neu: <code>${esc(kurz(v.neu.commit))}</code>, ${esc(wann(v.neu.datum))}, ${esc(v.neu.titel)}</p>`
+      ? `<p class="mr-neu">Neu: <code>${esc(kurz(v.neu.commit))}</code>, ${esc(wann(v.neu.datum))}, <span translate="no">${esc(v.neu.titel)}</span></p>`
       : `<p class="mr-hilfe">${v.geprueft ? `Aktuell mit main, geprüft ${esc(wann(v.geprueft))}.` : v.commit ? 'Noch nicht mit main verglichen.' : ''}</p>`;
     return `<article class="mr-karte mr-stand-karte${v.neu ? ' neu' : ''}${p.veraltet ? ' veraltet' : ''}" data-forge="${esc(p.forge)}"><h3>Treiber · ${esc(p.kurz)}</h3>
 <dl><dt>Stand</dt><dd>${standWert(v.commit, v.datum)}</dd><dt>Eingespielt</dt><dd>${v.installiert ? esc(wann(v.installiert)) : nichts()}</dd><dt>Gestartet</dt><dd>${esc(wann(v.gestartet))}</dd></dl>
@@ -335,7 +335,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
 
   function standHtml(t) {
     const b = t.bruecke ?? {};
-    const bruecke = `<article class="mr-karte mr-stand-karte"><h3>Brücke</h3><dl><dt>Stand</dt><dd>${standWert(b.commit, b.datum)}</dd></dl>${b.commit ? '' : '<p class="mr-hilfe">Gebaut ohne Stand: beim nächsten Einspielen über den Treiber kommt er dazu.</p>'}</article>`;
+    const bruecke = `<article class="mr-karte mr-stand-karte"><h3>Flottenbrücke</h3><dl><dt>Stand</dt><dd>${standWert(b.commit, b.datum)}</dd></dl>${b.commit ? '' : '<p class="mr-hilfe">Gebaut ohne Stand: beim nächsten Einspielen über den Treiber kommt er dazu.</p>'}</article>`;
     const ps = mitVersion(t);
     const alle = t.pin && ps.length > 1 ? `<div class="knoepfe mr-alle"><button type="button" class="knopf zweit klein" data-einspielen="alle"${ps.some((p) => kannEinspielen(t, p)) ? '' : ' disabled'}>Einspielen und alle Treiber neu starten</button><span class="status" role="status"></span></div>` : '';
     const text = 'Einspielen hält den Treiber an: Er startet nichts Neues, ein laufendes Andocken läuft zu Ende, laufende Läufe arbeiten weiter; dann holt er main, spielt den Skill-Satz ein, baut die Brücke neu, wenn sie sich geändert hat, startet mit derselben Kommandozeile neu und übernimmt die Läufe.';
@@ -354,7 +354,7 @@ ${neu}<div class="knoepfe"><button type="button" class="knopf ${v.neu ? 'haupt' 
 
   // ---- Einstellungen (#59): the effective values with their origin as compact rows in groups; a tap opens the control,
   // a pick is a draft, one bar at the bottom sends every draft as before (einstellen per driver, or the Werft's own)
-  const HERKUNFT = { start: 'Start', bruecke: 'Brücke', standard: 'Standard', gemischt: 'je Treiber' };
+  const HERKUNFT = { start: 'Start', bruecke: 'Flottenbrücke', standard: 'Standard', gemischt: 'je Treiber' };
   const GRUPPEN = [
     { titel: 'Kapazität', namen: ['obergrenze', 'paketeJeEpic', 'konten', 'admiral'] },
     { titel: 'Bremsen', namen: ['verbrauchGelb', 'verbrauchRot', 'leerfahren', 'ramWarn', 'platteMinGb', 'leerlaufMin'] },
@@ -792,6 +792,39 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
     if (await senden(`/api/geraete/${id}/rechte`, rechte, zeile, status)) await laden();
   }
 
+  // ---- Einrichtung: #246 the display of this device, Sprachraum or Klartext (agent-skills/ADR-0008); a paired device
+  // keeps it in the bridge (the push speaks it too), any other in this browser
+  const ANZEIGE = [['sprachraum', 'Sprachraum'], ['klartext', 'Klartext']];
+  const anzeigeHtml = () => {
+    const jetzt = klartext.modus();
+    const wo = klartext.gekoppelt() ? 'Die Brücke merkt sich die Wahl für dieses Gerät, auch für seine Meldungen.' : 'Dieser Browser merkt sich die Wahl; nach dem Koppeln die Brücke.';
+    const knopf = ([wert, name]) => `<button type="button" class="knopf ${wert === jetzt ? 'haupt' : 'zweit'} klein" data-anzeige="${wert}" aria-pressed="${wert === jetzt}">${name}</button>`;
+    return `<h3 class="mr-titel">Anzeige</h3><div class="mr-reihe"><div class="mr-karte mr-anzeige" role="group" aria-label="Anzeige auf diesem Gerät"><p class="mr-hilfe">Sprachraum spricht die Begriffe der Flotte (<span translate="no">Mission, Andocken, Erster Offizier</span> …), Klartext die üblichen Entwicklerbegriffe. Titel, Antworten, Chat, Code und Namen bleiben, wie sie sind. <span>${esc(wo)}</span></p>
+<div class="knoepfe">${ANZEIGE.map(knopf).join('')}<span class="status" role="status"></span></div></div></div>`;
+  };
+
+  async function anzeigeKnopf(ev, el) {
+    const b = ev.target.closest('[data-anzeige]');
+    const status = b.closest('.knoepfe').querySelector('.status');
+    if (!(await klartext.setzen(b.dataset.anzeige))) {
+      status.className = 'status schlecht';
+      status.textContent = 'Ging nicht: Brücke nicht erreichbar.';
+      return;
+    }
+    aboBinden();
+    malen(letzte, el, true);
+  }
+
+  // a subscription from before #246 does not know its device and stays in the Sprachraum: on a switch, the own one
+  // goes to the bridge again, now tied to this device (quietly; without one or without the right nothing happens)
+  async function aboBinden() {
+    if (!kannPush() || !letzte?.push || !letzte?.geraet?.antworten) return;
+    try {
+      const abo = await (await navigator.serviceWorker.getRegistration('/'))?.pushManager.getSubscription();
+      if (abo) await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(abo.toJSON()) });
+    } catch { /* no service worker: nothing to tie */ }
+  }
+
   // ---- Einrichtung: Web-Push (#37); this device subscribes (a paired device with the right Antworten), the bridge
   // pushes each new event of "Braucht dich"
   const kannPush = () => isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -913,6 +946,7 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
       else if (ev.target.closest('[data-nachziehen]')) werftKnopf(ev, 'nachziehen');
       else if (ev.target.closest('[data-freigeben]')) werftKnopf(ev, 'migration_freigeben');
       else if (ev.target.closest('[data-push]')) push(ev);
+      else if (ev.target.closest('[data-anzeige]')) anzeigeKnopf(ev, el);
       else if (ev.target.closest('[data-einspielen]')) einspielenKnopf(ev);
       else if (ev.target.closest('[data-konto]')) kontoKnopf(ev);
       else if (ev.target.closest('[data-forge-verknuepfen]')) forgeKnopf(ev);
@@ -925,7 +959,7 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
   function malen(t, el, erzwingen = false) {
     letzte = t;
     const betrieb = `${bannerHtml(t)}${kontenHtml(t)}<h3 class="mr-titel">Rechner</h3>${t.rechner.length ? `<div class="mr-rechner-liste">${t.rechner.map(rechnerHtml).join('')}</div>` : '<p class="bereich-leer">Noch kein Rechner gemeldet.</p>'}${projekteHtml(t)}${werftHtml(t)}`;
-    const einrichtung = `${einrichtenHtml(t)}${hinzufuegenHtml(t)}${verwaltenHtml(t)}${geraeteHtml(t)}${pushHtml(t)}${standHtml(t)}`;
+    const einrichtung = `${einrichtenHtml(t)}${hinzufuegenHtml(t)}${verwaltenHtml(t)}${geraeteHtml(t)}${anzeigeHtml()}${pushHtml(t)}${standHtml(t)}`;
     const html = `${kopfHtml(t)}${reiterHtml()}<div class="mr-ansicht" data-ansicht="betrieb">${betrieb}</div><div class="mr-ansicht mr-einst-ansicht" data-ansicht="einstellungen" hidden>${einstellungenHtml(t)}</div><div class="mr-ansicht" data-ansicht="einrichtung" hidden>${einrichtung}</div><div class="mr-leiste" role="region" aria-label="Änderungen übernehmen"${entwuerfe.size ? '' : ' hidden'}>${leisteHtml(t)}</div>`;
     if (!el.dataset.verdrahtet) verdrahten(el);
     // a control in use keeps its DOM: the load must not take the focus or a half typed number away

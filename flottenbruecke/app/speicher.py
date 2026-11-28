@@ -73,7 +73,8 @@ create table if not exists push_abos (
   endpoint text primary key,
   p256dh text not null,
   auth text not null,
-  angelegt text not null
+  angelegt text not null,
+  geraet integer
 );
 create table if not exists gemeldet (
   forge text not null,
@@ -139,7 +140,8 @@ create table if not exists geraete (
   antworten integer not null default 1,
   handeln integer not null default 0,
   gekoppelt text not null,
-  zuletzt text
+  zuletzt text,
+  anzeige text not null default 'sprachraum'
 );
 create table if not exists notaus (
   id integer primary key check (id = 1),
@@ -181,6 +183,11 @@ class Speicher:
             # #46: the device that sent an action
             if 'geraet' not in [z['name'] for z in self.db.execute('pragma table_info(handlungen)')]:
                 self.db.execute('alter table handlungen add column geraet text')
+            # #246: the display of a device, and the device of a push subscription (the push speaks its display)
+            if 'anzeige' not in [z['name'] for z in self.db.execute('pragma table_info(geraete)')]:
+                self.db.execute("alter table geraete add column anzeige text not null default 'sprachraum'")
+            if 'geraet' not in [z['name'] for z in self.db.execute('pragma table_info(push_abos)')]:
+                self.db.execute('alter table push_abos add column geraet integer')
 
     def bericht_speichern(self, forge: str, bericht: dict, jetzt: str) -> bool:
         """Stores the report; True when it created the project."""
@@ -383,9 +390,9 @@ class Speicher:
 
     # ---- Web-Push (#37): the subscriptions, and the events of level 1 already reported per project
 
-    def abo_setzen(self, endpoint: str, p256dh: str, auth: str, jetzt: str) -> None:
+    def abo_setzen(self, endpoint: str, p256dh: str, auth: str, jetzt: str, geraet: int | None = None) -> None:
         with self.lock, self.db:
-            self.db.execute('insert or replace into push_abos values (?, ?, ?, ?)', (endpoint, p256dh, auth, jetzt))
+            self.db.execute('insert or replace into push_abos (endpoint, p256dh, auth, angelegt, geraet) values (?, ?, ?, ?, ?)', (endpoint, p256dh, auth, jetzt, geraet))
 
     def abo_loeschen(self, endpoint: str) -> bool:
         with self.lock, self.db:
@@ -393,7 +400,8 @@ class Speicher:
 
     def abos(self) -> list[dict]:
         with self.lock:
-            return [dict(z) for z in self.db.execute('select * from push_abos order by angelegt')]
+            # #246: anzeige of the subscribing device; Sprachraum for a subscription without one
+            return [dict(z) for z in self.db.execute("select a.*, coalesce(g.anzeige, 'sprachraum') as anzeige from push_abos a left join geraete g on g.id = a.geraet order by a.angelegt")]
 
     def neu_gemeldet(self, forge: str, schluessel: list[str]) -> set[str]:
         """The keys not reported before; afterwards the project's reported ones are exactly these (an event gone is forgotten)."""
@@ -577,7 +585,7 @@ class Speicher:
 
     @staticmethod
     def _geraet(z) -> dict:
-        return {'id': z['id'], 'name': z['name'], 'antworten': bool(z['antworten']), 'handeln': bool(z['handeln']), 'gekoppelt': z['gekoppelt'], 'zuletzt': z['zuletzt']}
+        return {'id': z['id'], 'name': z['name'], 'antworten': bool(z['antworten']), 'handeln': bool(z['handeln']), 'gekoppelt': z['gekoppelt'], 'zuletzt': z['zuletzt'], 'anzeige': z['anzeige']}
 
     def geraet_benutzt(self, id_: int, jetzt: str) -> None:
         with self.lock, self.db:
@@ -586,6 +594,10 @@ class Speicher:
     def geraet_rechte(self, id_: int, antworten: bool, handeln: bool) -> bool:
         with self.lock, self.db:
             return self.db.execute('update geraete set antworten = ?, handeln = ? where id = ?', (int(antworten), int(handeln), id_)).rowcount == 1
+
+    def geraet_anzeige(self, id_: int, anzeige: str) -> None:
+        with self.lock, self.db:
+            self.db.execute('update geraete set anzeige = ? where id = ?', (anzeige, id_))
 
     def geraet_entkoppeln(self, id_: int) -> bool:
         with self.lock, self.db:

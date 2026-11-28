@@ -119,7 +119,7 @@ function kopf(t) {
     const art = p.veraltet ? 'veraltet' : p.aktiv ? '' : 'aus';
     const was = p.veraltet ? `still seit ${uhrzeit(p.empfangen)}` : p.aktiv ? `${uhrzeit(p.empfangen)}` : 'beendet';
     const name = p.url ? `<a href="${esc(p.url)}" style="color:inherit">${esc(p.kurz)}</a>` : esc(p.kurz);
-    return `<span class="projekt ${art}" title="${esc(p.forge)}">${name} <small>${esc(was)}</small></span>`;
+    return `<span class="projekt ${art}" translate="no" title="${esc(p.forge)}">${name} <small>${esc(was)}</small></span>`;
   }).join(''));
   $('leer').hidden = t.projekte.length > 0;
 }
@@ -239,7 +239,7 @@ function frageHtml(x, t) {
     const st = x.antwort.abgeholt ? 'Angekommen, Lauf setzt fort' : x.aktiv ? 'Angekommen · der Treiber holt sie im nächsten Takt ab' : 'Angekommen · kein Treiber läuft, er holt sie bei seinem nächsten Start ab';
     const aendern = x.antwort.abgeholt ? '' : '<button type="button" class="knopf zweit klein" data-aendern>ändern</button>';
     const text = [x.antwort.option, x.antwort.text].filter(Boolean).join(' — ');
-    return `${vorne}<div class="angekommen"><span>Deine Antwort: <b>${esc(text)}</b></span><span class="status gut">${uhrzeit(x.antwort.zeit)} · ${st}</span>${aendern ? `<div>${aendern}</div>` : ''}</div>${wortlaut}`;
+    return `${vorne}<div class="angekommen"><span>Deine Antwort: <b translate="no">${esc(text)}</b></span><span class="status gut">${uhrzeit(x.antwort.zeit)} · ${st}</span>${aendern ? `<div>${aendern}</div>` : ''}</div>${wortlaut}`;
   }
   const wahl = e.wahl || [];
   const opts = x.optionen.map((o) => {
@@ -336,7 +336,7 @@ function angekommenHtml(h, x, wort) {
   return `<div class="angekommen"><span>${esc(wort)}</span><span class="status gut">${uhrzeit(h.zeit)} · ${st}</span></div>`;
 }
 
-const missionHtml = (m) => `${m.issueUrl ? `<a href="${esc(m.issueUrl)}">#${m.nr}</a>` : `#${m.nr}`} ${esc(m.titel)}${m.pr ? ` · ${m.prUrl ? `<a href="${esc(m.prUrl)}">PR #${m.pr}</a>` : `PR #${m.pr}`}` : ''}`;
+const missionHtml = (m) => `${m.issueUrl ? `<a href="${esc(m.issueUrl)}">#${m.nr}</a>` : `#${m.nr}`} <span translate="no">${esc(m.titel)}</span>${m.pr ? ` · ${m.prUrl ? `<a href="${esc(m.prUrl)}">PR #${m.pr}</a>` : `PR #${m.pr}`}` : ''}`;
 
 // #243: a card with a cause: what is wrong (one line), who is on, the step with the button it names; the missions it
 // holds; the error line and where the short line comes from folded under "Details"
@@ -385,7 +385,7 @@ function blockadeHtml(x, t) {
   // parked for the person: her step leads to the ticket; requeueing before it only repeats the same end
   const geparkt = x.lage?.etikett === 'wartet_auf_dich';
   const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">${x.stufe === 'abgebrochen' ? 'Abgebrochen' : geparkt ? 'Geparkt' : 'Blockiert'} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'seit {}')} · Mission steht ganz</span></div>`;
-  const titel = x.titel ? `<p class="lage">${esc(x.titel)}${x.prUrl ? ` · <a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : ''}</p>` : '';
+  const titel = x.titel ? `<p class="lage"><span translate="no">${esc(x.titel)}</span>${x.prUrl ? ` · <a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : ''}</p>` : '';
   const lage = rest.join('\n').trim() ? `<p class="lage kurz${auf.has(`kurz:${x.id}`) ? ' auf' : ''}">${esc(rest.join('\n').trim())}</p>` : '';
   const log = auf.has(`log:${x.id}`) ? `<ol class="log">${(x.log.length ? x.log : ['(keine Ereignisse gemeldet)']).map((z) => `<li>${esc(z)}</li>`).join('')}</ol>` : '';
   let unten;
@@ -459,7 +459,7 @@ function ebene2(t) {
 // a ready epic: one line, below it its child tickets as the bar of level 2 (in spec mode the run's packages, none before its start)
 function bereitHtml(b) {
   const nr = b.issueUrl ? `<a class="nr" href="${esc(b.issueUrl)}">#${b.nr}</a>` : `<span class="nr">#${b.nr}</span>`;
-  return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} ${esc(b.titel)}${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Missionen dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
+  return `<span class="b-zeile">${b.prio ? '<span class="prio">prio</span>' : ''}${nr} <span translate="no">${esc(b.titel)}</span>${b.notiz ? ` <small>· ${esc(b.notiz)}</small>` : ''}${b.prognose ? ` <small class="prognose" title="Prognose aus den gemessenen Missionen dieses Projekts, ohne Wartezeit auf Fragen">· voraussichtlich ${esc(spanne(b.prognose))}</small>` : ''}</span>${paketeHtml(b)}`;
 }
 
 // #51: phase, round, class and times of a package; every part only when the driver reported it
@@ -475,7 +475,7 @@ function paketDetail(p) {
 }
 
 function paketeListe(x) {
-  return `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span>${paketDetail(p)}</li>`).join('')}</ol>`;
+  return `<ol class="pakete">${x.pakete.map((p) => `<li class="${esc(p.stand)}"><span class="punkt"></span>${p.url ? `<a href="${esc(p.url)}">${esc(p.name)}</a>` : `<span>${esc(p.name)}</span>`} <span class="pt" translate="no">${esc(p.titel)}</span><span class="ps">${esc(PAKET[p.stand] ?? p.stand)}${p.beginn ? ` · ${zeitHtml(p.beginn, p.ende ? 'in {}' : 'seit {}', p.ende)}` : ''}</span>${paketDetail(p)}</li>`).join('')}</ol>`;
 }
 
 // a point in time gone by: today the clock, else the day before it
@@ -570,7 +570,7 @@ function laufHtml(x) {
   const laeuft = x.form === 'lauf' && datum(x.gestartetAm) ? `<button type="button" class="laeuft-seit" data-ab="${esc(x.gestartetAm)}" data-text="läuft seit {}" data-start="Start ${esc(uhrzeit(x.gestartetAm))}" title="seit dem ersten Lauf der Mission"></button>` : '';
   const kopfz = `<div class="kopfz">${nr}<span class="art">${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}${x.stufe === 'nacharbeit' ? ' · Nacharbeit' : ''}</span>${laeuft}</div>`;
   // Tag Q: the usage line stands under the title on every card under Unterwegs
-  const titel = `${x.titel ? `<span class="titel">${esc(x.titel)}</span>` : ''}${verbrauchHtml(x)}`;
+  const titel = `${x.titel ? `<span class="titel" translate="no">${esc(x.titel)}</span>` : ''}${verbrauchHtml(x)}`;
   // #51: the places in use against the window and the restarts of the run; Laufzeit is the button above
   // Tag H: with the line of the mission the gate stands there once, not again above it
   const meta = x.form === 'lauf' ? [x.lage ? '' : gateLaufHtml(x.gateLauf), x.plaetze ? `Plätze ${x.plaetze.belegt}${x.plaetze.von ? `/${x.plaetze.von}` : ' belegt'}` : '', x.neustarts ? `<span title="Neustarts und Fortsetzungen des Laufs seit dem ersten Start">${x.neustarts} ${x.neustarts === 1 ? 'Neustart' : 'Neustarts'}</span>` : ''].filter(Boolean) : [];
@@ -728,9 +728,9 @@ function zeileHtml(x) {
   if (x.art === 'prognose') return prognoseHtml(x);
   const nr = `#${x.epic ?? x.nr}`;
   const zeit = `<time>${uhrzeit(x.zeit)}</time>`;
-  if (x.art === 'gemergt') return `${zeit}<span><b>${nr} angedockt</b> · ${esc(x.titel)}${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
-  if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · ${esc(x.titel)}</span>`;
-  if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → ${esc([x.option, x.text].filter(Boolean).join(' — '))}</b></span>`;
+  if (x.art === 'gemergt') return `${zeit}<span><b>${nr} angedockt</b> · <span translate="no">${esc(x.titel)}</span>${x.pr ? ` · ${x.prUrl ? `<a href="${esc(x.prUrl)}">PR #${x.pr}</a>` : `PR #${x.pr}`}` : ''}</span>`;
+  if (x.art === 'aufgegeben') return `${zeit}<span><b>${nr} aufgegeben</b> · <span translate="no">${esc(x.titel)}</span></span>`;
+  if (x.art === 'antwort') return `${zeit}<span>Du: <b>${nr} Frage ${x.nr} → <span translate="no">${esc([x.option, x.text].filter(Boolean).join(' — '))}</span></b></span>`;
   if (x.art === 'handlung' && x.handlung === 'einstellen') return `${zeit}<span>Du: <b>Einstellung ${esc(x.titel)} → ${esc(Array.isArray(x.wert) ? x.wert.join(', ') || 'keine' : x.wert ?? 'automatisch')}</b> <small>${esc(x.repo)}</small></span>`;
   // #116: an action of the Frachtraum belongs to a ticket or the project, not to an epic
   if (x.art === 'handlung' && (x.handlung.startsWith('triage') || x.handlung.startsWith('konto_') || x.handlung === 'forge_verknuepfen' || x.handlung.startsWith('projekt_') || x.handlung === 'einspielen' || x.werft)) return `${zeit}<span>Du: <b>${handlungWort(x)}</b> <small>${esc(x.repo)}</small></span>`;
@@ -759,15 +759,15 @@ function handlungWort(x) {
   // #90: an action for the Werft of a repository
   if (x.handlung === 'nachziehen') return `Werft: ${esc(x.stack)} jetzt nachziehen`;
   if (x.handlung === 'migration_freigeben') return `Werft: Arbeits-Migration von ${esc(x.stack)} freigegeben`;
-  if (x.handlung === 'triage-widerruf') return `#${x.ticket} Triage-Entscheidung widerrufen → ${esc(x.text)}`;
+  if (x.handlung === 'triage-widerruf') return `#${x.ticket} Triage-Entscheidung widerrufen → <span translate="no">${esc(x.text)}</span>`;
   // #148: the epic is the mission
-  if (x.handlung === 'schnitt-widerruf') return `Mission aus dem Schnittplan widerrufen → ${esc(x.text)}`;
+  if (x.handlung === 'schnitt-widerruf') return `Mission aus dem Schnittplan widerrufen → <span translate="no">${esc(x.text)}</span>`;
   if (x.handlung === 'triage-antwort') {
     let a = {};
     try { a = JSON.parse(x.text); } catch { /* the question without the answer */ }
-    return `#${x.ticket} Frage ${x.nr} → ${esc([a.option, a.text].filter(Boolean).join(' — '))}`;
+    return `#${x.ticket} Frage ${x.nr} → <span translate="no">${esc([a.option, a.text].filter(Boolean).join(' — '))}</span>`;
   }
-  return `Widerruf Frage ${x.nr} → ${esc(x.text)}`;
+  return `Widerruf Frage ${x.nr} → <span translate="no">${esc(x.text)}</span>`;
 }
 
 function zeileVerdrahten(el, x) {
