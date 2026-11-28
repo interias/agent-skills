@@ -412,6 +412,26 @@ describe('Flottenbrücke (#28)', () => {
     }
   }, T);
 
+  it('#243 Nacharbeit: a mission given up while its unknown cause is summarized: the summary is dropped, no comment', async () => {
+    const b = await attrappe(() => null, { handlung: (x) => (x.epics.find((e) => e.nr === 3)?.stufe === 'blockiert' ? { epic: 3, art: 'aufgeben' } : null) });
+    try {
+      const t = aufbau({ signale: { aufgegeben: /^#3 aufgegeben vom Menschen/ } });
+      const fremd = { ...lauf(3, [{ text: 'nichts' }]), werkzeuge: ['Bash', 'mcp__fremd__x'] };
+      // the model answers only once the person gave the mission up
+      const antwort = { kurz: 'Der Lauf hatte ein fremdes Werkzeug.', wer: 'du', warum: 'w', schritt: 's' };
+      const zusammenfassung = { wenn: '^FLOTTE-URSACHE', schritte: [{ signal: 'aufgegeben' }, { zeile: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: antwort } }] };
+      const buch = drehbuch([fremd, zusammenfassung]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(z.epics['3'].aufgegebenAm).toBeTruthy();
+      expect(buch.gesehen().filter((g) => g.eingabe.startsWith('FLOTTE-URSACHE'))).toHaveLength(1);
+      expect(z.epics['3'].ursache?.quelle).toBe('katalog');
+      expect(z.ereignisse.some((e) => /^Ursache (nicht )?zusammengefasst/.test(e.text))).toBe(false);
+      expect(t.p.kommentare.filter((k) => k.nr === 3 && k.text.startsWith('**Braucht dich'))).toHaveLength(0);
+    } finally {
+      await b.zu();
+    }
+  }, T);
+
   it('#243: "Dein Schritt bald" in the report; "Erledigt" takes it away', async () => {
     const b = await attrappe(() => null, { handlung: (x) => (x.bald?.length ? { epic: x.bald[0].epic, art: 'erledigt', text: `bald:${x.bald[0].id}` } : null) });
     try {

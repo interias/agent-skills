@@ -1663,6 +1663,8 @@ class Treiber {
           () => null,
         )
         .then((z) => {
+          // given up meanwhile: nobody needs the card or the comment any more
+          if (ep.aufgegebenAm) return;
           // a requeue or a new halt meanwhile: that one's cause stays
           if (ep.ursache === vorher) {
             ep.ursache = zusammenfassung(vorher, z);
