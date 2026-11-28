@@ -1036,6 +1036,8 @@ function fussStand(t) {
   const el = $('fuss-stand');
   el.textContent = `B ${k(t.bruecke?.commit)} · T ${treiber.length > 1 ? `${treiber.length} Stände` : k(treiber[0])}${neu ? ' · neu' : ''}`;
   el.classList.toggle('neu', neu);
+  // #242: a newer stand leads to its banner in Betrieb, else to the stand in Einrichtung
+  el.href = neu ? '#maschinenraum/betrieb' : '#maschinenraum/einrichtung';
   const lang = t.projekte.filter((p) => p.version).map((p) => `Treiber ${p.kurz}: ${k(p.version.commit)}${p.version.datum ? ` vom ${datum(p.version.datum)?.toLocaleString('de-DE') ?? ''}` : ''}, gestartet ${datum(p.version.gestartet)?.toLocaleString('de-DE') ?? ''}${p.version.neu ? `; neuer Stand ${k(p.version.neu.commit)}` : ''}`);
   el.title = [`Brücke: ${k(t.bruecke?.commit)}${t.bruecke?.datum ? ` vom ${datum(t.bruecke.datum)?.toLocaleString('de-DE') ?? ''}` : ''}`, ...lang].join('\n');
 }

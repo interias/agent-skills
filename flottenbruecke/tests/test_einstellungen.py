@@ -195,8 +195,12 @@ def test_sammelansicht_zaehlt_frage_und_nacharbeit_mit_und_ohne_freigegeben_null
 def test_maschinenraum_zeichnet_die_sammelansicht():
     from pathlib import Path
     mr = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'maschinenraum.js').read_text(encoding='utf-8')
-    assert 'Automatik je Projekt' in mr
-    assert "name: 'einsammeln'" in mr and 'data-einsammeln' in mr
+    # #242: the switch and the counts stand on the card of the project
+    karte = mr[mr.index('function projektKarteHtml(t, p) {'):]
+    karte = karte[:karte.index('\n  }\n')]
+    assert 'schalterHtml(t, p, AUTOMATIK)' in karte and "const AUTOMATIK = 'einsammeln';" in mr
+    assert 'laufend' in karte and 'wartend' in karte and 'freigegeben, nicht eingesammelt' in karte
+    assert "art: 'einstellen'" in mr[mr.index('async function schalterKnopf('):] and 'name: knopf.dataset.schalter' in mr
 
 
 def test_lernschleife_je_projekt_ab_werk_aus_gesperrt_ohne_lern_issue(client, bericht):
@@ -221,7 +225,8 @@ def test_lernschleife_je_projekt_ab_werk_aus_gesperrt_ohne_lern_issue(client, be
 def test_maschinenraum_zeichnet_den_lernschalter():
     from pathlib import Path
     mr = (Path(__file__).parent.parent / 'app' / 'static' / 'bereiche' / 'maschinenraum.js').read_text(encoding='utf-8')
-    assert 'Lernschleife je Projekt' in mr
-    assert "name: 'lernschleife'" in mr and 'data-lernschleife' in mr
+    # #242: the switch stands on the card of the project, locked with its reason in sight
+    assert 'schalterHtml(t, p, LERNEN)' in mr and "const LERNEN = 'lernschleife';" in mr
+    assert 'data-schalter=' in mr and 'Gesperrt:' in mr
     # out of the box off, how to switch it on and what happens then stand in the help text
     assert 'Ab Werk aus' in mr and 'lern_issue' in mr
