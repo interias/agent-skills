@@ -162,8 +162,9 @@ def test_projekt_hinzufuegen_erklaert_nur_einmal_lang():
 # ---- phone
 
 def test_handy_teilt_die_breite_und_hat_daumengrosse_knoepfe():
+    # the three tabs fill the row, each as wide as its label needs: equal thirds cut "Einstellungen" with its counter
     handy = MR_CSS[MR_CSS.index('@media (max-width: 700px)'):]
-    assert '.mr-reiter a { flex: 1 1 0' in handy
+    assert '.mr-reiter a { flex: 1 1 auto; min-width: 0' in handy
     assert 'min-height: 44px' in handy
 
 
