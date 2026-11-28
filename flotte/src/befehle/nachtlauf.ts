@@ -376,7 +376,9 @@ async function fahren(repo: string, dir: string, z: ForgeZugriff, w: NachtWelt):
     };
     const erster = await lauf(1);
     const zweiter = erster.gruen || erster.ohneBlock ? null : await lauf(2);
-    const letzter = zweiter ?? erster;
+    // a repeat that checked nothing does not clear the red of the first run: that red stands
+    const leer = Boolean(zweiter?.ohneBlock);
+    const letzter = leer ? erster : (zweiter ?? erster);
     if (letzter.ohneBlock) throw new NachtFehler('kein Andockblock', `Der Nachtbefehl endete mit Exit 0, seine Ausgabe enthält aber keinen vollständigen Andockblock (gate_base bis gate_green): nicht als grün gewertet. Log: ${letzter.log}`, { commit, log: letzter.log, wiederholt: Boolean(zweiter) });
     const e: NachtErgebnis = { ergebnis: letzter.gruen ? 'gruen' : 'rot', commit, basis, zeit, dauerS: Math.round((w.jetzt() - t0) / 1000), log: letzter.log, wiederholt: Boolean(zweiter), teile: letzter.gruen ? [] : (letzter.block?.teile ?? []), ...(zweiter ? { erstesRot: erster.block?.teile ?? [] } : {}) };
     merke(dir, e);
@@ -394,12 +396,13 @@ async function fahren(repo: string, dir: string, z: ForgeZugriff, w: NachtWelt):
       return e;
     }
     const rotTeile = e.teile.length ? ` (rot: ${e.teile.join(', ')})` : '';
-    const grund = `Nachtlauf rot auf ${auf}, auch in der Wiederholung${rotTeile}`;
+    const nochmal = leer ? 'die Wiederholung lieferte keinen Andockblock' : 'auch in der Wiederholung';
+    const grund = `Nachtlauf rot auf ${auf}, ${nochmal}${rotTeile}`;
     const zeilen = letzter.block?.vollstaendig ? `\n\n\`\`\`\n${letzter.block.zeilen.join('\n')}\n\`\`\`` : '';
     // the open issue of the halt is reused even when the halt is released before it is written again
     let issue = liesHalt(dir)?.issue ?? null;
-    if (issue) kommentar(z, issue, `**Nachtlauf (Flotte)** — wieder rot auf ${auf}${rotTeile}, auch in der Wiederholung. Die Schlange hält weiter; freigeben im Projektordner: \`${FREIGEBEN}\`.${zeilen}`);
-    else issue = issueAnlegen(z, auf, e.teile, zeilen);
+    if (issue) kommentar(z, issue, `**Nachtlauf (Flotte)** — wieder rot auf ${auf}${rotTeile}, ${nochmal}. Die Schlange hält weiter; freigeben im Projektordner: \`${FREIGEBEN}\`.${zeilen}`);
+    else issue = issueAnlegen(z, auf, e.teile, zeilen, nochmal);
     // read again under the short lock: a halt still standing keeps its start, one released meanwhile starts anew
     const halt = await mitHalt(dir, w, (h) => {
       const neu: SchlangeHalt = { seit: h && !h.unlesbar ? h.seit : zeit, grund, commit, basis: e.basis, issue, teile: e.teile, log: e.log };
@@ -437,8 +440,8 @@ function schreibeHalt(dir: string, h: SchlangeHalt): void {
 }
 
 /** the issue with needs-triage: title, one sentence of cause, the lines of the gate block, how to release; null when the forge refuses */
-function issueAnlegen(z: ForgeZugriff, auf: string, teile: string[], zeilen: string): number | null {
-  const body = `Der Nachtlauf (\`gate_night_command\`) ist auf \`${auf}\` rot${teile.length ? ` (${teile.join(', ')})` : ''}, auch in der Wiederholung. Die Andock-Schlange des Treibers hält: laufende Missionen arbeiten weiter, fertige warten in der Schlange, neu angedockt wird nichts.${zeilen}\n\nFreigeben, wenn die Ursache behoben oder bewusst hingenommen ist, im Projektordner: \`${FREIGEBEN}\`. Das schließt dieses Issue nicht; das tut, wer die Ursache behebt.`;
+function issueAnlegen(z: ForgeZugriff, auf: string, teile: string[], zeilen: string, nochmal: string): number | null {
+  const body = `Der Nachtlauf (\`gate_night_command\`) ist auf \`${auf}\` rot${teile.length ? ` (${teile.join(', ')})` : ''}, ${nochmal}. Die Andock-Schlange des Treibers hält: laufende Missionen arbeiten weiter, fertige warten in der Schlange, neu angedockt wird nichts.${zeilen}\n\nFreigeben, wenn die Ursache behoben oder bewusst hingenommen ist, im Projektordner: \`${FREIGEBEN}\`. Das schließt dieses Issue nicht; das tut, wer die Ursache behebt.`;
   try {
     z.labelAnlegen('needs-triage');
     return z.anlegen(ohnePfade(`Nachtlauf rot: ${auf}, Andock-Schlange hält`), ohnePfade(body), ['needs-triage']);

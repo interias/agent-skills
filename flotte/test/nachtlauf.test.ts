@@ -419,12 +419,16 @@ describe('flotte nachtlauf (Schritt 8 des Gate-Umbaus)', () => {
       expect((await fahre(t)).ergebnis).toBe('gruen');
     }, T);
 
-    it('red in the first run and Exit 0 without a block in the repeat is "not run", no halt', async () => {
-      const t = welt({ adapter: MIT_BLOCK, ausgaben: [() => ({ code: 1, stdout: 'kaputt\n' }), () => ({ code: 0, stdout: 'nichts\n' })] });
-      await expect(fahre(t)).rejects.toThrow(/keinen vollständigen Andockblock/);
+    it('red in the first run and Exit 0 without a block in the repeat: the red of the first run stands, the queue holds', async () => {
+      const t = welt({ adapter: MIT_BLOCK, ausgaben: [(c) => ({ code: 1, stdout: eigenerBlock(c, 'Gate ROT.').replace('grün ', 'ROT  ') }), () => ({ code: 0, stdout: 'nichts\n' })] });
+      const r = await fahre(t);
+      expect(r.ergebnis).toBe('rot');
       expect(t.befehle).toHaveLength(2);
-      expect(liesHalt(t.dir)).toBeNull();
-      expect(liesNachtlauf(t.dir).letzter).toMatchObject({ ergebnis: 'fehler', grund: 'kein Andockblock', wiederholt: true });
+      const l = liesNachtlauf(t.dir).letzter!;
+      expect(l).toMatchObject({ ergebnis: 'rot', wiederholt: true, teile: ['tests'], erstesRot: ['tests'] });
+      expect(l.log).toMatch(/-1\.log$/);
+      expect(liesHalt(t.dir)!.grund).toMatch(/die Wiederholung lieferte keinen Andockblock \(rot: tests\)/);
+      expect(triage(t.b)[0].body).toMatch(/die Wiederholung lieferte keinen Andockblock/);
     }, T);
 
     it('without gate_base/gate_green in the adapter, Exit 0 without a block stays green', async () => {
