@@ -83,6 +83,13 @@ describe('gate.ps1: the driver reads its stdout as UTF-8 (#75)', () => {
   });
 });
 
+describe('gate.ps1: the driver suite runs with a generous limit per test (#233)', () => {
+  it('runs bun test with 20 s per test instead of the default 5 s, so a busy machine does not fail a long git test', () => {
+    const gate = readFileSync(fileURLToPath(new URL('../../gate.ps1', import.meta.url)), 'utf8');
+    expect(gate).toMatch(/flotte\s+=\s+\{ Push-Location flotte; bun test --timeout 20000;/);
+  });
+});
+
 describe('#169: an open prerequisite parks the mission, in step with the driver (#133)', () => {
   const vorbedingung = abschnitt('- **Vorbedingung prüfen:**', '- **Basis bestimmen**');
   it('the other two branches stay as they were', () => {

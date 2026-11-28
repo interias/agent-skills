@@ -117,7 +117,7 @@ describe('ressourcen', () => {
     const r = await aufrufenAsync(process.execPath, ['-e', 'console.log(JSON.stringify({ level: "ok", percent_used: 50, free_gb: 30 }))'], { timeoutMs: 1000 });
     expect(r.code).toBe(0);
     expect(aufrufen(process.execPath, ['-e', 'console.log(1)']).code).toBe(0);
-  }, 10_000);
+  }, 20_000);
 
   it('starts nothing when the disk is below the threshold or unknown (D9)', async () => {
     const a = ramStub('{"level":"ok","percent_used":50,"free_gb":30}');

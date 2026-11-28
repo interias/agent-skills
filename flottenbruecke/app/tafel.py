@@ -667,7 +667,8 @@ def einrichten(konten_liste: list[dict], anlegen: list[dict], tanks: bool, gemel
         # #126: a project added over the bridge waits for the machine of a running driver, also when others are there
         {'schritt': 'projekt', 'stand': 'wartet' if any(p['hinzufuegen'] for p in projekte) else stand(bool(projekte), False)},
     ]
-    return {'schritte': schritte, 'fertig': all(s['stand'] == 'fertig' for s in schritte)}
+    # #240: no driver has reported yet, so the bridge knows nothing of the machine: the steps are unknown, not open
+    return {'schritte': schritte, 'fertig': all(s['stand'] == 'fertig' for s in schritte), 'ohneTreiber': not projekte}
 
 
 def bereitschaftsraum(chats: list[dict], nachrichten: list[dict], rechner: list[dict], forges: list[str], pin_gesetzt: bool) -> dict:

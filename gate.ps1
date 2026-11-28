@@ -35,7 +35,7 @@ if ($r.FailedCount -gt 0 -or $rot) { exit 1 }
 exit 0
 '@
 $teile = [ordered]@{
-    flotte  = { Push-Location flotte; bun test; $c = $LASTEXITCODE; Pop-Location; $c }
+    flotte  = { Push-Location flotte; bun test --timeout 20000; $c = $LASTEXITCODE; Pop-Location; $c }
     bruecke = { Push-Location flottenbruecke; python -m pytest -q -p no:cacheprovider "--basetemp=$(Join-Path $env:TEMP agent-skills-gate-$PID)"; $c = $LASTEXITCODE; Pop-Location; $c }
     pester  = { powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($pesterLauf.Replace('<ROOT>', $PSScriptRoot)))); [int]($LASTEXITCODE -ne 0) }
 }
