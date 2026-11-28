@@ -110,7 +110,8 @@ def test_schiffsliste_wird_mit_inhaltsstand_nach_der_huelle_und_vor_dem_board_ge
 
 def test_huelle_bietet_springen_und_tafel_lauschen(client):
     js = (STATIC / 'huelle.js').read_text(encoding='utf-8')
-    assert 'return { bereich, tafel, springe, beiTafel };' in js
+    # #242: beside them the sub-tab of the open area
+    assert 'return { bereich, tafel, springe, beiTafel, unter: () => teile()[1] };' in js
 
 
 def test_schiffsliste_ist_nur_lesend_und_ohne_blinken():

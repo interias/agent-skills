@@ -46,7 +46,7 @@ bun <skills>\flotte\src\cli.ts fahren --konten 1,2
   laufen diese Missionen und dazu alles, was das Einsammeln freigegeben findet. Läufe, Fragen und PRs
   eines früheren Einsatzes aus `zustand.json`, die das Einsammeln nicht trifft, übernimmt er (Ereignis
   „Übernommen aus einem früheren Einsatz“); sie zählen in der Belegung mit.
-  Ob er einsammelt, ist die Einstellung `einsammeln` (#193, „Automatik je Projekt“ im Maschinenraum der
+  Ob er einsammelt, ist die Einstellung `einsammeln` (#193, Schalter „Einsammeln“ an der Projektkarte im Maschinenraum der
   Brücke): `--dauerhaft` oder ein Start ohne `--epics` setzt `an`, `--epics` allein `aus`. Über die Brücke
   umgeschaltet gilt der Wert ab dem nächsten Takt und nach einem Neustart weiter, bis ein Start mit
   `--dauerhaft` oder `--epics` ihn neu setzt (Ereignis). Aus hält nichts an: Laufende, wartende, genannte und

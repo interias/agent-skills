@@ -48,7 +48,7 @@ gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht 
   unverändert über HTTP und spricht mit keinem Push-Dienst. Die Brücke schickt ausgehend an den
   Push-Dienst des Browsers (bei Chrome der von Google), Ende-zu-Ende verschlüsselt. Keine öffentliche
   Adresse: das Handy erreicht die Brücke im WLAN oder über den Fernzugriff. Ein Gerät meldet sich im
-  Maschinenraum unter „Meldungen auf diesem Gerät“ mit **Einschalten** an und mit **Abschalten** ab,
+  Maschinenraum unter Einrichtung, „Meldungen auf diesem Gerät“ mit **Einschalten** an und mit **Abschalten** ab,
   beides als gekoppeltes Gerät. Ein Abo, das der Push-Dienst als abgelaufen meldet, löscht die Brücke selbst.
   Einrichten: [`INSTALL.md`](../INSTALL.md), „Optional: Meldungen“. iOS ist nicht geprüft.
 
@@ -362,8 +362,8 @@ Koppeln und am Rechner (Rechte, Entkoppeln, Not-Aus lösen); ein Gerät mit Rech
 ohne sie (Stefan, 24.11.2026: die PIN bei jedem Schalter war zu viel). Die PIN allein reicht nicht: Ohne
 gekoppeltes Gerät geht nichts.
 
-- **Koppeln:** Beim ersten Senden fragt ein unbekanntes Gerät nach Namen und PIN (oder Maschinenraum,
-  „Geräte“, **Dieses Gerät koppeln**). Die Brücke gibt ihm einen zufälligen Schlüssel als Cookie
+- **Koppeln:** Beim ersten Senden fragt ein unbekanntes Gerät nach Namen und PIN (oder oben im
+  Maschinenraum **Koppeln**). Die Brücke gibt ihm einen zufälligen Schlüssel als Cookie
   (HttpOnly, Secure, SameSite=Strict, 400 Tage) und speichert nur dessen Hash. Weil das Cookie `Secure`
   ist, geht Koppeln nur über HTTPS (Zertifikat aus mkcert, oben) oder am Rechner über `localhost`.
 - **Rechte je Gerät:** ansehen (immer), **Antworten** (Fragen, Bereitschaftsraum, Web-Push), **Handeln**
@@ -371,7 +371,7 @@ gekoppeltes Gerät geht nichts.
   antworten, nicht handeln.
 - **Nur der Rechner vergibt Rechte:** Die Brücke hat dafür einen eigenen Eingang, den compose nur auf
   `127.0.0.1` veröffentlicht (`http://localhost:4748/`, Port aus `BRUECKE_RECHNER_PORT`). Dort zeigt der
-  Maschinenraum je Gerät **Antworten geben/nehmen**, **Handeln geben/nehmen** und **Entkoppeln**, jeweils
+  Maschinenraum unter Einrichtung je Gerät **Antworten geben/nehmen**, **Handeln geben/nehmen** und **Entkoppeln**, jeweils
   mit PIN. Aus dem LAN lehnt die Brücke das mit `403` ab; sie erkennt den Rechner am Eingang, nicht an
   der Absenderadresse, und nimmt dort nur den Namen `localhost`, `127.0.0.1` oder `[::1]` an (keine fremde
   Seite, die ihren Namen auf den Rechner umbiegt). Ein entkoppeltes Gerät ist sofort unbekannt (`401`) und muss neu koppeln.
@@ -390,94 +390,97 @@ gekoppeltes Gerät geht nichts.
   offenen Seite, damit eine Handlung aus mehreren Anfragen nicht mehrmals fragt.
 - **Fernweg:** Über Tailscale (unten) bleibt alles Ansicht: dort lässt sich weder koppeln noch handeln.
 
-Bilder: [Geräte im LAN](doku/v3-maschinenraum-geraete-1440.png) ([390](doku/v3-maschinenraum-geraete-390.png)),
-[am Rechner](doku/v3-maschinenraum-geraete-rechner-1440.png) ([390](doku/v3-maschinenraum-geraete-rechner-390.png)),
-[Koppeln](doku/v3-geraet-koppeln-390.png), [Not-Aus](doku/v3-maschinenraum-notaus-1440.png)
-([390](doku/v3-maschinenraum-notaus-390.png)), [Logbuch](doku/v3-logbuch-geraete-1440.png).
+Bilder: [Geräte im LAN](doku/maschinenraum-einrichtung-1440.png) ([390](doku/maschinenraum-einrichtung-390.png)),
+[am Rechner](doku/maschinenraum-einrichtung-rechner-1440.png) ([390](doku/maschinenraum-einrichtung-rechner-390.png)),
+[Koppeln](doku/v3-geraet-koppeln-390.png), [Logbuch](doku/v3-logbuch-geraete-1440.png).
 
 ## Maschinenraum und Logbuch
 
-- **Maschinenraum** (`#maschinenraum`): je Konto zwei Tanks (Hauptenergie und Reserveenergie, „… % übrig“, Reset-Zeit,
-  mit Wochentag ab 20 h), der **Vorsprung** in der Reserveenergie (danach wählt der Treiber das Konto
-  einer neuen Mission, ein Satz Erklärung steht darüber), Alter des Werts und Bremsstufe; je Rechner RAM, Platte, Obergrenze (Läufe
-  gleichzeitig) und der Takt der Treiber, die dort melden. Alles stammt aus dem Bericht. Was er nicht
-  trägt, steht als „… meldet der Treiber nicht“. Die **Anmeldung** je Konto kommt aus `kontenListe`
-  des Berichts (#95). Den **Grund** einer Bremse (`grund`, nur bei `gelb`/`rot`)
-  liefert der Treiber; bei `gruen` steht „keine“.
-  Meldet der Treiber je Konto `missionen` (Tag Q), steht an der Kontokarte unter **Missionen**, welche
-  Mission heute und seit Beginn des Wochenfensters wie viel verbraucht hat (`#491 heute ≈1,2 % · 1,2 Mio Tok
-  Woche ≈3,1 % · 2,4 Mio Tok`), der Satz zur Schätzung steht darüber; ohne Daten nichts. Die Missionen aller
-  Projekte auf dem Konto stehen zusammen, bei mehreren Projekten mit dem Projektnamen vor der Nummer. Bilder:
-  [`doku/verbrauch-maschinenraum-1440.png`](doku/verbrauch-maschinenraum-1440.png), [`doku/verbrauch-maschinenraum-390.png`](doku/verbrauch-maschinenraum-390.png).
-  Über den Tanks (#96) je Konto aus `~/.claude/flotte/konten.json` Name, Farbe, Rechner, aktiv und
-  Anmeldung mit den Knöpfen **Am Rechner anmelden**, **Deaktivieren**/**Aktivieren** und je Rechner
-  **Konto anlegen**, jeweils mit PIN als Handlung an den Treiber; bis zur Quittung „wartet auf den
-  Rechner“. Fehlt noch ein Konto, eine Anmeldung, die Forge oder ein Projekt, öffnet die Brücke ohne
-  Anker in der Adresse den Maschinenraum mit den Schritten **Einrichten** (Konto anlegen → am Rechner
-  anmelden → Forge verknüpfen → Projekt hinzufügen, je offen / wartet auf den Rechner / fertig; fertige
-  klappen zu); ist alles da, startet sie auf der Brücke. Bilder:
-  `doku/v3-maschinenraum-einrichten-1440.png`, `-390.png`, `doku/v3-maschinenraum-konten-1440.png`, `-390.png`.
-  Darunter (#125) **Forge** je Projekt: GitHub oder Gitea, Repository, angemeldet als …, Schreibrecht und **Am Rechner verknüpfen** (PIN): Der
-  Rechner öffnet ein Terminal mit `gh auth login` bzw. fragt dort Benutzer und Token für den
-  Git-Credential-Speicher ab; kein Token geht durch die Brücke. Bilder: `doku/v3-maschinenraum-forge-1440.png`, `-390.png`.
-  Davor (#126) **Projekte**: je Projekt Repository, Rechner und **Entfernen** (PIN): Der Treiber hält an wie
-  `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; ein neuer Start des
-  Treibers bringt es zurück. Eine geplante Aufgabe „Flotte <name>“ (Autostart) bleibt und startet den Treiber bei jeder Anmeldung wieder, damit kehrt das Projekt zurück; abschalten in der Aufgabenplanung (Aufgabe „Flotte <name>“ deaktivieren oder löschen). Darunter **Projekt hinzufügen** (PIN) mit dem Ordner am Rechner und dem
-  Schalter **Autostart beim Anmelden**: Ein laufender Treiber (bei mehreren wählbar, „am Rechner des Treibers von“) prüft den Ordner,
-  legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript `~/.claude/flotte/start/<name>.ps1`;
-  was angelegt wurde und welche Adapterschlüssel noch auszufüllen sind, steht als Ereignis im Laufband. Er fährt
-  das neue Repository nicht selbst: Jedes Projekt bekommt einen eigenen Treiber, der nicht gleich startet, sondern
-  mit Autostart bei der nächsten Anmeldung oder von Hand über das Startskript; sein erster Bericht legt das Projekt
-  in der Liste an.
-  Statt des Ordners geht **oder Link zum Repository** (nur `https://` auf github.com oder die Gitea-Forge
-  eines Projekts): Der Treiber klont mit der Anmeldung des Rechners in den vorgeschlagenen Ordner (änderbar),
-  prüft Rechte und Labels und nennt, was zum Einrichten fehlt, ohne es auszuführen. Hat der Adapter eines
-  Projekts noch Lücken der Vorlage, steht an seiner Karte „Dein Schritt: Adapter ausfüllen (in einem eigenen
-  Chat)“; bis dahin startet dort keine Mission.
-  Meldet sich kein Treiber, nennt die Seite den Weg am Rechner (`flotte projekt hinzufuegen`).
-  Bilder: `doku/v3-maschinenraum-projekte-1440.png`, `-390.png`.
-  Darunter **Automatik je Projekt** (#193): eine Zeile je Projekt mit dem Schalter „Missionen automatisch
-  einsammeln“ (an/aus, Umschalten mit PIN als `einstellen`, wirksam ab dem nächsten Takt) und der Zahl laufender,
-  wartender und freigegebener, noch nicht eingesammelter Missionen. Ausschalten hält nichts an.
-  Bilder: `doku/v3-maschinenraum-automatik-1440.png`, `-390.png`.
-  Darunter **Lernschleife je Projekt** (Tag O): eine Zeile je Projekt mit dem Schalter „Lernschleife“, **ab Werk aus**
-  (auch ein neu hinzugefügtes Projekt). Einschalten mit PIN als `einstellen`, wirksam ab dem nächsten Takt: Dann
-  schreibt nach jedem Andocken ein billiges Modell höchstens drei belegte Vorschläge an das `lern_issue` des Projekts,
-  der Triage-Lauf entscheidet sie, der Frachtraum zeigt sie unter „Lernschleife“. Aus: kein Lernaufruf, kein
-  Kommentar, keine Lernvorschläge. Nennt der Adapter kein `lern_issue`, ist Einschalten gesperrt und die Zeile sagt,
-  was fehlt. Nichts geht an ein anderes Repository.
-  Bilder: `doku/v3-maschinenraum-lernschleife-1440.png`, `-390.png`.
-  Darunter der Abschnitt **Einstellungen** (keine eigene Pille): je Projekt die übrigen fünfzehn wirksamen Werte (ohne Einsammeln und Lernschleife)
-  des Treibers mit Herkunft (Start, Brücke, Standard) und „wirksam seit …“, je Wert ein passendes
-  Bedienelement (Stufenwahl, Häkchen je Konto, Zahl mit Grenzen, Wahl beim Andocken und bei den Modellen) und ein Satz, was
-  er bremst. Eine Änderung geht erst nach **Übernehmen** mit PIN als Handlung `einstellen` an den Treiber (Grenzen aus
-  dem Bericht, `422` darüber hinaus); bis zur Quittung steht dort „wartet auf den Treiber“. Sie gilt
-  ab dem nächsten Takt, nichts Laufendes bricht ab, und steht im Logbuch. Ein älterer Treiber ohne
-  `einstellungen` im Bericht: nur lesend mit Hinweis. Andocken (#112) verschärft nur: „automatisch“
-  steht nur zur Wahl, wenn der Adapter `merge: nach_gate` sagt, sonst nennt die Zeile den Grund. Die
-  Andock-Regel des Adapters, Rechte, Geheimnisse gibt es hier nicht. Bilder: `doku/v3-maschinenraum-1440.png`, `-390.png`.
-  Darüber der Abschnitt **Stand** (#154): die Brücke mit Commit und Datum ihres Images, je Treiber
-  Commit und Datum des installierten Skill-Satzes, wann er eingespielt wurde und wann der Treiber
-  startete; kurz steht das auch im Fuß jeder Seite (`B <commit> · T <commit>`, gold mit „neu“, ein
-  Tipp führt hierher). Meldet ein Treiber einen neueren Commit auf `main` seiner Quelle (er fragt
-  höchstens alle 15 Minuten), steht dort „Neuer Stand verfügbar: <commit>, <datum>, <PR-Titel>“.
-  **Einspielen und Treiber neu starten** (je Treiber, bei mehreren auch für alle) nach einer Rückfrage,
-  mit PIN; ohne PIN nur die Anzeige. Die Brücke legt nur die Handlung ab (agent-skills/ADR-0005): Der
-  Treiber hält an, wartet ein offenes Andocken ab („Wartet auf das Andocken von #…“), spielt `main`
-  ein, baut die Brücke neu, wenn sich `flottenbruecke/` geändert hat, und startet mit derselben
-  Kommandozeile neu; laufende Läufe übernimmt er. Ablauf: `flotte/README.md`, „Anhalten und neu
+- **Maschinenraum** (`#maschinenraum`, #242): oben immer „Dieses Gerät“ mit Name und Rechten (ungekoppelt:
+  **Koppeln**) und **Not-Aus**, nach dem Auslösen rot „Not-Aus seit …“; ohne PIN steht dort einmal, dass die Knöpfe
+  abgeschaltet sind. Darunter drei mitlaufende Unterreiter mit eigenem Anker: **Betrieb**
+  (`#maschinenraum/betrieb`, auch ohne Unteranker), **Einstellungen** (`#maschinenraum/einstellungen`, mit der Zahl
+  offener Entwürfe) und **Einrichtung** (`#maschinenraum/einrichtung`). Fehlt noch ein Konto, eine Anmeldung, die
+  Forge oder ein Projekt, öffnet die Brücke ohne Anker in der Adresse die Einrichtung; ist alles da, startet sie
+  auf der Brücke. Der Fuß `B … · T …` führt zum Banner (neuer Stand) oder zum Stand in der Einrichtung. Jeder
+  Hinweis ist ein Satz; mehr steht hinter ⓘ (antippen) oder „Mehr“. Alles stammt aus dem Bericht; was er nicht
+  trägt, heißt „nicht gemeldet“.
+- **Betrieb:** Meldet ein Treiber einen neueren Commit auf `main` seiner Quelle (höchstens alle 15 Minuten
+  geprüft), steht oben das Banner „Neuer Stand verfügbar …“ mit **Einspielen und Treiber neu starten** (bei
+  mehreren Treibern: alle). **Eine Karte je Konto**: Name und Farbe aus `~/.claude/flotte/konten.json`, Konto und
+  Rechner, die Tanks Hauptenergie und Reserveenergie („… % übrig“, Reset mit Wochentag ab 20 h), der
+  **Vorsprung** in der Reserveenergie (danach wählt der Treiber das Konto einer neuen Mission; Erklärung und
+  Verbrauchsschätzung hinter ⓘ), Bremse mit Grund (`grund`, nur bei `gelb`/`rot`, sonst „keine“) und Alter des
+  Werts, Anmeldung (`kontenListe`, #95), zugeklappt die **Missionen** des Kontos (Tag Q: heute und seit Beginn
+  des Wochenfensters, `#491 heute ≈1,2 % · 1,2 Mio Tok Woche ≈3,1 % · 2,4 Mio Tok`, bei mehreren Projekten mit
+  dem Projektnamen) und die Knöpfe **Am Rechner anmelden** (nur wenn nicht angemeldet) und
+  **Deaktivieren**/**Aktivieren** (#96), als Handlung an den Treiber, bis zur Quittung „wartet auf den Rechner“.
+  **Eine Zeile je Rechner**: RAM, Platte, Obergrenze (Läufe gleichzeitig), eine Bremse farbig. **Eine Karte je
+  Projekt**: Repository, Rechner, Takt und letzter Bericht; die **Forge** als eine Zeile (#125, „GitHub · als …
+  · Schreiben“), **Am Rechner verknüpfen** nur, wenn Anmeldung oder Schreibrecht fehlt (der Rechner öffnet ein
+  Terminal mit `gh auth login` bzw. fragt Benutzer und Token für den Git-Credential-Speicher ab; kein Token geht
+  durch die Brücke); Lücken des Adapters („Dein Schritt: Adapter ausfüllen (in einem eigenen Chat)“, bis dahin
+  startet dort keine Mission); der Halt der Andock-Schlange nach rotem Nachtlauf und der letzte Nachtlauf; die
+  Schalter **Einsammeln** (#193: der Treiber sammelt freigegebene Missionen selbst ein; Ausschalten hält nichts
+  an) und **Lernschleife** (Tag O: ab Werk aus, auch für ein neu hinzugefügtes Projekt; an schreibt nach jedem
+  Andocken höchstens drei belegte Vorschläge an das `lern_issue` des Projekts, der Triage-Lauf entscheidet sie,
+  der Frachtraum zeigt sie; nennt der Adapter kein `lern_issue`, ist der Schalter gesperrt und nennt sichtbar
+  den Grund), beide als `einstellen`, wirksam ab dem nächsten Takt; die Zahl laufender, wartender und
+  freigegebener, noch nicht eingesammelter Missionen; die letzten drei Andockprüfungen des Treibers (Ergebnis,
+  Dauer, Anteil aus dem Cache), der Rest unter „Mehr“. Meldet eine **Werft** (`flotte werft`,
+  agent-skills/ADR-0005), folgt je Repository und Rechner ihr Stand (Commit, geprüft, Abstand) und je Stack eine
+  Karte (#90) mit gezogenem Commit, Zeit und Marke (grün, rot, wartet, aus), bei rot das letzte Protokoll
+  aufgeklappt, dazu **Jetzt nachziehen** und, nur wenn die Arbeits-Migration auf die Freigabe wartet,
+  **Arbeits-Migration freigeben** (mit Rückfrage, gebunden an Commit und Sicherung); ist sie gesperrt oder rot,
+  ist „Jetzt nachziehen“ der Hauptknopf: es nimmt eine neue Sicherung. Die Brücke ruft die Werft nie auf, die
+  Werft holt im nächsten Takt (15 s) ab, bis dahin „wartet auf die Werft“.
+  Bilder: [`doku/maschinenraum-betrieb-1440.png`](doku/maschinenraum-betrieb-1440.png),
+  [`doku/maschinenraum-betrieb-390.png`](doku/maschinenraum-betrieb-390.png).
+- **Einstellungen** (#59): die übrigen wirksamen Werte der Treiber (ohne Einsammeln und Lernschleife) als
+  kompakte Zeilen mit Name, Wert und Herkunft (Start, Brücke, Standard) in Gruppen: **Kapazität**
+  (Missionen gleichzeitig, Pakete je Mission, Konten, Admiral-Konto), **Bremsen** (Gelb, Rot, Leerfahren,
+  RAM-Schwelle, Plattenminimum, Leerlauf), **Andocken und Modelle** (Andocken, Modell der Triage, Modell des
+  Admirals, Dateizugriffe der Triage), **Meldung**; dazu je Repository eine Gruppe **Werft** (an/aus, Stacks,
+  Abfrageabstand, Test-Migration selbst). Mit mehreren Treibern steht jeder Wert einmal für alle. Antippen öffnet
+  das passende Bedienelement mit einem Satz Hilfe und „wirksam seit …“; eine Wahl ist ein Entwurf (gold). Eine
+  feste Leiste unten nennt alle Entwürfe und schickt sie mit **n Änderungen übernehmen** zusammen ab, je Entwurf
+  die Handlung `einstellen` an jeden Treiber (bzw. an die Werft) wie bisher (Grenzen aus dem Bericht, `422`
+  darüber hinaus); **Verwerfen** nimmt alle zurück. „Wartet auf den Treiber“ und „unterschiedlich je Treiber“
+  stehen an der Zeile; eine unterschiedliche Zeile lässt sich auch mit demselben Wert angleichen. Änderungen
+  gelten ab dem nächsten Takt, nichts Laufendes bricht ab, und stehen im Logbuch. Ein älterer Treiber ohne
+  `einstellungen`: nur lesend mit Hinweis. Andocken (#112) verschärft nur: „automatisch“ steht nur zur Wahl, wenn
+  der Adapter `merge: nach_gate` sagt, sonst nennt die Zeile den Grund. Die Andock-Regel des Adapters, Rechte,
+  Geheimnisse gibt es hier nicht.
+  Bilder: [`doku/maschinenraum-einstellungen-1440.png`](doku/maschinenraum-einstellungen-1440.png),
+  [`-390.png`](doku/maschinenraum-einstellungen-390.png), mit zwei Entwürfen
+  [`doku/maschinenraum-einstellungen-entwurf-1440.png`](doku/maschinenraum-einstellungen-entwurf-1440.png),
+  [`-390.png`](doku/maschinenraum-einstellungen-entwurf-390.png).
+- **Einrichtung:** die Schritte **Einrichten** (Konto anlegen → am Rechner anmelden → Forge verknüpfen →
+  Projekt hinzufügen, je offen / wartet auf den Rechner / fertig; fertige klappen zu, ist alles fertig, die ganze
+  Liste). **Projekt hinzufügen** (#126) mit **Link zum Repository** (nur `https://` auf github.com oder die
+  Gitea-Forge eines Projekts; der Rechner klont mit seiner eigenen Anmeldung in den vorgeschlagenen, änderbaren
+  Ordner, prüft Rechte und Labels und nennt, was zum Einrichten fehlt) oder dem Ordner am Rechner, dem Schalter
+  **Autostart beim Anmelden** und, bei mehreren laufenden Treibern, der Wahl „am Rechner des Treibers von“: Der
+  Treiber legt den Adapter aus der Vorlage an, wenn er fehlt, und das Startskript
+  `~/.claude/flotte/start/<name>.ps1`; das Projekt bekommt einen eigenen Treiber, der mit Autostart bei der
+  nächsten Anmeldung oder von Hand über das Startskript startet, sein erster Bericht legt das Projekt an (der
+  Rest unter „Mehr“). Meldet sich kein Treiber, nennt die Seite den Weg am Rechner (`flotte projekt
+  hinzufuegen`). **Konten und Projekte verwalten:** **Konto anlegen** je Rechner und **… entfernen** je Projekt
+  (der Treiber hält an wie `flotte anhalten`, das Projekt verschwindet aus der Liste, gelöscht wird nichts; eine
+  geplante Aufgabe „Flotte <name>“ startet ihn bei jeder Anmeldung wieder, abschalten in der Aufgabenplanung).
+  **Geräte** (#46, siehe „Geräte, Rechte und Not-Aus“) mit ihren Rechten, am Rechner mit **Antworten/Handeln geben/nehmen**, **Entkoppeln**
+  und **Not-Aus lösen**. **Meldungen auf diesem Gerät** (#37). **Stand** (#154): die Brücke mit Commit und Datum
+  ihres Images, je Treiber Commit und Datum des installierten Skill-Satzes, wann er eingespielt wurde und wann er
+  startete, ein neuerer Stand in Gold, je Treiber **Einspielen und Treiber neu starten** und bei mehreren
+  **Einspielen und alle Treiber neu starten** (nach einer Rückfrage). Die Brücke legt nur die Handlung ab
+  (agent-skills/ADR-0005): Der Treiber hält an, wartet ein offenes Andocken ab („Wartet auf das Andocken von
+  #…“), spielt `main` ein, baut die Brücke neu, wenn sich `flottenbruecke/` geändert hat, und startet mit
+  derselben Kommandozeile neu; laufende Läufe übernimmt er. Ablauf: `flotte/README.md`, „Anhalten und neu
   starten“. Ein älterer Treiber ohne Stand: „einspielen von Hand“.
-  Meldet eine **Werft** (`flotte werft`, agent-skills/ADR-0005), steht nach den Rechnern der Abschnitt
-  **Werft** (#90): je Repository und Rechner der Stand (Commit, geprüft, Abstand) und je Stack eine
-  Karte mit gezogenem Commit, Zeit und Marke (grün, rot, wartet, aus), bei rot das letzte Protokoll
-  aufgeklappt, dazu „Jetzt nachziehen“ und, nur wenn die Arbeits-Migration auf die Freigabe wartet,
-  „Arbeits-Migration freigeben“ (mit Rückfrage, gebunden an Commit und Sicherung, die die Karte
-  zeigt). Ist sie gesperrt oder rot, ist „Jetzt nachziehen“ der Hauptknopf: es nimmt eine neue
-  Sicherung. Unter den Einstellungen folgt **Einstellungen · Werft** je Repository: Werft an/aus,
-  Stacks an/aus, Abfrageabstand, Test-Migrationen selbst ja/nein. Alles nur mit PIN, bis zum Abholen
-  „wartet auf die Werft“; die Brücke ruft die Werft nie auf, die Werft holt im nächsten Takt (15 s) ab
-  und ihre Meldungen (auch jede Ablehnung) stehen im Laufband und Logbuch. Bilder:
-  `doku/v3-maschinenraum-werft-1440.png`, `-390.png`, `doku/v3-maschinenraum-werft-einstellungen-1440.png`, `-390.png`.
+  Bilder: [`doku/maschinenraum-einrichtung-1440.png`](doku/maschinenraum-einrichtung-1440.png),
+  [`-390.png`](doku/maschinenraum-einrichtung-390.png), am Rechner
+  [`doku/maschinenraum-einrichtung-rechner-1440.png`](doku/maschinenraum-einrichtung-rechner-1440.png),
+  [`-390.png`](doku/maschinenraum-einrichtung-rechner-390.png).
 - **Logbuch** (`#logbuch`): Ereignisse der Treiber, Entscheidungen des Admirals und Handlungen des
   Menschen in einer Liste, neueste oben, filterbar nach Mission und Art (Ereignis, Admiral, Mensch). Die
   Tafel hält 40 Ereignisse und von den Entscheidungen nur die von heute; ältere gibt es hier nicht. Das
@@ -515,7 +518,7 @@ gesetzte PIN ist Schreiben abgeschaltet. Ansehen ist frei im LAN.
 
 ## Aktualisieren
 
-Am einfachsten über den Knopf im Maschinenraum (#154, oben). Von Hand: `git pull`, dann
+Am einfachsten über den Knopf im Maschinenraum (#154: Banner unter Betrieb oder Stand unter Einrichtung). Von Hand: `git pull`, dann
 `docker compose up -d --build` im Ordner; mit Stand im Maschinenraum (PowerShell):
 `$env:BRUECKE_COMMIT = git rev-parse HEAD; $env:BRUECKE_DATUM = git log -1 --format=%cI; docker compose up -d --build`.
 Ohne die beiden Werte zeigt die Brücke ihren Stand nicht und das nächste Einspielen baut sie neu. Das Volume bleibt; v2 legt auf einem
