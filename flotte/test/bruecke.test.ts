@@ -381,7 +381,7 @@ describe('Flottenbrücke (#28)', () => {
       expect(e.filter((x) => /^Erledigt über die Brücke: der Treiber prüft/.test(x))).toHaveLength(2);
       // the issue comment begins with the three lines
       const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**Braucht dich'))!.text.split('\n');
-      expect(k.slice(2, 5)).toEqual(['**Was:** Konto 1 ist nicht angemeldet.', '**Wer:** Du · nur du kannst ein Konto anmelden', '**Schritt:** Konto 1 am Rechner anmelden (Maschinenraum › Konten › Anmelden), dann „Erledigt“.']);
+      expect(k.slice(2, 5)).toEqual(['**Was:** Konto 1 ist nicht angemeldet.', '**Wer:** Du · nur du kannst ein Konto anmelden', '**Schritt:** Konto 1 am Rechner anmelden (Maschinenraum › Betrieb › Konten › Am Rechner anmelden), dann „Erledigt“.']);
     } finally {
       await b.zu();
     }
