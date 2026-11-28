@@ -630,6 +630,8 @@ ${stand ? `<p class="mr-stand">${stand}</p>` : ''}<div class="mr-offen" id="${id
   function einrichtenHtml(t) {
     const e = t.einrichten;
     if (!e) return '';
+    // #240: without a driver report the bridge cannot know the steps; the check runs at the machine
+    if (e.ohneTreiber) return '<h3 class="mr-titel">Einrichten</h3><p class="mr-hilfe">ohne Treiber: <code>flotte pruefen</code> am Rechner. Es zeigt Konto, Anmeldung, Forge und Projekt als Checkliste; hier erscheinen die Schritte, sobald ein Treiber berichtet.</p>';
     const fertig = e.schritte.filter((s) => s.stand === 'fertig').length;
     const schritte = `<ol class="mr-schritte">${e.schritte.map((s) => `<li class="mr-schritt ${esc(s.stand)}"><details${auf(`schritt:${s.schritt}`, s.stand !== 'fertig')}><summary>${marke(s.stand === 'fertig' ? 'gruen' : s.stand === 'wartet' ? 'gelb' : 'aus', STAND_SCHRITT[s.stand] ?? s.stand)} ${esc(SCHRITT[s.schritt]?.titel ?? s.schritt)}</summary><p class="mr-hilfe">${SCHRITT[s.schritt]?.text ?? ''}</p></details></li>`).join('')}</ol>`;
     if (!e.fertig) return `<h3 class="mr-titel">Einrichten <small>${fertig} von ${e.schritte.length} Schritten fertig</small></h3>${schritte}`;

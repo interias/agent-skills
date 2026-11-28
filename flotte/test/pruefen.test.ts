@@ -163,6 +163,71 @@ describe('flotte pruefen', () => {
     for (const [n, name] of Object.entries(SCHRITTE)) expect(skill).toContain(`\n## Schritt ${n}: ${name}\n`);
   });
 
+  describe('the four steps of setting up, as a checklist in the terminal (#240)', () => {
+    /** konten.json in the home folder of the stand-in world; folders relative to it */
+    const konten = (heim: string, liste: { nr: string; ordner: string; aktiv?: boolean; angemeldet?: boolean; ordnerFehlt?: boolean }[]) => {
+      mkdirSync(join(heim, '.claude', 'flotte'), { recursive: true });
+      writeFileSync(join(heim, '.claude', 'flotte', 'konten.json'), JSON.stringify(liste.map(({ nr, ordner, aktiv }) => ({ nr, ordner: `~/${ordner}`, name: `Konto ${nr}`, aktiv: aktiv !== false }))));
+      for (const k of liste) {
+        if (k.ordnerFehlt) continue;
+        mkdirSync(join(heim, k.ordner), { recursive: true });
+        // the check sees the file only by its existence; a secret inside must never reach the result
+        if (k.angemeldet) writeFileSync(join(heim, k.ordner, '.credentials.json'), '{"claudeAiOauth":{"accessToken":"GEHEIM-123"}}');
+      }
+    };
+    const schritt = (r: any, s: string) => r.einrichten.schritte.find((x: any) => x.schritt === s);
+
+    it('a fresh machine with accounts signed in but no project: account and sign-in done, forge by its rights, project open; printed as a checklist', async () => {
+      const dir = repo({ '.claude/epic.md': FERTIG });
+      const w = welt();
+      konten(w.heim, [{ nr: '1', ordner: '.claude', angemeldet: true }, { nr: '2', ordner: '.claude-zwei', angemeldet: false }, { nr: '3', ordner: '.claude-drei', aktiv: false, angemeldet: true }]);
+      const zeilen: string[] = [];
+      const r = (await pruefeRepo(dir, { ...w, melde: (z: string) => zeilen.push(z) })) as any;
+      expect(r.einrichten.schritte.map((x: any) => [x.schritt, x.stand])).toEqual([['konto', 'fertig'], ['anmeldung', 'fertig'], ['forge', 'fertig'], ['projekt', 'offen']]);
+      expect(r.einrichten.fertig).toBe(false);
+      expect(schritt(r, 'konto').text).toBe('aktiv: Konto 1, Konto 2');
+      expect(schritt(r, 'anmeldung').text).toBe('angemeldet: Konto 1; nicht angemeldet: Konto 2');
+      expect(schritt(r, 'projekt').text).toMatch(/flotte projekt hinzufuegen/);
+      const liste = zeilen.join('\n');
+      expect(liste).toMatch(/^Einrichten \(app\):\n  \[x\] Konto anlegen — aktiv: Konto 1, Konto 2\n  \[x\] Am Rechner anmelden — .+\n  \[x\] Forge verknüpfen — .+\n  \[ \] Projekt hinzufügen — .+$/);
+      // never a token, never a path of the home folder
+      expect(JSON.stringify(r) + liste).not.toContain('GEHEIM');
+      expect(JSON.stringify(r.einrichten) + liste).not.toContain(w.heim);
+    });
+
+    it('no account folder and no sign-in: both open with the command that closes them; no push right: forge open', async () => {
+      const dir = repo({ '.claude/epic.md': FERTIG });
+      const w = welt({ push: false });
+      konten(w.heim, [{ nr: '2', ordner: '.claude-zwei', ordnerFehlt: true }]);
+      const r = (await pruefeRepo(dir, { ...w, melde: () => {} })) as any;
+      expect(schritt(r, 'konto')).toMatchObject({ stand: 'offen', text: expect.stringContaining('flotte konten anlegen') });
+      expect(schritt(r, 'anmeldung')).toMatchObject({ stand: 'offen', text: expect.stringContaining('flotte konten anmelden <nr>') });
+      expect(schritt(r, 'forge')).toMatchObject({ stand: 'offen', text: expect.stringContaining('kein Schreibrecht') });
+    });
+
+    it('everything in place: all four done, the checklist says so', async () => {
+      const dir = repo({ '.claude/epic.md': FERTIG });
+      const w = welt();
+      konten(w.heim, [{ nr: '1', ordner: '.claude', angemeldet: true }]);
+      mkdirSync(join(w.heim, '.claude', 'flotte', 'start'), { recursive: true });
+      writeFileSync(join(w.heim, '.claude', 'flotte', 'start', 'app.ps1'), startskript({ name: 'app', ordner: dir, konten: ['1'], bruecke: 'http://127.0.0.1:4747' }));
+      const zeilen: string[] = [];
+      const r = (await pruefeRepo(dir, { ...w, melde: (z: string) => zeilen.push(z) })) as any;
+      expect(r.einrichten.fertig).toBe(true);
+      expect(zeilen.join('\n')).not.toContain('[ ]');
+    });
+
+    it('an unreadable konten.json is named, the account step stays open', async () => {
+      const dir = repo({ '.claude/epic.md': FERTIG });
+      const w = welt();
+      mkdirSync(join(w.heim, '.claude', 'flotte'), { recursive: true });
+      writeFileSync(join(w.heim, '.claude', 'flotte', 'konten.json'), 'kaputt');
+      const r = (await pruefeRepo(dir, { ...w, melde: () => {} })) as any;
+      expect(schritt(r, 'konto')).toMatchObject({ stand: 'offen', text: expect.stringContaining('konten.json unlesbar') });
+      expect(schritt(r, 'anmeldung').stand).toBe('offen');
+    });
+  });
+
   it('a wrong call is refused', async () => {
     await expect(pruefen(['a', 'b'], welt())).rejects.toThrow('Aufruf: flotte pruefen [<ordner>]');
     await expect(pruefen([join(tmpdir(), 'gibt-es-nicht-xyz')], welt())).rejects.toThrow('gibt es nicht');
