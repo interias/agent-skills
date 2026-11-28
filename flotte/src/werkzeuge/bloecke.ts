@@ -168,8 +168,9 @@ const FELD = /^(Betrifft|Lage|Optionen|Auswahl|Empfehlung|Grund|Regel\/Quelle|Qu
 
 /** #243: the short line as the run wrote it, when it fits whole (90 characters); never cut */
 function kurzAus(wert: string | undefined): string | null {
+  // a whole sentence: one that ends on ":" or "," is cut off, not a short line
   const s = (wert ?? '').trim().replace(/^\*\*(.+)\*\*$/, '$1');
-  return s && s.length <= 90 ? s : null;
+  return s && s.length <= 90 && !/[:,;–-]$/.test(s) ? s : null;
 }
 
 /**

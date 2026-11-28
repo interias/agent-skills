@@ -87,6 +87,10 @@ describe('leseBlock', () => {
     if (b?.art !== 'frage') throw new Error('kein Frageblock');
     expect(b.fragen.map((f) => f.kurz)).toEqual(['Welcher PR gehört zu #548?', null, null]);
     expect(b.fragen[0].quelle).toBe('Skill');
+    // a sentence cut off on ":" is no short line either
+    const c = leseBlock('FLOTTE-FRAGE 548 tor\n1. Frage? — Optionen: A) a B) b — Kurz: Welcher PR gehört zu:\nSTAND: x');
+    if (c?.art !== 'frage') throw new Error('kein Frageblock');
+    expect(c.fragen[0].kurz).toBeNull();
   });
 
   it('leaves a question alone that only mentions a letter', () => {

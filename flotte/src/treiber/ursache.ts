@@ -180,7 +180,7 @@ export function einordnen(e: UrsacheEingang): Ursache {
   const konto = /^Konto (Konto \d+|.+?) ist nicht angemeldet/.exec(erste);
   if (konto) {
     const name = konto[1];
-    return u('anmeldung', [`${name} ist nicht angemeldet`], 'du', 'nur du kannst ein Konto anmelden', `${name} am Rechner anmelden (Maschinenraum › Konten › Anmelden), dann „Erledigt“.`, 'erledigt');
+    return u('anmeldung', [`${name} ist nicht angemeldet`, 'Ein Konto ist nicht angemeldet'], 'du', 'nur du kannst ein Konto anmelden', `${name} am Rechner anmelden (Maschinenraum › Konten › Anmelden), dann „Erledigt“.`, 'erledigt');
   }
   const erlaubnis = /^Erlaubnis verweigert: (.+?)\. Kein zweiter/.exec(erste);
   if (erlaubnis || /^Gesperrt durch guard\.ps1/.test(erste)) {

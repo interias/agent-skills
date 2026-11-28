@@ -351,8 +351,8 @@ fort“. Der Treiber behandelt sie wie `flotte antworten`, kommentiert am Issue 
 
 ## Handlungen
 
-Eine Blockadekarte zeigt ihre Ursache in drei Zeilen (oben „Board“; von einem älteren Treiber Grund, Lage und
-auf Wunsch das Log). Dazu Handlungen mit PIN, die der Treiber im nächsten Takt abholt und ausführt:
+Eine Blockadekarte zeigt ihre Ursache in drei Zeilen, wie unter „Board“ bei „Braucht dich“ beschrieben (von einem
+älteren Treiber Grund, Lage und auf Wunsch das Log). Dazu Handlungen mit PIN, die der Treiber im nächsten Takt abholt und ausführt:
 
 - **Erledigt** (#243) — wo dein Schritt die Ursache beheben muss: Der Treiber prüft nach und reiht neu ein,
   oder die Karte sagt, warum die Ursache noch besteht. An „Dein Schritt bald“ nimmt es den Schritt weg.

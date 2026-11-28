@@ -63,6 +63,16 @@ describe('Dein Schritt bald', () => {
     expect(t.p.kommentare.some((k) => k.nr === 3 && /^\*\*Entschieden von der Flotte[\s\S]*\nDein Schritt bald: #543 dockt erst an/.test(k.text))).toBe(true);
     expect(z.ereignisse.some((e) => e.epic === 3 && e.text === 'Dein Schritt bald: #543 dockt erst an, wenn ADR-0013 auf main liegt.')).toBe(true);
   }, T);
+
+  it('a step longer than the short line: a plain line within 90 characters, the step whole in why (the bridge takes the report)', async () => {
+    const t = aufbau();
+    const lang = `ADR-0013 ${'sehr '.repeat(40)}sorgfältig auf main bringen`;
+    const buch = drehbuch([lauf(3, [{ text: frage(3, 'tor', [{ betrifft: 'Lauf' }]) }]), admiral(3, [{ nr: 1, antwort: 'A', beim_menschen: false, mensch_spaeter: lang }]), lauf(3, [{ text: 'weiter\n\nFLOTTE-ENDE 3 https://github.com/o/r/pull/13\n\n### Was das Epic offen lässt\nkeine' }])]);
+    const z = await fahre(t.einstellung(buch, [3]), t.welt);
+    expect(z.bald![0].kurz).toBe('Ein Schritt von dir zu #3 steht bald an.');
+    expect(z.bald![0].warum.startsWith(lang.slice(0, 200))).toBe(true);
+    expect(z.bald![0].warum.length).toBeLessThanOrEqual(300);
+  }, T);
 });
 
 describe('the stage of the admiral\'s account in the logbook', () => {

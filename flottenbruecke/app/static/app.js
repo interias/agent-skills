@@ -223,9 +223,11 @@ function marken(x) {
 function frageHtml(x, t) {
   const e = entwurf.get(x.id) || {};
   // #243: the run's short line first; the whole question goes with situation and reason into the fold
-  const titel = x.kurz ? esc(x.kurz) : x.frage ? esc(x.frage) : 'Der Lauf fragt (Wortlaut)';
+  // without a short line a long question gets a plain heading; it stands whole in the fold
+  const kopfsatz = x.kurz || (x.frage && x.frage.length <= 90 ? x.frage : x.frage ? `Frage ${x.nr} zu #${x.epic}` : '');
+  const titel = kopfsatz ? esc(kopfsatz) : 'Der Lauf fragt (Wortlaut)';
   const kopfz = `<div class="kopfz">${nrLink(x)}<span class="art">Frage ${x.nr} · ${esc(x.repo)}${x.konto ? ` · ${esc(x.konto)}` : ''}</span><span class="warte">${zeitHtml(x.seit, 'wartet {}')} · ${esc(haelt(x))}</span></div>`;
-  const ganz = x.kurz && x.frage && x.kurz !== x.frage ? `<p class="lage"><b>Frage:</b> ${esc(x.frage)}</p>` : '';
+  const ganz = x.frage && kopfsatz !== x.frage ? `<p class="lage"><b>Frage:</b> ${esc(x.frage)}</p>` : '';
   const warum = x.grund ? `<p class="warum"><b>Liegt bei dir:</b> ${esc(x.grund)}</p>` : '';
   const innen = `${ganz}${x.lage ? `<p class="lage">${esc(x.lage)}</p>` : ''}${warum}`;
   const lage = x.frage

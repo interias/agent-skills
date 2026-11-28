@@ -404,6 +404,8 @@ export interface FlottenZustand extends Zustand {
 }
 
 export interface MainRotStand {
+  /** probes in a row that could not run (#243); at MAIN_PRUEF_FEHL_MAX the queue goes on */
+  fehlversuche?: number;
   basis: string;
   commit: string;
   kontexte: string[];
@@ -477,6 +479,8 @@ const GATE_MAX_MS = 90 * 60_000;
 const MAIN_PROBE = 'hauptprobe';
 /** #243: while the base is red, every this many ticks the driver looks for a new commit of it (5 min at a 60 s tick) */
 const MAIN_PRUEF_TAKTE = 5;
+// #243: after this many probes of the base in a row that could not run, the queue no longer waits for it
+const MAIN_PRUEF_FEHL_MAX = 3;
 /** gate runs of the driver kept per project for the bridge's overview */
 export const ANDOCK_MESSUNGEN = 20;
 
@@ -1844,8 +1848,11 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
 
   /** #243: a decision of the admiral needs a step of the person later: a yellow card "Dein Schritt bald" until she says done */
   baldMerken(nr: number, schritt: string, warum: string, zeit: string): void {
-    const kurz = kurzzeile([ohnePfade(schritt)]);
-    this.z.bald = [...(this.z.bald ?? []), { id: `${nr}-${Date.parse(zeit)}-${(this.z.bald ?? []).length}`, epic: nr, kurz, warum: ohnePfade(warum).slice(0, 300), zeit }];
+    // the short line never runs past 90 characters: a longer step goes whole into warum
+    const voll = ohnePfade(schritt);
+    const kurz = kurzzeile([voll, `Ein Schritt von dir zu #${nr} steht bald an`]);
+    const grund = kurz.length < voll.length ? `${voll} (${ohnePfade(warum)})` : ohnePfade(warum);
+    this.z.bald = [...(this.z.bald ?? []), { id: `${nr}-${Date.parse(zeit)}-${(this.z.bald ?? []).length}`, epic: nr, kurz, warum: grund.slice(0, 300), zeit }];
     this.geaendert = true;
     this.ereignis(nr, `Dein Schritt bald: ${kurz}`);
   }
@@ -3666,7 +3673,7 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
       // the open questions only: an answered one leaves the board
       fragen: this.z.fragen.filter((f) => !f.beantwortet).map((f) => ({ epic: f.epic, nr: f.nr, frage: f.frage, kurz: f.kurz ?? null, lage: f.lage ?? '', optionen: f.optionen ?? [], mehrfach: f.mehrfach ?? false, empfehlung: f.empfehlung, grund: f.grund ?? '', betrifft: f.betrifft ?? '', wartet: f.wartet, ganzerLauf: f.ganzerLauf, seit: f.seit, roh: f.roh ?? '', beantwortet: null, herkunft: f.herkunft ?? '', marke: f.marke ?? '', umkehrbar: f.umkehrbar ?? null, geparkt: f.ganzerLauf ? [] : (f.betrifft ?? '').split(', ').filter(Boolean) })),
       // #243: the steps of the person the admiral's decisions need later ("Dein Schritt bald")
-      bald: (this.z.bald ?? []).slice(-50),
+      bald: (this.z.bald ?? []).slice(-50).map((b) => ({ ...b, id: b.id.slice(0, 100), kurz: b.kurz.slice(0, 200), warum: b.warum.slice(0, 300) })),
       leerlaufS: Math.round(this.e.leerlaufMs / 1000),
       ereignisse: this.z.ereignisse.slice(-30).map((x) => ({ zeit: x.zeit, epic: x.epic, text: x.text.slice(0, 300) })),
       // #52: the bridge shows them until the merge: every decision of an epic not merged, besides the
@@ -3916,6 +3923,12 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
     if (!commit) return null;
     const skript = join(this.e.skripte, 'worktree.ps1');
     const halter = join(this.dir, 'halten', `${MAIN_PROBE}.json`);
+    const down = () => this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, '-Action', 'Down', '-RepoRoot', this.e.repo, '-Package', MAIN_PROBE], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
+    // a probe a stopped driver left (worktree, holder file): away first, else Up finds its lock
+    if (existsSync(halter)) {
+      rmSync(halter, { force: true });
+      await down();
+    }
     mkdirSync(join(this.dir, 'halten'), { recursive: true });
     writeFileSync(halter, JSON.stringify({ probe: true, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString() }));
     const up = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, '-Action', 'Up', '-RepoRoot', this.e.repo, '-Package', MAIN_PROBE, '-Detach', '-From', `origin/${basis}`, '-SessionPid', String(process.pid)], { cwd: this.e.repo, timeoutMs: 15 * 60_000, env: { EPIC_LOCK_HOLDER: halter } });
@@ -3926,7 +3939,8 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
       wt = null;
     }
     if (up.code || !wt) {
-      this.ereignis(null, `Prüfung von ${basis} allein nicht möglich: Worktree nicht angelegt`);
+      rmSync(halter, { force: true });
+      this.ereignis(null, ohnePfade(`Prüfung von ${basis} allein nicht möglich: Worktree nicht angelegt${up.stderr.trim() ? ` (${up.stderr.trim().split(/\r?\n/)[0].slice(0, 200)})` : ''}`));
       return null;
     }
     try {
@@ -3939,8 +3953,9 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
       const ausgabe = (r.stdout + r.stderr).trim().split(/\r?\n/).slice(-40).join('\n');
       return { commit, rot: kontexteAus(b.block, form).filter((k) => k.ergebnis === 'rot').map((k) => k.name), ausgabe };
     } finally {
-      await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, '-Action', 'Down', '-RepoRoot', this.e.repo, '-Package', MAIN_PROBE], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
-      rmSync(halter, { force: true });
+      const d = await down();
+      if (d.code) this.ereignis(null, `Worktree der Prüfung von ${basis} nicht abgebaut (Exit ${d.code}): die nächste Prüfung räumt ihn zuerst ab`);
+      else rmSync(halter, { force: true });
     }
   }
 
@@ -3965,7 +3980,13 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
       }
       const probe = await this.mainProbe(m.basis);
       m.geprueft = new Date(this.w.jetzt()).toISOString();
-      if (!probe) return null;
+      if (!probe) {
+        // never hold the queue for good on a probe that cannot run: the missions' own gate decides again
+        m.fehlversuche = (m.fehlversuche ?? 0) + 1;
+        if (m.fehlversuche >= MAIN_PRUEF_FEHL_MAX) this.mainRotLoesen(`${m.basis} ließ sich ${MAIN_PRUEF_FEHL_MAX}-mal nicht allein prüfen`);
+        return null;
+      }
+      m.fehlversuche = 0;
       const noch = probe.rot.filter((k) => m.kontexte.includes(k));
       if (!noch.length) {
         this.mainRotLoesen(`${m.basis} @ ${probe.commit.slice(0, 7)} ist in ${m.kontexte.join(', ')} wieder grün`);
@@ -4017,6 +4038,10 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
       this.ursacheBesteht(ep, u).then((noch) => {
         if (noch) {
           if (u.art !== 'main_rot') ep.ursache = { ...u, geprueft: noch };
+          else if (this.z.mainRot && this.z.mainRot.ursache.geprueft !== noch) {
+            this.z.mainRot.ursache = { ...this.z.mainRot.ursache, geprueft: noch };
+            for (const x of Object.values(this.z.epics)) if (x.ursache?.art === 'main_rot') x.ursache = this.z.mainRot.ursache;
+          }
           this.geaendert = true;
           return this.ereignis(ep.nr, noch);
         }
@@ -4030,7 +4055,12 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
   /** #243: the sentence why a cause still holds after "Erledigt", null when it is gone or cannot be checked here. */
   async ursacheBesteht(ep: FlottenEpic, u: Ursache): Promise<string | null> {
     const um = `Geprüft ${uhr(this.w.jetzt())}`;
-    if (u.art === 'main_rot') return this.mainNachsehen(true);
+    if (u.art === 'main_rot') {
+      const laeuft = this.mainPruefung;
+      const satz = await this.mainNachsehen(true);
+      if (satz || !this.z.mainRot) return satz;
+      return `${um}: ${laeuft ? `die Prüfung von ${this.z.mainRot.basis} läuft schon, ihr Ergebnis kommt von selbst` : `${this.z.mainRot.basis} ließ sich gerade nicht prüfen, der Treiber versucht es wieder`}.`;
+    }
     if (u.art === 'anmeldung' && ep.konto && /nicht angemeldet/.test(u.kurz)) {
       const weg = this.abgemeldet.get(resolve(ep.konto));
       const datei = join(ep.konto, '.credentials.json');

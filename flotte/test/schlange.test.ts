@@ -439,6 +439,42 @@ describe('A: die Merge-Schlange', () => {
     expect(karten[0].text.split('\n')[2]).toMatch(/^\*\*Was:\*\* main ist rot: wurzel scheitert\.$/);
   }, T);
 
+  it('#243: a probe of the base that cannot run three times in a row frees the queue: nothing holds for good', async () => {
+    let ups = 0;
+    let wt = '';
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      rot: (cwd) => existsSync(join(cwd, 'KAPUTT')),
+      pr: () => ({ state: git(t.repo, 'log', '--oneline', '--grep', 'Merge #13', 'origin/main') ? 'MERGED' : 'OPEN' }),
+      worktree: (aktion, args) => {
+        if (aktion !== 'Up') {
+          if (wt) git(t.repo, 'worktree', 'remove', '--force', wt);
+          wt = '';
+          return '';
+        }
+        // the first probe finds the base red and someone repairs it; every later one cannot lay its worktree out
+        if (++ups > 1) return 'kein Worktree';
+        wt = join(mkdtempSync(join(tmpdir(), 'flotte-probe-')), 'hauptprobe');
+        git(t.repo, 'worktree', 'add', '-q', '--detach', wt, args[args.indexOf('-From') + 1]);
+        git(t.repo, 'rm', '-q', 'KAPUTT');
+        git(t.repo, 'commit', '-q', '-m', 'fix');
+        git(t.repo, 'push', '-q', 'origin', 'main');
+        return JSON.stringify({ path: wt });
+      },
+    });
+    writeFileSync(join(t.repo, 'KAPUTT'), 'rot\n');
+    git(t.repo, 'add', '-A');
+    git(t.repo, 'commit', '-q', '-m', 'broken');
+    git(t.repo, 'push', '-q', 'origin', 'main');
+    const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+    const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE }), t.welt);
+    expect(z.epics['3'].stufe).toBe('fertig');
+    expect(z.mainRot ?? null).toBeNull();
+    expect(ups).toBe(4);
+    const e = texte(z);
+    expect(e.filter((x) => /^Prüfung von main allein nicht möglich: Worktree nicht angelegt/.test(x))).toHaveLength(3);
+    expect(index(e, /^main ließ sich 3-mal nicht allein prüfen: das Andocken geht weiter/)).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+  }, T);
+
   it('blocks after three gate runs of the driver when the base keeps moving', async () => {
     const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], { mergeImmerAbgelehnt: 13 });
     const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
