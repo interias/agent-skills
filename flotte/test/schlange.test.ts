@@ -4,6 +4,8 @@
 // that read the real branches.
 
 import { describe, expect, it } from 'vitest';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -12,6 +14,7 @@ import { adapter, schluessel } from '../src/befehle/adapter.ts';
 import { zuschauen } from '../src/befehle/zuschauen.ts';
 import { ANDOCK_FRAGE, ANDOCK_VERSUCHE, andockEmpfehlung, andockFehler, andockWahl, antworten, fahre, type Welt } from '../src/treiber/treiber.ts';
 import { blockAus, blockEinsetzen, gateForm, gateLaeufe } from '../src/treiber/gate.ts';
+import type { Bericht, BrueckenHandlung } from '../src/treiber/bruecke.ts';
 import { belege, bildAus, liesAdapter } from '../src/werkzeuge/belegung.ts';
 import { beobachte, schrittAus } from '../src/werkzeuge/lauf.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
@@ -483,6 +486,79 @@ describe('A: die Merge-Schlange', () => {
     expect(index(e, /^#4 Kopf der Schlange/)).toBeLessThan(index(e, /^main @ \w{7} ist in wurzel wieder grün/));
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(z.epics['4'].stufe).toBe('fertig');
+  }, T);
+
+  it('#243 Nacharbeit: "Erledigt" on main rot: still red, the card says so in one sentence; repaired, the mission docks', async () => {
+    let wt = '';
+    const t = gitWelt([{ nr: 3, datei: 'a/drei.txt' }], {
+      rot: (cwd) => existsSync(join(cwd, 'KAPUTT')),
+      pr: (pr) => ({ state: t.p.zeitleiste.includes(`gemergt ${pr}`) ? 'MERGED' : 'OPEN' }),
+      worktree: (aktion, args) => {
+        if (aktion === 'Up') {
+          wt = join(mkdtempSync(join(tmpdir(), 'flotte-probe-')), 'hauptprobe');
+          git(t.repo, 'worktree', 'add', '-q', '--detach', wt, args[args.indexOf('-From') + 1]);
+          return JSON.stringify({ path: wt });
+        }
+        git(t.repo, 'worktree', 'remove', '--force', wt);
+        return '';
+      },
+    });
+    writeFileSync(join(t.repo, 'KAPUTT'), 'rot\n');
+    git(t.repo, 'add', '-A');
+    git(t.repo, 'commit', '-q', '-m', 'broken');
+    git(t.repo, 'push', '-q', 'origin', 'main');
+    // a bridge: "Erledigt" at the card of main rot, once while main is still red, once after the person repaired it
+    const berichte: Bericht[] = [];
+    const offen = new Map<number, BrueckenHandlung>();
+    let gedrueckt = 0;
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        const json = (x: unknown) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(x));
+        };
+        if (req.url === '/api/bericht') {
+          const b = JSON.parse(body) as Bericht;
+          berichte.push(b);
+          const u = b.epics.find((e) => e.nr === 3)?.ursache;
+          const knopf = (text: string) => offen.set(++gedrueckt, { id: gedrueckt, epic: 3, art: 'erledigt', nr: null, seit: null, text, zeit: new Date().toISOString(), herkunft: 'Mensch über die Brücke' });
+          if (u?.art === 'main_rot' && gedrueckt === 0) knopf(u.schluessel);
+          if (u?.art === 'main_rot' && u.geprueft && gedrueckt === 1) {
+            git(t.repo, 'rm', '-q', 'KAPUTT');
+            git(t.repo, 'commit', '-q', '-m', 'fix');
+            git(t.repo, 'push', '-q', 'origin', 'main');
+            knopf(u.schluessel);
+          }
+          return json({ ok: true });
+        }
+        if (req.url?.startsWith('/api/handlungen?')) return json([...offen.values()]);
+        const q = /^\/api\/handlungen\/(\d+)\/quittung$/.exec(req.url ?? '');
+        if (q) offen.delete(Number(q[1]));
+        json(req.url?.startsWith('/api/antworten?') ? [] : { ok: true });
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const bruecke = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const buch = drehbuch([lauf(3, [...t.nachweis(3), { text: ende(3, 13) }])]);
+      // a slower tick: the stand-in runs git synchronously (see above)
+      const z = await fahre(t.einstellung(buch, [3], { maxDauerMs: GRENZE, taktMs: 200, bruecke }), t.welt);
+      expect(gedrueckt).toBe(2);
+      const geprueft = berichte.map((b) => b.epics.find((e) => e.nr === 3)?.ursache?.geprueft).find(Boolean);
+      expect(geprueft).toMatch(/^Geprüft \d\d:\d\d: main ist noch rot \(wurzel\)\.$/);
+      const e = texte(z);
+      expect(e.filter((x) => /^#3 Erledigt über die Brücke: der Treiber prüft „main ist rot/.test(x))).toHaveLength(2);
+      expect(index(e, /^#3 Geprüft \d\d:\d\d: main ist noch rot/)).toBeLessThan(index(e, /^main @ \w{7} ist in wurzel wieder grün/));
+      expect(index(e, /wieder grün/)).toBeLessThan(index(e, /^#3 merge\.ps1: GEMERGT/));
+      // main red is no reason to send the mission back to its run
+      expect(buch.gesehen().filter((g) => /^Flotte, Mission #3\b/.test(g.eingabe))).toHaveLength(1);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      expect(z.epics['3'].ursache ?? null).toBeNull();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   }, T);
 
   it('#243: a probe of the base that cannot run three times in a row frees the queue: nothing holds for good', async () => {
