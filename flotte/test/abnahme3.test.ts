@@ -121,7 +121,12 @@ describe('Befund 4: der PR aus FLOTTE-ENDE gehört zum Epic', () => {
       expect(t.p.merges).toEqual([]);
       expect(z.epics['3']).toMatchObject({ stufe: 'frage', pr: null });
       expect(z.fragen).toEqual([expect.objectContaining({ epic: 3, nr: PR_FRAGE, ganzerLauf: true })]);
-      expect(t.p.kommentare.find((k) => k.nr === 3 && k.text.startsWith('**FRAGE AN DEN MENSCHEN'))?.text).toMatch(/PR #49 aus FLOTTE-ENDE .*Welcher Pull Request gehört zu Mission #3\?/);
+      const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**FRAGE AN DEN MENSCHEN'))!.text;
+      expect(k).toMatch(/PR #49 aus FLOTTE-ENDE .*Welcher Pull Request gehört zu Mission #3\?/);
+      // #243: the three lines first, the reason and the command folded below
+      expect(k.split('\n').slice(0, 5)).toEqual([`**FRAGE AN DEN MENSCHEN (Flotte) · Frage ${PR_FRAGE}**`, '', '**Was:** Welcher PR gehört zu #3?', '**Wer:** Du · der Treiber dockt einen fremden PR nicht an', '**Schritt:** In der Brücke den PR des Missions-Branches nennen.']);
+      expect(k).toMatch(/<details><summary>Details<\/summary>\n\nFrage: PR #49 aus FLOTTE-ENDE [\s\S]*\n\n<\/details>$/);
+      expect(k).toContain('Antworten, im Repository: `flotte antworten . 3 ' + PR_FRAGE + ' "<Antwort>"`');
       expect(texte(z).some((x) => /PR #49 angedockt/.test(x))).toBe(false);
     }, T);
   }

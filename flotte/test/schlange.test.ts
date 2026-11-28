@@ -716,9 +716,12 @@ describe('#229: ein fehlgeschlagenes Andocken löst der Treiber selbst', () => {
     expect(f.lage).toMatch(/Versucht: merge\.ps1 1-mal aufgerufen/);
     expect(f.optionen!.map((o) => o.buchstabe)).toEqual(['A', 'B', 'C']);
     expect(f.optionen!.map((o) => o.text).join(' | ')).toMatch(/erneut versuchen.*\| Andockprüfung neu fahren.*\| Mensch dockt an/);
-    const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**FRAGE AN DEN MENSCHEN (Flotte)**'))!;
+    const k = t.p.kommentare.find((x) => x.nr === 3 && x.text.startsWith('**FRAGE AN DEN MENSCHEN (Flotte)'))!;
+    // #243: the three lines first, the reason, what was tried and the command folded below
+    expect(k.text.split('\n').slice(0, 5)).toEqual([`**FRAGE AN DEN MENSCHEN (Flotte) · Frage ${ANDOCK_FRAGE}**`, '', '**Was:** Andocken von PR #13 fehlgeschlagen, wie weiter?', '**Wer:** Du · der Treiber dockt nicht selbst an', '**Schritt:** In der Brücke antworten; Empfehlung: C · Mensch dockt an: der Treiber lässt den PR liegen.']);
+    expect(k.text).toMatch(/<details><summary>Details<\/summary>\n\nFrage: Andocken von PR #13 fehlgeschlagen: [\s\S]*Versucht: merge\.ps1 1-mal aufgerufen[\s\S]*\n\n<\/details>$/);
+    expect(k.text).toContain('Antworten, im Repository: `flotte antworten . 3 ' + ANDOCK_FRAGE + ' "<A, B oder C>"`');
     expect(k.text).toContain(ursache);
-    expect(k.text).toContain(`flotte antworten . 3 ${ANDOCK_FRAGE}`);
     // C: the PR waits for the person, with the reason on the board and the bridge card
     expect(z.epics['3'].stufe).toBe('pr');
     expect(z.epics['3'].notiz).toBe(`PR #13 bereit, ein Mensch dockt an (Andocken fehlgeschlagen: ${ursache})`);

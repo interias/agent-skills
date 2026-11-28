@@ -3836,7 +3836,15 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
       : '';
     const frage = `${grund}. Welcher Pull Request gehört zu Mission #${nr}?${angedockt}`;
     this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, kurz: `Welcher PR gehört zu #${nr}?`, lage: '', optionen: [], grund, herkunft: 'Treiber: fremder Pull Request', marke: 'fremder PR', betrifft: 'Lauf', roh: frage, empfehlung: 'den PR des Missions-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
-    kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber dockt diesen PR nicht an und beobachtet ihn nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
+    // #243: the three lines first (what, who, step), the reason and the command to answer folded below
+    kommentar(
+      this.forge,
+      nr,
+      kommentarText(
+        { kurz: `Welcher PR gehört zu #${nr}?`, wer: 'du', warum: 'der Treiber dockt einen fremden PR nicht an', schritt: 'In der Brücke den PR des Missions-Branches nennen.' },
+        { kopf: `FRAGE AN DEN MENSCHEN (Flotte) · Frage ${PR_FRAGE}`, text: `Frage: ${frage}\nDer Treiber dockt diesen PR nicht an und beobachtet ihn nicht.`, befehl: `flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"` },
+      ),
+    );
     this.ereignis(nr, `❓ ${grund}: kein Andocken, Frage an den Menschen`);
     ep.pr = null;
     ep.stufe = 'frage';
@@ -4508,8 +4516,17 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
     const lage = `Ursache (merge.ps1): ${ursache}\nVersucht: ${versucht.join('; ')}`;
     // never two open questions about docking per mission
     this.andockFragenSchliessen(ep.nr, 'überholt: eine neue Frage zum Andocken');
-    this.z.fragen.push({ epic: nr, nr: ANDOCK_FRAGE, frage, kurz: `Andocken von PR #${ep.pr} fehlgeschlagen, wie weiter?`, lage, optionen, grund, herkunft: 'Treiber: Andocken fehlgeschlagen', marke: 'Andocken', betrifft: 'Lauf', roh: frage, empfehlung, wartet: 'das Andocken', ganzerLauf: true, seit: new Date(this.w.jetzt()).toISOString() });
-    kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\n${lage}\nOptionen: ${optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' — ')}\nEmpfehlung: ${empfehlung} (${grund})\nAntworten, im Repository: \`flotte antworten . ${nr} ${ANDOCK_FRAGE} "<A, B oder C>"\``);
+    const kurz = `Andocken von PR #${ep.pr} fehlgeschlagen, wie weiter?`;
+    this.z.fragen.push({ epic: nr, nr: ANDOCK_FRAGE, frage, kurz, lage, optionen, grund, herkunft: 'Treiber: Andocken fehlgeschlagen', marke: 'Andocken', betrifft: 'Lauf', roh: frage, empfehlung, wartet: 'das Andocken', ganzerLauf: true, seit: new Date(this.w.jetzt()).toISOString() });
+    // #243: the three lines first (what, who, step), reason, attempts, options and the command to answer folded below
+    kommentar(
+      this.forge,
+      nr,
+      kommentarText(
+        { kurz, wer: 'du', warum: 'der Treiber dockt nicht selbst an', schritt: `In der Brücke antworten; Empfehlung: ${empfehlungText({ empfehlung, optionen })}.` },
+        { kopf: `FRAGE AN DEN MENSCHEN (Flotte) · Frage ${ANDOCK_FRAGE}`, text: `Frage: ${frage}\n${lage}\nOptionen: ${optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' — ')}\nEmpfehlung: ${empfehlung} (${grund})`, befehl: `flotte antworten . ${nr} ${ANDOCK_FRAGE} "<A, B oder C>"` },
+      ),
+    );
     ep.notiz = `PR #${ep.pr}: Andocken fehlgeschlagen, Frage an dich (${ursache})`;
     this.ereignis(nr, `❓ Andocken fehlgeschlagen (${ursache}): Frage ${ANDOCK_FRAGE} an den Menschen, Empfehlung ${empfehlung}`);
   }
