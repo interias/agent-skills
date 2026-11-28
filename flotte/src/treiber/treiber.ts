@@ -599,6 +599,8 @@ class Treiber {
   kopfAktiv: number | null = null;
   /** #243: the gate on the red base alone is under way */
   mainPruefung = false;
+  /** #243: the base of each PR read while a red base holds the queue (prBasis) */
+  prBasen = new Map<number, string>();
   mergesOffen = new Set<number>();
   /** the board needs a new page (a step of a run), the logbook not */
   tafelAlt = false;
@@ -3835,13 +3837,13 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
     }
     // no new docking starts while it holds; the head already docking (kopfAktiv above) ends
     if (haelt) return;
-    // #243: a red base holds the queue as well, until a new commit of it is green again
-    if (this.mainRotHaelt()) return;
+    // #243: a red base holds the PRs on it, until a new commit of it is green again; a PR on another base goes on
+    const gehalten = this.mainRotHaelt();
     // #133: a PR whose predecessor (an order edge, maybe added later) is not merged yet stays in the
     // queue and lets the next one by; it docks only after its predecessors
     const nr = this.z.schlange.find((n) => {
       const kandidat = this.epic(n);
-      if (kandidat?.stufe !== 'pr' || !kandidat.pr || kandidat.auftrag || this.laufend.has(n)) return false;
+      if (kandidat?.stufe !== 'pr' || !kandidat.pr || kandidat.auftrag || this.laufend.has(n) || gehalten.has(n)) return false;
       const vor = this.offeneVorgaenger(n);
       if (!vor.length) return true;
       const notiz = `PR #${kandidat.pr}: Andock-Schlange, wartet auf das Andocken von ${vor.map((v) => `#${v}`).join(', ')}`;
@@ -3873,26 +3875,41 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
   }
 
   /**
-   * #243: true while the base is red without the missions. Every PR waiting in the queue waits for it with the same
-   * cause (one card for all of them); every MAIN_PRUEF_TAKTE ticks the driver looks whether the base has a new commit
-   * and checks that one, so the missions go on by themselves once it is green.
+   * #243: the missions held while the base is red without them. Every PR on that base waiting in the queue waits for it
+   * with the same cause (one card for all of them); a PR on another base is not held. Every MAIN_PRUEF_TAKTE ticks the
+   * driver looks whether the base has a new commit and checks that one, so the missions go on by themselves once it is green.
    */
-  mainRotHaelt(): boolean {
+  mainRotHaelt(): Set<number> {
+    const gehalten = new Set<number>();
     const m = this.z.mainRot;
-    if (!m) return false;
+    if (!m) return gehalten;
     for (const nr of this.z.schlange) {
       const ep = this.epic(nr);
       if (ep?.stufe !== 'pr' || !ep.pr || ep.auftrag) continue;
+      // a PR whose base cannot be read waits too: holding it is the safe side
+      const basis = this.prBasis(ep.pr);
+      if (basis !== null && basis !== m.basis) continue;
+      gehalten.add(nr);
       ep.ursache = m.ursache;
       ep.notiz = `PR #${ep.pr}: wartet, ${m.basis} ist rot (${m.kontexte.join(', ')})`;
     }
     if (!this.mainPruefung && this.w.jetzt() - Date.parse(m.geprueft) >= MAIN_PRUEF_TAKTE * this.e.taktMs) this.nebenbei(this.mainNachsehen(false).then(() => undefined));
-    return true;
+    return gehalten;
+  }
+
+  /** #243: the base of a PR, read once from the forge; null while it cannot be read */
+  prBasis(pr: number): string | null {
+    if (!this.prBasen.has(pr)) {
+      const info = this.prInfo(pr);
+      if (!info) return null;
+      this.prBasen.set(pr, info.baseRefName);
+    }
+    return this.prBasen.get(pr)!;
   }
 
   /**
    * #243: the driver's gate of a mission was red: is the base red on its own in the same contexts? Then the cause is
-   * "main rot", the mission waits in the queue instead of going back to its run, and the other PRs wait with it.
+   * "main rot", the mission waits in the queue instead of going back to its run, and the other PRs on that base wait with it.
    */
   async mainPruefen(ep: FlottenEpic, basis: string): Promise<boolean> {
     const rot = (ep.andockpruefung?.kontexte ?? []).filter((k) => k.ergebnis === 'rot').map((k) => k.name);
@@ -3912,7 +3929,7 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
     ep.ursache = ursache;
     ep.notiz = `PR #${ep.pr}: wartet, ${basis} ist rot (${beide.join(', ')})`;
     this.geaendert = true;
-    this.imLogbuch(ep.nr, `${basis} @ ${probe.commit.slice(0, 7)} ist allein rot in ${beide.join(', ')}: die Mission wartet in der Andock-Schlange, nichts dockt an, bis ${basis} grün ist`);
+    this.imLogbuch(ep.nr, `${basis} @ ${probe.commit.slice(0, 7)} ist allein rot in ${beide.join(', ')}: die Mission wartet in der Andock-Schlange, kein PR auf ${basis} dockt an, bis ${basis} grün ist`);
     kommentar(this.forge, ep.nr, kommentarText(ursache, { kopf: `Braucht dich · ${basis} rot (Flotte, ${this.e.admiralName})`, details: ursache.fehler }));
     return true;
   }

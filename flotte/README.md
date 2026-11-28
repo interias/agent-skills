@@ -168,8 +168,8 @@ statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste St
    gekennzeichnet). Der Kommentar am Issue beginnt mit diesen drei Zeilen, Log und Befehl stehen in `<details>`.
    Ist die Andockprüfung einer Mission rot, fährt er sie auf `origin/<basis>` allein in einem eigenen Worktree
    (`worktree.ps1 -Package hauptprobe -Detach`): Ist die Basis im selben Kontext rot, wartet die Mission in der
-   Schlange statt zurück an den Lauf, nichts dockt an, und er prüft die Basis bei jedem neuen Commit nach, bis
-   sie grün ist. „Erledigt“ auf der Brücke lässt ihn die Ursache nachprüfen. Eine Admiral-Entscheidung, die dich
+   Schlange statt zurück an den Lauf, kein PR auf dieser Basis dockt an (PRs auf einer anderen Basis gehen weiter),
+   und er prüft die Basis bei jedem neuen Commit nach, bis sie grün ist. „Erledigt“ auf der Brücke lässt ihn die Ursache nachprüfen. Eine Admiral-Entscheidung, die dich
    später braucht (`mensch_spaeter`), wird „Dein Schritt bald“; die Stufe des Admiral-Kontos (gelb, rot) kommt
    nur bei einem Wechsel ins Logbuch.
 
