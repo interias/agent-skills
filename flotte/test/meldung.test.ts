@@ -1,5 +1,6 @@
 // #37: the Windows notification of "Braucht dich": once per event, several of one turn as one with their
 // number, nothing again after a restart, off by default, and the PowerShell call it would make (never run here).
+// #243: its content is the card's: short line and step with the missions it holds, a question with its recommendation.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { aufruf, ereignisse, inhalt, TOAST_SKRIPT } from '../src/treiber/meldung.ts';
 import { einstellungAus, fahre } from '../src/treiber/treiber.ts';
 import { flotteDir } from '../src/werkzeuge/zustand.ts';
+import { mainRot } from '../src/treiber/ursache.ts';
 import { aufbau, drehbuch, lauf } from './flotte-welt.ts';
 
 const T = 30_000;
@@ -16,27 +18,41 @@ const EPICS = [
   { nr: 5, titel: 'Aufgegeben', stufe: 'abgebrochen', haltZeit: '2026-11-23T09:00:00Z', aufgegebenAm: '2026-11-23T09:30:00Z' },
   { nr: 6, titel: 'Gemergt', stufe: 'gemergt' },
 ];
-const FRAGE = { epic: 3, nr: 1, seit: '2026-11-23T10:05:00Z', frage: String.raw`Soll C:\Users\jemand\geheim.txt weg?`, lage: 'Transkript: /home/jemand/.ssh' };
+const FRAGE = { epic: 3, nr: 1, seit: '2026-11-23T10:05:00Z', frage: String.raw`Soll C:\Users\jemand\geheim.txt weg?`, lage: 'Transkript: /home/jemand/.ssh', empfehlung: 'B', optionen: [{ buchstabe: 'A', text: 'ja' }, { buchstabe: 'B', text: 'nein, behalten' }] };
+const ROT = mainRot({ basis: 'main', fehler: { kontext: 'wurzel', test: 'tests/adr.test.mts', meldung: null, zeile: 'wurzel ROT' }, seit: '2026-11-23T09:50:00Z' });
 
 describe('Windows-Meldung: Auslöser und Inhalt', () => {
   it('only "Braucht dich": the open question and the epic blocked, not the one given up, running or merged', () => {
     const e = ereignisse('interias/werft', [FRAGE], EPICS);
-    expect(e.map((x) => [x.art, x.epic])).toEqual([['frage', 3], ['blockade', 4]]);
+    expect(e.map((x) => x.schluessel.split(':')[0])).toEqual(['frage', 'blockade']);
     expect(new Set(e.map((x) => x.schluessel)).size).toBe(2);
     // blocked again later: a new event
     const wieder = ereignisse('interias/werft', [], [{ ...EPICS[1], haltZeit: '2026-11-23T11:00:00Z' }]);
     expect(wieder[0].schluessel).not.toBe(e[1].schluessel);
   });
 
-  it('content: short name, number, kind and a short title; no question, no path, no transcript', () => {
-    const e = ereignisse('interias/werft', [FRAGE], EPICS);
-    expect(inhalt([e[0]])).toEqual({ titel: 'Braucht dich: werft #3', text: 'Frage · Werft zieht Stacks nach' });
-    const m = inhalt(e);
-    expect(m.titel).toBe('Braucht dich: 2 neue Meldungen');
-    expect(m.text).toBe('werft #3 Frage · Werft zieht Stacks nach\nwerft #4 Blockade · Ein sehr langer Titel einer Mission, der weit über sechzig…');
-    const alles = `${m.titel} ${m.text}`;
-    for (const verboten of ['geheim', 'Users', '.ssh', 'Transkript', 'interias', '\\', '/']) expect(alles).not.toContain(verboten);
-    expect(inhalt([{ ...e[1], titel: '' }]).text).toBe('Blockade');
+  it('#243: one event per cause: the missions waiting for the red base together; what the fleet repairs itself rings nothing', () => {
+    const e = ereignisse('interias/werft', [], [
+      { nr: 548, titel: 'a', stufe: 'pr', ursache: ROT },
+      { nr: 545, titel: 'b', stufe: 'pr', ursache: ROT },
+      { nr: 546, titel: 'c', stufe: 'laeuft', ursache: { ...ROT, schluessel: 'konflikt:#546', art: 'konflikt', wer: 'flotte' } },
+    ]);
+    expect(e).toEqual([{ schluessel: 'ursache:interias/werft#main_rot:wurzel#2026-11-23T09:50:00Z', titel: 'main ist rot: tests/adr.test.mts scheitert in wurzel.', text: '→ main reparieren (tests/adr.test.mts in wurzel), dann „Erledigt“ · hält #548, #545' }]);
+  });
+
+  it('content: the short line and the step, a question with its recommendation; the project in the text; no path, no transcript', () => {
+    const e = ereignisse('interias/werft', [FRAGE], [...EPICS, { nr: 7, titel: 'x', stufe: 'blockiert', haltZeit: 'h', ursache: { ...ROT, schluessel: 'ohne_ergebnis:#7', kurz: 'Der Lauf kam nach zwei Neustarts zu keinem Ergebnis.', schritt: 'Letzten Stand im Log ansehen, dann neu einreihen oder aufgeben.' } }]);
+    expect(inhalt([e[0]], 'werft')).toEqual({ titel: 'Soll <pfad> weg?', text: '→ Empfohlen: B · nein, behalten · #3 (werft)' });
+    expect(inhalt([e[2]], 'werft')).toEqual({ titel: 'Der Lauf kam nach zwei Neustarts zu keinem Ergebnis.', text: '→ Letzten Stand im Log ansehen, dann neu einreihen oder aufgeben · hält #7 (werft)' });
+    // an older state without a cause: the title of the mission as before, cut for the notification
+    expect(inhalt([e[1]], 'werft').titel).toBe(`${'Blockiert: Ein sehr langer Titel einer Mission, der weit über sechzig Zeichen hinausgeht und gekürzt wird'.slice(0, 89).trimEnd()}…`);
+    const m = inhalt(e, 'werft');
+    expect(m.titel).toBe('Braucht dich: 3 neue Meldungen (werft)');
+    expect(m.text.split('\n')).toHaveLength(3);
+    const alles = `${m.titel} ${m.text} ${e.map((x) => x.text).join(' ')}`;
+    for (const verboten of ['geheim', 'Users', '.ssh', 'Transkript', 'interias', '\\']) expect(alles).not.toContain(verboten);
+    // the short line of the run's question wins over the question
+    expect(ereignisse('o/r', [{ ...FRAGE, kurz: 'Datei weg?' }], [])[0].titel).toBe('Datei weg?');
   });
 
   it('the call: Windows PowerShell with the fixed script encoded, title and text only in the environment', () => {
@@ -65,7 +81,7 @@ describe('Windows-Meldung im Treiber', () => {
     const t = aufbau({ titel: { 3: 'Werft zieht Stacks nach' } });
     await fahre(t.einstellung(drehbuch([lauf(3, [{ stderr: 'boom' }], 1)]), [3], { meldung: 'an' }), t.welt);
     expect(t.p.toasts).toHaveLength(1);
-    expect(t.p.toasts[0].env).toEqual({ FLOTTE_MELDUNG_TITEL: 'Braucht dich: r #3', FLOTTE_MELDUNG_TEXT: 'Blockade · Werft zieht Stacks nach' });
+    expect(t.p.toasts[0].env).toEqual({ FLOTTE_MELDUNG_TITEL: 'Der Lauf kam nach zwei Neustarts zu keinem Ergebnis.', FLOTTE_MELDUNG_TEXT: '→ Letzten Stand im Log ansehen, dann neu einreihen oder aufgeben · hält #3 (r)' });
     expect(t.p.toasts[0].args).toContain('-EncodedCommand');
     const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten } });
     await fahre(t2.einstellung(drehbuch([]), [3], { meldung: 'an', maxDauerMs: 1000 }), t2.welt);
@@ -95,7 +111,7 @@ describe('Windows-Meldung im Treiber', () => {
     const t2 = aufbau({ vorhanden: { repo: t.repo, konten: t.konten } });
     await fahre(t2.einstellung(drehbuch([]), [3, 4], { meldung: 'an', maxDauerMs: 1000 }), t2.welt);
     expect(t2.p.toasts).toHaveLength(1);
-    expect(t2.p.toasts[0].env?.FLOTTE_MELDUNG_TITEL).toBe('Braucht dich: 2 neue Meldungen');
-    expect(t2.p.toasts[0].env?.FLOTTE_MELDUNG_TEXT).toMatch(/^r #3 Blockade\nr #4 Blockade$/);
+    expect(t2.p.toasts[0].env?.FLOTTE_MELDUNG_TITEL).toBe('Braucht dich: 2 neue Meldungen (r)');
+    expect(t2.p.toasts[0].env?.FLOTTE_MELDUNG_TEXT).toBe('Der Lauf kam nach zwei Neustarts zu keinem Ergebnis.\nDer Lauf kam nach zwei Neustarts zu keinem Ergebnis.');
   }, T);
 });

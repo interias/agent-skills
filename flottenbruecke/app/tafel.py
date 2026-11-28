@@ -285,6 +285,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
     werft = werft or []
     zu_antwort = {(a['forge'], a['epic'], a['nr'], a['seit']): a for a in antworten}
     braucht, laeufe, schlange_karten, bereit, erledigt, ereignisse = [], [], [], [], [], []
+    # #243: the person's steps the admiral announced, and what the fleet repairs itself (yellow, never an alarm)
+    bald, selbst = [], []
     liste, rechner, konten, lager = [], {}, {}, []
     missionen_je: dict[str, list[dict]] = {}
     sitzungen = {}
@@ -323,6 +325,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         for h in handlungen:
             if h['forge'] == forge and not h['quittiert'] and h['art'] != 'einstellen':
                 offen_h[(h['epic'], HANDLUNG_GRUPPE[h['art']], h['nr'], h['seit'])] = h
+        # #243: "Erledigt" on its way, by the key of its cause or step
+        offen_erl = {h['text']: h for h in handlungen if h['forge'] == forge and not h['quittiert'] and h['art'] == 'erledigt'}
         # #154: the update on its way to the driver (the button waits for it)
         liste[-1]['einspielen'] = _handlung(offen_h.get((0, 'einspielen', None, None)))
         # #125: linking the forge on its way to the machine
@@ -388,7 +392,7 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                 **basis(f['epic']),
                 'art': 'frage',
                 'id': f"frage:{forge}#{f['epic']}#{f['nr']}#{f['seit']}",
-                **{k: f.get(k, d) for k, d in [('nr', 0), ('frage', ''), ('lage', ''), ('optionen', []), ('mehrfach', False), ('empfehlung', ''), ('grund', ''), ('herkunft', ''), ('marke', ''), ('umkehrbar', None), ('betrifft', ''), ('wartet', ''), ('geparkt', []), ('seit', ''), ('roh', '')]},
+                **{k: f.get(k, d) for k, d in [('nr', 0), ('frage', ''), ('kurz', None), ('lage', ''), ('optionen', []), ('mehrfach', False), ('empfehlung', ''), ('grund', ''), ('herkunft', ''), ('marke', ''), ('umkehrbar', None), ('betrifft', ''), ('wartet', ''), ('geparkt', []), ('seit', ''), ('roh', '')]},
                 'ganzerLauf': ganz,
                 'paketeGesamt': len(pakete) or None,
                 'empfohlen': empfohlen(f),
@@ -398,8 +402,32 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
 
         # ---- epics: level 1 (blocked), 2 (on the way), 3 (merged or given up today)
         schlange = b.get('schlange', [])
+        mission = lambda ep: {'nr': ep['nr'], 'titel': ep.get('titel', ''), 'pr': ep.get('pr'), 'prUrl': f"{url}/{pr_pfad(url)}/{ep['pr']}" if url and ep.get('pr') else None, 'issueUrl': f"{url}/issues/{ep['nr']}" if url else None}
+        # #243: one card per cause that waits for the person without a halt (main red holds several missions)
+        gruppen: dict[str, dict] = {}
         for ep in b.get('epics', []):
             nr, stufe = ep['nr'], ep['stufe']
+            u = ep.get('ursache')
+            if u and stufe not in HALT and stufe not in FERTIG:
+                if u['wer'] == 'flotte':
+                    selbst.append({'forge': forge, 'repo': kurz, 'epic': nr, 'titel': ep.get('titel', ''), 'issueUrl': f'{url}/issues/{nr}' if url else None, 'kurz': u['kurz'], 'warum': u.get('warum', '')})
+                elif u['wer'] == 'du':
+                    g = gruppen.get(u['schluessel'])
+                    if g is None:
+                        seit = zeit(u.get('seit'))
+                        g = gruppen[u['schluessel']] = {
+                            **basis(nr),
+                            'art': 'ursache',
+                            'id': f"ursache:{forge}#{u['schluessel']}",
+                            'ursache': u,
+                            'missionen': [],
+                            'seit': seit.isoformat() if seit else None,
+                            'wartetS': int((jetzt - seit).total_seconds()) if seit else None,
+                            'ganzerLauf': True,
+                            'erledigt': _handlung(offen_erl.get(u['schluessel'])),
+                        }
+                        braucht.append(g)
+                    g['missionen'].append(mission(ep))
             seit_stufe = zeit(stufen_seit.get((forge, nr)))
             karte = {
                 **basis(nr),
@@ -440,6 +468,10 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
                     'wartetS': int((jetzt - halt).total_seconds()) if halt else None,
                     'ganzerLauf': True,
                     'handlung': _handlung(offen_h.get((nr, 'halt', None, None))),
+                    # #243: the three lines of the card; None from an older driver (the card as before)
+                    'ursache': ep.get('ursache'),
+                    'missionen': [mission(ep)],
+                    'erledigt': _handlung(offen_erl.get((ep.get('ursache') or {}).get('schluessel'))),
                 })
                 continue
             if stufe in FERTIG:
@@ -497,6 +529,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
             })
         karte.sort(key=lambda k: (6 if k['aufgegeben'] else KARTE_RANG.get(k['stufe'], 5), not k['prio'], k['nr']))
         liste[-1]['epics'] = karte
+        for s in b.get('bald', []):
+            bald.append({'forge': forge, 'repo': kurz, 'id': f"bald:{forge}#{s['id']}", 'schluessel': f"bald:{s['id']}", 'epic': s['epic'], 'titel': epics.get(s['epic'], {}).get('titel', ''), 'issueUrl': f"{url}/issues/{s['epic']}" if url else None, 'kurz': s['kurz'], 'warum': s.get('warum', ''), 'zeit': s['zeit'], 'aktiv': aktiv, 'erledigt': _handlung(offen_erl.get(f"bald:{s['id']}"))})
         # #61: released epics outside the deployment, to take in; the driver checks the forge again
         if b.get('triage'):
             lager.append(frachtraum(b, forge, kurz, url, aktiv, veraltet, offen_h, jetzt))
@@ -605,7 +639,8 @@ def tafel(projekte: list[dict], stufen_seit: dict, antworten: list[dict], jetzt:
         'rechner': sorted(rechner.values(), key=lambda r: r['name']),
         'konten': sorted(({**k, 'missionen': sorted(missionen_je[k['konto']], key=lambda m: -((m.get('woche') or {}).get('summe') or 0)) or None} for k in konten.values()), key=lambda k: k['konto']),
         'braucht': braucht,
-        'unterwegs': {'laeufe': laeufe, 'schlange': schlange_karten, 'bereit': bereit},
+        'bald': sorted(bald, key=lambda s: s['zeit']),
+        'unterwegs': {'laeufe': laeufe, 'schlange': schlange_karten, 'bereit': bereit, 'selbst': selbst},
         'erledigt': erledigt,
         'ereignisse': ereignisse[:40],
         # Holodeck (#44): name and forge are checked on receipt, the page opens url in its sealed frame

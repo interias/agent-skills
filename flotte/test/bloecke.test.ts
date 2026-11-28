@@ -82,6 +82,17 @@ describe('leseBlock', () => {
     expect(f2.empfehlung).toBe('A');
   });
 
+  it('#243: reads the short line of a question; one that breaks the rules (too long) is dropped, the question stays', () => {
+    const b = leseBlock('FLOTTE-FRAGE 548 tor\n1. Der Lauf meldete PR #549, der zu #543 gehört; welcher PR gehört zu #548? — Lage: x — Optionen: A) #549 B) eigener PR — Empfehlung: B — Grund: g — Regel/Quelle: Skill — Kurz: Welcher PR gehört zu #548?\n2. Frage zwei? — Optionen: A) a B) b — Kurz: ' + 'x'.repeat(95) + '\n3. Ohne? — Optionen: A) a B) b\nSTAND: x');
+    if (b?.art !== 'frage') throw new Error('kein Frageblock');
+    expect(b.fragen.map((f) => f.kurz)).toEqual(['Welcher PR gehört zu #548?', null, null]);
+    expect(b.fragen[0].quelle).toBe('Skill');
+    // a sentence cut off on ":" is no short line either
+    const c = leseBlock('FLOTTE-FRAGE 548 tor\n1. Frage? — Optionen: A) a B) b — Kurz: Welcher PR gehört zu:\nSTAND: x');
+    if (c?.art !== 'frage') throw new Error('kein Frageblock');
+    expect(c.fragen[0].kurz).toBeNull();
+  });
+
   it('leaves a question alone that only mentions a letter', () => {
     const b = leseBlock('FLOTTE-FRAGE 5 tor\n1. Gilt Plan A) weiter? — Empfehlung: ja\nSTAND: x');
     expect(b?.art === 'frage' && b.fragen[0]).toMatchObject({ frage: 'Gilt Plan A) weiter?', optionen: [], empfehlung: 'ja' });

@@ -23,7 +23,7 @@ bun "$HOME\.claude\skills\flotte\src\cli.ts" fahren --konten 1,2 --bruecke http:
 | `--bruecke <url>` | Stand an die [Flottenbrücke](../flottenbruecke/README.md) melden, Antworten dort abholen, die Prototypen aus `prototypen/` (Adapter `prototype_dir`) fürs Holodeck schicken; für die Schiffsliste ruft er höchstens einmal je Minute je Konto `claude agents --json` auf (nur lesend) und meldet Konto, Ordnername (nie den Pfad), Name, Status, Art und Beginn der Sitzungen |
 | `--ohne-nacharbeit` | offene Punkte eines Laufs nicht mit `/mission-nacharbeit` abarbeiten |
 | `--lernschleife an` | die Lernschleife für dieses Projekt einschalten (Tag O): nach jedem Andocken belegte Vorschläge an `lern_issue`, Lern-Triage und Lernvorschläge im Frachtraum. Standard `aus` (ab Werk), auch im Maschinenraum je Projekt schaltbar; ohne `lern_issue` im Adapter gilt `an` nicht (Ereignis) |
-| `--meldung an` | je neuer Frage an dich und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), mehrere eines Takts als eine mit der Zahl; Standard `aus`, auch im Maschinenraum schaltbar. Inhalt nur Projektkürzel, Nummer, Art und Titel |
+| `--meldung an` | je neuer Frage an dich und je neu blockierter oder abgebrochener Mission eine Windows-Meldung am Rechner (#37), mehrere eines Takts als eine mit der Zahl; Standard `aus`, auch im Maschinenraum schaltbar. Inhalt wie die Karte: Kurzzeile und Schritt mit den Missionen, die er hält, bei einer Frage ihr Satz und die Empfehlung (#243) |
 
 ## Einstellungen ohne Neustart
 
@@ -161,6 +161,17 @@ statt eines Aufrufs. Strg+C beendet ihn; offene Nachrichten holt der nächste St
    nebenher die Lernschleife (`flotte lernen`, Haiku) höchstens drei belegte Vorschläge als Kommentar
    in dieses Issue. Umgesetzt wird nichts davon von selbst; jeden Vorschlag entscheidet die
    [Triage](#triage) wie eine Sternzeit-Notiz.
+7. **Braucht dich klar machen** (#243): Hält eine Mission oder braucht sie dich, ordnet der Treiber die Ursache
+   aus einem Katalog (`src/treiber/ursache.ts`: main rot, Konflikt mit main, Andockprüfung der Mission rot, Lauf
+   ohne Ergebnis, PR fehlt oder falsch, Anmeldung oder Rechte) zu einer Kurzzeile (höchstens 90 Zeichen), wer dran
+   ist und dem Schritt; Unbekanntes fasst das kleinste Modell in dieselben Felder (als „zusammengefasst“
+   gekennzeichnet). Der Kommentar am Issue beginnt mit diesen drei Zeilen, Log und Befehl stehen in `<details>`.
+   Ist die Andockprüfung einer Mission rot, fährt er sie auf `origin/<basis>` allein in einem eigenen Worktree
+   (`worktree.ps1 -Package hauptprobe -Detach`): Ist die Basis im selben Kontext rot, wartet die Mission in der
+   Schlange statt zurück an den Lauf, nichts dockt an, und er prüft die Basis bei jedem neuen Commit nach, bis
+   sie grün ist. „Erledigt“ auf der Brücke lässt ihn die Ursache nachprüfen. Eine Admiral-Entscheidung, die dich
+   später braucht (`mensch_spaeter`), wird „Dein Schritt bald“; die Stufe des Admiral-Kontos (gelb, rot) kommt
+   nur bei einem Wechsel ins Logbuch.
 
 **Forge** (#127): Alles, was der Treiber, `flotte mission`, Triage, Lernen und Messen an der Forge
 tun, geht durch eine Forge-Schicht (`src/forge/`) mit einer Umsetzung für GitHub (über `gh`) und einer

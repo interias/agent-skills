@@ -15,6 +15,7 @@ import type { PaketDetail } from '../werkzeuge/detail.ts';
 import type { BerichtEinstellung, WirksameStellung } from './einstellungen.ts';
 import type { MainStand } from './stand.ts';
 import type { Lage } from './lage.ts';
+import type { BaldSchritt, Ursache } from './ursache.ts';
 import type { VerlaufEintrag } from './verlauf.ts';
 import type { AndockMessung } from './gate.ts';
 
@@ -52,11 +53,13 @@ export interface BrueckenAntwort {
  * #148: schnitt-widerruf revokes a mission of the last cut plan (epic the mission, text the objection).
  * #154: einspielen (epic 0) halts the driver, installs the newest main of its source and starts it again; text the
  * JSON `{"bruecke": <commit of the bridge image or null>}`, set by the bridge.
+ * #243: erledigt at a card of "Braucht dich": text the key of the cause (epic one mission it holds), or `bald:<id>` for
+ * a step of the admiral's ("Dein Schritt bald").
  */
 export interface BrueckenHandlung {
   id: number;
   epic: number;
-  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf' | 'einspielen' | 'konto_anlegen' | 'konto_deaktivieren' | 'konto_aktivieren' | 'konto_anmelden' | 'forge_verknuepfen' | 'projekt_hinzufuegen' | 'projekt_entfernen';
+  art: 'einreihen' | 'aufgeben' | 'widerruf' | 'einstellen' | 'aufnehmen' | 'pausieren' | 'fortsetzen' | 'prioritaet' | 'merge' | 'triage' | 'triage-antwort' | 'triage-widerruf' | 'schnitt-widerruf' | 'einspielen' | 'konto_anlegen' | 'konto_deaktivieren' | 'konto_aktivieren' | 'konto_anmelden' | 'forge_verknuepfen' | 'projekt_hinzufuegen' | 'projekt_entfernen' | 'erledigt';
   nr: number | null;
   seit: string | null;
   text: string | null;
@@ -70,6 +73,8 @@ export interface BerichtFrage {
   epic: number;
   nr: number;
   frage: string;
+  /** #243: the question in one sentence of at most 90 characters; null: the card shows frage */
+  kurz: string | null;
   lage: string;
   optionen: Option[];
   mehrfach: boolean;
@@ -151,6 +156,14 @@ export interface BerichtEpic {
   lage: Lage;
   /** Tag Q: what its runs used so far; missing before the first counted message (an older bridge ignores it) */
   verbrauch?: BerichtVerbrauch;
+  /** #243: why it needs the person (or what the fleet repairs itself): short line, who, step, button, error line; null: nothing */
+  ursache: Ursache | null;
+}
+
+/** #243: a cause within the limits of the bridge (flottenbruecke/app/modelle.py, Ursache): cut, never refused */
+export function ursacheFuerBericht(u: Ursache): Ursache {
+  const k = (s: string | null | undefined, n: number) => (s == null ? null : s.slice(0, n));
+  return { ...u, schluessel: u.schluessel.slice(0, 200), kurz: u.kurz.slice(0, 200), warum: u.warum.slice(0, 300), schritt: u.schritt.slice(0, 300), befehl: k(u.befehl, 300), fehler: k(u.fehler, 1000), seit: k(u.seit, 40), geprueft: k(u.geprueft ?? null, 300) };
 }
 
 /** Tag Q: tokens of the four kinds, their sum, weighted (tokens.ts), cache rate 0..1, estimated percent of the weekly limit */
@@ -243,6 +256,8 @@ export interface Bericht {
   platte: { freiGb: number | null; genug: boolean } | null;
   obergrenze: number | null;
   fragen: BerichtFrage[];
+  /** #243: steps of the person an admiral's decision needs later ("Dein Schritt bald"), until she says done */
+  bald: BaldSchritt[];
   leerlaufS: number;
   ereignisse: { zeit: string; epic: number | null; text: string }[];
   /** #52: every decision of an epic not yet merged (the bridge shows them until the merge), else the latest 100 */
@@ -379,7 +394,7 @@ export function handlungenAusJson(roh: unknown): BrueckenHandlung[] {
       typeof h === 'object' &&
       Number.isInteger(h.id) &&
       Number.isInteger(h.epic) &&
-      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim())) || (h.art === 'einspielen' && h.epic === 0) || ((h.art === 'konto_anlegen' || h.art === 'forge_verknuepfen' || h.art === 'projekt_entfernen') && h.epic === 0) || (h.art === 'projekt_hinzufuegen' && h.epic === 0 && typeof h.text === 'string') || ((h.art === 'konto_deaktivieren' || h.art === 'konto_aktivieren' || h.art === 'konto_anmelden') && h.epic > 0)),
+      (h.art === 'einreihen' || h.art === 'aufgeben' || (h.art === 'widerruf' && Number.isInteger(h.nr) && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'einstellen' && typeof h.text === 'string') || ((h.art === 'aufnehmen' || h.art === 'pausieren' || h.art === 'fortsetzen') && h.epic > 0) || (h.art === 'prioritaet' && h.epic > 0 && typeof h.text === 'string') || (h.art === 'merge' && h.epic > 0 && (h.text === null || typeof h.text === 'string')) || (h.art === 'triage' && h.epic === 0) || (h.art === 'triage-antwort' && h.epic > 0 && Number.isInteger(h.nr) && typeof h.seit === 'string' && typeof h.text === 'string') || (h.art === 'triage-widerruf' && h.epic > 0 && typeof h.seit === 'string' && Boolean(h.text?.trim())) || (h.art === 'schnitt-widerruf' && h.epic > 0 && Boolean(h.text?.trim())) || (h.art === 'einspielen' && h.epic === 0) || ((h.art === 'konto_anlegen' || h.art === 'forge_verknuepfen' || h.art === 'projekt_entfernen') && h.epic === 0) || (h.art === 'projekt_hinzufuegen' && h.epic === 0 && typeof h.text === 'string') || ((h.art === 'konto_deaktivieren' || h.art === 'konto_aktivieren' || h.art === 'konto_anmelden') && h.epic > 0) || (h.art === 'erledigt' && h.epic >= 0 && Boolean(h.text?.trim()))),
   );
 }
 

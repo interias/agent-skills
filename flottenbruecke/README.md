@@ -35,10 +35,12 @@ Unter Windows muss die Firewall den Port im privaten Netz zulassen, damit das Ha
 ## Meldungen: „Braucht dich“ am Rechner und auf dem Handy
 
 Beides ist optional und getrennt abschaltbar (#37). Es meldet sich nur die Ebene „Braucht dich“: eine neue
-offene Frage, eine neu blockierte oder abgebrochene Mission, je Ereignis einmal; mehrere aus demselben
-Bericht des Treibers kommen als eine Meldung mit der Zahl. Inhalt nur Projektkürzel, Nummer, Art
-(Frage/Blockade) und Titel (höchstens 60 Zeichen), nie Fragetext, Pfade oder Transkript. Ein schon
-gemeldetes Ereignis klingelt nach einem Neustart von Treiber oder Brücke nicht erneut.
+offene Frage, eine neu blockierte oder abgebrochene Mission, eine neue Ursache, die dich braucht (main rot), je
+Ereignis einmal; mehrere aus demselben Bericht des Treibers kommen als eine Meldung mit der Zahl. Inhalt ist, was
+die Karte sagt: die Kurzzeile und dein Schritt mit den Missionen, die er hält (`main ist rot: … → main reparieren
+… · hält #548`), bei einer Frage die Frage in einem Satz und die Empfehlung; nie Lage, Log, Pfade oder Transkript.
+Was die Flotte selbst repariert, und „Dein Schritt bald“ klingeln nicht. Ein schon gemeldetes Ereignis klingelt
+nach einem Neustart von Treiber oder Brücke nicht erneut.
 
 - **Am Rechner:** Der Treiber zeigt eine Windows-Meldung, auch wenn die Brücke in keinem Browser offen
   ist (oder gar nicht läuft). Schalter `meldung` des Treibers: Startparameter `--meldung an`, oder im
@@ -226,7 +228,16 @@ Drei Ebenen, sortiert danach, was du tun musst:
 1. **Braucht dich** — offene Fragen und blockierte Missionen, oben das, dessen Warten am meisten kostet
    (hält den ganzen Lauf oder die ganze Mission, dann die längste Wartezeit). Ist etwas offen, pulst
    der Kopf langsam rot, der Tab-Titel trägt die Zahl und das Icon einen roten Punkt; bei null ist
-   die Ebene grau und still.
+   die Ebene grau und still. Eine Karte je Ursache (#243) sagt in drei Zeilen, **was** los ist (ein Satz,
+   höchstens 90 Zeichen), **wer** dran ist (du, die Flotte oder die Mission) und **deinen Schritt**; der
+   Hauptknopf folgt dem Schritt (Erledigt, Neu einreihen) oder ein Befehl zum Kopieren. Darunter die Missionen,
+   die sie hält; „Details“ klappt die Fehlerzeile, die Herkunft der Kurzzeile (Katalog oder zusammengefasst) und
+   den Link zum Issue auf. Ist main allein rot, warten die Missionen in der Schlange auf einer Karte und laufen
+   von selbst weiter, sobald main grün ist. **Erledigt** lässt den Treiber nachprüfen: Besteht die Ursache noch,
+   sagt die Karte in einem Satz warum, sonst reiht er neu ein. Eine Frage zeigt ihren Satz, die Optionen mit der
+   Empfehlung und „Andere Antwort …“, Lage und Begründung zugeklappt. Gelb danach, nicht gezählt: **Dein
+   Schritt bald** aus einer Entscheidung des Admirals, mit „Erledigt“. Bild:
+   [`doku/braucht-dich-1440.png`](doku/braucht-dich-1440.png), [`doku/braucht-dich-390.png`](doku/braucht-dich-390.png).
 2. **Unterwegs** — Läufe und Andock-Schlange als Karten. Je Lauf ein Lebenszeichen: Puls, „letzter
    Schritt vor N min“ und eine Leiste bis zur Leerlauf-Grenze (gelb ab der Hälfte, rot kurz davor,
    dann stoppt der Puls). Darüber sagt eine Zeile, was mit der Mission geschieht: Etikett (Arbeitet, Prüft,
@@ -235,7 +246,8 @@ Drei Ebenen, sortiert danach, was du tun musst:
    [`doku/unterwegs-lage-1440.png`](doku/unterwegs-lage-1440.png)). Der letzte Schritt des Laufs und die
    Kontexte der Andockprüfung stehen dann in der aufgeklappten Leiste. Je Mission eine Segmentleiste der Missionsziel-Tickets mit „3 von 5 fertig“;
    antippen zeigt `#nr Titel · Stand`, jede Zeile verlinkt aufs Issue (im spec-Modus die Pakete des
-   Laufs, `P1`, `P2` …, ohne Link). Läuft eine Andockprüfung, steht im Kopf des Laufs **Andockprüfung n**
+   Laufs, `P1`, `P2` …, ohne Link). Was die Flotte selbst repariert (etwa ein Konflikt mit main, den sie
+   nachholt), steht als gelbe Zeile über den Karten, ohne Meldung. Läuft eine Andockprüfung, steht im Kopf des Laufs **Andockprüfung n**
    mit Start und Dauer, in der Andock-Schlange die des Treibers ebenso. Darunter eine Zeile **Bereit**,
    Missionen mit `prio/hoch` zuerst, mit dem Grund, wenn sie warten, und ab fünf gemessenen Missionen
    mit „voraussichtlich 3–5 h“. Je Mission dort „N Tickets“ mit derselben Segmentleiste; antippen klappt
@@ -339,8 +351,11 @@ fort“. Der Treiber behandelt sie wie `flotte antworten`, kommentiert am Issue 
 
 ## Handlungen
 
-Eine Blockadekarte zeigt Grund, Lage und auf Wunsch das Log der Mission. Dazu zwei Handlungen mit
-PIN, die der Treiber im nächsten Takt abholt und ausführt:
+Eine Blockadekarte zeigt ihre Ursache in drei Zeilen, wie unter „Board“ bei „Braucht dich“ beschrieben (von einem
+älteren Treiber Grund, Lage und auf Wunsch das Log). Dazu Handlungen mit PIN, die der Treiber im nächsten Takt abholt und ausführt:
+
+- **Erledigt** (#243) — wo dein Schritt die Ursache beheben muss: Der Treiber prüft nach und reiht neu ein,
+  oder die Karte sagt, warum die Ursache noch besteht. An „Dein Schritt bald“ nimmt es den Schritt weg.
 
 - **Neu einreihen** — Zähler zurück; der Lauf setzt fort und erfährt den Grund der Blockade.
 - **Aufgeben** — nach einer Rückfrage: Die Mission wird `abgebrochen` und nicht mehr gestartet, bis sie in der

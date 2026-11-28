@@ -432,6 +432,13 @@ def erzeuge(e: Einstellung | None = None) -> FastAPI:
             grund = einstellung_pruefen(liste, z['name'], z['wert'], andere)
             if grund:
                 raise HTTPException(422, grund)
+        elif h.art == 'erledigt':
+            # #243: a step of the admiral's still in the report, or the cause a mission of the card carries now
+            if h.text.startswith('bald:'):
+                if not any(s['id'] == h.text[5:] and s['epic'] == h.epic for s in b.get('bald', [])):
+                    raise HTTPException(404, 'Diesen Schritt meldet der Treiber nicht mehr.')
+            elif ep is None or (ep.get('ursache') or {}).get('schluessel') != h.text:
+                raise HTTPException(409, 'Die Ursache besteht nicht mehr.')
         elif h.art == 'aufnehmen':
             # the driver checks ready_label and epic_label against the forge again
             if h.epic not in [f['nr'] for f in b.get('freigegeben', [])]:

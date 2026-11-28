@@ -1,43 +1,84 @@
 // "Braucht dich" as a Windows notification (#37): the driver runs on the machine and shows it itself
-// over Windows PowerShell, without a module, also when no browser has the bridge open. Content: the
-// project's short name, the epic number, the kind and a short title, never the question, a path or a
-// transcript. Title and text reach the script as environment variables, never as code.
+// over Windows PowerShell, without a module, also when no browser has the bridge open. #243: the content
+// is what the card says: the short line of the cause and the person's step with the missions it holds, for
+// a question the question in one sentence and the recommendation; never a path or a transcript. Title and
+// text reach the script as environment variables, never as code.
 
-export const TITEL_MAX = 60;
-const ART = { frage: 'Frage', blockade: 'Blockade' } as const;
+import { ohnePfade } from '../befehle/nachtlauf.ts';
+import type { Option } from '../werkzeuge/bloecke.ts';
+import { pushText, type Ursache } from './ursache.ts';
+
+export const TITEL_MAX = 90;
+const TEXT_MAX = 200;
 
 export interface Ereignis {
-  /** changes when the event comes anew: a new question, an epic blocked again */
+  /** changes when the event comes anew: a new question, an epic blocked again, the base red again */
   schluessel: string;
-  kurz: string;
-  epic: number;
-  art: keyof typeof ART;
   titel: string;
+  text: string;
 }
 
-/** The events of "Braucht dich": the open questions for the person, the epics blocked or aborted and not given up. */
-export function ereignisse(
-  forge: string,
-  fragen: { epic: number; nr: number; seit: string }[],
-  epics: { nr: number; titel: string; stufe: string; haltZeit?: string | null; aufgegebenAm?: string | null }[],
-): Ereignis[] {
-  const kurz = forge.split('/').pop() ?? forge;
-  const titel = (nr: number) => epics.find((e) => e.nr === nr)?.titel ?? '';
-  return [
-    ...fragen.map((f) => ({ schluessel: `frage:${forge}#${f.epic}#${f.nr}#${f.seit}`, kurz, epic: f.epic, art: 'frage' as const, titel: titel(f.epic) })),
-    ...epics
-      .filter((e) => (e.stufe === 'blockiert' || e.stufe === 'abgebrochen') && !e.aufgegebenAm)
-      .map((e) => ({ schluessel: `blockade:${forge}#${e.nr}#${e.stufe}#${e.haltZeit ?? ''}`, kurz, epic: e.nr, art: 'blockade' as const, titel: e.titel })),
-  ];
+interface MeldeFrage {
+  epic: number;
+  nr: number;
+  seit: string;
+  frage: string;
+  kurz?: string | null;
+  empfehlung?: string;
+  optionen?: Option[];
 }
 
-const kuerze = (t: string) => (t.length <= TITEL_MAX ? t : `${t.slice(0, TITEL_MAX - 1).trimEnd()}…`);
+interface MeldeEpic {
+  nr: number;
+  titel: string;
+  stufe: string;
+  haltZeit?: string | null;
+  aufgegebenAm?: string | null;
+  ursache?: Ursache | null;
+}
 
-/** One notification: a single event with its project and number in the title, several with their number. */
-export function inhalt(neu: Ereignis[]): { titel: string; text: string } {
-  const was = (x: Ereignis) => ART[x.art] + (x.titel ? ` · ${kuerze(x.titel)}` : '');
-  if (neu.length === 1) return { titel: `Braucht dich: ${neu[0].kurz} #${neu[0].epic}`, text: was(neu[0]) };
-  return { titel: `Braucht dich: ${neu.length} neue Meldungen`, text: neu.map((x) => `${x.kurz} #${x.epic} ${was(x)}`).join('\n') };
+const kuerze = (t: string, n: number) => (t.length <= n ? t : `${t.slice(0, n - 1).trimEnd()}…`);
+
+/** "B · eigener PR" for a recommendation that names an option, else the recommendation as it is */
+export function empfehlungText(f: Pick<MeldeFrage, 'empfehlung' | 'optionen'>): string {
+  const e = (f.empfehlung ?? '').trim();
+  const o = (f.optionen ?? []).find((x) => x.buchstabe === e);
+  return o ? `${e} · ${o.text}` : e;
+}
+
+/**
+ * The events of "Braucht dich": the open questions for the person, and one per cause that needs her: the epics blocked or
+ * aborted and not given up, and the missions waiting for the red base (all of them in one event). What the fleet repairs
+ * itself (wer flotte) rings nothing.
+ */
+export function ereignisse(forge: string, fragen: MeldeFrage[], epics: MeldeEpic[]): Ereignis[] {
+  const fr = fragen.map((f) => {
+    const empf = empfehlungText(f);
+    return { schluessel: `frage:${forge}#${f.epic}#${f.nr}#${f.seit}`, titel: f.kurz || f.frage || `Frage zu #${f.epic}`, text: `→ ${empf ? `Empfohlen: ${empf}` : 'Antwort in der Brücke'} · #${f.epic}` };
+  });
+  const ursachen = new Map<string, { u: Ursache | null; epics: MeldeEpic[]; schluessel: string }>();
+  for (const e of epics) {
+    const halt = (e.stufe === 'blockiert' || e.stufe === 'abgebrochen') && !e.aufgegebenAm;
+    const wartet = !halt && e.ursache?.wer === 'du' && !e.aufgegebenAm && !['gemergt', 'fertig', 'blockiert', 'abgebrochen'].includes(e.stufe);
+    if (!halt && !wartet) continue;
+    const key = halt ? `blockade:${forge}#${e.nr}#${e.stufe}#${e.haltZeit ?? ''}` : `ursache:${forge}#${e.ursache!.schluessel}#${e.ursache!.seit ?? ''}`;
+    const da = ursachen.get(key) ?? { u: e.ursache ?? null, epics: [], schluessel: key };
+    da.epics.push(e);
+    ursachen.set(key, da);
+  }
+  const ur = [...ursachen.values()].map(({ u, epics: es, schluessel }) => {
+    const nrs = es.map((e) => `#${e.nr}`);
+    if (u) return { schluessel, ...pushText(u, nrs) };
+    // an older state without a cause: the mission's title as before
+    return { schluessel, titel: `${es[0].stufe === 'abgebrochen' ? 'Abgebrochen' : 'Blockiert'}: ${es[0].titel || `#${es[0].nr}`}`, text: `→ Ursache ansehen · hält ${nrs.join(', ')}` };
+  });
+  return [...fr, ...ur].map((x) => ({ schluessel: x.schluessel, titel: ohnePfade(x.titel), text: ohnePfade(x.text) }));
+}
+
+/** One notification: a single event as it is, several with their number and one line each. */
+export function inhalt(neu: Ereignis[], kurz: string): { titel: string; text: string } {
+  if (neu.length === 1) return { titel: kuerze(neu[0].titel, TITEL_MAX), text: kuerze(`${neu[0].text} (${kurz})`, TEXT_MAX) };
+  return { titel: `Braucht dich: ${neu.length} neue Meldungen (${kurz})`, text: neu.map((x) => kuerze(x.titel, TITEL_MAX)).join('\n') };
 }
 
 /** Windows PowerShell 5.1 reaches the toast API of Windows (WinRT); the app id is the one of powershell.exe. */

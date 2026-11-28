@@ -269,7 +269,7 @@ export const frage = (nr: number, phase: string, fragen: { betrifft?: string; em
 
 export const ende = (nr: number, pr: number, offen = 'keine') => `Fertig.\n\nFLOTTE-ENDE ${nr} https://github.com/o/r/pull/${pr}\n\n### Was das Epic offen lässt\n${offen}`;
 
-export const admiral = (nr: number, antworten: { nr: number; antwort: string; beim_menschen: boolean; einflussreich?: boolean }[]) => ({
+export const admiral = (nr: number, antworten: { nr: number; antwort: string; beim_menschen: boolean; einflussreich?: boolean; mensch_spaeter?: string }[]) => ({
   wenn: `^FLOTTE-ADMIRAL[\\s\\S]*FLOTTE-FRAGE ${nr} `,
   schritte: [{ zeile: { type: 'result', subtype: 'success', is_error: false, result: '', structured_output: { antworten: antworten.map((a) => ({ herkunft: 'Skill-Empfehlung', grund: 'vorsichtig', einflussreich: false, ...a })) } } }],
 });

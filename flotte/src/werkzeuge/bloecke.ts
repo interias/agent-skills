@@ -20,6 +20,8 @@ export interface Frage {
   empfehlung: string | null;
   grund: string;
   quelle: string;
+  /** #243: the question in one sentence of at most KURZ_MAX characters for the card and the push; null: missing or too long */
+  kurz: string | null;
   /** the question as the run wrote it, for the board when the fields do not parse (#28) */
   roh: string;
 }
@@ -157,11 +159,19 @@ function frageAus(nr: number, zeile: string): Frage {
     empfehlung: empf ? (buchstabenAus(empf) ?? empf) : null,
     grund: f.get('Grund') ?? '',
     quelle: f.get('Regel/Quelle') ?? f.get('Quelle') ?? '',
+    kurz: kurzAus(f.get('Kurz')),
     roh: zeile.trim(),
   };
 }
 
-const FELD = /^(Betrifft|Lage|Optionen|Auswahl|Empfehlung|Grund|Regel\/Quelle|Quelle):/;
+const FELD = /^(Betrifft|Lage|Optionen|Auswahl|Empfehlung|Grund|Regel\/Quelle|Quelle|Kurz):/;
+
+/** #243: the short line as the run wrote it, when it fits whole (90 characters); never cut */
+function kurzAus(wert: string | undefined): string | null {
+  // a whole sentence: one that ends on ":" or "," is cut off, not a short line
+  const s = (wert ?? '').trim().replace(/^\*\*(.+)\*\*$/, '$1');
+  return s && s.length <= 90 && !/[:,;–-]$/.test(s) ? s : null;
+}
 
 /**
  * A line that continues a question. #152: a field on its own line (`Lage: …`, also `**Lage:** …`)

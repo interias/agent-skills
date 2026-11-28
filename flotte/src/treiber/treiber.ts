@@ -30,16 +30,17 @@ import { kommentar, logbuchBody, logbuchFinden, logbuchSchreiben, missionAbschli
 import { fehlerText, type ForgeZugriff, forgeRepoFuer, type Issue, zugriffFuer } from '../forge/zugriff.ts';
 import { type AndockMessung, blockAus, blockEinsetzen, cacheAnteil, gateForm, gateLaeufe, gateLaeufeImLog, gleich, kontexteAus } from './gate.ts';
 import { cacheQuote, gewichtet, type Tokens } from '../tokens.ts';
-import { antwortZeile, type Bericht, type BerichtKontoMission, type BerichtVerbrauch, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
+import { antwortZeile, type Bericht, ursacheFuerBericht, type BerichtKontoMission, type BerichtVerbrauch, type BerichtPaket, type BerichtSchnittplan, type BerichtTriage, type BerichtTriageAbschluss, type BerichtTriageEntscheidung, Bruecke, type BrueckenHandlung, ENTSCHEIDUNGEN_MAX, entscheidungFuerBericht, HERKUNFT_BRUECKE, HERKUNFT_FLOTTE, rechnerName } from './bruecke.ts';
 import { liesPrototypen, prototypenStand } from './holodeck.ts';
 import { gateStand, missionsWorktrees } from './pruefprotokolle.ts';
 import { type Lage, lageArt, lageVon } from './lage.ts';
+import { type BaldSchritt, einordnen, fehlerAus, kommentarText, konfliktSelbst, kurzzeile, mainRot, type Ursache, ZUSAMMENFASSUNG_SCHEMA, zusammenfassung, zusammenfassungsAuftrag } from './ursache.ts';
 import { fragenUndEntscheidungen, type Klartext, klartextAus, kuerzePfade, maskiere, Verlaufleser } from './verlauf.ts';
 import { liesSitzungen, SITZUNGEN_MS, type BerichtSitzung } from './sitzungen.ts';
 import { anteilWoche, auswerten, Fundstellen, imFenster, logbuchZeile, prBodyMitVerbrauch, prZeile, type Verbrauchsstand, warnungen, WOCHE, wochenRate, Zaehler } from './missionsverbrauch.ts';
 import { schreibeTafel } from './tafel.ts';
 import { type BerichtEinstellung, EINSTELLUNGEN, type EinstellungName, type Herkunft, istName, lies as liesEinstellung, LERN_OHNE_ISSUE, NAMEN, NUR_NACH_GATE, setze as setzeEinstellung, START_PARAMETER, type Stellung, type Wert, wirksameStellung, type WirksameStellung, zeige } from './einstellungen.ts';
-import { aufruf as meldungsAufruf, ereignisse as meldungsEreignisse, inhalt as meldungsInhalt } from './meldung.ts';
+import { aufruf as meldungsAufruf, empfehlungText, ereignisse as meldungsEreignisse, inhalt as meldungsInhalt } from './meldung.ts';
 import { EINGESPIELT, type Eingespielt, einspielen, liesStand, type MainStand, mainStand, mitSperre, HUELLE, NEUSTART, neustarten, type SkillStand, STAND_MS } from './stand.ts';
 import { ableiten, type AgentEintrag, belegt, eintraegeAus, fuegeAn, gateLauf, kinderAusBetreff, specAusBetreff } from '../werkzeuge/detail.ts';
 import { getroffen, liesMessungen, type Messung, paketeAusLogs, prognoseBacklog, prognoseEpic, schreibeMessung, type Spanne, stand as prognoseStand } from '../werkzeuge/prognose.ts';
@@ -204,6 +205,8 @@ export interface MenschFrage {
   frage: string;
   /** the question complete, so the board shows it after a restart too (#28) */
   lage?: string;
+  /** #243: the question in one sentence of at most 90 characters (the run's `Kurz:` or the driver's) */
+  kurz?: string | null;
   optionen?: Option[];
   /** several options at once (`— Auswahl: mehrere`) */
   mehrfach?: boolean;
@@ -329,6 +332,8 @@ export interface FlottenEpic extends EpicZustand {
   haltUrsache?: 'Limit' | 'Erlaubnis' | 'anderes' | 'Mensch' | null;
   /** parked: the run ended without a PR and named the person's step (`Mensch:` in FLOTTE-ENDE) */
   mensch?: MenschSchritt | null;
+  /** #243: why it needs the person (or what the fleet repairs itself): short line, who, step; null while nothing is wrong */
+  ursache?: Ursache | null;
   /** for the measurement (Prognose): last FLOTTE-ENDE, the driver's gate seconds, the forecast at the start */
   endeAm?: string | null;
   gateS?: number;
@@ -387,7 +392,28 @@ export interface FlottenZustand extends Zustand {
   schlangeHalt?: SchlangeHalt | null;
   /** the last night run as last read from nachtlauf.json; its start (zeit) keeps it from being reported twice */
   nachtlauf?: NachtErgebnis | null;
+  /**
+   * #243: the base is red without the missions: the contexts red on origin/<basis> alone, at which commit, the missions
+   * waiting in the queue for it. While it holds, nothing docks; a new commit of the base is checked again (MAIN_PRUEF_MS).
+   */
+  mainRot?: MainRotStand | null;
+  /** #243: decisions of the admiral that need a step of the person later ("Dein Schritt bald"), until she says done */
+  bald?: BaldSchritt[];
+  /** #243: the stage of the admiral's account last written to the logbook; a new one only on a change */
+  admiralStufe?: string | null;
 }
+
+export interface MainRotStand {
+  /** probes in a row that could not run (#243); at MAIN_PRUEF_FEHL_MAX the queue goes on */
+  fehlversuche?: number;
+  basis: string;
+  commit: string;
+  kontexte: string[];
+  ursache: Ursache;
+  /** the last check (ISO) */
+  geprueft: string;
+}
+
 
 /** green: pushed and the block in the PR; zurueck: to the run; mensch: a person merges */
 /** #25: basis: a conflict with the base (not the run's doing); aussen: a red gate whose output names a cause outside the diff */
@@ -449,6 +475,12 @@ export function andockWahl(antwort: string): 'A' | 'B' | 'C' {
 /** gate runs of the driver per epic before it is blocked: the base kept moving while the gate ran */
 export const GATE_GRENZE = 3;
 const GATE_MAX_MS = 90 * 60_000;
+/** #243: the package name of the worktree in which the driver gates the base alone (main rot) */
+const MAIN_PROBE = 'hauptprobe';
+/** #243: while the base is red, every this many ticks the driver looks for a new commit of it (5 min at a 60 s tick) */
+const MAIN_PRUEF_TAKTE = 5;
+// #243: after this many probes of the base in a row that could not run, the queue no longer waits for it
+const MAIN_PRUEF_FEHL_MAX = 3;
 /** gate runs of the driver kept per project for the bridge's overview */
 export const ANDOCK_MESSUNGEN = 20;
 
@@ -565,6 +597,8 @@ class Treiber {
   nebenher = new Set<Promise<void>>();
   /** the head of the merge queue while the driver works on it */
   kopfAktiv: number | null = null;
+  /** #243: the gate on the red base alone is under way */
+  mainPruefung = false;
   mergesOffen = new Set<number>();
   /** the board needs a new page (a step of a run), the logbook not */
   tafelAlt = false;
@@ -959,7 +993,8 @@ class Treiber {
       const b = this.bewerten(k);
       const alt = this.bewertung.get(k)?.stufe;
       if (alt && alt !== b.stufe) this.ereignis(null, `Verbrauch ${this.kontoName(k)}: ${b.stufe} (${b.grund})`);
-      if (k === this.e.admiralKonto && b.stufe !== 'gruen' && alt !== b.stufe) this.admiralWarnung(b);
+      if (k === this.e.admiralKonto && b.stufe !== 'gruen') this.admiralWarnung(b);
+      if (k === this.e.admiralKonto && b.stufe === 'gruen' && this.z.admiralStufe) this.z.admiralStufe = null;
       if (b.stufe !== 'gruen' && this.laufend.size) this.z.statistik.immerGruen = false;
       this.bewertung.set(k, b);
     }
@@ -1044,6 +1079,9 @@ class Treiber {
 
   /** Advance warning: from red on, the admiral moves to another account with room, or the question block waits (#111). */
   admiralWarnung(b: Bewertung): void {
+    // #243: only on a change of the stage: a re-evaluation between two ticks (a ping, a 429) or a restart writes nothing new
+    if (this.z.admiralStufe === b.stufe) return;
+    this.z.admiralStufe = b.stufe;
     const text = b.stufe === 'rot' ? `Admiral-Konto rot (${b.grund}): der Admiral weicht auf ein Konto mit Luft aus, sonst wartet der Frageblock`  : `Admiral-Konto gelb (${b.grund}): bei Rot weicht der Admiral auf ein Konto mit Luft aus`;
     this.ereignis(null, text);
     if (this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Flotte (${this.e.admiralName})** — ${text}.`);
@@ -1107,7 +1145,7 @@ class Treiber {
 
   /** The head lines of the blocks, spelled out (probe 3: a Haiku run wrote a bare FLOTTE-ENDE without number and URL). */
   blockForm(nr: number): string {
-    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, jede in einer Zeile: \`1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe> — Grund: … — Regel/Quelle: …\`, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter. Endest du ohne Pull Request, weil der Mensch erst etwas tun muss, steht unter der Kopfzeile \`Mensch: <warten-auf | pr-andocken | label-setzen | entscheiden> [#<n> | <owner/repo>#<n>] — <ein Satz, was der Mensch tun muss>\`.`;
+    return `Die Kopfzeile steht allein in einer Zeile: \`FLOTTE-FRAGE ${nr} <phase>\` mit den nummerierten Fragen darunter, jede in einer Zeile: \`1. <Frage> — Betrifft: <Pakete | Lauf> — Lage: … — Optionen: A) … B) … — Empfehlung: <Buchstabe> — Grund: … — Regel/Quelle: … — Kurz: <die Frage in einem Satz, höchstens 90 Zeichen>\`, oder \`FLOTTE-ENDE ${nr} <URL des Pull Requests>\` mit \`### Was das Epic offen lässt\` darunter. Endest du ohne Pull Request, weil der Mensch erst etwas tun muss, steht unter der Kopfzeile \`Mensch: <warten-auf | pr-andocken | label-setzen | entscheiden> [#<n> | <owner/repo>#<n>] — <ein Satz, was der Mensch tun muss>\`.`;
   }
 
   an(nr: number, text: string): string {
@@ -1589,8 +1627,44 @@ class Treiber {
     ep.haltGrund = grund.slice(0, 3000);
     ep.haltZeit = new Date(this.w.jetzt()).toISOString();
     ep.aufgegebenAm = null;
+    // #243: what is going on, who is on it, the person's step: from the catalog, an unknown cause summarized by the model
+    ep.ursache = einordnen({ nr: ep.nr, grund, konto: ep.konto ? this.kontoName(ep.konto) : null, pr: ep.pr, seit: ep.haltZeit });
     this.ereignis(ep.nr, `${stufe}: ${grund.split('\n')[0]}`);
-    if (amIssue || stufe === 'blockiert') kommentar(this.forge, ep.nr, `**Flotte (${this.e.admiralName})** — Mission ${stufe}.\n\n${grund}`);
+    const amIssueSchreiben = amIssue || stufe === 'blockiert';
+    if (ep.ursache.art === 'unbekannt') this.zusammenfassen(ep, grund, amIssueSchreiben ? stufe : null);
+    else if (amIssueSchreiben) this.haltKommentar(ep, stufe, grund);
+  }
+
+  /** #243: the comment of a halt at the mission's issue: the three lines of its cause, the reason folded below. */
+  haltKommentar(ep: FlottenEpic, stufe: 'blockiert' | 'abgebrochen', grund: string): void {
+    kommentar(this.forge, ep.nr, kommentarText(ep.ursache!, { kopf: `Braucht dich · Mission ${stufe} (Flotte, ${this.e.admiralName})`, details: grund }));
+  }
+
+  /**
+   * #243: an unknown cause: the cheapest model (pingModell) summarizes reason and log in the background; the card shows the
+   * catalog's plain line until then, and keeps it when the answer breaks the rules. The comment waits for the summary.
+   */
+  zusammenfassen(ep: FlottenEpic, grund: string, kommentieren: 'blockiert' | 'abgebrochen' | null): void {
+    const vorher = ep.ursache!;
+    const konto = this.e.admiralKonto ?? ep.konto ?? this.e.konten[0];
+    const log = this.z.ereignisse.filter((x) => x.epic === ep.nr).slice(-12).map((x) => x.text);
+    this.nebenbei(
+      this.w
+        .starte({ ...this.programm(), repo: this.e.repo, konto, auftrag: zusammenfassungsAuftrag(grund, log), modell: this.e.pingModell, leerlaufMs: 5 * 60_000, extraArgs: ['--json-schema', JSON.stringify(ZUSAMMENFASSUNG_SCHEMA), '--tools', ''] })
+        .then(
+          (r) => r.strukturiert as Parameters<typeof zusammenfassung>[1],
+          () => null,
+        )
+        .then((z) => {
+          // a requeue or a new halt meanwhile: that one's cause stays
+          if (ep.ursache === vorher) {
+            ep.ursache = zusammenfassung(vorher, z);
+            this.geaendert = true;
+            this.ereignis(ep.nr, ep.ursache.quelle === 'zusammengefasst' ? `Ursache zusammengefasst: ${ep.ursache.kurz}` : 'Ursache nicht zusammengefasst: es bleibt die Zeile des Katalogs');
+          }
+          if (kommentieren) this.haltKommentar({ ...ep, ursache: ep.ursache ?? vorher }, kommentieren, grund);
+        }),
+    );
   }
 
   /** CleanupStale is repository-wide; it spares the locks of every epic that still holds them (halten). */
@@ -1735,7 +1809,9 @@ class Treiber {
         zeilen.push(`${a.nr}. ${nurBuchstaben(a.antwort) ? a.antwort.trim() : `Antwort: ${a.antwort}`} — Herkunft: ${a.herkunft}`);
         this.z.entscheidungen.push({ epic: nr, nr: a.nr, frage: f.frage, antwort: a.antwort, herkunft: a.herkunft, einflussreich: a.einflussreich, zeit, grund: a.grund, von: f.empfehlung && f.empfehlung === a.antwort ? 'lauf' : 'admiral' });
         const text = `**Entschieden von der Flotte (Admiral ${this.e.admiralName})** — ${f.frage}\nEntscheidung: ${a.antwort}\nHerkunft: ${a.herkunft}\nGrund: ${a.grund}\nVerworfen: ${f.empfehlung && f.empfehlung !== a.antwort ? `Empfehlung des Laufs ${f.empfehlung}` : '—'}\nWiderrufen: Kommentar hier; der Lauf setzt es als nächstes Paket oder in der Nacharbeit um.`;
-        kommentar(this.forge, nr, text);
+        kommentar(this.forge, nr, a.mensch_spaeter ? `${text}
+Dein Schritt bald: ${a.mensch_spaeter}` : text);
+        if (a.mensch_spaeter) this.baldMerken(nr, a.mensch_spaeter, `Admiral zu Frage ${a.nr}: ${f.kurz ?? f.frage}`, zeit);
         if (a.einflussreich && this.z.logbuch) kommentar(this.forge, this.z.logbuch, `**Protokoll Flotte (Admiral ${this.e.admiralName})** — Mission #${nr}, ${zeit.slice(0, 10)}\nFrage: ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')} (Empfehlung des Laufs: ${f.empfehlung ?? '—'})\nEntscheidung: ${a.antwort}\nWarum: ${a.grund}\nHerkunft: ${a.herkunft}`);
         this.ereignis(nr, `✔ Frage ${a.nr}: ${a.antwort} — ${a.herkunft}`);
         continue;
@@ -1745,9 +1821,18 @@ class Treiber {
       else geparkt.push(...f.betrifft as string[]);
       const wartet = lauf ? 'der ganze Lauf' : (f.betrifft as string[]).join(', ');
       const betrifft = f.betrifft === null ? '' : f.betrifft === 'Lauf' ? 'Lauf' : f.betrifft.join(', ');
-      this.z.fragen.push({ epic: nr, nr: a.nr, frage: f.frage, lage: f.lage, optionen: f.optionen, mehrfach: f.mehrfach, grund: a.grund, herkunft: a.herkunft, marke: a.marke ?? '', umkehrbar: a.umkehrbar ?? null, betrifft, roh: f.roh, empfehlung: a.antwort, wartet, ganzerLauf: lauf, seit: zeit });
+      this.z.fragen.push({ epic: nr, nr: a.nr, frage: f.frage, kurz: f.kurz, lage: f.lage, optionen: f.optionen, mehrfach: f.mehrfach, grund: a.grund, herkunft: a.herkunft, marke: a.marke ?? '', umkehrbar: a.umkehrbar ?? null, betrifft, roh: f.roh, empfehlung: a.antwort, wartet, ganzerLauf: lauf, seit: zeit });
       zeilen.push(`${a.nr}. liegt beim Menschen${lauf ? '' : `; geparkt: ${wartet}`}`);
-      kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${f.frage}\nLage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.\nAntworten, im Repository: \`flotte antworten . ${nr} ${a.nr} "<Antwort>"\``);
+      // #243: the three lines first (what, who, step), the rest and the command to answer folded below
+      const empf = empfehlungText({ empfehlung: a.antwort, optionen: f.optionen });
+      kommentar(
+        this.forge,
+        nr,
+        kommentarText(
+          { kurz: f.kurz ?? f.frage, wer: 'du', warum: a.marke ? `${a.marke}: das entscheidest du` : 'der Admiral legt sie dir vor', schritt: `In der Brücke antworten${empf ? `; Empfehlung: ${empf}` : ''}.` },
+          { kopf: `FRAGE AN DEN MENSCHEN (Flotte) · Frage ${a.nr}`, text: `${f.kurz ? `Frage: ${f.frage}\n` : ''}Lage: ${f.lage}\nOptionen: ${f.optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' ')}\nEmpfehlung: ${a.antwort} — ${a.grund}\nOhne Antwort wartet: ${wartet}. Alles andere läuft weiter.`, befehl: `flotte antworten . ${nr} ${a.nr} "<Antwort>"` },
+        ),
+      );
       this.ereignis(nr, `❓ Frage ${a.nr} liegt beim Menschen (wartet: ${wartet})`);
     }
     const text = this.an(nr, `Antwort des Admirals auf FLOTTE-FRAGE ${block.phase}:\n${zeilen.join('\n')}${geparkt.length && !ganzerLauf ? `\nweiter ohne ${[...new Set(geparkt)].join(', ')}` : ''}`);
@@ -1759,6 +1844,17 @@ class Treiber {
       ep.geparkt = [...new Set([...ep.geparkt, ...geparkt])];
       ep.auftrag = { resume: true, text };
     }
+  }
+
+  /** #243: a decision of the admiral needs a step of the person later: a yellow card "Dein Schritt bald" until she says done */
+  baldMerken(nr: number, schritt: string, warum: string, zeit: string): void {
+    // the short line never runs past 90 characters: a longer step goes whole into warum
+    const voll = ohnePfade(schritt);
+    const kurz = kurzzeile([voll, `Ein Schritt von dir zu #${nr} steht bald an`]);
+    const grund = kurz.length < voll.length ? `${voll} (${ohnePfade(warum)})` : ohnePfade(warum);
+    this.z.bald = [...(this.z.bald ?? []), { id: `${nr}-${Date.parse(zeit)}-${(this.z.bald ?? []).length}`, epic: nr, kurz, warum: grund.slice(0, 300), zeit }];
+    this.geaendert = true;
+    this.ereignis(nr, `Dein Schritt bald: ${kurz}`);
   }
 
   /** Answers of the person: `flotte antworten` appends them to antworten.jsonl (no lock needed). */
@@ -1845,7 +1941,7 @@ class Treiber {
    */
   rohAlsFrage(ep: FlottenEpic, block: FrageBlock): void {
     this.ereignis(ep.nr, `FLOTTE-FRAGE ${block.phase} nicht zerlegbar: der Wortlaut geht als eine Frage an den Admiral`);
-    block.fragen = [{ nr: 1, frage: '', betrifft: 'Lauf', lage: `Der Block ließ sich nicht in Fragen zerlegen. Wortlaut:\n${block.roh}`, optionen: [], mehrfach: false, empfehlung: null, grund: '', quelle: '', roh: block.roh }];
+    block.fragen = [{ nr: 1, frage: '', betrifft: 'Lauf', lage: `Der Block ließ sich nicht in Fragen zerlegen. Wortlaut:\n${block.roh}`, optionen: [], mehrfach: false, empfehlung: null, grund: '', quelle: '', kurz: null, roh: block.roh }];
   }
 
   // ---- the Flottenbrücke (#28): only the driver talks to it; off or slow is no error
@@ -1902,6 +1998,7 @@ class Treiber {
     if (h.art === 'triage-antwort') return this.triageAntworten(h);
     if (h.art === 'triage-widerruf') return this.triageWiderrufen(h);
     if (h.art === 'schnitt-widerruf') return this.schnittWiderrufen(h);
+    if (h.art === 'erledigt') return this.erledigt(h);
     if (!ep) return this.ereignis(h.epic, `Handlung ${h.art} über die Brücke: Mission gehört nicht zu diesem Einsatz`);
     if (h.art === 'widerruf') {
       const d = this.z.entscheidungen.find((x) => x.epic === h.epic && x.nr === h.nr && x.zeit === h.seit);
@@ -1940,7 +2037,7 @@ class Treiber {
     // einreihen: the counters start over; with a session the run continues where it stopped,
     // unless an order edge added meanwhile names a predecessor not merged yet (#133)
     const grund = ep.haltGrund?.split('\n')[0] ?? ep.notiz;
-    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, mensch: null, aufgegebenAm: null, notiz: 'neu eingereiht vom Menschen' });
+    Object.assign(ep, { neustarts: 0, fortsetzungen: 0, nachfragen: 0, leerlaeufe: 0, sperren: [], mergeVersuche: 0, gateWiederholungen: 0, basisKonflikte: 0, gateAussenWiederholt: false, konfliktGemeldet: false, prBereitGemeldet: false, haltGrund: null, haltUrsache: null, haltZeit: null, mensch: null, ursache: null, aufgegebenAm: null, notiz: 'neu eingereiht vom Menschen' });
     // #135: a mission of an earlier deployment joins this one, so occupancy, order edges and the end count it
     if (!this.e.epics.includes(ep.nr)) {
       this.e.epics = [...this.e.epics, ep.nr];
@@ -2975,13 +3072,13 @@ class Treiber {
     const alle = meldungsEreignisse(
       this.e.forge,
       this.z.fragen.filter((f) => !f.beantwortet),
-      Object.values(this.z.epics).map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, haltZeit: ep.haltZeit, aufgegebenAm: ep.aufgegebenAm })),
+      Object.values(this.z.epics).map((ep) => ({ nr: ep.nr, titel: this.titel(ep), stufe: ep.stufe, haltZeit: ep.haltZeit, aufgegebenAm: ep.aufgegebenAm, ursache: ep.ursache })),
     );
     const gemeldet = new Set(this.z.gemeldet ?? []);
     this.z.gemeldet = alle.map((x) => x.schluessel);
     const neu = alle.filter((x) => !gemeldet.has(x.schluessel));
     if (!neu.length || this.e.meldung !== 'an') return;
-    const a = meldungsAufruf(meldungsInhalt(neu));
+    const a = meldungsAufruf(meldungsInhalt(neu, this.e.forge.split('/').pop() ?? this.e.forge));
     this.nebenbei(
       this.w.langsam(a.programm, a.args, { env: a.env, timeoutMs: 30_000 }).then((r) => {
         if (r.code) this.ereignis(null, `Windows-Meldung ging nicht: ${(r.stderr || r.stdout).trim().slice(0, 200) || `Exit ${r.code}`}`);
@@ -3480,6 +3577,7 @@ class Treiber {
       haltGrund: ep.haltGrund ?? null,
       haltZeit: ep.haltZeit ?? null,
       mensch: ep.mensch ?? null,
+      ursache: ep.ursache ?? null,
       gemergtAm: null,
       gestartetAm: ep.gestartetAm ?? null,
     });
@@ -3545,6 +3643,8 @@ class Treiber {
           ...(gate ? { gateLauf: gate } : {}),
           andockpruefung: ep.andockpruefung ?? null,
           lage: this.lage(ep, pakete),
+          // #243: why it needs the person, or what the fleet repairs itself; the limits of the bridge (modelle.py, Ursache)
+          ursache: ep.ursache ? ursacheFuerBericht(ep.ursache) : null,
           ...((v) => (v ? { verbrauch: v } : {}))(this.verbrauchFuerBericht(ep)),
           ...(detail.size && ['laeuft', 'nacharbeit', 'frage'].includes(ep.stufe) ? { plaetze: { belegt: this.laufend.has(ep.nr) ? belegt(detail.values()) : 0, ...(this.adapter ? { von: this.adapter.window } : {}) } } : {}),
         };
@@ -3571,7 +3671,9 @@ class Treiber {
       platte: { freiGb: this.freiGbWert, genug: this.platteGenug },
       obergrenze: this.z.bremse?.obergrenze ?? null,
       // the open questions only: an answered one leaves the board
-      fragen: this.z.fragen.filter((f) => !f.beantwortet).map((f) => ({ epic: f.epic, nr: f.nr, frage: f.frage, lage: f.lage ?? '', optionen: f.optionen ?? [], mehrfach: f.mehrfach ?? false, empfehlung: f.empfehlung, grund: f.grund ?? '', betrifft: f.betrifft ?? '', wartet: f.wartet, ganzerLauf: f.ganzerLauf, seit: f.seit, roh: f.roh ?? '', beantwortet: null, herkunft: f.herkunft ?? '', marke: f.marke ?? '', umkehrbar: f.umkehrbar ?? null, geparkt: f.ganzerLauf ? [] : (f.betrifft ?? '').split(', ').filter(Boolean) })),
+      fragen: this.z.fragen.filter((f) => !f.beantwortet).map((f) => ({ epic: f.epic, nr: f.nr, frage: f.frage, kurz: f.kurz ?? null, lage: f.lage ?? '', optionen: f.optionen ?? [], mehrfach: f.mehrfach ?? false, empfehlung: f.empfehlung, grund: f.grund ?? '', betrifft: f.betrifft ?? '', wartet: f.wartet, ganzerLauf: f.ganzerLauf, seit: f.seit, roh: f.roh ?? '', beantwortet: null, herkunft: f.herkunft ?? '', marke: f.marke ?? '', umkehrbar: f.umkehrbar ?? null, geparkt: f.ganzerLauf ? [] : (f.betrifft ?? '').split(', ').filter(Boolean) })),
+      // #243: the steps of the person the admiral's decisions need later ("Dein Schritt bald")
+      bald: (this.z.bald ?? []).slice(-50).map((b) => ({ ...b, id: b.id.slice(0, 100), kurz: b.kurz.slice(0, 200), warum: b.warum.slice(0, 300) })),
       leerlaufS: Math.round(this.e.leerlaufMs / 1000),
       ereignisse: this.z.ereignisse.slice(-30).map((x) => ({ zeit: x.zeit, epic: x.epic, text: x.text.slice(0, 300) })),
       // #52: the bridge shows them until the merge: every decision of an epic not merged, besides the
@@ -3624,6 +3726,8 @@ class Treiber {
       return;
     }
     ep.stufe = 'pr';
+    // #243: what the fleet repaired itself (a conflict with the base) is done with the new end
+    if (ep.ursache?.wer === 'flotte') ep.ursache = null;
     if (!ep.pr) return this.halt(ep, 'blockiert', 'FLOTTE-ENDE ohne Pull Request');
     const fremd = this.fremderPr(ep);
     if (fremd === SCHON_ANGEDOCKT) {
@@ -3705,7 +3809,7 @@ class Treiber {
       ? ` Gehört er zur Mission, ist ihre Arbeit schon in der Basis: dann die Mission von Hand abschließen (offene Missionsziele bleiben beim Menschen), der Treiber dockt nichts erneut an. Eine Antwort geht an den Lauf, der den genannten PR prüft und den Zug neu mit FLOTTE-ENDE beendet.`
       : '';
     const frage = `${grund}. Welcher Pull Request gehört zu Mission #${nr}?${angedockt}`;
-    this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, lage: '', optionen: [], grund, herkunft: 'Treiber: fremder Pull Request', marke: 'fremder PR', betrifft: 'Lauf', roh: frage, empfehlung: 'den PR des Missions-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
+    this.z.fragen.push({ epic: nr, nr: PR_FRAGE, frage, kurz: `Welcher PR gehört zu #${nr}?`, lage: '', optionen: [], grund, herkunft: 'Treiber: fremder Pull Request', marke: 'fremder PR', betrifft: 'Lauf', roh: frage, empfehlung: 'den PR des Missions-Branches nennen; der Lauf prüft ihn und beendet den Zug neu mit FLOTTE-ENDE', wartet: 'der ganze Lauf', ganzerLauf: true, seit: zeit });
     kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\nDer Treiber dockt diesen PR nicht an und beobachtet ihn nicht.\nAntworten, im Repository: \`flotte antworten . ${nr} ${PR_FRAGE} "<Antwort>"\``);
     this.ereignis(nr, `❓ ${grund}: kein Andocken, Frage an den Menschen`);
     ep.pr = null;
@@ -3726,6 +3830,8 @@ class Treiber {
     }
     // no new docking starts while it holds; the head already docking (kopfAktiv above) ends
     if (haelt) return;
+    // #243: a red base holds the queue as well, until a new commit of it is green again
+    if (this.mainRotHaelt()) return;
     // #133: a PR whose predecessor (an order edge, maybe added later) is not merged yet stays in the
     // queue and lets the next one by; it docks only after its predecessors
     const nr = this.z.schlange.find((n) => {
@@ -3753,11 +3859,226 @@ class Treiber {
         .finally(() => {
           this.mergesOffen.delete(nr);
           this.kopfAktiv = null;
-          this.z.schlange = this.z.schlange.filter((n) => n !== nr);
+          // #243: a mission held by a red base keeps its place and docks once the base is green
+          if (!(ep.stufe === 'pr' && ep.ursache?.art === 'main_rot')) this.z.schlange = this.z.schlange.filter((n) => n !== nr);
           this.geaendert = true;
           this.schlangeWeiter();
         }),
     );
+  }
+
+  /**
+   * #243: true while the base is red without the missions. Every PR waiting in the queue waits for it with the same
+   * cause (one card for all of them); every MAIN_PRUEF_TAKTE ticks the driver looks whether the base has a new commit
+   * and checks that one, so the missions go on by themselves once it is green.
+   */
+  mainRotHaelt(): boolean {
+    const m = this.z.mainRot;
+    if (!m) return false;
+    for (const nr of this.z.schlange) {
+      const ep = this.epic(nr);
+      if (ep?.stufe !== 'pr' || !ep.pr || ep.auftrag) continue;
+      ep.ursache = m.ursache;
+      ep.notiz = `PR #${ep.pr}: wartet, ${m.basis} ist rot (${m.kontexte.join(', ')})`;
+    }
+    if (!this.mainPruefung && this.w.jetzt() - Date.parse(m.geprueft) >= MAIN_PRUEF_TAKTE * this.e.taktMs) this.nebenbei(this.mainNachsehen(false).then(() => undefined));
+    return true;
+  }
+
+  /**
+   * #243: the driver's gate of a mission was red: is the base red on its own in the same contexts? Then the cause is
+   * "main rot", the mission waits in the queue instead of going back to its run, and the other PRs wait with it.
+   */
+  async mainPruefen(ep: FlottenEpic, basis: string): Promise<boolean> {
+    const rot = (ep.andockpruefung?.kontexte ?? []).filter((k) => k.ergebnis === 'rot').map((k) => k.name);
+    if (!rot.length || !this.adapter.gate_command) return false;
+    ep.notiz = `PR #${ep.pr}: Andockprüfung rot in ${rot.join(', ')}, der Treiber prüft, ob ${basis} allein rot ist`;
+    const probe = await this.mainProbe(basis);
+    if (!probe) return false;
+    const beide = probe.rot.filter((k) => rot.includes(k));
+    if (!beide.length) {
+      this.ereignis(ep.nr, `${basis} @ ${probe.commit.slice(0, 7)} ist in ${rot.join(', ')} grün: die Mission bessert nach`);
+      return false;
+    }
+    const jetzt = new Date(this.w.jetzt()).toISOString();
+    const alt = this.z.mainRot;
+    const ursache = mainRot({ basis, fehler: fehlerAus(probe.ausgabe), seit: alt?.ursache.seit ?? jetzt });
+    this.z.mainRot = { basis, commit: probe.commit, kontexte: beide, ursache, geprueft: jetzt };
+    ep.ursache = ursache;
+    ep.notiz = `PR #${ep.pr}: wartet, ${basis} ist rot (${beide.join(', ')})`;
+    this.geaendert = true;
+    this.imLogbuch(ep.nr, `${basis} @ ${probe.commit.slice(0, 7)} ist allein rot in ${beide.join(', ')}: die Mission wartet in der Andock-Schlange, nichts dockt an, bis ${basis} grün ist`);
+    kommentar(this.forge, ep.nr, kommentarText(ursache, { kopf: `Braucht dich · ${basis} rot (Flotte, ${this.e.admiralName})`, details: ursache.fehler }));
+    return true;
+  }
+
+  /**
+   * #243: the gate on origin/<basis> alone, in a worktree of its own (worktree.ps1 Up -Detach, Down after): the commit and
+   * its red contexts, with the output for the error line. Null when it cannot run (fetch, worktree, no gate block).
+   */
+  async mainProbe(basis: string): Promise<{ commit: string; rot: string[]; ausgabe: string } | null> {
+    const f = await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', basis], { timeoutMs: 5 * 60_000 });
+    if (f.code) return null;
+    const commit = this.w.aufrufer('git', ['-C', this.e.repo, 'rev-parse', `origin/${basis}`]).stdout.trim();
+    if (!commit) return null;
+    const skript = join(this.e.skripte, 'worktree.ps1');
+    const halter = join(this.dir, 'halten', `${MAIN_PROBE}.json`);
+    const down = () => this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, '-Action', 'Down', '-RepoRoot', this.e.repo, '-Package', MAIN_PROBE], { cwd: this.e.repo, timeoutMs: 15 * 60_000 });
+    // a probe a stopped driver left (worktree, holder file): away first, else Up finds its lock
+    if (existsSync(halter)) {
+      rmSync(halter, { force: true });
+      await down();
+    }
+    mkdirSync(join(this.dir, 'halten'), { recursive: true });
+    writeFileSync(halter, JSON.stringify({ probe: true, repo: this.e.repo, seit: new Date(this.w.jetzt()).toISOString() }));
+    const up = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', skript, '-Action', 'Up', '-RepoRoot', this.e.repo, '-Package', MAIN_PROBE, '-Detach', '-From', `origin/${basis}`, '-SessionPid', String(process.pid)], { cwd: this.e.repo, timeoutMs: 15 * 60_000, env: { EPIC_LOCK_HOLDER: halter } });
+    let wt: string | null = null;
+    try {
+      wt = (JSON.parse(up.stdout.trim().split(/\r?\n/).pop() ?? '') as { path?: string }).path ?? null;
+    } catch {
+      wt = null;
+    }
+    if (up.code || !wt) {
+      rmSync(halter, { force: true });
+      this.ereignis(null, ohnePfade(`Prüfung von ${basis} allein nicht möglich: Worktree nicht angelegt${up.stderr.trim() ? ` (${up.stderr.trim().split(/\r?\n/)[0].slice(0, 200)})` : ''}`));
+      return null;
+    }
+    try {
+      while (this.ramBremse.halt) await pause(this.e.taktMs);
+      const form = gateForm(this.adapter);
+      this.ereignis(null, `Andockprüfung auf ${basis} @ ${commit.slice(0, 7)} allein, ob ${basis} selbst rot ist`);
+      const r = await this.w.langsam('pwsh', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', this.adapter.gate_command!], { cwd: wt, timeoutMs: GATE_MAX_MS });
+      const b = blockAus(r.stdout, form);
+      if (!b) return null;
+      const ausgabe = (r.stdout + r.stderr).trim().split(/\r?\n/).slice(-40).join('\n');
+      return { commit, rot: kontexteAus(b.block, form).filter((k) => k.ergebnis === 'rot').map((k) => k.name), ausgabe };
+    } finally {
+      const d = await down();
+      if (d.code) this.ereignis(null, `Worktree der Prüfung von ${basis} nicht abgebaut (Exit ${d.code}): die nächste Prüfung räumt ihn zuerst ab`);
+      else rmSync(halter, { force: true });
+    }
+  }
+
+  /**
+   * #243: looks at the red base again: by itself only on a new commit, on "Erledigt" (immer) at once. Green in the contexts
+   * it was red in: the halt ends and the waiting missions dock on. Still red: the sentence why, for the card. Returns that
+   * sentence, null when green or not checkable.
+   */
+  async mainNachsehen(immer: boolean): Promise<string | null> {
+    const m = this.z.mainRot;
+    if (!m || this.mainPruefung) return null;
+    this.mainPruefung = true;
+    try {
+      const jetzt = new Date(this.w.jetzt()).toISOString();
+      if (!immer) {
+        const f = await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', m.basis], { timeoutMs: 5 * 60_000 });
+        const commit = f.code ? m.commit : this.w.aufrufer('git', ['-C', this.e.repo, 'rev-parse', `origin/${m.basis}`]).stdout.trim();
+        if (!commit || commit === m.commit) {
+          m.geprueft = jetzt;
+          return null;
+        }
+      }
+      const probe = await this.mainProbe(m.basis);
+      m.geprueft = new Date(this.w.jetzt()).toISOString();
+      if (!probe) {
+        // never hold the queue for good on a probe that cannot run: the missions' own gate decides again
+        m.fehlversuche = (m.fehlversuche ?? 0) + 1;
+        if (m.fehlversuche >= MAIN_PRUEF_FEHL_MAX) this.mainRotLoesen(`${m.basis} ließ sich ${MAIN_PRUEF_FEHL_MAX}-mal nicht allein prüfen`);
+        return null;
+      }
+      m.fehlversuche = 0;
+      const noch = probe.rot.filter((k) => m.kontexte.includes(k));
+      if (!noch.length) {
+        this.mainRotLoesen(`${m.basis} @ ${probe.commit.slice(0, 7)} ist in ${m.kontexte.join(', ')} wieder grün`);
+        return null;
+      }
+      m.commit = probe.commit;
+      m.kontexte = noch;
+      const satz = `Geprüft ${uhr(this.w.jetzt())}: ${m.basis} ist noch rot (${noch.join(', ')}).`;
+      m.ursache = { ...mainRot({ basis: m.basis, fehler: fehlerAus(probe.ausgabe), seit: m.ursache.seit }), geprueft: immer ? satz : (m.ursache.geprueft ?? null) };
+      for (const ep of Object.values(this.z.epics)) if (ep.ursache?.art === 'main_rot') ep.ursache = m.ursache;
+      this.geaendert = true;
+      return satz;
+    } finally {
+      this.mainPruefung = false;
+    }
+  }
+
+  /** #243: the base is green again: the halt ends without a button, the card goes, the waiting missions dock on. */
+  mainRotLoesen(warum: string): void {
+    this.z.mainRot = null;
+    this.geaendert = true;
+    const wartend: number[] = [];
+    for (const ep of Object.values(this.z.epics)) {
+      if (ep.ursache?.art !== 'main_rot') continue;
+      ep.ursache = null;
+      wartend.push(ep.nr);
+      if (ep.stufe === 'pr' && ep.pr) ep.notiz = `PR #${ep.pr}: Andock-Schlange, Platz ${this.z.schlange.indexOf(ep.nr) + 1}`;
+    }
+    this.imLogbuch(null, `${warum}: das Andocken geht weiter${wartend.length ? ` (${wartend.map((n) => `#${n}`).join(', ')})` : ''}`);
+  }
+
+  /**
+   * #243: "Erledigt" at a card. A step of the admiral's ("Dein Schritt bald") goes away; a cause is checked again: still
+   * there, the card says why in one sentence; gone, the driver requeues the mission (main red: the queue goes on).
+   */
+  erledigt(h: BrueckenHandlung): void {
+    const text = h.text ?? '';
+    if (text.startsWith('bald:')) {
+      const id = text.slice(5);
+      const vorher = this.z.bald ?? [];
+      this.z.bald = vorher.filter((b) => b.id !== id);
+      return this.ereignis(h.epic || null, this.z.bald.length < vorher.length ? `Dein Schritt bald erledigt (über die Brücke): ${vorher.find((b) => b.id === id)!.kurz}` : 'Erledigt über die Brücke: dieser Schritt steht nicht mehr an');
+    }
+    const ep = this.epic(h.epic);
+    const u = ep?.ursache;
+    if (!ep || !u || u.schluessel !== text) return this.ereignis(h.epic, 'Erledigt über die Brücke: die Ursache besteht nicht mehr, nichts zu tun');
+    this.ereignis(ep.nr, `Erledigt über die Brücke: der Treiber prüft „${u.kurz}“ nach`);
+    this.nebenbei(
+      this.ursacheBesteht(ep, u).then((noch) => {
+        if (noch) {
+          if (u.art !== 'main_rot') ep.ursache = { ...u, geprueft: noch };
+          else if (this.z.mainRot && this.z.mainRot.ursache.geprueft !== noch) {
+            this.z.mainRot.ursache = { ...this.z.mainRot.ursache, geprueft: noch };
+            for (const x of Object.values(this.z.epics)) if (x.ursache?.art === 'main_rot') x.ursache = this.z.mainRot.ursache;
+          }
+          this.geaendert = true;
+          return this.ereignis(ep.nr, noch);
+        }
+        if (u.art === 'main_rot') return;
+        // the cause is gone: requeued like the button "Neu einreihen"
+        this.handlungAnwenden({ ...h, art: 'einreihen', text: null });
+      }),
+    );
+  }
+
+  /** #243: the sentence why a cause still holds after "Erledigt", null when it is gone or cannot be checked here. */
+  async ursacheBesteht(ep: FlottenEpic, u: Ursache): Promise<string | null> {
+    const um = `Geprüft ${uhr(this.w.jetzt())}`;
+    if (u.art === 'main_rot') {
+      const laeuft = this.mainPruefung;
+      const satz = await this.mainNachsehen(true);
+      if (satz || !this.z.mainRot) return satz;
+      return `${um}: ${laeuft ? `die Prüfung von ${this.z.mainRot.basis} läuft schon, ihr Ergebnis kommt von selbst` : `${this.z.mainRot.basis} ließ sich gerade nicht prüfen, der Treiber versucht es wieder`}.`;
+    }
+    if (u.art === 'anmeldung' && ep.konto && /nicht angemeldet/.test(u.kurz)) {
+      const weg = this.abgemeldet.get(resolve(ep.konto));
+      const datei = join(ep.konto, '.credentials.json');
+      const da = existsSync(datei) && (weg === undefined || statSync(datei).mtimeMs >= weg);
+      return da ? null : `${um}: ${this.kontoName(ep.konto)} ist noch nicht angemeldet.`;
+    }
+    if (u.art === 'pr' && ep.pr && /geschlossen/.test(u.kurz)) {
+      const info = this.prInfo(ep.pr);
+      return info && info.state !== 'OPEN' ? `${um}: PR #${ep.pr} ist noch nicht offen.` : null;
+    }
+    if (u.art === 'konflikt' && ep.pr) {
+      const info = this.prInfo(ep.pr);
+      if (!info) return null;
+      await this.w.langsam('git', ['-C', this.e.repo, 'fetch', '-q', 'origin', info.baseRefName, info.headRefName], { timeoutMs: 5 * 60_000 });
+      const r = this.w.aufrufer('git', ['-C', this.e.repo, 'merge-tree', '--write-tree', `origin/${info.baseRefName}`, `origin/${info.headRefName}`]);
+      return r.code === 1 ? `${um}: der Konflikt mit ${info.baseRefName} besteht noch.` : null;
+    }
+    return null;
   }
 
   /**
@@ -3859,6 +4180,7 @@ class Treiber {
       let g = await this.nachziehen(ep, nachweis);
       if (this.nochmal(ep, g)) g = await this.nachziehen(ep, nachweis);
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
+      if (g.art === 'zurueck' && !g.basis && info && (await this.mainPruefen(ep, info.baseRefName))) return;
       if (g.art === 'zurueck') return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
       selbst = true;
     }
@@ -3902,6 +4224,8 @@ class Treiber {
       }
       if (g.art === 'mensch') return this.prBereit(ep, g.text);
       if (this.nochmal(ep, g)) continue;
+      // #243: red in a context the base alone is red in too: the mission waits for the base, it does not go back
+      if (!g.basis && info && (await this.mainPruefen(ep, info.baseRefName))) return;
       return this.zurueck(ep, g.text, g.basis ? 'basis' : 'lauf');
     }
   }
@@ -3973,6 +4297,8 @@ class Treiber {
       ep.basisKonflikte = (ep.basisKonflikte ?? 0) + 1;
       if (ep.basisKonflikte >= BASIS_GRENZE) return this.halt(ep, 'blockiert', `Nachziehen der Basis nach ${BASIS_GRENZE} Konflikten weiter nicht möglich:\n\n${text}`);
       zaehler = `Konflikt mit der Basis ${ep.basisKonflikte} von ${BASIS_GRENZE}, zählt nicht gegen den Lauf`;
+      // #243: the fleet repairs it itself: a yellow line under "Unterwegs", no card, no push
+      ep.ursache = konfliktSelbst(ep.nr, new Date(this.w.jetzt()).toISOString());
     } else {
       ep.mergeVersuche = (ep.mergeVersuche ?? 0) + 1;
       if (ep.mergeVersuche > 2) return this.halt(ep, 'blockiert', `Andocken nach zwei Nachbesserungen weiter nicht möglich:\n\n${text}`);
@@ -4141,7 +4467,7 @@ class Treiber {
     const lage = `Ursache (merge.ps1): ${ursache}\nVersucht: ${versucht.join('; ')}`;
     // never two open questions about docking per mission
     this.andockFragenSchliessen(ep.nr, 'überholt: eine neue Frage zum Andocken');
-    this.z.fragen.push({ epic: nr, nr: ANDOCK_FRAGE, frage, lage, optionen, grund, herkunft: 'Treiber: Andocken fehlgeschlagen', marke: 'Andocken', betrifft: 'Lauf', roh: frage, empfehlung, wartet: 'das Andocken', ganzerLauf: true, seit: new Date(this.w.jetzt()).toISOString() });
+    this.z.fragen.push({ epic: nr, nr: ANDOCK_FRAGE, frage, kurz: `Andocken von PR #${ep.pr} fehlgeschlagen, wie weiter?`, lage, optionen, grund, herkunft: 'Treiber: Andocken fehlgeschlagen', marke: 'Andocken', betrifft: 'Lauf', roh: frage, empfehlung, wartet: 'das Andocken', ganzerLauf: true, seit: new Date(this.w.jetzt()).toISOString() });
     kommentar(this.forge, nr, `**FRAGE AN DEN MENSCHEN (Flotte)** — ${frage}\n${lage}\nOptionen: ${optionen.map((o) => `${o.buchstabe}) ${o.text}`).join(' — ')}\nEmpfehlung: ${empfehlung} (${grund})\nAntworten, im Repository: \`flotte antworten . ${nr} ${ANDOCK_FRAGE} "<A, B oder C>"\``);
     ep.notiz = `PR #${ep.pr}: Andocken fehlgeschlagen, Frage an dich (${ursache})`;
     this.ereignis(nr, `❓ Andocken fehlgeschlagen (${ursache}): Frage ${ANDOCK_FRAGE} an den Menschen, Empfehlung ${empfehlung}`);
@@ -4192,6 +4518,7 @@ class Treiber {
 
   async nachMerge(ep: FlottenEpic): Promise<void> {
     ep.stufe = 'gemergt';
+    ep.ursache = null;
     // #229: a person docked without answering the driver's question about it
     this.andockFragenSchliessen(ep.nr, 'von Hand angedockt');
     for (const befehl of this.adapter.nach_merge) {

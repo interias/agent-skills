@@ -11,7 +11,7 @@ Der Frageblock, mit dem ein Lauf seinen Zug beendet:
 
 ```
 FLOTTE-FRAGE <epic> <phase: tor | nacharbeit | abbruch | ram>
-1. <Frage> — Betrifft: <Pakete samt Nachfolgern | Lauf> — Lage: <Sachverhalt mit Fundstellen> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR>
+1. <Frage> — Betrifft: <Pakete samt Nachfolgern | Lauf> — Lage: <Sachverhalt mit Fundstellen> — Optionen: A) <…, Folge> B) <…, Folge> — Empfehlung: <Buchstabe> — Grund: <ein Satz> — Regel/Quelle: <Skill, Adapter, ADR> — Kurz: <die Frage in einem Satz, höchstens 90 Zeichen>
 2. …
 STAND: <ein Satz, wo der Lauf steht>  TAFEL: <URL der Lauftafel>
 ```
@@ -21,6 +21,9 @@ Eine Frage darf auch als Überschrift mit Folgezeilen kommen (`Q1 — <Frage>`, 
 als Felder (auch fett, `**Lage:** …`), Optionen als Liste `- A) …` oder `- **A)** …`. Lässt sich ein
 Block gar nicht in Fragen zerlegen, geht sein Wortlaut als eine Frage an den Admiral, nicht gleich an
 den Menschen.
+
+`Kurz` ist die Frage als ganzer Satz von höchstens 90 Zeichen, so wie sie auf der Karte „Braucht dich“
+und in der Push-Meldung steht (#243); länger oder ohne das Feld zeigt die Brücke die Frage selbst.
 
 Optionen sind Großbuchstaben ab `A`, beliebig viele. Darf die Antwort mehrere Optionen zugleich
 wählen, steht nach den Optionen `— Auswahl: mehrere`; die Empfehlung nennt dann alle Buchstaben,

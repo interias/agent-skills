@@ -157,6 +157,30 @@ details.wortlaut .roh { margin-top: 4px; }
 .frage .kopfz .nr { color: var(--lila); }
 .blockade { border-left-color: var(--rot); }
 .blockade .kopfz .nr, .blockade .kopfz .art { color: var(--rot); }
+/* #243: the card of a cause: pill, what (one line), who, the step; "Dein Schritt bald" yellow; the fleet's own repairs a line */
+.pill { display: inline-block; padding: 0 8px; border-radius: var(--rund); background: var(--rot); color: #000; font: 700 12px/20px var(--disp); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.karte.bald { border-left-color: var(--gold); }
+.bald .pill { background: var(--gold); }
+.bald .kopfz .nr { color: var(--gold); }
+.was { margin: 0; font: 600 16px/1.3 var(--lesen); overflow-wrap: anywhere; }
+.zeilen { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; margin: 0; font: 13.5px/1.4 var(--lesen); }
+.zeilen dt { color: var(--leise); font: 600 12px/20px var(--disp); letter-spacing: .06em; text-transform: uppercase; }
+.zeilen dd { margin: 0; overflow-wrap: anywhere; }
+.u-schritt { padding: 7px 10px; border-left: 3px solid var(--rot); border-radius: 0 8px 8px 0; background: var(--flaeche2); font: 14px/1.4 var(--lesen); overflow-wrap: anywhere; }
+.u-schritt b { color: var(--lila); font-weight: 600; }
+.befehl { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.befehl code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 4px 8px; border-radius: 6px; background: #05050a; font: 12.5px ui-monospace, Consolas, monospace; }
+.geprueft { margin: 0; color: var(--gelb); font: 13px/1.4 var(--lesen); }
+.betrifft { margin: 0; color: var(--matt); font: 13px/1.4 var(--lesen); overflow-wrap: anywhere; }
+details.falte > summary { cursor: pointer; color: var(--himmel); text-transform: uppercase; letter-spacing: .06em; font-size: 11px; padding: 4px 0; }
+details.falte > *:not(summary) { margin-top: 4px; }
+.fehler { margin: 0; padding: 6px 8px; background: #05050a; border-radius: 6px; font: 12px/1.45 ui-monospace, Consolas, monospace; color: var(--matt); white-space: pre-wrap; overflow-wrap: anywhere; }
+.quelle { margin: 0; color: var(--leise); font: 12px/1.4 var(--lesen); }
+.selbst-liste { display: grid; gap: 6px; margin-top: 8px; }
+.selbst-liste:empty { display: none; }
+.selbst { display: flex; gap: 10px; align-items: baseline; margin: 0; padding: 7px 10px; border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; background: var(--flaeche); font: 13px/1.4 var(--lesen); overflow-wrap: anywhere; }
+.selbst b { color: var(--gold); font: 600 12px var(--disp); letter-spacing: .06em; text-transform: uppercase; flex: none; }
+.selbst small { color: var(--matt); }
 
 .marken { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .m { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; padding: 1px 9px; border-radius: 8px; border: 1px solid var(--linie); color: var(--matt); }
