@@ -407,6 +407,9 @@ export class Bruecke {
     readonly zeitMs = 3000,
   ) {}
 
+  /** #244: why the last call failed (an error code like UNABLE_TO_VERIFY_LEAF_SIGNATURE, HTTP 503), null after a success */
+  fehler: string | null = null;
+
   async rufe(pfad: string, init: RequestInit = {}, zeitMs = this.zeitMs): Promise<unknown> {
     try {
       const r = await fetch(new URL(pfad, this.url.endsWith('/') ? this.url : `${this.url}/`), {
@@ -414,9 +417,16 @@ export class Bruecke {
         headers: { 'Content-Type': 'application/json', ...(this.token ? { 'X-Bruecke-Token': this.token } : {}) },
         signal: AbortSignal.timeout(zeitMs),
       });
-      if (!r.ok) return undefined;
-      return await r.json();
-    } catch {
+      if (!r.ok) {
+        this.fehler = `HTTP ${r.status}`;
+        return undefined;
+      }
+      const json = await r.json();
+      this.fehler = null;
+      return json;
+    } catch (e) {
+      const code = (e as { code?: unknown })?.code;
+      this.fehler = typeof code === 'string' ? code : ((e as Error)?.name ?? String(e));
       return undefined;
     }
   }

@@ -956,6 +956,8 @@ class Treiber {
       const unklar = lebt(pid) && !derselbe && (seit === null || ep.pidSeit == null);
       const verfolgen = derselbe || unklar;
       this.ereignis(ep.nr, verfolgen ? `Lauf (pid ${pid}) lebt noch: wird beobachtet, nicht neu gestartet` : `Lauf (pid ${pid}) endete ohne Treiber: Ergebnis aus dem Log`);
+      // #244: the idle limit of a run followed counts from now; the time on the bridge with it, not the step before the restart
+      if (verfolgen) ep.schrittZeit = new Date(this.w.jetzt()).toISOString();
       const log = ep.log && existsSync(ep.log) ? ep.log : this.leeresLog(ep.nr);
       const p = beobachte({ log, pid: verfolgen ? pid : null, leerlaufMs: this.e.leerlaufMs, konto: ep.konto ?? this.e.konten[0], beenden: derselbe, werkzeuge: laufWerkzeuge, beiSchritt: (s) => this.schritt(ep, s), beiZeile: (z, t) => this.agentZeile(ep, z, t, true), belebt: () => this.gateBelebt(ep) })
         .then((r) => {
@@ -1221,6 +1223,9 @@ class Treiber {
    * the `task_notification` of a background agent pass (all carry `"tool_use`, the latter as `"tool_use_id"`).
    */
   agentZeile(ep: FlottenEpic, zeile: string, zeit: number, nachlese: boolean): void {
+    // #244: a log that grows is no silence, even without a new step: the time on the bridge is that of its last line,
+    // as the idle limit counts it, so "gleich Leerlauf" never stands while the log grows
+    ep.schrittZeit = new Date(this.w.jetzt()).toISOString();
     if (!this.e.bruecke) return;
     // Tag J: the step in plain words for the card, with the role and package of a subagent by its call
     if (zeile.includes('"type":"assistant"')) {
@@ -3298,7 +3303,7 @@ Dein Schritt bald: ${a.mensch_spaeter}` : text);
   brueckeErreichbar(ja: boolean): void {
     if (this.brueckeDa === ja) return;
     this.brueckeDa = ja;
-    this.ereignis(null, ja ? `Flottenbrücke erreichbar (${this.e.bruecke})` : `Flottenbrücke nicht erreichbar (${this.e.bruecke}): der Treiber arbeitet ohne sie weiter`);
+    this.ereignis(null, ja ? `Flottenbrücke erreichbar (${this.e.bruecke})` : `Flottenbrücke nicht erreichbar (${this.e.bruecke}): ${this.bruecke?.fehler ? `${this.bruecke.fehler}, ` : ''}der Treiber arbeitet ohne sie weiter`);
   }
 
   /**

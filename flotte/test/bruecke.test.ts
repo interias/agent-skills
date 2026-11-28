@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -246,6 +246,31 @@ describe('Flottenbrücke (#28)', () => {
     const z = await fahre(t.einstellung(buch, [3], { bruecke: 'http://127.0.0.1:9' }), t.welt);
     expect(z.epics['3'].stufe).toBe('fertig');
     expect(t.p.meldungen.filter((m) => /Flottenbrücke nicht erreichbar/.test(m))).toHaveLength(1);
+    // #244: the reason stands in the log, not swallowed
+    expect(t.p.meldungen.some((m) => /^Flottenbrücke nicht erreichbar \(http:\/\/127\.0\.0\.1:9\): ConnectionRefused, der Treiber arbeitet ohne sie weiter$/.test(m))).toBe(true);
+  }, T);
+
+  it('#244: a bridge that refuses at first: the log says why, then the change to erreichbar', async () => {
+    let n = 0;
+    const server = createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(n++ < 2 ? 503 : 200, { 'Content-Type': 'application/json' });
+        res.end(req.url?.startsWith('/api/antworten') || req.url?.startsWith('/api/handlungen') ? '[]' : '{"ok":true}');
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      const t = aufbau();
+      const buch = drehbuch([lauf(3, [{ warte: 1500 }, { text: ende(3, 13) }])]);
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: url }), t.welt);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      const wechsel = t.p.meldungen.filter((m) => m.startsWith('Flottenbrücke'));
+      expect(wechsel.slice(0, 2)).toEqual([`Flottenbrücke nicht erreichbar (${url}): HTTP 503, der Treiber arbeitet ohne sie weiter`, `Flottenbrücke erreichbar (${url})`]);
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   }, T);
 
   it('#152: a block that does not parse goes to the admiral first; he decides, the person is not asked', async () => {
@@ -674,6 +699,49 @@ describe('Flottenbrücke (#28)', () => {
       expect(bericht.epics.find((e) => e.nr === 3)!.nach).toEqual([]);
       for (const x of b.berichte) for (const e of x.epics) expect(Array.isArray(e.nach)).toBe(true);
     } finally {
+      await b.zu();
+    }
+  }, T);
+
+  it('#244: a run taken over after a restart: step and time on the bridge follow its log; a log that grows keeps the time fresh', async () => {
+    const b = await attrappe(() => null);
+    const kind = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 4000)'], { stdio: 'ignore' });
+    try {
+      const t = aufbau();
+      const dir = flotteDir(t.repo);
+      const log = join(dir, 'alt.jsonl');
+      const schritt = (befehl: string, unter = false) => JSON.stringify({ type: 'assistant', session_id: 's3', parent_tool_use_id: unter ? 'toolu_a' : null, message: { content: [{ type: 'tool_use', id: `t${befehl}`, name: 'Bash', input: { command: befehl } }] } });
+      const ergebnis = JSON.stringify({ type: 'user', session_id: 's3', parent_tool_use_id: 'toolu_a', message: { content: [{ type: 'tool_result', tool_use_id: 'tx', content: 'rendert …' }] } });
+      writeFileSync(log, `${schritt('vor dem Neustart')}\n`);
+      const z0 = leer(t.repo);
+      // a living run of the driver before; its start time cannot be compared, so it is followed, never killed
+      z0.epics['3'] = { ...neuesEpic(3), stufe: 'laeuft', konto: t.konten[0], sitzung: 's3', pid: kind.pid, log, schritt: 'vor dem Neustart', schrittZeit: new Date(Date.now() - 3_600_000).toISOString() } as never;
+      schreibeZustand(dir, z0);
+      const buch = drehbuch([lauf(3, [{ text: ende(3, 13) }])]);
+      let neuSeit = 0;
+      let wachstSeit = 0;
+      void (async () => {
+        while (!b.berichte.length) await new Promise((r) => setTimeout(r, 25));
+        appendFileSync(log, `${schritt('python render.py', true)}\n`);
+        neuSeit = Date.now();
+        await new Promise((r) => setTimeout(r, 1200));
+        // the log grows with output of the same step: no new step, but no silence either
+        wachstSeit = Date.now();
+        appendFileSync(log, `${ergebnis}\n${ergebnis}\n`);
+        await new Promise((r) => setTimeout(r, 600));
+        appendFileSync(log, `${JSON.stringify({ type: 'result', subtype: 'success', session_id: 's3', is_error: false, result: ende(3, 13), permission_denials: [] })}\n`);
+      })();
+      const z = await fahre(t.einstellung(buch, [3], { bruecke: b.url }), t.welt);
+      expect(buch.gesehen()).toHaveLength(0);
+      expect(z.epics['3'].stufe).toBe('fertig');
+      const laufend = b.berichte.map((x) => x.epics.find((e) => e.nr === 3)!).filter((e) => e.prozess);
+      // the first report after the takeover shows the time of the takeover, from which the idle limit counts, not the hour-old step
+      expect(Date.parse(laufend[0].schrittZeit!)).toBeGreaterThan(Date.now() - 60_000);
+      const neu = laufend.find((e) => /python render\.py/.test(e.schritt ?? ''))!;
+      expect(Date.parse(neu.schrittZeit!)).toBeGreaterThanOrEqual(neuSeit - 50);
+      expect(laufend.some((e) => /python render\.py/.test(e.schritt ?? '') && Date.parse(e.schrittZeit!) >= wachstSeit)).toBe(true);
+    } finally {
+      kind.kill();
       await b.zu();
     }
   }, T);
